@@ -24,7 +24,7 @@ import {
   PiggyBank,
   MessageCircle
 } from 'lucide-react';
-import type { Member, FamilyEvent, Dish, NotificationAlert } from '../types';
+import type { Member, FamilyEvent, Dish, NotificationAlert, ChatGroup, ChatMessage } from '../types';
 
 interface AccueilProps {
   members: Member[];
@@ -45,6 +45,9 @@ interface AccueilProps {
   };
   activeMemberId?: string;
   onProfileSwitcherOpen?: () => void;
+  chatGroups: ChatGroup[];
+  chatMessages: ChatMessage[];
+  onEventClick: (dateStr: string) => void;
 }
 
 export const Accueil: React.FC<AccueilProps> = ({
@@ -60,13 +63,23 @@ export const Accueil: React.FC<AccueilProps> = ({
   onAlertsClick,
   quickBalance,
   activeMemberId = '1',
-  onProfileSwitcherOpen
+  onProfileSwitcherOpen,
+  chatGroups,
+  chatMessages,
+  onEventClick
 }) => {
   const [showBalance, setShowBalance] = useState(true);
   const [selectedMealDay, setSelectedMealDay] = useState<string>('Lun');
 
   const activeMember = members.find(m => m.id === activeMemberId) || members[0];
   const isChild = activeMemberId === '3' || activeMemberId === '4';
+
+  // Compute unread messages count
+  const unreadMessagesCount = chatMessages.filter(m => {
+    const group = chatGroups.find(g => g.id === m.groupId);
+    if (!group || !group.memberIds.includes(activeMemberId)) return false;
+    return !m.readBy.includes(activeMemberId);
+  }).length;
 
   // Gamified allowance balances for kids
   const pocketMoneyBalance = activeMemberId === '3' ? 15.00 : activeMemberId === '4' ? 22.50 : 0;
@@ -279,11 +292,17 @@ export const Accueil: React.FC<AccueilProps> = ({
             <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#00D26A] to-[#6C5CFF] flex items-center justify-center shadow-lg">
               <MessageCircle className="w-7 h-7 text-white" />
             </div>
-            <span className="absolute top-0 right-0 w-4 h-4 bg-[#FF4D6D] border-2 border-[#07111F] rounded-full animate-pulse"></span>
+            {unreadMessagesCount > 0 && (
+              <span className="absolute top-0 right-0 w-4 h-4 bg-[#FF4D6D] border-2 border-[#07111F] rounded-full animate-pulse"></span>
+            )}
           </div>
           <div>
             <h3 className="text-lg font-extrabold text-white tracking-tight">Messagerie Familiale</h3>
-            <p className="text-xs text-[#00D26A] font-medium mt-0.5">1 nouveau message vocal</p>
+            <p className={`text-xs font-medium mt-0.5 ${unreadMessagesCount > 0 ? 'text-[#00D26A]' : 'text-white/40'}`}>
+              {unreadMessagesCount > 0 
+                ? `${unreadMessagesCount} nouveau${unreadMessagesCount > 1 ? 'x' : ''} message${unreadMessagesCount > 1 ? 's' : ''}` 
+                : 'Ouvrir les discussions'}
+            </p>
           </div>
         </div>
         <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">
@@ -332,18 +351,24 @@ export const Accueil: React.FC<AccueilProps> = ({
               : event.description || 'Événement familial';
 
             return (
-              <div key={event.id} className="glass-panel rounded-[28px] p-4 flex items-center justify-between border border-white/8 transition-all hover:bg-white/8">
+              <button 
+                key={event.id} 
+                onClick={() => onEventClick(event.dateTime)}
+                className="w-full text-left glass-panel rounded-[28px] p-4 flex items-center justify-between border border-white/8 transition-all hover:bg-white/10 cursor-pointer"
+              >
                 <div className="flex items-center space-x-3">
-                  <div className={`p-3 rounded-[18px] ${colorClass} border`}>
+                  <div className={`p-3 rounded-[18px] ${colorClass} border shrink-0`}>
                     <ActiveIcon className="w-5 h-5" />
                   </div>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-white">{event.title}</h4>
-                    <p className="text-[11px] text-white/50 font-medium truncate max-w-[150px] sm:max-w-[200px]">{sub}</p>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-xs sm:text-sm font-bold text-white truncate">{event.title}</h4>
+                    <p className="text-[11px] text-white/50 font-medium truncate">{sub}</p>
                   </div>
                 </div>
-                {badgeEl}
-              </div>
+                <div className="shrink-0 ml-2">
+                  {badgeEl}
+                </div>
+              </button>
             );
           })}
 

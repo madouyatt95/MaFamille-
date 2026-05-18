@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calendar as CalendarIcon, 
   Plus, 
@@ -20,6 +20,7 @@ interface AgendaProps {
   onToggleEventDone: (id: string) => void;
   onMoveEvent: (eventId: string, newDate: string) => void;
   activeMemberId?: string;
+  defaultSelectedDate?: string;
 }
 
 export const Agenda: React.FC<AgendaProps> = ({
@@ -28,14 +29,22 @@ export const Agenda: React.FC<AgendaProps> = ({
   onAddEventClick,
   onToggleEventDone,
   onMoveEvent,
-  activeMemberId = '1'
+  activeMemberId = '1',
+  defaultSelectedDate
 }) => {
-  const [selectedDate, setSelectedDate] = useState<string>('2026-05-18');
+  const [selectedDate, setSelectedDate] = useState<string>(defaultSelectedDate || '2026-05-18');
   const [viewType, setViewType] = useState<'month' | 'week'>('month');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('all');
   const [selectedMemberFilter, setSelectedMemberFilter] = useState<string>('all');
   const [googleSynced, setGoogleSynced] = useState(false);
   const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    if (defaultSelectedDate) {
+      setSelectedDate(defaultSelectedDate);
+      setViewType('week');
+    }
+  }, [defaultSelectedDate]);
 
   const isChild = activeMemberId === '3' || activeMemberId === '4';
 

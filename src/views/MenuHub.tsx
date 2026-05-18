@@ -45,7 +45,9 @@ import type {
   MemoryLog,
   FamilyVote,
   SchoolTask,
-  Dish
+  Dish,
+  ChatGroup,
+  ChatMessage
 } from '../types';
 
 // Import newly built premium sub-modules
@@ -102,6 +104,10 @@ interface MenuHubProps {
   setSchoolTasks: React.Dispatch<React.SetStateAction<SchoolTask[]>>;
   dishes: Dish[];
   setDishes: React.Dispatch<React.SetStateAction<Dish[]>>;
+  chatGroups: ChatGroup[];
+  setChatGroups: React.Dispatch<React.SetStateAction<ChatGroup[]>>;
+  chatMessages: ChatMessage[];
+  setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
 }
 
 export const MenuHub: React.FC<MenuHubProps> = ({
@@ -140,7 +146,11 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   schoolTasks,
   setSchoolTasks,
   dishes,
-  setDishes
+  setDishes,
+  chatGroups,
+  setChatGroups,
+  chatMessages,
+  setChatMessages
 }) => {
   const [newGroceryName, setNewGroceryName] = useState('');
   const [newGroceryCat, setNewGroceryCat] = useState('Épicerie');
@@ -680,7 +690,14 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
       {/* SUB-MODULE 1.5: Messagerie */}
       {activeModule === 'messagerie' && (
-        <Messagerie members={members} activeMemberId={activeMemberId} />
+        <Messagerie 
+          members={members} 
+          activeMemberId={activeMemberId} 
+          groups={chatGroups}
+          setGroups={setChatGroups}
+          messages={chatMessages}
+          setMessages={setChatMessages}
+        />
       )}
 
       {/* SUB-MODULE 2: Santé */}

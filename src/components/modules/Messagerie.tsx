@@ -5,11 +5,20 @@ import type { Member, ChatMessage, ChatGroup } from '../../types';
 interface MessagerieProps {
   members: Member[];
   activeMemberId: string;
+  groups: ChatGroup[];
+  setGroups: React.Dispatch<React.SetStateAction<ChatGroup[]>>;
+  messages: ChatMessage[];
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
 }
 
-export const Messagerie: React.FC<MessagerieProps> = ({ members, activeMemberId }) => {
-  const [groups, setGroups] = useState<ChatGroup[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+export const Messagerie: React.FC<MessagerieProps> = ({ 
+  members, 
+  activeMemberId,
+  groups,
+  setGroups,
+  messages,
+  setMessages
+}) => {
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   
   const [newMessage, setNewMessage] = useState('');
@@ -18,29 +27,28 @@ export const Messagerie: React.FC<MessagerieProps> = ({ members, activeMemberId 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const activeUser = members.find(m => m.id === activeMemberId);
-  const isParent = activeUser?.role === 'parent';
 
-  // Initialize Demo Data
+  // Initialization of groups is handled by App.tsx. 
+  // We can just automatically select the first group if none is selected.
   useEffect(() => {
-    const parentIds = members.filter(m => m.role === 'parent').map(m => m.id);
-    const allIds = members.map(m => m.id);
-
-    const defaultGroups: ChatGroup[] = [
-      { id: 'g_family', name: 'Famille ❤️', isPrivate: false, memberIds: allIds, lastMessage: 'À table dans 10 min !', lastMessageTime: '19:45' },
-    ];
-    if (isParent) {
-      defaultGroups.push({ id: 'g_parents', name: 'Parents (Secret)', isPrivate: true, memberIds: parentIds, lastMessage: 'Tu as payé la facture ?', lastMessageTime: '14:20' });
+    if (!activeGroupId && groups.length > 0) {
+      setActiveGroupId(groups[0].id);
     }
+  }, [groups, activeGroupId]);
 
-    setGroups(defaultGroups);
-
-    // Some demo messages
-    setMessages([
-      { id: 'm1', groupId: 'g_family', senderId: members.find(m => m.role === 'parent')?.id || '1', senderName: members.find(m => m.role === 'parent')?.name || 'Parent', type: 'text', content: 'N\'oubliez pas vos affaires de sport demain !', timestamp: '18:30', readBy: allIds },
-      { id: 'm2', groupId: 'g_family', senderId: members.find(m => m.role === 'child')?.id || '3', senderName: members.find(m => m.role === 'child')?.name || 'Enfant', type: 'text', content: 'Oui c\'est déjà dans le sac 🎒', timestamp: '18:35', readBy: allIds },
-      { id: 'm3', groupId: 'g_family', senderId: members.find(m => m.role === 'parent')?.id || '1', senderName: members.find(m => m.role === 'parent')?.name || 'Parent', type: 'text', content: 'À table dans 10 min !', timestamp: '19:45', readBy: [activeMemberId] },
-    ]);
-  }, [members, isParent, activeMemberId]);
+  // Mark group messages as read by activeMemberId
+  useEffect(() => {
+    if (!activeGroupId || !activeMemberId) return;
+    const hasUnread = messages.some(m => m.groupId === activeGroupId && !m.readBy.includes(activeMemberId));
+    if (hasUnread) {
+      setMessages(prev => prev.map(m => {
+        if (m.groupId === activeGroupId && !m.readBy.includes(activeMemberId)) {
+          return { ...m, readBy: [...m.readBy, activeMemberId] };
+        }
+        return m;
+      }));
+    }
+  }, [activeGroupId, activeMemberId, messages, setMessages]);
 
   // Scroll to bottom when messages change
   useEffect(() => {

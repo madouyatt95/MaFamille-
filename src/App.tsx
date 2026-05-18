@@ -15,7 +15,9 @@ import {
   demoAlerts,
   demoMemories,
   demoFamilyVotes,
-  demoSchoolTasks
+  demoSchoolTasks,
+  demoChatGroups,
+  demoChatMessages
 } from './data/demoData';
 import type { 
   Member, 
@@ -130,6 +132,18 @@ function App() {
     return val ? JSON.parse(val) : demoAlerts;
   });
 
+  const [chatGroups, setChatGroups] = useState(() => {
+    const val = localStorage.getItem('mf_chat_groups');
+    return val ? JSON.parse(val) : demoChatGroups;
+  });
+
+  const [chatMessages, setChatMessages] = useState(() => {
+    const val = localStorage.getItem('mf_chat_messages');
+    return val ? JSON.parse(val) : demoChatMessages;
+  });
+
+  const [agendaSelectedDate, setAgendaSelectedDate] = useState<string>('');
+
   // Settings State
   const [currency, setCurrency] = useState(() => {
     return localStorage.getItem('mf_currency') || 'EUR (€)';
@@ -237,6 +251,14 @@ function App() {
   useEffect(() => {
     localStorage.setItem('mf_alerts', JSON.stringify(alerts));
   }, [alerts]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_chat_groups', JSON.stringify(chatGroups));
+  }, [chatGroups]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_chat_messages', JSON.stringify(chatMessages));
+  }, [chatMessages]);
 
   useEffect(() => {
     localStorage.setItem('mf_currency', currency);
@@ -442,6 +464,8 @@ function App() {
     setGroceries(demoGroceries);
     setSavingGoals(demoSavingGoals);
     setAlerts(demoAlerts);
+    setChatGroups(demoChatGroups);
+    setChatMessages(demoChatMessages);
     setCurrency('EUR (€)');
     setSyncActive(false);
     setSupabaseUrl('');
@@ -471,6 +495,12 @@ function App() {
           onMenuClick={() => setSidebarOpen(true)}
           onAlertsClick={() => setAlertsPanelOpen(true)}
           quickBalance={getQuickBalances()}
+          chatGroups={chatGroups}
+          chatMessages={chatMessages}
+          onEventClick={(dateStr) => {
+            setAgendaSelectedDate(dateStr.split('T')[0]);
+            setActiveTab('agenda');
+          }}
         />
       );
     }
@@ -487,6 +517,7 @@ function App() {
           }}
           onToggleEventDone={handleToggleEventDone}
           onMoveEvent={handleMoveEvent}
+          defaultSelectedDate={agendaSelectedDate}
         />
       );
     }
@@ -593,6 +624,10 @@ function App() {
           onEditGroceryItem={handleEditGroceryItem}
           setActiveTab={setActiveTab}
           activeMemberId={activeMemberId}
+          chatGroups={chatGroups}
+          setChatGroups={setChatGroups}
+          chatMessages={chatMessages}
+          setChatMessages={setChatMessages}
           memories={memories}
           setMemories={setMemories}
           votes={votes}

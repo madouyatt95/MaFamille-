@@ -14,7 +14,9 @@ import type {
   NotificationAlert,
   MemoryLog,
   FamilyVote,
-  SchoolTask
+  SchoolTask,
+  ChatGroup,
+  ChatMessage
 } from '../types';
 
 
@@ -401,3 +403,13 @@ export const demoSchoolTasks: SchoolTask[] = [
   }
 ];
 
+export const demoChatGroups: ChatGroup[] = [
+  { id: 'g_family', name: 'Famille ❤️', isPrivate: false, memberIds: ['1', '2', '3', '4', '5'], lastMessage: 'À table dans 10 min !', lastMessageTime: '19:45' },
+  { id: 'g_parents', name: 'Parents (Secret)', isPrivate: true, memberIds: ['1', '2'], lastMessage: 'Tu as payé la facture ?', lastMessageTime: '14:20' }
+];
+
+export const demoChatMessages: ChatMessage[] = [
+  { id: 'm1', groupId: 'g_family', senderId: '1', senderName: 'Papa', type: 'text', content: 'N\'oubliez pas vos affaires de sport demain !', timestamp: '18:30', readBy: ['1', '2', '3', '4', '5'] },
+  { id: 'm2', groupId: 'g_family', senderId: '3', senderName: 'Amadou', type: 'text', content: 'Oui c\'est déjà dans le sac 🎒', timestamp: '18:35', readBy: ['1', '2', '3', '4', '5'] },
+  { id: 'm3', groupId: 'g_family', senderId: '2', senderName: 'Maman', type: 'text', content: 'À table dans 10 min !', timestamp: '19:45', readBy: ['1', '2'] }, // Not read by Amadou (3), Awa (4), Fatou (5)
+];
