@@ -17,7 +17,39 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
   activeMemberId 
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'sondages' | 'charte'>('sondages');
+  const isParent = activeMemberId === '1' || activeMemberId === '2';
   
+  // Form states for adding new polls
+  const [newQuestion, setNewQuestion] = useState('');
+  const [newOpt1, setNewOpt1] = useState('');
+  const [newOpt2, setNewOpt2] = useState('');
+  const [newDueDate, setNewDueDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 7);
+    return date.toISOString().split('T')[0];
+  });
+
+  const handleAddPoll = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newQuestion || !newOpt1 || !newOpt2) return;
+    const newPoll: FamilyVote = {
+      id: `poll-${Date.now()}`,
+      question: newQuestion,
+      dueDate: new Date(newDueDate).toLocaleDateString('fr-FR'),
+      authorName: memberName,
+      active: true,
+      options: [
+        { text: newOpt1, votes: [] },
+        { text: newOpt2, votes: [] }
+      ]
+    };
+    setVotes(prev => [...prev, newPoll]);
+    setNewQuestion('');
+    setNewOpt1('');
+    setNewOpt2('');
+    alert("🗳️ Nouveau scrutin démocratique publié avec succès au Conseil de Famille !");
+  };
+
   // Charter signatures state
   const [signatures, setSignatures] = useState({
     papa: true,
@@ -125,9 +157,39 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
 
               return (
                 <div key={poll.id} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
-                  <div>
-                    <h3 className="text-sm font-extrabold text-white leading-relaxed">{poll.question}</h3>
-                    <p className="text-[10px] text-white/40 mt-1">Limite: {poll.dueDate} • {totalVotedCount} vote(s) exprimé(s)</p>
+                  <div className="flex justify-between items-start border-b border-white/5 pb-3">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-white leading-relaxed">{poll.question}</h3>
+                      <p className="text-[10px] text-white/40 mt-1">Limite: {poll.dueDate} • {totalVotedCount} vote(s) exprimé(s)</p>
+                    </div>
+                    {isParent && (
+                      <div className="flex space-x-1 bg-white/5 p-1 rounded-xl border border-white/5 ml-4">
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const newQ = window.prompt("Modifier la question du conseil :", poll.question);
+                            if (!newQ) return;
+                            setVotes(prev => prev.map(p => p.id === poll.id ? { ...p, question: newQ } : p));
+                          }}
+                          className="p-1 hover:bg-white/10 rounded text-[10px] font-bold"
+                          title="Modifier"
+                        >
+                          ✏️
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm("Supprimer ce scrutin du conseil ?")) {
+                              setVotes(prev => prev.filter(p => p.id !== poll.id));
+                            }
+                          }}
+                          className="p-1 hover:bg-red-500/10 rounded text-[10px] text-red-400 font-bold"
+                          title="Supprimer"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2.5">
@@ -169,6 +231,73 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
               );
             })}
           </div>
+
+          {/* Formulaire d'ajout de scrutin pour parents */}
+          {isParent && (
+            <form onSubmit={handleAddPoll} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 my-6">
+              <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block flex items-center space-x-1.5">
+                <span>Ajouter un nouveau sujet de vote 🗳️</span>
+              </span>
+              
+              <div className="space-y-3 text-left">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Question / Sujet de Conseil</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="Ex: Quelle destination pour notre pique-nique de dimanche ?" 
+                    value={newQuestion}
+                    onChange={(e) => setNewQuestion(e.target.value)}
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Option de vote A</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Ex: La plage de Somone 🏖️" 
+                      value={newOpt1}
+                      onChange={(e) => setNewOpt1(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Option de vote B</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Ex: La forêt de Popenguine 🌳" 
+                      value={newOpt2}
+                      onChange={(e) => setNewOpt2(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Date de clôture du vote</label>
+                  <input 
+                    type="date" 
+                    required
+                    value={newDueDate}
+                    onChange={(e) => setNewDueDate(e.target.value)}
+                    className="w-full bg-[#07111F] border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3.5 rounded-[18px] bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white font-extrabold text-xs shadow-md cursor-pointer transition-all hover:opacity-95 flex items-center justify-center space-x-2"
+              >
+                <span>Créer le Scrutin de Famille</span>
+              </button>
+            </form>
+          )}
         </div>
       )}
 

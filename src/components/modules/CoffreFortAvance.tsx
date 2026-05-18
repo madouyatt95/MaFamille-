@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, Briefcase, Car, Home, Plane, CreditCard, User, AlertTriangle, ArrowLeft, Trash2, Download } from 'lucide-react';
+import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, Briefcase, Car, Home, Plane, CreditCard, User, AlertTriangle, ArrowLeft, Trash2, Download, Share2 } from 'lucide-react';
 import type { DocumentFile, DocumentCategory, Member } from '../../types';
 
 interface CoffreFortAvanceProps {
@@ -126,6 +126,19 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
       setDocuments(prev => prev.filter(d => d.id !== docId));
       setPreviewDoc(null);
       setSelectedCategory(null);
+    }
+  };
+
+  const handleShareDocument = (doc: DocumentFile) => {
+    if (navigator.share) {
+      navigator.share({
+        title: doc.name,
+        text: `Document partagé de mon coffre-fort : ${doc.name}`,
+        url: window.location.href
+      }).catch(err => console.error(err));
+    } else {
+      navigator.clipboard.writeText(`${window.location.origin}/share/doc/${doc.id}`);
+      alert("📋 Lien du document copié dans le presse-papiers ! Vous pouvez le coller pour le partager.");
     }
   };
 
@@ -457,21 +470,28 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   )}
                 </div>
 
-                {/* Actions: Download / Delete */}
+                {/* Actions: Download / Share / Delete */}
                 <div className="flex gap-2 pt-3 mt-3 border-t border-white/10">
                   {previewDoc.fileBase64 && (
                     <a 
                       href={previewDoc.fileBase64} 
                       download={previewDoc.name}
-                      className="flex-1 py-2.5 bg-[#00D26A]/10 hover:bg-[#00D26A]/20 text-[#00D26A] border border-[#00D26A]/20 font-bold rounded-xl flex items-center justify-center space-x-1.5 transition text-xs cursor-pointer text-center"
+                      className="flex-1 py-2.5 bg-[#00D26A]/10 hover:bg-[#00D26A]/20 text-[#00D26A] border border-[#00D26A]/20 font-bold rounded-xl flex items-center justify-center space-x-1 transition text-[10px] sm:text-xs cursor-pointer text-center"
                     >
                       <Download className="w-3.5 h-3.5 inline-block mr-1" />
                       <span>Télécharger</span>
                     </a>
                   )}
                   <button 
+                    onClick={() => handleShareDocument(previewDoc)}
+                    className="flex-1 py-2.5 bg-[#6C5CFF]/10 hover:bg-[#6C5CFF]/20 text-[#6C5CFF] border border-[#6C5CFF]/20 font-bold rounded-xl flex items-center justify-center space-x-1 transition text-[10px] sm:text-xs cursor-pointer"
+                  >
+                    <Share2 className="w-3.5 h-3.5 inline-block mr-1" />
+                    <span>Partager</span>
+                  </button>
+                  <button 
                     onClick={() => handleDeleteDocument(previewDoc.id)}
-                    className="flex-1 py-2.5 bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 text-[#FF4D6D] border border-[#FF4D6D]/20 font-bold rounded-xl flex items-center justify-center space-x-1.5 transition text-xs cursor-pointer"
+                    className="flex-1 py-2.5 bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 text-[#FF4D6D] border border-[#FF4D6D]/20 font-bold rounded-xl flex items-center justify-center space-x-1 transition text-[10px] sm:text-xs cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5 inline-block mr-1" />
                     <span>Supprimer</span>

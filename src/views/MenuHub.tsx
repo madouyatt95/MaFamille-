@@ -1428,6 +1428,34 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                       <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider mt-0.5">Plaque: {v.plate}</p>
                     </div>
                   </div>
+                  {isParent && (
+                    <div className="flex space-x-1.5">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const newName = window.prompt("Modifier le modèle du véhicule :", v.name);
+                          if (!newName) return;
+                          const newPlate = window.prompt("Modifier la plaque d'immatriculation :", v.plate);
+                          if (!newPlate) return;
+                          setVehicles(prev => prev.map(item => item.id === v.id ? { ...item, name: newName, plate: newPlate } : item));
+                        }}
+                        className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/70 hover:text-white transition text-xs font-bold"
+                      >
+                        ✏️ Modifier
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm("Supprimer ce véhicule ?")) {
+                            setVehicles(prev => prev.filter(item => item.id !== v.id));
+                          }
+                        }}
+                        className="p-2 bg-red-500/10 hover:bg-red-500/20 rounded-xl text-red-400 hover:text-red-300 transition text-xs font-bold"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-xs">
@@ -1551,15 +1579,47 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     <p className="text-[10px] text-white/40 font-medium mt-0.5">Prestataire: {m.provider} • Date: {m.date}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-xl uppercase tracking-wide ${
-                    m.status === 'scheduled' 
-                      ? 'bg-[#FFB020]/10 border border-[#FFB020]/20 text-[#FFB020]' 
-                      : 'bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A]'
-                  }`}>
-                    {m.status === 'scheduled' ? 'Planifié' : 'Effectué'}
-                  </span>
-                  <p className="text-xs font-bold text-white mt-1.5">{formatMoney(m.cost)}</p>
+                <div className="flex items-center space-x-3 text-right">
+                  <div>
+                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-xl uppercase tracking-wide ${
+                      m.status === 'scheduled' 
+                        ? 'bg-[#FFB020]/10 border border-[#FFB020]/20 text-[#FFB020]' 
+                        : 'bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A]'
+                    }`}>
+                      {m.status === 'scheduled' ? 'Planifié' : 'Effectué'}
+                    </span>
+                    <p className="text-xs font-bold text-white mt-1.5">{formatMoney(m.cost)}</p>
+                  </div>
+                  {isParent && (
+                    <div className="flex flex-col space-y-1">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const newTitle = window.prompt("Modifier l'intervention :", m.title);
+                          if (!newTitle) return;
+                          const newProvider = window.prompt("Modifier le prestataire :", m.provider);
+                          if (!newProvider) return;
+                          const newCost = window.prompt("Modifier le coût :", String(m.cost));
+                          if (newCost === null) return;
+                          setMaintenance(prev => prev.map(item => item.id === m.id ? { ...item, title: newTitle, provider: newProvider, cost: Number(newCost) } : item));
+                        }}
+                        className="p-1 hover:bg-white/10 rounded text-[10px] text-white/60 font-bold"
+                      >
+                        ✏️
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm("Supprimer cette intervention ?")) {
+                            setMaintenance(prev => prev.filter(item => item.id !== m.id));
+                          }
+                        }}
+                        className="p-1 hover:bg-red-500/10 rounded text-[10px] text-red-400 font-bold"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -1666,9 +1726,41 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider mt-0.5">Dates: {t.startDate} - {t.endDate}</p>
                   </div>
                 </div>
-                <span className="text-xs font-bold text-[#FF4D6D] bg-[#FF4D6D]/10 px-3 py-1 rounded-xl">
-                  Budget: {formatMoney(t.budget)}
-                </span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-bold text-[#FF4D6D] bg-[#FF4D6D]/10 px-3 py-1 rounded-xl">
+                    Budget: {formatMoney(t.budget)}
+                  </span>
+                  {isParent && (
+                    <div className="flex space-x-1 bg-white/5 p-1 rounded-xl border border-white/5">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const newDest = window.prompt("Modifier la destination :", t.destination);
+                          if (!newDest) return;
+                          const newBudget = window.prompt("Modifier le budget (€) :", String(t.budget));
+                          if (newBudget === null) return;
+                          setTrips(prev => prev.map(item => item.id === t.id ? { ...item, destination: newDest, budget: Number(newBudget) } : item));
+                        }}
+                        className="p-1 hover:bg-white/10 rounded text-[10px] font-bold"
+                        title="Modifier"
+                      >
+                        ✏️
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm("Supprimer ce projet de voyage ?")) {
+                            setTrips(prev => prev.filter(item => item.id !== t.id));
+                          }
+                        }}
+                        className="p-1 hover:bg-red-500/10 rounded text-[10px] text-red-400 font-bold"
+                        title="Supprimer"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Reservations lists */}
@@ -1785,14 +1877,44 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
           {pets.map((p) => (
             <div key={p.id} className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
-              <div className="flex items-center space-x-3 border-b border-white/5 pb-3">
-                <div className="p-2.5 rounded-xl bg-[#00D26A]/10 text-[#00D26A] border border-white/5">
-                  <Dog className="w-5 h-5" />
+              <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2.5 rounded-xl bg-[#00D26A]/10 text-[#00D26A] border border-white/5">
+                    <Dog className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">{p.name}</h3>
+                    <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider mt-0.5">{p.species}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">{p.name}</h3>
-                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider mt-0.5">{p.species}</p>
-                </div>
+                {isParent && (
+                  <div className="flex space-x-1.5">
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const newName = window.prompt("Modifier le nom de l'animal :", p.name);
+                        if (!newName) return;
+                        const newSpecies = window.prompt("Modifier l'espèce / race :", p.species);
+                        if (!newSpecies) return;
+                        setPets(prev => prev.map(item => item.id === p.id ? { ...item, name: newName, species: newSpecies } : item));
+                      }}
+                      className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/70 hover:text-white transition text-xs font-bold"
+                    >
+                      ✏️ Modifier
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm("Supprimer ce compagnon ?")) {
+                          setPets(prev => prev.filter(item => item.id !== p.id));
+                        }
+                      }}
+                      className="p-2 bg-red-500/10 hover:bg-red-500/20 rounded-xl text-red-400 hover:text-red-300 transition text-xs font-bold"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4 text-xs">
@@ -1907,12 +2029,44 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {pocketMoney.map((child) => (
               <div key={child.id} className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
-                <div className="flex items-center space-x-3">
-                  <img src={child.avatar} alt={child.name} className="w-10 h-10 rounded-full object-cover border border-white/10" />
-                  <div>
-                    <h3 className="text-sm font-bold text-white">{child.name}</h3>
-                    <p className="text-[10px] text-white/40">Enfant • Compte Épargne Connecté</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <img src={child.avatar} alt={child.name} className="w-10 h-10 rounded-full object-cover border border-white/10" />
+                    <div>
+                      <h3 className="text-sm font-bold text-white">{child.name}</h3>
+                      <p className="text-[10px] text-white/40">Enfant • Compte Épargne Connecté</p>
+                    </div>
                   </div>
+                  {isParent && (
+                    <div className="flex space-x-1">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const newBalance = window.prompt(`Modifier la cagnotte de ${child.name} (€) :`, String(child.balance));
+                          if (newBalance === null) return;
+                          const newPoints = window.prompt(`Modifier les points de ${child.name} :`, String(child.points));
+                          if (newPoints === null) return;
+                          setPocketMoney(prev => prev.map(c => c.id === child.id ? { ...c, balance: Number(newBalance), points: Number(newPoints) } : c));
+                        }}
+                        className="p-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-white/60 hover:text-white transition text-[10px] font-bold"
+                        title="Modifier"
+                      >
+                        ✏️
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`Supprimer le compte d'argent de poche de ${child.name} ?`)) {
+                            setPocketMoney(prev => prev.filter(c => c.id !== child.id));
+                          }
+                        }}
+                        className="p-1.5 bg-red-500/10 hover:bg-red-500/20 rounded-xl text-red-400 hover:text-red-300 transition text-[10px] font-bold"
+                        title="Supprimer"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-center pt-2">

@@ -365,14 +365,44 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                       </span>
                     </div>
                     
-                    <div className="flex space-x-2">
+                    <div className="flex items-center space-x-1.5">
                       <button
                         onClick={() => handleLike(m.id)}
-                        className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-[#FF4D6D]/25 hover:text-[#FF4D6D] text-white/70 border border-white/10 text-[10px] font-bold transition-all cursor-pointer flex items-center space-x-1"
+                        className="px-2 py-1 rounded-xl bg-white/5 hover:bg-[#FF4D6D]/25 hover:text-[#FF4D6D] text-white/70 border border-white/10 text-[10px] font-bold transition-all cursor-pointer flex items-center space-x-1"
                       >
                         <Heart className="w-3.5 h-3.5 fill-current text-[#FF4D6D]" />
                         <span>{m.likesCount}</span>
                       </button>
+                      {isParent && (
+                        <div className="flex space-x-1 bg-white/5 p-1 rounded-xl border border-white/5">
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const newTitle = window.prompt("Modifier le titre du souvenir :", m.title);
+                              if (!newTitle) return;
+                              const newDesc = window.prompt("Modifier la description :", m.description);
+                              if (!newDesc) return;
+                              setMemories(prev => prev.map(item => item.id === m.id ? { ...item, title: newTitle, description: newDesc } : item));
+                            }}
+                            className="p-1 hover:bg-white/10 rounded text-[10px]"
+                            title="Modifier"
+                          >
+                            ✏️
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm("Supprimer ce souvenir de la capsule ?")) {
+                                setMemories(prev => prev.filter(item => item.id !== m.id));
+                              }
+                            }}
+                            className="p-1 hover:bg-red-500/10 rounded text-[10px] text-red-400"
+                            title="Supprimer"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

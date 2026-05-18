@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   GraduationCap, 
   CheckCircle, 
@@ -8,7 +8,10 @@ import {
   ChevronRight,
   UserCheck,
   Plus,
-  ArrowLeft
+  ArrowLeft,
+  Calendar,
+  TrendingUp,
+  Trash2
 } from 'lucide-react';
 import type { SchoolTask } from '../../types';
 
@@ -23,8 +26,139 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   setSchoolTasks, 
   activeMemberId 
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'devoirs' | 'quizzes'>('devoirs');
+  const [activeSubTab, setActiveSubTab] = useState<'devoirs' | 'quizzes' | 'schedule' | 'grades'>('devoirs');
   const isParent = activeMemberId === '1' || activeMemberId === '2';
+
+  // --- Notes State ---
+  interface GradeItem {
+    id: string;
+    studentId: string;
+    studentName: string;
+    subject: string;
+    value: number;
+    max: number;
+    coef: number;
+    examTitle: string;
+    date: string;
+  }
+
+  const [grades, setGrades] = useState<GradeItem[]>(() => {
+    const stored = localStorage.getItem('school_grades');
+    return stored ? JSON.parse(stored) : [
+      { id: 'g-1', studentId: '3', studentName: 'Amadou', subject: 'Mathématiques', value: 16, max: 20, coef: 2, examTitle: 'Contrôle Algèbre', date: '10/05/2026' },
+      { id: 'g-2', studentId: '3', studentName: 'Amadou', subject: 'Histoire-Géographie', value: 15, max: 20, coef: 1, examTitle: 'Examen Révolution', date: '12/05/2026' },
+      { id: 'g-3', studentId: '4', studentName: 'Awa', subject: 'Français', value: 18, max: 20, coef: 1, examTitle: 'Dictée de Printemps', date: '14/05/2026' }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('school_grades', JSON.stringify(grades));
+  }, [grades]);
+
+  // --- Emploi du Temps State ---
+  interface ScheduleItem {
+    id: string;
+    studentId: string;
+    studentName: string;
+    day: string;
+    subject: string;
+    startTime: string;
+    endTime: string;
+    room?: string;
+  }
+
+  const [schedule, setSchedule] = useState<ScheduleItem[]>(() => {
+    const stored = localStorage.getItem('school_schedule');
+    return stored ? JSON.parse(stored) : [
+      { id: 's-1', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Mathématiques', startTime: '08:30', endTime: '09:30', room: 'Salle 102' },
+      { id: 's-2', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Histoire-Géographie', startTime: '09:30', endTime: '10:30', room: 'Salle 204' },
+      { id: 's-3', studentId: '4', studentName: 'Awa', day: 'Mardi', subject: 'Français', startTime: '10:45', endTime: '11:45', room: 'Classe A2' }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('school_schedule', JSON.stringify(schedule));
+  }, [schedule]);
+
+  // Form & UI States
+  const [selectedDay, setSelectedDay] = useState<string>('Lundi');
+  
+  // Form States Grade
+  const [formGradeStudentId, setFormGradeStudentId] = useState('3');
+  const [formGradeSubject, setFormGradeSubject] = useState('Mathématiques');
+  const [formGradeValue, setFormGradeValue] = useState(15);
+  const [formGradeMax, setFormGradeMax] = useState(20);
+  const [formGradeCoef, setFormGradeCoef] = useState(1);
+  const [formGradeExamTitle, setFormGradeExamTitle] = useState('');
+  
+  // Form States Schedule
+  const [formSchStudentId, setFormSchStudentId] = useState('3');
+  const [formSchDay, setFormSchDay] = useState('Lundi');
+  const [formSchSubject, setFormSchSubject] = useState('Mathématiques');
+  const [formSchStartTime, setFormSchStartTime] = useState('08:30');
+  const [formSchEndTime, setFormSchEndTime] = useState('09:30');
+  const [formSchRoom, setFormSchRoom] = useState('');
+
+  const handleAddGrade = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formGradeExamTitle) return;
+    const newGrade: GradeItem = {
+      id: `grade-${Date.now()}`,
+      studentId: formGradeStudentId,
+      studentName: getChildName(formGradeStudentId),
+      subject: formGradeSubject,
+      value: Number(formGradeValue),
+      max: Number(formGradeMax),
+      coef: Number(formGradeCoef),
+      examTitle: formGradeExamTitle,
+      date: new Date().toLocaleDateString('fr-FR')
+    };
+    setGrades(prev => [...prev, newGrade]);
+    setFormGradeExamTitle('');
+    alert("🎯 Note ajoutée avec succès !");
+  };
+
+  const handleDeleteGrade = (id: string) => {
+    if (window.confirm("Supprimer cette note ?")) {
+      setGrades(prev => prev.filter(g => g.id !== id));
+    }
+  };
+
+  const handleAddSchItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newSch: ScheduleItem = {
+      id: `sch-${Date.now()}`,
+      studentId: formSchStudentId,
+      studentName: getChildName(formSchStudentId),
+      day: formSchDay,
+      subject: formSchSubject,
+      startTime: formSchStartTime,
+      endTime: formSchEndTime,
+      room: formSchRoom || undefined
+    };
+    setSchedule(prev => [...prev, newSch]);
+    setFormSchRoom('');
+    alert("⏰ Cours ajouté à l'emploi du temps !");
+  };
+
+  const handleDeleteSchItem = (id: string) => {
+    if (window.confirm("Retirer ce cours de l'emploi du temps ?")) {
+      setSchedule(prev => prev.filter(s => s.id !== id));
+    }
+  };
+
+  const getStudentAverage = (studentId: string) => {
+    const studentGrades = grades.filter(g => g.studentId === studentId);
+    if (studentGrades.length === 0) return 'N/A';
+    let totalWeighted = 0;
+    let totalCoef = 0;
+    studentGrades.forEach(g => {
+      const normalized = (g.value / g.max) * 20;
+      totalWeighted += normalized * g.coef;
+      totalCoef += g.coef;
+    });
+    return (totalWeighted / totalCoef).toFixed(2) + ' / 20';
+  };
   
   // Quiz State
   const [selectedSubject, setSelectedSubject] = useState<string>('');
@@ -214,26 +348,46 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
       </div>
 
       {/* Segmented Navigation Controls */}
-      <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 flex">
+      <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 grid grid-cols-2 sm:grid-cols-4 gap-1">
         <button
           onClick={() => setActiveSubTab('devoirs')}
-          className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
             activeSubTab === 'devoirs' 
               ? 'bg-[#6C5CFF] text-white shadow-md' 
               : 'text-white/40 hover:text-white/60'
           }`}
         >
-          Devoirs & Récompenses
+          Devoirs & Pts
         </button>
         <button
           onClick={() => setActiveSubTab('quizzes')}
-          className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
             activeSubTab === 'quizzes' 
               ? 'bg-[#6C5CFF] text-white shadow-md' 
               : 'text-white/40 hover:text-white/60'
           }`}
         >
-          Tuteur IA & Quizzes
+          IA & Quizzes
+        </button>
+        <button
+          onClick={() => setActiveSubTab('schedule')}
+          className={`py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
+            activeSubTab === 'schedule' 
+              ? 'bg-[#6C5CFF] text-white shadow-md' 
+              : 'text-white/40 hover:text-white/60'
+          }`}
+        >
+          Emploi du Temps
+        </button>
+        <button
+          onClick={() => setActiveSubTab('grades')}
+          className={`py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
+            activeSubTab === 'grades' 
+              ? 'bg-[#6C5CFF] text-white shadow-md' 
+              : 'text-white/40 hover:text-white/60'
+          }`}
+        >
+          Notes & Bulletins
         </button>
       </div>
 
@@ -568,6 +722,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
 
               {selectedAnswer !== null && (
                 <button
+                  type="button"
                   onClick={handleNextQuestion}
                   className="w-full py-3 rounded-[18px] bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white font-bold text-xs cursor-pointer transition-all shadow-md flex items-center justify-center space-x-1.5 hover:scale-105 active:scale-95"
                 >
@@ -577,9 +732,336 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
               )}
             </div>
           )}
-
         </div>
       )}
+
+          {/* SCHEDULE (EMPLOI DU TEMPS) TAB */}
+          {activeSubTab === 'schedule' && (
+            <div className="space-y-4">
+              {/* Days Selector */}
+              <div className="flex space-x-1.5 overflow-x-auto pb-1 no-scrollbar">
+                {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setSelectedDay(d)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+                      selectedDay === d ? 'bg-[#6C5CFF] text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'
+                    }`}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+
+              {/* Class list for selected day */}
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">
+                  Cours du {selectedDay} :
+                </span>
+
+                {schedule.filter(s => s.day === selectedDay).length > 0 ? (
+                  schedule
+                    .filter(s => s.day === selectedDay)
+                    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                    .map(item => (
+                      <div key={item.id} className="glass-panel border border-white/8 rounded-[24px] p-4 flex items-center justify-between hover:bg-white/8 transition">
+                        <div className="flex items-center space-x-3.5">
+                          <div className="p-2.5 rounded-xl bg-[#6C5CFF]/15 text-[#6C5CFF] border border-[#6C5CFF]/20">
+                            <Calendar className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold text-[#6C5CFF] bg-[#6C5CFF]/10 px-2 py-0.5 rounded uppercase">
+                              {item.subject}
+                            </span>
+                            <h4 className="text-xs font-extrabold text-white mt-1.5">
+                              {item.startTime} - {item.endTime}
+                            </h4>
+                            <p className="text-[10px] text-white/40 mt-0.5">
+                              Élève: <span className="font-bold text-white">{item.studentName}</span>
+                              {item.room && ` • ${item.room}`}
+                            </p>
+                          </div>
+                        </div>
+
+                        {isParent && (
+                          <button
+                            onClick={() => handleDeleteSchItem(item.id)}
+                            className="p-2 hover:bg-[#FF4D6D]/15 rounded-xl text-[#FF4D6D] transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))
+                ) : (
+                  <p className="text-xs text-white/30 text-center py-8 glass-panel rounded-2xl border border-white/5">
+                    Aucun cours planifié pour le {selectedDay}.
+                  </p>
+                )}
+              </div>
+
+              {/* Add Class Form (Parents only) */}
+              {isParent && (
+                <form onSubmit={handleAddSchItem} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 mt-6">
+                  <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block flex items-center space-x-1.5">
+                    <Plus className="w-3.5 h-3.5 text-[#6C5CFF]" />
+                    <span>Ajouter un cours à l'emploi du temps ⏰</span>
+                  </span>
+
+                  <div className="grid grid-cols-2 gap-3 text-left">
+                    <div className="space-y-1.5 font-medium text-left">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Élève</label>
+                      <select
+                        value={formSchStudentId}
+                        onChange={(e) => setFormSchStudentId(e.target.value)}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                      >
+                        <option value="3">Amadou</option>
+                        <option value="4">Awa</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5 font-medium text-left">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Matière</label>
+                      <select
+                        value={formSchSubject}
+                        onChange={(e) => setFormSchSubject(e.target.value)}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                      >
+                        <option value="Mathématiques">Mathématiques</option>
+                        <option value="Histoire-Géographie">Histoire-Géographie</option>
+                        <option value="Sciences / SVT">Sciences / SVT</option>
+                        <option value="Français">Français</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-left">
+                    <div className="space-y-1.5 font-medium text-left">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Jour</label>
+                      <select
+                        value={formSchDay}
+                        onChange={(e) => setFormSchDay(e.target.value)}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2.5 text-xs text-white focus:outline-none"
+                      >
+                        <option value="Lundi">Lundi</option>
+                        <option value="Mardi">Mardi</option>
+                        <option value="Mercredi">Mercredi</option>
+                        <option value="Jeudi">Jeudi</option>
+                        <option value="Vendredi">Vendredi</option>
+                        <option value="Samedi">Samedi</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5 font-medium text-left">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Début</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="ex: 08:30"
+                        value={formSchStartTime}
+                        onChange={(e) => setFormSchStartTime(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                      />
+                    </div>
+                    <div className="space-y-1.5 font-medium text-left">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Fin</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="ex: 09:30"
+                        value={formSchEndTime}
+                        onChange={(e) => setFormSchEndTime(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 text-left font-medium">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Salle (Optionnel)</label>
+                    <input
+                      type="text"
+                      placeholder="ex: Salle 102 ou Classe A1"
+                      value={formSchRoom}
+                      onChange={(e) => setFormSchRoom(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3.5 rounded-[18px] bg-[#6C5CFF] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#6C5CFF]/20"
+                  >
+                    <Plus className="w-4 h-4 text-white" />
+                    <span>Planifier ce cours</span>
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
+
+          {/* GRADES (NOTES SCHOLAIRES) TAB */}
+          {activeSubTab === 'grades' && (
+            <div className="space-y-6">
+              {/* Averages cards */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="glass-panel border border-[#6C5CFF]/20 bg-[#6C5CFF]/5 rounded-[28px] p-5 text-center space-y-2">
+                  <TrendingUp className="w-6 h-6 text-[#6C5CFF] mx-auto animate-pulse" />
+                  <h4 className="text-xs font-bold text-white/60">Moyenne Amadou</h4>
+                  <p className="text-2xl font-extrabold text-[#6C5CFF]">{getStudentAverage('3')}</p>
+                </div>
+                <div className="glass-panel border border-[#00D26A]/20 bg-[#00D26A]/5 rounded-[28px] p-5 text-center space-y-2">
+                  <TrendingUp className="w-6 h-6 text-[#00D26A] mx-auto animate-pulse" />
+                  <h4 className="text-xs font-bold text-white/60">Moyenne Awa</h4>
+                  <p className="text-2xl font-extrabold text-[#00D26A]">{getStudentAverage('4')}</p>
+                </div>
+              </div>
+
+              {/* Grades List */}
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">
+                  Dernières Notes Reçues :
+                </span>
+
+                {grades.length > 0 ? (
+                  grades.map(grade => (
+                    <div key={grade.id} className="glass-panel border border-white/8 rounded-[24px] p-4 flex items-center justify-between hover:bg-white/8 transition">
+                      <div className="flex items-center space-x-3.5">
+                        <div className="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-center shrink-0">
+                          <span className="text-sm font-extrabold text-[#FFB020]">
+                            {grade.value}/{grade.max}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-1.5">
+                            <span className="text-[9px] font-bold text-[#6C5CFF] bg-[#6C5CFF]/15 px-2 py-0.5 rounded">
+                              {grade.subject}
+                            </span>
+                            <span className="text-[9px] font-bold text-white/40">
+                              Coef: {grade.coef}
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-extrabold text-white mt-1.5">
+                            {grade.examTitle}
+                          </h4>
+                          <p className="text-[10px] text-white/40 mt-0.5">
+                            Élève: <span className="font-bold text-white">{grade.studentName}</span> • Reçu le {grade.date}
+                          </p>
+                        </div>
+                      </div>
+
+                      {isParent && (
+                        <button
+                          onClick={() => handleDeleteGrade(grade.id)}
+                          className="p-2 hover:bg-[#FF4D6D]/15 rounded-xl text-[#FF4D6D] transition animate-pulse"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-white/30 text-center py-8 glass-panel rounded-2xl border border-white/5">
+                    Aucune note enregistrée pour le moment.
+                  </p>
+                )}
+              </div>
+
+              {/* Add Grade Form (Parents only) */}
+              {isParent && (
+                <form onSubmit={handleAddGrade} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
+                  <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block flex items-center space-x-1.5">
+                    <Plus className="w-3.5 h-3.5 text-[#6C5CFF]" />
+                    <span>Ajouter une note au bulletin 🎯</span>
+                  </span>
+
+                  <div className="grid grid-cols-2 gap-3 text-left">
+                    <div className="space-y-1.5 font-medium text-left">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Élève</label>
+                      <select
+                        value={formGradeStudentId}
+                        onChange={(e) => setFormGradeStudentId(e.target.value)}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                      >
+                        <option value="3">Amadou</option>
+                        <option value="4">Awa</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5 font-medium text-left">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Matière</label>
+                      <select
+                        value={formGradeSubject}
+                        onChange={(e) => setFormGradeSubject(e.target.value)}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                      >
+                        <option value="Mathématiques">Mathématiques</option>
+                        <option value="Histoire-Géographie">Histoire-Géographie</option>
+                        <option value="Sciences / SVT">Sciences / SVT</option>
+                        <option value="Français">Français</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-left">
+                    <div className="space-y-1.5 font-medium text-left">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Note</label>
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        max="100"
+                        value={formGradeValue}
+                        onChange={(e) => setFormGradeValue(Number(e.target.value))}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                      />
+                    </div>
+                    <div className="space-y-1.5 font-medium text-left">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Sur</label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        value={formGradeMax}
+                        onChange={(e) => setFormGradeMax(Number(e.target.value))}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                      />
+                    </div>
+                    <div className="space-y-1.5 font-medium text-left">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Coef</label>
+                      <input
+                        type="number"
+                        required
+                        min="0.25"
+                        step="0.25"
+                        value={formGradeCoef}
+                        onChange={(e) => setFormGradeCoef(Number(e.target.value))}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 text-left font-medium">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Titre de l'évaluation</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="ex: DST fractions ou Dictée de Printemps..."
+                      value={formGradeExamTitle}
+                      onChange={(e) => setFormGradeExamTitle(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3.5 rounded-[18px] bg-[#6C5CFF] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#6C5CFF]/20"
+                  >
+                    <Plus className="w-4 h-4 text-white" />
+                    <span>Enregistrer cette note</span>
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
 
     </div>
   );
