@@ -63,7 +63,17 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                           (doc.tags || []).some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
       if (!matchSearch) return false;
       
-      if (viewMode === 'expiring') return !!doc.expiryDate && new Date(doc.expiryDate) < new Date(Date.now() + 90 * 24 * 60 * 60 * 1000); // Expirant dans < 3 mois
+      if (viewMode === 'expiring') {
+        if (!doc.expiryDate) return false;
+        // Parse DD/MM/YYYY
+        const parts = doc.expiryDate.split('/');
+        if (parts.length === 3) {
+          const docDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+          const ninetyDaysFromNow = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+          return docDate < ninetyDaysFromNow;
+        }
+        return false;
+      }
       return true;
     });
   }, [documents, searchQuery, viewMode]);
@@ -348,7 +358,91 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
           </div>
         )}
 
-        {/* Similar renders for members and expiring can go here */}
+        {/* Members View */}
+        {viewMode === 'members' && (
+          <div className="space-y-4">
+            {members.map(member => {
+              const memberDocs = filteredDocs.filter(d => d.memberId === member.id);
+              if (memberDocs.length === 0 && !searchQuery) return null;
+              
+              return (
+                <div key={member.id} className="space-y-2">
+                  <div className="flex items-center space-x-3 mb-3 border-b border-white/5 pb-2">
+                    <img src={member.photoUrl} alt={member.name} className="w-8 h-8 rounded-full border border-white/20 object-cover" />
+                    <div>
+                      <h4 className="text-sm font-bold text-white">{member.name}</h4>
+                      <p className="text-[10px] text-white/40">{memberDocs.length} document(s)</p>
+                    </div>
+                  </div>
+                  {memberDocs.map(doc => {
+                    const config = categoryConfig[doc.category];
+                    const Icon = config?.icon || FileText;
+                    return (
+                      <div 
+                        key={doc.id} 
+                        onClick={() => setPreviewDoc(doc)}
+                        className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl cursor-pointer hover:bg-white/10 transition"
+                      >
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <div className={`p-2 rounded-lg ${config?.color || 'text-white bg-white/10'} shrink-0`}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-xs truncate">{doc.name}</p>
+                            <p className="text-[10px] text-white/40">{config?.label || doc.category}</p>
+                          </div>
+                        </div>
+                        {doc.expiryDate && <span className="text-[10px] text-[#FFB020] shrink-0 ml-2">Exp: {doc.expiryDate}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+            
+            {/* General/Family Docs */}
+            {(() => {
+              const generalDocs = filteredDocs.filter(d => !d.memberId);
+              if (generalDocs.length === 0) return null;
+              return (
+                <div className="space-y-2 mt-6">
+                  <div className="flex items-center space-x-3 mb-3 border-b border-white/5 pb-2">
+                    <div className="w-8 h-8 rounded-full bg-[#6C5CFF]/20 flex items-center justify-center border border-[#6C5CFF]/30">
+                      <Users className="w-4 h-4 text-[#6C5CFF]" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white">Famille (Général)</h4>
+                      <p className="text-[10px] text-white/40">{generalDocs.length} document(s)</p>
+                    </div>
+                  </div>
+                  {generalDocs.map(doc => {
+                    const config = categoryConfig[doc.category];
+                    const Icon = config?.icon || FileText;
+                    return (
+                      <div 
+                        key={doc.id} 
+                        onClick={() => setPreviewDoc(doc)}
+                        className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl cursor-pointer hover:bg-white/10 transition"
+                      >
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <div className={`p-2 rounded-lg ${config?.color || 'text-white bg-white/10'} shrink-0`}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-xs truncate">{doc.name}</p>
+                            <p className="text-[10px] text-white/40">{config?.label || doc.category}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* Expiring View */}
         {viewMode === 'expiring' && (
           <div className="space-y-3">
             <div className="flex items-center space-x-2 text-[#FFB020] bg-[#FFB020]/10 p-3 rounded-xl border border-[#FFB020]/20">
