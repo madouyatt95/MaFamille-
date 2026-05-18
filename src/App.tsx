@@ -378,6 +378,16 @@ function App() {
     setEvents(prev => prev.map(e => e.id === id ? { ...e, done: !e.done } : e));
   };
 
+  const handleMoveEvent = (id: string, newDate: string) => {
+    setEvents(prev => prev.map(e => {
+      if (e.id === id) {
+        const timePart = e.dateTime.split('T')[1];
+        return { ...e, dateTime: timePart ? `${newDate}T${timePart}` : newDate };
+      }
+      return e;
+    }));
+  };
+
   const handleToggleTask = (id: string) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
   };
@@ -473,6 +483,7 @@ function App() {
             setQuickActionsOpen(true);
           }}
           onToggleEventDone={handleToggleEventDone}
+          onMoveEvent={handleMoveEvent}
         />
       );
     }
