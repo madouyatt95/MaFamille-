@@ -233,7 +233,11 @@ function App() {
   }, [transactions]);
 
   useEffect(() => {
-    localStorage.setItem('mf_documents', JSON.stringify(documents));
+    try {
+      localStorage.setItem('mf_documents', JSON.stringify(documents));
+    } catch (error) {
+      console.error("Storage quota exceeded, failed to save documents in localStorage:", error);
+    }
   }, [documents]);
 
   useEffect(() => {

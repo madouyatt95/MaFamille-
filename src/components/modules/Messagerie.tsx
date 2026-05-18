@@ -31,10 +31,11 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   // Initialization of groups is handled by App.tsx. 
   // We can just automatically select the first group if none is selected.
   useEffect(() => {
-    if (!activeGroupId && groups.length > 0) {
+    if (groups.length > 0 && !activeGroupId) {
       setActiveGroupId(groups[0].id);
     }
-  }, [groups, activeGroupId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Mark group messages as read by activeMemberId
   useEffect(() => {

@@ -54,7 +54,36 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     const reader = new FileReader();
     reader.onload = (event) => {
       if (event.target?.result) {
-        setSelectedFileBase64(event.target.result as string);
+        const resultStr = event.target.result as string;
+        if (file.type.startsWith('image/')) {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const max_size = 600;
+            let width = img.width;
+            let height = img.height;
+            if (width > height) {
+              if (width > max_size) {
+                height *= max_size / width;
+                width = max_size;
+              }
+            } else {
+              if (height > max_size) {
+                width *= max_size / height;
+                height = max_size;
+              }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/jpeg', 0.7);
+            setSelectedFileBase64(compressed);
+          };
+          img.src = resultStr;
+        } else {
+          setSelectedFileBase64(resultStr);
+        }
         if (!newDocName) setNewDocName(file.name);
       }
     };
