@@ -210,27 +210,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newQuestTarget, setNewQuestTarget] = useState(5);
   const [newQuestReward, setNewQuestReward] = useState('');
 
-  // --- Feature 5: Notification Center ---
-  const [showNotifPanel, setShowNotifPanel] = useState(false);
-  const [familyNotifs, setFamilyNotifs] = useState<{id: string; text: string; time: string; icon: string}[]>(() => {
-    const stored = localStorage.getItem('mf_notifs');
-    return stored ? JSON.parse(stored) : [
-      { id: 'n-1', text: 'Papa a validé les devoirs d\'Amadou (+50 pts)', time: '14:32', icon: '✅' },
-      { id: 'n-2', text: 'Maman a planifié un voyage à Rome', time: '12:05', icon: '✈️' },
-      { id: 'n-3', text: 'Amadou a terminé le quiz Sciences (3/3)', time: '09:40', icon: '🎯' },
-      { id: 'n-4', text: 'Rappel vaccin Méningocoque B pour Ibrahima', time: '08:00', icon: '💉' }
-    ];
-  });
-
-  const pushNotif = (text: string, icon: string = '🔔') => {
-    const n = { id: `n-${Date.now()}`, text, time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }), icon };
-    setFamilyNotifs(prev => {
-      const next = [n, ...prev].slice(0, 30);
-      localStorage.setItem('mf_notifs', JSON.stringify(next));
-      return next;
-    });
-  };
-
   // --- Feature 6: Health Emergency Card ---
   const [healthSubTab, setHealthSubTab] = useState<'croissance' | 'vaccins' | 'urgence'>('croissance');
 
@@ -619,65 +598,13 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       
       {/* Back button if active sub-module */}
       {activeModule && (
-        <div className="flex items-center justify-between">
-          <button 
-            onClick={() => setActiveModule('')}
-            className="flex items-center space-x-2 text-xs font-bold text-white/50 hover:text-white transition-all cursor-pointer py-1.5 px-3 rounded-xl bg-white/5 border border-white/5 w-fit"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Retour au Tableau de Bord</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowNotifPanel(true)}
-            className="relative p-2.5 rounded-xl bg-white/5 border border-white/8 hover:bg-white/10 transition-all cursor-pointer"
-          >
-            <span className="text-lg">🔔</span>
-            {familyNotifs.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#FF4D6D] rounded-full text-[8px] font-bold text-white flex items-center justify-center animate-pulse shadow-[0_0_8px_rgba(255,77,109,0.5)]">
-                {familyNotifs.length}
-              </span>
-            )}
-          </button>
-        </div>
-      )}
-
-      {/* Notification Slide-Over Panel */}
-      {showNotifPanel && (
-        <div className="fixed inset-0 z-[200] flex justify-end" onClick={() => setShowNotifPanel(false)}>
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-          <div 
-            className="relative w-full max-w-sm h-full bg-[#0A0D18]/95 backdrop-blur-xl border-l border-white/10 shadow-2xl overflow-y-auto"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="p-5 border-b border-white/10 flex items-center justify-between sticky top-0 bg-[#0A0D18]/90 backdrop-blur-md z-10">
-              <div className="flex items-center space-x-2">
-                <span className="text-lg">🔔</span>
-                <h3 className="text-sm font-extrabold text-white">Centre de Notifications</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowNotifPanel(false)}
-                className="p-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-white/60 hover:text-white transition text-xs font-bold cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="p-4 space-y-2">
-              {familyNotifs.length > 0 ? familyNotifs.map(n => (
-                <div key={n.id} className="flex items-start space-x-3 p-3 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/8 transition">
-                  <span className="text-lg shrink-0 mt-0.5">{n.icon}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs text-white font-medium leading-relaxed">{n.text}</p>
-                    <span className="text-[10px] text-white/40 font-bold mt-1 block">{n.time}</span>
-                  </div>
-                </div>
-              )) : (
-                <p className="text-xs text-white/30 text-center py-8">Aucune notification</p>
-              )}
-            </div>
-          </div>
-        </div>
+        <button 
+          onClick={() => setActiveModule('')}
+          className="flex items-center space-x-2 text-xs font-bold text-white/50 hover:text-white transition-all cursor-pointer py-1.5 px-3 rounded-xl bg-white/5 border border-white/5 w-fit"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Retour au Tableau de Bord</span>
+        </button>
       )}
 
       {/* Parental Lock Gate screen */}
@@ -1388,7 +1315,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                                       dish.ingredients.forEach(ing => {
                                         onAddGroceryItem(ing, 'Frais', '1 pièces');
                                       });
-                                      pushNotif(`🛒 ${dish.ingredients.length} ingrédients de "${dish.name}" ajoutés aux courses`, '🛒');
                                       alert(`🛒 ${dish.ingredients.length} ingrédient(s) ajouté(s) à la liste de courses !`);
                                     }}
                                     className="p-1.5 bg-[#00D26A]/10 hover:bg-[#00D26A]/20 rounded-lg border border-[#00D26A]/20 text-[#00D26A] transition shrink-0 cursor-pointer"
@@ -2431,7 +2357,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                       type="button"
                       onClick={() => {
                         setSharedQuests(prev => prev.map(q => q.id === quest.id ? { ...q, current: Math.min(q.target, q.current + 1) } : q));
-                        pushNotif(`${activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa'} a contribué au défi "${quest.title}" !`, '🎮');
                       }}
                       className="w-full py-2 rounded-xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/20 text-[#6C5CFF] text-[10px] font-bold hover:bg-[#6C5CFF]/25 transition cursor-pointer"
                     >
@@ -2450,7 +2375,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 e.preventDefault();
                 if (!newQuestTitle || !newQuestReward) return;
                 setSharedQuests(prev => [...prev, { id: `sq-${Date.now()}`, title: newQuestTitle, target: newQuestTarget, current: 0, reward: newQuestReward }]);
-                pushNotif(`Nouveau défi familial créé : "${newQuestTitle}"`, '🎮');
                 setNewQuestTitle(''); setNewQuestReward('');
               }} className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
                 <span className="text-[9px] font-bold text-[#6C5CFF] uppercase tracking-widest block">➕ Créer un défi collaboratif</span>

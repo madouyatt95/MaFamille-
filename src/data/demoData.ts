@@ -296,11 +296,11 @@ export const demoSavingGoals: SavingGoal[] = [
 ];
 
 export const demoAlerts: NotificationAlert[] = [
-  { id: 'a0', title: 'Nouveau message 💬', description: 'Maman a envoyé un message vocal dans le Chat Familial.', time: 'À l\'instant', type: 'info', read: false },
-  { id: 'a1', title: 'Passeport expirant bientôt', description: 'Le passeport d\'Ibrahima expire le 13/06/2026. Pensez à planifier son renouvellement.', time: 'Il y a 2h', type: 'warning', read: false },
-  { id: 'a2', title: 'Rappel de vaccin', description: 'Le pédiatre attend Awa aujourd\'hui à 10:30 pour sa visite médicale.', time: 'Il y a 3h', type: 'info', read: false },
-  { id: 'a3', title: 'Internet payé', description: 'Le prélèvement automatique de la facture Internet aura lieu demain.', time: 'Hier', type: 'info', read: true },
-  { id: 'a4', title: 'Tâche validée', description: 'Maman a validé la tâche d\'Awa : vider le lave-vaisselle (+15 points d\'argent de poche).', time: 'Hier', type: 'success', read: true }
+  { id: 'a0', title: 'Nouveau message 💬', description: 'Maman a envoyé un message vocal dans le Chat Familial.', time: 'À l\'instant', type: 'info', read: false, module: 'messagerie' },
+  { id: 'a1', title: 'Passeport expirant bientôt', description: 'Le passeport d\'Ibrahima expire le 13/06/2026. Pensez à planifier son renouvellement.', time: 'Il y a 2h', type: 'warning', read: false, module: 'documents' },
+  { id: 'a2', title: 'Rappel de vaccin', description: 'Le pédiatre attend Awa aujourd\'hui à 10:30 pour sa visite médicale.', time: 'Il y a 3h', type: 'info', read: false, module: 'sante' },
+  { id: 'a3', title: 'Internet payé', description: 'Le prélèvement automatique de la facture Internet aura lieu demain.', time: 'Hier', type: 'info', read: true, module: 'finances_hub' },
+  { id: 'a4', title: 'Tâche validée', description: 'Maman a validé la tâche d\'Awa : vider le lave-vaisselle (+15 points d\'argent de poche).', time: 'Hier', type: 'success', read: true, module: 'taches' }
 ];
 
 export const demoMemories: MemoryLog[] = [

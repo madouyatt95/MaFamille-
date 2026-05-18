@@ -53,7 +53,7 @@ import { Settings } from './views/Settings';
 import { Membres } from './views/Membres';
 
 // Lucide icon for inline notifications
-import { Bell, X } from 'lucide-react';
+import { Bell, X, ChevronRight } from 'lucide-react';
 
 function App() {
   // ----------------------------------------------------
@@ -712,32 +712,39 @@ function App() {
             </div>
 
             <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar">
-              {alerts.map((al) => (
-                <div 
-                  key={al.id} 
-                  onClick={() => {
-                    if (al.title.toLowerCase().includes('message')) {
-                      setActiveTab('menu');
-                      setActiveModule('messagerie');
-                      setAlertsPanelOpen(false);
-                      setAlerts(prev => prev.map(a => a.id === al.id ? { ...a, read: true } : a));
-                    }
-                  }}
-                  className={`p-3.5 rounded-2xl bg-white/5 border border-white/5 flex items-start space-x-3 transition-colors ${al.title.toLowerCase().includes('message') ? 'cursor-pointer hover:bg-white/10 hover:border-[#00D26A]/30' : ''}`}
-                >
-                  <div className={`p-2.5 rounded-xl border shrink-0 mt-0.5 ${al.title.toLowerCase().includes('message') ? 'bg-[#00D26A]/10 text-[#00D26A] border-[#00D26A]/20' : 'bg-[#FF4D6D]/10 text-[#FF4D6D] border-[#FF4D6D]/20'}`}>
-                    <Bell className="w-4 h-4" />
+              {alerts.map((al) => {
+                const targetModule = al.module || '';
+                const iconColor = al.type === 'success' ? '#00D26A' : al.type === 'warning' ? '#FFB020' : al.type === 'error' ? '#FF4D6D' : '#6C5CFF';
+                return (
+                  <div 
+                    key={al.id} 
+                    onClick={() => {
+                      if (targetModule) {
+                        setActiveTab('menu');
+                        setActiveModule(targetModule);
+                        setAlerts(prev => prev.map(a => a.id === al.id ? { ...a, read: true } : a));
+                        setAlertsPanelOpen(false);
+                      }
+                    }}
+                    className={`p-3.5 rounded-2xl bg-white/5 border border-white/5 flex items-start space-x-3 transition-all ${targetModule ? 'cursor-pointer hover:bg-white/10 hover:border-white/15 active:scale-[0.98]' : ''}`}
+                  >
+                    <div className="p-2.5 rounded-xl border shrink-0 mt-0.5" style={{ backgroundColor: `${iconColor}15`, borderColor: `${iconColor}30`, color: iconColor }}>
+                      <Bell className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                        {al.title}
+                        {!al.read && <span className="w-2 h-2 rounded-full bg-[#FFB020] animate-pulse"></span>}
+                      </h4>
+                      <p className="text-[10px] text-white/50 leading-relaxed mt-1">{al.description}</p>
+                      <span className="text-[9px] text-white/30 block mt-2 font-bold tracking-wider">{al.time}</span>
+                    </div>
+                    {targetModule && (
+                      <ChevronRight className="w-4 h-4 text-white/20 shrink-0 mt-2" />
+                    )}
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                      {al.title}
-                      {!al.read && <span className="w-2 h-2 rounded-full bg-[#FFB020] animate-pulse"></span>}
-                    </h4>
-                    <p className="text-[10px] text-white/50 leading-relaxed mt-1">{al.description}</p>
-                    <span className="text-[9px] text-white/30 block mt-2 font-bold tracking-wider">{al.time}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <button 

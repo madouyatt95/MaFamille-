@@ -158,6 +158,7 @@ export interface NotificationAlert {
   time: string;
   type: 'info' | 'warning' | 'error' | 'success';
   read: boolean;
+  module?: string;
 }
 
 export interface MemoryLog {
