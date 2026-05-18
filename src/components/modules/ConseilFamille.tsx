@@ -21,8 +21,7 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
   
   // Form states for adding new polls
   const [newQuestion, setNewQuestion] = useState('');
-  const [newOpt1, setNewOpt1] = useState('');
-  const [newOpt2, setNewOpt2] = useState('');
+  const [newOptions, setNewOptions] = useState<string[]>(['', '']);
   const [newDueDate, setNewDueDate] = useState(() => {
     const date = new Date();
     date.setDate(date.getDate() + 7);
@@ -31,22 +30,22 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
 
   const handleAddPoll = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newQuestion || !newOpt1 || !newOpt2) return;
+    const validOptions = newOptions.map(opt => opt.trim()).filter(Boolean);
+    if (!newQuestion || validOptions.length < 2) {
+      alert("⚠️ Veuillez saisir une question et au moins 2 options de vote.");
+      return;
+    }
     const newPoll: FamilyVote = {
       id: `poll-${Date.now()}`,
       question: newQuestion,
       dueDate: new Date(newDueDate).toLocaleDateString('fr-FR'),
       authorName: memberName,
       active: true,
-      options: [
-        { text: newOpt1, votes: [] },
-        { text: newOpt2, votes: [] }
-      ]
+      options: validOptions.map(text => ({ text, votes: [] }))
     };
     setVotes(prev => [...prev, newPoll]);
     setNewQuestion('');
-    setNewOpt1('');
-    setNewOpt2('');
+    setNewOptions(['', '']);
     alert("🗳️ Nouveau scrutin démocratique publié avec succès au Conseil de Famille !");
   };
 
@@ -252,30 +251,46 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Option de vote A</label>
-                    <input 
-                      type="text" 
-                      required
-                      placeholder="Ex: La plage de Somone 🏖️" 
-                      value={newOpt1}
-                      onChange={(e) => setNewOpt1(e.target.value)}
-                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
-                    />
+                <div className="space-y-3">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Options de vote (2 minimum)</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {newOptions.map((opt, idx) => (
+                      <div key={idx} className="flex items-center space-x-2">
+                        <input 
+                          type="text" 
+                          required={idx < 2}
+                          placeholder={idx === 0 ? "Ex: La plage de Somone 🏖️" : idx === 1 ? "Ex: La forêt de Popenguine 🌳" : `Option de vote ${idx + 1}`}
+                          value={opt}
+                          onChange={(e) => {
+                            const updated = [...newOptions];
+                            updated[idx] = e.target.value;
+                            setNewOptions(updated);
+                          }}
+                          className="flex-1 bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                        />
+                        {newOptions.length > 2 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = newOptions.filter((_, i) => i !== idx);
+                              setNewOptions(updated);
+                            }}
+                            className="p-2.5 bg-red-500/10 hover:bg-red-500/25 rounded-xl text-red-400 border border-red-500/20 transition-all text-xs font-bold"
+                            title="Supprimer cette option"
+                          >
+                            🗑️
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Option de vote B</label>
-                    <input 
-                      type="text" 
-                      required
-                      placeholder="Ex: La forêt de Popenguine 🌳" 
-                      value={newOpt2}
-                      onChange={(e) => setNewOpt2(e.target.value)}
-                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
-                    />
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNewOptions([...newOptions, ''])}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 hover:text-white border border-white/10 text-xs font-extrabold transition-all flex items-center justify-center space-x-1.5 cursor-pointer mt-1"
+                  >
+                    <span>➕ Ajouter une option de vote</span>
+                  </button>
                 </div>
 
                 <div className="space-y-1">

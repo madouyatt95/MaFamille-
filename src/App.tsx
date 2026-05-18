@@ -530,7 +530,9 @@ function App() {
       return (
         <Finances 
           transactions={transactions}
+          setTransactions={setTransactions}
           savingGoals={savingGoals}
+          setSavingGoals={setSavingGoals}
           members={members}
           activeMemberId={activeMemberId}
           currencySymbol={getCurrencySymbol()}

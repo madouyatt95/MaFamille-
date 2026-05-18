@@ -1795,70 +1795,72 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           ))}
 
           {/* Formulaire d'ajout de Voyage */}
-          <form onSubmit={handleAddTrip} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 my-6">
-            <span className="text-[10px] font-bold text-[#FF4D6D] uppercase tracking-widest block flex items-center space-x-1.5">
-              <Plus className="w-3.5 h-3.5 text-[#FF4D6D]" />
-              <span>Ajouter un nouveau voyage ✈️</span>
-            </span>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Destination</label>
-                <input 
-                  type="text" 
-                  required
-                  placeholder="ex: Séjour à Rome..."
-                  value={newTripDest}
-                  onChange={(e) => setNewTripDest(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF4D6D]"
-                />
-              </div>
+          {isParent && (
+            <form onSubmit={handleAddTrip} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 my-6">
+              <span className="text-[10px] font-bold text-[#FF4D6D] uppercase tracking-widest block flex items-center space-x-1.5">
+                <Plus className="w-3.5 h-3.5 text-[#FF4D6D]" />
+                <span>Ajouter un nouveau voyage ✈️</span>
+              </span>
               
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Budget Total (€)</label>
-                <input 
-                  type="number" 
-                  required
-                  placeholder="ex: 1500"
-                  value={newTripBudget}
-                  onChange={(e) => setNewTripBudget(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF4D6D]"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                <div className="space-y-1.5 text-left font-medium font-sans">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Destination</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="ex: Séjour à Rome..."
+                    value={newTripDest}
+                    onChange={(e) => setNewTripDest(e.target.value)}
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF4D6D]"
+                  />
+                </div>
+                
+                <div className="space-y-1.5 text-left font-medium font-sans">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Budget Total (€)</label>
+                  <input 
+                    type="number" 
+                    required
+                    placeholder="ex: 1500"
+                    value={newTripBudget}
+                    onChange={(e) => setNewTripBudget(e.target.value)}
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF4D6D]"
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-3 text-left">
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Date de Départ</label>
-                <input 
-                  type="text" 
-                  placeholder="ex: 15 Juillet 2026"
-                  value={newTripStart}
-                  onChange={(e) => setNewTripStart(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF4D6D]"
-                />
+              <div className="grid grid-cols-2 gap-3 text-left">
+                <div className="space-y-1.5 text-left font-medium font-sans">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Date de Départ</label>
+                  <input 
+                    type="text" 
+                    placeholder="ex: 15 Juillet 2026"
+                    value={newTripStart}
+                    onChange={(e) => setNewTripStart(e.target.value)}
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF4D6D]"
+                  />
+                </div>
+                
+                <div className="space-y-1.5 text-left font-medium font-sans">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Date de Retour</label>
+                  <input 
+                    type="text" 
+                    placeholder="ex: 22 Juillet 2026"
+                    value={newTripEnd}
+                    onChange={(e) => setNewTripEnd(e.target.value)}
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF4D6D]"
+                  />
+                </div>
               </div>
-              
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Date de Retour</label>
-                <input 
-                  type="text" 
-                  placeholder="ex: 22 Juillet 2026"
-                  value={newTripEnd}
-                  onChange={(e) => setNewTripEnd(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF4D6D]"
-                />
-              </div>
-            </div>
 
-            <button
-              type="submit"
-              className="w-full py-3 rounded-[18px] bg-gradient-to-r from-[#FF4D6D] to-[#6C5CFF] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#FF4D6D]/20"
-            >
-              <Plus className="w-4 h-4 text-white" />
-              <span>Enregistrer le voyage</span>
-            </button>
-          </form>
+              <button
+                type="submit"
+                className="w-full py-3 rounded-[18px] bg-gradient-to-r from-[#FF4D6D] to-[#6C5CFF] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#FF4D6D]/20"
+              >
+                <Plus className="w-4 h-4 text-white" />
+                <span>Enregistrer le voyage</span>
+              </button>
+            </form>
+          )}
 
           {/* AI custom packing checklists generator */}
           <div className="border-t border-white/5 pt-6">
@@ -2027,7 +2029,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {pocketMoney.map((child) => (
+            {(isParent ? pocketMoney : pocketMoney.filter(c => c.id === activeMemberId)).map((child) => (
               <div key={child.id} className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">

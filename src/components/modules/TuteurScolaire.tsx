@@ -29,6 +29,39 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<'devoirs' | 'quizzes' | 'schedule' | 'grades'>('devoirs');
   const isParent = activeMemberId === '1' || activeMemberId === '2';
 
+  // --- Subjects List ---
+  const [subjectsList, setSubjectsList] = useState<string[]>(() => {
+    const stored = localStorage.getItem('school_subjects');
+    return stored ? JSON.parse(stored) : ["Mathématiques", "Histoire-Géographie", "Sciences / SVT", "Français"];
+  });
+
+  const handleSubjectChange = (val: string, setSubjectFn: (val: string) => void) => {
+    if (val === 'AUTRE_MANUEL') {
+      const custom = window.prompt("Saisir la nouvelle matière personnalisée :");
+      if (custom && custom.trim()) {
+        const trimmed = custom.trim();
+        if (!subjectsList.includes(trimmed)) {
+          const next = [...subjectsList, trimmed];
+          setSubjectsList(next);
+          localStorage.setItem('school_subjects', JSON.stringify(next));
+        }
+        setSubjectFn(trimmed);
+      } else {
+        setSubjectFn(subjectsList[0]);
+      }
+    } else {
+      setSubjectFn(val);
+    }
+  };
+
+  // --- Global Schedule Dates ---
+  const [scheduleStartDate, setScheduleStartDate] = useState(() => {
+    return localStorage.getItem('school_sch_start') || '01/09/2025';
+  });
+  const [scheduleEndDate, setScheduleEndDate] = useState(() => {
+    return localStorage.getItem('school_sch_end') || '30/06/2026';
+  });
+
   // --- Notes State ---
   interface GradeItem {
     id: string;
@@ -505,16 +538,16 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                 
                 <div className="grid grid-cols-2 gap-2 text-left">
                   <div className="space-y-1.5 font-medium">
-                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Matière</label>
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block font-sans">Matière</label>
                     <select
                       value={newHomeworkSubject}
-                      onChange={(e) => setNewHomeworkSubject(e.target.value)}
+                      onChange={(e) => handleSubjectChange(e.target.value, setNewHomeworkSubject)}
                       className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
                     >
-                      <option value="Mathématiques">Mathématiques</option>
-                      <option value="Histoire-Géographie">Histoire-Géo</option>
-                      <option value="Sciences / SVT">Sciences / SVT</option>
-                      <option value="Français">Français</option>
+                      {subjectsList.map(sub => (
+                        <option key={sub} value={sub}>{sub}</option>
+                      ))}
+                      <option value="AUTRE_MANUEL">✍️ Autre (Saisie manuelle)...</option>
                     </select>
                   </div>
                   
@@ -737,7 +770,38 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
 
           {/* SCHEDULE (EMPLOI DU TEMPS) TAB */}
           {activeSubTab === 'schedule' && (
-            <div className="space-y-4">
+            <div className="space-y-4 font-sans">
+              {/* Validity Date Range */}
+              <div className="glass-panel rounded-[24px] border border-white/8 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center space-x-2 text-xs font-bold text-white">
+                  <Calendar className="w-4 h-4 text-[#6C5CFF]" />
+                  <span>Validité :</span>
+                  <span className="text-[#6C5CFF]">{scheduleStartDate}</span>
+                  <span className="text-white/40 font-medium">au</span>
+                  <span className="text-[#6C5CFF]">{scheduleEndDate}</span>
+                </div>
+                {isParent && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newStart = window.prompt("Modifier la date de début de l'emploi du temps (JJ/MM/AAAA) :", scheduleStartDate);
+                      if (newStart) {
+                        setScheduleStartDate(newStart);
+                        localStorage.setItem('school_sch_start', newStart);
+                      }
+                      const newEnd = window.prompt("Modifier la date de fin de l'emploi du temps (JJ/MM/AAAA) :", scheduleEndDate);
+                      if (newEnd) {
+                        setScheduleEndDate(newEnd);
+                        localStorage.setItem('school_sch_end', newEnd);
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-[#6C5CFF]/10 hover:bg-[#6C5CFF]/20 border border-[#6C5CFF]/20 rounded-xl text-[10px] font-bold text-white transition-all cursor-pointer"
+                  >
+                    ✏️ Modifier
+                  </button>
+                )}
+              </div>
+
               {/* Days Selector */}
               <div className="flex space-x-1.5 overflow-x-auto pb-1 no-scrollbar">
                 {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map(d => (
@@ -822,16 +886,16 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                       </select>
                     </div>
                     <div className="space-y-1.5 font-medium text-left">
-                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Matière</label>
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block font-sans">Matière</label>
                       <select
                         value={formSchSubject}
-                        onChange={(e) => setFormSchSubject(e.target.value)}
+                        onChange={(e) => handleSubjectChange(e.target.value, setFormSchSubject)}
                         className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
                       >
-                        <option value="Mathématiques">Mathématiques</option>
-                        <option value="Histoire-Géographie">Histoire-Géographie</option>
-                        <option value="Sciences / SVT">Sciences / SVT</option>
-                        <option value="Français">Français</option>
+                        {subjectsList.map(sub => (
+                          <option key={sub} value={sub}>{sub}</option>
+                        ))}
+                        <option value="AUTRE_MANUEL">✍️ Autre (Saisie manuelle)...</option>
                       </select>
                     </div>
                   </div>
@@ -987,16 +1051,16 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                       </select>
                     </div>
                     <div className="space-y-1.5 font-medium text-left">
-                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Matière</label>
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block font-sans">Matière</label>
                       <select
                         value={formGradeSubject}
-                        onChange={(e) => setFormGradeSubject(e.target.value)}
+                        onChange={(e) => handleSubjectChange(e.target.value, setFormGradeSubject)}
                         className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
                       >
-                        <option value="Mathématiques">Mathématiques</option>
-                        <option value="Histoire-Géographie">Histoire-Géographie</option>
-                        <option value="Sciences / SVT">Sciences / SVT</option>
-                        <option value="Français">Français</option>
+                        {subjectsList.map(sub => (
+                          <option key={sub} value={sub}>{sub}</option>
+                        ))}
+                        <option value="AUTRE_MANUEL">✍️ Autre (Saisie manuelle)...</option>
                       </select>
                     </div>
                   </div>

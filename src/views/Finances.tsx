@@ -17,7 +17,9 @@ import type { Transaction, SavingGoal, Member } from '../types';
 
 interface FinancesProps {
   transactions: Transaction[];
+  setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
   savingGoals: SavingGoal[];
+  setSavingGoals: React.Dispatch<React.SetStateAction<SavingGoal[]>>;
   members: Member[];
   currencySymbol?: string;
   formatMoney: (amount: number) => string;
@@ -29,13 +31,26 @@ type FinanceTab = 'apercu' | 'depenses' | 'revenus' | 'budget';
 
 export const Finances: React.FC<FinancesProps> = ({
   transactions,
+  setTransactions,
   savingGoals,
+  setSavingGoals,
   formatMoney,
   onAddTransactionClick,
   activeMemberId = '1'
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<FinanceTab>('apercu');
   const [selectedMonth, setSelectedMonth] = useState('Mai 2026');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [isSavingGoalsModalOpen, setIsSavingGoalsModalOpen] = useState(false);
+
+  // Dynamic purchases for children
+  const [childGoal, setChildGoal] = useState(() => {
+    const saved = localStorage.getItem(`child_purchase_goal_${activeMemberId}`);
+    if (saved) return JSON.parse(saved);
+    return activeMemberId === '3' 
+      ? { title: 'Nouveau jeu Switch 🎮', target: 50 }
+      : { title: 'Kit de dessin 🎨', target: 20 };
+  });
 
   const isChild = activeMemberId === '3' || activeMemberId === '4';
   const childName = activeMemberId === '3' ? 'Amadou' : 'Awa';
@@ -43,10 +58,7 @@ export const Finances: React.FC<FinancesProps> = ({
   if (isChild) {
     const balance = activeMemberId === '3' ? 15.00 : 22.50;
     const points = activeMemberId === '3' ? 150 : 85;
-    const targetGoal = activeMemberId === '3' 
-      ? { title: 'Nouveau jeu Switch 🎮', current: 30, target: 50 } 
-      : { title: 'Kit de dessin 🎨', current: 12, target: 20 };
-      
+    
     // Filter transactions to show only their rewards / pocket money entries
     const childTransactions = transactions.filter(t => t.memberName === childName || t.category === 'Argent de Poche');
     
@@ -93,22 +105,37 @@ export const Finances: React.FC<FinancesProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <PiggyBank className="w-5 h-5 text-[#4F8CFF]" />
-              <span className="text-xs font-extrabold text-white">Mon Projet d'Épargne</span>
+              <span className="text-xs font-extrabold text-white">Mon Projet d'Achat 🎯</span>
             </div>
             <span className="text-[10px] font-bold text-[#4F8CFF] bg-[#4F8CFF]/10 px-2 py-0.5 rounded-full">En cours</span>
           </div>
 
           <div className="space-y-2">
             <div className="flex justify-between items-baseline">
-              <h4 className="text-xs font-bold text-white/90">{targetGoal.title}</h4>
-              <span className="text-[10px] font-bold text-white/50">{targetGoal.current} € / {targetGoal.target} €</span>
+              <h4 className="text-xs font-bold text-white/90">{childGoal.title}</h4>
+              <span className="text-[10px] font-bold text-white/50">{balance} € / {childGoal.target} €</span>
             </div>
             <div className="relative h-2 bg-white/10 rounded-full overflow-hidden">
-              <div className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-[#4F8CFF] to-[#6C5CFF] rounded-full transition-all duration-500" style={{ width: `${(targetGoal.current / targetGoal.target) * 100}%` }} />
+              <div className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-[#4F8CFF] to-[#6C5CFF] rounded-full transition-all duration-500" style={{ width: `${Math.min(100, Math.round((balance / childGoal.target) * 100))}%` }} />
             </div>
             <div className="flex justify-between items-center pt-2">
-              <span className="text-[9px] font-bold text-[#00D26A] bg-[#00D26A]/10 px-2 py-0.5 rounded-md">Il te reste {(targetGoal.target - targetGoal.current)} € à économiser !</span>
-              <button className="text-[9px] font-bold text-[#6C5CFF] hover:underline cursor-pointer">Ajouter +</button>
+              <span className="text-[9px] font-bold text-[#00D26A] bg-[#00D26A]/10 px-2 py-0.5 rounded-md">
+                {balance >= childGoal.target ? "Bravo, tu as assez d'argent !" : `Il te manque ${Math.max(0, childGoal.target - balance)} € pour ton projet !`}
+              </span>
+              <button 
+                onClick={() => {
+                  const title = window.prompt("Quel est ton nouvel objectif d'achat ?", childGoal.title);
+                  if (!title) return;
+                  const price = window.prompt("Quel est son prix (€) ?", childGoal.target.toString());
+                  if (!price || isNaN(Number(price))) return;
+                  const updated = { title, target: Number(price) };
+                  setChildGoal(updated);
+                  localStorage.setItem(`child_purchase_goal_${activeMemberId}`, JSON.stringify(updated));
+                }}
+                className="text-[10px] font-extrabold text-[#6C5CFF] hover:underline cursor-pointer bg-white/5 px-2.5 py-1.5 rounded-xl border border-white/5"
+              >
+                Définir 🎯
+              </button>
             </div>
           </div>
         </div>
@@ -304,7 +331,10 @@ export const Finances: React.FC<FinancesProps> = ({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">Dépenses par catégorie</h3>
-          <button className="text-xs font-semibold text-[#6C5CFF] hover:underline flex items-center cursor-pointer">
+          <button 
+            onClick={() => setSelectedCategory('Alimentation')}
+            className="text-xs font-semibold text-[#6C5CFF] hover:underline flex items-center cursor-pointer"
+          >
             Voir tout <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
           </button>
         </div>
@@ -314,7 +344,11 @@ export const Finances: React.FC<FinancesProps> = ({
           {categoriesBreakdown.map((cat, idx) => {
             const CatIcon = cat.icon;
             return (
-              <div key={idx} className="space-y-2">
+              <div 
+                key={idx} 
+                onClick={() => setSelectedCategory(cat.name)}
+                className="space-y-2 cursor-pointer p-2 rounded-xl hover:bg-white/5 transition-all"
+              >
                 <div className="flex items-center justify-between text-xs font-bold text-white">
                   <div className="flex items-center space-x-3">
                     <div className={`p-2.5 rounded-xl bg-white/5 ${cat.textCol} border border-white/5`}>
@@ -344,12 +378,18 @@ export const Finances: React.FC<FinancesProps> = ({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">Objectif d'épargne</h3>
-          <button className="text-xs font-semibold text-[#6C5CFF] hover:underline flex items-center cursor-pointer">
+          <button 
+            onClick={() => setIsSavingGoalsModalOpen(true)}
+            className="text-xs font-semibold text-[#6C5CFF] hover:underline flex items-center cursor-pointer"
+          >
             Voir tout <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
           </button>
         </div>
 
-        <div className="glass-panel rounded-[28px] border border-white/8 p-6 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div 
+          onClick={() => setIsSavingGoalsModalOpen(true)}
+          className="glass-panel rounded-[28px] border border-white/8 p-6 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 cursor-pointer hover:border-[#FFB020]/45 transition-all"
+        >
           <div className="absolute -top-12 -left-12 w-32 h-32 bg-[#FFB020]/10 rounded-full blur-2xl pointer-events-none"></div>
 
           {/* Tropical vector graphics */}
@@ -464,6 +504,217 @@ export const Finances: React.FC<FinancesProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Category Spendings Detail Modal */}
+      {selectedCategory && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="glass-panel border border-white/10 rounded-[32px] p-6 w-full max-w-md bg-[#0D1527] space-y-4 shadow-2xl relative">
+            <button 
+              type="button" 
+              onClick={() => setSelectedCategory(null)}
+              className="absolute top-4 right-4 text-white/50 hover:text-white text-lg font-bold"
+            >
+              ×
+            </button>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-[#FF4D6D] uppercase tracking-widest block">Détails Dépenses</span>
+              <h3 className="text-base font-extrabold text-white">Catégorie : {selectedCategory}</h3>
+            </div>
+
+            {/* List category transactions */}
+            <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 no-scrollbar">
+              {transactions.filter(t => t.category === selectedCategory && t.type === 'expense').length > 0 ? (
+                transactions.filter(t => t.category === selectedCategory && t.type === 'expense').map(t => (
+                  <div key={t.id} className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold text-white">{t.title}</h4>
+                      <p className="text-[9px] text-white/40 font-semibold">{t.date} • {t.memberName || 'Famille'}</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-extrabold text-[#FF4D6D] mr-2">-{formatMoney(t.amount)}</span>
+                      <button 
+                        onClick={() => {
+                          const newT = window.prompt("Modifier le titre :", t.title);
+                          if (!newT) return;
+                          const newA = window.prompt("Modifier le montant :", t.amount.toString());
+                          if (!newA || isNaN(Number(newA))) return;
+                          setTransactions(prev => prev.map(item => item.id === t.id ? { ...item, title: newT, amount: Number(newA) } : item));
+                        }}
+                        className="p-1.5 bg-white/5 hover:bg-white/10 rounded text-[10px] cursor-pointer"
+                        title="Modifier"
+                      >
+                        ✏️
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (window.confirm("Supprimer cette transaction ?")) {
+                            setTransactions(prev => prev.filter(item => item.id !== t.id));
+                          }
+                        }}
+                        className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded text-[10px] cursor-pointer"
+                        title="Supprimer"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-white/40 text-center py-4">Aucune dépense enregistrée dans cette catégorie.</p>
+              )}
+            </div>
+
+            <div className="flex space-x-2 pt-2">
+              <button 
+                onClick={() => {
+                  const title = window.prompt("Titre de la nouvelle dépense :");
+                  if (!title) return;
+                  const amountStr = window.prompt("Montant (€) :");
+                  if (!amountStr || isNaN(Number(amountStr))) return;
+                  const newT: Transaction = {
+                    id: `t-${Date.now()}`,
+                    title,
+                    amount: Number(amountStr),
+                    type: 'expense',
+                    category: selectedCategory,
+                    date: new Date().toLocaleDateString('fr-FR'),
+                    memberName: activeMemberId === '1' ? 'Papa' : 'Maman'
+                  };
+                  setTransactions(prev => [newT, ...prev]);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-[#6C5CFF] text-white text-xs font-bold transition hover:opacity-90 cursor-pointer"
+              >
+                ➕ Ajouter une dépense
+              </button>
+              <button 
+                onClick={() => setSelectedCategory(null)}
+                className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-bold transition hover:bg-white/10 cursor-pointer"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Saving Goals CRUD Modal */}
+      {isSavingGoalsModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="glass-panel border border-white/10 rounded-[32px] p-6 w-full max-w-md bg-[#0D1527] space-y-4 shadow-2xl relative">
+            <button 
+              type="button" 
+              onClick={() => setIsSavingGoalsModalOpen(false)}
+              className="absolute top-4 right-4 text-white/50 hover:text-white text-lg font-bold"
+            >
+              ×
+            </button>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-[#FFB020] uppercase tracking-widest block">Épargne Familiale</span>
+              <h3 className="text-base font-extrabold text-white">Objectifs d'Épargne de la Maison</h3>
+            </div>
+
+            {/* List all saving goals */}
+            <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1 no-scrollbar">
+              {savingGoals.length > 0 ? (
+                savingGoals.map((g, idx) => {
+                  const pct = Math.min(100, Math.round((g.currentAmount / g.targetAmount) * 100));
+                  return (
+                    <div key={idx} className="p-3 rounded-2xl bg-white/5 border border-white/5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-xs font-bold text-white">{g.title}</h4>
+                          <p className="text-[9px] text-white/40 font-semibold">Cible: {g.targetDate} • {g.category}</p>
+                        </div>
+                        <div className="flex space-x-1.5">
+                          <button 
+                            onClick={() => {
+                              const newTitle = window.prompt("Modifier le titre :", g.title);
+                              if (!newTitle) return;
+                              const newTarget = window.prompt("Montant cible :", g.targetAmount.toString());
+                              if (!newTarget || isNaN(Number(newTarget))) return;
+                              const newCurrent = window.prompt("Montant déjà épargné :", g.currentAmount.toString());
+                              if (!newCurrent || isNaN(Number(newCurrent))) return;
+                              const newDate = window.prompt("Date cible (JJ/MM/AAAA) :", g.targetDate);
+                              if (!newDate) return;
+                              setSavingGoals(prev => prev.map(item => item.title === g.title ? {
+                                ...item,
+                                title: newTitle,
+                                targetAmount: Number(newTarget),
+                                currentAmount: Number(newCurrent),
+                                targetDate: newDate
+                              } : item));
+                            }}
+                            className="p-1.5 bg-white/5 hover:bg-white/10 rounded text-[10px] cursor-pointer"
+                            title="Modifier"
+                          >
+                            ✏️
+                          </button>
+                          <button 
+                            onClick={() => {
+                              if (window.confirm("Supprimer cet objectif d'épargne ?")) {
+                                setSavingGoals(prev => prev.filter(item => item.title !== g.title));
+                              }
+                            }}
+                            className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded text-[10px] cursor-pointer"
+                            title="Supprimer"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[10px] text-white/50 font-bold">
+                          <span>{formatMoney(g.currentAmount)} / {formatMoney(g.targetAmount)}</span>
+                          <span className="text-[#FFB020]">{pct}%</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                          <div className="h-full bg-[#FFB020] rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-xs text-white/40 text-center py-4">Aucun objectif d'épargne défini.</p>
+              )}
+            </div>
+
+            <div className="flex space-x-2 pt-2">
+              <button 
+                onClick={() => {
+                  const title = window.prompt("Titre de l'objectif d'épargne :");
+                  if (!title) return;
+                  const targetAmount = window.prompt("Montant cible (€) :");
+                  if (!targetAmount || isNaN(Number(targetAmount))) return;
+                  const currentAmount = window.prompt("Montant déjà épargné (€) :");
+                  if (!currentAmount || isNaN(Number(currentAmount))) return;
+                  const targetDate = window.prompt("Date cible (JJ/MM/AAAA) :");
+                  if (!targetDate) return;
+                  const newGoal: SavingGoal = {
+                    id: `g-${Date.now()}`,
+                    title,
+                    targetAmount: Number(targetAmount),
+                    currentAmount: Number(currentAmount),
+                    targetDate,
+                    category: 'Épargne'
+                  };
+                  setSavingGoals(prev => [...prev, newGoal]);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-[#FFB020] text-black text-xs font-extrabold transition hover:opacity-90 cursor-pointer"
+              >
+                ➕ Créer un Objectif
+              </button>
+              <button 
+                onClick={() => setIsSavingGoalsModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-bold transition hover:bg-white/10 cursor-pointer"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -4,8 +4,7 @@ import {
   Heart, 
   Printer, 
   RefreshCw,
-  Lock,
-  Trash2
+  Lock
 } from 'lucide-react';
 import type { MemoryLog } from '../../types';
 
@@ -14,6 +13,149 @@ interface CapsuleTemporelleProps {
   setMemories: React.Dispatch<React.SetStateAction<MemoryLog[]>>;
   activeMemberId: string;
 }
+
+interface MemoryCardProps {
+  m: MemoryLog;
+  isParent: boolean;
+  handleLike: (id: string) => void;
+  setMemories: React.Dispatch<React.SetStateAction<MemoryLog[]>>;
+}
+
+const MemoryCard: React.FC<MemoryCardProps> = ({
+  m,
+  isParent,
+  handleLike,
+  setMemories
+}) => {
+  const images = m.imageUrls && m.imageUrls.length > 0 ? m.imageUrls : (m.imageUrl ? [m.imageUrl] : []);
+  const [activeImgIdx, setActiveImgIdx] = useState(0);
+
+  return (
+    <div className="glass-panel border border-white/8 rounded-[28px] overflow-hidden flex flex-col justify-between shadow-lg relative group">
+      {images.length > 0 && (
+        <div className="relative w-full h-44 overflow-hidden bg-black/40 border-b border-white/5">
+          <img 
+            src={images[activeImgIdx]} 
+            alt={m.title} 
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-102"
+          />
+          
+          {images.length > 1 && (
+            <>
+              {/* Left arrow */}
+              <button 
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveImgIdx(prev => (prev === 0 ? images.length - 1 : prev - 1));
+                }}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/60 text-white text-xs font-bold flex items-center justify-center border border-white/10 hover:bg-black transition-all cursor-pointer z-10"
+              >
+                ‹
+              </button>
+              {/* Right arrow */}
+              <button 
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveImgIdx(prev => (prev === images.length - 1 ? 0 : prev + 1));
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/60 text-white text-xs font-bold flex items-center justify-center border border-white/10 hover:bg-black transition-all cursor-pointer z-10"
+              >
+                ›
+              </button>
+              {/* Dots indicator */}
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex space-x-1 z-10 bg-black/40 px-2 py-1 rounded-full border border-white/5">
+                {images.map((_, idx) => (
+                  <span 
+                    key={idx} 
+                    className={`w-1.5 h-1.5 rounded-full transition-all ${idx === activeImgIdx ? 'bg-[#FF4D6D] w-3' : 'bg-white/40'}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      
+      {/* Private label indicators overlay */}
+      {m.isPrivate && (
+        <span className="absolute top-3 left-3 px-2 py-0.5 rounded-lg bg-[#FF4D6D]/90 text-[8px] font-extrabold text-white border border-[#FF4D6D]/20 shadow-md uppercase tracking-wider flex items-center space-x-1">
+          <Lock className="w-2.5 h-2.5 shrink-0" />
+          <span>Privé (Parents)</span>
+        </span>
+      )}
+
+      {m.theme && (
+        <span className="absolute top-3 right-3 px-2.5 py-0.5 rounded-lg bg-black/60 text-[8px] font-extrabold text-[#FFB020] border border-white/5 shadow-md uppercase tracking-wider">
+          {m.theme}
+        </span>
+      )}
+      
+      <div className="p-4 space-y-2">
+        <div className="flex justify-between items-start">
+          <h3 className="text-xs sm:text-sm font-extrabold text-white leading-snug">{m.title}</h3>
+          <span className="text-[9px] text-white/40 shrink-0 font-medium">{m.date}</span>
+        </div>
+        
+        <p className="text-[11px] text-white/50 leading-relaxed font-sans font-medium">{m.description}</p>
+        
+        <div className="flex items-center justify-between pt-3 border-t border-white/5">
+          <div className="flex items-center space-x-2">
+            <img 
+              src={m.authorPhoto} 
+              alt={m.authorName} 
+              className="w-4 h-4 rounded-full object-cover border border-white/20 shrink-0"
+            />
+            <span className="text-[9px] font-bold text-white/40">
+              Par: <span className="text-[#FF4D6D]">{m.authorName}</span>
+            </span>
+          </div>
+          
+          <div className="flex items-center space-x-1.5">
+            <button
+              onClick={() => handleLike(m.id)}
+              className="px-2 py-1 rounded-xl bg-white/5 hover:bg-[#FF4D6D]/25 hover:text-[#FF4D6D] text-white/70 border border-white/10 text-[10px] font-bold transition-all cursor-pointer flex items-center space-x-1"
+            >
+              <Heart className="w-3.5 h-3.5 fill-current text-[#FF4D6D]" />
+              <span>{m.likesCount}</span>
+            </button>
+            {isParent && (
+              <div className="flex space-x-1 bg-white/5 p-1 rounded-xl border border-white/5">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const newTitle = window.prompt("Modifier le titre du souvenir :", m.title);
+                    if (!newTitle) return;
+                    const newDesc = window.prompt("Modifier la description :", m.description);
+                    if (!newDesc) return;
+                    setMemories(prev => prev.map(item => item.id === m.id ? { ...item, title: newTitle, description: newDesc } : item));
+                  }}
+                  className="p-1 hover:bg-white/10 rounded text-[10px]"
+                  title="Modifier"
+                >
+                  ✏️
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("Supprimer ce souvenir de la capsule ?")) {
+                      setMemories(prev => prev.filter(item => item.id !== m.id));
+                    }
+                  }}
+                  className="p-1 hover:bg-red-500/10 rounded text-[10px] text-red-400"
+                  title="Supprimer"
+                >
+                  🗑️
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({ 
   memories, 
@@ -28,7 +170,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
   const [newTheme, setNewTheme] = useState('🏖️ Vacances');
   const [newDate, setNewDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [selectedPresetImage, setSelectedPresetImage] = useState('https://images.unsplash.com/photo-1541614101331-1a5a3a194e92?w=600&auto=format&fit=crop&q=80');
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [isPrivate, setIsPrivate] = useState(false);
   
   const [uploading, setUploading] = useState(false);
@@ -45,13 +187,15 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
   ];
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadedImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    const files = e.target.files;
+    if (files) {
+      Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setUploadedImages(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
     }
   };
 
@@ -70,11 +214,14 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
             ? 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150&auto=format&fit=crop&q=80'
             : 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150&auto=format&fit=crop&q=80';
 
+      const finalImages = uploadedImages.length > 0 ? uploadedImages : [selectedPresetImage];
+
       const newMemory: MemoryLog = {
         id: `mem-${Date.now()}`,
         title: newTitle,
         description: newDesc,
-        imageUrl: uploadedImage || selectedPresetImage,
+        imageUrl: finalImages[0],
+        imageUrls: finalImages,
         date: new Date(newDate).toLocaleDateString('fr-FR'),
         authorName: author,
         authorPhoto: authorPic,
@@ -86,7 +233,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       setMemories(prev => [newMemory, ...prev]);
       setNewTitle('');
       setNewDesc('');
-      setUploadedImage(null);
+      setUploadedImages([]);
       setIsPrivate(false);
       setUploading(false);
       alert("Nouveau souvenir partagé dans la Capsule de la Famille ! 📸");
@@ -228,7 +375,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
 
               {/* Custom Mobile Camera & Library Uploader */}
               <div className="space-y-1.5 pt-1">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Image (Appareil photo / Bibliothèque locale)</label>
+                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Image (Appareil photo / Bibliothèque locale - Sélectionnez plusieurs)</label>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Native input camera picker */}
@@ -236,37 +383,38 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                     <input 
                       type="file" 
                       accept="image/*"
+                      multiple
                       onChange={handleFileChange}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                     />
                     <Camera className="w-5 h-5 text-white/60 mb-1" />
-                    <span className="text-[10px] font-bold text-white/80">Ajouter une photo</span>
+                    <span className="text-[10px] font-bold text-white/80">Ajouter des photos</span>
                     <span className="text-[8px] text-white/40 mt-0.5">Appareil photo ou Galerie</span>
                   </div>
 
                   {/* Photo Preview / Fallback indicator */}
-                  <div className="relative rounded-xl overflow-hidden min-h-[90px] border border-white/10 flex items-center justify-center bg-black/20">
-                    {uploadedImage ? (
-                      <>
-                        <img src={uploadedImage} alt="Preview" className="w-full h-full object-cover animate-fade-in" />
-                        <button 
-                          type="button"
-                          onClick={() => setUploadedImage(null)}
-                          className="absolute top-1 right-1 p-1 rounded-lg bg-black/60 border border-white/20 text-[#FF4D6D] hover:bg-black transition-all cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                        <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-[#00D26A]/90 text-[8px] font-extrabold text-white border border-[#00D26A]/30 uppercase">
-                          Photo importée ✓
-                        </span>
-                      </>
+                  <div className="rounded-xl p-2 border border-white/10 flex flex-wrap gap-2 bg-black/20 min-h-[90px] items-center justify-center overflow-y-auto max-h-[140px]">
+                    {uploadedImages.length > 0 ? (
+                      uploadedImages.map((img, idx) => (
+                        <div key={idx} className="relative w-12 h-12 rounded-lg overflow-hidden border border-white/10 group">
+                          <img src={img} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
+                          <button 
+                            type="button"
+                            onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== idx))}
+                            className="absolute inset-0 bg-black/75 opacity-0 group-hover:opacity-100 flex items-center justify-center text-red-400 text-[10px] font-bold transition-all cursor-pointer"
+                            title="Supprimer"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      ))
                     ) : (
-                      <>
-                        <img src={selectedPresetImage} alt="Preset default" className="w-full h-full object-cover opacity-60" />
-                        <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-white/5 text-[8px] font-bold text-white/60 border border-white/10 uppercase">
+                      <div className="relative w-full h-full min-h-[70px] rounded-lg overflow-hidden flex items-center justify-center bg-black/20">
+                        <img src={selectedPresetImage} alt="Preset default" className="w-full h-full object-cover opacity-60 absolute inset-0" />
+                        <span className="relative z-10 px-1.5 py-0.5 rounded bg-white/5 text-[8px] font-bold text-white/60 border border-white/10 uppercase">
                           Défaut Preset
                         </span>
-                      </>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -322,91 +470,13 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
           {/* Album grid view */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {visibleMemories.map(m => (
-              <div key={m.id} className="glass-panel border border-white/8 rounded-[28px] overflow-hidden flex flex-col justify-between shadow-lg relative group">
-                {m.imageUrl && (
-                  <img 
-                    src={m.imageUrl} 
-                    alt={m.title} 
-                    className="w-full h-44 object-cover border-b border-white/5 transition-transform duration-500 group-hover:scale-102"
-                  />
-                )}
-                
-                {/* Private label indicators overlay */}
-                {m.isPrivate && (
-                  <span className="absolute top-3 left-3 px-2 py-0.5 rounded-lg bg-[#FF4D6D]/90 text-[8px] font-extrabold text-white border border-[#FF4D6D]/20 shadow-md uppercase tracking-wider flex items-center space-x-1">
-                    <Lock className="w-2.5 h-2.5 shrink-0" />
-                    <span>Privé (Parents)</span>
-                  </span>
-                )}
-
-                {m.theme && (
-                  <span className="absolute top-3 right-3 px-2.5 py-0.5 rounded-lg bg-black/60 text-[8px] font-extrabold text-[#FFB020] border border-white/5 shadow-md uppercase tracking-wider">
-                    {m.theme}
-                  </span>
-                )}
-                
-                <div className="p-4 space-y-2">
-                  <div className="flex justify-between items-start">
-                    <h3 className="text-xs sm:text-sm font-extrabold text-white leading-snug">{m.title}</h3>
-                    <span className="text-[9px] text-white/40 shrink-0 font-medium">{m.date}</span>
-                  </div>
-                  
-                  <p className="text-[11px] text-white/50 leading-relaxed font-sans font-medium">{m.description}</p>
-                  
-                  <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                    <div className="flex items-center space-x-2">
-                      <img 
-                        src={m.authorPhoto} 
-                        alt={m.authorName} 
-                        className="w-4 h-4 rounded-full object-cover border border-white/20 shrink-0"
-                      />
-                      <span className="text-[9px] font-bold text-white/40">
-                        Par: <span className="text-[#FF4D6D]">{m.authorName}</span>
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center space-x-1.5">
-                      <button
-                        onClick={() => handleLike(m.id)}
-                        className="px-2 py-1 rounded-xl bg-white/5 hover:bg-[#FF4D6D]/25 hover:text-[#FF4D6D] text-white/70 border border-white/10 text-[10px] font-bold transition-all cursor-pointer flex items-center space-x-1"
-                      >
-                        <Heart className="w-3.5 h-3.5 fill-current text-[#FF4D6D]" />
-                        <span>{m.likesCount}</span>
-                      </button>
-                      {isParent && (
-                        <div className="flex space-x-1 bg-white/5 p-1 rounded-xl border border-white/5">
-                          <button 
-                            type="button"
-                            onClick={() => {
-                              const newTitle = window.prompt("Modifier le titre du souvenir :", m.title);
-                              if (!newTitle) return;
-                              const newDesc = window.prompt("Modifier la description :", m.description);
-                              if (!newDesc) return;
-                              setMemories(prev => prev.map(item => item.id === m.id ? { ...item, title: newTitle, description: newDesc } : item));
-                            }}
-                            className="p-1 hover:bg-white/10 rounded text-[10px]"
-                            title="Modifier"
-                          >
-                            ✏️
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={() => {
-                              if (window.confirm("Supprimer ce souvenir de la capsule ?")) {
-                                setMemories(prev => prev.filter(item => item.id !== m.id));
-                              }
-                            }}
-                            className="p-1 hover:bg-red-500/10 rounded text-[10px] text-red-400"
-                            title="Supprimer"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <MemoryCard 
+                key={m.id}
+                m={m}
+                isParent={isParent}
+                handleLike={handleLike}
+                setMemories={setMemories}
+              />
             ))}
           </div>
 

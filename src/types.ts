@@ -168,6 +168,7 @@ export interface MemoryLog {
   authorName: string;
   authorPhoto: string;
   imageUrl?: string;
+  imageUrls?: string[];
   likesCount: number;
   isPrivate?: boolean;
   theme?: string;
