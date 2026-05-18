@@ -55,6 +55,7 @@ import { PeaceMaker } from '../components/modules/PeaceMaker';
 import { MaVieSimulator } from '../components/modules/MaVieSimulator';
 import { CoffreFortAvance } from '../components/modules/CoffreFortAvance';
 import { Messagerie } from '../components/modules/Messagerie';
+import { WidgetMeteo } from '../components/modules/WidgetMeteo';
 
 interface MenuHubProps {
   documents: DocumentFile[];
@@ -459,6 +460,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       {/* Main Grid dashboard (Screen 4 Layout) */}
       {!activeModule && (
         <>
+          <WidgetMeteo />
+          
           {/* Dashboard Head */}
           <div className="flex items-center space-x-3">
             <div className="p-3 rounded-2xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF]">

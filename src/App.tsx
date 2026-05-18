@@ -364,11 +364,6 @@ function App() {
     setTasks(prev => [{ ...newTask, id }, ...prev]);
   };
 
-  const handleAddDocument = (newDoc: any) => {
-    const id = `dc-${Date.now()}`;
-    setDocuments(prev => [{ ...newDoc, id }, ...prev]);
-  };
-
   const handleAddMember = (newMem: any) => {
     const id = `${members.length + 1}`;
     setMembers(prev => [...prev, { ...newMem, id }]);
@@ -629,8 +624,11 @@ function App() {
         onAddEvent={handleAddEvent}
         onAddTransaction={handleAddTransaction}
         onAddTask={handleAddTask}
-        onAddDocument={handleAddDocument}
         onAddMember={handleAddMember}
+        onNavigateToVault={() => {
+          setActiveModule('documents');
+          setQuickActionsOpen(false);
+        }}
       />
 
       {/* Shared bottom iOS premium nav bar with quick actions central (+) trigger */}

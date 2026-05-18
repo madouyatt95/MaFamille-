@@ -6,9 +6,10 @@ import {
   Brush, 
   FolderLock, 
   UserPlus, 
-  CheckCircle2 
+  CheckCircle2,
+  FileText
 } from 'lucide-react';
-import type { Member, EventType, TransactionType, DocumentCategory } from '../types';
+import type { Member, EventType, TransactionType } from '../types';
 
 interface QuickActionsSheetProps {
   isOpen: boolean;
@@ -17,8 +18,8 @@ interface QuickActionsSheetProps {
   onAddEvent: (event: any) => void;
   onAddTransaction: (transaction: any) => void;
   onAddTask: (task: any) => void;
-  onAddDocument: (doc: any) => void;
   onAddMember: (member: any) => void;
+  onNavigateToVault?: () => void;
 }
 
 type AddTab = 'event' | 'transaction' | 'task' | 'document' | 'member';
@@ -30,8 +31,8 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   onAddEvent,
   onAddTransaction,
   onAddTask,
-  onAddDocument,
-  onAddMember
+  onAddMember,
+  onNavigateToVault
 }) => {
   const [activeTab, setActiveTab] = useState<AddTab>('event');
   const [showSuccess, setShowSuccess] = useState(false);
@@ -60,11 +61,6 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   const [taskRotation, setTaskRotation] = useState<'daily' | 'weekly' | 'none'>('daily');
   const [taskDue, setTaskDue] = useState('Ce soir');
 
-  // Document
-  const [docName, setDocName] = useState('');
-  const [docCat, setDocCat] = useState<DocumentCategory>('insurance');
-  const [docExpiry, setDocExpiry] = useState('');
-  const [docDesc, setDocDesc] = useState('');
 
   // Member
   const [memName, setMemName] = useState('');
@@ -89,7 +85,6 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
     setEventTitle(''); setEventDate(''); setEventTime(''); setEventMemberId(''); setEventLoc(''); setEventDesc('');
     setTransTitle(''); setTransAmount(''); setTransMemberId('');
     setTaskTitle(''); setTaskMemberId('');
-    setDocName(''); setDocExpiry(''); setDocDesc('');
     setMemName(''); setMemRole(''); setMemAge(''); setMemBirth(''); setMemAllergies(''); setMemTreatments('');
   };
 
@@ -140,21 +135,6 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
       rotation: taskRotation,
       validatedByParent: false,
       dueDate: taskDue
-    });
-    triggerSuccess();
-  };
-
-  const handleDocSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!docName) return;
-    onAddDocument({
-      name: docName,
-      category: docCat,
-      uploadDate: new Date().toLocaleDateString('fr-FR'),
-      expiryDate: docExpiry || undefined,
-      fileSize: '1.2 Mo', // Simulée
-      isExpired: false,
-      description: docDesc || undefined
     });
     triggerSuccess();
   };
@@ -554,72 +534,26 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
 
               {/* Document Form */}
               {activeTab === 'document' && (
-                <form onSubmit={handleDocSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Nom du document</label>
-                    <input 
-                      type="text" 
-                      required
-                      placeholder="Ex: Passeport_Amadou.pdf, Contrat_Assurance_Auto.pdf" 
-                      value={docName}
-                      onChange={(e) => setDocName(e.target.value)}
-                      className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
-                    />
+                <div className="space-y-6 flex flex-col items-center justify-center py-6">
+                  <div className="p-4 bg-[#6C5CFF]/10 rounded-full mb-2">
+                    <FileText className="w-10 h-10 text-[#6C5CFF]" />
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Catégorie</label>
-                      <select 
-                        value={docCat}
-                        onChange={(e) => setDocCat(e.target.value as DocumentCategory)}
-                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
-                      >
-                        <option value="passport">Passeport</option>
-                        <option value="id_card">Carte d'Identité</option>
-                        <option value="family_book">Livret de Famille</option>
-                        <option value="insurance">Assurance</option>
-                        <option value="contract">Contrat</option>
-                        <option value="report_card">Bulletin scolaire</option>
-                        <option value="diploma">Diplôme</option>
-                        <option value="other">Autre</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Date d'expiration (Optionnel)</label>
-                      <input 
-                        type="date" 
-                        value={docExpiry}
-                        onChange={(e) => setDocExpiry(e.target.value)}
-                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Description</label>
-                    <textarea 
-                      rows={2}
-                      placeholder="Commentaires ou notes..." 
-                      value={docDesc}
-                      onChange={(e) => setDocDesc(e.target.value)}
-                      className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30 resize-none"
-                    />
-                  </div>
-
-                  <div className="p-6 rounded-[24px] border border-dashed border-white/20 bg-white/5 text-center cursor-pointer hover:border-[#6C5CFF] hover:bg-white/8 transition-all">
-                    <p className="text-sm font-semibold text-white/80">Glissez ou sélectionnez un fichier à téléverser</p>
-                    <p className="text-xs text-white/40 mt-1">PDF, JPG, PNG jusqu'à 10 Mo • Simulation OCR automatique</p>
-                  </div>
-
+                  <h3 className="text-base font-bold text-white text-center">Coffre-Fort Avancé</h3>
+                  <p className="text-xs text-white/50 text-center px-4 max-w-sm">
+                    L'ajout de documents utilise désormais le nouveau système intelligent. Scannez vos fichiers et classez-les facilement.
+                  </p>
+                  
                   <button 
-                    type="submit" 
-                    className="w-full py-4 rounded-[22px] bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white font-semibold text-sm hover:opacity-90 active:scale-98 transition-all cursor-pointer shadow-[0_4px_15px_rgba(108,92,255,0.4)]"
+                    type="button" 
+                    onClick={() => {
+                      if (onNavigateToVault) onNavigateToVault();
+                      onClose();
+                    }}
+                    className="w-full mt-4 py-4 rounded-[22px] bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white font-semibold text-sm hover:opacity-90 active:scale-98 transition-all cursor-pointer shadow-[0_4px_15px_rgba(108,92,255,0.4)] flex justify-center items-center space-x-2"
                   >
-                    Sauvegarder le document
+                    <span>Ouvrir le Coffre-Fort</span>
                   </button>
-                </form>
+                </div>
               )}
 
               {/* Member Form */}
