@@ -9,8 +9,6 @@ import {
   ShieldCheck, 
   ChevronRight, 
   ArrowLeft,
-  Upload,
-  FileText,
   AlertCircle,
   Activity,
   Plus,
@@ -54,9 +52,11 @@ import { VoyageIA } from '../components/modules/VoyageIA';
 import { ConseilFamille } from '../components/modules/ConseilFamille';
 import { PeaceMaker } from '../components/modules/PeaceMaker';
 import { MaVieSimulator } from '../components/modules/MaVieSimulator';
+import { CoffreFortAvance } from '../components/modules/CoffreFortAvance';
 
 interface MenuHubProps {
   documents: DocumentFile[];
+  setDocuments: React.Dispatch<React.SetStateAction<DocumentFile[]>>;
   tasks: ChoreTask[];
   groceries: GroceryItem[];
   members: Member[];
@@ -76,7 +76,6 @@ interface MenuHubProps {
   formatMoney: (amount: number) => string;
   activeModule: string;
   setActiveModule: (moduleName: string) => void;
-  onAddDoc: (doc: any) => void;
   onAddTask: (task: any) => void;
   onAddGrocery: (item: any) => void;
   onToggleTask: (id: string) => void;
@@ -99,6 +98,8 @@ interface MenuHubProps {
 
 export const MenuHub: React.FC<MenuHubProps> = ({
   documents,
+  setDocuments,
+  members,
   tasks,
   groceries,
   vehicles,
@@ -115,7 +116,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   formatMoney,
   activeModule,
   setActiveModule,
-  onAddDoc,
   onToggleTask,
   onValidateTask,
   onToggleGrocery,
@@ -136,7 +136,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newGroceryCat, setNewGroceryCat] = useState('Épicerie');
   const [newGroceryQty, setNewGroceryQty] = useState(1);
   const [newGroceryUnit, setNewGroceryUnit] = useState('pièces');
-  const [uploading, setUploading] = useState(false);
   const [grocerySubTab, setGrocerySubTab] = useState<'liste' | 'ecochef' | 'menus'>('liste');
 
   // Form states for meals
@@ -153,15 +152,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     { name: '🍕 Pizzas Maison en Famille', url: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=300&auto=format&fit=crop&q=80' },
     { name: '🍲 Soupe Légumes Anti-Gaspi', url: 'https://images.unsplash.com/photo-1547592165-e1d17fed6005?w=300&auto=format&fit=crop&q=80' }
   ];
-
-  // Form states for advanced documents
-  const [showAddDocForm, setShowAddDocForm] = useState(false);
-  const [docName, setDocName] = useState('');
-  const [docCategory, setDocCategory] = useState('Assurances');
-  const [docExpiry, setDocExpiry] = useState('');
-  const [docDesc, setDocDesc] = useState('');
-  const [docOcr, setDocOcr] = useState(true);
-
   React.useEffect(() => {
     if (activeModule === 'menus') {
       setGrocerySubTab('menus');
@@ -368,34 +358,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
 
 
-  const handleSaveDocument = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!docName) return;
-
-    setUploading(true);
-    const mockFileSize = `${(Math.random() * 2 + 0.2).toFixed(1)} Mo`;
-    
-    setTimeout(() => {
-      onAddDoc({
-        name: docName.endsWith('.pdf') ? docName : `${docName}.pdf`,
-        category: docCategory,
-        uploadDate: new Date().toLocaleDateString('fr-FR'),
-        fileSize: mockFileSize,
-        expiryDate: docExpiry ? new Date(docExpiry).toLocaleDateString('fr-FR') : undefined,
-        isExpired: docExpiry ? new Date(docExpiry) < new Date() : false,
-        description: docOcr 
-          ? `[OCR SCAN ✓] Analyse automatique : Détection d'échéance et signature certifiée.` 
-          : docDesc || 'Aucune description fournie.'
-      });
-
-      setDocName('');
-      setDocExpiry('');
-      setDocDesc('');
-      setUploading(false);
-      setShowAddDocForm(false);
-      alert('📄 Document classifié et ajouté au Coffre-Fort familial !');
-    }, 1000);
-  };
 
   const handleSaveMeal = (e: React.FormEvent) => {
     e.preventDefault();
@@ -610,154 +572,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
       {/* SUB-MODULE 1: Documents Vault */}
       {activeModule === 'documents' && !isLockedForChild && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-extrabold text-white">Coffre-fort Documents</h2>
-              <p className="text-xs text-white/50">Renouvellement automatique et sécurité</p>
-            </div>
-            <button 
-              onClick={() => setShowAddDocForm(!showAddDocForm)}
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white text-xs font-bold hover:opacity-90 flex items-center space-x-2 cursor-pointer shadow-md border border-white/10"
-            >
-              <Upload className="w-4 h-4" />
-              <span>{showAddDocForm ? 'Fermer l\'ajout' : 'Ajouter un Document'}</span>
-            </button>
-          </div>
-
-          {/* Advanced Document Upload Form */}
-          {showAddDocForm && (
-            <form onSubmit={handleSaveDocument} className="glass-panel border border-[#6C5CFF]/30 rounded-[28px] p-5 space-y-4 bg-gradient-to-br from-[#121829]/50 to-[#0A0D18]/70">
-              <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Classer un nouveau document</h3>
-                <span className="text-[9px] font-bold text-[#6C5CFF] bg-[#6C5CFF]/10 px-2 py-0.5 rounded-md border border-[#6C5CFF]/20 uppercase">
-                  🔒 Chiffré AES-256
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Nom du document</label>
-                  <input 
-                    type="text" 
-                    required
-                    placeholder="Ex: Passeport_Amadou..." 
-                    value={docName}
-                    onChange={(e) => setDocName(e.target.value)}
-                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Classification / Catégorie</label>
-                  <select 
-                    value={docCategory}
-                    onChange={(e) => setDocCategory(e.target.value)}
-                    className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
-                  >
-                    <option value="Assurances">🏥 Santé & Assurances</option>
-                    <option value="Scolaire">📄 Scolaire & Devoirs</option>
-                    <option value="Logement">🏠 Logement & Factures</option>
-                    <option value="Identité">📂 Pièces d'identité</option>
-                    <option value="Finances">💰 Finance & Contrats</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Date d'échéance (facultatif)</label>
-                  <input 
-                    type="date" 
-                    value={docExpiry}
-                    onChange={(e) => setDocExpiry(e.target.value)}
-                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Description rapide</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ex: Livret de famille mis à jour..." 
-                    value={docDesc}
-                    disabled={docOcr}
-                    onChange={(e) => setDocDesc(e.target.value)}
-                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF] disabled:opacity-40"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-3 bg-white/5 p-3 rounded-xl border border-white/5">
-                <input 
-                  type="checkbox" 
-                  id="docOcr" 
-                  checked={docOcr} 
-                  onChange={(e) => setDocOcr(e.target.checked)} 
-                  className="rounded border-white/20 text-[#6C5CFF] focus:ring-[#6C5CFF]"
-                />
-                <label htmlFor="docOcr" className="text-[10px] text-white/70 font-semibold cursor-pointer">
-                  ✨ Activer l'analyse intelligente et le scan OCR automatique
-                </label>
-              </div>
-
-              <div className="border border-dashed border-white/10 hover:border-[#6C5CFF]/50 p-4 rounded-xl text-center cursor-pointer transition-all bg-white/5 flex flex-col items-center justify-center space-y-1">
-                <Upload className="w-5 h-5 text-white/40" />
-                <span className="text-[10px] font-bold text-white/70">Sélectionner un fichier (PDF, JPG, PNG)</span>
-                <span className="text-[8px] text-white/40">Taille max : 10 Mo</span>
-              </div>
-
-              <button
-                type="submit"
-                disabled={uploading}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white font-extrabold text-xs shadow-md cursor-pointer transition-all hover:opacity-95 flex items-center justify-center space-x-2"
-              >
-                <span>{uploading ? 'Téléchargement sécurisé et scan...' : 'Classer le document maintenant'}</span>
-              </button>
-            </form>
-          )}
-
-          {/* Alert Expiration Document */}
-          <div className="p-4 rounded-[24px] bg-[#FF4D6D]/10 border border-[#FF4D6D]/20 flex items-start space-x-3">
-            <AlertCircle className="w-5 h-5 text-[#FF4D6D] shrink-0 mt-0.5" />
-            <div>
-              <h4 className="text-xs font-bold text-[#FF4D6D] uppercase tracking-wider">Document expirant bientôt</h4>
-              <p className="text-[11px] text-white/70 leading-normal mt-0.5">
-                Le passeport d'Ibrahima expire le 13/06/2026. Prévoyez son renouvellement rapidement.
-              </p>
-            </div>
-          </div>
-
-          {/* Files List */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {documents.map((doc) => (
-              <div key={doc.id} className="glass-panel rounded-[24px] p-4 border border-white/8 space-y-3 relative">
-                <div className="flex items-start space-x-3">
-                  <div className="p-3 rounded-2xl bg-[#4F8CFF]/10 text-[#4F8CFF] border border-white/5">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h4 className="text-xs sm:text-sm font-bold text-white truncate">{doc.name}</h4>
-                    <p className="text-[9px] text-[#4F8CFF] font-bold uppercase tracking-wider mt-0.5">{doc.category}</p>
-                    <p className="text-[10px] text-white/40 mt-1">Ajouté le {doc.uploadDate} • {doc.fileSize}</p>
-                  </div>
-                </div>
-
-                {doc.expiryDate && (
-                  <div className="pt-2.5 border-t border-white/5 flex items-center justify-between text-[10px]">
-                    <span className="text-white/40">Échéance :</span>
-                    <span className={`font-bold ${doc.isExpired ? 'text-[#FF4D6D]' : 'text-white'}`}>{doc.expiryDate}</span>
-                  </div>
-                )}
-                {doc.description && (
-                  <p className="text-[10px] text-[#00D26A] bg-[#00D26A]/5 p-2 rounded-xl border border-[#00D26A]/10 mt-2 font-medium">
-                    {doc.description}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <CoffreFortAvance documents={documents} setDocuments={setDocuments} members={members} />
       )}
 
       {/* SUB-MODULE 2: Santé */}

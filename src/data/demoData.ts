@@ -210,13 +210,13 @@ export const demoTransactions: Transaction[] = [
 ];
 
 export const demoDocuments: DocumentFile[] = [
-  { id: 'd1', name: 'Passeport_Papa.pdf', category: 'passport', uploadDate: '12/03/2023', expiryDate: '11/03/2033', fileSize: '2.4 Mo', isExpired: false },
-  { id: 'd2', name: 'CNI_Maman.pdf', category: 'id_card', uploadDate: '05/06/2021', expiryDate: '04/06/2031', fileSize: '1.8 Mo', isExpired: false },
-  { id: 'd3', name: 'Livret_De_Famille.pdf', category: 'family_book', uploadDate: '14/01/2024', fileSize: '4.2 Mo', isExpired: false },
-  { id: 'd4', name: 'Assurance_Habitation_2026.pdf', category: 'insurance', uploadDate: '01/01/2026', expiryDate: '31/12/2026', fileSize: '1.1 Mo', isExpired: false, description: 'Contrat d\'assurance résidence principale.' },
-  { id: 'd5', name: 'Contrat_TechCorp_Papa.pdf', category: 'contract', uploadDate: '15/10/2020', fileSize: '3.5 Mo', isExpired: false },
-  { id: 'd6', name: 'Bulletin_Q1_Amadou.pdf', category: 'report_card', uploadDate: '18/12/2025', fileSize: '1.2 Mo', isExpired: false },
-  { id: 'd7', name: 'Passeport_Ibrahima_Expirant.pdf', category: 'passport', uploadDate: '14/02/2021', expiryDate: '13/06/2026', fileSize: '2.1 Mo', isExpired: false, description: 'Attention, renouvellement à prévoir sous peu.' }
+  { id: 'd1', name: 'Passeport_Papa.pdf', category: 'identity', tags: ['Passeport', 'Voyage'], uploadDate: '12/03/2023', expiryDate: '11/03/2033', fileSize: '2.4 Mo', isExpired: false, memberId: '1', memberName: 'Papa' },
+  { id: 'd2', name: 'CNI_Maman.pdf', category: 'identity', tags: ['Carte Nationale d\'Identité'], uploadDate: '05/06/2021', expiryDate: '04/06/2031', fileSize: '1.8 Mo', isExpired: false, memberId: '2', memberName: 'Maman' },
+  { id: 'd3', name: 'Livret_De_Famille.pdf', category: 'identity', tags: ['Livret de famille', 'Officiel'], uploadDate: '14/01/2024', fileSize: '4.2 Mo', isExpired: false },
+  { id: 'd4', name: 'Assurance_Habitation_2026.pdf', category: 'home', tags: ['Assurance', 'Maison'], uploadDate: '01/01/2026', expiryDate: '31/12/2026', fileSize: '1.1 Mo', isExpired: false, description: 'Contrat d\'assurance résidence principale.' },
+  { id: 'd5', name: 'Contrat_TechCorp_Papa.pdf', category: 'contract', tags: ['Travail', 'CDI'], uploadDate: '15/10/2020', fileSize: '3.5 Mo', isExpired: false, memberId: '1', memberName: 'Papa' },
+  { id: 'd6', name: 'Bulletin_Q1_Amadou.pdf', category: 'school', tags: ['Scolarité', 'Bulletin'], uploadDate: '18/12/2025', fileSize: '1.2 Mo', isExpired: false, memberId: '3', memberName: 'Amadou' },
+  { id: 'd7', name: 'Passeport_Ibrahima_Expirant.pdf', category: 'identity', tags: ['Passeport', 'Urgent'], uploadDate: '14/02/2021', expiryDate: '13/06/2026', fileSize: '2.1 Mo', isExpired: false, description: 'Attention, renouvellement à prévoir sous peu.', memberId: '5', memberName: 'Ibrahima' }
 ];
 
 export const demoGroceries: GroceryItem[] = [

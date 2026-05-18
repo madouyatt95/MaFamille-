@@ -54,17 +54,22 @@ export interface Transaction {
   memberName?: string;
 }
 
-export type DocumentCategory = 'passport' | 'id_card' | 'family_book' | 'insurance' | 'contract' | 'report_card' | 'diploma' | 'other';
+export type DocumentCategory = 'identity' | 'health' | 'school' | 'insurance' | 'bank' | 'contract' | 'vehicle' | 'home' | 'travel' | 'other';
 
 export interface DocumentFile {
   id: string;
   name: string;
   category: DocumentCategory;
+  subCategory?: string;
+  memberId?: string;
+  memberName?: string;
+  tags: string[];
   uploadDate: string;
   expiryDate?: string;
   fileSize: string;
   isExpired: boolean;
   description?: string;
+  fileBase64?: string; // Stored locally
 }
 
 export interface GroceryItem {

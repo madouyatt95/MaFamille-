@@ -549,6 +549,7 @@ function App() {
       return (
         <MenuHub 
           documents={documents}
+          setDocuments={setDocuments}
           tasks={tasks}
           groceries={groceries}
           members={members}
@@ -568,7 +569,6 @@ function App() {
           formatMoney={formatMoney}
           activeModule={activeModule}
           setActiveModule={setActiveModule}
-          onAddDoc={handleAddDocument}
           onAddTask={handleAddTask}
           onAddGrocery={handleToggleGrocery}
           onToggleTask={handleToggleTask}
