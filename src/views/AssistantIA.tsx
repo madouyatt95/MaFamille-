@@ -18,6 +18,7 @@ interface AssistantIAProps {
   currencySymbol?: string;
   formatMoney: (amount: number) => string;
   activeMemberId?: string;
+  onAddGroceryItem?: (name: string, category: string, qty: string) => void;
 }
 
 interface Message {
@@ -33,7 +34,8 @@ export const AssistantIA: React.FC<AssistantIAProps> = ({
   documents,
   groceries,
   formatMoney,
-  activeMemberId = '1'
+  activeMemberId = '1',
+  onAddGroceryItem
 }) => {
   const [messages, setMessages] = useState<Message[]>(() => {
     const name = activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa';
@@ -130,8 +132,28 @@ export const AssistantIA: React.FC<AssistantIAProps> = ({
       let responseText = '';
       
       const promptLower = text.toLowerCase();
+      const addMatch = promptLower.match(/(?:ajoute|ajouter|mets|mettre|rajoute|rajouter)\s+(?:des|de\s+la|du|un|une|le|la)?\s*([a-zA-Zà-üÀ-Ü\s\-]{2,25}?)(?:\s+(?:à\s+la|dans\s+la|dans\s+le)?\s*(?:liste|courses|caddie|panier)|$)/i);
       
-      if (type === 'finances' || promptLower.includes('dépense') || promptLower.includes('budget') || promptLower.includes('financ')) {
+      if (addMatch && onAddGroceryItem) {
+        const itemName = addMatch[1].trim();
+        const formattedName = itemName.charAt(0).toUpperCase() + itemName.slice(1);
+        
+        const itemLower = itemName.toLowerCase();
+        let category = 'Épicerie';
+        if (itemLower.includes('banane') || itemLower.includes('pomme') || itemLower.includes('tomate') || itemLower.includes('salade') || itemLower.includes('carotte') || itemLower.includes('avocat') || itemLower.includes('fraise') || itemLower.includes('citron') || itemLower.includes('fruit') || itemLower.includes('légume')) {
+          category = 'Fruits & Légumes';
+        } else if (itemLower.includes('lait') || itemLower.includes('beurre') || itemLower.includes('fromage') || itemLower.includes('yaourt') || itemLower.includes('crème')) {
+          category = 'Produits Laitiers';
+        } else if (itemLower.includes('pain') || itemLower.includes('baguette') || itemLower.includes('croissant') || itemLower.includes('pain de mie')) {
+          category = 'Boulangerie';
+        } else if (itemLower.includes('poulet') || itemLower.includes('viande') || itemLower.includes('steak') || itemLower.includes('jambon') || itemLower.includes('saumon') || itemLower.includes('poisson') || itemLower.includes('sardine')) {
+          category = 'Viandes & Poissons';
+        }
+
+        onAddGroceryItem(formattedName, category, '1 pièce');
+        responseText = `🛒 C'est fait ! J'ai ajouté **"${formattedName}"** (${category}) à votre vraie liste de courses de la famille fatou. Vous pouvez le voir dans le module Courses.`;
+      }
+      else if (type === 'finances' || promptLower.includes('dépense') || promptLower.includes('budget') || promptLower.includes('financ')) {
         const totalDepenses = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
         responseText = `Analyse financière de Mai 2026 :\n\n- Dépenses totales : ${formatMoney(totalDepenses)}.\n- Principale dépense : Alimentation (650 000 FCFA / 650 €).\n- État d'épargne : Excellent (43% de l'objectif Vacances 2026 atteint).\n\n💡 Conseil de l'IA : Vous avez réduit vos dépenses de Transport de 3% cette semaine, ce qui vous permet d'allouer plus de budget à vos objectifs d'épargne. Continuez ainsi !`;
       } 

@@ -59,7 +59,7 @@ import { SharedPackView } from './components/modules/SharedPackView';
 import { KidsDashboard } from './views/KidsDashboard';
 
 // Lucide icon for inline notifications
-import { Bell, X, ChevronRight } from 'lucide-react';
+import { Bell, X, ChevronRight, Bot } from 'lucide-react';
 
 function App() {
   // ----------------------------------------------------
@@ -653,6 +653,7 @@ function App() {
             currencySymbol={getCurrencySymbol()}
             formatMoney={formatMoney}
             activeMemberId={activeMemberId}
+            onAddGroceryItem={handleAddGroceryItem}
           />
         );
       }
@@ -793,6 +794,20 @@ function App() {
         onAddClick={() => setQuickActionsOpen(true)}
         activeMemberId={activeMemberId}
       />
+
+      {/* Floating AI Assistant Button (fixed bottom-24 right-6, just above the Menu tab on the right) */}
+      {activeModule !== 'assistant' && (
+        <button 
+          onClick={() => {
+            setActiveTab('menu');
+            setActiveModule('assistant');
+          }}
+          className="fixed bottom-24 right-6 z-[39] w-14 h-14 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] text-white flex items-center justify-center shadow-lg shadow-[#6C5CFF]/30 hover:scale-110 active:scale-95 transition-all cursor-pointer group"
+        >
+          <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] blur-md opacity-40 group-hover:opacity-70 transition-opacity animate-pulse"></div>
+          <Bot className="w-6 h-6 relative z-10 text-white animate-bounce" style={{ animationDuration: '3s' }} />
+        </button>
+      )}
 
       {/* Floating Profile Switcher for Kids Mode Escape */}
       {isKidMode && activeMemberObj && (
