@@ -542,6 +542,24 @@ function App() {
     }
 
     if (activeTab === 'accueil') {
+      const activeMemberObj = members.find(m => m.id === activeMemberId);
+      const isKidMode = activeMemberObj && activeMemberObj.age && parseInt(activeMemberObj.age) < 11;
+      
+      if (isKidMode && activeMemberObj) {
+        return (
+          <KidsDashboard 
+            member={activeMemberObj}
+            tasks={tasks}
+            setTasks={setTasks}
+            pocketMoney={pocketMoney}
+            events={events}
+            setActiveTab={setActiveTab}
+            setActiveModule={setActiveModule}
+            onTriggerSos={() => setSosActive(true)}
+          />
+        );
+      }
+      
       return (
         <Accueil 
           members={members}
@@ -556,6 +574,7 @@ function App() {
           setActiveModule={setActiveModule}
           onMenuClick={() => setSidebarOpen(true)}
           onAlertsClick={() => setAlertsPanelOpen(true)}
+          onTriggerSos={() => setSosActive(true)}
           quickBalance={getQuickBalances()}
           chatGroups={chatGroups}
           chatMessages={chatMessages}
@@ -732,60 +751,48 @@ function App() {
   return (
     <div className={`min-h-screen ${syncActive ? 'bg-[#1a2b4c]' : 'bg-[#07111F]'} text-white font-sans transition-colors duration-1000 relative`}>
       
-      {isKidMode && activeMemberObj ? (
-        <KidsDashboard 
-          member={activeMemberObj}
-          tasks={tasks}
-          setTasks={setTasks}
-          pocketMoney={pocketMoney}
-          events={events}
-        />
-      ) : (
-        <>
-          {/* Dynamic render active layout page views */}
-          <main className="w-full">
-            {renderContent()}
-          </main>
+      {/* Dynamic render active layout page views */}
+      <main className="w-full">
+        {renderContent()}
+      </main>
 
-          {/* Global Sidebar hamburger drawer menu */}
-          <Sidebar 
-            isOpen={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
-            setActiveTab={setActiveTab}
-            setActiveModule={setActiveModule}
-            members={members}
-            activeMemberId={activeMemberId}
-          />
+      {/* Global Sidebar hamburger drawer menu */}
+      <Sidebar 
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        setActiveTab={setActiveTab}
+        setActiveModule={setActiveModule}
+        members={members}
+        activeMemberId={activeMemberId}
+      />
 
-          {/* Floating Bottom sheet dialog form (Quick Actions Sheet) */}
-          <QuickActionsSheet 
-            isOpen={quickActionsOpen}
-            onClose={() => setQuickActionsOpen(false)}
-            members={members}
-            onAddEvent={handleAddEvent}
-            onAddTransaction={handleAddTransaction}
-            onAddTask={handleAddTask}
-            onAddMember={handleAddMember}
-            onNavigateToVault={() => {
-              setActiveTab('menu');
-              setActiveModule('documents');
-              setQuickActionsOpen(false);
-            }}
-            onTriggerSos={() => setSosActive(true)}
-          />
+      {/* Floating Bottom sheet dialog form (Quick Actions Sheet) */}
+      <QuickActionsSheet 
+        isOpen={quickActionsOpen}
+        onClose={() => setQuickActionsOpen(false)}
+        members={members}
+        onAddEvent={handleAddEvent}
+        onAddTransaction={handleAddTransaction}
+        onAddTask={handleAddTask}
+        onAddMember={handleAddMember}
+        onNavigateToVault={() => {
+          setActiveTab('menu');
+          setActiveModule('documents');
+          setQuickActionsOpen(false);
+        }}
+        onTriggerSos={() => setSosActive(true)}
+      />
 
-          {/* Shared bottom iOS premium nav bar with quick actions central (+) trigger */}
-          <BottomNav 
-            activeTab={activeTab}
-            setActiveTab={(tab) => {
-              setActiveTab(tab);
-              setActiveModule('');
-            }}
-            onAddClick={() => setQuickActionsOpen(true)}
-            activeMemberId={activeMemberId}
-          />
-        </>
-      )}
+      {/* Shared bottom iOS premium nav bar with quick actions central (+) trigger */}
+      <BottomNav 
+        activeTab={activeTab}
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          setActiveModule('');
+        }}
+        onAddClick={() => setQuickActionsOpen(true)}
+        activeMemberId={activeMemberId}
+      />
 
       {/* Floating Profile Switcher for Kids Mode Escape */}
       {isKidMode && activeMemberObj && (

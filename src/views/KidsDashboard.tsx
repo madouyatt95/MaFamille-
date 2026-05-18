@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, CheckCircle2, Calendar, Gift } from 'lucide-react';
+import { Star, CheckCircle2, Calendar, Gift, MapPin, MessageCircle, GraduationCap, ShieldAlert } from 'lucide-react';
 import type { Member, ChoreTask, FamilyEvent } from '../types';
 
 interface KidsDashboardProps {
@@ -8,9 +8,21 @@ interface KidsDashboardProps {
   setTasks: React.Dispatch<React.SetStateAction<ChoreTask[]>>;
   pocketMoney: any; // Using the type from App.tsx
   events: FamilyEvent[];
+  setActiveTab: (tab: string) => void;
+  setActiveModule: (moduleName: string) => void;
+  onTriggerSos: () => void;
 }
 
-export const KidsDashboard: React.FC<KidsDashboardProps> = ({ member, tasks, setTasks, pocketMoney, events }) => {
+export const KidsDashboard: React.FC<KidsDashboardProps> = ({ 
+  member, 
+  tasks, 
+  setTasks, 
+  pocketMoney, 
+  events,
+  setActiveTab,
+  setActiveModule,
+  onTriggerSos
+}) => {
   // Filter tasks assigned to this kid that are not done
   const myTasks = tasks.filter(t => t.assignedMemberId === member.id && !t.done);
   
@@ -26,9 +38,9 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({ member, tasks, set
   };
 
   return (
-    <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-24">
+    <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32">
       {/* Header Profile */}
-      <div className="flex flex-col items-center justify-center pt-8 pb-6 space-y-4">
+      <div className="flex flex-col items-center justify-center pt-8 pb-4 space-y-4">
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-tr from-[#6C5CFF] to-[#00D26A] rounded-full blur-lg opacity-50 animate-pulse"></div>
           <img 
@@ -40,9 +52,20 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({ member, tasks, set
             Niv. {Math.floor((myMoney?.points || 0) / 50) + 1}
           </div>
         </div>
-        <div className="text-center">
+        <div className="text-center space-y-2">
           <h1 className="text-3xl font-black tracking-tight">Salut {member.name} ! ✌️</h1>
           <p className="text-white/60 font-medium">Prêt pour de nouvelles missions ?</p>
+          
+          {/* Urgent SOS Trigger */}
+          <div className="pt-2 flex justify-center">
+            <button 
+              onClick={onTriggerSos}
+              className="px-6 py-3 bg-[#FF4D6D] hover:bg-[#FF4D6D]/95 text-white font-black text-xs rounded-2xl uppercase tracking-widest flex items-center justify-center space-x-2 shadow-lg shadow-[#FF4D6D]/30 cursor-pointer animate-pulse"
+            >
+              <ShieldAlert className="w-4 h-4" />
+              <span>🚨 SOS URGENCE 🚨</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -61,6 +84,54 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({ member, tasks, set
             <p className="text-2xl font-black text-[#00D26A]">{myMoney?.balance.toFixed(2) || '0.00'} €</p>
             <p className="text-[10px] font-bold text-[#00D26A]/70 uppercase tracking-wider">Argent de poche</p>
           </div>
+        </div>
+      </div>
+
+      {/* Mes Outils (Shortcuts Grid) */}
+      <div className="mb-8 space-y-4">
+        <h2 className="text-xl font-black px-2 flex items-center space-x-2">
+          <span>🚀</span>
+          <span>Mes Outils Super-Héros</span>
+        </h2>
+        <div className="grid grid-cols-3 gap-3">
+          <button 
+            onClick={() => {
+              setActiveTab('menu');
+              setActiveModule('carte');
+            }}
+            className="bg-[#112240] border-2 border-[#6C5CFF]/30 rounded-[28px] p-4 flex flex-col items-center justify-center text-center space-y-2 cursor-pointer active:scale-95 transition-all hover:bg-[#6C5CFF]/10"
+          >
+            <div className="p-2 bg-[#6C5CFF]/10 text-[#6C5CFF] rounded-2xl">
+              <MapPin className="w-5 h-5" />
+            </div>
+            <span className="text-[11px] font-extrabold leading-tight text-white/90">Carte Famille</span>
+          </button>
+          
+          <button 
+            onClick={() => {
+              setActiveTab('menu');
+              setActiveModule('messagerie');
+            }}
+            className="bg-[#112240] border-2 border-[#00D26A]/30 rounded-[28px] p-4 flex flex-col items-center justify-center text-center space-y-2 cursor-pointer active:scale-95 transition-all hover:bg-[#00D26A]/10"
+          >
+            <div className="p-2 bg-[#00D26A]/10 text-[#00D26A] rounded-2xl">
+              <MessageCircle className="w-5 h-5" />
+            </div>
+            <span className="text-[11px] font-extrabold leading-tight text-white/90">Messagerie</span>
+          </button>
+          
+          <button 
+            onClick={() => {
+              setActiveTab('menu');
+              setActiveModule('ecole');
+            }}
+            className="bg-[#112240] border-2 border-[#FFB020]/30 rounded-[28px] p-4 flex flex-col items-center justify-center text-center space-y-2 cursor-pointer active:scale-95 transition-all hover:bg-[#FFB020]/10"
+          >
+            <div className="p-2 bg-[#FFB020]/10 text-[#FFB020] rounded-2xl">
+              <GraduationCap className="w-5 h-5" />
+            </div>
+            <span className="text-[11px] font-extrabold leading-tight text-white/90">Mes Devoirs</span>
+          </button>
         </div>
       </div>
 

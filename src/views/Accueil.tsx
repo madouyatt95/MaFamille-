@@ -22,7 +22,8 @@ import {
   UtensilsCrossed,
   Award,
   PiggyBank,
-  MessageCircle
+  MessageCircle,
+  ShieldAlert
 } from 'lucide-react';
 import type { Member, FamilyEvent, Dish, NotificationAlert, ChatGroup, ChatMessage } from '../types';
 
@@ -37,6 +38,7 @@ interface AccueilProps {
   setActiveModule: (moduleName: string) => void;
   onMenuClick: () => void;
   onAlertsClick: () => void;
+  onTriggerSos: () => void;
   quickBalance: {
     solde: number;
     revenus: number;
@@ -61,6 +63,7 @@ export const Accueil: React.FC<AccueilProps> = ({
   setActiveModule,
   onMenuClick,
   onAlertsClick,
+  onTriggerSos,
   quickBalance,
   activeMemberId = '1',
   onProfileSwitcherOpen,
@@ -147,6 +150,15 @@ export const Accueil: React.FC<AccueilProps> = ({
         </div>
         
         <div className="flex items-center space-x-3">
+          {/* Flashing SOS button */}
+          <button 
+            onClick={onTriggerSos}
+            className="px-3.5 py-2.5 bg-[#FF4D6D] hover:bg-[#FF4D6D]/90 text-white rounded-xl text-[10px] font-black tracking-widest uppercase flex items-center justify-center space-x-1.5 shadow-md shadow-[#FF4D6D]/20 cursor-pointer animate-pulse shrink-0"
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+            <span>SOS</span>
+          </button>
+
           <button 
             onClick={onAlertsClick}
             className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white relative transition-all cursor-pointer"
