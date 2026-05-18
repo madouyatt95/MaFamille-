@@ -233,49 +233,98 @@ export const Agenda: React.FC<AgendaProps> = ({
               })}
             </div>
           ) : (
-            /* Week View Grid */
-            <div className="grid grid-cols-7 gap-2 overflow-x-auto min-w-[600px] pb-4 no-scrollbar">
-              {weekCells.map((cell, idx) => {
-                const isSelected = cell.dateStr === selectedDate;
-                const dayEvents = visibleEvents.filter(e => e.dateTime.startsWith(cell.dateStr));
-                
-                return (
-                  <div 
-                    key={idx} 
-                    className="flex flex-col h-[400px] bg-white/5 rounded-2xl border border-white/5 overflow-hidden transition-colors hover:border-[#6C5CFF]/30"
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, cell.dateStr)}
-                    onClick={() => setSelectedDate(cell.dateStr)}
-                  >
-                    <div className={`p-2 text-center border-b border-white/5 ${isSelected ? 'bg-[#6C5CFF]/20 text-[#6C5CFF]' : ''}`}>
-                      <p className="text-[10px] font-bold uppercase">{cell.name}</p>
-                      <p className="text-sm font-extrabold">{cell.day}</p>
-                    </div>
-                    
-                    <div className="flex-1 p-2 space-y-2 overflow-y-auto no-scrollbar">
-                      {dayEvents.map(event => {
-                         const member = members.find(m => m.id === event.memberId);
-                         const dotColor = event.memberId ? memberColors[event.memberId] : 'bg-white/40';
-                         return (
-                           <div 
-                             key={event.id}
-                             draggable
-                             onDragStart={(e) => handleDragStart(e, event.id)}
-                             className="p-2 rounded-xl bg-[#112240] border border-white/10 text-xs shadow-md cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-transform"
-                           >
+            /* Week View (Google Calendar Style) */
+            <div className="flex flex-col space-y-4">
+              {/* Horizontal Days Carousel */}
+              <div className="flex space-x-3 overflow-x-auto pb-2 no-scrollbar px-1">
+                {weekCells.map((cell, idx) => {
+                  const isSelected = cell.dateStr === selectedDate;
+                  const dayEventsCount = visibleEvents.filter(e => e.dateTime.startsWith(cell.dateStr)).length;
+                  
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedDate(cell.dateStr)}
+                      className={`flex flex-col items-center justify-center min-w-[65px] h-[80px] rounded-[20px] transition-all shrink-0 border ${
+                        isSelected 
+                          ? 'bg-[#6C5CFF] border-[#6C5CFF] text-white shadow-[0_4px_15px_rgba(108,92,255,0.4)]' 
+                          : 'bg-white/5 border-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      <span className="text-[10px] font-bold uppercase mb-1 tracking-wider">{cell.name}</span>
+                      <span className="text-xl font-black">{cell.day}</span>
+                      {dayEventsCount > 0 && (
+                        <span className={`w-1.5 h-1.5 rounded-full mt-1.5 ${isSelected ? 'bg-white' : 'bg-[#00D26A]'}`} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Vertical Timeline for Selected Day */}
+              <div 
+                className="relative bg-[#07111F]/50 rounded-[28px] border border-white/5 overflow-y-auto h-[450px] no-scrollbar shadow-inner"
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, selectedDate)}
+              >
+                {/* Hours background grid */}
+                <div className="absolute top-0 left-0 w-full pointer-events-none">
+                  {Array.from({ length: 15 }).map((_, i) => {
+                    const hour = i + 7; // 7h to 21h
+                    return (
+                      <div key={hour} className="flex h-[60px] border-b border-white/5 w-full">
+                        <div className="w-14 shrink-0 text-right pr-3 pt-2">
+                          <span className="text-[10px] font-bold text-white/30">{hour}:00</span>
+                        </div>
+                        <div className="flex-1 border-l border-white/5"></div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Events Overlaid */}
+                <div className="relative pl-14 pt-2 w-full">
+                  {visibleEvents
+                    .filter(e => e.dateTime.startsWith(selectedDate))
+                    .map(event => {
+                      const member = members.find(m => m.id === event.memberId);
+                      const dotColor = event.memberId ? memberColors[event.memberId] : 'bg-white/40';
+                      
+                      // Calculate position based on time (assuming time is format "HH:MM")
+                      let topOffset = 0;
+                      if (event.time) {
+                        const [hours, minutes] = event.time.split(':').map(Number);
+                        const decimalHour = hours + (minutes / 60);
+                        topOffset = Math.max(0, (decimalHour - 7) * 60); // 60px per hour, starting at 7h
+                      }
+                      
+                      return (
+                         <div 
+                           key={event.id}
+                           draggable
+                           onDragStart={(e) => handleDragStart(e, event.id)}
+                           className={`absolute left-2 right-4 p-3 rounded-2xl border border-white/10 text-xs shadow-lg cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-all z-10 overflow-hidden ${
+                             event.done ? 'bg-[#112240]/50 opacity-60' : 'bg-[#1C2C4E]/90 backdrop-blur-md'
+                           }`}
+                           style={{ top: `${topOffset}px`, minHeight: '56px' }}
+                         >
+                           {/* Left color bar */}
+                           <div className={`absolute left-0 top-0 bottom-0 w-1 ${dotColor}`}></div>
+                           
+                           <div className="flex justify-between items-start pl-1">
                              <div className="flex items-center space-x-1.5 mb-1">
-                               <span className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
-                               <span className="font-bold truncate text-white">{event.time}</span>
+                               <span className="font-bold text-white text-[11px] bg-white/10 px-1.5 py-0.5 rounded-md">{event.time}</span>
                              </div>
-                             <p className="font-semibold text-white/90 truncate">{event.title}</p>
-                             {member && <p className="text-[9px] text-white/50 mt-1 truncate">{member.name}</p>}
+                             {member && <span className="text-[9px] font-black uppercase text-white/40 tracking-wider">{member.name}</span>}
                            </div>
-                         );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
+                           <p className={`font-bold text-white/90 leading-tight pl-1 mt-1 ${event.done ? 'line-through text-white/50' : ''}`}>{event.title}</p>
+                         </div>
+                      );
+                  })}
+                  {/* Empty space at the bottom to ensure scroll covers all hours (15 hours * 60px) */}
+                  <div className="h-[900px]"></div>
+                </div>
+              </div>
             </div>
           )}
 

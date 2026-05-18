@@ -626,6 +626,7 @@ function App() {
         onAddTask={handleAddTask}
         onAddMember={handleAddMember}
         onNavigateToVault={() => {
+          setActiveTab('home');
           setActiveModule('documents');
           setQuickActionsOpen(false);
         }}

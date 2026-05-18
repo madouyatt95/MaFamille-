@@ -111,6 +111,29 @@ export const Messagerie: React.FC<MessagerieProps> = ({ members, activeMemberId 
     }, 2000);
   };
 
+  const handleOpenDirectMessage = (targetMember: Member) => {
+    const existingGroup = groups.find(g => 
+      g.isPrivate && g.memberIds.length === 2 && 
+      g.memberIds.includes(activeMemberId) && g.memberIds.includes(targetMember.id)
+    );
+    
+    if (existingGroup) {
+      setActiveGroupId(existingGroup.id);
+    } else {
+      const newGroupId = `dm_${activeMemberId}_${targetMember.id}`;
+      const newGroup: ChatGroup = {
+        id: newGroupId,
+        name: targetMember.name,
+        isPrivate: true,
+        memberIds: [activeMemberId, targetMember.id],
+        lastMessage: 'Nouvelle conversation',
+        lastMessageTime: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+      };
+      setGroups(prev => [...prev, newGroup]);
+      setActiveGroupId(newGroupId);
+    }
+  };
+
   const activeGroup = groups.find(g => g.id === activeGroupId);
   const activeMessages = messages.filter(m => m.groupId === activeGroupId);
 
@@ -161,6 +184,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({ members, activeMemberId 
             {members.filter(m => m.id !== activeMemberId).map(member => (
               <div 
                 key={member.id} 
+                onClick={() => handleOpenDirectMessage(member)}
                 className="flex items-center p-3 -mx-3 rounded-xl hover:bg-white/5 cursor-pointer transition-colors"
               >
                 <img src={member.photoUrl} alt={member.name} className="w-10 h-10 rounded-full object-cover mr-4" />
@@ -188,8 +212,10 @@ export const Messagerie: React.FC<MessagerieProps> = ({ members, activeMemberId 
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#6C5CFF] to-[#00D26A] flex items-center justify-center shadow-lg">
-            {activeGroup?.isPrivate ? <Users className="w-5 h-5 text-white" /> : <MessageCircle className="w-5 h-5 text-white" />}
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#6C5CFF] to-[#00D26A] flex items-center justify-center shadow-lg overflow-hidden shrink-0">
+            {activeGroup?.isPrivate && activeGroup.memberIds.length === 2 ? (
+              <img src={members.find(m => m.id !== activeMemberId && activeGroup.memberIds.includes(m.id))?.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
+            ) : activeGroup?.isPrivate ? <Users className="w-5 h-5 text-white" /> : <MessageCircle className="w-5 h-5 text-white" />}
           </div>
           <div>
             <h2 className="text-base font-bold">{activeGroup?.name}</h2>

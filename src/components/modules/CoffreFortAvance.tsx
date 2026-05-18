@@ -12,6 +12,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
   const [viewMode, setViewMode] = useState<'categories' | 'members' | 'expiring' | 'all'>('categories');
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<DocumentFile | null>(null);
   
   // Upload Form State
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -172,7 +173,11 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
               const config = categoryConfig[doc.category];
               const Icon = config?.icon || FileText;
               return (
-                <div key={doc.id} className="flex items-center p-3 bg-white/5 border border-white/10 rounded-xl space-x-3 cursor-pointer hover:bg-white/10 transition">
+                <div 
+                  key={doc.id} 
+                  onClick={() => setPreviewDoc(doc)}
+                  className="flex items-center p-3 bg-white/5 border border-white/10 rounded-xl space-x-3 cursor-pointer hover:bg-white/10 transition"
+                >
                   <div className={`p-2 rounded-lg ${config?.color || 'text-white bg-white/10'}`}>
                     <Icon className="w-5 h-5" />
                   </div>
@@ -197,7 +202,11 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
               <p className="text-sm font-medium">Documents à renouveler prochainement</p>
             </div>
             {filteredDocs.map(doc => (
-               <div key={doc.id} className="flex items-center justify-between p-3 bg-white/5 border border-[#FFB020]/30 rounded-xl">
+               <div 
+                 key={doc.id} 
+                 onClick={() => setPreviewDoc(doc)}
+                 className="flex items-center justify-between p-3 bg-white/5 border border-[#FFB020]/30 rounded-xl cursor-pointer hover:bg-white/10 transition"
+               >
                  <div>
                    <p className="font-semibold text-sm truncate">{doc.name}</p>
                    <p className="text-xs text-[#FFB020] mt-0.5">Expire le: {doc.expiryDate}</p>
@@ -232,7 +241,6 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   ref={fileInputRef} 
                   className="hidden" 
                   accept="image/*,application/pdf"
-                  capture="environment"
                   onChange={handleFileUpload}
                 />
               </div>
@@ -283,6 +291,73 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Preview Modal */}
+      {previewDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#07111F]/90 backdrop-blur-md">
+          <div className="bg-[#112240] w-full max-w-lg rounded-[32px] border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-4 border-b border-white/10">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-xl bg-white/5">
+                  <FileText className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold truncate max-w-[200px]">{previewDoc.name}</h3>
+                  <p className="text-[10px] text-white/50">{previewDoc.uploadDate} • {previewDoc.fileSize || 'N/A'}</p>
+                </div>
+              </div>
+              <button onClick={() => setPreviewDoc(null)} className="p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Image Preview if available */}
+              {previewDoc.fileBase64 ? (
+                <div className="w-full rounded-2xl overflow-hidden border border-white/10 bg-black/50 flex items-center justify-center">
+                  <img src={previewDoc.fileBase64} alt={previewDoc.name} className="max-w-full h-auto max-h-[40vh] object-contain" />
+                </div>
+              ) : (
+                <div className="w-full h-48 rounded-2xl border border-dashed border-white/20 flex flex-col items-center justify-center text-white/30">
+                  <FileText className="w-12 h-12 mb-2 opacity-50" />
+                  <span className="text-xs font-bold uppercase">Aperçu non disponible</span>
+                </div>
+              )}
+
+              <div className="glass-panel p-4 rounded-2xl border border-white/5 space-y-3">
+                <h4 className="text-[10px] font-extrabold text-white/50 uppercase tracking-wider mb-2 border-b border-white/5 pb-2">Métadonnées du document</h4>
+                
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <p className="text-white/40 mb-0.5">Catégorie</p>
+                    <p className="font-bold text-white capitalize">{categoryConfig[previewDoc.category]?.label || previewDoc.category}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/40 mb-0.5">Membre concerné</p>
+                    <p className="font-bold text-white">{previewDoc.memberName || 'Général'}</p>
+                  </div>
+                  {previewDoc.expiryDate && (
+                    <div>
+                      <p className="text-[#FFB020]/70 mb-0.5">Date d'expiration</p>
+                      <p className="font-bold text-[#FFB020]">{previewDoc.expiryDate}</p>
+                    </div>
+                  )}
+                  {previewDoc.tags && previewDoc.tags.length > 0 && (
+                    <div className="col-span-2">
+                      <p className="text-white/40 mb-1.5">Tags</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {previewDoc.tags.map((tag, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-md bg-[#6C5CFF]/20 text-[#6C5CFF] text-[10px] font-bold">#{tag}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
