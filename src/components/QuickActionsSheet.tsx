@@ -1,0 +1,735 @@
+import React, { useState } from 'react';
+import { 
+  X, 
+  Calendar, 
+  Wallet, 
+  Brush, 
+  FolderLock, 
+  UserPlus, 
+  CheckCircle2 
+} from 'lucide-react';
+import type { Member, EventType, TransactionType, DocumentCategory } from '../types';
+
+interface QuickActionsSheetProps {
+  isOpen: boolean;
+  onClose: () => void;
+  members: Member[];
+  onAddEvent: (event: any) => void;
+  onAddTransaction: (transaction: any) => void;
+  onAddTask: (task: any) => void;
+  onAddDocument: (doc: any) => void;
+  onAddMember: (member: any) => void;
+}
+
+type AddTab = 'event' | 'transaction' | 'task' | 'document' | 'member';
+
+export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
+  isOpen,
+  onClose,
+  members,
+  onAddEvent,
+  onAddTransaction,
+  onAddTask,
+  onAddDocument,
+  onAddMember
+}) => {
+  const [activeTab, setActiveTab] = useState<AddTab>('event');
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  // Form states
+  // Event
+  const [eventTitle, setEventTitle] = useState('');
+  const [eventType, setEventType] = useState<EventType>('social');
+  const [eventDate, setEventDate] = useState('');
+  const [eventTime, setEventTime] = useState('');
+  const [eventMemberId, setEventMemberId] = useState('');
+  const [eventLoc, setEventLoc] = useState('');
+  const [eventDesc, setEventDesc] = useState('');
+
+  // Transaction
+  const [transTitle, setTransTitle] = useState('');
+  const [transAmount, setTransAmount] = useState('');
+  const [transType, setTransType] = useState<TransactionType>('expense');
+  const [transCat, setTransCat] = useState('Alimentation');
+  const [transMemberId, setTransMemberId] = useState('');
+
+  // Task
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskPoints, setTaskPoints] = useState('10');
+  const [taskMemberId, setTaskMemberId] = useState('');
+  const [taskRotation, setTaskRotation] = useState<'daily' | 'weekly' | 'none'>('daily');
+  const [taskDue, setTaskDue] = useState('Ce soir');
+
+  // Document
+  const [docName, setDocName] = useState('');
+  const [docCat, setDocCat] = useState<DocumentCategory>('insurance');
+  const [docExpiry, setDocExpiry] = useState('');
+  const [docDesc, setDocDesc] = useState('');
+
+  // Member
+  const [memName, setMemName] = useState('');
+  const [memRole, setMemRole] = useState('');
+  const [memAge, setMemAge] = useState('');
+  const [memBirth, setMemBirth] = useState('');
+  const [memBlood, setMemBlood] = useState('A+');
+  const [memAllergies, setMemAllergies] = useState('');
+  const [memTreatments, setMemTreatments] = useState('');
+
+  const triggerSuccess = () => {
+    setShowSuccess(true);
+    setTimeout(() => {
+      setShowSuccess(false);
+      onClose();
+      // Reset forms
+      resetForms();
+    }, 1500);
+  };
+
+  const resetForms = () => {
+    setEventTitle(''); setEventDate(''); setEventTime(''); setEventMemberId(''); setEventLoc(''); setEventDesc('');
+    setTransTitle(''); setTransAmount(''); setTransMemberId('');
+    setTaskTitle(''); setTaskMemberId('');
+    setDocName(''); setDocExpiry(''); setDocDesc('');
+    setMemName(''); setMemRole(''); setMemAge(''); setMemBirth(''); setMemAllergies(''); setMemTreatments('');
+  };
+
+  const handleEventSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!eventTitle || !eventDate) return;
+    const member = members.find(m => m.id === eventMemberId);
+    onAddEvent({
+      title: eventTitle,
+      type: eventType,
+      dateTime: `${eventDate}T${eventTime || '12:00'}:00`,
+      time: eventTime || 'Toute la journée',
+      memberId: eventMemberId || undefined,
+      memberName: member?.name || undefined,
+      location: eventLoc || undefined,
+      description: eventDesc || undefined,
+      done: false
+    });
+    triggerSuccess();
+  };
+
+  const handleTransactionSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transTitle || !transAmount) return;
+    const member = members.find(m => m.id === transMemberId);
+    onAddTransaction({
+      amount: parseFloat(transAmount),
+      type: transType,
+      category: transCat,
+      date: new Date().toISOString().split('T')[0],
+      title: transTitle,
+      memberId: transMemberId || undefined,
+      memberName: member?.name || undefined
+    });
+    triggerSuccess();
+  };
+
+  const handleTaskSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!taskTitle || !taskMemberId) return;
+    const member = members.find(m => m.id === taskMemberId);
+    onAddTask({
+      title: taskTitle,
+      rewardPoints: parseInt(taskPoints) || 10,
+      assignedMemberId: taskMemberId,
+      assignedMemberName: member?.name || 'Inconnu',
+      done: false,
+      rotation: taskRotation,
+      validatedByParent: false,
+      dueDate: taskDue
+    });
+    triggerSuccess();
+  };
+
+  const handleDocSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!docName) return;
+    onAddDocument({
+      name: docName,
+      category: docCat,
+      uploadDate: new Date().toLocaleDateString('fr-FR'),
+      expiryDate: docExpiry || undefined,
+      fileSize: '1.2 Mo', // Simulée
+      isExpired: false,
+      description: docDesc || undefined
+    });
+    triggerSuccess();
+  };
+
+  const handleMemberSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!memName || !memRole) return;
+    onAddMember({
+      name: memName,
+      role: memRole,
+      age: memAge || 'Nouveau',
+      birthDate: memBirth || 'Inconnue',
+      bloodGroup: memBlood,
+      allergies: memAllergies ? memAllergies.split(',').map(s => s.trim()) : ['Aucune'],
+      treatments: memTreatments ? memTreatments.split(',').map(s => s.trim()) : ['Aucun'],
+      emergencyContact: {
+        name: 'Maman',
+        phone: '+33 6 12 34 56 78',
+        relation: 'Mère'
+      },
+      schoolOrEmployer: 'Non renseigné',
+      photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80', // Avatar standard
+      medicalHistory: []
+    });
+    triggerSuccess();
+  };
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div 
+        onClick={onClose}
+        className={`fixed inset-0 bg-[#07111F]/80 backdrop-blur-sm z-50 transition-opacity duration-300 ${
+          isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+      />
+
+      {/* Modal panel container */}
+      <div 
+        className={`fixed bottom-0 left-0 right-0 max-h-[85vh] glass-panel border-t border-white/10 z-50 rounded-t-[32px] shadow-[0_-15px_40px_rgba(0,0,0,0.6)] flex flex-col transition-all duration-300 ease-out transform ${
+          isOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'
+        } max-w-2xl mx-auto`}
+      >
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-white/8 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-white tracking-wide">Ajouter un élément</h2>
+          <button 
+            onClick={onClose}
+            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white transition-all cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {showSuccess ? (
+          /* Success Screen */
+          <div className="flex-1 flex flex-col items-center justify-center py-20 px-6 space-y-4">
+            <CheckCircle2 className="w-16 h-16 text-[#00D26A] animate-bounce" />
+            <h3 className="text-xl font-bold text-white">Ajouté avec succès !</h3>
+            <p className="text-sm text-white/50">Mise à jour de votre OS familial en cours...</p>
+          </div>
+        ) : (
+          /* Forms Interface */
+          <>
+            {/* Tabs selector */}
+            <div className="px-4 pt-4 flex space-x-2 overflow-x-auto no-scrollbar border-b border-white/5 pb-3">
+              <button
+                onClick={() => setActiveTab('event')}
+                className={`flex items-center space-x-2 px-4 py-2.5 rounded-full text-xs font-semibold tracking-wider transition-all border shrink-0 cursor-pointer ${
+                  activeTab === 'event'
+                    ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] text-white shadow-[0_0_12px_rgba(108,92,255,0.2)]'
+                    : 'bg-white/5 border-transparent text-white/50 hover:text-white'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Agenda</span>
+              </button>
+              
+              <button
+                onClick={() => setActiveTab('transaction')}
+                className={`flex items-center space-x-2 px-4 py-2.5 rounded-full text-xs font-semibold tracking-wider transition-all border shrink-0 cursor-pointer ${
+                  activeTab === 'transaction'
+                    ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] text-white shadow-[0_0_12px_rgba(108,92,255,0.2)]'
+                    : 'bg-white/5 border-transparent text-white/50 hover:text-white'
+                }`}
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                <span>Finance</span>
+              </button>
+              
+              <button
+                onClick={() => setActiveTab('task')}
+                className={`flex items-center space-x-2 px-4 py-2.5 rounded-full text-xs font-semibold tracking-wider transition-all border shrink-0 cursor-pointer ${
+                  activeTab === 'task'
+                    ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] text-white shadow-[0_0_12px_rgba(108,92,255,0.2)]'
+                    : 'bg-white/5 border-transparent text-white/50 hover:text-white'
+                }`}
+              >
+                <Brush className="w-3.5 h-3.5" />
+                <span>Tâche</span>
+              </button>
+              
+              <button
+                onClick={() => setActiveTab('document')}
+                className={`flex items-center space-x-2 px-4 py-2.5 rounded-full text-xs font-semibold tracking-wider transition-all border shrink-0 cursor-pointer ${
+                  activeTab === 'document'
+                    ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] text-white shadow-[0_0_12px_rgba(108,92,255,0.2)]'
+                    : 'bg-white/5 border-transparent text-white/50 hover:text-white'
+                }`}
+              >
+                <FolderLock className="w-3.5 h-3.5" />
+                <span>Document</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('member')}
+                className={`flex items-center space-x-2 px-4 py-2.5 rounded-full text-xs font-semibold tracking-wider transition-all border shrink-0 cursor-pointer ${
+                  activeTab === 'member'
+                    ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] text-white shadow-[0_0_12px_rgba(108,92,255,0.2)]'
+                    : 'bg-white/5 border-transparent text-white/50 hover:text-white'
+                }`}
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Membre</span>
+              </button>
+            </div>
+
+            {/* Active Form */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
+              
+              {/* Event Form */}
+              {activeTab === 'event' && (
+                <form onSubmit={handleEventSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Titre de l'événement</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Ex: Rendez-vous dentiste, Devoirs d'anglais..." 
+                      value={eventTitle}
+                      onChange={(e) => setEventTitle(e.target.value)}
+                      className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] focus:ring-1 focus:ring-[#6C5CFF] transition-all placeholder-white/30"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Type</label>
+                      <select 
+                        value={eventType}
+                        onChange={(e) => setEventType(e.target.value as EventType)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                      >
+                        <option value="social">Social / Loisirs</option>
+                        <option value="medical">Médical</option>
+                        <option value="school">École</option>
+                        <option value="bill">Facture</option>
+                        <option value="grocery">Courses</option>
+                        <option value="other">Autre</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Membre concerné</label>
+                      <select 
+                        value={eventMemberId}
+                        onChange={(e) => setEventMemberId(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                      >
+                        <option value="">Famille complète</option>
+                        {members.map(m => (
+                          <option key={m.id} value={m.id}>{m.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Date</label>
+                      <input 
+                        type="date" 
+                        required
+                        value={eventDate}
+                        onChange={(e) => setEventDate(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Heure</label>
+                      <input 
+                        type="time" 
+                        value={eventTime}
+                        onChange={(e) => setEventTime(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Lieu</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: Clinique de la Paix, École, Zoom..." 
+                      value={eventLoc}
+                      onChange={(e) => setEventLoc(e.target.value)}
+                      className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Description</label>
+                    <textarea 
+                      rows={2}
+                      placeholder="Détails supplémentaires..." 
+                      value={eventDesc}
+                      onChange={(e) => setEventDesc(e.target.value)}
+                      className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30 resize-none"
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="w-full py-4 rounded-[22px] bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white font-semibold text-sm hover:opacity-90 active:scale-98 transition-all cursor-pointer shadow-[0_4px_15px_rgba(108,92,255,0.4)]"
+                  >
+                    Confirmer l'événement
+                  </button>
+                </form>
+              )}
+
+              {/* Transaction Form */}
+              {activeTab === 'transaction' && (
+                <form onSubmit={handleTransactionSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Description de la transaction</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Ex: Plein carburant, Achat Supermarché, Salaire..." 
+                      value={transTitle}
+                      onChange={(e) => setTransTitle(e.target.value)}
+                      className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Montant (Euros)</label>
+                      <input 
+                        type="number" 
+                        required
+                        min="1"
+                        placeholder="0.00" 
+                        value={transAmount}
+                        onChange={(e) => setTransAmount(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Type</label>
+                      <select 
+                        value={transType}
+                        onChange={(e) => setTransType(e.target.value as TransactionType)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                      >
+                        <option value="expense">Dépense (-)</option>
+                        <option value="income">Revenu (+)</option>
+                        <option value="savings">Épargne (→)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Catégorie</label>
+                      <select 
+                        value={transCat}
+                        onChange={(e) => setTransCat(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                      >
+                        <option value="Alimentation">Alimentation</option>
+                        <option value="Logement">Logement</option>
+                        <option value="Transport">Transport</option>
+                        <option value="Santé">Santé</option>
+                        <option value="Éducation">Éducation</option>
+                        <option value="Loisirs">Loisirs</option>
+                        <option value="Divers">Divers</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Auteur</label>
+                      <select 
+                        value={transMemberId}
+                        onChange={(e) => setTransMemberId(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                      >
+                        <option value="">Non assigné</option>
+                        {members.map(m => (
+                          <option key={m.id} value={m.id}>{m.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="w-full py-4 rounded-[22px] bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white font-semibold text-sm hover:opacity-90 active:scale-98 transition-all cursor-pointer shadow-[0_4px_15px_rgba(108,92,255,0.4)]"
+                  >
+                    Enregistrer la transaction
+                  </button>
+                </form>
+              )}
+
+              {/* Task Form */}
+              {activeTab === 'task' && (
+                <form onSubmit={handleTaskSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Titre de la tâche</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Ex: Passer l'aspirateur, Sortir le chien..." 
+                      value={taskTitle}
+                      onChange={(e) => setTaskTitle(e.target.value)}
+                      className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Attribuer à</label>
+                      <select 
+                        required
+                        value={taskMemberId}
+                        onChange={(e) => setTaskMemberId(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                      >
+                        <option value="">Sélectionner...</option>
+                        {members.map(m => (
+                          <option key={m.id} value={m.id}>{m.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Récompense (Points)</label>
+                      <select 
+                        value={taskPoints}
+                        onChange={(e) => setTaskPoints(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                      >
+                        <option value="5">5 points (0,50 €)</option>
+                        <option value="10">10 points (1,00 €)</option>
+                        <option value="15">15 points (1,50 €)</option>
+                        <option value="20">20 points (2,00 €)</option>
+                        <option value="50">50 points (5,00 €)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Rotation</label>
+                      <select 
+                        value={taskRotation}
+                        onChange={(e) => setTaskRotation(e.target.value as any)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                      >
+                        <option value="daily">Quotidienne</option>
+                        <option value="weekly">Hebdomadaire</option>
+                        <option value="none">Pas de rotation</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Échéance</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ex: Ce soir, 19h00, Samedi..." 
+                        value={taskDue}
+                        onChange={(e) => setTaskDue(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
+                      />
+                    </div>
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="w-full py-4 rounded-[22px] bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white font-semibold text-sm hover:opacity-90 active:scale-98 transition-all cursor-pointer shadow-[0_4px_15px_rgba(108,92,255,0.4)]"
+                  >
+                    Créer la tâche
+                  </button>
+                </form>
+              )}
+
+              {/* Document Form */}
+              {activeTab === 'document' && (
+                <form onSubmit={handleDocSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Nom du document</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Ex: Passeport_Amadou.pdf, Contrat_Assurance_Auto.pdf" 
+                      value={docName}
+                      onChange={(e) => setDocName(e.target.value)}
+                      className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Catégorie</label>
+                      <select 
+                        value={docCat}
+                        onChange={(e) => setDocCat(e.target.value as DocumentCategory)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                      >
+                        <option value="passport">Passeport</option>
+                        <option value="id_card">Carte d'Identité</option>
+                        <option value="family_book">Livret de Famille</option>
+                        <option value="insurance">Assurance</option>
+                        <option value="contract">Contrat</option>
+                        <option value="report_card">Bulletin scolaire</option>
+                        <option value="diploma">Diplôme</option>
+                        <option value="other">Autre</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Date d'expiration (Optionnel)</label>
+                      <input 
+                        type="date" 
+                        value={docExpiry}
+                        onChange={(e) => setDocExpiry(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Description</label>
+                    <textarea 
+                      rows={2}
+                      placeholder="Commentaires ou notes..." 
+                      value={docDesc}
+                      onChange={(e) => setDocDesc(e.target.value)}
+                      className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30 resize-none"
+                    />
+                  </div>
+
+                  <div className="p-6 rounded-[24px] border border-dashed border-white/20 bg-white/5 text-center cursor-pointer hover:border-[#6C5CFF] hover:bg-white/8 transition-all">
+                    <p className="text-sm font-semibold text-white/80">Glissez ou sélectionnez un fichier à téléverser</p>
+                    <p className="text-xs text-white/40 mt-1">PDF, JPG, PNG jusqu'à 10 Mo • Simulation OCR automatique</p>
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="w-full py-4 rounded-[22px] bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white font-semibold text-sm hover:opacity-90 active:scale-98 transition-all cursor-pointer shadow-[0_4px_15px_rgba(108,92,255,0.4)]"
+                  >
+                    Sauvegarder le document
+                  </button>
+                </form>
+              )}
+
+              {/* Member Form */}
+              {activeTab === 'member' && (
+                <form onSubmit={handleMemberSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Nom complet</label>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="Ex: Ibrahima" 
+                        value={memName}
+                        onChange={(e) => setMemName(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Rôle / Relation</label>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="Ex: Bébé, Maman, Cousin..." 
+                        value={memRole}
+                        onChange={(e) => setMemRole(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Date de naissance</label>
+                      <input 
+                        type="text" 
+                        placeholder="JJ/MM/AAAA" 
+                        value={memBirth}
+                        onChange={(e) => setMemBirth(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Âge (ex: 2 ans, 12 ans)</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ex: 8 ans, 38 ans..." 
+                        value={memAge}
+                        onChange={(e) => setMemAge(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2 col-span-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Groupe Sanguin</label>
+                      <select 
+                        value={memBlood}
+                        onChange={(e) => setMemBlood(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                      >
+                        <option value="A+">A+</option>
+                        <option value="A-">A-</option>
+                        <option value="B+">B+</option>
+                        <option value="B-">B-</option>
+                        <option value="AB+">AB+</option>
+                        <option value="AB-">AB-</option>
+                        <option value="O+">O+</option>
+                        <option value="O-">O-</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Allergies (Séparées par virgules)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: Arachide, Pollen, Pénicilline..." 
+                      value={memAllergies}
+                      onChange={(e) => setMemAllergies(e.target.value)}
+                      className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Traitements (Séparés par virgules)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: Ventoline, Antihistaminique..." 
+                      value={memTreatments}
+                      onChange={(e) => setMemTreatments(e.target.value)}
+                      className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="w-full py-4 rounded-[22px] bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white font-semibold text-sm hover:opacity-90 active:scale-98 transition-all cursor-pointer shadow-[0_4px_15px_rgba(108,92,255,0.4)]"
+                  >
+                    Inviter le membre
+                  </button>
+                </form>
+              )}
+
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+};

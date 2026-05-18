@@ -1,0 +1,132 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Outfit', 'Poppins', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  
+  --color-family-bg: #07111F;
+  --color-family-surface: rgba(255, 255, 255, 0.06);
+  --color-family-border: rgba(255, 255, 255, 0.08);
+  --color-family-primary: #6C5CFF;
+  --color-family-secondary: #4F8CFF;
+  --color-family-success: #00D26A;
+  --color-family-danger: #FF4D6D;
+  --color-family-warning: #FFB020;
+  --color-family-text: #FFFFFF;
+  --color-family-text-secondary: rgba(255, 255, 255, 0.70);
+
+  --radius-card: 28px;
+  --radius-btn: 22px;
+  --radius-badge: 18px;
+  --radius-nav: 32px;
+  
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-glow: glow 2s ease-in-out infinite alternate;
+}
+
+/* Custom CSS variables for advanced features */
+:root {
+  color-scheme: dark;
+  --glow-color: rgba(108, 92, 255, 0.35);
+  background-color: #07111F;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--color-family-bg);
+  color: var(--color-family-text);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(7, 17, 31, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(108, 92, 255, 0.4);
+}
+
+/* Glassmorphism utility */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.glass-panel-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel-hover:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.5);
+}
+
+/* Premium radial background glow */
+.premium-glow-purple {
+  background: radial-gradient(circle at top right, rgba(108, 92, 255, 0.15) 0%, rgba(7, 17, 31, 0) 70%);
+}
+
+.premium-glow-blue {
+  background: radial-gradient(circle at bottom left, rgba(79, 140, 255, 0.12) 0%, rgba(7, 17, 31, 0) 75%);
+}
+
+/* Halo floating button */
+.float-btn-halo {
+  box-shadow: 0 0 25px 4px rgba(108, 92, 255, 0.45);
+}
+
+/* Hide native scrollbar for horizontal containers */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* iOS Spring animations */
+.spring-transition {
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+}
+
+/* Custom keyframes */
+@keyframes glow {
+  from {
+    box-shadow: 0 0 10px -2px var(--glow-color);
+  }
+  to {
+    box-shadow: 0 0 22px 2px var(--glow-color);
+  }
+}
+
+/* Pulsing animated lights */
+.neon-glow-primary {
+  box-shadow: 0 0 15px rgba(108, 92, 255, 0.3);
+}
+
+.neon-glow-success {
+  box-shadow: 0 0 15px rgba(0, 210, 106, 0.25);
+}
+
+.neon-glow-danger {
+  box-shadow: 0 0 15px rgba(255, 77, 109, 0.25);
+}
