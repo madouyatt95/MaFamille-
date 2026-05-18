@@ -70,6 +70,7 @@ export interface DocumentFile {
   isExpired: boolean;
   description?: string;
   fileBase64?: string; // Stored locally
+  isSecure?: boolean; // Requires PIN to view/download
 }
 
 export interface GroceryItem {
@@ -263,7 +264,7 @@ export interface DemarcheTemplate {
   icon: string;
   description: string;
   defaultSteps: { title: string; }[];
-  defaultPieces: { name: string; }[];
+  defaultPieces: { name: string; autoAttachTags?: string[]; }[];
 }
 
 export interface JustificatifPack {

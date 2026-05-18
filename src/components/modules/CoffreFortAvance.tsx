@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, Briefcase, Car, Home, Plane, CreditCard, User, AlertTriangle, ArrowLeft, Trash2, Download, Share2, CheckCircle2, ChevronRight, Calendar, Users } from 'lucide-react';
+import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, Briefcase, Car, Home, Plane, CreditCard, User, AlertTriangle, ArrowLeft, Trash2, Download, Share2, CheckCircle2, ChevronRight, Calendar, Users, Scan, Lock } from 'lucide-react';
+import Tesseract from 'tesseract.js';
 import type { DocumentFile, DocumentCategory, Member, Demarche, JustificatifPack } from '../../types';
 import { demarcheTemplates } from '../../data/demoData';
 
@@ -21,6 +22,30 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
   const [isUploading, setIsUploading] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<DocumentFile | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | null>(null);
+  const [docToUnlock, setDocToUnlock] = useState<DocumentFile | null>(null);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
+
+  const handleDocumentClick = (doc: DocumentFile) => {
+    if (doc.isSecure) {
+      setDocToUnlock(doc);
+      setPinInput('');
+      setPinError(false);
+    } else {
+      setPreviewDoc(doc);
+    }
+  };
+
+  const handlePinSubmit = () => {
+    if (pinInput === '1234') {
+      setPreviewDoc(docToUnlock);
+      setDocToUnlock(null);
+    } else {
+      setPinError(true);
+      setTimeout(() => setPinError(false), 2000);
+      setPinInput('');
+    }
+  };
 
   // Demarche states
   const [activeDemarche, setActiveDemarche] = useState<Demarche | null>(null);
@@ -42,7 +67,45 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
   const [newDocMember, setNewDocMember] = useState<string>('');
   const [newDocExpiry, setNewDocExpiry] = useState('');
   const [newDocTags, setNewDocTags] = useState('');
+  const [newDocSecure, setNewDocSecure] = useState(false);
   const [selectedFileBase64, setSelectedFileBase64] = useState<string | null>(null);
+  const [isOcrProcessing, setIsOcrProcessing] = useState(false);
+
+  const handleOcrScan = async () => {
+    if (!selectedFileBase64 || !selectedFileBase64.startsWith('data:image')) return;
+    setIsOcrProcessing(true);
+    try {
+      const { data: { text } } = await Tesseract.recognize(selectedFileBase64, 'fra', {
+        logger: m => console.log(m)
+      });
+      console.log('Texte extrait:', text);
+      
+      // Chercher une date d'expiration (JJ/MM/AAAA)
+      // Ex: "Expire le: 12/05/2028" ou "jusqu'au 12.05.2028"
+      const dateMatch = text.match(/(\d{2})[./-](\d{2})[./-](\d{4})/g);
+      if (dateMatch && dateMatch.length > 0) {
+        // On prend souvent la dernière date d'un document d'identité comme date d'expiration
+        const lastDate = dateMatch[dateMatch.length - 1];
+        // Convertir en YYYY-MM-DD pour l'input HTML
+        const parts = lastDate.split(/[./-]/);
+        if (parts.length === 3) {
+          setNewDocExpiry(`${parts[2]}-${parts[1]}-${parts[0]}`);
+        }
+      }
+      
+      // Si la catégorie est identité, on essaie de trouver un prénom/nom simple (très basique pour l'exemple)
+      if (newDocCategory === 'identity') {
+        const nameMatch = text.match(/Nom\s*[:\n]\s*([A-Z]+)/i);
+        if (nameMatch && nameMatch[1]) {
+          setNewDocName(`Pièce d'identité - ${nameMatch[1]}`);
+        }
+      }
+    } catch (e) {
+      console.error('Erreur OCR', e);
+    } finally {
+      setIsOcrProcessing(false);
+    }
+  };
 
   const categoryConfig: Record<DocumentCategory, { label: string; icon: any; color: string }> = {
     identity: { label: 'Identité', icon: User, color: 'text-blue-400 bg-blue-400/10' },
@@ -136,7 +199,8 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
       fileSize: 'Modéré', // Computed size could be added here
       isExpired: false,
       tags: newDocTags.split(',').map(t => t.trim()).filter(Boolean),
-      fileBase64: selectedFileBase64
+      fileBase64: selectedFileBase64,
+      isSecure: newDocSecure
     };
 
     setDocuments(prev => [newDoc, ...prev]);
@@ -148,6 +212,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     setNewDocMember('');
     setNewDocExpiry('');
     setNewDocTags('');
+    setNewDocSecure(false);
     setSelectedFileBase64(null);
   };
 
@@ -284,7 +349,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                     return (
                       <div 
                         key={doc.id} 
-                        onClick={() => setPreviewDoc(doc)}
+                        onClick={() => handleDocumentClick(doc)}
                         className="flex items-center p-3 bg-white/5 border border-white/10 rounded-xl space-x-3 cursor-pointer hover:bg-white/10 transition"
                       >
                         <div className={`p-2 rounded-lg ${config?.color || 'text-white bg-white/10'}`}>
@@ -339,7 +404,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
               return (
                 <div 
                   key={doc.id} 
-                  onClick={() => setPreviewDoc(doc)}
+                  onClick={() => handleDocumentClick(doc)}
                   className="flex items-center p-3 bg-white/5 border border-white/10 rounded-xl space-x-3 cursor-pointer hover:bg-white/10 transition"
                 >
                   <div className={`p-2 rounded-lg ${config?.color || 'text-white bg-white/10'}`}>
@@ -380,7 +445,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                     return (
                       <div 
                         key={doc.id} 
-                        onClick={() => setPreviewDoc(doc)}
+                        onClick={() => handleDocumentClick(doc)}
                         className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl cursor-pointer hover:bg-white/10 transition"
                       >
                         <div className="flex items-center space-x-3 min-w-0">
@@ -421,7 +486,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                     return (
                       <div 
                         key={doc.id} 
-                        onClick={() => setPreviewDoc(doc)}
+                        onClick={() => handleDocumentClick(doc)}
                         className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl cursor-pointer hover:bg-white/10 transition"
                       >
                         <div className="flex items-center space-x-3 min-w-0">
@@ -531,6 +596,31 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                     </div>
                   </div>
 
+                  <div className="flex items-center space-x-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewDocSecure(!newDocSecure)}
+                      className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                        newDocSecure ? 'bg-[#FF4D6D]/20 border-[#FF4D6D]/50 text-[#FF4D6D]' : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
+                      }`}
+                    >
+                      <Lock className="w-4 h-4" />
+                      <span>{newDocSecure ? "Sécurisé (PIN requis)" : "Non sécurisé"}</span>
+                    </button>
+                    
+                    {selectedFileBase64.startsWith('data:image') && (
+                      <button
+                        type="button"
+                        onClick={handleOcrScan}
+                        disabled={isOcrProcessing}
+                        className="flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl border border-[#00D26A]/30 bg-[#00D26A]/10 text-[#00D26A] text-xs font-bold hover:bg-[#00D26A]/20 transition-all disabled:opacity-50"
+                      >
+                        <Scan className={`w-4 h-4 ${isOcrProcessing ? 'animate-spin' : ''}`} />
+                        <span>{isOcrProcessing ? "Analyse..." : "Scanner (IA)"}</span>
+                      </button>
+                    )}
+                  </div>
+
                   <button 
                     onClick={handleSubmitUpload}
                     className="w-full py-3 mt-4 bg-[#6C5CFF] text-white font-bold rounded-xl shadow-lg hover:shadow-[#6C5CFF]/20 active:scale-95 transition-all"
@@ -539,6 +629,73 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PIN Unlock Modal */}
+      {docToUnlock && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#07111F]/90 backdrop-blur-md">
+          <div className="bg-[#112240] w-full max-w-sm rounded-[32px] border border-[#FF4D6D]/20 shadow-2xl overflow-hidden p-6 relative">
+            <button onClick={() => setDocToUnlock(null)} className="absolute top-4 right-4 p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex flex-col items-center text-center space-y-4 pt-4">
+              <div className="w-16 h-16 rounded-2xl bg-[#FF4D6D]/10 flex items-center justify-center border border-[#FF4D6D]/20 mb-2">
+                <Lock className="w-8 h-8 text-[#FF4D6D]" />
+              </div>
+              <h3 className="text-lg font-bold">Document Sécurisé</h3>
+              <p className="text-xs text-white/50 px-4">Ce document nécessite le code PIN parental pour être consulté.</p>
+              
+              <div className="w-full pt-4">
+                <div className="flex justify-center space-x-3 mb-6">
+                  {[0, 1, 2, 3].map(i => (
+                    <div key={i} className={`w-12 h-14 rounded-xl flex items-center justify-center text-xl font-bold border transition-colors ${
+                      pinInput.length > i ? 'bg-white text-[#07111F] border-white' : 
+                      pinInput.length === i ? 'bg-[#6C5CFF]/20 border-[#6C5CFF] text-[#6C5CFF]' : 
+                      'bg-white/5 border-white/10 text-transparent'
+                    } ${pinError ? 'border-[#FF4D6D] bg-[#FF4D6D]/20 text-[#FF4D6D]' : ''}`}>
+                      {pinInput.length > i ? '•' : ''}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+                    <button
+                      key={num}
+                      onClick={() => setPinInput(prev => prev.length < 4 ? prev + num : prev)}
+                      className="py-3 rounded-2xl bg-white/5 border border-white/10 text-lg font-bold hover:bg-white/10 active:scale-95 transition-all"
+                    >
+                      {num}
+                    </button>
+                  ))}
+                  <div className="py-3"></div>
+                  <button
+                    onClick={() => setPinInput(prev => prev.length < 4 ? prev + '0' : prev)}
+                    className="py-3 rounded-2xl bg-white/5 border border-white/10 text-lg font-bold hover:bg-white/10 active:scale-95 transition-all"
+                  >
+                    0
+                  </button>
+                  <button
+                    onClick={() => setPinInput(prev => prev.slice(0, -1))}
+                    className="py-3 rounded-2xl bg-white/5 border border-white/10 text-lg font-bold text-[#FF4D6D] hover:bg-[#FF4D6D]/10 active:scale-95 transition-all"
+                  >
+                    ⌫
+                  </button>
+                </div>
+                
+                {pinInput.length === 4 && (
+                  <button 
+                    onClick={handlePinSubmit}
+                    className="w-full mt-6 py-3.5 bg-[#FF4D6D] text-white font-bold rounded-xl shadow-lg hover:bg-[#FF4D6D]/90 active:scale-95 transition-all"
+                  >
+                    Déverrouiller
+                  </button>
+                )}
+                {pinError && <p className="text-[#FF4D6D] text-xs font-bold mt-4 animate-pulse">Code incorrect</p>}
+              </div>
             </div>
           </div>
         </div>
@@ -743,7 +900,35 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                       assignedMemberId: member?.id,
                       assignedMemberName: member?.name,
                       steps: (tpl?.defaultSteps || []).map((s, i) => ({ id: `ds-${Date.now()}-${i}`, title: s.title, done: false })),
-                      pieces: (tpl?.defaultPieces || []).map((p, i) => ({ id: `dp-${Date.now()}-${i}`, name: p.name, status: 'missing' as const })),
+                      pieces: (tpl?.defaultPieces || []).map((p, i) => {
+                        let matchedDocId = undefined;
+                        if (p.autoAttachTags && p.autoAttachTags.length > 0) {
+                          const match = documents.find(d => {
+                            // Ne pas attacher de document expiré
+                            if (d.isExpired) return false;
+                            if (d.expiryDate) {
+                              const parts = d.expiryDate.split('/');
+                              if (parts.length === 3) {
+                                const docDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                                if (docDate < new Date()) return false;
+                              }
+                            }
+                            // Correspondre au membre si assigné
+                            if (member && d.memberId && d.memberId !== member.id) return false;
+                            
+                            // Vérifier les tags
+                            const docStr = `${d.name} ${d.category} ${(d.tags||[]).join(' ')}`.toLowerCase();
+                            return p.autoAttachTags!.some(t => docStr.includes(t.toLowerCase()));
+                          });
+                          if (match) matchedDocId = match.id;
+                        }
+                        return { 
+                          id: `dp-${Date.now()}-${i}`, 
+                          name: p.name, 
+                          status: matchedDocId ? 'attached' : 'missing',
+                          documentId: matchedDocId
+                        };
+                      }),
                       createdAt: new Date().toLocaleDateString('fr-FR')
                     };
                     setDemarches(prev => [newDem, ...prev]);

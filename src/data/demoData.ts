@@ -432,10 +432,10 @@ export const demarcheTemplates: DemarcheTemplate[] = [
       { title: 'Attendre le courrier du certificat' }
     ],
     defaultPieces: [
-      { name: 'Ancien certificat d\'immatriculation' },
-      { name: 'Pièce d\'identité' },
-      { name: 'Justificatif de domicile' },
-      { name: 'Formulaire Cerfa 13750' }
+      { name: 'Ancien certificat d\'immatriculation', autoAttachTags: ['carte grise', 'immatriculation', 'vehicule'] },
+      { name: 'Pièce d\'identité', autoAttachTags: ['cni', 'passeport', 'identité', 'id'] },
+      { name: 'Justificatif de domicile', autoAttachTags: ['domicile', 'edf', 'facture', 'quittance'] },
+      { name: 'Formulaire Cerfa 13750', autoAttachTags: ['cerfa', '13750'] }
     ]
   },
   {
@@ -451,11 +451,11 @@ export const demarcheTemplates: DemarcheTemplate[] = [
       { title: 'Récupérer le document' }
     ],
     defaultPieces: [
-      { name: 'Photo d\'identité' },
-      { name: 'Timbre fiscal' },
-      { name: 'Justificatif de domicile' },
-      { name: 'Acte de naissance' },
-      { name: 'Ancien passeport / CNI' }
+      { name: 'Photo d\'identité', autoAttachTags: ['photo', 'portrait'] },
+      { name: 'Timbre fiscal', autoAttachTags: ['timbre', 'fiscal'] },
+      { name: 'Justificatif de domicile', autoAttachTags: ['domicile', 'edf', 'facture', 'quittance'] },
+      { name: 'Acte de naissance', autoAttachTags: ['acte', 'naissance'] },
+      { name: 'Ancien passeport / CNI', autoAttachTags: ['cni', 'passeport', 'identité', 'id'] }
     ]
   },
   {
@@ -470,11 +470,11 @@ export const demarcheTemplates: DemarcheTemplate[] = [
       { title: 'Suivre l\'avancement sur le portail' }
     ],
     defaultPieces: [
-      { name: 'Pièce d\'identité' },
-      { name: 'RIB' },
-      { name: 'Bail de location' },
-      { name: 'Avis d\'imposition' },
-      { name: 'Attestation de revenus' }
+      { name: 'Pièce d\'identité', autoAttachTags: ['cni', 'passeport', 'identité', 'id'] },
+      { name: 'RIB', autoAttachTags: ['rib', 'banque', 'iban', 'bic'] },
+      { name: 'Bail de location', autoAttachTags: ['bail', 'location', 'contrat'] },
+      { name: 'Avis d\'imposition', autoAttachTags: ['impots', 'imposition', 'avis'] },
+      { name: 'Attestation de revenus', autoAttachTags: ['revenus', 'salaire', 'bulletin'] }
     ]
   },
   {
