@@ -465,10 +465,11 @@ function App() {
 
     if (activeTab === 'menu') {
       // Si un module secondaire est ouvert
-      if (activeModule === 'membres') {
+      if (activeModule === 'membres' || activeModule === 'sante') {
         return (
           <Membres 
             members={members}
+            setMembers={setMembers}
             activeMemberId={activeMemberId}
             onAddMemberClick={() => setQuickActionsOpen(true)}
           />
@@ -563,6 +564,8 @@ function App() {
         onClose={() => setSidebarOpen(false)}
         setActiveTab={setActiveTab}
         setActiveModule={setActiveModule}
+        members={members}
+        activeMemberId={activeMemberId}
       />
 
       {/* Floating Bottom sheet dialog form (Quick Actions Sheet) */}

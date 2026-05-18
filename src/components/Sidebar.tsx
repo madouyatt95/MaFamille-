@@ -21,20 +21,31 @@ import {
   Settings, 
   Lock 
 } from 'lucide-react';
+import type { Member } from '../types';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   setActiveTab: (tab: string) => void;
   setActiveModule: (moduleName: string) => void;
+  members: Member[];
+  activeMemberId: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   isOpen, 
   onClose, 
   setActiveTab,
-  setActiveModule 
+  setActiveModule,
+  members,
+  activeMemberId
 }) => {
+  const activeMember = members.find(m => m.id === activeMemberId) || {
+    name: 'Papa',
+    role: 'Chef de famille',
+    photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'
+  };
+
   const menuItems = [
     { id: 'accueil', label: 'Accueil', icon: Home, isTab: true },
     { id: 'membres', label: 'Membres de la Famille', icon: Users, isTab: false, module: 'membres' },
@@ -88,15 +99,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex items-center space-x-3">
             <div className="relative">
               <img 
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" 
-                alt="Fatou Avatar" 
-                className="w-10 h-10 rounded-full border border-[#6C5CFF]"
+                src={activeMember.photoUrl} 
+                alt={`${activeMember.name} Avatar`} 
+                className="w-10 h-10 rounded-full border border-[#6C5CFF] object-cover"
               />
               <span className="absolute bottom-0 right-0 w-3 h-3 bg-[#00D26A] border-2 border-[#07111F] rounded-full"></span>
             </div>
             <div>
-              <h3 className="font-semibold text-white text-sm">Fatou</h3>
-              <p className="text-xs text-white/50">Maman • Administratrice</p>
+              <h3 className="font-semibold text-white text-sm">{activeMember.name}</h3>
+              <p className="text-xs text-white/50">{activeMember.role}</p>
             </div>
           </div>
           <button 

@@ -164,6 +164,8 @@ export interface MemoryLog {
   authorPhoto: string;
   imageUrl?: string;
   likesCount: number;
+  isPrivate?: boolean;
+  theme?: string;
 }
 
 export interface FamilyVote {

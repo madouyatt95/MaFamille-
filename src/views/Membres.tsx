@@ -16,16 +16,18 @@ import type { Member } from '../types';
 
 interface MembresProps {
   members: Member[];
+  setMembers: React.Dispatch<React.SetStateAction<Member[]>>;
   onAddMemberClick: () => void;
   activeMemberId?: string;
 }
 
 export const Membres: React.FC<MembresProps> = ({ 
   members, 
+  setMembers,
   onAddMemberClick,
   activeMemberId = '1'
 }) => {
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(() => members.length > 0 ? members[0] : null);
   const [isEditing, setIsEditing] = useState(false);
 
   const isChild = activeMemberId === '3' || activeMemberId === '4';
@@ -101,15 +103,25 @@ export const Membres: React.FC<MembresProps> = ({
     e.preventDefault();
     if (!selectedMember) return;
     
-    // Simuler la modification locale dans le state temporaire de l'objet sélectionné
-    selectedMember.name = editName;
-    selectedMember.role = editRole;
-    selectedMember.age = editAge;
-    selectedMember.birthDate = editBirth;
-    selectedMember.bloodGroup = editBlood;
-    selectedMember.schoolOrEmployer = editSchool;
+    setMembers(prev => prev.map(m => {
+      if (m.id === selectedMember.id) {
+        const updated = {
+          ...m,
+          name: editName,
+          role: editRole,
+          age: editAge,
+          birthDate: editBirth,
+          bloodGroup: editBlood,
+          schoolOrEmployer: editSchool
+        };
+        setSelectedMember(updated);
+        return updated;
+      }
+      return m;
+    }));
     
     setIsEditing(false);
+    alert('✏️ Profil modifié avec succès !');
   };
 
   return (
@@ -300,6 +312,24 @@ export const Membres: React.FC<MembresProps> = ({
                       Enregistrer
                     </button>
                   </div>
+
+                  {/* Profile Deletion (Only for parents, preventing self-deletion) */}
+                  {!isChild && selectedMember.id !== activeMemberId && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        if (window.confirm(`🚨 Êtes-vous ABSOLUMENT sûr de vouloir retirer le profil de ${selectedMember.name} de votre famille ? Cette action effacera définitivement ses données.`)) {
+                          setMembers(prev => prev.filter(m => m.id !== selectedMember.id));
+                          setSelectedMember(null);
+                          setIsEditing(false);
+                          alert(`🗑️ Profil de ${selectedMember.name} retiré avec succès !`);
+                        }
+                      }}
+                      className="w-full mt-2 py-3 rounded-xl bg-[#FF4D6D]/10 border border-[#FF4D6D]/30 text-[#FF4D6D] hover:bg-[#FF4D6D]/20 transition-all text-xs font-bold uppercase tracking-wider cursor-pointer text-center block"
+                    >
+                      Retirer de la famille 🗑️
+                    </button>
+                  )}
                 </form>
               ) : (
                 /* Dossier Content */

@@ -389,17 +389,29 @@ export const Accueil: React.FC<AccueilProps> = ({
           <div className="space-y-4">
             {activeDishes.length > 0 ? (
               activeDishes.map((dish) => (
-                <div key={dish.id} className="flex items-start space-x-3 border-b border-white/5 last:border-b-0 pb-3 last:pb-0">
-                  <div className="p-2 rounded-xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF] self-start mt-0.5">
-                    <UtensilsCrossed className="w-4 h-4" />
-                  </div>
+                <div key={dish.id} className="flex items-center space-x-4 border-b border-white/5 last:border-b-0 pb-3.5 last:pb-0 pt-1">
+                  {dish.image && dish.image.startsWith('http') ? (
+                    <img 
+                      src={dish.image} 
+                      alt={dish.name} 
+                      className="w-16 h-16 rounded-[18px] object-cover border border-white/10 shadow-lg shrink-0"
+                    />
+                  ) : (
+                    <div className="p-3.5 rounded-[18px] bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF] shrink-0">
+                      <UtensilsCrossed className="w-5 h-5" />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
-                    <span className="text-[9px] font-extrabold text-[#4F8CFF] uppercase tracking-widest">
-                      {dish.mealType === 'lunch' ? 'Déjeuner' : 'Dîner'}
+                    <span className={`text-[9px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-md border ${
+                      dish.mealType === 'lunch' 
+                        ? 'text-[#FFB020] bg-[#FFB020]/10 border-[#FFB020]/20' 
+                        : 'text-[#4F8CFF] bg-[#4F8CFF]/10 border-[#4F8CFF]/20'
+                    }`}>
+                      {dish.mealType === 'lunch' ? 'Déjeuner ☀️' : 'Dîner 🌙'}
                     </span>
-                    <h4 className="text-xs sm:text-sm font-bold text-white truncate mt-0.5">{dish.name}</h4>
-                    <p className="text-[10px] text-white/50 truncate mt-1">
-                      {dish.ingredients.join(', ')}
+                    <h4 className="text-xs sm:text-sm font-bold text-white truncate mt-2">{dish.name}</h4>
+                    <p className="text-[10px] text-white/55 truncate mt-0.5 leading-normal">
+                      Ingrédients: {dish.ingredients.join(', ')}
                     </p>
                   </div>
                 </div>

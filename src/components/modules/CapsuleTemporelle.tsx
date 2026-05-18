@@ -3,7 +3,9 @@ import {
   Camera, 
   Heart, 
   Printer, 
-  RefreshCw 
+  RefreshCw,
+  Lock,
+  Trash2
 } from 'lucide-react';
 import type { MemoryLog } from '../../types';
 
@@ -20,12 +22,38 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'album' | 'gazette'>('album');
   
-  // Simulated photo upload
+  // Advanced Form states
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [newTheme, setNewTheme] = useState('🏖️ Vacances');
+  const [newDate, setNewDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedPresetImage, setSelectedPresetImage] = useState('https://images.unsplash.com/photo-1541614101331-1a5a3a194e92?w=600&auto=format&fit=crop&q=80');
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [isPrivate, setIsPrivate] = useState(false);
+  
   const [uploading, setUploading] = useState(false);
   const [generatingGazette, setGeneratingGazette] = useState(false);
   const [gazetteStep, setGazetteStep] = useState(0);
+
+  const isParent = activeMemberId === '1' || activeMemberId === '2';
+
+  const PRESET_IMAGES = [
+    { label: '🚴‍♂️ Sport', url: 'https://images.unsplash.com/photo-1541614101331-1a5a3a194e92?w=600&auto=format&fit=crop&q=80' },
+    { label: '🍳 Cuisine', url: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=600&auto=format&fit=crop&q=80' },
+    { label: '🎂 Fête', url: 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&auto=format&fit=crop&q=80' },
+    { label: '🏖️ Plage', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&auto=format&fit=crop&q=80' }
+  ];
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleUploadMemory = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,23 +61,36 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
 
     setUploading(true);
     setTimeout(() => {
+      const author = activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa';
+      const authorPic = activeMemberId === '1' 
+        ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80' 
+        : activeMemberId === '2' 
+          ? 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?w=150&auto=format&fit=crop&q=80'
+          : activeMemberId === '3'
+            ? 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80'
+            : 'https://images.unsplash.com/photo-1517677129300-07b130802f46?w=150&auto=format&fit=crop&q=80';
+
       const newMemory: MemoryLog = {
         id: `mem-${Date.now()}`,
         title: newTitle,
         description: newDesc,
-        imageUrl: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?w=600&auto=format&fit=crop&q=80',
-        date: new Date().toLocaleDateString('fr-FR'),
-        authorName: activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa',
-        authorPhoto: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
-        likesCount: 0
+        imageUrl: uploadedImage || selectedPresetImage,
+        date: new Date(newDate).toLocaleDateString('fr-FR'),
+        authorName: author,
+        authorPhoto: authorPic,
+        likesCount: 0,
+        theme: newTheme,
+        isPrivate: isPrivate
       };
 
       setMemories(prev => [newMemory, ...prev]);
       setNewTitle('');
       setNewDesc('');
+      setUploadedImage(null);
+      setIsPrivate(false);
       setUploading(false);
       alert("Nouveau souvenir partagé dans la Capsule de la Famille ! 📸");
-    }, 1200);
+    }, 1000);
   };
 
   const handleLike = (id: string) => {
@@ -74,6 +115,12 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       }, 1000);
     }, 1000);
   };
+
+  // Filter memories based on parental privacy settings
+  const visibleMemories = memories.filter(m => {
+    if (m.isPrivate && !isParent) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -119,27 +166,147 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       {activeSubTab === 'album' && (
         <div className="space-y-6">
           
-          {/* Quick upload memory form */}
+          {/* Advanced upload memory form */}
           <form onSubmit={handleUploadMemory} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
-            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Ajouter un nouveau souvenir :</span>
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Créer un nouveau souvenir</span>
             
-            <div className="space-y-2.5">
-              <input 
-                type="text" 
-                required
-                placeholder="Titre du souvenir (ex: Sortie vélo au parc)..." 
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF4D6D]"
-              />
-              <textarea 
-                required
-                placeholder="Décrivez ce moment incroyable de complicité..." 
-                value={newDesc}
-                onChange={(e) => setNewDesc(e.target.value)}
-                rows={2}
-                className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF4D6D] resize-none"
-              />
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Titre</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="Ex: Sortie vélo en famille..." 
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF4D6D]"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Date du moment</label>
+                  <input 
+                    type="date" 
+                    required
+                    value={newDate}
+                    onChange={(e) => setNewDate(e.target.value)}
+                    className="w-full bg-[#07111F] border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Thématique / Ambiance</label>
+                  <select 
+                    value={newTheme}
+                    onChange={(e) => setNewTheme(e.target.value)}
+                    className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                  >
+                    <option value="🏖️ Vacances">🏖️ Vacances & Sorties</option>
+                    <option value="🚴‍♂️ Sport">🚴‍♂️ Activités & Sport</option>
+                    <option value="🎂 Anniversaire">🎂 Anniversaire & Fête</option>
+                    <option value="🍳 Cuisine">🍳 Cuisine & Repas</option>
+                    <option value="🎓 Scolaire">🎓 Réussite & École</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Unsplash Presets (Galerie de secours)</label>
+                  <select 
+                    value={selectedPresetImage}
+                    onChange={(e) => setSelectedPresetImage(e.target.value)}
+                    className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                  >
+                    {PRESET_IMAGES.map(pr => (
+                      <option key={pr.url} value={pr.url}>{pr.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Custom Mobile Camera & Library Uploader */}
+              <div className="space-y-1.5 pt-1">
+                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Image (Appareil photo / Bibliothèque locale)</label>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Native input camera picker */}
+                  <div className="relative flex flex-col items-center justify-center border border-dashed border-white/20 hover:border-[#FF4D6D]/45 rounded-xl p-4 bg-white/5 cursor-pointer min-h-[90px] transition-all">
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    <Camera className="w-5 h-5 text-white/60 mb-1" />
+                    <span className="text-[10px] font-bold text-white/80">Ajouter une photo</span>
+                    <span className="text-[8px] text-white/40 mt-0.5">Appareil photo ou Galerie</span>
+                  </div>
+
+                  {/* Photo Preview / Fallback indicator */}
+                  <div className="relative rounded-xl overflow-hidden min-h-[90px] border border-white/10 flex items-center justify-center bg-black/20">
+                    {uploadedImage ? (
+                      <>
+                        <img src={uploadedImage} alt="Preview" className="w-full h-full object-cover animate-fade-in" />
+                        <button 
+                          type="button"
+                          onClick={() => setUploadedImage(null)}
+                          className="absolute top-1 right-1 p-1 rounded-lg bg-black/60 border border-white/20 text-[#FF4D6D] hover:bg-black transition-all cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-[#00D26A]/90 text-[8px] font-extrabold text-white border border-[#00D26A]/30 uppercase">
+                          Photo importée ✓
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <img src={selectedPresetImage} alt="Preset default" className="w-full h-full object-cover opacity-60" />
+                        <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-white/5 text-[8px] font-bold text-white/60 border border-white/10 uppercase">
+                          Défaut Preset
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Description</label>
+                <textarea 
+                  required
+                  placeholder="Racontez le moment... (ex: Une superbe après-midi ensoleillée avec les enfants...)" 
+                  value={newDesc}
+                  onChange={(e) => setNewDesc(e.target.value)}
+                  rows={2}
+                  className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF4D6D] resize-none"
+                />
+              </div>
+
+              {/* Parent Privacy Toggle Switch */}
+              {isParent && (
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 mt-1">
+                  <div className="flex items-center space-x-2.5">
+                    <Lock className="w-4 h-4 text-[#FF4D6D]" />
+                    <div>
+                      <p className="text-[11px] font-bold text-white">🔒 Rendre ce souvenir privé</p>
+                      <p className="text-[9px] text-white/40">Visible uniquement par Papa & Maman</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsPrivate(prev => !prev)}
+                    className={`px-3 py-1 rounded-xl text-[9px] font-extrabold tracking-wider uppercase border transition-all cursor-pointer ${
+                      isPrivate 
+                        ? 'bg-[#FF4D6D] border-[#FF4D6D] text-white' 
+                        : 'bg-white/5 border-white/10 text-white/40'
+                    }`}
+                  >
+                    {isPrivate ? 'Privé' : 'Public'}
+                  </button>
+                </div>
+              )}
             </div>
 
             <button
@@ -154,7 +321,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
 
           {/* Album grid view */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {memories.map(m => (
+            {visibleMemories.map(m => (
               <div key={m.id} className="glass-panel border border-white/8 rounded-[28px] overflow-hidden flex flex-col justify-between shadow-lg relative group">
                 {m.imageUrl && (
                   <img 
@@ -162,6 +329,20 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                     alt={m.title} 
                     className="w-full h-44 object-cover border-b border-white/5 transition-transform duration-500 group-hover:scale-102"
                   />
+                )}
+                
+                {/* Private label indicators overlay */}
+                {m.isPrivate && (
+                  <span className="absolute top-3 left-3 px-2 py-0.5 rounded-lg bg-[#FF4D6D]/90 text-[8px] font-extrabold text-white border border-[#FF4D6D]/20 shadow-md uppercase tracking-wider flex items-center space-x-1">
+                    <Lock className="w-2.5 h-2.5 shrink-0" />
+                    <span>Privé (Parents)</span>
+                  </span>
+                )}
+
+                {m.theme && (
+                  <span className="absolute top-3 right-3 px-2.5 py-0.5 rounded-lg bg-black/60 text-[8px] font-extrabold text-[#FFB020] border border-white/5 shadow-md uppercase tracking-wider">
+                    {m.theme}
+                  </span>
                 )}
                 
                 <div className="p-4 space-y-2">
@@ -173,9 +354,16 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                   <p className="text-[11px] text-white/50 leading-relaxed font-sans font-medium">{m.description}</p>
                   
                   <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                    <span className="text-[9px] font-bold text-white/40">
-                      Par: <span className="text-[#FF4D6D]">{m.authorName}</span>
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <img 
+                        src={m.authorPhoto} 
+                        alt={m.authorName} 
+                        className="w-4 h-4 rounded-full object-cover border border-white/20 shrink-0"
+                      />
+                      <span className="text-[9px] font-bold text-white/40">
+                        Par: <span className="text-[#FF4D6D]">{m.authorName}</span>
+                      </span>
+                    </div>
                     
                     <div className="flex space-x-2">
                       <button

@@ -134,6 +134,17 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [ocrScanning, setOcrScanning] = useState(false);
   const [grocerySubTab, setGrocerySubTab] = useState<'liste' | 'ecochef'>('liste');
 
+  const [groceryDerogation, setGroceryDerogation] = useState(() => {
+    return localStorage.getItem('mf_grocery_derogation') === 'true';
+  });
+
+  const handleToggleDerogation = () => {
+    const nextVal = !groceryDerogation;
+    setGroceryDerogation(nextVal);
+    localStorage.setItem('mf_grocery_derogation', String(nextVal));
+    alert(nextVal ? '🔓 Dérogation accordée aux enfants !' : '🔒 Dérogation retirée. Accès restreint.');
+  };
+
   const modules = [
     { id: 'documents', title: 'Documents', desc: 'Coffre-fort sécurisé pour vos documents', badge: `${documents.length} fichiers`, icon: FolderLock, color: 'text-[#4F8CFF] bg-[#4F8CFF]/10 hover:border-[#4F8CFF]/30' },
     { id: 'sante', title: 'Santé', desc: 'Carnet médical et rendez-vous', badge: '5 rendez-vous', icon: HeartPulse, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
@@ -658,7 +669,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       )}
 
       {/* SUB-MODULE 3: Courses */}
-      {activeModule === 'courses' && (
+      {(activeModule === 'courses' || activeModule === 'menus') && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -666,6 +677,32 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               <p className="text-xs text-white/50">Gestion partagée et planification intelligente de repas</p>
             </div>
           </div>
+
+          {/* Parental Waiver Switch (Only visible for Papa/Maman) */}
+          {isParent && (
+            <div className="glass-panel rounded-[24px] p-4 border border-[#FFB020]/20 flex items-center justify-between bg-[#FFB020]/5 shadow-md">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 rounded-xl bg-[#FFB020]/10 text-[#FFB020] border border-[#FFB020]/20">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white">Dérogation Enfants 🔓</h4>
+                  <p className="text-[10px] text-white/50">Autoriser Amadou & Awa à éditer la liste</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleDerogation}
+                className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold tracking-wider uppercase border transition-all cursor-pointer ${
+                  groceryDerogation 
+                    ? 'bg-[#00D26A] border-[#00D26A] text-white' 
+                    : 'bg-white/5 border-white/10 text-white/40'
+                }`}
+              >
+                {groceryDerogation ? 'Accordée' : 'Bloquée'}
+              </button>
+            </div>
+          )}
 
           {/* Sub-tab selection */}
           <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 flex">
@@ -693,43 +730,130 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
           {grocerySubTab === 'liste' ? (
             <>
-              {/* Quick add item form */}
-              <form onSubmit={handleGrocerySubmit} className="glass-panel rounded-[24px] p-4 border border-white/6 flex items-center space-x-3">
-                <input 
-                  type="text" 
-                  required
-                  placeholder="Ajouter un produit (ex: Lait, Pommes)..." 
-                  value={newGroceryName}
-                  onChange={(e) => setNewGroceryName(e.target.value)}
-                  className="flex-1 bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
-                />
-                <select 
-                  value={newGroceryCat}
-                  onChange={(e) => setNewGroceryCat(e.target.value)}
-                  className="bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-                >
-                  <option value="Boucherie">Boucherie</option>
-                  <option value="Épicerie">Épicerie</option>
-                  <option value="Produits Frais">Frais</option>
-                  <option value="Fruits & Légumes">Fruits/Lég</option>
-                  <option value="Hygiène">Hygiène</option>
-                </select>
-                <button 
-                  type="submit" 
-                  className="p-2.5 rounded-xl bg-[#6C5CFF] text-white hover:opacity-90 transition-all cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </form>
+              {/* Quick add item form or Lock message for kids */}
+              {!isParent && !groceryDerogation ? (
+                <div className="p-6 rounded-[28px] bg-[#FF4D6D]/5 border border-[#FF4D6D]/15 text-center space-y-3">
+                  <div className="inline-flex p-3 rounded-full bg-[#FF4D6D]/10 text-[#FF4D6D] border border-[#FF4D6D]/20 animate-pulse">
+                    <Lock className="w-5 h-5" />
+                  </div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Ajout de courses verrouillé 🔒</h4>
+                  <p className="text-[10px] text-white/60 leading-normal max-w-[285px] mx-auto">
+                    La liste de courses est gérée par Papa & Maman. Demandez-leur d'activer la dérogation temporaire pour ajouter vos envies !
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={handleGrocerySubmit} className="glass-panel rounded-[24px] p-5 border border-white/6 space-y-4">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">Ajouter un produit</h3>
+                    {!isParent && groceryDerogation && (
+                      <span className="text-[9px] font-extrabold text-[#00D26A] bg-[#00D26A]/10 border border-[#00D26A]/20 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                        Dérogation Active 🔓
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Nom du produit</label>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="Ex: Lait, Pommes, Pâtes..." 
+                        value={newGroceryName}
+                        onChange={(e) => setNewGroceryName(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Catégorie</label>
+                      <select 
+                        value={newGroceryCat}
+                        onChange={(e) => setNewGroceryCat(e.target.value)}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#FFB020]"
+                      >
+                        <option value="Épicerie">Épicerie</option>
+                        <option value="Fruits & Légumes">Fruits & Légumes</option>
+                        <option value="Produits Frais">Produits Frais</option>
+                        <option value="Boucherie">Boucherie</option>
+                        <option value="Boissons">Boissons</option>
+                        <option value="Hygiène">Hygiène & Beauté</option>
+                        <option value="Entretien">Entretien Maison</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Quantité</label>
+                      <div className="flex items-center space-x-2">
+                        <button 
+                          type="button" 
+                          onClick={() => setNewGroceryQty(prev => Math.max(1, prev - 1))}
+                          className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white flex items-center justify-center text-sm font-bold cursor-pointer"
+                        >
+                          -
+                        </button>
+                        <input 
+                          type="number"
+                          min="1"
+                          required
+                          value={newGroceryQty}
+                          onChange={(e) => setNewGroceryQty(Math.max(1, parseInt(e.target.value) || 1))}
+                          className="flex-1 bg-white/5 border border-white/8 rounded-xl py-2 text-center text-xs text-white focus:outline-none"
+                        />
+                        <button 
+                          type="button" 
+                          onClick={() => setNewGroceryQty(prev => prev + 1)}
+                          className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white flex items-center justify-center text-sm font-bold cursor-pointer"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Unité</label>
+                      <select 
+                        value={newGroceryUnit}
+                        onChange={(e) => setNewGroceryUnit(e.target.value)}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#FFB020]"
+                      >
+                        <option value="pièces">pièces</option>
+                        <option value="paquets">paquets</option>
+                        <option value="bouteilles">bouteilles</option>
+                        <option value="boîtes">boîtes</option>
+                        <option value="kg">kg</option>
+                        <option value="g">g</option>
+                        <option value="L">L</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="w-full py-3 rounded-xl bg-[#FFB020] text-black hover:opacity-95 transition-all cursor-pointer font-bold text-xs flex items-center justify-center space-x-2"
+                  >
+                    <Plus className="w-4 h-4 shrink-0" />
+                    <span>Ajouter à la liste commune</span>
+                  </button>
+                </form>
+              )}
 
               {/* Grocery items checklist */}
               <div className="space-y-3">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider px-1">Liste partagée</h3>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider px-1">Liste commune</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {groceries.map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => onToggleGrocery(item.id)}
+                      onClick={() => {
+                        if (!isParent && !groceryDerogation) {
+                          alert("🔒 Dérogation parentale requise pour cocher ou modifier les courses !");
+                          return;
+                        }
+                        onToggleGrocery(item.id);
+                      }}
                       className={`glass-panel rounded-[24px] p-4 border transition-all text-left flex items-center justify-between hover:bg-white/8 cursor-pointer ${
                         item.checked ? 'border-[#00D26A]/30 bg-[#00D26A]/5 opacity-60' : 'border-white/8'
                       }`}
@@ -774,7 +898,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           </div>
 
           {/* Gamified Parent Validation Alert */}
-          {tasks.some(t => t.done && !t.validatedByParent) && (
+          {isParent && tasks.some(t => t.done && !t.validatedByParent) && (
             <div className="p-4 rounded-[28px] bg-[#FFB020]/10 border border-[#FFB020]/20 space-y-3">
               <div className="flex items-center space-x-2 text-[#FFB020]">
                 <Sparkles className="w-5 h-5 text-[#FFB020]" />
