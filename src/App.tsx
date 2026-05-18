@@ -56,6 +56,7 @@ import { AssistantIA } from './views/AssistantIA';
 import { Settings } from './views/Settings';
 import { Membres } from './views/Membres';
 import { SharedPackView } from './components/modules/SharedPackView';
+import { KidsDashboard } from './views/KidsDashboard';
 
 // Lucide icon for inline notifications
 import { Bell, X, ChevronRight } from 'lucide-react';
@@ -202,6 +203,7 @@ function App() {
   const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
   const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
   const [sharedPackId, setSharedPackId] = useState<string | null>(null);
+  const [sosActive, setSosActive] = useState(false);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -724,50 +726,76 @@ function App() {
     return renderContent();
   }
 
+  const activeMemberObj = members.find(m => m.id === activeMemberId);
+  const isKidMode = activeMemberObj && activeMemberObj.age && parseInt(activeMemberObj.age) < 11;
+
   return (
-    <div className={`min-h-screen ${syncActive ? 'bg-[#1a2b4c]' : 'bg-[#07111F]'} text-white font-sans transition-colors duration-1000`}>
+    <div className={`min-h-screen ${syncActive ? 'bg-[#1a2b4c]' : 'bg-[#07111F]'} text-white font-sans transition-colors duration-1000 relative`}>
       
-      {/* Dynamic render active layout page views */}
-      <main className="w-full">
-        {renderContent()}
-      </main>
+      {isKidMode && activeMemberObj ? (
+        <KidsDashboard 
+          member={activeMemberObj}
+          tasks={tasks}
+          setTasks={setTasks}
+          pocketMoney={pocketMoney}
+          events={events}
+        />
+      ) : (
+        <>
+          {/* Dynamic render active layout page views */}
+          <main className="w-full">
+            {renderContent()}
+          </main>
 
-      {/* Global Sidebar hamburger drawer menu */}
-      <Sidebar 
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        setActiveTab={setActiveTab}
-        setActiveModule={setActiveModule}
-        members={members}
-        activeMemberId={activeMemberId}
-      />
+          {/* Global Sidebar hamburger drawer menu */}
+          <Sidebar 
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            setActiveTab={setActiveTab}
+            setActiveModule={setActiveModule}
+            members={members}
+            activeMemberId={activeMemberId}
+          />
 
-      {/* Floating Bottom sheet dialog form (Quick Actions Sheet) */}
-      <QuickActionsSheet 
-        isOpen={quickActionsOpen}
-        onClose={() => setQuickActionsOpen(false)}
-        members={members}
-        onAddEvent={handleAddEvent}
-        onAddTransaction={handleAddTransaction}
-        onAddTask={handleAddTask}
-        onAddMember={handleAddMember}
-        onNavigateToVault={() => {
-          setActiveTab('menu');
-          setActiveModule('documents');
-          setQuickActionsOpen(false);
-        }}
-      />
+          {/* Floating Bottom sheet dialog form (Quick Actions Sheet) */}
+          <QuickActionsSheet 
+            isOpen={quickActionsOpen}
+            onClose={() => setQuickActionsOpen(false)}
+            members={members}
+            onAddEvent={handleAddEvent}
+            onAddTransaction={handleAddTransaction}
+            onAddTask={handleAddTask}
+            onAddMember={handleAddMember}
+            onNavigateToVault={() => {
+              setActiveTab('menu');
+              setActiveModule('documents');
+              setQuickActionsOpen(false);
+            }}
+            onTriggerSos={() => setSosActive(true)}
+          />
 
-      {/* Shared bottom iOS premium nav bar with quick actions central (+) trigger */}
-      <BottomNav 
-        activeTab={activeTab}
-        setActiveTab={(tab) => {
-          setActiveTab(tab);
-          setActiveModule('');
-        }}
-        onAddClick={() => setQuickActionsOpen(true)}
-        activeMemberId={activeMemberId}
-      />
+          {/* Shared bottom iOS premium nav bar with quick actions central (+) trigger */}
+          <BottomNav 
+            activeTab={activeTab}
+            setActiveTab={(tab) => {
+              setActiveTab(tab);
+              setActiveModule('');
+            }}
+            onAddClick={() => setQuickActionsOpen(true)}
+            activeMemberId={activeMemberId}
+          />
+        </>
+      )}
+
+      {/* Floating Profile Switcher for Kids Mode Escape */}
+      {isKidMode && activeMemberObj && (
+        <button 
+          onClick={() => setProfileSwitcherOpen(true)}
+          className="fixed top-4 right-4 z-[40] w-12 h-12 rounded-full border-2 border-white/20 shadow-[0_0_15px_rgba(108,92,255,0.4)] overflow-hidden active:scale-95 transition-transform"
+        >
+          <img src={activeMemberObj.photoUrl} alt="Profil" className="w-full h-full object-cover" />
+        </button>
+      )}
 
       {/* Inline Notification Tray Panel */}
       {alertsPanelOpen && (
@@ -834,6 +862,7 @@ function App() {
           </div>
         </div>
       )}
+
 
       {/* Interactive Profile Switcher Bottom Drawer */}
       {profileSwitcherOpen && (
@@ -941,6 +970,43 @@ function App() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* SOS EMERGENCY FULLSCREEN OVERLAY */}
+      {sosActive && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-6 bg-red-950/95 backdrop-blur-lg animate-pulse">
+          <style dangerouslySetInnerHTML={{__html: `
+            @keyframes flash-bg {
+              0%, 100% { background-color: rgba(69, 10, 10, 0.95); }
+              50% { background-color: rgba(153, 27, 27, 0.98); }
+            }
+            .animate-flash { animation: flash-bg 1s infinite; }
+          `}} />
+          <div className="absolute inset-0 animate-flash -z-10"></div>
+          
+          <div className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center border-4 border-white shadow-[0_0_50px_rgba(239,68,68,0.8)] mb-6 animate-bounce">
+            <Bell className="w-12 h-12 text-white fill-white animate-pulse" />
+          </div>
+
+          <h1 className="text-3xl font-black text-white text-center tracking-tight mb-2">ALERTE SOS ENVOYÉE</h1>
+          <p className="text-sm font-bold text-red-300 text-center uppercase tracking-widest mb-6">Géolocalisation activée</p>
+          
+          <div className="glass-panel border-white/10 bg-white/5 rounded-3xl p-6 text-center max-w-sm space-y-4 mb-8">
+            <p className="text-sm text-white/80 leading-relaxed">
+              Votre position exacte a été transmise en direct à **Papa, Maman** ainsi qu'aux contacts d'urgence.
+            </p>
+            <p className="text-xs text-white/50">
+              Restez calme. Quelqu'un a été prévenu et est en route.
+            </p>
+          </div>
+
+          <button
+            onClick={() => setSosActive(false)}
+            className="px-8 py-4 bg-white text-red-600 font-extrabold rounded-2xl shadow-xl hover:bg-red-50 active:scale-95 transition-all text-sm uppercase tracking-wider cursor-pointer"
+          >
+            Désactiver l'Alerte
+          </button>
         </div>
       )}
 

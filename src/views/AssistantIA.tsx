@@ -6,7 +6,8 @@ import {
   ShoppingBasket, 
   UtensilsCrossed, 
   FolderLock, 
-  Sparkles
+  Sparkles,
+  Mic
 } from 'lucide-react';
 import type { Transaction, DocumentFile, GroceryItem } from '../types';
 
@@ -47,7 +48,52 @@ export const AssistantIA: React.FC<AssistantIAProps> = ({
   });
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+
+  const handleVocalInput = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Votre navigateur ne supporte pas l'API de reconnaissance vocale.");
+      return;
+    }
+
+    if (isListening) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsListening(false);
+      return;
+    }
+
+    setIsListening(true);
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    recognition.lang = 'fr-FR';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInputValue(transcript);
+      setIsListening(false);
+      setTimeout(() => {
+        handleSend(transcript);
+      }, 1000);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error", event.error);
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -207,6 +253,16 @@ export const AssistantIA: React.FC<AssistantIAProps> = ({
           placeholder="Demandez-moi n'importe quoi sur la famille..." 
           className="flex-1 bg-transparent px-4 py-2.5 text-xs sm:text-sm text-white placeholder-white/30 focus:outline-none"
         />
+        <button 
+          onClick={handleVocalInput}
+          className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+            isListening 
+              ? 'bg-[#FF4D6D] border-[#FF4D6D]/30 text-white animate-pulse shadow-[0_0_15px_rgba(255,77,109,0.5)]' 
+              : 'bg-white/5 border-white/5 text-white/60 hover:text-white hover:bg-white/10'
+          }`}
+        >
+          <Mic className="w-4 h-4" />
+        </button>
         <button 
           onClick={() => handleSend(inputValue)}
           className="p-3 rounded-2xl bg-[#6C5CFF] text-white hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-md"

@@ -29,7 +29,8 @@ import {
   MessageCircle,
   Mic,
   Trash2,
-  Edit3
+  Edit3,
+  Map as MapIcon
 } from 'lucide-react';
 import type { 
   DocumentFile, 
@@ -63,6 +64,7 @@ import { MaVieSimulator } from '../components/modules/MaVieSimulator';
 import { CoffreFortAvance } from '../components/modules/CoffreFortAvance';
 import { Messagerie } from '../components/modules/Messagerie';
 import { WidgetMeteo } from '../components/modules/WidgetMeteo';
+import { FamilyMap } from './FamilyMap';
 
 interface MenuHubProps {
   documents: DocumentFile[];
@@ -230,6 +232,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
 
   const modules = [
+    { id: 'carte', title: 'Carte Familiale', desc: 'Localisation sécurisée en temps réel', badge: 'En direct', icon: MapIcon, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
     { id: 'messagerie', title: 'Messagerie', desc: 'Discussions & Groupes Familiaux', badge: '1 non lu', icon: MessageCircle, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
     { id: 'documents', title: 'Documents', desc: 'Coffre-fort sécurisé pour vos documents', badge: `${documents.length} fichiers`, icon: FolderLock, color: 'text-[#4F8CFF] bg-[#4F8CFF]/10 hover:border-[#4F8CFF]/30' },
     { id: 'sante', title: 'Santé', desc: 'Carnet médical et rendez-vous', badge: '5 rendez-vous', icon: HeartPulse, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
@@ -786,6 +789,11 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             Accéder au module Finances maintenant
           </button>
         </div>
+      )}
+
+      {/* SUB-MODULE 0.5: Carte Familiale */}
+      {activeModule === 'carte' && (
+        <FamilyMap members={members} activeMemberId={activeMemberId} />
       )}
 
       {/* SUB-MODULE 1: Documents Vault */}
