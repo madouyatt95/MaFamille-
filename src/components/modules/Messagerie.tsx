@@ -146,6 +146,11 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   const activeGroup = groups.find(g => g.id === activeGroupId);
   const activeMessages = messages.filter(m => m.groupId === activeGroupId);
 
+  const visibleGroups = groups.filter(g => {
+    if (!g.isPrivate) return true;
+    return g.memberIds.includes(activeMemberId);
+  });
+
   // LIST VIEW
   if (!activeGroupId) {
     return (
@@ -168,7 +173,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
         {/* Groups List */}
         <div className="flex-1 overflow-y-auto">
-          {groups.map(group => (
+          {visibleGroups.map(group => (
             <div 
               key={group.id} 
               onClick={() => setActiveGroupId(group.id)}

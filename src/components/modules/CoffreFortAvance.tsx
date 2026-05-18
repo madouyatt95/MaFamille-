@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, Briefcase, Car, Home, Plane, CreditCard, User, AlertTriangle } from 'lucide-react';
+import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, Briefcase, Car, Home, Plane, CreditCard, User, AlertTriangle, ArrowLeft } from 'lucide-react';
 import type { DocumentFile, DocumentCategory, Member } from '../../types';
 
 interface CoffreFortAvanceProps {
@@ -13,6 +13,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<DocumentFile | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | null>(null);
   
   // Upload Form State
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -159,7 +160,10 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
           {(['categories', 'members', 'expiring', 'all'] as const).map(mode => (
             <button
               key={mode}
-              onClick={() => setViewMode(mode)}
+              onClick={() => {
+                setViewMode(mode);
+                setSelectedCategory(null);
+              }}
               className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
                 viewMode === mode ? 'bg-white text-[#07111F]' : 'bg-white/10 text-white hover:bg-white/20'
               }`}
@@ -176,24 +180,82 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         {viewMode === 'categories' && (
-          <div className="grid grid-cols-2 gap-3">
-            {(Object.entries(categoryConfig) as [DocumentCategory, any][]).map(([key, config]) => {
-              const count = documents.filter(d => d.category === key).length;
-              if (count === 0 && !searchQuery) return null;
-              
-              return (
-                <div key={key} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-start space-y-2 cursor-pointer hover:bg-white/10 transition">
-                  <div className={`p-2 rounded-lg ${config.color}`}>
-                    <config.icon className="w-5 h-5" />
-                  </div>
-                  <div className="mt-2">
-                    <p className="font-semibold text-sm">{config.label}</p>
-                    <p className="text-xs text-white/50">{count} fichier(s)</p>
-                  </div>
+          selectedCategory ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
+                <div className="flex items-center space-x-2">
+                  <button 
+                    onClick={() => setSelectedCategory(null)}
+                    className="p-1.5 hover:bg-white/10 rounded-lg text-white/60 hover:text-white transition"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-sm font-bold text-white capitalize">{categoryConfig[selectedCategory].label}</span>
                 </div>
-              );
-            })}
-          </div>
+                <span className="text-xs text-white/40">
+                  {documents.filter(d => d.category === selectedCategory).length} document(s)
+                </span>
+              </div>
+              
+              <div className="space-y-2">
+                {documents
+                  .filter(d => {
+                    if (d.category !== selectedCategory) return false;
+                    if (!searchQuery) return true;
+                    return d.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                           (d.tags || []).some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+                  })
+                  .map(doc => {
+                    const config = categoryConfig[doc.category];
+                    const Icon = config?.icon || FileText;
+                    return (
+                      <div 
+                        key={doc.id} 
+                        onClick={() => setPreviewDoc(doc)}
+                        className="flex items-center p-3 bg-white/5 border border-white/10 rounded-xl space-x-3 cursor-pointer hover:bg-white/10 transition"
+                      >
+                        <div className={`p-2 rounded-lg ${config?.color || 'text-white bg-white/10'}`}>
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm truncate">{doc.name}</p>
+                          <div className="flex items-center space-x-2 text-[10px] text-white/50 mt-0.5">
+                            <span>{doc.uploadDate}</span>
+                            {doc.memberName && <span>• {doc.memberName}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                {documents.filter(d => d.category === selectedCategory).length === 0 && (
+                  <p className="text-xs text-white/40 text-center py-6">Aucun document dans cette catégorie</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {(Object.entries(categoryConfig) as [DocumentCategory, any][]).map(([key, config]) => {
+                const count = documents.filter(d => d.category === key).length;
+                if (count === 0 && !searchQuery) return null;
+                
+                return (
+                  <div 
+                    key={key} 
+                    onClick={() => setSelectedCategory(key)}
+                    className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-start space-y-2 cursor-pointer hover:bg-white/10 transition"
+                  >
+                    <div className={`p-2 rounded-lg ${config.color}`}>
+                      <config.icon className="w-5 h-5" />
+                    </div>
+                    <div className="mt-2">
+                      <p className="font-semibold text-sm">{config.label}</p>
+                      <p className="text-xs text-white/50">{count} fichier(s)</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
         )}
 
         {viewMode === 'all' && (
