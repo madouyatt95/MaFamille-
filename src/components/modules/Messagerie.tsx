@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Phone, Video, Search } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Phone, Video, Search, Palette, X } from 'lucide-react';
 import type { Member, ChatMessage, ChatGroup } from '../../types';
 
 interface MessagerieProps {
@@ -23,6 +23,10 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   
   const [newMessage, setNewMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [showCanvas, setShowCanvas] = useState(false);
+  const [drawColor, setDrawColor] = useState('#FF4D6D');
+  const [isDrawing, setIsDrawing] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -133,6 +137,86 @@ export const Messagerie: React.FC<MessagerieProps> = ({
       setMessages(prev => [...prev, newMsg]);
       setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: '🎤 Message vocal', lastMessageTime: newMsg.timestamp } : g));
     }, 2000);
+  };
+
+  // --- Canvas Drawing Helpers ---
+  const initCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    ctx.fillStyle = '#0A0D18';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }, []);
+
+  useEffect(() => {
+    if (showCanvas) {
+      setTimeout(initCanvas, 50);
+    }
+  }, [showCanvas, initCanvas]);
+
+  const getCanvasCoords = (e: React.MouseEvent | React.TouchEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    if ('touches' in e) {
+      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+    }
+    return { x: (e as React.MouseEvent).clientX - rect.left, y: (e as React.MouseEvent).clientY - rect.top };
+  };
+
+  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
+    setIsDrawing(true);
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    const { x, y } = getCanvasCoords(e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawing) return;
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    const { x, y } = getCanvasCoords(e);
+    ctx.strokeStyle = drawColor;
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const stopDraw = () => setIsDrawing(false);
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = '#0A0D18';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const sendDrawing = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !activeGroupId || !activeUser) return;
+    const dataUrl = canvas.toDataURL('image/png');
+    const newMsg: ChatMessage = {
+      id: `msg_${Date.now()}`,
+      groupId: activeGroupId,
+      senderId: activeUser.id,
+      senderName: activeUser.name,
+      type: 'image',
+      content: dataUrl,
+      timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      readBy: [activeUser.id]
+    };
+    setMessages(prev => [...prev, newMsg]);
+    setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: '🎨 Dessin', lastMessageTime: newMsg.timestamp } : g));
+    setShowCanvas(false);
   };
 
   const handleOpenDirectMessage = (targetMember: Member) => {
@@ -306,6 +390,65 @@ export const Messagerie: React.FC<MessagerieProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Drawing Canvas Overlay */}
+      {showCanvas && (
+        <div className="absolute inset-0 z-50 bg-[#0A0D18]/95 backdrop-blur-md flex flex-col rounded-3xl overflow-hidden">
+          <div className="flex items-center justify-between p-3 border-b border-white/10">
+            <div className="flex items-center space-x-2">
+              <Palette className="w-5 h-5 text-[#FF4D6D]" />
+              <span className="text-sm font-bold text-white">Tableau de dessin</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              {['#FF4D6D', '#6C5CFF', '#00D26A', '#FFB020', '#4F8CFF', '#FFFFFF'].map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setDrawColor(c)}
+                  className={`w-6 h-6 rounded-full border-2 transition-transform ${drawColor === c ? 'border-white scale-125' : 'border-white/20'}`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          </div>
+          <canvas
+            ref={canvasRef}
+            className="flex-1 cursor-crosshair touch-none"
+            onMouseDown={startDraw}
+            onMouseMove={draw}
+            onMouseUp={stopDraw}
+            onMouseLeave={stopDraw}
+            onTouchStart={startDraw}
+            onTouchMove={draw}
+            onTouchEnd={stopDraw}
+          />
+          <div className="flex items-center space-x-2 p-3 border-t border-white/10">
+            <button
+              type="button"
+              onClick={() => setShowCanvas(false)}
+              className="flex-1 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-bold transition hover:bg-white/10 cursor-pointer flex items-center justify-center space-x-1.5"
+            >
+              <X className="w-4 h-4" />
+              <span>Annuler</span>
+            </button>
+            <button
+              type="button"
+              onClick={clearCanvas}
+              className="px-4 py-2.5 rounded-xl bg-[#FFB020]/15 border border-[#FFB020]/20 text-[#FFB020] text-xs font-bold transition hover:bg-[#FFB020]/25 cursor-pointer"
+            >
+              Effacer
+            </button>
+            <button
+              type="button"
+              onClick={sendDrawing}
+              className="flex-1 py-2.5 rounded-xl bg-[#00D26A] text-black text-xs font-extrabold transition hover:opacity-90 cursor-pointer flex items-center justify-center space-x-1.5"
+            >
+              <Send className="w-4 h-4" />
+              <span>Envoyer</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Input Area */}
       <div className="p-3 bg-[#112240] border-t border-white/10">
         <form onSubmit={handleSendMessage} className="flex items-center space-x-2 bg-white/5 p-1.5 rounded-full border border-white/10">
@@ -323,6 +466,14 @@ export const Messagerie: React.FC<MessagerieProps> = ({
             className="p-2 hover:bg-white/10 rounded-full text-white/60 transition-colors"
           >
             <Paperclip className="w-5 h-5" />
+          </button>
+          <button 
+            type="button" 
+            onClick={() => setShowCanvas(true)}
+            className="p-2 hover:bg-white/10 rounded-full text-white/60 transition-colors"
+            title="Dessiner"
+          >
+            <Palette className="w-5 h-5" />
           </button>
           
           <input 

@@ -115,6 +115,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
 
   // Form & UI States
   const [selectedDay, setSelectedDay] = useState<string>('Lundi');
+  const [scheduleViewMode, setScheduleViewMode] = useState<'list' | 'calendar'>('list');
   
   // Form States Grade
   const [formGradeStudentId, setFormGradeStudentId] = useState('3');
@@ -802,68 +803,124 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                 )}
               </div>
 
-              {/* Days Selector */}
-              <div className="flex space-x-1.5 overflow-x-auto pb-1 no-scrollbar">
-                {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map(d => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setSelectedDay(d)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition ${
-                      selectedDay === d ? 'bg-[#6C5CFF] text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'
-                    }`}
-                  >
-                    {d}
-                  </button>
-                ))}
+              {/* View Toggle */}
+              <div className="flex space-x-2 mb-2">
+                <button type="button" onClick={() => setScheduleViewMode('list')} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition ${scheduleViewMode === 'list' ? 'bg-[#6C5CFF] text-white' : 'bg-white/5 text-white/50'}`}>
+                  📝 Vue Liste
+                </button>
+                <button type="button" onClick={() => setScheduleViewMode('calendar')} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition ${scheduleViewMode === 'calendar' ? 'bg-[#6C5CFF] text-white' : 'bg-white/5 text-white/50'}`}>
+                  📅 Vue Calendrier
+                </button>
               </div>
 
-              {/* Class list for selected day */}
-              <div className="space-y-3">
-                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">
-                  Cours du {selectedDay} :
-                </span>
+              {scheduleViewMode === 'list' ? (
+                <>
+                  {/* Days Selector */}
+                  <div className="flex space-x-1.5 overflow-x-auto pb-1 no-scrollbar">
+                    {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map(d => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setSelectedDay(d)}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+                          selectedDay === d ? 'bg-[#6C5CFF] text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'
+                        }`}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
 
-                {schedule.filter(s => s.day === selectedDay).length > 0 ? (
-                  schedule
-                    .filter(s => s.day === selectedDay)
-                    .sort((a, b) => a.startTime.localeCompare(b.startTime))
-                    .map(item => (
-                      <div key={item.id} className="glass-panel border border-white/8 rounded-[24px] p-4 flex items-center justify-between hover:bg-white/8 transition">
-                        <div className="flex items-center space-x-3.5">
-                          <div className="p-2.5 rounded-xl bg-[#6C5CFF]/15 text-[#6C5CFF] border border-[#6C5CFF]/20">
-                            <Calendar className="w-5 h-5" />
+                  {/* Class list for selected day */}
+                  <div className="space-y-3">
+                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">
+                      Cours du {selectedDay} :
+                    </span>
+
+                    {schedule.filter(s => s.day === selectedDay).length > 0 ? (
+                      schedule
+                        .filter(s => s.day === selectedDay)
+                        .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                        .map(item => (
+                          <div key={item.id} className="glass-panel border border-white/8 rounded-[24px] p-4 flex items-center justify-between hover:bg-white/8 transition">
+                            <div className="flex items-center space-x-3.5">
+                              <div className="p-2.5 rounded-xl bg-[#6C5CFF]/15 text-[#6C5CFF] border border-[#6C5CFF]/20">
+                                <Calendar className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <span className="text-[9px] font-bold text-[#6C5CFF] bg-[#6C5CFF]/10 px-2 py-0.5 rounded uppercase">
+                                  {item.subject}
+                                </span>
+                                <h4 className="text-xs font-extrabold text-white mt-1.5">
+                                  {item.startTime} - {item.endTime}
+                                </h4>
+                                <p className="text-[10px] text-white/40 mt-0.5">
+                                  Élève: <span className="font-bold text-white">{item.studentName}</span>
+                                  {item.room && ` • ${item.room}`}
+                                </p>
+                              </div>
+                            </div>
+
+                            {isParent && (
+                              <button
+                                onClick={() => handleDeleteSchItem(item.id)}
+                                className="p-2 hover:bg-[#FF4D6D]/15 rounded-xl text-[#FF4D6D] transition"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
-                          <div>
-                            <span className="text-[9px] font-bold text-[#6C5CFF] bg-[#6C5CFF]/10 px-2 py-0.5 rounded uppercase">
-                              {item.subject}
-                            </span>
-                            <h4 className="text-xs font-extrabold text-white mt-1.5">
-                              {item.startTime} - {item.endTime}
-                            </h4>
-                            <p className="text-[10px] text-white/40 mt-0.5">
-                              Élève: <span className="font-bold text-white">{item.studentName}</span>
-                              {item.room && ` • ${item.room}`}
-                            </p>
-                          </div>
+                        ))
+                    ) : (
+                      <p className="text-xs text-white/30 text-center py-8 glass-panel rounded-2xl border border-white/5">
+                        Aucun cours planifié pour le {selectedDay}.
+                      </p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                /* CALENDAR GRID VIEW */
+                <div className="glass-panel border border-white/8 rounded-[24px] p-3 overflow-x-auto">
+                  <div className="min-w-[600px]">
+                    {/* Header row */}
+                    <div className="grid grid-cols-7 gap-0.5 mb-1">
+                      <div className="text-[8px] font-bold text-white/30 uppercase text-center py-1">Heure</div>
+                      {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map(d => (
+                        <div key={d} className="text-[8px] font-bold text-white/60 uppercase text-center py-1 bg-white/5 rounded-lg">
+                          {d.slice(0, 3)}
                         </div>
-
-                        {isParent && (
-                          <button
-                            onClick={() => handleDeleteSchItem(item.id)}
-                            className="p-2 hover:bg-[#FF4D6D]/15 rounded-xl text-[#FF4D6D] transition"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))
-                ) : (
-                  <p className="text-xs text-white/30 text-center py-8 glass-panel rounded-2xl border border-white/5">
-                    Aucun cours planifié pour le {selectedDay}.
-                  </p>
-                )}
-              </div>
+                      ))}
+                    </div>
+                    {/* Time rows 8h to 17h */}
+                    {Array.from({ length: 10 }, (_, i) => i + 8).map(hour => {
+                      const hStr = `${String(hour).padStart(2, '0')}:`;
+                      const COLORS = ['#6C5CFF', '#FF4D6D', '#00D26A', '#FFB020', '#4F8CFF', '#E040FB'];
+                      return (
+                        <div key={hour} className="grid grid-cols-7 gap-0.5 mb-0.5">
+                          <div className="text-[9px] font-bold text-white/30 text-center py-2">{hStr}00</div>
+                          {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map(day => {
+                            const classesInSlot = schedule.filter(s => {
+                              const sH = parseInt(s.startTime.split(':')[0]);
+                              const eH = parseInt(s.endTime.split(':')[0]);
+                              return s.day === day && sH <= hour && eH > hour;
+                            });
+                            const cls = classesInSlot[0];
+                            if (!cls) return <div key={day} className="bg-white/[0.02] rounded border border-white/[0.03] min-h-[32px]" />;
+                            const subIdx = subjectsList.indexOf(cls.subject) % COLORS.length;
+                            const col = COLORS[subIdx >= 0 ? subIdx : 0];
+                            return (
+                              <div key={day} className="rounded border min-h-[32px] p-1 flex flex-col justify-center" style={{ backgroundColor: `${col}15`, borderColor: `${col}30` }}>
+                                <span className="text-[7px] font-extrabold truncate" style={{ color: col }}>{cls.subject}</span>
+                                <span className="text-[7px] text-white/40 truncate">{cls.studentName}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Add Class Form (Parents only) */}
               {isParent && (

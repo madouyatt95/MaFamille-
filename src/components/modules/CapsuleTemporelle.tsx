@@ -257,7 +257,29 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
         setTimeout(() => {
           setGeneratingGazette(false);
           setGazetteStep(0);
-          alert("📰 Gazette de la famille 'Édition Spéciale' compilée avec succès ! Le fichier PDF premium est prêt pour l'impression.");
+          // Inject print-specific stylesheet then trigger print
+          const printStyle = document.createElement('style');
+          printStyle.id = 'gazette-print-style';
+          printStyle.textContent = `
+            @media print {
+              body * { visibility: hidden !important; }
+              .gazette-printable, .gazette-printable * { visibility: visible !important; }
+              .gazette-printable {
+                position: absolute; left: 0; top: 0; width: 100%;
+                background: white !important; color: black !important;
+                padding: 40px !important; font-family: Georgia, serif !important;
+              }
+              .gazette-printable h2 { color: #1a1a1a !important; font-size: 28px !important; }
+              .gazette-printable span, .gazette-printable h4, .gazette-printable p { color: #333 !important; }
+              .gazette-printable .no-print { display: none !important; }
+            }
+          `;
+          document.head.appendChild(printStyle);
+          window.print();
+          setTimeout(() => {
+            const el = document.getElementById('gazette-print-style');
+            if (el) el.remove();
+          }, 1000);
         }, 1200);
       }, 1000);
     }, 1000);
@@ -488,7 +510,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
         <div className="space-y-6">
           
           {/* Gazette Promo Cover */}
-          <div className="relative rounded-[28px] overflow-hidden border border-[#FF4D6D]/30 bg-gradient-to-br from-[#1C1F2E] to-[#0A0D16] p-6 flex flex-col justify-between min-h-[380px] shadow-2xl">
+          <div className="gazette-printable relative rounded-[28px] overflow-hidden border border-[#FF4D6D]/30 bg-gradient-to-br from-[#1C1F2E] to-[#0A0D16] p-6 flex flex-col justify-between min-h-[380px] shadow-2xl">
             <div className="absolute top-0 right-0 w-48 h-48 bg-[#FF4D6D]/10 rounded-full blur-3xl pointer-events-none"></div>
             
             {/* Editorial Title */}

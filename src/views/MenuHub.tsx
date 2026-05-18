@@ -189,6 +189,55 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     alert(nextVal ? '🔓 Dérogation accordée aux enfants !' : '🔒 Dérogation retirée. Accès restreint.');
   };
 
+  // --- Feature 1: Shared Family Quests ---
+  interface SharedQuest {
+    id: string;
+    title: string;
+    target: number;
+    current: number;
+    reward: string;
+  }
+  const [sharedQuests, setSharedQuests] = useState<SharedQuest[]>(() => {
+    const stored = localStorage.getItem('mf_shared_quests');
+    return stored ? JSON.parse(stored) : [
+      { id: 'sq-1', title: '10h d\'activité physique cumulées cette semaine', target: 10, current: 4, reward: 'Sortie cinéma en famille 🎬' },
+      { id: 'sq-2', title: 'Grand ménage de printemps (toutes les pièces)', target: 6, current: 2, reward: 'Pizza Party 🍕' }
+    ];
+  });
+  React.useEffect(() => { localStorage.setItem('mf_shared_quests', JSON.stringify(sharedQuests)); }, [sharedQuests]);
+
+  const [newQuestTitle, setNewQuestTitle] = useState('');
+  const [newQuestTarget, setNewQuestTarget] = useState(5);
+  const [newQuestReward, setNewQuestReward] = useState('');
+
+  // --- Feature 5: Notification Center ---
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [familyNotifs, setFamilyNotifs] = useState<{id: string; text: string; time: string; icon: string}[]>(() => {
+    const stored = localStorage.getItem('mf_notifs');
+    return stored ? JSON.parse(stored) : [
+      { id: 'n-1', text: 'Papa a validé les devoirs d\'Amadou (+50 pts)', time: '14:32', icon: '✅' },
+      { id: 'n-2', text: 'Maman a planifié un voyage à Rome', time: '12:05', icon: '✈️' },
+      { id: 'n-3', text: 'Amadou a terminé le quiz Sciences (3/3)', time: '09:40', icon: '🎯' },
+      { id: 'n-4', text: 'Rappel vaccin Méningocoque B pour Ibrahima', time: '08:00', icon: '💉' }
+    ];
+  });
+
+  const pushNotif = (text: string, icon: string = '🔔') => {
+    const n = { id: `n-${Date.now()}`, text, time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }), icon };
+    setFamilyNotifs(prev => {
+      const next = [n, ...prev].slice(0, 30);
+      localStorage.setItem('mf_notifs', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // --- Feature 6: Health Emergency Card ---
+  const [healthSubTab, setHealthSubTab] = useState<'croissance' | 'vaccins' | 'urgence'>('croissance');
+
+  // --- Feature 8: House Plan View ---
+  const [logementViewMode, setLogementViewMode] = useState<'list' | 'plan'>('list');
+  const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+
   const modules = [
     { id: 'messagerie', title: 'Messagerie', desc: 'Discussions & Groupes Familiaux', badge: '1 non lu', icon: MessageCircle, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
     { id: 'documents', title: 'Documents', desc: 'Coffre-fort sécurisé pour vos documents', badge: `${documents.length} fichiers`, icon: FolderLock, color: 'text-[#4F8CFF] bg-[#4F8CFF]/10 hover:border-[#4F8CFF]/30' },
@@ -570,13 +619,65 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       
       {/* Back button if active sub-module */}
       {activeModule && (
-        <button 
-          onClick={() => setActiveModule('')}
-          className="flex items-center space-x-2 text-xs font-bold text-white/50 hover:text-white transition-all cursor-pointer py-1.5 px-3 rounded-xl bg-white/5 border border-white/5 w-fit"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Retour au Tableau de Bord</span>
-        </button>
+        <div className="flex items-center justify-between">
+          <button 
+            onClick={() => setActiveModule('')}
+            className="flex items-center space-x-2 text-xs font-bold text-white/50 hover:text-white transition-all cursor-pointer py-1.5 px-3 rounded-xl bg-white/5 border border-white/5 w-fit"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Retour au Tableau de Bord</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowNotifPanel(true)}
+            className="relative p-2.5 rounded-xl bg-white/5 border border-white/8 hover:bg-white/10 transition-all cursor-pointer"
+          >
+            <span className="text-lg">🔔</span>
+            {familyNotifs.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#FF4D6D] rounded-full text-[8px] font-bold text-white flex items-center justify-center animate-pulse shadow-[0_0_8px_rgba(255,77,109,0.5)]">
+                {familyNotifs.length}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Notification Slide-Over Panel */}
+      {showNotifPanel && (
+        <div className="fixed inset-0 z-[200] flex justify-end" onClick={() => setShowNotifPanel(false)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div 
+            className="relative w-full max-w-sm h-full bg-[#0A0D18]/95 backdrop-blur-xl border-l border-white/10 shadow-2xl overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-white/10 flex items-center justify-between sticky top-0 bg-[#0A0D18]/90 backdrop-blur-md z-10">
+              <div className="flex items-center space-x-2">
+                <span className="text-lg">🔔</span>
+                <h3 className="text-sm font-extrabold text-white">Centre de Notifications</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNotifPanel(false)}
+                className="p-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-white/60 hover:text-white transition text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              {familyNotifs.length > 0 ? familyNotifs.map(n => (
+                <div key={n.id} className="flex items-start space-x-3 p-3 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/8 transition">
+                  <span className="text-lg shrink-0 mt-0.5">{n.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-white font-medium leading-relaxed">{n.text}</p>
+                    <span className="text-[10px] text-white/40 font-bold mt-1 block">{n.time}</span>
+                  </div>
+                </div>
+              )) : (
+                <p className="text-xs text-white/30 text-center py-8">Aucune notification</p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Parental Lock Gate screen */}
@@ -770,72 +871,117 @@ export const MenuHub: React.FC<MenuHubProps> = ({
         <div className="space-y-6">
           <div>
             <h2 className="text-lg font-extrabold text-white">Carnet Santé & Vaccins</h2>
-            <p className="text-xs text-white/50">Vaccination et suivi pédiatrique</p>
+            <p className="text-xs text-white/50">Vaccination, suivi pédiatrique & Fiche d'Urgence</p>
           </div>
 
-          {/* Growth curve mockup rendered with gorgeous CSS/SVG paths */}
-          <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-              <Activity className="w-4 h-4 text-[#FF4D6D]" />
-              <span>Courbe de Croissance (Amadou)</span>
-            </h3>
-            
-            {/* Custom Interactive SVG growth lines chart */}
-            <div className="h-44 w-full relative">
-              <svg className="w-full h-full" viewBox="0 0 300 150">
-                {/* Horizontal grid lines */}
-                <line x1="20" y1="20" x2="280" y2="20" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-                <line x1="20" y1="60" x2="280" y2="60" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-                <line x1="20" y1="100" x2="280" y2="100" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-                
-                {/* Curve lines */}
-                {/* Normal upper percentile border */}
-                <path d="M20,130 Q120,80 280,30" fill="none" stroke="rgba(108, 92, 255, 0.15)" strokeWidth="5" strokeLinecap="round" />
-                
-                {/* Amadou actual growth path */}
-                <path d="M20,128 C80,105 180,68 280,38" fill="none" stroke="#FF4D6D" strokeWidth="2.5" strokeLinecap="round" />
-                
-                {/* Node dots */}
-                <circle cx="20" cy="128" r="4" fill="#FF4D6D" />
-                <circle cx="100" cy="98" r="4" fill="#FF4D6D" />
-                <circle cx="190" cy="65" r="4" fill="#FF4D6D" />
-                <circle cx="280" cy="38" r="4" fill="#FF4D6D" />
-                
-                {/* Labels */}
-                <text x="18" y="145" fill="rgba(255,255,255,0.4)" fontSize="8">Naissance</text>
-                <text x="95" y="145" fill="rgba(255,255,255,0.4)" fontSize="8">3 ans</text>
-                <text x="185" y="145" fill="rgba(255,255,255,0.4)" fontSize="8">6 ans</text>
-                <text x="260" y="145" fill="rgba(255,255,255,0.4)" fontSize="8">12 ans</text>
+          {/* Sub-tab navigation */}
+          <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 grid grid-cols-3 gap-1">
+            <button onClick={() => setHealthSubTab('croissance')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'croissance' ? 'bg-[#FF4D6D] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
+              📈 Croissance
+            </button>
+            <button onClick={() => setHealthSubTab('vaccins')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'vaccins' ? 'bg-[#FF4D6D] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
+              💉 Vaccins
+            </button>
+            <button onClick={() => setHealthSubTab('urgence')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'urgence' ? 'bg-[#FF4D6D] text-white shadow-md animate-pulse' : 'text-white/40 hover:text-white/60'}`}>
+              🚨 Fiche Urgence
+            </button>
+          </div>
 
-                <text x="282" y="38" fill="#FF4D6D" fontSize="9" fontWeight="bold">152 cm</text>
-              </svg>
+          {healthSubTab === 'croissance' && (
+            <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+                <Activity className="w-4 h-4 text-[#FF4D6D]" />
+                <span>Courbe de Croissance (Amadou)</span>
+              </h3>
+              <div className="h-44 w-full relative">
+                <svg className="w-full h-full" viewBox="0 0 300 150">
+                  <line x1="20" y1="20" x2="280" y2="20" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                  <line x1="20" y1="60" x2="280" y2="60" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                  <line x1="20" y1="100" x2="280" y2="100" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                  <path d="M20,130 Q120,80 280,30" fill="none" stroke="rgba(108, 92, 255, 0.15)" strokeWidth="5" strokeLinecap="round" />
+                  <path d="M20,128 C80,105 180,68 280,38" fill="none" stroke="#FF4D6D" strokeWidth="2.5" strokeLinecap="round" />
+                  <circle cx="20" cy="128" r="4" fill="#FF4D6D" />
+                  <circle cx="100" cy="98" r="4" fill="#FF4D6D" />
+                  <circle cx="190" cy="65" r="4" fill="#FF4D6D" />
+                  <circle cx="280" cy="38" r="4" fill="#FF4D6D" />
+                  <text x="18" y="145" fill="rgba(255,255,255,0.4)" fontSize="8">Naissance</text>
+                  <text x="95" y="145" fill="rgba(255,255,255,0.4)" fontSize="8">3 ans</text>
+                  <text x="185" y="145" fill="rgba(255,255,255,0.4)" fontSize="8">6 ans</text>
+                  <text x="260" y="145" fill="rgba(255,255,255,0.4)" fontSize="8">12 ans</text>
+                  <text x="282" y="38" fill="#FF4D6D" fontSize="9" fontWeight="bold">152 cm</text>
+                </svg>
+              </div>
+              <p className="text-[10px] text-white/40 text-center font-medium">Ligne rouge: courbe d'Amadou • Zone floue: percentile normal</p>
             </div>
-            <p className="text-[10px] text-white/40 text-center font-medium">Ligne rouge: courbe d'Amadou • Zone floue: percentile normal</p>
-          </div>
+          )}
 
-          {/* Vaccination table */}
-          <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-3">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider">Statut des Vaccinations</h3>
-            <div className="space-y-2">
-              {[
-                { name: 'DTC (Diphtérie-Tétanos-Coqueluche)', status: 'À Jour', date: '05/02/2026', member: 'Amadou', color: 'text-[#00D26A]' },
-                { name: 'ROR (Rougeole-Oreillons-Rubéole)', status: 'À Jour', date: '12/04/2026', member: 'Ibrahima', color: 'text-[#00D26A]' },
-                { name: 'Méningocoque B', status: 'À faire', date: '02/10/2026', member: 'Ibrahima', color: 'text-[#FFB020]' },
-                { name: 'Rappel Tétanos', status: 'Recommandé', date: '12/12/2026', member: 'Papa', color: 'text-white/40' }
-              ].map((vac, idx) => (
-                <div key={idx} className="flex items-center justify-between py-2 border-b border-white/5 last:border-b-0 text-xs">
-                  <div>
-                    <h4 className="font-bold text-white">{vac.name}</h4>
-                    <p className="text-[10px] text-white/40 mt-0.5">{vac.member}</p>
+          {healthSubTab === 'vaccins' && (
+            <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-3">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider">Statut des Vaccinations</h3>
+              <div className="space-y-2">
+                {[
+                  { name: 'DTC (Diphtérie-Tétanos-Coqueluche)', status: 'À Jour', date: '05/02/2026', member: 'Amadou', color: 'text-[#00D26A]' },
+                  { name: 'ROR (Rougeole-Oreillons-Rubéole)', status: 'À Jour', date: '12/04/2026', member: 'Ibrahima', color: 'text-[#00D26A]' },
+                  { name: 'Méningocoque B', status: 'À faire', date: '02/10/2026', member: 'Ibrahima', color: 'text-[#FFB020]' },
+                  { name: 'Rappel Tétanos', status: 'Recommandé', date: '12/12/2026', member: 'Papa', color: 'text-white/40' }
+                ].map((vac, idx) => (
+                  <div key={idx} className="flex items-center justify-between py-2 border-b border-white/5 last:border-b-0 text-xs">
+                    <div>
+                      <h4 className="font-bold text-white">{vac.name}</h4>
+                      <p className="text-[10px] text-white/40 mt-0.5">{vac.member}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`font-bold ${vac.color}`}>{vac.status}</span>
+                      <p className="text-[10px] text-white/40 mt-0.5">{vac.date}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`font-bold ${vac.color}`}>{vac.status}</span>
-                    <p className="text-[10px] text-white/40 mt-0.5">{vac.date}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {healthSubTab === 'urgence' && (
+            <div className="space-y-4">
+              <div className="rounded-[28px] border-2 border-[#FF4D6D] bg-gradient-to-br from-[#FF4D6D]/15 to-[#FF4D6D]/5 p-5 space-y-4 shadow-[0_0_30px_rgba(255,77,109,0.15)]">
+                <div className="flex items-center space-x-3">
+                  <div className="p-3 bg-[#FF4D6D] rounded-2xl text-white animate-pulse">
+                    <AlertCircle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-white">FICHE D'URGENCE SOS</h3>
+                    <p className="text-[10px] text-white/60 font-bold">Informations vitales • Accès immédiat</p>
+                  </div>
+                </div>
+              </div>
+
+              {[
+                { name: 'Amadou', age: '12 ans', blood: 'A+', allergies: 'Aucune allergie connue', treatments: 'Aucun', emergency: 'Papa: 06 12 34 56 78' },
+                { name: 'Awa', age: '8 ans', blood: 'O+', allergies: 'Allergie aux arachides ⚠️', treatments: 'Stylo auto-injecteur EpiPen', emergency: 'Maman: 06 98 76 54 32' },
+                { name: 'Ibrahima', age: '2 ans', blood: 'A+', allergies: 'Aucune allergie connue', treatments: 'Aucun', emergency: 'Papa: 06 12 34 56 78' }
+              ].map((child, idx) => (
+                <div key={idx} className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-extrabold text-white">{child.name} <span className="text-white/40 font-medium text-xs">({child.age})</span></h4>
+                    <span className="px-3 py-1 rounded-xl bg-[#FF4D6D]/15 border border-[#FF4D6D]/30 text-[#FF4D6D] text-xs font-extrabold">{child.blood}</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 text-xs">
+                    <div className="p-2.5 bg-white/5 rounded-xl border border-white/5">
+                      <span className="text-[9px] font-bold text-[#FFB020] uppercase block">Allergies</span>
+                      <span className="text-white font-medium mt-0.5 block">{child.allergies}</span>
+                    </div>
+                    <div className="p-2.5 bg-white/5 rounded-xl border border-white/5">
+                      <span className="text-[9px] font-bold text-[#6C5CFF] uppercase block">Traitements en cours</span>
+                      <span className="text-white font-medium mt-0.5 block">{child.treatments}</span>
+                    </div>
+                    <div className="p-2.5 bg-[#00D26A]/5 rounded-xl border border-[#00D26A]/20">
+                      <span className="text-[9px] font-bold text-[#00D26A] uppercase block">Contact d'urgence</span>
+                      <span className="text-white font-bold mt-0.5 block">{child.emergency}</span>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -1234,6 +1380,23 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                                     {dish.ingredients.join(', ')}
                                   </p>
                                 </div>
+                                {dish.ingredients.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      dish.ingredients.forEach(ing => {
+                                        onAddGroceryItem(ing, 'Frais', '1 pièces');
+                                      });
+                                      pushNotif(`🛒 ${dish.ingredients.length} ingrédients de "${dish.name}" ajoutés aux courses`, '🛒');
+                                      alert(`🛒 ${dish.ingredients.length} ingrédient(s) ajouté(s) à la liste de courses !`);
+                                    }}
+                                    className="p-1.5 bg-[#00D26A]/10 hover:bg-[#00D26A]/20 rounded-lg border border-[#00D26A]/20 text-[#00D26A] transition shrink-0 cursor-pointer"
+                                    title="Ajouter aux courses"
+                                  >
+                                    <ShoppingCart className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1566,6 +1729,72 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             <h2 className="text-lg font-extrabold text-white">Entretien Logement</h2>
             <p className="text-xs text-white/50">Maintenance, chaudière et interventions</p>
           </div>
+
+          {/* View Toggle */}
+          <div className="flex space-x-2">
+            <button type="button" onClick={() => { setLogementViewMode('list'); setSelectedRoom(null); }} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition ${logementViewMode === 'list' ? 'bg-[#FFB020] text-black' : 'bg-white/5 text-white/50'}`}>
+              📝 Vue Liste
+            </button>
+            <button type="button" onClick={() => setLogementViewMode('plan')} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition ${logementViewMode === 'plan' ? 'bg-[#FFB020] text-black' : 'bg-white/5 text-white/50'}`}>
+              🗺️ Carte Interactive
+            </button>
+          </div>
+
+          {logementViewMode === 'plan' && (
+            <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider">Plan de la Maison</h3>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { name: 'Cuisine', emoji: '🍳', room: 'Cuisine' },
+                  { name: 'Salon', emoji: '🛋️', room: 'Salon' },
+                  { name: 'Garage', emoji: '🚗', room: 'Garage' },
+                  { name: 'Chambre Parents', emoji: '🛏️', room: 'Chambre Parents' },
+                  { name: 'Chambre Enfants', emoji: '👧', room: 'Chambre Enfants' },
+                  { name: 'Jardin', emoji: '🌿', room: 'Jardin' },
+                  { name: 'Salle de Bain', emoji: '🚿', room: 'Salle de Bain' },
+                  { name: 'Buanderie', emoji: '🧺', room: 'Buanderie' },
+                  { name: 'Entrée', emoji: '🚪', room: 'Entrée' }
+                ].map(r => {
+                  const roomTasks = maintenance.filter(m => m.title.toLowerCase().includes(r.room.toLowerCase()));
+                  const hasPending = roomTasks.some(m => m.status === 'scheduled');
+                  const color = hasPending ? '#FF4D6D' : roomTasks.length > 0 ? '#00D26A' : '#6C5CFF';
+                  return (
+                    <button
+                      key={r.name}
+                      type="button"
+                      onClick={() => setSelectedRoom(selectedRoom === r.room ? null : r.room)}
+                      className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer hover:scale-105 ${selectedRoom === r.room ? 'scale-105' : ''}`}
+                      style={{ borderColor: `${color}40`, backgroundColor: `${color}10` }}
+                    >
+                      <span className="text-2xl block">{r.emoji}</span>
+                      <span className="text-[9px] font-bold text-white block mt-1">{r.name}</span>
+                      <span className="text-[8px] font-bold block mt-0.5" style={{ color }}>
+                        {hasPending ? '⚠️ Planifié' : roomTasks.length > 0 ? '✅ OK' : '—'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedRoom && (
+                <div className="space-y-2 pt-3 border-t border-white/5">
+                  <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest block">Interventions : {selectedRoom}</span>
+                  {maintenance.filter(m => m.title.toLowerCase().includes(selectedRoom!.toLowerCase())).length > 0 ? (
+                    maintenance.filter(m => m.title.toLowerCase().includes(selectedRoom!.toLowerCase())).map(m => (
+                      <div key={m.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 text-xs">
+                        <div>
+                          <span className="font-bold text-white">{m.title}</span>
+                          <span className="text-white/40 block text-[10px]">{m.provider} • {m.date}</span>
+                        </div>
+                        <span className={`font-bold text-[10px] ${m.status === 'scheduled' ? 'text-[#FFB020]' : 'text-[#00D26A]'}`}>{m.status === 'scheduled' ? 'Planifié' : 'Effectué'}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-[10px] text-white/30 text-center py-4">Aucune intervention liée à cette pièce.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="space-y-3">
             {maintenance.map((m) => (
@@ -2159,6 +2388,81 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               </button>
             </form>
           )}
+
+          {/* Défis de Famille Collaboratifs */}
+          <div className="space-y-4 pt-4 border-t border-white/5">
+            <div className="flex items-center space-x-2">
+              <span className="text-lg">🎮</span>
+              <h3 className="text-sm font-extrabold text-white">Défis de Famille</h3>
+              <span className="text-[9px] font-bold text-[#6C5CFF] bg-[#6C5CFF]/10 px-2 py-0.5 rounded-full">{sharedQuests.length} actifs</span>
+            </div>
+
+            {sharedQuests.map(quest => {
+              const pct = Math.min(100, Math.round((quest.current / quest.target) * 100));
+              const isComplete = pct >= 100;
+              return (
+                <div key={quest.id} className={`glass-panel border rounded-[24px] p-4 space-y-3 ${isComplete ? 'border-[#00D26A]/30 bg-[#00D26A]/5' : 'border-white/8'}`}>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-white leading-relaxed flex-1">{quest.title}</h4>
+                    {isParent && (
+                      <button type="button" onClick={() => {
+                        if (window.confirm('Supprimer ce défi ?')) {
+                          setSharedQuests(prev => prev.filter(q => q.id !== quest.id));
+                        }
+                      }} className="p-1 hover:bg-red-500/10 rounded text-[10px] text-red-400 shrink-0">🗑️</button>
+                    )}
+                  </div>
+                  <div className="relative h-3 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                    <div 
+                      className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
+                      style={{ 
+                        width: `${pct}%`, 
+                        background: isComplete ? '#00D26A' : 'linear-gradient(90deg, #6C5CFF, #FF4D6D)',
+                        boxShadow: isComplete ? '0 0 12px rgba(0,210,106,0.4)' : '0 0 12px rgba(108,92,255,0.3)'
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-white/50 font-bold">{quest.current} / {quest.target} • {pct}%</span>
+                    <span className="text-[#FFB020] font-bold">🏆 {quest.reward}</span>
+                  </div>
+                  {!isComplete && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSharedQuests(prev => prev.map(q => q.id === quest.id ? { ...q, current: Math.min(q.target, q.current + 1) } : q));
+                        pushNotif(`${activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa'} a contribué au défi "${quest.title}" !`, '🎮');
+                      }}
+                      className="w-full py-2 rounded-xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/20 text-[#6C5CFF] text-[10px] font-bold hover:bg-[#6C5CFF]/25 transition cursor-pointer"
+                    >
+                      ➕ Contribuer (+1)
+                    </button>
+                  )}
+                  {isComplete && (
+                    <div className="text-center py-1 text-[10px] font-bold text-[#00D26A]">🎉 Défi accompli ! Récompense débloquée !</div>
+                  )}
+                </div>
+              );
+            })}
+
+            {isParent && (
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (!newQuestTitle || !newQuestReward) return;
+                setSharedQuests(prev => [...prev, { id: `sq-${Date.now()}`, title: newQuestTitle, target: newQuestTarget, current: 0, reward: newQuestReward }]);
+                pushNotif(`Nouveau défi familial créé : "${newQuestTitle}"`, '🎮');
+                setNewQuestTitle(''); setNewQuestReward('');
+              }} className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
+                <span className="text-[9px] font-bold text-[#6C5CFF] uppercase tracking-widest block">➕ Créer un défi collaboratif</span>
+                <input type="text" required placeholder="Titre du défi..." value={newQuestTitle} onChange={e => setNewQuestTitle(e.target.value)} className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]" />
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="number" min="1" required value={newQuestTarget} onChange={e => setNewQuestTarget(Number(e.target.value))} className="bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none" placeholder="Objectif" />
+                  <input type="text" required placeholder="Récompense 🏆" value={newQuestReward} onChange={e => setNewQuestReward(e.target.value)} className="bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none" />
+                </div>
+                <button type="submit" className="w-full py-2.5 rounded-xl bg-[#6C5CFF] text-white text-xs font-extrabold cursor-pointer transition hover:opacity-90">Créer le Défi</button>
+              </form>
+            )}
+          </div>
         </div>
       )}
 
