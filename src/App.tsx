@@ -76,7 +76,7 @@ function App() {
     return val ? JSON.parse(val) : demoTransactions;
   });
 
-  const [dishes] = useState<Dish[]>(demoDishes);
+  const [dishes, setDishes] = useState<Dish[]>(demoDishes);
 
   const [documents, setDocuments] = useState<DocumentFile[]>(() => {
     const val = localStorage.getItem('mf_documents');
@@ -464,6 +464,15 @@ function App() {
     }
 
     if (activeTab === 'menu') {
+      if (activeModule === 'objectifs') {
+        // Rediriger immédiatement vers le module Finances
+        setTimeout(() => {
+          setActiveTab('finances');
+          setActiveModule('');
+        }, 0);
+        return null;
+      }
+
       // Si un module secondaire est ouvert
       if (activeModule === 'membres' || activeModule === 'sante') {
         return (
@@ -543,6 +552,8 @@ function App() {
           setVotes={setVotes}
           schoolTasks={schoolTasks}
           setSchoolTasks={setSchoolTasks}
+          dishes={dishes}
+          setDishes={setDishes}
         />
       );
     }

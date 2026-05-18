@@ -63,12 +63,12 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
     setTimeout(() => {
       const author = activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa';
       const authorPic = activeMemberId === '1' 
-        ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80' 
+        ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80' 
         : activeMemberId === '2' 
-          ? 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?w=150&auto=format&fit=crop&q=80'
+          ? 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=150&auto=format&fit=crop&q=80'
           : activeMemberId === '3'
-            ? 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80'
-            : 'https://images.unsplash.com/photo-1517677129300-07b130802f46?w=150&auto=format&fit=crop&q=80';
+            ? 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150&auto=format&fit=crop&q=80'
+            : 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150&auto=format&fit=crop&q=80';
 
       const newMemory: MemoryLog = {
         id: `mem-${Date.now()}`,

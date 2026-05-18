@@ -34,7 +34,7 @@ export const demoMembers: Member[] = [
       relation: 'Épouse'
     },
     schoolOrEmployer: 'Directeur Technique, TechCorp',
-    photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+    photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
     medicalHistory: [
       { id: 'm1', date: '10/01/2026', title: 'Bilan de santé annuel', doctor: 'Dr. Martin', notes: 'Excellente santé générale, tension normale.' }
     ]
@@ -54,7 +54,7 @@ export const demoMembers: Member[] = [
       relation: 'Époux'
     },
     schoolOrEmployer: 'Architecte d\'intérieur, Studio A&D',
-    photoUrl: 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?w=150&auto=format&fit=crop&q=80',
+    photoUrl: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=150&auto=format&fit=crop&q=80',
     medicalHistory: [
       { id: 'm2', date: '22/03/2026', title: 'Consultation dentaire', doctor: 'Dr. Duval', notes: 'Détartrage effectué, aucune carie.' }
     ]
@@ -74,7 +74,7 @@ export const demoMembers: Member[] = [
       relation: 'Mère'
     },
     schoolOrEmployer: 'Collège Jean Jaurès (Classe de 5ème)',
-    photoUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
+    photoUrl: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150&auto=format&fit=crop&q=80',
     medicalHistory: [
       { id: 'm3', date: '05/02/2026', title: 'Rappel vaccin DTC', doctor: 'Dr. Clinique de la Paix', notes: 'Vaccin à jour, prochaine injection dans 5 ans.' }
     ]
@@ -94,7 +94,7 @@ export const demoMembers: Member[] = [
       relation: 'Père'
     },
     schoolOrEmployer: 'École élémentaire publique (Classe de CE2)',
-    photoUrl: 'https://images.unsplash.com/photo-1517677129300-07b130802f46?w=150&auto=format&fit=crop&q=80',
+    photoUrl: 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150&auto=format&fit=crop&q=80',
     medicalHistory: [
       { id: 'm4', date: '18/05/2026', title: 'Rendez-vous pédiatre', doctor: 'Dr. Clinique de la Paix', notes: 'Suivi de croissance parfait. Courbe de poids dans les normes.' }
     ]
@@ -114,7 +114,7 @@ export const demoMembers: Member[] = [
       relation: 'Mère'
     },
     schoolOrEmployer: 'Crèche Les Petits Papillons',
-    photoUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
+    photoUrl: 'https://images.unsplash.com/photo-1618083707368-b3823daa2726?w=150&auto=format&fit=crop&q=80',
     medicalHistory: [
       { id: 'm5', date: '12/04/2026', title: 'Vaccin ROR 2ème dose', doctor: 'Dr. Clinique de la Paix', notes: 'Bien supporté, aucun effet secondaire.' }
     ]
@@ -317,7 +317,7 @@ export const demoMemories: MemoryLog[] = [
     title: 'Les 8 ans d\'Awa ! 🎂🎉',
     description: 'Awa a soufflé ses bougies et a adoré son nouveau kit de dessin. Son gâteau au chocolat géant a été dévoré en moins de 10 minutes !',
     authorName: 'Maman',
-    authorPhoto: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+    authorPhoto: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=150&auto=format&fit=crop&q=80',
     imageUrl: 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&auto=format&fit=crop&q=80',
     likesCount: 3
   }

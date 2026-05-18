@@ -26,7 +26,8 @@ import {
   Users,
   HeartHandshake,
   TrendingUp,
-  Lock
+  Lock,
+  UtensilsCrossed
 } from 'lucide-react';
 import type { 
   DocumentFile, 
@@ -41,7 +42,8 @@ import type {
   NotificationAlert,
   MemoryLog,
   FamilyVote,
-  SchoolTask
+  SchoolTask,
+  Dish
 } from '../types';
 
 // Import newly built premium sub-modules
@@ -91,6 +93,8 @@ interface MenuHubProps {
   setVotes: React.Dispatch<React.SetStateAction<FamilyVote[]>>;
   schoolTasks: SchoolTask[];
   setSchoolTasks: React.Dispatch<React.SetStateAction<SchoolTask[]>>;
+  dishes: Dish[];
+  setDishes: React.Dispatch<React.SetStateAction<Dish[]>>;
 }
 
 export const MenuHub: React.FC<MenuHubProps> = ({
@@ -124,15 +128,45 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   votes,
   setVotes,
   schoolTasks,
-  setSchoolTasks
+  setSchoolTasks,
+  dishes,
+  setDishes
 }) => {
   const [newGroceryName, setNewGroceryName] = useState('');
   const [newGroceryCat, setNewGroceryCat] = useState('Épicerie');
   const [newGroceryQty, setNewGroceryQty] = useState(1);
   const [newGroceryUnit, setNewGroceryUnit] = useState('pièces');
   const [uploading, setUploading] = useState(false);
-  const [ocrScanning, setOcrScanning] = useState(false);
-  const [grocerySubTab, setGrocerySubTab] = useState<'liste' | 'ecochef'>('liste');
+  const [grocerySubTab, setGrocerySubTab] = useState<'liste' | 'ecochef' | 'menus'>('liste');
+
+  // Form states for meals
+  const [mealDay, setMealDay] = useState('Lun');
+  const [mealType, setMealType] = useState<'lunch' | 'dinner'>('lunch');
+  const [mealName, setMealName] = useState('');
+  const [mealImagePreset, setMealImagePreset] = useState('https://images.unsplash.com/photo-1598515214211-89d3e73ae83b?w=300&auto=format&fit=crop&q=80');
+  const [mealIngredients, setMealIngredients] = useState('');
+
+  const MEAL_IMAGE_PRESETS = [
+    { name: '🍗 Poulet Rôti & Frites', url: 'https://images.unsplash.com/photo-1598515214211-89d3e73ae83b?w=300&auto=format&fit=crop&q=80' },
+    { name: '🐟 Pavé de Saumon Grillé', url: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=300&auto=format&fit=crop&q=80' },
+    { name: '🥗 Salade de Quinoa Bio', url: 'https://images.unsplash.com/photo-1505576399279-565b52d4ac71?w=300&auto=format&fit=crop&q=80' },
+    { name: '🍕 Pizzas Maison en Famille', url: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=300&auto=format&fit=crop&q=80' },
+    { name: '🍲 Soupe Légumes Anti-Gaspi', url: 'https://images.unsplash.com/photo-1547592165-e1d17fed6005?w=300&auto=format&fit=crop&q=80' }
+  ];
+
+  // Form states for advanced documents
+  const [showAddDocForm, setShowAddDocForm] = useState(false);
+  const [docName, setDocName] = useState('');
+  const [docCategory, setDocCategory] = useState('Assurances');
+  const [docExpiry, setDocExpiry] = useState('');
+  const [docDesc, setDocDesc] = useState('');
+  const [docOcr, setDocOcr] = useState(true);
+
+  React.useEffect(() => {
+    if (activeModule === 'menus') {
+      setGrocerySubTab('menus');
+    }
+  }, [activeModule]);
 
   const [groceryDerogation, setGroceryDerogation] = useState(() => {
     return localStorage.getItem('mf_grocery_derogation') === 'true';
@@ -332,24 +366,65 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     alert('💰 Argent / Points distribués avec succès !');
   };
 
-  const handleSimulatedUpload = () => {
+
+
+  const handleSaveDocument = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!docName) return;
+
     setUploading(true);
+    const mockFileSize = `${(Math.random() * 2 + 0.2).toFixed(1)} Mo`;
+    
     setTimeout(() => {
+      onAddDoc({
+        name: docName.endsWith('.pdf') ? docName : `${docName}.pdf`,
+        category: docCategory,
+        uploadDate: new Date().toLocaleDateString('fr-FR'),
+        fileSize: mockFileSize,
+        expiryDate: docExpiry ? new Date(docExpiry).toLocaleDateString('fr-FR') : undefined,
+        isExpired: docExpiry ? new Date(docExpiry) < new Date() : false,
+        description: docOcr 
+          ? `[OCR SCAN ✓] Analyse automatique : Détection d'échéance et signature certifiée.` 
+          : docDesc || 'Aucune description fournie.'
+      });
+
+      setDocName('');
+      setDocExpiry('');
+      setDocDesc('');
       setUploading(false);
-      setOcrScanning(true);
-      setTimeout(() => {
-        setOcrScanning(false);
-        // Ajouter un document simulé extrait par OCR
-        onAddDoc({
-          name: 'Facture_EDF_Mai2026.pdf',
-          category: 'insurance',
-          uploadDate: new Date().toLocaleDateString('fr-FR'),
-          fileSize: '820 Ko',
-          isExpired: false,
-          description: 'Document détecté et lu automatiquement par OCR. Montant : 142.50 €'
-        });
-      }, 1000);
-    }, 1200);
+      setShowAddDocForm(false);
+      alert('📄 Document classifié et ajouté au Coffre-Fort familial !');
+    }, 1000);
+  };
+
+  const handleSaveMeal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mealName) return;
+
+    setDishes(prev => {
+      const exists = prev.some(d => d.day === mealDay && d.mealType === mealType);
+      if (exists) {
+        return prev.map(d => (d.day === mealDay && d.mealType === mealType) ? {
+          ...d,
+          name: mealName,
+          image: mealImagePreset,
+          ingredients: mealIngredients.split(',').map(i => i.trim()).filter(Boolean)
+        } : d);
+      } else {
+        return [...prev, {
+          id: `di-${Date.now()}`,
+          day: mealDay,
+          mealType: mealType,
+          name: mealName,
+          image: mealImagePreset,
+          ingredients: mealIngredients.split(',').map(i => i.trim()).filter(Boolean)
+        }];
+      }
+    });
+
+    setMealName('');
+    setMealIngredients('');
+    alert(`🍳 Repas du ${mealDay} (${mealType === 'lunch' ? 'Déjeuner' : 'Dîner'}) enregistré !`);
   };
 
   return (
@@ -542,14 +617,105 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               <p className="text-xs text-white/50">Renouvellement automatique et sécurité</p>
             </div>
             <button 
-              onClick={handleSimulatedUpload}
-              disabled={uploading || ocrScanning}
-              className="px-4 py-2.5 rounded-xl bg-[#6C5CFF] text-white text-xs font-semibold hover:opacity-90 flex items-center space-x-2 cursor-pointer shadow-md"
+              onClick={() => setShowAddDocForm(!showAddDocForm)}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white text-xs font-bold hover:opacity-90 flex items-center space-x-2 cursor-pointer shadow-md border border-white/10"
             >
               <Upload className="w-4 h-4" />
-              <span>{uploading ? 'Téléchargement...' : ocrScanning ? 'Scan OCR...' : 'Uploader'}</span>
+              <span>{showAddDocForm ? 'Fermer l\'ajout' : 'Ajouter un Document'}</span>
             </button>
           </div>
+
+          {/* Advanced Document Upload Form */}
+          {showAddDocForm && (
+            <form onSubmit={handleSaveDocument} className="glass-panel border border-[#6C5CFF]/30 rounded-[28px] p-5 space-y-4 bg-gradient-to-br from-[#121829]/50 to-[#0A0D18]/70">
+              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Classer un nouveau document</h3>
+                <span className="text-[9px] font-bold text-[#6C5CFF] bg-[#6C5CFF]/10 px-2 py-0.5 rounded-md border border-[#6C5CFF]/20 uppercase">
+                  🔒 Chiffré AES-256
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Nom du document</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="Ex: Passeport_Amadou..." 
+                    value={docName}
+                    onChange={(e) => setDocName(e.target.value)}
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Classification / Catégorie</label>
+                  <select 
+                    value={docCategory}
+                    onChange={(e) => setDocCategory(e.target.value)}
+                    className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                  >
+                    <option value="Assurances">🏥 Santé & Assurances</option>
+                    <option value="Scolaire">📄 Scolaire & Devoirs</option>
+                    <option value="Logement">🏠 Logement & Factures</option>
+                    <option value="Identité">📂 Pièces d'identité</option>
+                    <option value="Finances">💰 Finance & Contrats</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Date d'échéance (facultatif)</label>
+                  <input 
+                    type="date" 
+                    value={docExpiry}
+                    onChange={(e) => setDocExpiry(e.target.value)}
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Description rapide</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Livret de famille mis à jour..." 
+                    value={docDesc}
+                    disabled={docOcr}
+                    onChange={(e) => setDocDesc(e.target.value)}
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF] disabled:opacity-40"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-3 bg-white/5 p-3 rounded-xl border border-white/5">
+                <input 
+                  type="checkbox" 
+                  id="docOcr" 
+                  checked={docOcr} 
+                  onChange={(e) => setDocOcr(e.target.checked)} 
+                  className="rounded border-white/20 text-[#6C5CFF] focus:ring-[#6C5CFF]"
+                />
+                <label htmlFor="docOcr" className="text-[10px] text-white/70 font-semibold cursor-pointer">
+                  ✨ Activer l'analyse intelligente et le scan OCR automatique
+                </label>
+              </div>
+
+              <div className="border border-dashed border-white/10 hover:border-[#6C5CFF]/50 p-4 rounded-xl text-center cursor-pointer transition-all bg-white/5 flex flex-col items-center justify-center space-y-1">
+                <Upload className="w-5 h-5 text-white/40" />
+                <span className="text-[10px] font-bold text-white/70">Sélectionner un fichier (PDF, JPG, PNG)</span>
+                <span className="text-[8px] text-white/40">Taille max : 10 Mo</span>
+              </div>
+
+              <button
+                type="submit"
+                disabled={uploading}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white font-extrabold text-xs shadow-md cursor-pointer transition-all hover:opacity-95 flex items-center justify-center space-x-2"
+              >
+                <span>{uploading ? 'Téléchargement sécurisé et scan...' : 'Classer le document maintenant'}</span>
+              </button>
+            </form>
+          )}
 
           {/* Alert Expiration Document */}
           <div className="p-4 rounded-[24px] bg-[#FF4D6D]/10 border border-[#FF4D6D]/20 flex items-start space-x-3">
@@ -705,26 +871,36 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           )}
 
           {/* Sub-tab selection */}
-          <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 flex">
+          <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 flex space-x-1">
             <button
               onClick={() => setGrocerySubTab('liste')}
-              className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`flex-1 py-2.5 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
                 grocerySubTab === 'liste' 
                   ? 'bg-[#FFB020] text-black shadow-md' 
-                  : 'text-white/40 hover:text-white/60'
+                  : 'text-white/40 hover:text-white/60 hover:bg-white/5'
               }`}
             >
-              Liste des Courses
+              Liste Courses
+            </button>
+            <button
+              onClick={() => setGrocerySubTab('menus')}
+              className={`flex-1 py-2.5 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
+                grocerySubTab === 'menus' 
+                  ? 'bg-[#FFB020] text-black shadow-md' 
+                  : 'text-white/40 hover:text-white/60 hover:bg-white/5'
+              }`}
+            >
+              Menus 🍳
             </button>
             <button
               onClick={() => setGrocerySubTab('ecochef')}
-              className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`flex-1 py-2.5 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
                 grocerySubTab === 'ecochef' 
                   ? 'bg-[#FFB020] text-black shadow-md' 
-                  : 'text-white/40 hover:text-white/60'
+                  : 'text-white/40 hover:text-white/60 hover:bg-white/5'
               }`}
             >
-              L'Éco-Chef IA 🥦
+              Éco-Chef IA 🥦
             </button>
           </div>
 
@@ -883,6 +1059,155 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 </div>
               </div>
             </>
+          ) : grocerySubTab === 'menus' ? (
+            <div className="space-y-6">
+              
+              {/* Form to edit/add menu (Only for parents) */}
+              {isParent ? (
+                <form onSubmit={handleSaveMeal} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
+                  <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Planifier ou modifier un repas :</span>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Jour</label>
+                      <select 
+                        value={mealDay}
+                        onChange={(e) => setMealDay(e.target.value)}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FFB020]"
+                      >
+                        <option value="Lun">Lundi</option>
+                        <option value="Mar">Mardi</option>
+                        <option value="Mer">Mercredi</option>
+                        <option value="Jeu">Jeudi</option>
+                        <option value="Ven">Vendredi</option>
+                        <option value="Sam">Samedi</option>
+                        <option value="Dim">Dimanche</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Moment</label>
+                      <select 
+                        value={mealType}
+                        onChange={(e) => setMealType(e.target.value as 'lunch' | 'dinner')}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FFB020]"
+                      >
+                        <option value="lunch">Déjeuner ☀️</option>
+                        <option value="dinner">Dîner 🌙</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Nom du plat</label>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="Ex: Poulet Yassa traditionnel..." 
+                        value={mealName}
+                        onChange={(e) => setMealName(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Image Vignette Culinaire</label>
+                      <select 
+                        value={mealImagePreset}
+                        onChange={(e) => setMealImagePreset(e.target.value)}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FFB020]"
+                      >
+                        {MEAL_IMAGE_PRESETS.map(pr => (
+                          <option key={pr.url} value={pr.url}>{pr.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Ingrédients (séparés par des virgules)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: Poulet, Oignons, Citrons, Moutarde, Riz..." 
+                      value={mealIngredients}
+                      onChange={(e) => setMealIngredients(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-[#FFB020] to-[#FF4D6D] text-black font-extrabold text-xs shadow-md cursor-pointer transition-all hover:opacity-95 flex items-center justify-center space-x-2"
+                  >
+                    <UtensilsCrossed className="w-4 h-4" />
+                    <span>Enregistrer le Repas</span>
+                  </button>
+                </form>
+              ) : (
+                <div className="p-4 rounded-2xl bg-white/5 border border-white/5 text-center text-xs text-white/50">
+                  🔒 La planification des menus est gérée par les parents.
+                </div>
+              )}
+
+              {/* Weekly visual cards list */}
+              <div className="space-y-4">
+                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Menu Planifié de la semaine :</span>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(day => {
+                    const dayDishes = dishes.filter(d => d.day === day);
+                    const frenchDay = day === 'Lun' ? 'Lundi' : day === 'Mar' ? 'Mardi' : day === 'Mer' ? 'Mercredi' : day === 'Jeu' ? 'Jeudi' : day === 'Ven' ? 'Vendredi' : day === 'Sam' ? 'Samedi' : 'Dimanche';
+                    
+                    return (
+                      <div key={day} className="glass-panel border border-white/6 rounded-[28px] p-4 space-y-3">
+                        <div className="border-b border-white/5 pb-2">
+                          <h4 className="text-xs font-extrabold text-[#FFB020] tracking-wide">{frenchDay}</h4>
+                        </div>
+
+                        {dayDishes.length > 0 ? (
+                          <div className="space-y-3">
+                            {dayDishes.map(dish => (
+                              <div key={dish.id} className="flex items-center space-x-3 bg-white/5 p-2.5 rounded-2xl border border-white/5">
+                                {dish.image ? (
+                                  <img 
+                                    src={dish.image} 
+                                    alt={dish.name} 
+                                    className="w-12 h-12 rounded-xl object-cover shrink-0 border border-white/10"
+                                  />
+                                ) : (
+                                  <div className="p-2.5 rounded-xl bg-white/10 border border-white/5 text-white/60 shrink-0">
+                                    <UtensilsCrossed className="w-4 h-4" />
+                                  </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center space-x-1.5">
+                                    <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-md uppercase border ${
+                                      dish.mealType === 'lunch' 
+                                        ? 'text-[#FFB020] bg-[#FFB020]/10 border-[#FFB020]/20' 
+                                        : 'text-[#4F8CFF] bg-[#4F8CFF]/10 border-[#4F8CFF]/20'
+                                    }`}>
+                                      {dish.mealType === 'lunch' ? 'Déjeuner ☀️' : 'Dîner 🌙'}
+                                    </span>
+                                  </div>
+                                  <h5 className="text-[11px] sm:text-xs font-bold text-white truncate mt-1">{dish.name}</h5>
+                                  <p className="text-[9px] text-white/40 truncate mt-0.5">
+                                    {dish.ingredients.join(', ')}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-white/30 py-2 text-center">Aucun repas planifié</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
           ) : (
             <EcoChef onAddGroceryItem={onAddGroceryItem} formatMoney={formatMoney} />
           )}
