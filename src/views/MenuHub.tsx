@@ -27,7 +27,9 @@ import {
   Lock,
   UtensilsCrossed,
   MessageCircle,
-  Mic
+  Mic,
+  Trash2,
+  Edit3
 } from 'lucide-react';
 import type { 
   DocumentFile, 
@@ -86,6 +88,8 @@ interface MenuHubProps {
   onValidateTask: (id: string) => void;
   onToggleGrocery: (id: string) => void;
   onAddGroceryItem: (name: string, category: string, qty: string) => void;
+  onDeleteGroceryItem: (id: string) => void;
+  onEditGroceryItem: (id: string, name: string, qty: string) => void;
   setActiveTab: (tab: string) => void;
   
   // Custom states
@@ -124,6 +128,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   onValidateTask,
   onToggleGrocery,
   onAddGroceryItem,
+  onDeleteGroceryItem,
+  onEditGroceryItem,
   setActiveTab,
   
   activeMemberId = '1',
@@ -223,17 +229,76 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     recognition.onstart = () => setIsListening(true);
     
     recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setNewGroceryName(transcript);
-      setIsListening(false);
+      const transcript = event.results[0][0].transcript.trim().toLowerCase();
+      
+      // Simple NLP Parser for Groceries
+      let qty = 1;
+      let unit = 'pièces';
+      let name = transcript;
+
+      const firstWord = transcript.split(' ')[0];
+      const parsedNumber = parseInt(firstWord);
+      
+      if (!isNaN(parsedNumber)) {
+        qty = parsedNumber;
+        name = transcript.slice(firstWord.length).trim();
+      }
+
+      const unitKeywords = [
+        { word: 'bouteilles', norm: 'bouteilles' },
+        { word: 'bouteille', norm: 'bouteilles' },
+        { word: 'kilos', norm: 'kg' },
+        { word: 'kilo', norm: 'kg' },
+        { word: 'kg', norm: 'kg' },
+        { word: 'grammes', norm: 'g' },
+        { word: 'gramme', norm: 'g' },
+        { word: 'g', norm: 'g' },
+        { word: 'packs', norm: 'packs' },
+        { word: 'pack', norm: 'packs' },
+        { word: 'litres', norm: 'L' },
+        { word: 'litre', norm: 'L' },
+        { word: 'boîtes', norm: 'boîtes' },
+        { word: 'boîte', norm: 'boîtes' }
+      ];
+
+      for (const uk of unitKeywords) {
+        if (name.startsWith(uk.word + ' de ')) {
+          unit = uk.norm;
+          name = name.slice((uk.word + ' de ').length).trim();
+          break;
+        } else if (name.startsWith(uk.word + ' d\'')) {
+          unit = uk.norm;
+          name = name.slice((uk.word + ' d\'').length).trim();
+          break;
+        } else if (name.startsWith(uk.word + ' ')) {
+          unit = uk.norm;
+          name = name.slice(uk.word.length).trim();
+          break;
+        }
+      }
+
+      name = name.charAt(0).toUpperCase() + name.slice(1);
+      const combinedQty = `${qty} ${unit}`;
+      
+      // Auto Submit
+      onAddGroceryItem(name, newGroceryCat, combinedQty);
+      
+      // Continuous Listening Mode (Restart after short delay)
+      recognition.stop();
+      setTimeout(() => {
+         if (isListening) handleDictation(); // Only auto-restart if still conceptually listening (or just restart anyway)
+      }, 300);
     };
     
     recognition.onerror = () => {
       setIsListening(false);
-      alert("Erreur lors de l'écoute. Veuillez réessayer.");
     };
     
-    recognition.onend = () => setIsListening(false);
+    recognition.onend = () => {
+      // The restart logic is handled in onresult if successful.
+      // If ended manually or by silence, we set state to false.
+      setTimeout(() => setIsListening(false), 800); 
+    };
     
     recognition.start();
   };
@@ -891,40 +956,67 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider px-1">Liste commune</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {groceries.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        if (!isParent && !groceryDerogation) {
-                          alert("🔒 Dérogation parentale requise pour cocher ou modifier les courses !");
-                          return;
-                        }
-                        onToggleGrocery(item.id);
-                      }}
-                      className={`glass-panel rounded-[24px] p-4 border transition-all text-left flex items-center justify-between hover:bg-white/8 cursor-pointer ${
-                        item.checked ? 'border-[#00D26A]/30 bg-[#00D26A]/5 opacity-60' : 'border-white/8'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                          item.checked ? 'bg-[#00D26A] border-[#00D26A] text-white' : 'border-white/30 text-transparent'
-                        }`}>
-                          ✓
-                        </span>
-                        <div>
-                          <h4 className={`text-xs sm:text-sm font-bold text-white ${item.checked ? 'line-through text-white/40' : ''}`}>
-                            {item.name}
-                          </h4>
-                          <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider mt-0.5">{item.category} • Qté: {item.quantity}</p>
+                    <div key={item.id} className="relative group">
+                      <button
+                        onClick={() => {
+                          if (!isParent && !groceryDerogation) {
+                            alert("🔒 Dérogation parentale requise pour cocher ou modifier les courses !");
+                            return;
+                          }
+                          onToggleGrocery(item.id);
+                        }}
+                        className={`w-full glass-panel rounded-[24px] p-4 border transition-all text-left flex items-center justify-between hover:bg-white/8 cursor-pointer ${
+                          item.checked ? 'border-[#00D26A]/30 bg-[#00D26A]/5 opacity-60' : 'border-white/8'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                            item.checked ? 'bg-[#00D26A] border-[#00D26A] text-white' : 'border-white/30 text-transparent'
+                          }`}>
+                            ✓
+                          </span>
+                          <div>
+                            <h4 className={`text-xs sm:text-sm font-bold text-white ${item.checked ? 'line-through text-white/40' : ''}`}>
+                              {item.name}
+                            </h4>
+                            <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider mt-0.5">{item.category} • Qté: {item.quantity}</p>
+                          </div>
                         </div>
-                      </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
-                        item.inStock 
-                          ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]' 
-                          : 'bg-[#FF4D6D]/10 border-[#FF4D6D]/20 text-[#FF4D6D]'
-                      }`}>
-                        {item.inStock ? 'En stock' : 'Rupture'}
-                      </span>
-                    </button>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
+                          item.inStock 
+                            ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]' 
+                            : 'bg-[#FF4D6D]/10 border-[#FF4D6D]/20 text-[#FF4D6D]'
+                        }`}>
+                          {item.inStock ? 'En stock' : 'Rupture'}
+                        </span>
+                      </button>
+                      
+                      {/* Action buttons (visible on hover or always on touch) */}
+                      {(isParent || groceryDerogation) && (
+                        <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity bg-[#112240]/90 p-1.5 rounded-xl shadow-lg border border-white/10 backdrop-blur-md">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const newName = prompt('Modifier le nom du produit:', item.name);
+                              const newQty = prompt('Modifier la quantité:', item.quantity);
+                              if (newName && newQty) onEditGroceryItem(item.id, newName, newQty);
+                            }}
+                            className="p-1.5 hover:bg-white/10 rounded-lg text-white/70 hover:text-white transition-colors"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if(window.confirm('Supprimer cet article ?')) onDeleteGroceryItem(item.id);
+                            }}
+                            className="p-1.5 hover:bg-[#FF4D6D]/20 rounded-lg text-[#FF4D6D] transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>

@@ -51,7 +51,7 @@ import { Settings } from './views/Settings';
 import { Membres } from './views/Membres';
 
 // Lucide icon for inline notifications
-import { Bell, X, ShieldAlert } from 'lucide-react';
+import { Bell, X } from 'lucide-react';
 
 function App() {
   // ----------------------------------------------------
@@ -424,6 +424,14 @@ function App() {
     setGroceries(prev => [newItem, ...prev]);
   };
 
+  const handleDeleteGroceryItem = (id: string) => {
+    setGroceries(prev => prev.filter(g => g.id !== id));
+  };
+
+  const handleEditGroceryItem = (id: string, name: string, qty: string) => {
+    setGroceries(prev => prev.map(g => g.id === id ? { ...g, name, quantity: qty } : g));
+  };
+
   const handleResetData = () => {
     localStorage.clear();
     setMembers(demoMembers);
@@ -581,6 +589,8 @@ function App() {
           onValidateTask={handleValidateTask}
           onToggleGrocery={handleToggleGrocery}
           onAddGroceryItem={handleAddGroceryItem}
+          onDeleteGroceryItem={handleDeleteGroceryItem}
+          onEditGroceryItem={handleEditGroceryItem}
           setActiveTab={setActiveTab}
           activeMemberId={activeMemberId}
           memories={memories}
@@ -626,7 +636,7 @@ function App() {
         onAddTask={handleAddTask}
         onAddMember={handleAddMember}
         onNavigateToVault={() => {
-          setActiveTab('home');
+          setActiveTab('menu');
           setActiveModule('documents');
           setQuickActionsOpen(false);
         }}
@@ -662,12 +672,26 @@ function App() {
 
             <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar">
               {alerts.map((al) => (
-                <div key={al.id} className="p-3.5 rounded-2xl bg-white/5 border border-white/5 flex items-start space-x-3">
-                  <div className="p-2.5 rounded-xl bg-[#FF4D6D]/10 text-[#FF4D6D] border border-[#FF4D6D]/20 shrink-0 mt-0.5">
-                    <ShieldAlert className="w-4 h-4" />
+                <div 
+                  key={al.id} 
+                  onClick={() => {
+                    if (al.title.toLowerCase().includes('message')) {
+                      setActiveTab('menu');
+                      setActiveModule('messagerie');
+                      setAlertsPanelOpen(false);
+                      setAlerts(prev => prev.map(a => a.id === al.id ? { ...a, read: true } : a));
+                    }
+                  }}
+                  className={`p-3.5 rounded-2xl bg-white/5 border border-white/5 flex items-start space-x-3 transition-colors ${al.title.toLowerCase().includes('message') ? 'cursor-pointer hover:bg-white/10 hover:border-[#00D26A]/30' : ''}`}
+                >
+                  <div className={`p-2.5 rounded-xl border shrink-0 mt-0.5 ${al.title.toLowerCase().includes('message') ? 'bg-[#00D26A]/10 text-[#00D26A] border-[#00D26A]/20' : 'bg-[#FF4D6D]/10 text-[#FF4D6D] border-[#FF4D6D]/20'}`}>
+                    <Bell className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-white">{al.title}</h4>
+                    <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                      {al.title}
+                      {!al.read && <span className="w-2 h-2 rounded-full bg-[#FFB020] animate-pulse"></span>}
+                    </h4>
                     <p className="text-[10px] text-white/50 leading-relaxed mt-1">{al.description}</p>
                     <span className="text-[9px] text-white/30 block mt-2 font-bold tracking-wider">{al.time}</span>
                   </div>

@@ -39,7 +39,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
   const filteredDocs = useMemo(() => {
     return documents.filter(doc => {
       const matchSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          doc.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+                          (doc.tags || []).some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
       if (!matchSearch) return false;
       
       if (viewMode === 'expiring') return !!doc.expiryDate && new Date(doc.expiryDate) < new Date(Date.now() + 90 * 24 * 60 * 60 * 1000); // Expirant dans < 3 mois

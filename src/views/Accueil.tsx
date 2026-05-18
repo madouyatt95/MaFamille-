@@ -21,7 +21,8 @@ import {
   Droplet,
   UtensilsCrossed,
   Award,
-  PiggyBank
+  PiggyBank,
+  MessageCircle
 } from 'lucide-react';
 import type { Member, FamilyEvent, Dish, NotificationAlert } from '../types';
 
@@ -262,6 +263,31 @@ export const Accueil: React.FC<AccueilProps> = ({
               </>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Messagerie Familiale Hero Tile */}
+      <div 
+        onClick={() => {
+          setActiveTab('menu');
+          setActiveModule('messagerie');
+        }}
+        className="glass-panel rounded-[32px] p-5 flex items-center justify-between border border-[#00D26A]/30 bg-gradient-to-r from-[#00D26A]/10 to-transparent cursor-pointer hover:bg-white/5 transition-all shadow-[0_10px_30px_rgba(0,210,106,0.15)]"
+      >
+        <div className="flex items-center space-x-4">
+          <div className="relative">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#00D26A] to-[#6C5CFF] flex items-center justify-center shadow-lg">
+              <MessageCircle className="w-7 h-7 text-white" />
+            </div>
+            <span className="absolute top-0 right-0 w-4 h-4 bg-[#FF4D6D] border-2 border-[#07111F] rounded-full animate-pulse"></span>
+          </div>
+          <div>
+            <h3 className="text-lg font-extrabold text-white tracking-tight">Messagerie Familiale</h3>
+            <p className="text-xs text-[#00D26A] font-medium mt-0.5">1 nouveau message vocal</p>
+          </div>
+        </div>
+        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">
+          <ChevronRight className="w-5 h-5 text-white/50" />
         </div>
       </div>
 
