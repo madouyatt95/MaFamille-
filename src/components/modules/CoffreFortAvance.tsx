@@ -3,6 +3,7 @@ import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, B
 import Tesseract from 'tesseract.js';
 import type { DocumentFile, DocumentCategory, Member, Demarche, JustificatifPack } from '../../types';
 import { demarcheTemplates } from '../../data/demoData';
+import { generatePackPDF } from '../../utils/pdfGenerator';
 
 interface CoffreFortAvanceProps {
   documents: DocumentFile[];
@@ -1078,22 +1079,28 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   ))}
                   {packDocs.length === 0 && <p className="text-[10px] text-white/30 text-center py-2">Aucun document lié</p>}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const names = packDocs.map(d => d.name).join(', ');
-                    if (navigator.share) {
-                      navigator.share({ title: pack.name, text: `Pack justificatif : ${pack.name}\nDocuments : ${names}` }).catch(() => {});
-                    } else {
-                      navigator.clipboard.writeText(`${pack.name}\n${names}`);
-                      alert('📋 Pack copié dans le presse-papiers !');
-                    }
-                  }}
-                  className="w-full py-2 rounded-xl bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] text-[10px] font-bold cursor-pointer hover:bg-[#00D26A]/20 transition flex items-center justify-center space-x-1.5"
-                >
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span>Partager / Exporter</span>
-                </button>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => generatePackPDF(pack, packDocs)}
+                    className="py-2.5 rounded-xl bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] text-[10px] font-bold cursor-pointer hover:bg-[#00D26A]/20 transition flex items-center justify-center space-x-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>PDF Unique</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const shareUrl = `${window.location.origin}${window.location.pathname}#share_${pack.id}`;
+                      navigator.clipboard.writeText(shareUrl);
+                      alert('🔗 Lien de partage copié dans le presse-papiers !\nEnvoyez-le à votre destinataire.');
+                    }}
+                    className="py-2.5 rounded-xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF] text-[10px] font-bold cursor-pointer hover:bg-[#6C5CFF]/20 transition flex items-center justify-center space-x-1.5"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>Lien Externe</span>
+                  </button>
+                </div>
               </div>
             );
           })}

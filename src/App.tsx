@@ -55,6 +55,7 @@ import { MenuHub } from './views/MenuHub';
 import { AssistantIA } from './views/AssistantIA';
 import { Settings } from './views/Settings';
 import { Membres } from './views/Membres';
+import { SharedPackView } from './components/modules/SharedPackView';
 
 // Lucide icon for inline notifications
 import { Bell, X, ChevronRight } from 'lucide-react';
@@ -200,6 +201,21 @@ function App() {
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
   const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
+  const [sharedPackId, setSharedPackId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash.startsWith('#share_')) {
+        setSharedPackId(hash.replace('#share_', ''));
+      } else {
+        setSharedPackId(null);
+      }
+    };
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   // Robust Versioned Migration: Force override corrupted cache with correct data
   useEffect(() => {
@@ -505,8 +521,24 @@ function App() {
 
   // ----------------------------------------------------
   // Dynamic Tab Router Panel
-  // ----------------------------------------------------
-  const renderActiveView = () => {
+  // ----------------------------------------------------  // View rendering logic
+  const renderContent = () => {
+    if (sharedPackId) {
+      const pack = justificatifPacks.find(p => p.id === sharedPackId);
+      if (pack) {
+        return <SharedPackView pack={pack} documents={documents} />;
+      }
+      return (
+        <div className="min-h-screen bg-[#07111F] text-white flex flex-col items-center justify-center p-4">
+          <div className="glass-panel border-red-500/20 p-6 rounded-[28px] text-center max-w-sm">
+            <h2 className="text-lg font-bold text-[#FF4D6D] mb-2">Dossier introuvable</h2>
+            <p className="text-sm text-white/50 mb-6">Ce lien de partage est invalide ou le dossier a été supprimé par son propriétaire.</p>
+            <button onClick={() => window.location.hash = ''} className="px-6 py-3 bg-[#6C5CFF] rounded-xl text-sm font-bold shadow-lg">Retour à l'accueil</button>
+          </div>
+        </div>
+      );
+    }
+
     if (activeTab === 'accueil') {
       return (
         <Accueil 
@@ -688,12 +720,16 @@ function App() {
     return null;
   };
 
+  if (sharedPackId) {
+    return renderContent();
+  }
+
   return (
-    <div className="min-h-screen text-white font-sans overflow-x-hidden pb-12">
+    <div className={`min-h-screen ${syncActive ? 'bg-[#1a2b4c]' : 'bg-[#07111F]'} text-white font-sans transition-colors duration-1000`}>
       
       {/* Dynamic render active layout page views */}
       <main className="w-full">
-        {renderActiveView()}
+        {renderContent()}
       </main>
 
       {/* Global Sidebar hamburger drawer menu */}
