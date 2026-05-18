@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, Briefcase, Car, Home, Plane, CreditCard, User, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, Briefcase, Car, Home, Plane, CreditCard, User, AlertTriangle, ArrowLeft, Trash2, Download } from 'lucide-react';
 import type { DocumentFile, DocumentCategory, Member } from '../../types';
 
 interface CoffreFortAvanceProps {
@@ -119,6 +119,14 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     setNewDocExpiry('');
     setNewDocTags('');
     setSelectedFileBase64(null);
+  };
+
+  const handleDeleteDocument = (docId: string) => {
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer définitivement ce document ?")) {
+      setDocuments(prev => prev.filter(d => d.id !== docId));
+      setPreviewDoc(null);
+      setSelectedCategory(null);
+    }
   };
 
   return (
@@ -447,6 +455,27 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* Actions: Download / Delete */}
+                <div className="flex gap-2 pt-3 mt-3 border-t border-white/10">
+                  {previewDoc.fileBase64 && (
+                    <a 
+                      href={previewDoc.fileBase64} 
+                      download={previewDoc.name}
+                      className="flex-1 py-2.5 bg-[#00D26A]/10 hover:bg-[#00D26A]/20 text-[#00D26A] border border-[#00D26A]/20 font-bold rounded-xl flex items-center justify-center space-x-1.5 transition text-xs cursor-pointer text-center"
+                    >
+                      <Download className="w-3.5 h-3.5 inline-block mr-1" />
+                      <span>Télécharger</span>
+                    </a>
+                  )}
+                  <button 
+                    onClick={() => handleDeleteDocument(previewDoc.id)}
+                    className="flex-1 py-2.5 bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 text-[#FF4D6D] border border-[#FF4D6D]/20 font-bold rounded-xl flex items-center justify-center space-x-1.5 transition text-xs cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 inline-block mr-1" />
+                    <span>Supprimer</span>
+                  </button>
                 </div>
               </div>
             </div>

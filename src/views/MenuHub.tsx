@@ -331,20 +331,39 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
         // Soumission automatique
         onAddGroceryItem(name, newGroceryCat, combinedQty);
+
+        // Force stop to release mic before any restart
+        try {
+          recognition.stop();
+        } catch(e) {}
+
+        // Safe delayed restart for continuous experience
+        if (isListeningRef.current) {
+          setTimeout(() => {
+            if (isListeningRef.current) startRecognition();
+          }, 600);
+        }
       };
 
       recognition.onerror = (e: any) => {
         console.error("Speech recognition error:", e.error);
         if (e.error === 'aborted') return;
-        if (isListeningRef.current) {
-          setTimeout(startRecognition, 400);
+        if (e.error === 'no-speech') {
+          // Restart safe on no-speech
+          if (isListeningRef.current) {
+            setTimeout(() => {
+              if (isListeningRef.current) startRecognition();
+            }, 600);
+          }
+          return;
         }
+        // Force fully stop listening if permission or hard error
+        isListeningRef.current = false;
+        setIsListening(false);
       };
 
       recognition.onend = () => {
-        if (isListeningRef.current) {
-          setTimeout(startRecognition, 100);
-        } else {
+        if (!isListeningRef.current) {
           setIsListening(false);
         }
       };

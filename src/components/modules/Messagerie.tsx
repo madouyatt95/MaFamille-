@@ -32,7 +32,22 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   // We can just automatically select the first group if none is selected.
   useEffect(() => {
     if (groups.length > 0 && !activeGroupId) {
-      setActiveGroupId(groups[0].id);
+      // Find if there is any unread message in any visible group
+      const unreadMessages = messages.filter(m => {
+        const g = groups.find(group => group.id === m.groupId);
+        if (!g) return false;
+        const isParticipant = !g.isPrivate || g.memberIds.includes(activeMemberId);
+        return isParticipant && !m.readBy.includes(activeMemberId);
+      });
+
+      if (unreadMessages.length > 0) {
+        // Open the group with the latest unread message
+        const latestUnread = unreadMessages[unreadMessages.length - 1];
+        setActiveGroupId(latestUnread.groupId);
+      } else {
+        // Default to the first group (Famille)
+        setActiveGroupId(groups[0].id);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
