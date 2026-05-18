@@ -43,7 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const activeMember = members.find(m => m.id === activeMemberId) || {
     name: 'Papa',
     role: 'Chef de famille',
-    photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'
+    photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150'
   };
 
   const menuItems = [

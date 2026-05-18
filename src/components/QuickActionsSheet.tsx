@@ -176,7 +176,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
         relation: 'Mère'
       },
       schoolOrEmployer: 'Non renseigné',
-      photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80', // Avatar standard
+      photoUrl: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150&auto=format&fit=crop&q=80', // Avatar standard
       medicalHistory: []
     });
     triggerSuccess();

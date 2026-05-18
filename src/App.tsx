@@ -112,8 +112,8 @@ function App() {
   const [pocketMoney, setPocketMoney] = useState<{ id: string; name: string; balance: number; points: number; avatar: string; }[]>(() => {
     const val = localStorage.getItem('mf_pocket_money');
     return val ? JSON.parse(val) : [
-      { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?w=150' },
-      { id: '4', name: 'Awa', balance: 22.50, points: 225, avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150' }
+      { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150' },
+      { id: '4', name: 'Awa', balance: 22.50, points: 225, avatar: 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150' }
     ];
   });
 
