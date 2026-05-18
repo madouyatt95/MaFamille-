@@ -224,3 +224,52 @@ export interface ChatGroup {
   lastMessageTime?: string;
   unreadCount?: number;
 }
+
+// === DOCSBOX INTEGRATION ===
+
+export type DemarcheStatus = 'draft' | 'in_progress' | 'waiting' | 'completed';
+
+export interface DemarcheStep {
+  id: string;
+  title: string;
+  done: boolean;
+  dueDate?: string;
+}
+
+export interface DemarchePiece {
+  id: string;
+  name: string;
+  documentId?: string; // linked to a DocumentFile
+  status: 'missing' | 'attached' | 'expired';
+}
+
+export interface Demarche {
+  id: string;
+  templateId?: string;
+  title: string;
+  icon: string;
+  status: DemarcheStatus;
+  assignedMemberId?: string;
+  assignedMemberName?: string;
+  steps: DemarcheStep[];
+  pieces: DemarchePiece[];
+  createdAt: string;
+  notes?: string;
+}
+
+export interface DemarcheTemplate {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  defaultSteps: { title: string; }[];
+  defaultPieces: { name: string; }[];
+}
+
+export interface JustificatifPack {
+  id: string;
+  name: string;
+  templateType: 'location' | 'ecole' | 'banque' | 'emploi' | 'custom';
+  documentIds: string[];
+  createdAt: string;
+}

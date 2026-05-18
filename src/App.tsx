@@ -17,7 +17,9 @@ import {
   demoFamilyVotes,
   demoSchoolTasks,
   demoChatGroups,
-  demoChatMessages
+  demoChatMessages,
+  demoDemarches,
+  demoPacks
 } from './data/demoData';
 import type { 
   Member, 
@@ -35,7 +37,9 @@ import type {
   NotificationAlert,
   MemoryLog,
   FamilyVote,
-  SchoolTask
+  SchoolTask,
+  Demarche,
+  JustificatifPack
 } from './types';
 
 // Component imports
@@ -140,6 +144,16 @@ function App() {
   const [chatMessages, setChatMessages] = useState(() => {
     const val = localStorage.getItem('mf_chat_messages');
     return val ? JSON.parse(val) : demoChatMessages;
+  });
+
+  const [demarches, setDemarches] = useState<Demarche[]>(() => {
+    const val = localStorage.getItem('mf_demarches');
+    return val ? JSON.parse(val) : demoDemarches;
+  });
+
+  const [justificatifPacks, setJustificatifPacks] = useState<JustificatifPack[]>(() => {
+    const val = localStorage.getItem('mf_packs');
+    return val ? JSON.parse(val) : demoPacks;
   });
 
   const [agendaSelectedDate, setAgendaSelectedDate] = useState<string>('');
@@ -263,6 +277,14 @@ function App() {
   useEffect(() => {
     localStorage.setItem('mf_chat_messages', JSON.stringify(chatMessages));
   }, [chatMessages]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demarches', JSON.stringify(demarches));
+  }, [demarches]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_packs', JSON.stringify(justificatifPacks));
+  }, [justificatifPacks]);
 
   useEffect(() => {
     localStorage.setItem('mf_currency', currency);
@@ -470,6 +492,8 @@ function App() {
     setAlerts(demoAlerts);
     setChatGroups(demoChatGroups);
     setChatMessages(demoChatMessages);
+    setDemarches(demoDemarches);
+    setJustificatifPacks(demoPacks);
     setCurrency('EUR (€)');
     setSyncActive(false);
     setSupabaseUrl('');
@@ -634,6 +658,21 @@ function App() {
           setChatGroups={setChatGroups}
           chatMessages={chatMessages}
           setChatMessages={setChatMessages}
+          demarches={demarches}
+          setDemarches={setDemarches}
+          justificatifPacks={justificatifPacks}
+          setJustificatifPacks={setJustificatifPacks}
+          onAddEvent={(title, dateTime) => {
+            const newEvent: FamilyEvent = {
+              id: `evt-dem-${Date.now()}`,
+              title: `📋 ${title}`,
+              type: 'other',
+              dateTime: dateTime,
+              time: '09:00',
+              done: false
+            };
+            setEvents(prev => [newEvent, ...prev]);
+          }}
           memories={memories}
           setMemories={setMemories}
           votes={votes}

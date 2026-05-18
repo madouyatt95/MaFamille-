@@ -1,19 +1,39 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, Briefcase, Car, Home, Plane, CreditCard, User, AlertTriangle, ArrowLeft, Trash2, Download, Share2 } from 'lucide-react';
-import type { DocumentFile, DocumentCategory, Member } from '../../types';
+import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, Briefcase, Car, Home, Plane, CreditCard, User, AlertTriangle, ArrowLeft, Trash2, Download, Share2, CheckCircle2, ChevronRight, Calendar, Users } from 'lucide-react';
+import type { DocumentFile, DocumentCategory, Member, Demarche, JustificatifPack } from '../../types';
+import { demarcheTemplates } from '../../data/demoData';
 
 interface CoffreFortAvanceProps {
   documents: DocumentFile[];
   setDocuments: React.Dispatch<React.SetStateAction<DocumentFile[]>>;
   members: Member[];
+  demarches: Demarche[];
+  setDemarches: React.Dispatch<React.SetStateAction<Demarche[]>>;
+  packs: JustificatifPack[];
+  setPacks: React.Dispatch<React.SetStateAction<JustificatifPack[]>>;
+  onAddEvent?: (title: string, dateTime: string) => void;
 }
 
-export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, setDocuments, members }) => {
+export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, setDocuments, members, demarches, setDemarches, packs, setPacks, onAddEvent }) => {
+  const [mainTab, setMainTab] = useState<'docs' | 'demarches' | 'packs'>('docs');
   const [viewMode, setViewMode] = useState<'categories' | 'members' | 'expiring' | 'all'>('categories');
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<DocumentFile | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | null>(null);
+
+  // Demarche states
+  const [activeDemarche, setActiveDemarche] = useState<Demarche | null>(null);
+  const [showNewDemarche, setShowNewDemarche] = useState(false);
+  const [newDemarcheTitle, setNewDemarcheTitle] = useState('');
+  const [newDemarcheTemplate, setNewDemarcheTemplate] = useState('');
+  const [newDemarcheAssignee, setNewDemarcheAssignee] = useState('');
+
+  // Pack states
+  const [showNewPack, setShowNewPack] = useState(false);
+  const [newPackName, setNewPackName] = useState('');
+  const [newPackType, setNewPackType] = useState<'location' | 'ecole' | 'banque' | 'emploi' | 'custom'>('location');
+  const [selectedPackDocs, setSelectedPackDocs] = useState<string[]>([]);
   
   // Upload Form State
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -152,19 +172,41 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
           </div>
           <div>
             <h2 className="text-xl font-bold">Coffre-Fort Avancé</h2>
-            <p className="text-xs text-white/50">{documents.length} documents sécurisés</p>
+            <p className="text-xs text-white/50">{documents.length} docs • {demarches.length} démarches • {packs.length} packs</p>
           </div>
         </div>
-        <button 
-          onClick={() => setIsUploading(true)}
-          className="flex items-center space-x-2 px-4 py-2 bg-[#6C5CFF] rounded-full text-sm font-semibold hover:bg-[#5B4BE0] transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Ajouter</span>
-        </button>
+        {mainTab === 'docs' && (
+          <button 
+            onClick={() => setIsUploading(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-[#6C5CFF] rounded-full text-sm font-semibold hover:bg-[#5B4BE0] transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Ajouter</span>
+          </button>
+        )}
+      </div>
+
+      {/* Main Tab Navigation */}
+      <div className="p-3 border-b border-white/5">
+        <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 grid grid-cols-3 gap-1">
+          <button onClick={() => setMainTab('docs')} className={`py-2.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${mainTab === 'docs' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
+            📁 Documents
+          </button>
+          <button onClick={() => setMainTab('demarches')} className={`py-2.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer relative ${mainTab === 'demarches' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
+            📋 Démarches
+            {demarches.filter(d => d.status !== 'completed').length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#FFB020] rounded-full text-[8px] font-bold text-black flex items-center justify-center">{demarches.filter(d => d.status !== 'completed').length}</span>
+            )}
+          </button>
+          <button onClick={() => setMainTab('packs')} className={`py-2.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${mainTab === 'packs' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
+            📦 Packs
+          </button>
+        </div>
       </div>
 
       {/* Toolbar */}
+      {mainTab === 'docs' && (
+      <>
       <div className="p-4 flex flex-col space-y-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
@@ -173,7 +215,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
             placeholder="Rechercher un document ou un tag..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:border-[#6C5CFF]"
+            className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-white/40 focus:outline-none focus:border-[#6C5CFF] transition-colors"
           />
         </div>
         
@@ -500,6 +542,343 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
               </div>
             </div>
           </div>
+        </div>
+      )}
+      </>
+      )}
+      {/* end mainTab === 'docs' */}
+
+      {/* ===================== DEMARCHES VIEW ===================== */}
+      {mainTab === 'demarches' && !activeDemarche && (
+        <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          {/* Active Demarches */}
+          {demarches.length > 0 && (
+            <div className="space-y-3">
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Mes Démarches en cours</span>
+              {demarches.map(dem => {
+                const doneSteps = dem.steps.filter(s => s.done).length;
+                const totalSteps = dem.steps.length;
+                const pct = Math.round((doneSteps / totalSteps) * 100);
+                const missingPieces = dem.pieces.filter(p => p.status === 'missing').length;
+                const statusColor = dem.status === 'completed' ? '#00D26A' : dem.status === 'waiting' ? '#FFB020' : '#6C5CFF';
+                const statusLabel = dem.status === 'completed' ? 'Terminée' : dem.status === 'waiting' ? 'En attente' : dem.status === 'in_progress' ? 'En cours' : 'Brouillon';
+                return (
+                  <button
+                    key={dem.id}
+                    type="button"
+                    onClick={() => setActiveDemarche(dem)}
+                    className="w-full text-left glass-panel border border-white/8 rounded-[24px] p-4 space-y-3 hover:bg-white/5 transition-all cursor-pointer active:scale-[0.98]"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-2xl">{dem.icon}</span>
+                        <div>
+                          <h4 className="text-xs font-bold text-white">{dem.title}</h4>
+                          <p className="text-[10px] text-white/40 mt-0.5">
+                            {dem.assignedMemberName && `Assignée à ${dem.assignedMemberName} • `}{dem.createdAt}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-white/20" />
+                    </div>
+                    <div className="relative h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div className="absolute inset-y-0 left-0 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: statusColor }} />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="font-bold" style={{ color: statusColor }}>{statusLabel} • {doneSteps}/{totalSteps} étapes</span>
+                      {missingPieces > 0 && <span className="text-[#FF4D6D] font-bold">⚠️ {missingPieces} pièce(s) manquante(s)</span>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Templates catalog */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Lancer une démarche</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              {demarcheTemplates.map(tpl => (
+                <button
+                  key={tpl.id}
+                  type="button"
+                  onClick={() => { setShowNewDemarche(true); setNewDemarcheTemplate(tpl.id); setNewDemarcheTitle(tpl.name); }}
+                  className="p-4 rounded-[20px] border border-white/8 bg-white/[0.03] hover:bg-white/[0.06] transition-all text-left space-y-2 cursor-pointer active:scale-[0.97]"
+                >
+                  <span className="text-2xl block">{tpl.icon}</span>
+                  <h5 className="text-[11px] font-bold text-white">{tpl.name}</h5>
+                  <p className="text-[9px] text-white/40 leading-relaxed">{tpl.description}</p>
+                  <div className="flex items-center space-x-2 text-[8px] text-white/30">
+                    <span>{tpl.defaultSteps.length} étapes</span>
+                    <span>•</span>
+                    <span>{tpl.defaultPieces.length} pièces</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* New Demarche Modal */}
+          {showNewDemarche && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowNewDemarche(false)}>
+              <div className="glass-panel border border-white/10 rounded-[28px] w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-extrabold text-white">Nouvelle Démarche</h3>
+                  <button type="button" onClick={() => setShowNewDemarche(false)} className="p-1.5 bg-white/5 rounded-xl text-white/40 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+                </div>
+                <div className="space-y-3">
+                  <input type="text" placeholder="Intitulé de la démarche" value={newDemarcheTitle} onChange={e => setNewDemarcheTitle(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]" />
+                  <select value={newDemarcheAssignee} onChange={e => setNewDemarcheAssignee(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]">
+                    <option value="">Assigner à un membre…</option>
+                    {members.filter(m => m.id !== '5').map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tpl = demarcheTemplates.find(t => t.id === newDemarcheTemplate);
+                    const member = members.find(m => m.id === newDemarcheAssignee);
+                    const newDem: Demarche = {
+                      id: `dem-${Date.now()}`,
+                      templateId: newDemarcheTemplate || undefined,
+                      title: newDemarcheTitle || 'Nouvelle démarche',
+                      icon: tpl?.icon || '📋',
+                      status: 'draft',
+                      assignedMemberId: member?.id,
+                      assignedMemberName: member?.name,
+                      steps: (tpl?.defaultSteps || []).map((s, i) => ({ id: `ds-${Date.now()}-${i}`, title: s.title, done: false })),
+                      pieces: (tpl?.defaultPieces || []).map((p, i) => ({ id: `dp-${Date.now()}-${i}`, name: p.name, status: 'missing' as const })),
+                      createdAt: new Date().toLocaleDateString('fr-FR')
+                    };
+                    setDemarches(prev => [newDem, ...prev]);
+                    setShowNewDemarche(false);
+                    setNewDemarcheTitle(''); setNewDemarcheTemplate(''); setNewDemarcheAssignee('');
+                  }}
+                  className="w-full py-3 bg-[#6C5CFF] rounded-xl text-white text-xs font-extrabold cursor-pointer hover:opacity-90 transition"
+                >
+                  Créer la démarche
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Active Demarche Detail View */}
+      {mainTab === 'demarches' && activeDemarche && (
+        <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          <button type="button" onClick={() => setActiveDemarche(null)} className="flex items-center space-x-1.5 text-[10px] font-bold text-white/40 hover:text-white transition cursor-pointer">
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Retour aux démarches</span>
+          </button>
+
+          <div className="flex items-center space-x-3">
+            <span className="text-3xl">{activeDemarche.icon}</span>
+            <div>
+              <h3 className="text-sm font-extrabold text-white">{activeDemarche.title}</h3>
+              {activeDemarche.assignedMemberName && (
+                <p className="text-[10px] text-white/40 flex items-center space-x-1 mt-0.5"><Users className="w-3 h-3" /><span>Assignée à {activeDemarche.assignedMemberName}</span></p>
+              )}
+            </div>
+          </div>
+
+          {activeDemarche.notes && (
+            <div className="p-3 rounded-xl bg-[#FFB020]/10 border border-[#FFB020]/20 text-[10px] text-[#FFB020] font-medium">📝 {activeDemarche.notes}</div>
+          )}
+
+          {/* Steps checklist */}
+          <div className="space-y-2">
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Étapes</span>
+            {activeDemarche.steps.map((step, idx) => (
+              <div key={step.id} className={`flex items-center space-x-3 p-3 rounded-xl border transition ${step.done ? 'bg-[#00D26A]/5 border-[#00D26A]/20' : 'bg-white/[0.02] border-white/5'}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = { ...activeDemarche, steps: activeDemarche.steps.map(s => s.id === step.id ? { ...s, done: !s.done } : s) };
+                    const allDone = updated.steps.every(s => s.done);
+                    if (allDone) updated.status = 'completed';
+                    else if (updated.steps.some(s => s.done)) updated.status = 'in_progress';
+                    setActiveDemarche(updated);
+                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+                  }}
+                  className="shrink-0 cursor-pointer"
+                >
+                  {step.done ? <CheckCircle2 className="w-5 h-5 text-[#00D26A]" /> : <div className="w-5 h-5 rounded-full border-2 border-white/20" />}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <span className={`text-xs font-medium ${step.done ? 'text-white/40 line-through' : 'text-white'}`}>{idx + 1}. {step.title}</span>
+                  {step.dueDate && <span className="text-[9px] text-[#FFB020] font-bold block mt-0.5">📅 Échéance : {step.dueDate}</span>}
+                </div>
+                {step.dueDate && !step.done && onAddEvent && (
+                  <button
+                    type="button"
+                    onClick={() => { onAddEvent(step.title, step.dueDate!); alert('📅 Ajouté au calendrier familial !'); }}
+                    className="p-1.5 bg-[#4F8CFF]/10 rounded-lg border border-[#4F8CFF]/20 text-[#4F8CFF] shrink-0 cursor-pointer hover:bg-[#4F8CFF]/20 transition"
+                    title="Ajouter au calendrier"
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Required pieces */}
+          <div className="space-y-2">
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Pièces requises</span>
+            {activeDemarche.pieces.map(piece => {
+              const color = piece.status === 'attached' ? '#00D26A' : piece.status === 'expired' ? '#FF4D6D' : '#FFB020';
+              const label = piece.status === 'attached' ? '✅ Fournie' : piece.status === 'expired' ? '⚠️ Expirée' : '❌ Manquante';
+              const linkedDoc = piece.documentId ? documents.find(d => d.id === piece.documentId) : null;
+              return (
+                <div key={piece.id} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                    <div className="min-w-0">
+                      <span className="text-xs font-medium text-white block truncate">{piece.name}</span>
+                      {linkedDoc && <span className="text-[9px] text-white/30 block truncate">📎 {linkedDoc.name}</span>}
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-bold shrink-0" style={{ color }}>{label}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Delete demarche */}
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm('Supprimer cette démarche ?')) {
+                setDemarches(prev => prev.filter(d => d.id !== activeDemarche.id));
+                setActiveDemarche(null);
+              }
+            }}
+            className="w-full py-2.5 rounded-xl bg-[#FF4D6D]/10 border border-[#FF4D6D]/20 text-[#FF4D6D] text-xs font-bold cursor-pointer hover:bg-[#FF4D6D]/20 transition flex items-center justify-center space-x-1.5"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Supprimer la démarche</span>
+          </button>
+        </div>
+      )}
+
+      {/* ===================== PACKS VIEW ===================== */}
+      {mainTab === 'packs' && (
+        <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Packs Justificatifs</span>
+            <button type="button" onClick={() => { setShowNewPack(true); setSelectedPackDocs([]); }} className="px-3 py-1.5 bg-[#6C5CFF] rounded-xl text-[10px] font-bold text-white cursor-pointer hover:opacity-90 transition flex items-center space-x-1">
+              <Plus className="w-3 h-3" />
+              <span>Nouveau pack</span>
+            </button>
+          </div>
+
+          {packs.map(pack => {
+            const packDocs = documents.filter(d => pack.documentIds.includes(d.id));
+            const typeLabel = pack.templateType === 'location' ? '🏠 Location' : pack.templateType === 'ecole' ? '🎓 École' : pack.templateType === 'banque' ? '🏦 Banque' : pack.templateType === 'emploi' ? '💼 Emploi' : '📁 Personnalisé';
+            return (
+              <div key={pack.id} className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-white">{pack.name}</h4>
+                    <p className="text-[9px] text-white/40 mt-0.5">{typeLabel} • {packDocs.length} document(s) • {pack.createdAt}</p>
+                  </div>
+                  <button type="button" onClick={() => { if(window.confirm('Supprimer ce pack ?')) setPacks(prev => prev.filter(p => p.id !== pack.id)); }} className="p-1.5 hover:bg-[#FF4D6D]/10 rounded-xl text-[#FF4D6D] transition cursor-pointer">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  {packDocs.map(doc => (
+                    <div key={doc.id} className="flex items-center space-x-2 p-2 bg-white/[0.03] rounded-lg border border-white/5 text-[10px]">
+                      <FileText className="w-3.5 h-3.5 text-[#6C5CFF] shrink-0" />
+                      <span className="text-white font-medium truncate">{doc.name}</span>
+                      <span className="text-white/30 shrink-0">{doc.category}</span>
+                    </div>
+                  ))}
+                  {packDocs.length === 0 && <p className="text-[10px] text-white/30 text-center py-2">Aucun document lié</p>}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const names = packDocs.map(d => d.name).join(', ');
+                    if (navigator.share) {
+                      navigator.share({ title: pack.name, text: `Pack justificatif : ${pack.name}\nDocuments : ${names}` }).catch(() => {});
+                    } else {
+                      navigator.clipboard.writeText(`${pack.name}\n${names}`);
+                      alert('📋 Pack copié dans le presse-papiers !');
+                    }
+                  }}
+                  className="w-full py-2 rounded-xl bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] text-[10px] font-bold cursor-pointer hover:bg-[#00D26A]/20 transition flex items-center justify-center space-x-1.5"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Partager / Exporter</span>
+                </button>
+              </div>
+            );
+          })}
+
+          {packs.length === 0 && !showNewPack && (
+            <div className="text-center py-12 space-y-3">
+              <span className="text-4xl block">📦</span>
+              <p className="text-xs text-white/40">Aucun pack créé. Créez un dossier justificatif pour regrouper vos documents.</p>
+            </div>
+          )}
+
+          {/* New Pack Modal */}
+          {showNewPack && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowNewPack(false)}>
+              <div className="glass-panel border border-white/10 rounded-[28px] w-full max-w-md p-6 space-y-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-extrabold text-white">Nouveau Pack Justificatif</h3>
+                  <button type="button" onClick={() => setShowNewPack(false)} className="p-1.5 bg-white/5 rounded-xl text-white/40 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+                </div>
+                <input type="text" placeholder="Nom du pack (ex: Dossier location Paris)" value={newPackName} onChange={e => setNewPackName(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]" />
+                <select value={newPackType} onChange={e => setNewPackType(e.target.value as any)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]">
+                  <option value="location">🏠 Location</option>
+                  <option value="ecole">🎓 École</option>
+                  <option value="banque">🏦 Banque</option>
+                  <option value="emploi">💼 Emploi</option>
+                  <option value="custom">📁 Personnalisé</option>
+                </select>
+                <div className="space-y-1.5">
+                  <span className="text-[9px] font-bold text-white/40 uppercase block">Sélectionner les documents</span>
+                  {documents.map(doc => (
+                    <label key={doc.id} className={`flex items-center space-x-2.5 p-2.5 rounded-xl border cursor-pointer transition ${selectedPackDocs.includes(doc.id) ? 'bg-[#6C5CFF]/10 border-[#6C5CFF]/30' : 'bg-white/[0.02] border-white/5 hover:bg-white/5'}`}>
+                      <input
+                        type="checkbox"
+                        checked={selectedPackDocs.includes(doc.id)}
+                        onChange={() => setSelectedPackDocs(prev => prev.includes(doc.id) ? prev.filter(id => id !== doc.id) : [...prev, doc.id])}
+                        className="accent-[#6C5CFF]"
+                      />
+                      <FileText className="w-3.5 h-3.5 text-[#6C5CFF] shrink-0" />
+                      <span className="text-[10px] text-white font-medium truncate">{doc.name}</span>
+                    </label>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!newPackName) return;
+                    const newPack: JustificatifPack = {
+                      id: `pack-${Date.now()}`,
+                      name: newPackName,
+                      templateType: newPackType,
+                      documentIds: selectedPackDocs,
+                      createdAt: new Date().toLocaleDateString('fr-FR')
+                    };
+                    setPacks(prev => [newPack, ...prev]);
+                    setShowNewPack(false);
+                    setNewPackName(''); setSelectedPackDocs([]);
+                  }}
+                  className="w-full py-3 bg-[#6C5CFF] rounded-xl text-white text-xs font-extrabold cursor-pointer hover:opacity-90 transition"
+                >
+                  Créer le pack ({selectedPackDocs.length} doc{selectedPackDocs.length > 1 ? 's' : ''})
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

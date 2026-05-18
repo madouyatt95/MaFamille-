@@ -16,7 +16,10 @@ import type {
   FamilyVote,
   SchoolTask,
   ChatGroup,
-  ChatMessage
+  ChatMessage,
+  DemarcheTemplate,
+  Demarche,
+  JustificatifPack
 } from '../types';
 
 
@@ -411,5 +414,179 @@ export const demoChatGroups: ChatGroup[] = [
 export const demoChatMessages: ChatMessage[] = [
   { id: 'm1', groupId: 'g_family', senderId: '1', senderName: 'Papa', type: 'text', content: 'N\'oubliez pas vos affaires de sport demain !', timestamp: '18:30', readBy: ['1', '2', '3', '4', '5'] },
   { id: 'm2', groupId: 'g_family', senderId: '3', senderName: 'Amadou', type: 'text', content: 'Oui c\'est déjà dans le sac 🎒', timestamp: '18:35', readBy: ['1', '2', '3', '4', '5'] },
-  { id: 'm3', groupId: 'g_family', senderId: '2', senderName: 'Maman', type: 'text', content: 'À table dans 10 min !', timestamp: '19:45', readBy: ['1', '2'] }, // Not read by Amadou (3), Awa (4), Fatou (5)
+  { id: 'm3', groupId: 'g_family', senderId: '2', senderName: 'Maman', type: 'text', content: 'À table dans 10 min !', timestamp: '19:45', readBy: ['1', '2'] },
+];
+
+// === DOCSBOX INTEGRATION ===
+
+export const demarcheTemplates: DemarcheTemplate[] = [
+  {
+    id: 'tpl-carte-grise',
+    name: 'Carte Grise',
+    icon: '🚗',
+    description: 'Immatriculation ou changement de titulaire',
+    defaultSteps: [
+      { title: 'Rassembler les pièces justificatives' },
+      { title: 'Remplir le formulaire ANTS en ligne' },
+      { title: 'Payer la taxe régionale' },
+      { title: 'Attendre le courrier du certificat' }
+    ],
+    defaultPieces: [
+      { name: 'Ancien certificat d\'immatriculation' },
+      { name: 'Pièce d\'identité' },
+      { name: 'Justificatif de domicile' },
+      { name: 'Formulaire Cerfa 13750' }
+    ]
+  },
+  {
+    id: 'tpl-passeport',
+    name: 'Passeport / CNI',
+    icon: '🛂',
+    description: 'Demande ou renouvellement de passeport ou carte d\'identité',
+    defaultSteps: [
+      { title: 'Prendre une photo d\'identité' },
+      { title: 'Acheter le timbre fiscal en ligne' },
+      { title: 'Prendre RDV en mairie' },
+      { title: 'Déposer le dossier en mairie' },
+      { title: 'Récupérer le document' }
+    ],
+    defaultPieces: [
+      { name: 'Photo d\'identité' },
+      { name: 'Timbre fiscal' },
+      { name: 'Justificatif de domicile' },
+      { name: 'Acte de naissance' },
+      { name: 'Ancien passeport / CNI' }
+    ]
+  },
+  {
+    id: 'tpl-caf',
+    name: 'CAF / APL',
+    icon: '🏠',
+    description: 'Demande d\'aide au logement ou allocations familiales',
+    defaultSteps: [
+      { title: 'Créer un compte CAF (caf.fr)' },
+      { title: 'Faire la simulation en ligne' },
+      { title: 'Constituer le dossier complet' },
+      { title: 'Suivre l\'avancement sur le portail' }
+    ],
+    defaultPieces: [
+      { name: 'Pièce d\'identité' },
+      { name: 'RIB' },
+      { name: 'Bail de location' },
+      { name: 'Avis d\'imposition' },
+      { name: 'Attestation de revenus' }
+    ]
+  },
+  {
+    id: 'tpl-demenagement',
+    name: 'Déménagement',
+    icon: '📦',
+    description: 'Checklist complète pour un déménagement serein',
+    defaultSteps: [
+      { title: 'Envoyer le préavis au bailleur' },
+      { title: 'Transférer EDF / Gaz' },
+      { title: 'Transférer Internet / Téléphone' },
+      { title: 'Prévenir les impôts' },
+      { title: 'Mettre à jour la CAF' },
+      { title: 'Prévenir la banque' },
+      { title: 'Mettre à jour la carte grise' }
+    ],
+    defaultPieces: [
+      { name: 'Nouveau bail' },
+      { name: 'Justificatif ancienne adresse' },
+      { name: 'Justificatif nouvelle adresse' },
+      { name: 'État des lieux' }
+    ]
+  },
+  {
+    id: 'tpl-assurance',
+    name: 'Assurance Habitation',
+    icon: '🛡️',
+    description: 'Souscription ou changement d\'assurance habitation',
+    defaultSteps: [
+      { title: 'Comparer les devis en ligne' },
+      { title: 'Souscrire au contrat' },
+      { title: 'Récupérer l\'attestation' }
+    ],
+    defaultPieces: [
+      { name: 'Bail de location' },
+      { name: 'Pièce d\'identité' },
+      { name: 'RIB' }
+    ]
+  },
+  {
+    id: 'tpl-impots',
+    name: 'Déclaration d\'Impôts',
+    icon: '📊',
+    description: 'Déclaration annuelle de revenus',
+    defaultSteps: [
+      { title: 'Préparer les pièces justificatives' },
+      { title: 'Déclarer en ligne sur impots.gouv.fr' },
+      { title: 'Vérifier et signer' },
+      { title: 'Payer le solde éventuel' }
+    ],
+    defaultPieces: [
+      { name: 'Bulletins de salaire' },
+      { name: 'Relevés bancaires' },
+      { name: 'Charges déductibles' },
+      { name: 'Avis d\'imposition N-1' }
+    ]
+  },
+  {
+    id: 'tpl-inscription-ecole',
+    name: 'Inscription École',
+    icon: '🎓',
+    description: 'Inscription ou réinscription scolaire',
+    defaultSteps: [
+      { title: 'Contacter la mairie pour la sectorisation' },
+      { title: 'Constituer le dossier d\'inscription' },
+      { title: 'Déposer le dossier à l\'école' },
+      { title: 'Obtenir la confirmation d\'inscription' }
+    ],
+    defaultPieces: [
+      { name: 'Livret de famille' },
+      { name: 'Carnet de vaccination' },
+      { name: 'Justificatif de domicile' },
+      { name: 'Certificat de radiation (si changement)' },
+      { name: 'Photo d\'identité enfant' }
+    ]
+  }
+];
+
+export const demoDemarches: Demarche[] = [
+  {
+    id: 'dem-1',
+    templateId: 'tpl-passeport',
+    title: 'Renouvellement Passeport Ibrahima',
+    icon: '🛂',
+    status: 'in_progress',
+    assignedMemberId: '1',
+    assignedMemberName: 'Papa',
+    steps: [
+      { id: 'ds-1', title: 'Prendre une photo d\'identité', done: true },
+      { id: 'ds-2', title: 'Acheter le timbre fiscal en ligne', done: true },
+      { id: 'ds-3', title: 'Prendre RDV en mairie', done: false, dueDate: '25/05/2026' },
+      { id: 'ds-4', title: 'Déposer le dossier en mairie', done: false },
+      { id: 'ds-5', title: 'Récupérer le document', done: false }
+    ],
+    pieces: [
+      { id: 'dp-1', name: 'Photo d\'identité', status: 'attached', documentId: 'doc-3' },
+      { id: 'dp-2', name: 'Timbre fiscal', status: 'attached' },
+      { id: 'dp-3', name: 'Justificatif de domicile', status: 'attached', documentId: 'doc-8' },
+      { id: 'dp-4', name: 'Acte de naissance', status: 'missing' },
+      { id: 'dp-5', name: 'Ancien passeport', status: 'expired' }
+    ],
+    createdAt: '10/05/2026',
+    notes: 'Passeport d\'Ibrahima expire le 13/06/2026'
+  }
+];
+
+export const demoPacks: JustificatifPack[] = [
+  {
+    id: 'pack-1',
+    name: 'Dossier Location Appartement',
+    templateType: 'location',
+    documentIds: ['doc-1', 'doc-4', 'doc-8'],
+    createdAt: '01/05/2026'
+  }
 ];

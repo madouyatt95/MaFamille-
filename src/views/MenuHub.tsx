@@ -47,7 +47,9 @@ import type {
   SchoolTask,
   Dish,
   ChatGroup,
-  ChatMessage
+  ChatMessage,
+  Demarche,
+  JustificatifPack
 } from '../types';
 
 // Import newly built premium sub-modules
@@ -108,6 +110,11 @@ interface MenuHubProps {
   setChatGroups: React.Dispatch<React.SetStateAction<ChatGroup[]>>;
   chatMessages: ChatMessage[];
   setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+  demarches: Demarche[];
+  setDemarches: React.Dispatch<React.SetStateAction<Demarche[]>>;
+  justificatifPacks: JustificatifPack[];
+  setJustificatifPacks: React.Dispatch<React.SetStateAction<JustificatifPack[]>>;
+  onAddEvent?: (title: string, dateTime: string) => void;
 }
 
 export const MenuHub: React.FC<MenuHubProps> = ({
@@ -150,7 +157,12 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   chatGroups,
   setChatGroups,
   chatMessages,
-  setChatMessages
+  setChatMessages,
+  demarches,
+  setDemarches,
+  justificatifPacks,
+  setJustificatifPacks,
+  onAddEvent
 }) => {
   const [newGroceryName, setNewGroceryName] = useState('');
   const [newGroceryCat, setNewGroceryCat] = useState('Épicerie');
@@ -778,7 +790,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
       {/* SUB-MODULE 1: Documents Vault */}
       {activeModule === 'documents' && !isLockedForChild && (
-        <CoffreFortAvance documents={documents} setDocuments={setDocuments} members={members} />
+        <CoffreFortAvance documents={documents} setDocuments={setDocuments} members={members} demarches={demarches} setDemarches={setDemarches} packs={justificatifPacks} setPacks={setJustificatifPacks} onAddEvent={onAddEvent} />
       )}
 
       {/* SUB-MODULE 1.5: Messagerie */}
