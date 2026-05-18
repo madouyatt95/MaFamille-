@@ -26,7 +26,8 @@ import {
   TrendingUp,
   Lock,
   UtensilsCrossed,
-  MessageCircle
+  MessageCircle,
+  Mic
 } from 'lucide-react';
 import type { 
   DocumentFile, 
@@ -204,6 +205,37 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     setNewGroceryName('');
     setNewGroceryQty(1);
     setNewGroceryUnit('pièces');
+  };
+
+  // Voice Dictation for Groceries
+  const [isListening, setIsListening] = useState(false);
+  const handleDictation = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Votre navigateur ne supporte pas la dictée vocale.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'fr-FR';
+    recognition.interimResults = false;
+    
+    recognition.onstart = () => setIsListening(true);
+    
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setNewGroceryName(transcript);
+      setIsListening(false);
+    };
+    
+    recognition.onerror = () => {
+      setIsListening(false);
+      alert("Erreur lors de l'écoute. Veuillez réessayer.");
+    };
+    
+    recognition.onend = () => setIsListening(false);
+    
+    recognition.start();
   };
 
   // Parental PIN Lock States and Validator
@@ -755,16 +787,28 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
+                    <div className="space-y-1 relative">
                       <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Nom du produit</label>
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="Ex: Lait, Pommes, Pâtes..." 
-                        value={newGroceryName}
-                        onChange={(e) => setNewGroceryName(e.target.value)}
-                        className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
-                      />
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          required
+                          placeholder="Ex: Lait, Pommes, Pâtes..." 
+                          value={newGroceryName}
+                          onChange={(e) => setNewGroceryName(e.target.value)}
+                          className="w-full bg-white/5 border border-white/8 rounded-xl pl-4 pr-10 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleDictation}
+                          title="Dicter vocalement"
+                          className={`absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-all ${
+                            isListening ? 'bg-[#FF4D6D] text-white animate-pulse shadow-[0_0_10px_rgba(255,77,109,0.5)]' : 'text-white/40 hover:bg-white/10 hover:text-white'
+                          }`}
+                        >
+                          <Mic className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="space-y-1">
