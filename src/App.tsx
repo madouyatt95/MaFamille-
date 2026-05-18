@@ -173,27 +173,27 @@ function App() {
   const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
   const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
 
-  // Hotfix: Force override old cached avatars and corrupted dishes with new demo data
+  // Robust Versioned Migration: Force override corrupted cache with correct data
   useEffect(() => {
-    // 1. Purge old cached white avatars
-    const savedMembers = localStorage.getItem('mf_members');
-    if (savedMembers && savedMembers.includes('1507003211169')) {
+    const appVersion = localStorage.getItem('mf_app_version');
+    if (appVersion !== '1.2') {
+      // 1. Purge corrupted avatars
       localStorage.setItem('mf_members', JSON.stringify(demoMembers));
       setMembers(demoMembers);
       
       const resetPocketMoney = [
-        { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150' },
-        { id: '4', name: 'Awa', balance: 22.50, points: 225, avatar: 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150' }
+        { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: '/avatars/amadou.png' },
+        { id: '4', name: 'Awa', balance: 22.50, points: 225, avatar: '/avatars/awa.png' }
       ];
       localStorage.setItem('mf_pocket_money', JSON.stringify(resetPocketMoney));
       setPocketMoney(resetPocketMoney);
-    }
 
-    // 2. Purge old cached dishes missing images
-    const savedDishes = localStorage.getItem('mf_dishes');
-    if (savedDishes && !savedDishes.includes('image":"https://')) {
+      // 2. Purge old dishes
       localStorage.setItem('mf_dishes', JSON.stringify(demoDishes));
       setDishes(demoDishes);
+
+      // 3. Mark version as upgraded
+      localStorage.setItem('mf_app_version', '1.2');
     }
   }, []);
 

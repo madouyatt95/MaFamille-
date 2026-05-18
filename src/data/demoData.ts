@@ -34,7 +34,7 @@ export const demoMembers: Member[] = [
       relation: 'Épouse'
     },
     schoolOrEmployer: 'Directeur Technique, TechCorp',
-    photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    photoUrl: '/avatars/papa.png',
     medicalHistory: [
       { id: 'm1', date: '10/01/2026', title: 'Bilan de santé annuel', doctor: 'Dr. Martin', notes: 'Excellente santé générale, tension normale.' }
     ]
@@ -74,7 +74,7 @@ export const demoMembers: Member[] = [
       relation: 'Mère'
     },
     schoolOrEmployer: 'Collège Jean Jaurès (Classe de 5ème)',
-    photoUrl: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150&auto=format&fit=crop&q=80',
+    photoUrl: '/avatars/amadou.png',
     medicalHistory: [
       { id: 'm3', date: '05/02/2026', title: 'Rappel vaccin DTC', doctor: 'Dr. Clinique de la Paix', notes: 'Vaccin à jour, prochaine injection dans 5 ans.' }
     ]
@@ -94,7 +94,7 @@ export const demoMembers: Member[] = [
       relation: 'Père'
     },
     schoolOrEmployer: 'École élémentaire publique (Classe de CE2)',
-    photoUrl: 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150&auto=format&fit=crop&q=80',
+    photoUrl: '/avatars/awa.png',
     medicalHistory: [
       { id: 'm4', date: '18/05/2026', title: 'Rendez-vous pédiatre', doctor: 'Dr. Clinique de la Paix', notes: 'Suivi de croissance parfait. Courbe de poids dans les normes.' }
     ]
@@ -114,7 +114,7 @@ export const demoMembers: Member[] = [
       relation: 'Mère'
     },
     schoolOrEmployer: 'Crèche Les Petits Papillons',
-    photoUrl: 'https://images.unsplash.com/photo-1618083707368-b3823daa2726?w=150&auto=format&fit=crop&q=80',
+    photoUrl: '/avatars/ibrahima.png',
     medicalHistory: [
       { id: 'm5', date: '12/04/2026', title: 'Vaccin ROR 2ème dose', doctor: 'Dr. Clinique de la Paix', notes: 'Bien supporté, aucun effet secondaire.' }
     ]
@@ -231,20 +231,20 @@ export const demoGroceries: GroceryItem[] = [
 ];
 
 export const demoDishes: Dish[] = [
-  { id: 'di1', day: 'Lun', mealType: 'lunch', name: 'Poulet rôti et pommes de terre', image: 'https://images.unsplash.com/photo-1598515214211-89d3e73ae83b?w=300&auto=format&fit=crop&q=80', ingredients: ['Poulet', 'Pommes de terre', 'Ail', 'Herbes de Provence'] },
-  { id: 'di2', day: 'Lun', mealType: 'dinner', name: 'Soupe de légumes et croûtons', image: 'https://images.unsplash.com/photo-1547592165-e1d17fed6005?w=300&auto=format&fit=crop&q=80', ingredients: ['Poireaux', 'Carottes', 'Pommes de terre', 'Pain'] },
-  { id: 'di3', day: 'Mar', mealType: 'lunch', name: 'Salade de quinoa et avocat', image: 'https://images.unsplash.com/photo-1505576399279-565b52d4ac71?w=300&auto=format&fit=crop&q=80', ingredients: ['Quinoa', 'Avocat', 'Tomates', 'Feta'] },
-  { id: 'di4', day: 'Mar', mealType: 'dinner', name: 'Pâtes à la bolognaise maison', image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=300&auto=format&fit=crop&q=80', ingredients: ['Pâtes', 'Bœuf haché', 'Sauce tomate', 'Oignons'] },
-  { id: 'di5', day: 'Mer', mealType: 'lunch', name: 'Pavé de saumon et riz blanc', image: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=300&auto=format&fit=crop&q=80', ingredients: ['Saumon', 'Riz', 'Citron', 'Aneth'] },
-  { id: 'di6', day: 'Mer', mealType: 'dinner', name: 'Quiche aux épinards et chèvre', image: 'https://images.unsplash.com/photo-1627308595229-7830a5c91f9f?w=300&auto=format&fit=crop&q=80', ingredients: ['Pâte brisée', 'Épinards', 'Fromage de chèvre', 'Œufs'] },
-  { id: 'di7', day: 'Jeu', mealType: 'lunch', name: 'Wrap au thon et crudités', image: 'https://images.unsplash.com/photo-1626700051175-6518c4793f06?w=300&auto=format&fit=crop&q=80', ingredients: ['Galettes wrap', 'Thon', 'Mayonnaise', 'Salade'] },
-  { id: 'di8', day: 'Jeu', mealType: 'dinner', name: 'Gratin de chou-fleur béchamel', image: 'https://images.unsplash.com/photo-1546964124-0cce460f38ef?w=300&auto=format&fit=crop&q=80', ingredients: ['Chou-fleur', 'Béchamel', 'Fromage râpé'] },
-  { id: 'di9', day: 'Ven', mealType: 'lunch', name: 'Steak haché et haricots verts', image: 'https://images.unsplash.com/photo-1603048588665-791ca8aea617?w=300&auto=format&fit=crop&q=80', ingredients: ['Bœuf', 'Haricots verts', 'Beurre'] },
-  { id: 'di10', day: 'Ven', mealType: 'dinner', name: 'Pizzas maison en famille', image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=300&auto=format&fit=crop&q=80', ingredients: ['Pâte à pizza', 'Sauce tomate', 'Mozzarella', 'Jambon'] },
-  { id: 'di11', day: 'Sam', mealType: 'lunch', name: 'Brochettes de bœuf au barbecue', image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=300&auto=format&fit=crop&q=80', ingredients: ['Bœuf', 'Poivrons', 'Oignons'] },
-  { id: 'di12', day: 'Sam', mealType: 'dinner', name: 'Tacos express croustillants', image: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=300&auto=format&fit=crop&q=80', ingredients: ['Coquilles tacos', 'Viande hachée', 'Épices', 'Salsa'] },
-  { id: 'di13', day: 'Dim', mealType: 'lunch', name: 'Gigot d\'agneau dominical', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=300&auto=format&fit=crop&q=80', ingredients: ['Agneau', 'Ail', 'Romarin', 'Flageolets'] },
-  { id: 'di14', day: 'Dim', mealType: 'dinner', name: 'Crêpes salées et sucrées', image: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=300&auto=format&fit=crop&q=80', ingredients: ['Farine', 'Lait', 'Œufs', 'Fromage', 'Nutella'] }
+  { id: 'di1', day: 'Lun', mealType: 'lunch', name: 'Poulet rôti et pommes de terre', image: '/menus/default.png', ingredients: ['Poulet', 'Pommes de terre', 'Ail', 'Herbes de Provence'] },
+  { id: 'di2', day: 'Lun', mealType: 'dinner', name: 'Soupe de légumes et croûtons', image: '/menus/default.png', ingredients: ['Poireaux', 'Carottes', 'Pommes de terre', 'Pain'] },
+  { id: 'di3', day: 'Mar', mealType: 'lunch', name: 'Salade de quinoa et avocat', image: '/menus/default.png', ingredients: ['Quinoa', 'Avocat', 'Tomates', 'Feta'] },
+  { id: 'di4', day: 'Mar', mealType: 'dinner', name: 'Pâtes à la bolognaise maison', image: '/menus/default.png', ingredients: ['Pâtes', 'Bœuf haché', 'Sauce tomate', 'Oignons'] },
+  { id: 'di5', day: 'Mer', mealType: 'lunch', name: 'Pavé de saumon et riz blanc', image: '/menus/default.png', ingredients: ['Saumon', 'Riz', 'Citron', 'Aneth'] },
+  { id: 'di6', day: 'Mer', mealType: 'dinner', name: 'Quiche aux épinards et chèvre', image: '/menus/default.png', ingredients: ['Pâte brisée', 'Épinards', 'Fromage de chèvre', 'Œufs'] },
+  { id: 'di7', day: 'Jeu', mealType: 'lunch', name: 'Wrap au thon et crudités', image: '/menus/default.png', ingredients: ['Galettes wrap', 'Thon', 'Mayonnaise', 'Salade'] },
+  { id: 'di8', day: 'Jeu', mealType: 'dinner', name: 'Gratin de chou-fleur béchamel', image: '/menus/default.png', ingredients: ['Chou-fleur', 'Béchamel', 'Fromage râpé'] },
+  { id: 'di9', day: 'Ven', mealType: 'lunch', name: 'Steak haché et haricots verts', image: '/menus/default.png', ingredients: ['Bœuf', 'Haricots verts', 'Beurre'] },
+  { id: 'di10', day: 'Ven', mealType: 'dinner', name: 'Pizzas maison en famille', image: '/menus/default.png', ingredients: ['Pâte à pizza', 'Sauce tomate', 'Mozzarella', 'Jambon'] },
+  { id: 'di11', day: 'Sam', mealType: 'lunch', name: 'Brochettes de bœuf au barbecue', image: '/menus/default.png', ingredients: ['Bœuf', 'Poivrons', 'Oignons'] },
+  { id: 'di12', day: 'Sam', mealType: 'dinner', name: 'Tacos express croustillants', image: '/menus/default.png', ingredients: ['Coquilles tacos', 'Viande hachée', 'Épices', 'Salsa'] },
+  { id: 'di13', day: 'Dim', mealType: 'lunch', name: 'Gigot d\'agneau dominical', image: '/menus/default.png', ingredients: ['Agneau', 'Ail', 'Romarin', 'Flageolets'] },
+  { id: 'di14', day: 'Dim', mealType: 'dinner', name: 'Crêpes salées et sucrées', image: '/menus/default.png', ingredients: ['Farine', 'Lait', 'Œufs', 'Fromage', 'Nutella'] }
 ];
 
 export const demoTasks: ChoreTask[] = [
