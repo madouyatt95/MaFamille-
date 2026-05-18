@@ -25,7 +25,8 @@ import {
   HeartHandshake,
   TrendingUp,
   Lock,
-  UtensilsCrossed
+  UtensilsCrossed,
+  MessageCircle
 } from 'lucide-react';
 import type { 
   DocumentFile, 
@@ -53,6 +54,7 @@ import { ConseilFamille } from '../components/modules/ConseilFamille';
 import { PeaceMaker } from '../components/modules/PeaceMaker';
 import { MaVieSimulator } from '../components/modules/MaVieSimulator';
 import { CoffreFortAvance } from '../components/modules/CoffreFortAvance';
+import { Messagerie } from '../components/modules/Messagerie';
 
 interface MenuHubProps {
   documents: DocumentFile[];
@@ -181,6 +183,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const isAmadou = activeMemberId === '3';
 
   const secondaryModules = [
+    { id: 'messagerie', title: 'Chat Familial', desc: 'Discussions & Groupes', icon: MessageCircle, color: 'text-[#00D26A] bg-[#00D26A]/10' },
     { id: 'vehicules', title: 'Véhicules', desc: 'Assurances et entretiens', icon: Car, color: 'text-[#4F8CFF] bg-[#4F8CFF]/10' },
     { id: 'logement', title: 'Logement', desc: 'Maintenance et garanties', icon: HomeIcon, color: 'text-[#FFB020] bg-[#FFB020]/10' },
     { id: 'voyages', title: 'Voyages & Valise IA', desc: 'Activités & Valise IA personnalisée', icon: Plane, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10' },
@@ -573,6 +576,11 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       {/* SUB-MODULE 1: Documents Vault */}
       {activeModule === 'documents' && !isLockedForChild && (
         <CoffreFortAvance documents={documents} setDocuments={setDocuments} members={members} />
+      )}
+
+      {/* SUB-MODULE 1.5: Messagerie */}
+      {activeModule === 'messagerie' && (
+        <Messagerie members={members} activeMemberId={activeMemberId} />
       )}
 
       {/* SUB-MODULE 2: Santé */}

@@ -200,3 +200,25 @@ export interface QuizQuestion {
   explanation: string;
 }
 
+export type MessageType = 'text' | 'image' | 'voice' | 'document';
+
+export interface ChatMessage {
+  id: string;
+  groupId: string;
+  senderId: string;
+  senderName: string;
+  type: MessageType;
+  content: string; // text or base64 data for media
+  timestamp: string;
+  readBy: string[]; // array of member IDs
+}
+
+export interface ChatGroup {
+  id: string;
+  name: string;
+  isPrivate: boolean;
+  memberIds: string[]; // Members allowed in this chat
+  lastMessage?: string;
+  lastMessageTime?: string;
+  unreadCount?: number;
+}
