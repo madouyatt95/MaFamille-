@@ -5,15 +5,16 @@ import {
   Volume2, 
   VolumeX, 
   BookOpen, 
-  User, 
-  Compass, 
-  Heart,
   ChevronLeft,
   ChevronRight,
   RotateCcw,
   Music,
   Sliders,
-  Sparkle
+  Sparkle,
+  Plus,
+  Shield,
+  Mic,
+  Check
 } from 'lucide-react';
 
 interface ConteurIAProps {
@@ -284,8 +285,18 @@ const generateExtensiveStory = (hero: string, universeId: string, moralId: strin
 };
 
 export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
+  // Default heroes list based on the user's design reference
+  const defaultHeroes = [
+    { name: 'Awa', level: 'Niv. 5', photoUrl: '/avatars/awa.png', age: '9 ans' },
+    { name: 'Amadou', level: '12 ans', photoUrl: '/avatars/amadou.png', age: '12 ans' },
+    { name: 'Mariam', level: '9 ans', photoUrl: '/avatars/mariam.png', age: '9 ans' },
+    { name: 'Abdou', level: '7 ans', photoUrl: '/avatars/ibrahima.png', age: '7 ans' }
+  ];
+
   // Config state
-  const [selectedHero, setSelectedHero] = useState<string>('');
+  const [selectedHero, setSelectedHero] = useState<string>('Awa'); // Default select Awa as in reference image
+  const [isCustomHero, setIsCustomHero] = useState<boolean>(false);
+  const [customHeroName, setCustomHeroName] = useState<string>('');
   const [selectedUniverse, setSelectedUniverse] = useState<string>('espace');
   const [selectedMoral, setSelectedMoral] = useState<string>('partage');
   
@@ -540,7 +551,8 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
   };
 
   const handleStartGeneration = () => {
-    if (!selectedHero.trim()) return;
+    const finalHeroName = isCustomHero ? customHeroName.trim() : selectedHero;
+    if (!finalHeroName.trim()) return;
     setIsGenerating(true);
     setGenStep(1);
     window.speechSynthesis.cancel();
@@ -551,7 +563,7 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
       setTimeout(() => {
         setGenStep(3);
         setTimeout(() => {
-          const story = generateExtensiveStory(selectedHero.trim(), selectedUniverse, selectedMoral);
+          const story = generateExtensiveStory(finalHeroName.trim(), selectedUniverse, selectedMoral);
           setActiveStory(story);
           setCurrentChapterIndex(0);
           setIsGenerating(false);
@@ -697,130 +709,489 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
           border: 1px solid rgba(251, 191, 36, 0.15);
           box-shadow: 0 0 10px rgba(251, 191, 36, 0.05);
         }
+        .animate-bounce-slow {
+          animation: bounceSlow 3s ease-in-out infinite;
+        }
+        .animate-pulse-slow {
+          animation: pulseSlow 4s ease-in-out infinite;
+        }
+        .animate-spin-slow {
+          animation: spinSlow 12s linear infinite;
+        }
+        .animate-spin-reverse {
+          animation: spinReverse 8s linear infinite;
+        }
+        @keyframes bounceSlow {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
+        }
+        @keyframes pulseSlow {
+          0%, 100% { opacity: 0.25; }
+          50% { opacity: 0.55; }
+        }
+        @keyframes spinSlow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes spinReverse {
+          from { transform: rotate(360deg); }
+          to { transform: rotate(0deg); }
+        }
+        .scrollbar-none::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-none {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
       `}} />
 
       {/* Header Bar */}
-      <div className="relative z-10 flex items-center justify-between w-full pb-4 border-b border-white/8">
-        <button 
-          onClick={activeStory ? handleReset : onBack}
-          className="flex items-center space-x-2 text-xs font-bold text-white/50 hover:text-white transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>{activeStory ? 'Nouveau conte' : 'Retour'}</span>
-        </button>
-        <div className="flex items-center space-x-2 bg-white/5 border border-white/8 px-4 py-1.5 rounded-full">
-          <Sparkles className="w-4 h-4 text-[#FFB020] animate-pulse" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-[#FFB020] font-sans">Le Conteur Céleste</span>
+      {activeStory && (
+        <div className="relative z-10 flex items-center justify-between w-full pb-4 border-b border-white/8">
+          <button 
+            onClick={handleReset}
+            className="flex items-center space-x-2 text-xs font-bold text-white/50 hover:text-white transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Nouveau conte</span>
+          </button>
+          <div className="flex items-center space-x-2 bg-white/5 border border-white/8 px-4 py-1.5 rounded-full">
+            <Sparkles className="w-4 h-4 text-[#FFB020] animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#FFB020] font-sans">Le Conteur Céleste</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* DYNAMIC SCREEN LAYOUT */}
       <div className="relative z-10 my-auto py-6 flex flex-col items-center justify-center w-full min-h-[460px] book-container">
         
         {/* SCREEN 1: THE INPUTS PANEL */}
         {!isGenerating && !activeStory && (
-          <div className="w-full max-w-xl space-y-6 animate-fade-in">
-            <div className="text-center space-y-2">
-              <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">Générer un Conte du Soir Merveilleux</h2>
-              <p className="text-xs text-white/50">Configurez l'histoire rêvée pour endormir doucement les enfants...</p>
+          <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-12 gap-8 items-stretch animate-fade-in md:px-2">
+            
+            {/* COLUMN 1: HIGH-FIDELITY BRANDING & DECORATION (Left on Desktop) */}
+            <div className="hidden md:flex md:col-span-5 flex-col justify-between p-7 rounded-[32px] border border-white/8 bg-gradient-to-b from-[#111c2d] to-[#080f19] relative overflow-hidden group">
+              
+              {/* Cosmic dust glow effects */}
+              <div className="absolute top-0 right-0 w-48 h-48 rounded-full bg-[#7C3AED]/12 filter blur-[60px] group-hover:scale-125 transition-transform duration-[3000ms]"></div>
+              <div className="absolute -bottom-10 -left-10 w-48 h-48 rounded-full bg-pink-500/8 filter blur-[50px]"></div>
+
+              {/* Top part: branding header */}
+              <div className="space-y-5 relative z-10">
+                <div className="flex items-center space-x-3.5">
+                  <div className="w-12 h-12 rounded-[22px] bg-gradient-to-tr from-[#7C3AED] via-pink-500 to-[#FFB020] p-[2px] shadow-lg shadow-purple-900/20 active:scale-95 transition-all">
+                    <div className="w-full h-full bg-[#0a0f18] rounded-[20px] flex items-center justify-center">
+                      <BookOpen className="w-5.5 h-5.5 text-white animate-bounce-slow" />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white uppercase tracking-widest leading-none">CONTEUR CÉLESTE</h3>
+                    <span className="text-[8.5px] font-black text-[#a78bfa] tracking-widest uppercase mt-1 block">Intelligence Magique 2.0</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="text-lg font-black text-white leading-tight tracking-tight">
+                    Créez des histoires magiques et uniques pour vos enfants
+                  </h4>
+                  <p className="text-[11px] text-white/50 leading-relaxed font-medium">
+                    Une expérience interactive conçue pour apaiser l'esprit des tout-petits avant le coucher et les guider vers de doux rêves étoilés.
+                  </p>
+                </div>
+              </div>
+
+              {/* Middle part: Gorgeous SVG Illustration */}
+              <div className="my-6 relative z-10 flex justify-center items-center">
+                <div className="relative w-48 h-44 flex items-center justify-center">
+                  
+                  {/* Floating particles or stars in SVG */}
+                  <svg className="absolute inset-0 w-full h-full text-white/5" viewBox="0 0 100 100" fill="none">
+                    <circle cx="20" cy="30" r="1.5" className="animate-pulse" fill="currentColor" />
+                    <circle cx="85" cy="25" r="1" className="animate-pulse-slow" fill="currentColor" />
+                    <circle cx="75" cy="75" r="1.8" className="animate-pulse" fill="currentColor" />
+                    <path d="M45,20 L47,24 L51,24 L48,27 L49,31 L45,28 L41,31 L42,27 L39,24 L43,24 Z" className="text-[#FFB020]/20 animate-pulse" fill="currentColor" />
+                  </svg>
+                  
+                  {/* Main stylized Moon and Children reading */}
+                  <svg className="w-40 h-40 filter drop-shadow-[0_8px_24px_rgba(124,58,237,0.3)] animate-bounce-slow" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    {/* Big glowing moon */}
+                    <circle cx="100" cy="95" r="60" fill="url(#cosmicMoonGlow)" />
+                    <path d="M125 50C100 50 80 70 80 95C80 120 100 140 125 140C120 140 115 138 110 135C90 125 85 100 95 80C100 70 112 55 125 50Z" fill="#FFFCE6" opacity="0.95" />
+                    
+                    {/* Magical floating open book */}
+                    <path d="M60 125C75 120 95 122 100 130C105 122 125 120 140 125V105C125 100 105 102 100 110C95 102 75 100 60 105V125Z" fill="#7C3AED" stroke="#a78bfa" strokeWidth="2" />
+                    <path d="M100 110V130" stroke="#a78bfa" strokeWidth="2" />
+                    
+                    {/* Golden sparkles rising from book */}
+                    <path d="M100 98L102 102L106 102L103 105L104 109L100 106L96 109L97 105L94 102L98 102 Z" fill="#FFB020" className="animate-pulse" />
+                    <circle cx="85" cy="92" r="3" fill="#FFB020" className="animate-ping" />
+                    <circle cx="115" cy="88" r="2.5" fill="#FF4D6D" className="animate-pulse" />
+                    <circle cx="100" cy="80" r="1.5" fill="#00D26A" />
+
+                    <defs>
+                      <radialGradient id="cosmicMoonGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" transform="translate(100 95) rotate(90) scale(75)">
+                        <stop offset="0%" stopColor="#7C3AED" stopOpacity="0.4" />
+                        <stop offset="60%" stopColor="#FF4D6D" stopOpacity="0.1" />
+                        <stop offset="100%" stopColor="#000000" stopOpacity="0" />
+                      </radialGradient>
+                    </defs>
+                  </svg>
+                </div>
+              </div>
+
+              {/* Bottom part: key highlights with bright icons */}
+              <div className="space-y-3.5 relative z-10 pt-4 border-t border-white/5">
+                <div className="flex items-center space-x-3">
+                  <div className="w-6.5 h-6.5 rounded-lg bg-[#7C3AED]/12 border border-[#7C3AED]/20 flex items-center justify-center">
+                    <Sparkles className="w-3.5 h-3.5 text-[#a78bfa]" />
+                  </div>
+                  <span className="text-[10px] font-bold text-white/70 uppercase tracking-wide">Illustrations d'univers inédites</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className="w-6.5 h-6.5 rounded-lg bg-pink-500/12 border border-pink-500/20 flex items-center justify-center">
+                    <Music className="w-3.5 h-3.5 text-pink-400" />
+                  </div>
+                  <span className="text-[10px] font-bold text-white/70 uppercase tracking-wide">Douces musiques d'ambiance intégrées</span>
+                </div>
+              </div>
+
             </div>
 
-            <div className="space-y-5 bg-white/5 border border-white/10 rounded-[32px] p-5 md:p-6 backdrop-blur-md">
+            {/* COLUMN 2: HIGH-FIDELITY MOBILE SIMULATED CONTAINER (Right) */}
+            <div className="col-span-12 md:col-span-7 flex flex-col justify-between bg-[#0a101d] rounded-[36px] border border-white/10 p-5 md:p-6 shadow-2xl relative">
               
-              {/* Choice 1: The Hero */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-wider text-[#FFB020] flex items-center gap-1.5">
-                  <User className="w-4 h-4" /> Héros principal de la famille
-                </label>
-                <div className="flex gap-2">
-                  <select 
-                    value={selectedHero}
-                    onChange={(e) => setSelectedHero(e.target.value)}
-                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FFB020]"
+              {/* iOS Mobile Notch element */}
+              <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-24 h-4.5 bg-black/45 rounded-full border border-white/5 flex items-center justify-center z-20">
+                <div className="w-1.5 h-1.5 rounded-full bg-white/15 mr-2"></div>
+                <div className="w-8 h-1 rounded-full bg-white/10"></div>
+              </div>
+
+              {/* Inner content wrapper */}
+              <div className="space-y-5 pt-3">
+                
+                {/* Simulated mobile header inside screen */}
+                <div className="flex items-center justify-between pb-3 border-b border-white/6 mt-1 w-full">
+                  <button 
+                    onClick={onBack}
+                    className="p-2 rounded-xl bg-white/3 border border-white/6 hover:bg-white/8 text-white/60 hover:text-white transition-all duration-300 cursor-pointer"
                   >
-                    {members.map(m => (
-                      <option key={m.id} value={m.name} className="bg-slate-900 text-white">
-                        {m.name} ({m.role})
-                      </option>
-                    ))}
-                    <option value="custom" className="bg-slate-900 text-white">Prénom sur mesure...</option>
-                  </select>
-                  
-                  {(selectedHero === 'custom' || !members.some(m => m.name === selectedHero)) && (
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[#FFB020] bg-[#FFB020]/10 px-3 py-1 rounded-full border border-[#FFB020]/25">
+                    ✨ MODE CONTEUR
+                  </span>
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#7C3AED] to-pink-500 p-[1.5px]">
+                    <div className="w-full h-full bg-[#0a101d] rounded-full flex items-center justify-center text-[9px] font-black text-white">
+                      AI
+                    </div>
+                  </div>
+                </div>
+
+                {/* SECTION 1: SÉLECTEUR AVATAR ENFANT */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-5 h-5 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/30 flex items-center justify-center text-[9px] font-black text-[#a78bfa]">
+                        1
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-[#a78bfa]">
+                        Pour quel héros ?
+                      </span>
+                    </div>
+
+                    {isCustomHero && (
+                      <button 
+                        onClick={() => {
+                          setIsCustomHero(false);
+                          setSelectedHero('Awa');
+                        }}
+                        className="text-[9px] font-black text-pink-400 hover:text-pink-300 uppercase tracking-widest transition-colors cursor-pointer"
+                      >
+                        Annuler l'autre prénom
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Horizontal Avatars Selector Grid */}
+                  <div className="flex items-center space-x-3 overflow-x-auto pb-1 scrollbar-none snap-x snap-mandatory">
+                    {defaultHeroes.map((heroItem) => {
+                      const isSelected = !isCustomHero && selectedHero === heroItem.name;
+                      return (
+                        <button
+                          key={heroItem.name}
+                          onClick={() => {
+                            setIsCustomHero(false);
+                            setSelectedHero(heroItem.name);
+                          }}
+                          className={`flex flex-col items-center p-2 rounded-2xl border transition-all duration-350 cursor-pointer snap-start shrink-0 min-w-[70px] ${
+                            isSelected 
+                              ? 'bg-[#7C3AED]/12 border-[#7C3AED] shadow-[0_0_12px_rgba(124,58,237,0.25)] scale-[1.03]' 
+                              : 'bg-white/3 border-white/6 hover:bg-white/6'
+                          }`}
+                        >
+                          <div className="relative">
+                            <img 
+                              src={heroItem.photoUrl} 
+                              alt={heroItem.name}
+                              onError={(e) => {
+                                // Fallback standard if image does not exist yet
+                                (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${heroItem.name}`;
+                              }}
+                              className="w-10 h-10 rounded-full object-cover bg-slate-900 border border-white/10"
+                            />
+                            {isSelected && (
+                              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#7C3AED] border border-[#a78bfa] flex items-center justify-center shadow-md animate-scale-up">
+                                <Check className="w-2.5 h-2.5 text-white stroke-[3.5]" />
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-[9.5px] font-black text-white mt-1.5 uppercase tracking-wider">
+                            {heroItem.name}
+                          </span>
+                          <span className="text-[7.5px] font-semibold text-white/40 mt-0.5 leading-none">
+                            {heroItem.age}
+                          </span>
+                        </button>
+                      );
+                    })}
+
+                    {/* Button "+ Autre" for custom hero entry */}
+                    <button
+                      onClick={() => {
+                        setIsCustomHero(true);
+                        setSelectedHero('custom');
+                        setCustomHeroName('');
+                      }}
+                      className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all duration-350 cursor-pointer snap-start shrink-0 min-w-[70px] min-h-[78px] ${
+                        isCustomHero 
+                          ? 'bg-[#7C3AED]/12 border-[#7C3AED] shadow-[0_0_12px_rgba(124,58,237,0.25)] scale-[1.03]' 
+                          : 'bg-white/3 border-white/6 hover:bg-white/6'
+                      }`}
+                    >
+                      <div className="w-10 h-10 rounded-full border border-dashed border-white/20 flex items-center justify-center text-white/50 group-hover:text-white transition-colors">
+                        <Plus className="w-4 h-4" />
+                      </div>
+                      <span className="text-[9.5px] font-black text-white mt-1.5 uppercase tracking-wider">
+                        + Autre
+                      </span>
+                      <span className="text-[7.5px] font-semibold text-white/40 mt-0.5 leading-none">
+                        Sur mesure
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Input field appearing if + Autre is active */}
+                  {isCustomHero && (
                     <input 
                       type="text"
-                      placeholder="Taper son prénom..."
-                      value={selectedHero === 'custom' ? '' : selectedHero}
-                      onChange={(e) => setSelectedHero(e.target.value)}
-                      className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
+                      placeholder="Saisissez son prénom..."
+                      value={customHeroName}
+                      onChange={(e) => setCustomHeroName(e.target.value)}
+                      className="w-full bg-[#0d1627] border border-white/10 rounded-2xl px-4 py-3 text-xs text-white placeholder-white/35 focus:outline-none focus:border-[#7C3AED] focus:shadow-[0_0_10px_rgba(124,58,237,0.15)] transition-all animate-scale-up"
                     />
                   )}
+
                 </div>
+
+                {/* SECTION 2: MAGICAL UNIVERSES */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-5 h-5 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/30 flex items-center justify-center text-[9px] font-black text-[#a78bfa]">
+                      2
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-[#a78bfa]">
+                      Dans quel univers magique ?
+                    </span>
+                  </div>
+
+                  {/* Grid of 5 premium vector universes */}
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {UNIVERSES.map((u) => {
+                      const isSelected = selectedUniverse === u.id;
+                      return (
+                        <button
+                          key={u.id}
+                          onClick={() => setSelectedUniverse(u.id)}
+                          className={`rounded-2xl border transition-all duration-350 cursor-pointer overflow-hidden flex flex-col justify-between h-[105px] relative group ${
+                            isSelected 
+                              ? 'bg-black/45 border-[#7C3AED] shadow-[0_0_12px_rgba(124,58,237,0.25)] scale-[1.02]' 
+                              : 'bg-white/3 border-white/6 hover:bg-white/6 hover:border-white/15'
+                          }`}
+                        >
+                          {/* Animated vector graphic in card background */}
+                          <div className="w-full h-15 relative overflow-hidden flex items-center justify-center bg-slate-950/60">
+                            
+                            {/* Universe 1: Space Rocket */}
+                            {u.id === 'espace' && (
+                              <svg className="w-full h-full text-indigo-400 opacity-80" viewBox="0 0 60 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="15" cy="15" r="1.2" fill="white" className="animate-pulse" />
+                                <circle cx="45" cy="25" r="1" fill="white" className="animate-pulse-slow" />
+                                <circle cx="35" cy="10" r="0.8" fill="white" />
+                                <circle cx="45" cy="12" r="3.5" fill="#f8fafc" opacity="0.8" />
+                                <ellipse cx="45" cy="12" rx="6" ry="1.5" fill="none" stroke="#a78bfa" strokeWidth="0.8" transform="rotate(-15 45 12)" />
+                                <path d="M12 25 L15 15 L22 17 L21 27 Z" fill="#FF4D6D" className="animate-bounce-slow" />
+                                <path d="M15 15 L22 17 L20 22 Z" fill="#f8fafc" />
+                                <path d="M10 28 L12 25 L14 27 Z" fill="#FFB020" />
+                              </svg>
+                            )}
+
+                            {/* Universe 2: Enchanted Forest */}
+                            {u.id === 'foret' && (
+                              <svg className="w-full h-full text-emerald-400 opacity-80" viewBox="0 0 60 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10 40 L20 18 L30 40 Z" fill="#047857" opacity="0.6" />
+                                <path d="M22 40 L32 12 L42 40 Z" fill="#059669" />
+                                <path d="M35 40 L42 22 L50 40 Z" fill="#10b981" opacity="0.7" />
+                                <path d="M5 25 L10 18 L15 25 Z" fill="#7C3AED" opacity="0.5" />
+                                <circle cx="28" cy="22" r="1" fill="#FFB020" className="animate-ping" />
+                                <circle cx="38" cy="18" r="0.8" fill="#FFB020" className="animate-pulse" />
+                                <circle cx="18" cy="30" r="0.8" fill="#FFB020" className="animate-pulse-slow" />
+                              </svg>
+                            )}
+
+                            {/* Universe 3: Dino Kingdom */}
+                            {u.id === 'dinos' && (
+                              <svg className="w-full h-full text-amber-500 opacity-85" viewBox="0 0 60 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M0 38 Q15 32 30 38 T60 38" stroke="#78350f" strokeWidth="2" fill="none" />
+                                <path d="M25 35 Q20 22 25 15 Q29 11 35 12 Q39 13 36 18 Q33 19 31 17 Q28 20 28 35 Z" fill="#06b6d4" className="animate-bounce-slow" />
+                                <circle cx="33" cy="14" r="0.75" fill="black" />
+                                <path d="M42 35 L48 20 L54 35 Z" fill="#b91c1c" />
+                                <path d="M47 21 L49 21 L48 18 Z" fill="#FFB020" className="animate-pulse" />
+                              </svg>
+                            )}
+
+                            {/* Universe 4: Mysterious Ocean */}
+                            {u.id === 'ocean' && (
+                              <svg className="w-full h-full text-sky-400 opacity-80" viewBox="0 0 60 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M0 15 Q15 10 30 15 T60 15 L60 40 L0 40 Z" fill="#0369a1" opacity="0.3" />
+                                <path d="M0 25 Q15 20 30 25 T60 25 L60 40 L0 40 Z" fill="#0284c7" opacity="0.5" />
+                                <rect x="24" y="16" width="10" height="9" rx="4.5" fill="#f43f5e" className="animate-bounce-slow" />
+                                <circle cx="27" cy="19" r="0.75" fill="white" />
+                                <circle cx="31" cy="19" r="0.75" fill="white" />
+                                <path d="M24 24 Q26 29 28 24 T32 24" stroke="#f43f5e" strokeWidth="1.5" fill="none" />
+                                <circle cx="15" cy="30" r="1" fill="white" opacity="0.6" className="animate-pulse" />
+                                <circle cx="18" cy="18" r="1.5" fill="white" opacity="0.4" className="animate-pulse-slow" />
+                                <circle cx="45" cy="22" r="1.2" fill="white" opacity="0.5" />
+                              </svg>
+                            )}
+
+                            {/* Universe 5: Gingerbread Candy World */}
+                            {u.id === 'bonbons' && (
+                              <svg className="w-full h-full text-pink-400 opacity-85" viewBox="0 0 60 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="15" cy="42" r="12" fill="#ec4899" opacity="0.4" />
+                                <circle cx="45" cy="42" r="15" fill="#f43f5e" opacity="0.5" />
+                                <circle cx="28" cy="18" r="6" fill="#f59e0b" className="animate-bounce-slow" />
+                                <path d="M28 12 A6 6 0 0 1 28 24" fill="#ef4444" />
+                                <rect x="27.2" y="24" width="1.6" height="12" fill="#e2e8f0" />
+                                <circle cx="12" cy="15" r="1" fill="#10b981" className="animate-pulse" />
+                                <circle cx="48" cy="12" r="1.2" fill="#3b82f6" className="animate-pulse-slow" />
+                              </svg>
+                            )}
+
+                          </div>
+
+                          {/* Universe Text information */}
+                          <div className="w-full py-1 bg-black/65 border-t border-white/5 text-center relative z-10">
+                            <span className="text-[8.5px] font-black text-white uppercase tracking-wider block">
+                              {u.name}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Descriptive subquote */}
+                  <p className="text-[8.5px] text-white/35 italic leading-relaxed text-center pt-0.5">
+                    « {UNIVERSES.find(u => u.id === selectedUniverse)?.desc} »
+                  </p>
+                </div>
+
+                {/* SECTION 3: VALEUR MORALE */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-5 h-5 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/30 flex items-center justify-center text-[9px] font-black text-[#a78bfa]">
+                      3
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-[#a78bfa]">
+                      Valeur douce enseignée (Morale)
+                    </span>
+                  </div>
+
+                  {/* Grid of Morals buttons */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {MORALS.map((m) => {
+                      const isSelected = selectedMoral === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          onClick={() => setSelectedMoral(m.id)}
+                          className={`px-3 py-2.5 rounded-xl border flex items-center justify-start space-x-2 transition-all duration-350 cursor-pointer text-left focus:outline-none relative group ${
+                            isSelected 
+                              ? 'bg-[#7C3AED]/12 border-[#7C3AED] shadow-[0_0_12px_rgba(124,58,237,0.25)]' 
+                              : 'bg-white/3 border-white/8 hover:bg-white/6 hover:border-white/15'
+                          }`}
+                        >
+                          {/* Selected overlay */}
+                          {isSelected && (
+                            <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#7C3AED] border border-[#a78bfa] flex items-center justify-center shadow-md animate-scale-up">
+                              <Check className="w-2 h-2 text-white stroke-[3.5]" />
+                            </div>
+                          )}
+                          <span className="text-base filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] shrink-0">{m.emoji}</span>
+                          <span className="text-[9.5px] font-black text-white uppercase tracking-wider leading-none">
+                            {m.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
               </div>
 
-              {/* Choice 2: The Universe */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-wider text-[#FFB020] flex items-center gap-1.5">
-                  <Compass className="w-4 h-4" /> Monde magique à explorer
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                  {UNIVERSES.map((u) => (
-                    <button
-                      key={u.id}
-                      onClick={() => setSelectedUniverse(u.id)}
-                      className={`p-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-between h-[82px] ${
-                        selectedUniverse === u.id 
-                          ? 'bg-[#FFB020]/15 border-[#FFB020] shadow-[0_0_12px_rgba(255,176,32,0.15)]' 
-                          : 'bg-white/5 border-white/10 hover:bg-white/8'
-                      }`}
-                    >
-                      <span className="text-2xl">{u.emoji}</span>
-                      <span className="text-[9px] font-bold text-white leading-none tracking-tight block mt-1">{u.name}</span>
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[9.5px] text-white/40 italic text-center">
-                  « {UNIVERSES.find(u => u.id === selectedUniverse)?.desc} »
-                </p>
+              {/* Glowing Action Buttons section */}
+              <div className="pt-4 border-t border-white/6 flex items-center space-x-2.5 relative z-10 w-full">
+                {/* Main magic wand generate button */}
+                <button
+                  onClick={handleStartGeneration}
+                  disabled={isCustomHero ? !customHeroName.trim() : !selectedHero.trim()}
+                  className="flex-1 bg-gradient-to-r from-violet-600 via-pink-500 to-[#FFB020] hover:brightness-110 shadow-[0_4px_20px_rgba(124,58,237,0.3)] transition-all active:scale-[0.98] font-black py-4.5 rounded-[20px] text-white flex items-center justify-center space-x-2 tracking-wide cursor-pointer disabled:opacity-50 disabled:pointer-events-none group"
+                >
+                  <Sparkles className="w-4 h-4 text-white animate-pulse group-hover:scale-110 transition-transform" />
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] font-black uppercase tracking-wider leading-none">GÉNÉRER L'HISTOIRE MAGIQUE</span>
+                    <span className="text-[7.5px] text-white/80 font-extrabold tracking-widest mt-0.5 leading-none">COMMENCER L'AVENTURE &gt;</span>
+                  </div>
+                </button>
+
+                {/* Soothing Pulse Microphone Button */}
+                <button
+                  onClick={() => {
+                    if (typeof window !== 'undefined' && window.speechSynthesis) {
+                      window.speechSynthesis.cancel();
+                    }
+                    setIsCustomHero(true);
+                    setSelectedHero('custom');
+                    setCustomHeroName("Voyageur des Étoiles");
+                  }}
+                  className="w-12 h-12 rounded-[20px] bg-gradient-to-tr from-pink-500 to-purple-600 hover:brightness-110 flex items-center justify-center text-white shadow-lg active:scale-95 transition-all cursor-pointer relative shrink-0"
+                  title="Saisir par voix ou audio"
+                >
+                  {/* Pulsing visual halo */}
+                  <div className="absolute inset-0 rounded-[20px] bg-pink-500/20 animate-ping"></div>
+                  <Mic className="w-4.5 h-4.5 relative z-10" />
+                </button>
               </div>
 
-              {/* Choice 3: The Moral */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-wider text-[#FFB020] flex items-center gap-1.5">
-                  <Heart className="w-4 h-4" /> Valeur douce enseignée (Morale)
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                  {MORALS.map((m) => (
-                    <button
-                      key={m.id}
-                      onClick={() => setSelectedMoral(m.id)}
-                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                        selectedMoral === m.id 
-                          ? 'bg-[#FFB020]/15 border-[#FFB020] shadow-[0_0_10px_rgba(255,176,32,0.1)]' 
-                          : 'bg-white/5 border-white/10 hover:bg-white/8'
-                      }`}
-                    >
-                      <span className="text-lg">{m.emoji}</span>
-                      <span className="text-[9px] font-extrabold text-white leading-none">{m.name}</span>
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[9.5px] text-white/40 italic text-center">
-                  Leçon : {MORALS.find(m => m.id === selectedMoral)?.desc}
-                </p>
+              {/* Parent security safety advice badge */}
+              <div className="flex justify-center items-center space-x-1 text-[8.5px] text-white/30 pt-3 leading-none w-full">
+                <Shield className="w-3 h-3 text-[#00D26A]" />
+                <span>Histoires adaptées • Contenu sécurisé • Validé par les parents</span>
               </div>
 
             </div>
 
-            {/* Glowing CTA Button */}
-            <button
-              onClick={handleStartGeneration}
-              disabled={!selectedHero.trim()}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#FFB020] to-[#FF4D6D] text-black font-extrabold text-xs uppercase tracking-widest hover:opacity-95 hover:scale-[1.01] active:scale-95 transition-all shadow-lg shadow-[#FFB020]/20 flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
-            >
-              <Sparkles className="w-4 h-4 animate-spin-slow" />
-              <span>Générer l'histoire magique</span>
-            </button>
           </div>
         )}
 
@@ -841,8 +1212,8 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
                  'Dessin des pages dorées...'}
               </span>
               <h3 className="text-base font-extrabold text-white">Création du livre magique</h3>
-              <p className="text-[11px] text-white/50 leading-relaxed">
-                {genStep === 1 && `Rédaction de l'expédition de ${selectedHero} dans ${UNIVERSES.find(u => u.id === selectedUniverse)?.name}...`}
+              <p className="text-[11px] text-white/50 leading-relaxed font-sans">
+                {genStep === 1 && `Rédaction de l'expédition de ${isCustomHero ? customHeroName.trim() : selectedHero} dans ${UNIVERSES.find(u => u.id === selectedUniverse)?.name}...`}
                 {genStep === 2 && `Incorporation des dialogues et de la leçon sur ${MORALS.find(m => m.id === selectedMoral)?.name.toLowerCase()}...`}
                 {genStep === 3 && `Génération des chapitres audio et de l'ambiance sonore...`}
               </p>
