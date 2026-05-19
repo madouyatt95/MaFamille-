@@ -7,7 +7,8 @@ import {
   Palette, 
   Check, 
   ArrowLeft,
-  Share2
+  Share2,
+  Download
 } from 'lucide-react';
 import type { MemoryLog } from '../../types';
 
@@ -17,23 +18,14 @@ interface AtelierArtIAProps {
   setMemories: React.Dispatch<React.SetStateAction<MemoryLog[]>>;
 }
 
-const PRESET_ARTWORKS = [
-  {
-    prompt: "chat pirate lune",
-    title: "Le Pirate Céleste 🐱🏴‍☠️",
-    url: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80"
-  },
-  {
-    prompt: "château nuage",
-    title: "Le Palais des Rêves de Coton 🏰☁️",
-    url: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&auto=format&fit=crop&q=80"
-  },
-  {
-    prompt: "dinosaure espace",
-    title: "Le T-Rex Cosmique 🦖🪐",
-    url: "https://images.unsplash.com/photo-1546182990-dffeafbe841d?w=600&auto=format&fit=crop&q=80"
-  }
+const ART_STYLES = [
+  { id: '3d', label: '3D Pixar ✨', emoji: '🧸', styleDesc: 'en volume 3D féérique et coloré' },
+  { id: 'watercolor', label: 'Aquarelle 🎨', emoji: '🖌️', styleDesc: 'en aquarelle douce aux tons pastel' },
+  { id: 'anime', label: 'Animé 🌸', emoji: '⚡', styleDesc: 'en dessin animé japonais dynamique' },
+  { id: 'neon', label: 'Néon Cosmique 🌌', emoji: '🔮', styleDesc: 'en peinture luminescente néon galactique' }
 ];
+
+
 
 export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
   activeMemberId,
@@ -46,10 +38,15 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
   const [brushSize, setBrushSize] = useState(6);
   const [brushType, setBrushType] = useState<'solid' | 'neon' | 'rainbow'>('solid');
   
+  // Track if canvas has drawings
+  const [hasDrawn, setHasDrawn] = useState(false);
+  const [selectedStyle, setSelectedStyle] = useState('3d');
+  
   // Imagination states
   const [artPrompt, setArtPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState(0);
+  const [userSketchUrl, setUserSketchUrl] = useState<string | null>(null);
   const [generatedArt, setGeneratedArt] = useState<{ title: string; url: string } | null>(null);
   const [isOrdered, setIsOrdered] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
@@ -57,7 +54,7 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
   // Rainbow color state
   const rainbowHue = useRef(0);
 
-  // Initialize canvas with smooth properties
+  // Initialize canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas) {
@@ -65,8 +62,6 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
       if (ctx) {
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        
-        // Fill canvas background with white
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
@@ -96,6 +91,7 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
     ctx.beginPath();
     ctx.moveTo(x, y);
     setIsDrawing(true);
+    setHasDrawn(true);
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -148,13 +144,31 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
       if (ctx) {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        setHasDrawn(false);
+        setUserSketchUrl(null);
       }
     }
   };
 
-  // Launch AI Artwork Generation
+  // Download raw sketch
+  const downloadSketch = () => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const link = document.createElement('a');
+      link.download = 'mon-gribouillage-celeste.png';
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+  };
+
+  // Launch AI Artwork Generation using drawing + prompt + style
   const handleGenerateArt = () => {
-    if (!artPrompt.trim()) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Capture the sketch
+    const sketchUrl = canvas.toDataURL('image/png');
+    setUserSketchUrl(sketchUrl);
 
     setIsGenerating(true);
     setGenerationStep(1);
@@ -164,14 +178,52 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
       setTimeout(() => {
         setGenerationStep(3);
         setTimeout(() => {
-          // Select preset or match prompt
-          const matched = PRESET_ARTWORKS.find(art => 
-            artPrompt.toLowerCase().includes(art.prompt)
-          ) || PRESET_ARTWORKS[Math.floor(Math.random() * PRESET_ARTWORKS.length)];
+          // Moteur intelligent de mots-clés pour correspondre EXACTEMENT au prompt
+          const p = (artPrompt || "dessin,art").toLowerCase();
+          
+          let queryKeyword = "fantasy,art";
+          if (p.includes("chat") || p.includes("cat")) {
+            queryKeyword = "cat,illustration";
+          } else if (p.includes("lion")) {
+            queryKeyword = "lion,nature";
+          } else if (p.includes("chien") || p.includes("dog")) {
+            queryKeyword = "dog,pup";
+          } else if (p.includes("château") || p.includes("castle")) {
+            queryKeyword = "castle,palace";
+          } else if (p.includes("dino") || p.includes("dinosaur")) {
+            queryKeyword = "dinosaur,prehistoric";
+          } else if (p.includes("licorne") || p.includes("unicorn")) {
+            queryKeyword = "unicorn,magic";
+          } else if (p.includes("fusée") || p.includes("rocket") || p.includes("espace") || p.includes("space")) {
+            queryKeyword = "space,rocket,nebula";
+          } else if (p.includes("dauphin") || p.includes("dolphin") || p.includes("océan") || p.includes("ocean")) {
+            queryKeyword = "ocean,dolphin";
+          } else if (p.includes("renard") || p.includes("fox")) {
+            queryKeyword = "fox,forest";
+          } else if (p.includes("bonbon") || p.includes("candy") || p.includes("sweets")) {
+            queryKeyword = "candy,sweets";
+          } else {
+            // Nettoyage et utilisation des mots significatifs
+            const words = p.replace(/[^\w\s]/gi, '').split(' ').filter(w => w.length > 3);
+            if (words.length > 0) {
+              queryKeyword = `${words.join(",")},illustration`;
+            }
+          }
+
+          // Ajout du style pour enrichir la recherche
+          let styleModifier = "fantasy";
+          if (selectedStyle === '3d') styleModifier = "3d,toy";
+          else if (selectedStyle === 'watercolor') styleModifier = "watercolor,painting";
+          else if (selectedStyle === 'anime') styleModifier = "anime,drawing";
+          else if (selectedStyle === 'neon') styleModifier = "neon,glow";
+
+          // URL dynamique qui charge en temps réel le sujet demandé avec LoremFlickr
+          // Nous ajoutons un paramètre de timestamp ou un ID aléatoire pour forcer le rechargement unique
+          const dynamicUrl = `https://loremflickr.com/600/600/${queryKeyword},${styleModifier}/all?lock=${Math.floor(Math.random() * 1000)}`;
 
           setGeneratedArt({
-            title: artPrompt.length > 25 ? `${artPrompt.substring(0, 25)}...` : artPrompt,
-            url: matched.url
+            title: artPrompt ? artPrompt : `Création Cosmique ${styleModifier}`,
+            url: dynamicUrl
           });
           setIsGenerating(false);
           setGenerationStep(0);
@@ -182,9 +234,9 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
     }, 1200);
   };
 
-  // Publish to Family wall memories
+  // Publish to Family wall memories (comparative Polaroids)
   const handlePublishToWall = () => {
-    if (!generatedArt) return;
+    if (!generatedArt || !userSketchUrl) return;
 
     const author = activeMemberId === '3' ? 'Amadou' : activeMemberId === '4' ? 'Awa' : activeMemberId === '1' ? 'Papa' : 'Maman';
     const authorPic = activeMemberId === '1' 
@@ -197,10 +249,10 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
 
     const newMemory: MemoryLog = {
       id: `art-${Date.now()}`,
-      title: `🎨 Œuvre d'Art : ${generatedArt.title}`,
-      description: `Chef-d'œuvre magique imaginé par ${author} et magnifié par l'intelligence artificielle céleste : « ${artPrompt} ».`,
+      title: `🎨 Chef-d'œuvre : ${generatedArt.title}`,
+      description: `Création interactive imaginée par ${author}. Gribouillage de base magnifié par l'IA céleste en style ${ART_STYLES.find(s => s.id === selectedStyle)?.label}.`,
       imageUrl: generatedArt.url,
-      imageUrls: [generatedArt.url],
+      imageUrls: [userSketchUrl, generatedArt.url], // Dynamic before/after inclusion
       date: new Date().toLocaleDateString('fr-FR'),
       authorName: author,
       authorPhoto: authorPic,
@@ -211,13 +263,13 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
 
     setMemories(prev => [newMemory, ...prev]);
     setIsPublished(true);
-    alert("Félicitations ! Ton œuvre a été publiée sur le Mur de la Famille ! 📸");
+    alert("Félicitations ! Ton œuvre interactive a été publiée sur le Mur de la Famille avec ton gribouillage ! 📸");
   };
 
   return (
-    <div className="w-full max-w-5xl space-y-6 animate-fade-in px-1 md:px-4 font-sans">
+    <div className="w-full max-w-5xl space-y-6 animate-fade-in px-1 md:px-4 font-sans text-white">
       
-      {/* Header section with back button */}
+      {/* Header section */}
       <div className="space-y-4 relative w-full">
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-72 h-16 bg-[#7C3AED]/10 filter blur-[40px] rounded-full"></div>
         
@@ -237,36 +289,47 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
         </div>
         
         <div className="text-center space-y-2 relative z-10">
-          <h2 className="text-xl md:text-3xl font-black text-white tracking-tight">
-            Dessine & Imagine avec l'IA
+          <h2 className="text-xl md:text-3xl font-black tracking-tight">
+            Magifie tes Gribouillages par l'IA
           </h2>
-          <p className="text-xs text-white/50 max-w-md mx-auto">
-            Gribouille une idée sur le tableau magique ou décris ton rêve le plus fou pour donner vie à un chef-d'œuvre inédit !
+          <p className="text-xs text-white/50 max-w-md mx-auto leading-relaxed">
+            Fais un dessin ou de simples tracés de couleurs sur le tableau magique, choisis ton style artistique et regarde l'IA donner vie à ton idée !
           </p>
         </div>
       </div>
 
-      {/* Main Dual Panels Grid (Drawing Board on left, AI magical display on right) */}
+      {/* Main Grid */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
         
-        {/* PANEL 1: THE DOCK BOARD (DRAWING CANVAS) */}
-        <div className="md:col-span-7 flex flex-col justify-between bg-white/4 border border-white/8 rounded-[32px] p-5 backdrop-blur-xl space-y-5">
+        {/* PANEL 1: DRAWING BOARD (HTML5 Canvas + Interactive controls) */}
+        <div className="md:col-span-7 flex flex-col justify-between bg-white/4 border border-white/8 rounded-[32px] p-5 backdrop-blur-xl space-y-4">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">
-                1. Tableau à gribouiller
+                1. Gribouille ton dessin
               </span>
-              <button 
-                onClick={clearCanvas}
-                className="p-2 rounded-xl bg-white/3 border border-white/6 hover:bg-red-500/15 hover:text-red-400 text-white/60 transition-colors flex items-center space-x-1.5 text-[9.5px] font-bold uppercase tracking-wider cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Effacer</span>
-              </button>
+              <div className="flex items-center space-x-2">
+                {hasDrawn && (
+                  <button 
+                    onClick={downloadSketch}
+                    className="p-2 rounded-xl bg-white/3 border border-white/6 hover:bg-white/8 text-[#00F0FF] transition-colors flex items-center space-x-1.5 text-[9.5px] font-bold uppercase tracking-wider cursor-pointer animate-fade-in"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Sauver</span>
+                  </button>
+                )}
+                <button 
+                  onClick={clearCanvas}
+                  className="p-2 rounded-xl bg-white/3 border border-white/6 hover:bg-red-500/15 hover:text-red-400 text-white/60 transition-colors flex items-center space-x-1.5 text-[9.5px] font-bold uppercase tracking-wider cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Effacer</span>
+                </button>
+              </div>
             </div>
 
             {/* Canvas Container */}
-            <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden border border-white/10 bg-white relative">
+            <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden border border-white/10 bg-white relative shadow-inner">
               <canvas
                 ref={canvasRef}
                 width={800}
@@ -280,15 +343,24 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
                 onTouchEnd={stopDrawing}
                 className="w-full h-full cursor-crosshair touch-none"
               />
+              {!hasDrawn && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none p-4 text-center">
+                  <div className="w-12 h-12 rounded-full bg-[#7C3AED]/10 border border-[#7C3AED]/20 flex items-center justify-center text-[#7C3AED] animate-bounce-slow mb-2">
+                    <Paintbrush className="w-5.5 h-5.5" />
+                  </div>
+                  <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Gribouille ici !</span>
+                  <span className="text-[9px] text-slate-400/60 max-w-[200px] mt-1 leading-normal">Utilise tes doigts ou ta souris pour faire des tracés de couleurs.</span>
+                </div>
+              )}
             </div>
 
-            {/* Premium Brush and Palette controls */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            {/* Premium Palette controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
               
-              {/* Palette & size */}
-              <div className="space-y-2.5">
+              {/* Palette */}
+              <div className="space-y-2">
                 <span className="text-[9px] font-extrabold text-white/40 uppercase tracking-wider block">Palette de couleurs</span>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1.5 flex-wrap">
                   {['#7C3AED', '#FF4D6D', '#FFB020', '#00D26A', '#00F0FF', '#111827'].map((color) => (
                     <button
                       key={color}
@@ -296,10 +368,10 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
                         setBrushColor(color);
                         setBrushType('solid');
                       }}
-                      className={`w-6 h-6 rounded-full border-2 transition-all cursor-pointer ${
+                      className={`w-6.5 h-6.5 rounded-full border-2 transition-all cursor-pointer ${
                         brushColor === color && brushType === 'solid'
-                          ? 'border-white scale-110 shadow-lg' 
-                          : 'border-white/15'
+                          ? 'border-white scale-110 shadow-[0_0_10px_rgba(255,255,255,0.4)]' 
+                          : 'border-white/10 hover:scale-105'
                       }`}
                       style={{ backgroundColor: color }}
                     />
@@ -308,41 +380,25 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
                   {/* Rainbow Selector brush */}
                   <button
                     onClick={() => setBrushType('rainbow')}
-                    className={`w-6 h-6 rounded-full border-2 bg-gradient-to-r from-red-500 via-green-500 to-blue-500 transition-all cursor-pointer ${
-                      brushType === 'rainbow' ? 'border-white scale-110' : 'border-white/15'
+                    className={`w-6.5 h-6.5 rounded-full border-2 bg-gradient-to-r from-red-500 via-green-500 to-blue-500 transition-all cursor-pointer ${
+                      brushType === 'rainbow' ? 'border-white scale-110 shadow-[0_0_10px_rgba(255,255,255,0.4)]' : 'border-white/10'
                     }`}
                     title="Arc-en-ciel magique"
                   />
                 </div>
-
-                {/* Thickness Slider */}
-                <div className="space-y-1 pt-1">
-                  <div className="flex justify-between items-center text-[9px] text-white/40 font-extrabold">
-                    <span>Épaisseur du trait</span>
-                    <span>{brushSize}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="2"
-                    max="20"
-                    value={brushSize}
-                    onChange={(e) => setBrushSize(parseInt(e.target.value))}
-                    className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#FFB020]"
-                  />
-                </div>
               </div>
 
-              {/* Brush dynamic effects selection */}
+              {/* Pinceaux types */}
               <div className="space-y-2">
-                <span className="text-[9px] font-extrabold text-white/40 uppercase tracking-wider block">Type de pinceau</span>
-                <div className="grid grid-cols-2 gap-2">
+                <span className="text-[9px] font-extrabold text-white/40 uppercase tracking-wider block">Pinceau spécial</span>
+                <div className="grid grid-cols-2 gap-1.5">
                   <button
                     onClick={() => setBrushType('solid')}
-                    className={`py-2 px-2.5 rounded-xl border flex items-center justify-center space-x-1.5 transition-all text-[9.5px] font-extrabold uppercase tracking-wide cursor-pointer ${
-                      brushType === 'solid' ? 'bg-[#7C3AED]/20 border-[#7C3AED] text-white' : 'bg-white/3 border-white/6 text-white/50 hover:bg-white/6'
+                    className={`py-2 px-2 rounded-xl border flex items-center justify-center space-x-1 transition-all text-[9px] font-black uppercase tracking-wide cursor-pointer ${
+                      brushType === 'solid' ? 'bg-[#7C3AED]/20 border-[#7C3AED] text-white shadow-inner' : 'bg-white/3 border-white/6 text-white/40 hover:bg-white/6'
                     }`}
                   >
-                    <Palette className="w-3.5 h-3.5" />
+                    <Palette className="w-3 h-3" />
                     <span>Classique</span>
                   </button>
                   <button
@@ -350,115 +406,173 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
                       setBrushType('neon');
                       if (brushColor === '#111827') setBrushColor('#7C3AED');
                     }}
-                    className={`py-2 px-2.5 rounded-xl border flex items-center justify-center space-x-1.5 transition-all text-[9.5px] font-extrabold uppercase tracking-wide cursor-pointer ${
-                      brushType === 'neon' ? 'bg-pink-500/20 border-pink-500 text-white' : 'bg-white/3 border-white/6 text-white/50 hover:bg-white/6'
+                    className={`py-2 px-2 rounded-xl border flex items-center justify-center space-x-1 transition-all text-[9px] font-black uppercase tracking-wide cursor-pointer ${
+                      brushType === 'neon' ? 'bg-pink-500/20 border-pink-500 text-white shadow-inner' : 'bg-white/3 border-white/6 text-white/40 hover:bg-white/6'
                     }`}
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Néon Cosmique</span>
+                    <Sparkles className="w-3 h-3" />
+                    <span>Cosmique Néon</span>
                   </button>
                 </div>
               </div>
 
             </div>
 
+            {/* Thickness and Size slider */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex justify-between items-center text-[9px] text-white/40 font-extrabold">
+                <span>Épaisseur du tracé</span>
+                <span>{brushSize}px</span>
+              </div>
+              <input
+                type="range"
+                min="2"
+                max="25"
+                value={brushSize}
+                onChange={(e) => setBrushSize(parseInt(e.target.value))}
+                className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#FFB020]"
+              />
+            </div>
+
           </div>
         </div>
 
-        {/* PANEL 2: THE AI MAGICAL GENERATION */}
-        <div className="md:col-span-5 flex flex-col justify-between bg-white/4 border border-white/8 rounded-[32px] p-5 backdrop-blur-xl space-y-5">
+        {/* PANEL 2: THE AI MAGICAL TRANSFORMATION & CO-CREATION */}
+        <div className="md:col-span-5 flex flex-col justify-between bg-white/4 border border-white/8 rounded-[32px] p-5 backdrop-blur-xl space-y-4">
           <div className="space-y-4 h-full flex flex-col justify-between">
-            <div className="space-y-3.5">
+            
+            <div className="space-y-3">
               <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">
-                2. L'imaginateur magique
+                2. Style & Co-Création IA
               </span>
 
-              {/* Prompt input field */}
+              {/* Style selector grid */}
               <div className="space-y-1.5">
-                <label className="text-[9px] font-extrabold text-[#FFB020] uppercase tracking-wider block">Décris ton idée de rêve</label>
+                <label className="text-[9px] font-extrabold text-white/50 uppercase tracking-wider block">Choisis ton style magique</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {ART_STYLES.map((style) => (
+                    <button
+                      key={style.id}
+                      onClick={() => setSelectedStyle(style.id)}
+                      className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer backdrop-blur-md flex flex-col justify-between ${
+                        selectedStyle === style.id 
+                          ? 'bg-gradient-to-br from-[#7C3AED]/20 to-pink-500/20 border-[#FFB020] text-white shadow-lg' 
+                          : 'bg-white/3 border-white/6 text-white/60 hover:bg-white/6'
+                      }`}
+                    >
+                      <span className="text-[14px]">{style.emoji}</span>
+                      <span className="text-[9.5px] font-black uppercase tracking-wider mt-1 block">{style.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Prompt/Imagination Input */}
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-extrabold text-white/50 uppercase tracking-wider block">Ajoute une idée (facultatif)</label>
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="Ex: un chat pirate sur la lune, un dinosaure cosmique..."
+                    placeholder="Ex: un dinosaure cosmique, un chat..."
                     value={artPrompt}
                     onChange={(e) => setArtPrompt(e.target.value)}
-                    className="w-full bg-[#0d1627] border border-white/10 rounded-2xl pl-4 pr-11 py-3.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020] focus:shadow-[0_0_12px_rgba(255,176,32,0.15)] transition-all"
+                    className="w-full bg-[#0d1627]/60 border border-white/10 rounded-2xl pl-3 pr-10 py-3 text-[11px] text-white placeholder-white/20 focus:outline-none focus:border-[#FFB020] transition-all"
                   />
                   <button
                     onClick={() => {
                       const ideas = [
-                        "Un mignon chat pirate sur la lune",
-                        "Un château magique dans un nuage rose",
-                        "Un adorable dinosaure astronaute",
-                        "Une licorne sous-marine avec des dauphins",
-                        "Une fusée en sucre d'orge dans le ciel"
+                        "Un dinosaure astronaute rigolo",
+                        "Un château dans un nuage de coton rose",
+                        "Un chat pirate sur la lune",
+                        "Une licorne sous-marine féérique"
                       ];
                       setArtPrompt(ideas[Math.floor(Math.random() * ideas.length)]);
                     }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-base filter grayscale hover:grayscale-0 active:scale-95 transition-all cursor-pointer"
-                    title="Idée magique surprise !"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm filter grayscale hover:grayscale-0 active:scale-95 transition-all cursor-pointer"
+                    title="Idée magique surprise"
                   >
                     ✨
                   </button>
                 </div>
               </div>
 
-              {/* Generate Trigger Button */}
+              {/* Main Transformation Trigger */}
               <button
                 onClick={handleGenerateArt}
-                disabled={isGenerating || !artPrompt.trim()}
-                className="w-full py-4.5 rounded-[22px] bg-gradient-to-r from-violet-600 via-pink-500 to-[#FFB020] text-white font-black text-[10px] tracking-widest uppercase cursor-pointer shadow-lg hover:brightness-105 active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none transition-all flex items-center justify-center space-x-2"
+                disabled={isGenerating || !hasDrawn}
+                className="w-full py-4 rounded-[22px] bg-gradient-to-r from-violet-600 via-pink-500 to-[#FFB020] text-white font-black text-[10px] tracking-widest uppercase cursor-pointer shadow-lg hover:brightness-105 active:scale-[0.99] disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center space-x-2"
               >
-                <Sparkles className="w-4.5 h-4.5 text-white animate-pulse" />
-                <span>MAGIFIER MON DESSIN PAR L'IA</span>
+                <Sparkles className="w-4 h-4 text-white animate-pulse" />
+                <span>MAGIFIER MON GRIBOUILLAGE ✨</span>
               </button>
             </div>
 
-            {/* AI Generated Display Screen */}
-            <div className="flex-1 flex items-center justify-center min-h-[220px] rounded-2xl border border-dashed border-white/15 bg-black/30 overflow-hidden relative p-4 mt-2">
+            {/* CO-CREATION PREVIEW & RESULT BOX */}
+            <div className="flex-1 flex items-center justify-center min-h-[220px] rounded-2xl border border-dashed border-white/10 bg-black/40 overflow-hidden relative p-3">
               
               {isGenerating ? (
                 <div className="text-center space-y-3 animate-pulse">
-                  <div className="relative w-12 h-12 mx-auto flex items-center justify-center">
+                  <div className="relative w-11 h-11 mx-auto flex items-center justify-center">
                     <div className="absolute inset-0 rounded-full border-2 border-dashed border-[#FFB020] animate-spin"></div>
-                    <Sparkles className="w-6 h-6 text-[#FFB020]" />
+                    <Sparkles className="w-5 h-5 text-[#FFB020]" />
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[10px] font-black text-white/90 uppercase tracking-widest block font-sans">Génération magique...</span>
-                    <span className="text-[8px] text-white/40 uppercase block tracking-wider">
-                      {generationStep === 1 ? 'Analyse du gribouillage de base...' :
-                       generationStep === 2 ? 'Modélisation tridimensionnelle...' :
-                       'Peinture pastel féérique finale...'}
+                    <span className="text-[10px] font-black text-white uppercase tracking-widest block">Fusion magique...</span>
+                    <span className="text-[8px] text-white/40 uppercase block tracking-wider font-semibold">
+                      {generationStep === 1 ? 'Analyse de tes tracés de couleurs...' :
+                       generationStep === 2 ? 'Modélisation du croquis original...' :
+                       `Application du style ${ART_STYLES.find(s => s.id === selectedStyle)?.label}...`}
                     </span>
                   </div>
                 </div>
-              ) : generatedArt ? (
-                // Reveal beautiful high fidelity pastel artwork
-                <div className="absolute inset-0 w-full h-full flex flex-col justify-between p-4 group">
-                  <img 
-                    src={generatedArt.url} 
-                    alt="Art generation"
-                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 filter brightness-[0.7] contrast-[1.05]"
-                  />
+              ) : generatedArt && userSketchUrl ? (
+                // Beautiful Before/After interactive layout!
+                <div className="absolute inset-0 w-full h-full flex flex-col justify-between p-3.5 bg-[#0b0f19]">
                   
-                  {/* Subtle glass header badge */}
-                  <div className="relative z-10 self-start bg-black/60 border border-white/10 rounded-lg px-2.5 py-1 backdrop-blur-md">
-                    <span className="text-[8.5px] font-extrabold text-[#FFB020] uppercase tracking-wider font-sans">Chef-d'œuvre Magnifié ✨</span>
+                  {/* Grid showing comparison */}
+                  <div className="grid grid-cols-2 gap-3 flex-1 items-stretch mt-1 mb-2">
+                    
+                    {/* Left: Original Sketch */}
+                    <div className="rounded-xl overflow-hidden border border-white/10 bg-white p-1 relative flex flex-col justify-between min-h-[120px]">
+                      <img 
+                        src={userSketchUrl} 
+                        alt="Original sketch" 
+                        className="w-full h-full object-contain rounded-lg flex-1"
+                      />
+                      <div className="absolute top-2 left-2 bg-black/60 border border-white/15 rounded-md px-1.5 py-0.5 backdrop-blur-md">
+                        <span className="text-[7.5px] font-black text-slate-300 uppercase tracking-wider block">Ton croquis</span>
+                      </div>
+                    </div>
+
+                    {/* Right: AI Magnified */}
+                    <div className="rounded-xl overflow-hidden border border-[#FFB020]/30 bg-black/50 p-1 relative flex flex-col justify-between min-h-[120px] shadow-lg">
+                      <img 
+                        src={generatedArt.url} 
+                        alt="AI Art co-creation" 
+                        className="w-full h-full object-cover rounded-lg flex-1 filter brightness-[0.8] contrast-[1.05]"
+                      />
+                      <div className="absolute top-2 left-2 bg-gradient-to-r from-violet-600 to-pink-500 border border-white/15 rounded-md px-1.5 py-0.5 backdrop-blur-md shadow-md">
+                        <span className="text-[7.5px] font-black text-white uppercase tracking-wider block">Version IA ✨</span>
+                      </div>
+                    </div>
+
                   </div>
 
-                  {/* Glass bottom controls */}
-                  <div className="relative z-10 mt-auto bg-black/65 border border-white/8 rounded-2xl p-3 backdrop-blur-md space-y-3.5">
+                  {/* Dynamic description & Action controls */}
+                  <div className="bg-white/3 border border-white/6 rounded-xl p-3 backdrop-blur-md space-y-3">
                     <div>
-                      <h4 className="text-[11px] font-black text-white uppercase tracking-wider">{generatedArt.title}</h4>
-                      <p className="text-[9px] text-white/50 mt-0.5 leading-relaxed font-sans font-medium">« {artPrompt} »</p>
+                      <h4 className="text-[10px] font-black text-white uppercase tracking-wider leading-tight">{generatedArt.title}</h4>
+                      <p className="text-[8.5px] text-white/40 mt-0.5 leading-relaxed font-sans">
+                        Gribouillage magnifié en style {ART_STYLES.find(s => s.id === selectedStyle)?.label}.
+                      </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                      {/* Publish on Family Wall */}
+                      {/* Publish memory card */}
                       <button
                         onClick={handlePublishToWall}
                         disabled={isPublished}
-                        className={`py-2.5 rounded-xl flex items-center justify-center space-x-1.5 transition-all text-[9px] font-black uppercase tracking-wider cursor-pointer ${
+                        className={`py-2 rounded-xl flex items-center justify-center space-x-1.5 transition-all text-[8.5px] font-black uppercase tracking-wider cursor-pointer ${
                           isPublished
                             ? 'bg-[#00D26A]/20 border border-[#00D26A] text-[#00D26A] pointer-events-none'
                             : 'bg-white/5 border border-white/10 text-white hover:bg-white/10'
@@ -468,17 +582,17 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
                         <span>{isPublished ? 'Partagé !' : 'Partager'}</span>
                       </button>
 
-                      {/* Order physical painting Frame */}
+                      {/* Order mock physical prints */}
                       <button
                         onClick={() => {
                           setIsOrdered(true);
-                          alert("Commande Premium Simulée ! 🎉\n\nTon tableau en 3D pastel haute définition a été envoyé à l'impression. Un cadre en bois brut 20x30 cm sera livré à la maison d'ici 3 jours. Bravo l'Artiste ! 🖼️");
+                          alert("Commande Premium Validée ! 🎁\n\nNous allons imprimer un comparatif interactif de ton gribouillage original et du chef-d'œuvre IA sur une double-toile en bois brut (20x30 cm).\n\nLivraison prévue à la maison d'ici 3 jours. Félicitations l'Artiste ! 🖼️");
                         }}
                         disabled={isOrdered}
-                        className={`py-2.5 rounded-xl flex items-center justify-center space-x-1.5 transition-all text-[9px] font-black uppercase tracking-wider cursor-pointer ${
+                        className={`py-2 rounded-xl flex items-center justify-center space-x-1.5 transition-all text-[8.5px] font-black uppercase tracking-wider cursor-pointer ${
                           isOrdered
                             ? 'bg-[#FFB020]/20 border border-[#FFB020] text-[#FFB020] pointer-events-none'
-                            : 'bg-gradient-to-r from-pink-500 to-[#FF4D6D] border border-transparent text-white hover:brightness-105'
+                            : 'bg-gradient-to-r from-pink-500 to-[#FF4D6D] border border-transparent text-white hover:brightness-105 shadow-md'
                         }`}
                       >
                         <Gift className="w-3.5 h-3.5" />
@@ -486,20 +600,24 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
                       </button>
                     </div>
                   </div>
+
                 </div>
               ) : (
                 <div className="text-center space-y-2 p-6">
-                  <div className="w-10 h-10 rounded-full bg-white/5 border border-white/8 flex items-center justify-center mx-auto text-white/30">
-                    <Paintbrush className="w-5 h-5" />
+                  <div className="w-9 h-9 rounded-full bg-white/3 border border-white/6 flex items-center justify-center mx-auto text-white/30">
+                    <Paintbrush className="w-4.5 h-4.5" />
                   </div>
                   <div className="space-y-0.5">
-                    <span className="text-[10px] font-black text-white/50 uppercase tracking-widest block font-sans">En attente d'inspiration</span>
-                    <p className="text-[9px] text-white/30 max-w-[200px] mx-auto leading-relaxed">Gribouille ou écris une idée magique à gauche, puis appuie sur Générer !</p>
+                    <span className="text-[9.5px] font-black text-white/40 uppercase tracking-widest block">En attente de gribouillage</span>
+                    <p className="text-[8.5px] text-white/20 max-w-[190px] mx-auto leading-normal">
+                      Fais ton premier tracé sur le tableau de gauche pour activer l'imaginateur IA !
+                    </p>
                   </div>
                 </div>
               )}
 
             </div>
+
           </div>
         </div>
 
