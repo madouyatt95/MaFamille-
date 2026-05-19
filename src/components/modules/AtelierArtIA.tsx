@@ -166,9 +166,13 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Capture the sketch
-    const sketchUrl = canvas.toDataURL('image/png');
-    setUserSketchUrl(sketchUrl);
+    // Capture the sketch ONLY if user actually drew something
+    if (hasDrawn) {
+      const sketchUrl = canvas.toDataURL('image/png');
+      setUserSketchUrl(sketchUrl);
+    } else {
+      setUserSketchUrl(null);
+    }
 
     setIsGenerating(true);
     setGenerationStep(1);
@@ -179,29 +183,29 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
         setGenerationStep(3);
         setTimeout(() => {
           // Moteur intelligent de mots-clés pour correspondre EXACTEMENT au prompt
-          const p = (artPrompt || "dessin,art").toLowerCase();
+          const p = (artPrompt || "fantasy,magic").toLowerCase();
           
           let queryKeyword = "fantasy,art";
           if (p.includes("chat") || p.includes("cat")) {
-            queryKeyword = "cat,illustration";
+            queryKeyword = "cat,cartoon,illustration";
           } else if (p.includes("lion")) {
-            queryKeyword = "lion,nature";
+            queryKeyword = "lion,illustration,art";
           } else if (p.includes("chien") || p.includes("dog")) {
-            queryKeyword = "dog,pup";
+            queryKeyword = "dog,cute,illustration";
           } else if (p.includes("château") || p.includes("castle")) {
-            queryKeyword = "castle,palace";
+            queryKeyword = "castle,magic,palace";
           } else if (p.includes("dino") || p.includes("dinosaur")) {
-            queryKeyword = "dinosaur,prehistoric";
+            queryKeyword = "dinosaur,prehistoric,cartoon";
           } else if (p.includes("licorne") || p.includes("unicorn")) {
-            queryKeyword = "unicorn,magic";
+            queryKeyword = "unicorn,magic,fairy";
           } else if (p.includes("fusée") || p.includes("rocket") || p.includes("espace") || p.includes("space")) {
-            queryKeyword = "space,rocket,nebula";
+            queryKeyword = "space,rocket,nebula,galaxy";
           } else if (p.includes("dauphin") || p.includes("dolphin") || p.includes("océan") || p.includes("ocean")) {
-            queryKeyword = "ocean,dolphin";
+            queryKeyword = "ocean,dolphin,underwater";
           } else if (p.includes("renard") || p.includes("fox")) {
-            queryKeyword = "fox,forest";
+            queryKeyword = "fox,forest,cute";
           } else if (p.includes("bonbon") || p.includes("candy") || p.includes("sweets")) {
-            queryKeyword = "candy,sweets";
+            queryKeyword = "candy,sweets,land";
           } else {
             // Nettoyage et utilisation des mots significatifs
             const words = p.replace(/[^\w\s]/gi, '').split(' ').filter(w => w.length > 3);
@@ -212,14 +216,13 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
 
           // Ajout du style pour enrichir la recherche
           let styleModifier = "fantasy";
-          if (selectedStyle === '3d') styleModifier = "3d,toy";
+          if (selectedStyle === '3d') styleModifier = "3d,rendering,toy";
           else if (selectedStyle === 'watercolor') styleModifier = "watercolor,painting";
-          else if (selectedStyle === 'anime') styleModifier = "anime,drawing";
-          else if (selectedStyle === 'neon') styleModifier = "neon,glow";
+          else if (selectedStyle === 'anime') styleModifier = "anime,cartoon";
+          else if (selectedStyle === 'neon') styleModifier = "neon,glowing";
 
-          // URL dynamique qui charge en temps réel le sujet demandé avec LoremFlickr
-          // Nous ajoutons un paramètre de timestamp ou un ID aléatoire pour forcer le rechargement unique
-          const dynamicUrl = `https://loremflickr.com/600/600/${queryKeyword},${styleModifier}/all?lock=${Math.floor(Math.random() * 1000)}`;
+          // URL dynamique Unsplash Source avec signature unique aléatoire pour forcer un rechargement varié
+          const dynamicUrl = `https://images.unsplash.com/featured/600x600/?${queryKeyword},${styleModifier}&sig=${Math.floor(Math.random() * 10000)}`;
 
           setGeneratedArt({
             title: artPrompt ? artPrompt : `Création Cosmique ${styleModifier}`,
@@ -236,7 +239,7 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
 
   // Publish to Family wall memories (comparative Polaroids)
   const handlePublishToWall = () => {
-    if (!generatedArt || !userSketchUrl) return;
+    if (!generatedArt) return;
 
     const author = activeMemberId === '3' ? 'Amadou' : activeMemberId === '4' ? 'Awa' : activeMemberId === '1' ? 'Papa' : 'Maman';
     const authorPic = activeMemberId === '1' 
@@ -250,9 +253,9 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
     const newMemory: MemoryLog = {
       id: `art-${Date.now()}`,
       title: `🎨 Chef-d'œuvre : ${generatedArt.title}`,
-      description: `Création interactive imaginée par ${author}. Gribouillage de base magnifié par l'IA céleste en style ${ART_STYLES.find(s => s.id === selectedStyle)?.label}.`,
+      description: `Création interactive imaginée par ${author}. ${userSketchUrl ? 'Gribouillage de base magnifié' : 'Idée textuelle matérialisée'} par l'IA céleste en style ${ART_STYLES.find(s => s.id === selectedStyle)?.label}.`,
       imageUrl: generatedArt.url,
-      imageUrls: [userSketchUrl, generatedArt.url], // Dynamic before/after inclusion
+      imageUrls: userSketchUrl ? [userSketchUrl, generatedArt.url] : [generatedArt.url],
       date: new Date().toLocaleDateString('fr-FR'),
       authorName: author,
       authorPhoto: authorPic,
@@ -263,7 +266,7 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
 
     setMemories(prev => [newMemory, ...prev]);
     setIsPublished(true);
-    alert("Félicitations ! Ton œuvre interactive a été publiée sur le Mur de la Famille avec ton gribouillage ! 📸");
+    alert(userSketchUrl ? "Félicitations ! Ton œuvre interactive a été publiée sur le Mur de la Famille avec ton gribouillage ! 📸" : "Félicitations ! Ton idée magique a été publiée sur le Mur de la Famille ! 📸");
   };
 
   return (
@@ -499,11 +502,11 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
               {/* Main Transformation Trigger */}
               <button
                 onClick={handleGenerateArt}
-                disabled={isGenerating || !hasDrawn}
+                disabled={isGenerating || (!hasDrawn && !artPrompt.trim())}
                 className="w-full py-4 rounded-[22px] bg-gradient-to-r from-violet-600 via-pink-500 to-[#FFB020] text-white font-black text-[10px] tracking-widest uppercase cursor-pointer shadow-lg hover:brightness-105 active:scale-[0.99] disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center space-x-2"
               >
                 <Sparkles className="w-4 h-4 text-white animate-pulse" />
-                <span>MAGIFIER MON GRIBOUILLAGE ✨</span>
+                <span>{hasDrawn ? 'MAGIFIER MON GRIBOUILLAGE ✨' : 'GÉNÉRER MON IDÉE ✨'}</span>
               </button>
             </div>
 
@@ -517,53 +520,65 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
                     <Sparkles className="w-5 h-5 text-[#FFB020]" />
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[10px] font-black text-white uppercase tracking-widest block">Fusion magique...</span>
+                    <span className="text-[10px] font-black text-white uppercase tracking-widest block font-sans">Fusion magique...</span>
                     <span className="text-[8px] text-white/40 uppercase block tracking-wider font-semibold">
-                      {generationStep === 1 ? 'Analyse de tes tracés de couleurs...' :
-                       generationStep === 2 ? 'Modélisation du croquis original...' :
-                       `Application du style ${ART_STYLES.find(s => s.id === selectedStyle)?.label}...`}
+                      {generationStep === 1 ? 'Analyse de ton idée...' :
+                       generationStep === 2 ? 'Modélisation tridimensionnelle...' :
+                       `Création artistique en style ${ART_STYLES.find(s => s.id === selectedStyle)?.label}...`}
                     </span>
                   </div>
                 </div>
-              ) : generatedArt && userSketchUrl ? (
-                // Beautiful Before/After interactive layout!
+              ) : generatedArt ? (
+                // Flexible layout: Before/After if sketched, or Full Screen AI Art if text-only!
                 <div className="absolute inset-0 w-full h-full flex flex-col justify-between p-3.5 bg-[#0b0f19]">
                   
-                  {/* Grid showing comparison */}
-                  <div className="grid grid-cols-2 gap-3 flex-1 items-stretch mt-1 mb-2">
-                    
-                    {/* Left: Original Sketch */}
-                    <div className="rounded-xl overflow-hidden border border-white/10 bg-white p-1 relative flex flex-col justify-between min-h-[120px]">
-                      <img 
-                        src={userSketchUrl} 
-                        alt="Original sketch" 
-                        className="w-full h-full object-contain rounded-lg flex-1"
-                      />
-                      <div className="absolute top-2 left-2 bg-black/60 border border-white/15 rounded-md px-1.5 py-0.5 backdrop-blur-md">
-                        <span className="text-[7.5px] font-black text-slate-300 uppercase tracking-wider block">Ton croquis</span>
+                  {userSketchUrl ? (
+                    /* Grid showing comparison (Mode Sketch) */
+                    <div className="grid grid-cols-2 gap-3 flex-1 items-stretch mt-1 mb-2">
+                      {/* Left: Original Sketch */}
+                      <div className="rounded-xl overflow-hidden border border-white/10 bg-white p-1 relative flex flex-col justify-between min-h-[120px]">
+                        <img 
+                          src={userSketchUrl} 
+                          alt="Original sketch" 
+                          className="w-full h-full object-contain rounded-lg flex-1"
+                        />
+                        <div className="absolute top-2 left-2 bg-black/60 border border-white/15 rounded-md px-1.5 py-0.5 backdrop-blur-md">
+                          <span className="text-[7.5px] font-black text-slate-300 uppercase tracking-wider block">Ton croquis</span>
+                        </div>
+                      </div>
+
+                      {/* Right: AI Magnified */}
+                      <div className="rounded-xl overflow-hidden border border-[#FFB020]/30 bg-black/50 p-1 relative flex flex-col justify-between min-h-[120px] shadow-lg">
+                        <img 
+                          src={generatedArt.url} 
+                          alt="AI Art co-creation" 
+                          className="w-full h-full object-cover rounded-lg flex-1 filter brightness-[0.8] contrast-[1.05]"
+                        />
+                        <div className="absolute top-2 left-2 bg-gradient-to-r from-violet-600 to-pink-500 border border-white/15 rounded-md px-1.5 py-0.5 backdrop-blur-md shadow-md">
+                          <span className="text-[7.5px] font-black text-white uppercase tracking-wider block">Version IA ✨</span>
+                        </div>
                       </div>
                     </div>
-
-                    {/* Right: AI Magnified */}
-                    <div className="rounded-xl overflow-hidden border border-[#FFB020]/30 bg-black/50 p-1 relative flex flex-col justify-between min-h-[120px] shadow-lg">
+                  ) : (
+                    /* Full Screen AI Art (Mode Text-only) */
+                    <div className="rounded-xl overflow-hidden border border-[#FFB020]/30 bg-black/50 p-1 relative flex flex-col justify-between flex-1 mt-1 mb-2 shadow-lg min-h-[120px]">
                       <img 
                         src={generatedArt.url} 
-                        alt="AI Art co-creation" 
+                        alt="AI Art creation" 
                         className="w-full h-full object-cover rounded-lg flex-1 filter brightness-[0.8] contrast-[1.05]"
                       />
-                      <div className="absolute top-2 left-2 bg-gradient-to-r from-violet-600 to-pink-500 border border-white/15 rounded-md px-1.5 py-0.5 backdrop-blur-md shadow-md">
-                        <span className="text-[7.5px] font-black text-white uppercase tracking-wider block">Version IA ✨</span>
+                      <div className="absolute top-2.5 left-2.5 bg-gradient-to-r from-violet-600 to-pink-500 border border-white/15 rounded-md px-2.5 py-0.8 backdrop-blur-md shadow-md">
+                        <span className="text-[8px] font-black text-white uppercase tracking-wider block">Création Magique ✨</span>
                       </div>
                     </div>
-
-                  </div>
+                  )}
 
                   {/* Dynamic description & Action controls */}
                   <div className="bg-white/3 border border-white/6 rounded-xl p-3 backdrop-blur-md space-y-3">
                     <div>
                       <h4 className="text-[10px] font-black text-white uppercase tracking-wider leading-tight">{generatedArt.title}</h4>
                       <p className="text-[8.5px] text-white/40 mt-0.5 leading-relaxed font-sans">
-                        Gribouillage magnifié en style {ART_STYLES.find(s => s.id === selectedStyle)?.label}.
+                        {userSketchUrl ? 'Gribouillage magnifié' : 'Idée textuelle matérialisée'} en style {ART_STYLES.find(s => s.id === selectedStyle)?.label}.
                       </p>
                     </div>
 
@@ -586,7 +601,10 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
                       <button
                         onClick={() => {
                           setIsOrdered(true);
-                          alert("Commande Premium Validée ! 🎁\n\nNous allons imprimer un comparatif interactif de ton gribouillage original et du chef-d'œuvre IA sur une double-toile en bois brut (20x30 cm).\n\nLivraison prévue à la maison d'ici 3 jours. Félicitations l'Artiste ! 🖼️");
+                          alert(userSketchUrl 
+                            ? "Commande Premium Validée ! 🎁\n\nNous allons imprimer un comparatif interactif de ton gribouillage original et du chef-d'œuvre IA sur une double-toile en bois brut (20x30 cm).\n\nLivraison prévue à la maison d'ici 3 jours. Félicitations l'Artiste !"
+                            : "Commande Premium Validée ! 🎁\n\nNous allons imprimer ton œuvre d'art IA sur une magnifique toile tendue sur châssis en bois (20x30 cm).\n\nLivraison prévue à la maison d'ici 3 jours. Félicitations l'Artiste !"
+                          );
                         }}
                         disabled={isOrdered}
                         className={`py-2 rounded-xl flex items-center justify-center space-x-1.5 transition-all text-[8.5px] font-black uppercase tracking-wider cursor-pointer ${
@@ -608,9 +626,9 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
                     <Paintbrush className="w-4.5 h-4.5" />
                   </div>
                   <div className="space-y-0.5">
-                    <span className="text-[9.5px] font-black text-white/40 uppercase tracking-widest block">En attente de gribouillage</span>
-                    <p className="text-[8.5px] text-white/20 max-w-[190px] mx-auto leading-normal">
-                      Fais ton premier tracé sur le tableau de gauche pour activer l'imaginateur IA !
+                    <span className="text-[9.5px] font-black text-white/40 uppercase tracking-widest block font-sans">En attente d'inspiration</span>
+                    <p className="text-[8.5px] text-white/20 max-w-[200px] mx-auto leading-normal">
+                      Fais un tracé sur le tableau de gauche ou décris une idée magique ci-dessus !
                     </p>
                   </div>
                 </div>
