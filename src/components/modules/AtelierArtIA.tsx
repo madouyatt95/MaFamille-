@@ -185,6 +185,24 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
           // 1. Récupérer le prompt de l'enfant ou un prompt par défaut magique
           const basePrompt = artPrompt.trim() || (hasDrawn ? "Dessin magique et créatif d'un enfant" : "Paysage féérique et magique");
 
+          // Moteur de traduction & d'enrichissement intelligent français/anglais
+          const p = basePrompt.toLowerCase();
+          let translationAdditions = "";
+          if (p.includes("chien")) translationAdditions += ", dog";
+          if (p.includes("botte")) translationAdditions += ", wearing boots, boots";
+          if (p.includes("chat")) translationAdditions += ", cat";
+          if (p.includes("lion")) translationAdditions += ", lion";
+          if (p.includes("licorne")) translationAdditions += ", unicorn";
+          if (p.includes("château") || p.includes("chateau")) translationAdditions += ", castle";
+          if (p.includes("dino")) translationAdditions += ", dinosaur";
+          if (p.includes("espace") || p.includes("fusée") || p.includes("fusee")) translationAdditions += ", space, rocket";
+          if (p.includes("océan") || p.includes("ocean") || p.includes("dauphin")) translationAdditions += ", ocean, dolphin";
+          if (p.includes("bonbon")) translationAdditions += ", candy, sweets";
+          if (p.includes("mange")) translationAdditions += ", eating";
+          if (p.includes("pirate")) translationAdditions += ", pirate";
+          if (p.includes("astronaute")) translationAdditions += ", astronaut";
+          if (p.includes("chapeau")) translationAdditions += ", wearing a hat, hat";
+
           // 2. Traduction ou enrichissement automatique selon le style choisi
           let styleEnrichment = "digital art, highly detailed, vibrant colors";
           if (selectedStyle === '3d') {
@@ -198,22 +216,39 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
           }
 
           // 3. Encoder le prompt complet pour l'URL
-          const fullPrompt = `${basePrompt}, ${styleEnrichment}`;
+          const fullPrompt = `${basePrompt}${translationAdditions}, ${styleEnrichment}`;
           const encodedPrompt = encodeURIComponent(fullPrompt);
 
           // 4. URL de génération d'image IA générative en direct de Pollinations.ai !
-          // Nous ajoutons une graine de bruit (seed) aléatoire pour garantir que deux générations du même prompt donnent des œuvres uniques !
           const randomSeed = Math.floor(Math.random() * 1000000);
           const aiGeneratedUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=600&height=600&seed=${randomSeed}&nologo=true`;
 
-          setGeneratedArt({
-            title: artPrompt ? artPrompt : `Œuvre Magique ${selectedStyle.toUpperCase()}`,
-            url: aiGeneratedUrl
-          });
-          setIsGenerating(false);
-          setGenerationStep(0);
-          setIsPublished(false);
-          setIsOrdered(false);
+          // Préchargement de l'image en arrière-plan avant d'arrêter le loader !
+          const img = new Image();
+          img.src = aiGeneratedUrl;
+          img.onload = () => {
+            setGeneratedArt({
+              title: artPrompt ? artPrompt : `Œuvre Magique ${selectedStyle.toUpperCase()}`,
+              url: aiGeneratedUrl
+            });
+            setIsGenerating(false);
+            setGenerationStep(0);
+            setIsPublished(false);
+            setIsOrdered(false);
+          };
+          img.onerror = () => {
+            // Plan de secours en cas d'erreur de chargement : utilisation d'Unsplash
+            const fallbackUrl = `https://images.unsplash.com/featured/600x600/?${encodeURIComponent(basePrompt)},${styleEnrichment}&sig=${randomSeed}`;
+            setGeneratedArt({
+              title: artPrompt ? artPrompt : `Œuvre Magique ${selectedStyle.toUpperCase()}`,
+              url: fallbackUrl
+            });
+            setIsGenerating(false);
+            setGenerationStep(0);
+            setIsPublished(false);
+            setIsOrdered(false);
+          };
+
         }, 2000);
       }, 1200);
     }, 1200);
