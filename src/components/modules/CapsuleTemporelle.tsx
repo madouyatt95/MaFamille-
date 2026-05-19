@@ -266,11 +266,12 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
               .gazette-printable, .gazette-printable * { visibility: visible !important; }
               .gazette-printable {
                 position: absolute; left: 0; top: 0; width: 100%;
-                background: white !important; color: black !important;
+                background: #fbfbf6 !important; color: #111 !important;
                 padding: 40px !important; font-family: Georgia, serif !important;
+                border: 3px double #333 !important;
               }
-              .gazette-printable h2 { color: #1a1a1a !important; font-size: 28px !important; }
-              .gazette-printable span, .gazette-printable h4, .gazette-printable p { color: #333 !important; }
+              .gazette-printable h2 { color: #111 !important; font-size: 32px !important; font-family: Georgia, serif !important; text-transform: uppercase !important; text-align: center !important; }
+              .gazette-printable span, .gazette-printable h4, .gazette-printable p, .gazette-printable td { color: #222 !important; }
               .gazette-printable .no-print { display: none !important; }
             }
           `;
@@ -509,52 +510,148 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       {activeSubTab === 'gazette' && (
         <div className="space-y-6">
           
-          {/* Gazette Promo Cover */}
-          <div className="gazette-printable relative rounded-[28px] overflow-hidden border border-[#FF4D6D]/30 bg-gradient-to-br from-[#1C1F2E] to-[#0A0D16] p-6 flex flex-col justify-between min-h-[380px] shadow-2xl">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-[#FF4D6D]/10 rounded-full blur-3xl pointer-events-none"></div>
+          {/* Gazette Promo Cover - Designed like a French Vintage Luxury Newspaper */}
+          <div className="gazette-printable relative rounded-[32px] overflow-hidden border border-amber-500/20 bg-[#0f1524] text-white p-6 md:p-8 flex flex-col justify-between min-h-[500px] shadow-[0_20px_50px_rgba(0,0,0,0.4)] font-serif">
             
-            {/* Editorial Title */}
-            <div className="text-center border-b border-white/10 pb-4">
-              <span className="text-[9px] font-extrabold text-[#FF4D6D] uppercase tracking-widest block">Édition Hebdomadaire</span>
-              <h2 className="text-2xl font-serif font-extrabold text-white tracking-widest mt-1.5">LA GAZETTE DES FATOU</h2>
-              <span className="text-[10px] text-white/40 block mt-1 font-bold">Dimanche 24 Mai 2026 • Numéro #24</span>
+            {/* Background design accents */}
+            <div className="absolute top-0 right-0 w-80 h-80 bg-[#FFB020]/4 rounded-full blur-[80px] pointer-events-none"></div>
+            <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-[#FF4D6D]/4 rounded-full blur-[80px] pointer-events-none"></div>
+            
+            {/* Header vintage paper look on screen */}
+            <div className="text-center relative z-10">
+              <span className="text-[8.5px] font-black text-[#FFB020] uppercase tracking-widest block font-sans">
+                Chronique Hebdomadaire des Temps Merveilleux
+              </span>
+              
+              <h2 className="text-3xl md:text-5xl font-black tracking-tighter text-white font-serif mt-2 select-none uppercase">
+                {activeMemberId === '1' || activeMemberId === '2' ? 'LA GAZETTE DES DJITÉ' : 'L\'ÉCHO DES DJITÉ'}
+              </h2>
+              
+              {/* Retro divider */}
+              <div className="w-full h-1 bg-gradient-to-r from-transparent via-white/20 to-transparent my-3"></div>
+              
+              <div className="flex justify-between items-center text-[9.5px] text-white/55 font-sans px-3 uppercase tracking-wider font-bold border-y border-white/8 py-2">
+                <span>Vol. VIII • No. 116</span>
+                <span className="text-center text-[#FFB020]">
+                  Dimanche {new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </span>
+                <span>Prix : Gratuit & Précieux</span>
+              </div>
             </div>
 
-            {/* Highlights Columns */}
-            <div className="grid grid-cols-2 gap-4 py-4 border-b border-white/5 my-2">
-              <div className="space-y-2 border-r border-white/5 pr-4">
-                <span className="text-[8px] font-bold text-[#FFB020] uppercase tracking-wider block">L'EXPLOIT DE LA SEMAINE</span>
-                <h4 className="text-xs font-bold text-white leading-normal">Amadou décroche un 19/20 en Histoire ! 🎓</h4>
-                <p className="text-[10px] text-white/50 leading-relaxed font-sans">Soutenu par notre Tuteur IA, Amadou a impressionné sa classe avec son quiz sur le Roi-Soleil.</p>
+            {/* Main Newspaper Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 my-6 relative z-10 border-b border-white/8 pb-6 items-stretch">
+              
+              {/* Column 1: L'Éditorial du Jour (IA / Chronique) */}
+              <div className="md:col-span-5 space-y-3 md:border-r border-white/8 pr-0 md:pr-6 flex flex-col justify-between">
+                <div className="space-y-2.5">
+                  <div className="inline-block bg-[#FFB020]/10 border border-[#FFB020]/25 rounded-md px-2 py-0.5">
+                    <span className="text-[8.5px] font-black text-[#FFB020] uppercase tracking-wider font-sans">Éditorial Merveilleux</span>
+                  </div>
+                  <h3 className="text-sm font-extrabold text-white leading-snug">
+                    L'Art de Vivre Ensemble sous le Toit Céleste
+                  </h3>
+                  <p className="text-[11px] text-white/60 leading-relaxed font-sans first-letter:text-3xl first-letter:font-black first-letter:text-[#FFB020] first-letter:mr-1.5 first-letter:float-left">
+                    Une nouvelle semaine s'achève au sein du foyer, riche en fous rires, en apprentissages et en précieux moments de partage. Nos rituels quotidiens demeurent le ciment de notre harmonie céleste. Entre les plats mijotés avec amour et les contes féériques du soir, la maisonnée rayonne de bonheur et de complicité.
+                  </p>
+                </div>
+                
+                {/* Vintage decorative border inside */}
+                <div className="border-t border-dashed border-white/10 pt-3 mt-3">
+                  <span className="text-[8.5px] font-bold text-white/35 italic block font-sans">
+                    — Rédigé avec tendresse par le Majordome IA
+                  </span>
+                </div>
               </div>
-              <div className="space-y-2 pl-2">
-                <span className="text-[8px] font-bold text-[#00D26A] uppercase tracking-wider block">LE MOT DE L'ÉCO-CHEF</span>
-                <h4 className="text-xs font-bold text-white leading-normal">0 déchet en cuisine cette semaine 🥦</h4>
-                <p className="text-[10px] text-white/50 leading-relaxed font-sans">Grâce aux recettes créatives de restes, la famille a réduit son empreinte et économisé 35 €.</p>
+
+              {/* Column 2: Les Faits Marquants & L'Album Photo */}
+              <div className="md:col-span-4 space-y-4 md:border-r border-white/8 px-0 md:px-6 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="inline-block bg-[#FF4D6D]/10 border border-[#FF4D6D]/25 rounded-md px-2 py-0.5">
+                    <span className="text-[8.5px] font-black text-[#FF4D6D] uppercase tracking-wider font-sans">Instant Figé</span>
+                  </div>
+                  
+                  {/* Photo from memory or default Unsplash preset in news-frame */}
+                  <div className="border-2 border-white/10 p-1.5 bg-white/3 rounded-xl overflow-hidden shadow-inner group">
+                    <img 
+                      src={visibleMemories[0]?.imageUrl || "https://images.unsplash.com/photo-1541614101331-1a5a3a194e92?w=600&auto=format&fit=crop&q=80"} 
+                      alt="News Illustration" 
+                      className="w-full h-28 object-cover rounded-lg grayscale group-hover:grayscale-0 transition-all duration-700"
+                    />
+                    <div className="pt-2 text-center">
+                      <span className="text-[8.5px] italic text-white/40 leading-none block font-sans">
+                        « {visibleMemories[0]?.title || "Souvenir immortalisé de la semaine"} »
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1 pt-2 border-t border-dashed border-white/10">
+                  <span className="text-[8.5px] font-black text-[#00D26A] uppercase tracking-wider block font-sans">Le Bulletin des Ménages</span>
+                  <p className="text-[10px] text-white/60 leading-normal font-sans">
+                    Les tâches ont été réparties avec démocratie. Le foyer brille d'une propreté exemplaire grâce aux efforts conjoints de chacun.
+                  </p>
+                </div>
               </div>
+
+              {/* Column 3: Les Chroniques humoristiques & Météo des Cœurs */}
+              <div className="md:col-span-3 space-y-4 pl-0 md:pl-6 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="inline-block bg-[#00D26A]/10 border border-[#00D26A]/25 rounded-md px-2 py-0.5">
+                    <span className="text-[8.5px] font-black text-[#00D26A] uppercase tracking-wider font-sans">Brèves du Foyer</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-[10.5px] font-extrabold text-white uppercase tracking-wider leading-tight">
+                      L'Exploit Scolaire
+                    </h4>
+                    <p className="text-[10px] text-white/55 leading-normal font-sans">
+                      Les devoirs ont été finalisés dans le calme olympien. L'IA salue la persévérance de nos jeunes explorateurs du savoir.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 border-t border-dashed border-white/10 pt-2.5">
+                    <h4 className="text-[10.5px] font-extrabold text-white uppercase tracking-wider leading-tight">
+                      Le Mot de l'Éco-Chef
+                    </h4>
+                    <p className="text-[10px] text-white/55 leading-normal font-sans">
+                      Menu varié, savoureux, équilibré et garanti sans gaspillage alimentaire. L'estomac et la planète vous remercient !
+                    </p>
+                  </div>
+                </div>
+
+                {/* Love climate signoff */}
+                <div className="pt-2 border-t border-double border-white/10 text-center font-sans">
+                  <span className="text-[8.5px] text-[#FF4D6D] font-extrabold uppercase tracking-widest block animate-pulse">
+                    Météo des Cœurs : Radieuse ☀️
+                  </span>
+                </div>
+              </div>
+
             </div>
 
-            {/* Bottom PDF Generation Trigger */}
-            <div className="pt-2">
+            {/* Bottom Section: Print Trigger & Action Layout */}
+            <div className="pt-3 flex flex-col items-center justify-center relative z-10 w-full no-print">
               {generatingGazette ? (
-                <div className="w-full p-4 rounded-[18px] bg-white/5 border border-white/5 flex flex-col items-center justify-center space-y-2 animate-pulse">
-                  <RefreshCw className="w-5 h-5 text-[#FF4D6D] animate-spin" />
-                  <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest">
-                    {gazetteStep === 1 ? 'Mise en page des photos de la semaine...' :
-                     gazetteStep === 2 ? 'Génération de la chronique éditoriale...' :
-                     'Compilation du PDF luxury de la Gazette...'}
+                <div className="w-full p-4 rounded-[20px] bg-white/3 border border-white/6 flex flex-col items-center justify-center space-y-2.5 animate-pulse">
+                  <RefreshCw className="w-5 h-5 text-[#FFB020] animate-spin" />
+                  <span className="text-[10px] font-black text-white/70 uppercase tracking-widest font-sans">
+                    {gazetteStep === 1 ? 'Chiffonnage du papier vintage...' :
+                     gazetteStep === 2 ? 'Impression des chroniques familiales...' :
+                     'Mise sous pli dorée de la gazette...'}
                   </span>
                 </div>
               ) : (
                 <button
                   onClick={generateGazette}
-                  className="w-full py-4 rounded-[18px] bg-gradient-to-r from-[#FF4D6D] to-[#FFB020] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer transition-all hover:opacity-95 shadow-md flex items-center justify-center space-x-2.5 hover:scale-102"
+                  className="w-full py-4 rounded-[20px] bg-gradient-to-r from-[#FF4D6D] via-pink-500 to-[#FFB020] text-white font-black text-xs tracking-wider uppercase cursor-pointer transition-all hover:brightness-105 active:scale-[0.99] shadow-lg flex items-center justify-center space-x-2.5 font-sans"
                 >
-                  <Printer className="w-4 h-4" />
-                  <span>Imprimer la Gazette du Dimanche</span>
+                  <Printer className="w-4.5 h-4.5 text-white" />
+                  <span>Imprimer la Gazette Rétro de la Famille</span>
                 </button>
               )}
             </div>
+
           </div>
           
         </div>
