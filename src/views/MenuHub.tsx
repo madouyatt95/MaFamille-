@@ -190,6 +190,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   React.useEffect(() => {
     if (activeModule === 'menus') {
       setGrocerySubTab('menus');
+    } else if (activeModule === 'courses') {
+      setGrocerySubTab('liste');
     }
   }, [activeModule]);
 

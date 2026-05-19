@@ -23,7 +23,8 @@ import {
   Camera,
   Heart,
   Smile,
-  Plus
+  Plus,
+  Trash2
 } from 'lucide-react';
 import type { Member, FamilyEvent, Dish, NotificationAlert, ChatGroup, ChatMessage } from '../types';
 
@@ -111,6 +112,12 @@ export const Accueil: React.FC<AccueilProps> = ({
       }
       return m;
     }));
+  };
+
+  const handleDeleteMoment = (id: string) => {
+    if (confirm("Voulez-vous vraiment supprimer ce souvenir du Mur des Moments ?")) {
+      setMoments(prev => prev.filter(m => m.id !== id));
+    }
   };
 
   // Compute unread messages count
@@ -275,6 +282,21 @@ export const Accueil: React.FC<AccueilProps> = ({
                 <span className="absolute top-2 left-2 text-[9px] font-extrabold uppercase bg-black/60 backdrop-blur-sm text-white/90 px-2.5 py-1 rounded-full border border-white/5">
                   Par {moment.author}
                 </span>
+                
+                {/* Suppression du moment s'il s'agit de sa propre publication ou d'un parent */}
+                {(moment.author === activeMember.name || !isChild) && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteMoment(moment.id);
+                    }}
+                    className="absolute bottom-2 right-2 p-1.5 rounded-xl bg-black/60 hover:bg-[#FF4D6D] text-white/80 hover:text-white backdrop-blur-sm transition-all border border-white/10 cursor-pointer shadow-md z-10 active:scale-90"
+                    title="Supprimer ce souvenir"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
                 <span className="absolute top-2 right-2 text-[9px] font-bold bg-[#FF4D6D]/95 text-white px-2.5 py-1 rounded-full border border-white/5 shadow-md">
                   {moment.date}
                 </span>
