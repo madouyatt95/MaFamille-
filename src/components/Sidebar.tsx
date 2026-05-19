@@ -17,7 +17,6 @@ import {
   Dog, 
   Target, 
   Coins, 
-  Bot, 
   Settings, 
   Lock 
 } from 'lucide-react';
@@ -63,7 +62,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'animaux', label: 'Suivi Animaux', icon: Dog, isTab: false, module: 'animaux' },
     { id: 'objectifs', label: 'Objectifs Familiaux', icon: Target, isTab: false, module: 'objectifs' },
     { id: 'argent', label: 'Argent de Poche', icon: Coins, isTab: false, module: 'argent' },
-    { id: 'assistant', label: 'Assistant IA MaFamille+', icon: Bot, isTab: false, module: 'assistant' },
     { id: 'settings', label: 'Paramètres & Sécurité', icon: Settings, isTab: false, module: 'settings' }
   ];
 

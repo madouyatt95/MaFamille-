@@ -53,7 +53,6 @@ import { Accueil } from './views/Accueil';
 import { Agenda } from './views/Agenda';
 import { Finances } from './views/Finances';
 import { MenuHub } from './views/MenuHub';
-import { AssistantIA } from './views/AssistantIA';
 import { Settings } from './views/Settings';
 import { Membres } from './views/Membres';
 import { SharedPackView } from './components/modules/SharedPackView';
@@ -791,20 +790,7 @@ function App() {
           />
         );
       }
-      
-      if (activeModule === 'assistant') {
-        return (
-          <AssistantIA 
-            transactions={transactions}
-            documents={documents}
-            groceries={groceries}
-            currencySymbol={getCurrencySymbol()}
-            formatMoney={formatMoney}
-            activeMemberId={activeMemberId}
-            onAddGroceryItem={handleAddGroceryItem}
-          />
-        );
-      }
+
 
       if (activeModule === 'settings') {
         return (

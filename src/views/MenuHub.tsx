@@ -31,8 +31,7 @@ import {
   Mic,
   Trash2,
   Edit3,
-  Map as MapIcon,
-  Bot
+  Map as MapIcon
 } from 'lucide-react';
 import type { 
   DocumentFile, 
@@ -239,7 +238,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     { id: 'carte', title: 'Carte Familiale', desc: 'Localisation sécurisée en temps réel', badge: 'En direct', icon: MapIcon, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
     { id: 'messagerie', title: 'Messagerie', desc: 'Discussions & Groupes Familiaux', badge: '1 non lu', icon: MessageCircle, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
     { id: 'documents', title: 'Documents', desc: 'Coffre-fort sécurisé pour vos documents', badge: `${documents.length} fichiers`, icon: FolderLock, color: 'text-[#4F8CFF] bg-[#4F8CFF]/10 hover:border-[#4F8CFF]/30' },
-    { id: 'assistant', title: 'Assistant IA', desc: 'Analyse vocale, repas & finances', badge: 'Vocal active', icon: Bot, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
     { id: 'sante', title: 'Santé', desc: 'Carnet médical et rendez-vous', badge: '5 rendez-vous', icon: HeartPulse, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
     { id: 'courses', title: 'Courses & Éco-Chef', desc: 'Liste de courses & Éco-Chef Anti-Gaspi', badge: `${groceries.filter(g => !g.checked).length} produits`, icon: ShoppingCart, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
     { id: 'taches', title: 'Tâches', desc: 'Répartition des tâches et suivi', badge: `${tasks.filter(t => !t.done).length} tâches`, icon: Brush, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
