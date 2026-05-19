@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { parseGroceryNameAndQty, detectGroceryCategory } from '../utils/groceryParser';
 import { 
   FolderLock, 
   HeartPulse, 
@@ -311,73 +312,15 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       };
 
       recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript.trim().toLowerCase();
+        const transcript = event.results[0][0].transcript.trim();
         
-        // Conversions du français textuel vers des chiffres réels
-        const frenchNumbers: Record<string, number> = {
-          'un': 1, 'une': 1, 'deux': 2, 'trois': 3, 'quatre': 4, 'cinq': 5,
-          'six': 6, 'sept': 7, 'huit': 8, 'neuf': 9, 'dix': 10
-        };
+        // Analyse intelligente de la quantité et du produit
+        const parsed = parseGroceryNameAndQty(transcript);
+        // Détection automatique intelligente de la catégorie
+        const category = detectGroceryCategory(parsed.name);
 
-        let qty = 1;
-        let unit = 'pièces';
-        
-        const words = transcript.split(' ');
-        const firstWord = words[0];
-        let name = transcript;
-
-        if (firstWord in frenchNumbers) {
-          qty = frenchNumbers[firstWord];
-          name = words.slice(1).join(' ');
-        } else {
-          const parsedNumber = parseInt(firstWord);
-          if (!isNaN(parsedNumber)) {
-            qty = parsedNumber;
-            name = words.slice(1).join(' ');
-          }
-        }
-
-        const unitKeywords = [
-          { word: 'bouteilles', norm: 'bouteilles' },
-          { word: 'bouteille', norm: 'bouteilles' },
-          { word: 'kilos', norm: 'kg' },
-          { word: 'kilo', norm: 'kg' },
-          { word: 'kg', norm: 'kg' },
-          { word: 'grammes', norm: 'g' },
-          { word: 'gramme', norm: 'g' },
-          { word: 'g', norm: 'g' },
-          { word: 'packs', norm: 'packs' },
-          { word: 'pack', norm: 'packs' },
-          { word: 'litres', norm: 'L' },
-          { word: 'litre', norm: 'L' },
-          { word: 'boîtes', norm: 'boîtes' },
-          { word: 'boîte', norm: 'boîtes' },
-          { word: 'paquets', norm: 'paquets' },
-          { word: 'paquet', norm: 'paquets' }
-        ];
-
-        for (const uk of unitKeywords) {
-          const lowerName = name.toLowerCase();
-          if (lowerName.startsWith(uk.word + ' de ')) {
-            unit = uk.norm;
-            name = name.slice((uk.word + ' de ').length).trim();
-            break;
-          } else if (lowerName.startsWith(uk.word + ' d\'')) {
-            unit = uk.norm;
-            name = name.slice((uk.word + ' d\'').length).trim();
-            break;
-          } else if (lowerName.startsWith(uk.word + ' ')) {
-            unit = uk.norm;
-            name = name.slice(uk.word.length).trim();
-            break;
-          }
-        }
-
-        name = name.charAt(0).toUpperCase() + name.slice(1);
-        const combinedQty = `${qty} ${unit}`;
-
-        // Soumission automatique
-        onAddGroceryItem(name, newGroceryCat, combinedQty);
+        // Soumission automatique avec la bonne catégorie détectée et la quantité propre !
+        onAddGroceryItem(parsed.name, category, parsed.qtyString);
 
         // Force stop to release mic before any restart
         try {

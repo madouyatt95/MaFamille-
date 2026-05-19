@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { parseGroceryNameAndQty, detectGroceryCategory } from '../utils/groceryParser';
 import { 
   Bot, 
   Send, 
@@ -148,22 +149,13 @@ export const AssistantIA: React.FC<AssistantIAProps> = ({
           .trim();
 
         if (cleanText.length >= 2) {
-          const formattedName = cleanText.charAt(0).toUpperCase() + cleanText.slice(1);
-          
-          const itemLower = cleanText.toLowerCase();
-          let category = 'Épicerie';
-          if (itemLower.includes('banane') || itemLower.includes('pomme') || itemLower.includes('tomate') || itemLower.includes('salade') || itemLower.includes('carotte') || itemLower.includes('avocat') || itemLower.includes('fraise') || itemLower.includes('citron') || itemLower.includes('fruit') || itemLower.includes('légume')) {
-            category = 'Fruits & Légumes';
-          } else if (itemLower.includes('lait') || itemLower.includes('beurre') || itemLower.includes('fromage') || itemLower.includes('yaourt') || itemLower.includes('crème')) {
-            category = 'Produits Frais';
-          } else if (itemLower.includes('pain') || itemLower.includes('baguette') || itemLower.includes('croissant') || itemLower.includes('pain de mie')) {
-            category = 'Épicerie';
-          } else if (itemLower.includes('poulet') || itemLower.includes('viande') || itemLower.includes('steak') || itemLower.includes('jambon') || itemLower.includes('saumon') || itemLower.includes('poisson') || itemLower.includes('sardine')) {
-            category = 'Boucherie';
-          }
+          // Analyse intelligente du nom, de la quantité et de l'unité
+          const parsed = parseGroceryNameAndQty(cleanText);
+          // Attribution automatique intelligente de la catégorie
+          const category = detectGroceryCategory(parsed.name);
 
-          onAddGroceryItem(formattedName, category, '1 pièce');
-          responseText = `🛒 C'est fait ! J'ai ajouté **"${formattedName}"** dans la catégorie *${category}* à votre liste de courses commune.`;
+          onAddGroceryItem(parsed.name, category, parsed.qtyString);
+          responseText = `🛒 C'est fait ! J'ai ajouté **"${parsed.name}"** (${parsed.qtyString}) dans la catégorie *${category}* à votre liste de courses commune.`;
         } else {
           responseText = "🤔 Je n'ai pas bien compris quel article vous souhaitez ajouter aux courses.";
         }
