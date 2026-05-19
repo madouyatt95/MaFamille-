@@ -132,26 +132,41 @@ export const AssistantIA: React.FC<AssistantIAProps> = ({
       let responseText = '';
       
       const promptLower = text.toLowerCase();
-      const addMatch = promptLower.match(/(?:ajoute|ajouter|mets|mettre|rajoute|rajouter)\s+(?:des|de\s+la|du|un|une|le|la)?\s*([a-zA-Zà-üÀ-Ü\s\-]{2,25}?)(?:\s+(?:à\s+la|dans\s+la|dans\s+le)?\s*(?:liste|courses|caddie|panier)|$)/i);
       
-      if (addMatch && onAddGroceryItem) {
-        const itemName = addMatch[1].trim();
-        const formattedName = itemName.charAt(0).toUpperCase() + itemName.slice(1);
+      const isAddCommand = promptLower.includes('ajoute') || promptLower.includes('ajouter') || promptLower.includes('mets') || promptLower.includes('mettre') || promptLower.includes('rajoute') || promptLower.includes('rajouter');
+      
+      if (isAddCommand && onAddGroceryItem) {
+        // Nettoyage des verbes de début
+        let cleanText = promptLower
+          .replace(/^(ajoute|ajouter|mets|mettre|rajoute|rajouter)\s+/, '')
+          .replace(/^(des|de\s+la|du|un|une|le|la|de|d')\s+/, '')
+          .trim();
         
-        const itemLower = itemName.toLowerCase();
-        let category = 'Épicerie';
-        if (itemLower.includes('banane') || itemLower.includes('pomme') || itemLower.includes('tomate') || itemLower.includes('salade') || itemLower.includes('carotte') || itemLower.includes('avocat') || itemLower.includes('fraise') || itemLower.includes('citron') || itemLower.includes('fruit') || itemLower.includes('légume')) {
-          category = 'Fruits & Légumes';
-        } else if (itemLower.includes('lait') || itemLower.includes('beurre') || itemLower.includes('fromage') || itemLower.includes('yaourt') || itemLower.includes('crème')) {
-          category = 'Produits Laitiers';
-        } else if (itemLower.includes('pain') || itemLower.includes('baguette') || itemLower.includes('croissant') || itemLower.includes('pain de mie')) {
-          category = 'Boulangerie';
-        } else if (itemLower.includes('poulet') || itemLower.includes('viande') || itemLower.includes('steak') || itemLower.includes('jambon') || itemLower.includes('saumon') || itemLower.includes('poisson') || itemLower.includes('sardine')) {
-          category = 'Viandes & Poissons';
-        }
+        // Nettoyage des suffixes de destination
+        cleanText = cleanText
+          .replace(/\s+(à\s+la|dans\s+la|dans\s+le|au|sur\s+la|de|à\s+ma|ma)?\s*(liste|courses|caddie|panier|commun[e]?)\s*(commune|partagée|de\s+courses)?$/, '')
+          .trim();
 
-        onAddGroceryItem(formattedName, category, '1 pièce');
-        responseText = `🛒 C'est fait ! J'ai ajouté **"${formattedName}"** (${category}) à votre vraie liste de courses de la famille fatou. Vous pouvez le voir dans le module Courses.`;
+        if (cleanText.length >= 2) {
+          const formattedName = cleanText.charAt(0).toUpperCase() + cleanText.slice(1);
+          
+          const itemLower = cleanText.toLowerCase();
+          let category = 'Épicerie';
+          if (itemLower.includes('banane') || itemLower.includes('pomme') || itemLower.includes('tomate') || itemLower.includes('salade') || itemLower.includes('carotte') || itemLower.includes('avocat') || itemLower.includes('fraise') || itemLower.includes('citron') || itemLower.includes('fruit') || itemLower.includes('légume')) {
+            category = 'Fruits & Légumes';
+          } else if (itemLower.includes('lait') || itemLower.includes('beurre') || itemLower.includes('fromage') || itemLower.includes('yaourt') || itemLower.includes('crème')) {
+            category = 'Produits Frais';
+          } else if (itemLower.includes('pain') || itemLower.includes('baguette') || itemLower.includes('croissant') || itemLower.includes('pain de mie')) {
+            category = 'Épicerie';
+          } else if (itemLower.includes('poulet') || itemLower.includes('viande') || itemLower.includes('steak') || itemLower.includes('jambon') || itemLower.includes('saumon') || itemLower.includes('poisson') || itemLower.includes('sardine')) {
+            category = 'Boucherie';
+          }
+
+          onAddGroceryItem(formattedName, category, '1 pièce');
+          responseText = `🛒 C'est fait ! J'ai ajouté **"${formattedName}"** dans la catégorie *${category}* à votre liste de courses commune.`;
+        } else {
+          responseText = "🤔 Je n'ai pas bien compris quel article vous souhaitez ajouter aux courses.";
+        }
       }
       else if (type === 'finances' || promptLower.includes('dépense') || promptLower.includes('budget') || promptLower.includes('financ')) {
         const totalDepenses = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
