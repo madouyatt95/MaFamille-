@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { 
   Menu, 
   Bell, 
-  Eye, 
-  EyeOff, 
   Calendar as CalendarIcon, 
   Wallet, 
   Users, 
@@ -20,8 +18,6 @@ import {
   Lightbulb,
   Droplet,
   UtensilsCrossed,
-  Award,
-  PiggyBank,
   MessageCircle,
   ShieldAlert,
   Camera,
@@ -36,19 +32,12 @@ interface AccueilProps {
   events: FamilyEvent[];
   dishes: Dish[];
   alerts: NotificationAlert[];
-  currencySymbol: string;
   formatMoney: (amount: number) => string;
   setActiveTab: (tab: string) => void;
   setActiveModule: (moduleName: string) => void;
   onMenuClick: () => void;
   onAlertsClick: () => void;
   onTriggerSos: () => void;
-  quickBalance: {
-    solde: number;
-    revenus: number;
-    depenses: number;
-    epargne: number;
-  };
   activeMemberId?: string;
   onProfileSwitcherOpen?: () => void;
   chatGroups: ChatGroup[];
@@ -61,21 +50,18 @@ export const Accueil: React.FC<AccueilProps> = ({
   events,
   dishes,
   alerts,
-  currencySymbol,
   formatMoney,
   setActiveTab,
   setActiveModule,
   onMenuClick,
   onAlertsClick,
   onTriggerSos,
-  quickBalance,
   activeMemberId = '1',
   onProfileSwitcherOpen,
   chatGroups,
   chatMessages,
   onEventClick
 }) => {
-  const [showBalance, setShowBalance] = useState(true);
   const [selectedMealDay, setSelectedMealDay] = useState<string>('Lun');
 
   const activeMember = members.find(m => m.id === activeMemberId) || members[0];
@@ -127,43 +113,12 @@ export const Accueil: React.FC<AccueilProps> = ({
     }));
   };
 
-  const handleAddMomentClick = () => {
-    const caption = prompt("Quel souvenir ou moment marquant voulez-vous partager ?");
-    if (!caption) return;
-    
-    const randomPhotos = [
-      'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=500&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1511895426328-dc8714191300?w=500&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?w=500&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=500&auto=format&fit=crop&q=80'
-    ];
-    const randomPhoto = randomPhotos[Math.floor(Math.random() * randomPhotos.length)];
-    
-    const newMoment = {
-      id: `mom-${Date.now()}`,
-      photoUrl: randomPhoto,
-      caption: caption,
-      author: activeMember.name,
-      likes: 1,
-      comments: 0,
-      hasLiked: true,
-      date: "À l'instant"
-    };
-    
-    setMoments(prev => [newMoment, ...prev]);
-  };
-
   // Compute unread messages count
   const unreadMessagesCount = chatMessages.filter(m => {
     const group = chatGroups.find(g => g.id === m.groupId);
     if (!group || !group.memberIds.includes(activeMemberId)) return false;
     return !m.readBy.includes(activeMemberId);
   }).length;
-
-  // Gamified allowance balances for kids
-  const pocketMoneyBalance = activeMemberId === '3' ? 15.00 : activeMemberId === '4' ? 22.50 : 0;
-  const rewardPoints = activeMemberId === '3' ? 150 : activeMemberId === '4' ? 85 : 0;
-  const savingsGoal = activeMemberId === '3' ? { current: 30, target: 50, label: 'Nouveau jeu Switch 🎮' } : { current: 12, target: 20, label: 'Kit de dessin 🎨' };
 
   // Filtrer les événements d'aujourd'hui pour la section "À ne pas manquer"
   const filteredEvents = isChild
@@ -259,111 +214,92 @@ export const Accueil: React.FC<AccueilProps> = ({
         </div>
       </div>
 
-      {/* 2. Solde Familial / Kid allowance Card with house vector */}
-      <div className="relative rounded-[28px] overflow-hidden border border-white/10 shadow-[0_15px_35px_rgba(0,0,0,0.5)] bg-gradient-to-br from-[#1C2C4E]/90 to-[#0F1E3D]/95 p-6 flex flex-col justify-between min-h-[220px]">
-        {/* Glow behind */}
-        <div className="absolute -top-12 -left-12 w-40 h-40 bg-[#6C5CFF]/15 rounded-full blur-2xl pointer-events-none"></div>
-        <div className="absolute -bottom-12 -right-12 w-48 h-48 bg-[#4F8CFF]/15 rounded-full blur-2xl pointer-events-none"></div>
-
-        {/* Vector House Graphic */}
-        <div className="absolute right-3 bottom-0 w-44 h-44 opacity-85 pointer-events-none select-none hidden sm:block">
-          <svg viewBox="0 0 200 200" fill="none" className="w-full h-full">
-            {/* Ground */}
-            <path d="M10,180 L190,180" stroke="rgba(255,255,255,0.1)" strokeWidth="2" strokeLinecap="round" />
-            
-            {/* Modern Villa Box */}
-            <rect x="55" y="70" width="90" height="90" rx="12" fill="rgba(255, 255, 255, 0.05)" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5" />
-            
-            {/* Upper floor balcony cantilever */}
-            <rect x="40" y="55" width="95" height="50" rx="8" fill="rgba(108, 92, 255, 0.15)" stroke="rgba(108, 92, 255, 0.25)" strokeWidth="1.5" />
-            
-            {/* Windows lighted warm yellow */}
-            <rect x="50" y="65" width="22" height="15" rx="3" fill="#FFB020" fillOpacity="0.85" className="animate-pulse" />
-            <rect x="80" y="65" width="22" height="15" rx="3" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
-            
-            {/* Large sliding glass door lower floor */}
-            <rect x="68" y="115" width="40" height="35" rx="4" fill="rgba(79, 140, 255, 0.1)" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
-            <line x1="88" y1="115" x2="88" y2="150" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
-            
-            {/* Warm pool light reflection */}
-            <path d="M115,160 C135,160 145,150 165,150 C185,150 195,165 170,175 C145,185 125,175 115,160 Z" fill="rgba(79, 140, 255, 0.25)" filter="blur(4px)" />
-            
-            {/* Minimal Palm tree */}
-            <path d="M165,165 C160,135 155,115 152,90" stroke="rgba(255,255,255,0.25)" strokeWidth="3" strokeLinecap="round" />
-            <path d="M152,90 C135,80 120,85 115,90" stroke="#00D26A" strokeWidth="2.5" strokeLinecap="round" />
-            <path d="M152,90 C145,72 155,60 162,62" stroke="#00D26A" strokeWidth="2.5" strokeLinecap="round" />
-            <path d="M152,90 C168,82 178,92 182,102" stroke="#00D26A" strokeWidth="2.5" strokeLinecap="round" />
-            <path d="M152,90 C162,98 160,110 168,115" stroke="#00D26A" strokeWidth="2" strokeLinecap="round" />
-            
-            {/* Stars / sparkle lights */}
-            <circle cx="35" cy="45" r="1.5" fill="#FFFFFF" className="animate-pulse" />
-            <circle cx="175" cy="35" r="1" fill="#FFFFFF" />
-            <circle cx="120" cy="25" r="1.5" fill="#6C5CFF" className="animate-pulse" />
-          </svg>
-        </div>
-
-        {/* Content */}
-        <div className="z-10 space-y-4">
+      {/* Le Mur des Moments Partagés (Positionné au sommet, à la place du solde familial) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <span className="text-xs font-bold text-white/50 uppercase tracking-widest">
-              {isChild ? 'Mon Argent de Poche 💰' : 'Solde familial'}
-            </span>
+            <Camera className="w-5 h-5 text-[#FF4D6D] animate-pulse" />
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Le Mur des Moments Partagés</h3>
+          </div>
+          
+          <div>
+            <input 
+              id="polaroid-file-input" 
+              type="file" 
+              accept="image/*" 
+              className="hidden" 
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  const base64Url = event.target?.result as string;
+                  const caption = prompt("Quel souvenir ou moment marquant voulez-vous associer à cette photo ?");
+                  if (!caption) return;
+
+                  const newMoment = {
+                    id: `mom-${Date.now()}`,
+                    photoUrl: base64Url,
+                    caption: caption,
+                    author: activeMember.name,
+                    likes: 1,
+                    comments: 0,
+                    hasLiked: true,
+                    date: "À l'instant"
+                  };
+                  setMoments(prev => [newMoment, ...prev]);
+                };
+                reader.readAsDataURL(file);
+              }}
+            />
             <button 
-              onClick={() => setShowBalance(!showBalance)}
-              className="text-white/40 hover:text-white transition-colors cursor-pointer"
+              onClick={() => document.getElementById('polaroid-file-input')?.click()}
+              className="text-xs font-bold text-[#FF4D6D] bg-[#FF4D6D]/15 border border-[#FF4D6D]/30 px-3.5 py-2 rounded-[14px] hover:bg-[#FF4D6D]/25 active:scale-95 transition-all flex items-center space-x-1.5 cursor-pointer shadow-md"
             >
-              {showBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              <Plus className="w-4 h-4" />
+              <span>Publier</span>
             </button>
           </div>
-          
-          <h2 className="text-3xl font-extrabold text-white tracking-tight">
-            {showBalance 
-              ? isChild ? formatMoney(pocketMoneyBalance) : formatMoney(quickBalance.solde) 
-              : '•••••• ' + currencySymbol}
-          </h2>
-          
-          <div className="grid grid-cols-3 gap-2 pt-4 border-t border-white/8 max-w-sm sm:max-w-md">
-            {isChild ? (
-              <>
-                <div className="col-span-1">
-                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider flex items-center gap-1"><Award className="w-3.5 h-3.5 text-[#FFB020]" /> Points</p>
-                  <p className="text-xs sm:text-sm font-extrabold text-[#FFB020] mt-0.5">
-                    {showBalance ? `${rewardPoints} Pts` : '••••'}
-                  </p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider flex items-center gap-1"><PiggyBank className="w-3.5 h-3.5 text-[#4F8CFF]" /> Projet : {savingsGoal.label}</p>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <div className="h-1.5 bg-white/10 rounded-full grow overflow-hidden">
-                      <div className="h-full bg-[#4F8CFF]" style={{ width: `${(savingsGoal.current / savingsGoal.target) * 100}%` }}></div>
-                    </div>
-                    <span className="text-[10px] font-bold text-white/70">{savingsGoal.current} / {savingsGoal.target}€</span>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div>
-                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Revenus</p>
-                  <p className="text-xs sm:text-sm font-bold text-[#00D26A] mt-0.5">
-                    {showBalance ? formatMoney(quickBalance.revenus) : '••••••'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Dépenses</p>
-                  <p className="text-xs sm:text-sm font-bold text-[#FF4D6D] mt-0.5">
-                    {showBalance ? formatMoney(quickBalance.depenses) : '••••••'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Épargne</p>
-                  <p className="text-xs sm:text-sm font-bold text-[#4F8CFF] mt-0.5">
-                    {showBalance ? formatMoney(quickBalance.epargne) : '••••••'}
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
+        </div>
+
+        <div className="flex space-x-4 overflow-x-auto pb-4 no-scrollbar scroll-smooth snap-x snap-mandatory">
+          {moments.map((moment) => (
+            <div 
+              key={moment.id}
+              className="w-[240px] shrink-0 snap-start bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-[28px] p-3.5 shadow-lg flex flex-col space-y-3 transform transition-all duration-300 hover:scale-[1.02] hover:bg-white/[0.06]"
+              style={{ transform: `rotate(${(parseInt(moment.id.replace('mom-', '')) % 2 === 0 ? 1.5 : -1.5)}deg)` }}
+            >
+              <div className="relative aspect-[4/3] rounded-[20px] overflow-hidden border border-white/5 shadow-inner">
+                <img src={moment.photoUrl} alt={moment.caption} className="w-full h-full object-cover" />
+                <span className="absolute top-2 left-2 text-[9px] font-extrabold uppercase bg-black/60 backdrop-blur-sm text-white/90 px-2.5 py-1 rounded-full border border-white/5">
+                  Par {moment.author}
+                </span>
+                <span className="absolute top-2 right-2 text-[9px] font-bold bg-[#FF4D6D]/95 text-white px-2.5 py-1 rounded-full border border-white/5 shadow-md">
+                  {moment.date}
+                </span>
+              </div>
+              
+              <p className="text-xs text-white/90 leading-snug line-clamp-2 h-[34px] px-1 font-semibold italic">
+                "{moment.caption}"
+              </p>
+
+              <div className="flex items-center justify-between pt-2 border-t border-white/5 text-xs text-white/50">
+                <button 
+                  onClick={() => handleLikeMoment(moment.id)}
+                  className={`flex items-center space-x-1.5 hover:text-[#FF4D6D] transition-colors py-1 px-2 rounded-lg hover:bg-white/5 ${moment.hasLiked ? 'text-[#FF4D6D] font-extrabold' : ''}`}
+                >
+                  <Heart className={`w-4 h-4 ${moment.hasLiked ? 'fill-current animate-pulse' : ''}`} />
+                  <span>{moment.likes}</span>
+                </button>
+
+                <button className="flex items-center space-x-1.5 hover:text-[#4F8CFF] transition-colors py-1 px-2 rounded-lg hover:bg-white/5">
+                  <Smile className="w-4 h-4" />
+                  <span>Réagir</span>
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -562,61 +498,7 @@ export const Accueil: React.FC<AccueilProps> = ({
         </div>
       </div>
 
-      {/* Le Mur des Moments Partagés */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Camera className="w-5 h-5 text-[#FF4D6D]" />
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Le Mur des Moments Partagés</h3>
-          </div>
-          <button 
-            onClick={handleAddMomentClick}
-            className="text-xs font-bold text-[#FF4D6D] bg-[#FF4D6D]/15 border border-[#FF4D6D]/30 px-3 py-1.5 rounded-[12px] hover:bg-[#FF4D6D]/25 active:scale-95 transition-all flex items-center space-x-1 cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Publier</span>
-          </button>
-        </div>
 
-        <div className="flex space-x-4 overflow-x-auto pb-4 no-scrollbar scroll-smooth snap-x snap-mandatory">
-          {moments.map((moment) => (
-            <div 
-              key={moment.id}
-              className="w-[240px] shrink-0 snap-start bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-[24px] p-3 shadow-lg flex flex-col space-y-3 transform transition-transform duration-300"
-              style={{ transform: `rotate(${(parseInt(moment.id.replace('mom-', '')) % 2 === 0 ? 1.5 : -1.5)}deg)` }}
-            >
-              <div className="relative aspect-[4/3] rounded-[16px] overflow-hidden border border-white/5 shadow-inner">
-                <img src={moment.photoUrl} alt={moment.caption} className="w-full h-full object-cover" />
-                <span className="absolute top-2 left-2 text-[9px] font-extrabold uppercase bg-black/60 backdrop-blur-sm text-white/90 px-2 py-0.5 rounded-full">
-                  Par {moment.author}
-                </span>
-                <span className="absolute top-2 right-2 text-[9px] font-bold bg-[#FF4D6D]/90 text-white px-2 py-0.5 rounded-full">
-                  {moment.date}
-                </span>
-              </div>
-              
-              <p className="text-xs text-white/85 leading-snug line-clamp-2 h-[34px] px-1 font-medium italic">
-                "{moment.caption}"
-              </p>
-
-              <div className="flex items-center justify-between pt-1 border-t border-white/5 text-xs text-white/50">
-                <button 
-                  onClick={() => handleLikeMoment(moment.id)}
-                  className={`flex items-center space-x-1.5 hover:text-[#FF4D6D] transition-colors ${moment.hasLiked ? 'text-[#FF4D6D] font-extrabold' : ''}`}
-                >
-                  <Heart className={`w-4 h-4 ${moment.hasLiked ? 'fill-current' : ''}`} />
-                  <span>{moment.likes}</span>
-                </button>
-
-                <button className="flex items-center space-x-1.5 hover:text-[#4F8CFF] transition-colors">
-                  <Smile className="w-4 h-4" />
-                  <span>Réagir</span>
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* 6. Astuce du jour Card (purple glow layout) */}
       <div className="relative rounded-[28px] overflow-hidden border border-white/8 bg-gradient-to-r from-[#6C5CFF]/20 to-[#4F8CFF]/20 p-5 shadow-lg flex items-center justify-between">

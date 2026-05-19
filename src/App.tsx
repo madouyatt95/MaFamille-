@@ -271,8 +271,8 @@ function App() {
 
     // 1. Navigation to tabs
     if (promptLower.includes('carte') || promptLower.includes('gps') || promptLower.includes('position') || promptLower.includes('itiné')) {
-      setActiveTab('carte');
-      setActiveModule('');
+      setActiveTab('menu');
+      setActiveModule('carte');
       feedback = "🧭 Navigation : J'affiche la Carte Familiale.";
     } 
     else if (promptLower.includes('agenda') || promptLower.includes('planning') || promptLower.includes('calendrier') || promptLower.includes('évènement') || promptLower.includes('rdv') || promptLower.includes('rendez')) {
@@ -352,6 +352,10 @@ function App() {
 
         handleAddGroceryItem(formattedName, category, '1 pièce');
         feedback = `🛒 Action : J'ai ajouté "${formattedName}" à votre vraie liste de courses partagée !`;
+        
+        // Open the grocery list interface instantly
+        setActiveTab('menu');
+        setActiveModule('courses');
       } else {
         feedback = "🤔 Je n'ai pas compris quel article ajouter à vos courses...";
       }
@@ -544,27 +548,7 @@ function App() {
     }).format(converted) + ' ' + symbol;
   };
 
-  // Pre-calculated financial balances in Euro
-  const getQuickBalances = () => {
-    const totalRevenues = transactions
-      .filter(t => t.type === 'income')
-      .reduce((acc, t) => acc + t.amount, 0);
 
-    const totalExpenses = transactions
-      .filter(t => t.type === 'expense')
-      .reduce((acc, t) => acc + t.amount, 0);
-
-    const totalSavings = transactions
-      .filter(t => t.type === 'savings')
-      .reduce((acc, t) => acc + t.amount, 0);
-
-    return {
-      solde: totalRevenues - totalExpenses,
-      revenus: totalRevenues,
-      depenses: totalExpenses,
-      epargne: totalSavings
-    };
-  };
 
   // ----------------------------------------------------
   // Callbacks and Form Submissions
@@ -735,14 +719,12 @@ function App() {
           events={events}
           dishes={dishes}
           alerts={alerts}
-          currencySymbol={getCurrencySymbol()}
           formatMoney={formatMoney}
           setActiveTab={setActiveTab}
           setActiveModule={setActiveModule}
           onMenuClick={() => setSidebarOpen(true)}
           onAlertsClick={() => setAlertsPanelOpen(true)}
           onTriggerSos={() => setSosActive(true)}
-          quickBalance={getQuickBalances()}
           chatGroups={chatGroups}
           chatMessages={chatMessages}
           onEventClick={(dateStr) => {
