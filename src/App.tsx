@@ -267,8 +267,50 @@ function App() {
     const promptLower = text.toLowerCase().trim();
     let feedback = "";
 
-    // 1. Navigation to tabs
-    if (promptLower.includes('carte') || promptLower.includes('gps') || promptLower.includes('position') || promptLower.includes('itiné')) {
+    // 1. Action commands (e.g. ajoute des bananes) - PRIORITÉ ABSOLUE
+    if (promptLower.includes('ajoute') || promptLower.includes('ajouter') || promptLower.includes('mets') || promptLower.includes('mettre') || promptLower.includes('rajoute') || promptLower.includes('rajouter')) {
+      // Nettoyage des verbes de début
+      let cleanText = promptLower
+        .replace(/^(ajoute|ajouter|mets|mettre|rajoute|rajouter)\s+/, '')
+        .replace(/^(des|de\s+la|du|un|une|le|la|de|d')\s+/, '')
+        .trim();
+      
+      // Nettoyage des suffixes de destination
+      cleanText = cleanText
+        .replace(/\s+(à\s+la|dans\s+la|dans\s+le|au|sur\s+la|de|à\s+ma|ma)?\s*(liste|courses|caddie|panier|commun[e]?)\s*(commune|partagée|de\s+courses)?$/, '')
+        .trim();
+
+      if (cleanText.length >= 2) {
+        const formattedName = cleanText.charAt(0).toUpperCase() + cleanText.slice(1);
+        
+        const itemLower = cleanText.toLowerCase();
+        let category = 'Épicerie';
+        if (itemLower.includes('banane') || itemLower.includes('pomme') || itemLower.includes('tomate') || itemLower.includes('salade') || itemLower.includes('carotte') || itemLower.includes('avocat') || itemLower.includes('fraise') || itemLower.includes('citron') || itemLower.includes('fruit') || itemLower.includes('légume')) {
+          category = 'Fruits & Légumes';
+        } else if (itemLower.includes('lait') || itemLower.includes('beurre') || itemLower.includes('fromage') || itemLower.includes('yaourt') || itemLower.includes('crème')) {
+          category = 'Produits Frais';
+        } else if (itemLower.includes('pain') || itemLower.includes('baguette') || itemLower.includes('croissant') || itemLower.includes('pain de mie')) {
+          category = 'Épicerie';
+        } else if (itemLower.includes('poulet') || itemLower.includes('viande') || itemLower.includes('steak') || itemLower.includes('jambon') || itemLower.includes('saumon') || itemLower.includes('poisson') || itemLower.includes('sardine')) {
+          category = 'Boucherie';
+        }
+
+        handleAddGroceryItem(formattedName, category, '1 pièce');
+        feedback = `🛒 Action : J'ai ajouté "${formattedName}" à votre liste commune !`;
+        
+        // Open the grocery list interface instantly
+        setActiveTab('menu');
+        setActiveModule('courses');
+      } else {
+        feedback = "🤔 Je n'ai pas compris quel article ajouter à vos courses...";
+      }
+    } 
+    else if (promptLower.includes('alerte') || promptLower.includes('sos') || promptLower.includes('danger')) {
+      setSosActive(true);
+      feedback = "🚨 ACTION CRITIQUE : Alerte SOS activée ! Vos proches ont été notifiés.";
+    }
+    // 2. Navigation to tabs
+    else if (promptLower.includes('carte') || promptLower.includes('gps') || promptLower.includes('position') || promptLower.includes('itiné')) {
       setActiveTab('menu');
       setActiveModule('carte');
       feedback = "🧭 Navigation : J'affiche la Carte Familiale.";
@@ -283,7 +325,7 @@ function App() {
       setActiveModule('');
       feedback = "💰 Navigation : J'ouvre le module Finances & Épargne.";
     } 
-    // 2. Navigation to specific submodules inside Menu
+    // 3. Navigation to specific submodules inside Menu
     else if (promptLower.includes('course') || promptLower.includes('caddie') || promptLower.includes('achat') || promptLower.includes('épicerie') || promptLower.includes('supermar')) {
       setActiveTab('menu');
       setActiveModule('courses');
@@ -328,48 +370,6 @@ function App() {
       setActiveTab('menu');
       setActiveModule('voyage');
       feedback = "✈️ Navigation : Je lance l'Assistant Voyage IA.";
-    }
-    // 3. Action commands (e.g. ajoute des bananes)
-    else if (promptLower.includes('ajoute') || promptLower.includes('ajouter') || promptLower.includes('mets') || promptLower.includes('mettre') || promptLower.includes('rajoute') || promptLower.includes('rajouter')) {
-      // Nettoyage des verbes de début
-      let cleanText = promptLower
-        .replace(/^(ajoute|ajouter|mets|mettre|rajoute|rajouter)\s+/, '')
-        .replace(/^(des|de\s+la|du|un|une|le|la|de|d')\s+/, '')
-        .trim();
-      
-      // Nettoyage des suffixes de destination
-      cleanText = cleanText
-        .replace(/\s+(à\s+la|dans\s+la|dans\s+le|au|sur\s+la|de|à\s+ma|ma)?\s*(liste|courses|caddie|panier|commun[e]?)\s*(commune|partagée|de\s+courses)?$/, '')
-        .trim();
-
-      if (cleanText.length >= 2) {
-        const formattedName = cleanText.charAt(0).toUpperCase() + cleanText.slice(1);
-        
-        const itemLower = cleanText.toLowerCase();
-        let category = 'Épicerie';
-        if (itemLower.includes('banane') || itemLower.includes('pomme') || itemLower.includes('tomate') || itemLower.includes('salade') || itemLower.includes('carotte') || itemLower.includes('avocat') || itemLower.includes('fraise') || itemLower.includes('citron') || itemLower.includes('fruit') || itemLower.includes('légume')) {
-          category = 'Fruits & Légumes';
-        } else if (itemLower.includes('lait') || itemLower.includes('beurre') || itemLower.includes('fromage') || itemLower.includes('yaourt') || itemLower.includes('crème')) {
-          category = 'Produits Frais';
-        } else if (itemLower.includes('pain') || itemLower.includes('baguette') || itemLower.includes('croissant') || itemLower.includes('pain de mie')) {
-          category = 'Épicerie';
-        } else if (itemLower.includes('poulet') || itemLower.includes('viande') || itemLower.includes('steak') || itemLower.includes('jambon') || itemLower.includes('saumon') || itemLower.includes('poisson') || itemLower.includes('sardine')) {
-          category = 'Boucherie';
-        }
-
-        handleAddGroceryItem(formattedName, category, '1 pièce');
-        feedback = `🛒 Action : J'ai ajouté "${formattedName}" à votre liste commune !`;
-        
-        // Open the grocery list interface instantly
-        setActiveTab('menu');
-        setActiveModule('courses');
-      } else {
-        feedback = "🤔 Je n'ai pas compris quel article ajouter à vos courses...";
-      }
-    } 
-    else if (promptLower.includes('alerte') || promptLower.includes('sos') || promptLower.includes('danger')) {
-      setSosActive(true);
-      feedback = "🚨 ACTION CRITIQUE : Alerte SOS activée ! Vos proches ont été notifiés.";
     }
     else {
       feedback = `🔍 Recherche : Commande "${text}" non reconnue. Essayez : "Ouvre l'agenda", "Affiche la carte" ou "Ajoute du lait".`;
