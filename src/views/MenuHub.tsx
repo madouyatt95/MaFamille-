@@ -31,7 +31,8 @@ import {
   Mic,
   Trash2,
   Edit3,
-  Map as MapIcon
+  Map as MapIcon,
+  BookOpen
 } from 'lucide-react';
 import type { 
   DocumentFile, 
@@ -66,6 +67,7 @@ import { CoffreFortAvance } from '../components/modules/CoffreFortAvance';
 import { Messagerie } from '../components/modules/Messagerie';
 import { WidgetMeteo } from '../components/modules/WidgetMeteo';
 import { FamilyMap } from './FamilyMap';
+import { ConteurIA } from '../components/modules/ConteurIA';
 
 interface MenuHubProps {
   documents: DocumentFile[];
@@ -256,6 +258,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     { id: 'capsule', title: 'Capsule Temporelle', desc: 'Album de souvenirs & Gazette', icon: Camera, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10' },
     { id: 'conseil', title: 'Conseil de Famille', desc: 'Sondages actifs & Charte de vie', icon: Users, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10' },
     { id: 'peacemaker', title: 'PeaceMaker IA', desc: 'Médiateur de conflits intelligents', icon: HeartHandshake, color: 'text-[#00D26A] bg-[#00D26A]/10' },
+    { id: 'conteur', title: 'Histoires du Soir', desc: 'Contes IA personnalisés interactifs', icon: BookOpen, color: 'text-[#FFB020] bg-[#FFB020]/10' },
     ...(isAmadou ? [{ id: 'mavie', title: 'MaVie 2.0 (Ado)', desc: 'Simulateur d\'avenir & de choix', icon: TrendingUp, color: 'text-[#FFB020] bg-[#FFB020]/10' }] : [])
   ];
 
@@ -2381,6 +2384,14 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       {/* 14. MaVie Simulator */}
       {activeModule === 'mavie' && (
         <MaVieSimulator />
+      )}
+
+      {/* 15. Conteur IA d'Histoires du Soir */}
+      {activeModule === 'conteur' && (
+        <ConteurIA 
+          onBack={() => setActiveModule('')} 
+          members={members} 
+        />
       )}
 
     </div>
