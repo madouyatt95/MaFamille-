@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Sparkles, 
   ArrowLeft, 
-  ArrowRight, 
   Volume2, 
   VolumeX, 
   BookOpen, 
@@ -10,7 +9,11 @@ import {
   Compass, 
   Heart,
   ChevronLeft,
-  RotateCcw
+  ChevronRight,
+  RotateCcw,
+  Music,
+  Sliders,
+  Sparkle
 } from 'lucide-react';
 
 interface ConteurIAProps {
@@ -23,8 +26,8 @@ interface Universe {
   name: string;
   emoji: string;
   desc: string;
-  color: string;
   bgGlow: string;
+  themeColor: string;
 }
 
 interface Moral {
@@ -35,110 +38,249 @@ interface Moral {
 }
 
 const UNIVERSES: Universe[] = [
-  { id: 'espace', name: 'L\'Espace Intersidéral', emoji: '🚀', desc: 'Des planètes en sucre et des étoiles filantes chantantes', color: 'text-indigo-400', bgGlow: 'from-indigo-600/30 to-purple-600/30' },
-  { id: 'foret', name: 'La Forêt Enchantée', emoji: '🌲', desc: 'Des arbres bavards et des lucioles magiques de toutes les couleurs', color: 'text-emerald-400', bgGlow: 'from-emerald-600/30 to-teal-600/30' },
-  { id: 'dinos', name: 'Le Royaume des Dinosaures', emoji: '🦕', desc: 'Des bébés tricératops joueurs et des volcans de chocolat chaud', color: 'text-amber-400', bgGlow: 'from-amber-600/30 to-orange-600/30' },
-  { id: 'ocean', name: 'L\'Océan Mystérieux', emoji: '🐙', desc: 'Des dauphins luminescents et des châteaux de sable sous-marins', color: 'text-sky-400', bgGlow: 'from-sky-600/30 to-cyan-600/30' },
-  { id: 'bonbons', name: 'Le Monde des Bonbons', emoji: '🍭', desc: 'Des rivières de sirop de fraise et des nuages de barbe à papa', color: 'text-pink-400', bgGlow: 'from-pink-600/30 to-rose-600/30' }
+  { id: 'espace', name: 'L\'Espace Intersidéral', emoji: '🚀', desc: 'Planètes en sucre filé, nébuleuses chantantes et étoiles filantes chatouilleuses', bgGlow: 'from-indigo-950 via-purple-950 to-slate-950', themeColor: '#8B5CF6' },
+  { id: 'foret', name: 'La Forêt Enchantée', emoji: '🌲', desc: 'Arbres centenaires bavards, champignons lumineux et ruisseaux de murmures', bgGlow: 'from-emerald-950 via-teal-950 to-slate-950', themeColor: '#10B981' },
+  { id: 'dinos', name: 'Le Royaume des Dinos', emoji: '🦕', desc: 'Bébés tricératops espiègles, volcans de chocolat tiède et fougères géantes en guimauve', bgGlow: 'from-amber-950 via-orange-950 to-slate-950', themeColor: '#F59E0B' },
+  { id: 'ocean', name: 'L\'Océan Mystérieux', emoji: '🐙', desc: 'Poissons-lanternes farceurs, cités de nacre et baleines conteuses d\'histoires', bgGlow: 'from-sky-950 via-cyan-950 to-slate-950', themeColor: '#0EA5E9' },
+  { id: 'bonbons', name: 'Le Monde des Bonbons', emoji: '🍭', desc: 'Rivières de sirop de fraise, collines de chocolat blanc et nuages en barbe à papa', bgGlow: 'from-pink-950 via-rose-950 to-slate-950', themeColor: '#EC4899' }
 ];
 
 const MORALS: Moral[] = [
-  { id: 'partage', name: 'Le Partage', emoji: '🤝', desc: 'Apprendre à offrir avec bonheur et recevoir avec gratitude' },
-  { id: 'courage', name: 'Le Courage', emoji: '🦁', desc: 'Dépasser ses petites peurs pour accomplir de grandes choses' },
-  { id: 'amitie', name: 'L\'Amitié', emoji: '🧸', desc: 'Découvrir la force de s\'entraider et de rire ensemble' },
-  { id: 'curiosite', name: 'La Curiosité', emoji: '🔍', desc: 'Explorer le monde pour percer des mystères extraordinaires' },
-  { id: 'perseverance', name: 'La Persévérance', emoji: '🎯', desc: 'Essayer encore avec le sourire jusqu\'à réussir son rêve' }
+  { id: 'partage', name: 'Le Partage', emoji: '🤝', desc: 'Apprendre la joie d\'offrir et la douceur d\'être unis' },
+  { id: 'courage', name: 'Le Courage', emoji: '🦁', desc: 'Dépasser ses petites craintes pour découvrir sa force intérieure' },
+  { id: 'amitie', name: 'L\'Amitié', emoji: '🧸', desc: 'S\'entraider fidèlement et rire ensemble face aux défis' },
+  { id: 'curiosite', name: 'La Curiosité', emoji: '🔍', desc: 'Savoir s\'émerveiller et explorer le monde pour apprendre' },
+  { id: 'perseverance', name: 'La Persévérance', emoji: '🎯', desc: 'Garder le sourire et continuer d\'essayer jusqu\'à réussir ses rêves' }
 ];
 
-// Generative Bedtime Story Engine Database
-const generateStory = (hero: string, universeId: string, moralId: string) => {
+// Rich Bedtime Story Database with extremely descriptive, long paragraphs, extensive dialogues, and poetic atmosphere
+const generateExtensiveStory = (hero: string, universeId: string, moralId: string) => {
   const universe = UNIVERSES.find(u => u.id === universeId) || UNIVERSES[0];
   
   let title = '';
-  let pages: string[] = [];
-  
-  // 1. Space Story
+  let chapters: { title: string; content: string[] }[] = [];
+
   if (universeId === 'espace') {
-    title = `L'Incroyable Voyage Stellaire de ${hero} et l'Étoile Perdue`;
-    
-    pages[0] = `Il était une fois, dans un petit village bordé de collines, un(e) jeune aventurier(e) nommé(e) ${hero}. Ce soir-là, en regardant par la fenêtre de sa chambre, ${hero} vit une petite lumière violette s'agiter dans le ciel. En un instant, une navette spatiale miniature en verre givré se posa doucement sur son lit. Poussé(e) par une douce curiosité, ${hero} monta à bord. La navette décolla silencieusement vers l'Espace Intersidéral, frôlant des constellations de bonbons et naviguant à travers des nuages cosmiques étincelants.`;
-    
-    if (moralId === 'partage') {
-      pages[1] = `Arrivé(e) près de Saturne, ${hero} rencontra Piko, un petit extraterrestre tout bleu qui pleurait des larmes d'étoiles filantes. Piko n'avait plus de poussière magique pour allumer sa planète. ${hero} fouilla dans ses poches et trouva un paquet de sablés dorés faits avec amour. Sans hésiter, il/elle décida de partager son trésor sucré. Magiquement, les miettes des biscuits brillèrent si fort qu'elles se transformèrent en une pluie d'étoiles dorées multicolores. Piko rit aux éclats et sa planète s'illumina d'une douce lumière turquoise.`;
-    } else if (moralId === 'courage') {
-      pages[1] = `Soudain, une grosse tempête de comètes de réglisse grisa le ciel. La navette commença à tanguer et Piko, le petit robot pilote, tremblait de tous ses boulons. ${hero} sentit son cœur battre fort, mais il/elle prit une grande inspiration. Il/Elle ferma les yeux, prit fermement les commandes et chanta une douce berceuse apprise à la maison. Sa voix calma les vents stellaires et la tempête de réglisse s'évapora en confettis d'argent. ${hero} venait de prouver que la bravoure est une lumière qui brise toutes les ombres.`;
-    } else {
-      pages[1] = `Sur une comète de cristal, ${hero} fit la connaissance de Nova, un petit chien de l'espace aux oreilles scintillantes. Nova s'était égaré en cherchant la Grande Ourse. Ensemble, main dans la patte, ils décidèrent de s'entraider. Nova éclairait le chemin avec son collier lumineux et ${hero} dessinait une carte stellaire sur la vitre de la navette. Grâce à cette belle complicité, ils retrouvèrent le chemin de la Grande Ourse, qui les accueillit avec un grand câlin de poussière d'étoile chaleureux.`;
-    }
-    
-    pages[2] = `Le voyage touchait à sa fin. Nova et Piko offrirent à ${hero} une petite fiole d'étoile filante lumineuse pour décorer sa chambre. De retour sur Terre, confortablement blotti(e) sous sa couette, ${hero} ferma les yeux avec un grand sourire. Il/elle comprit que le plus grand des pouvoirs n'était pas de voler dans l'espace, mais d'avoir un cœur rempli de bonté et de lumière. L'univers entier veillait désormais sur ses rêves les plus doux. Bonsoir ${hero}, dors bien.`;
+    title = `L'Étoile Rêveuse et le Secret de la Constellation Infinie`;
+    chapters = [
+      {
+        title: "Chapitre I : L'Appel du Ciel Étoilé",
+        content: [
+          `Il était une fois, dans une jolie maison endormie sous une couverture de brume argentée, un(e) enfant au cœur rempli d'imagination nommé(e) ${hero}. Ce soir-là, alors que la lune veillait doucement, ${hero} remarqua un événement étrange par la fenêtre de sa chambre. Une minuscule navette étincelante, sculptée dans un cristal de verre givré de couleur lilas, se posa sans un bruit sur le tapis. Les moteurs de la navette émettaient un doux bruissement, semblable au ronronnement d'un chaton paisible.`,
+          `Poussé(e) par une irrésistible envie d'explorer, ${hero} s'approcha à pas de loup et ouvrit la petite porte de verre. À l'intérieur, un petit tableau de bord en pain d'épices scintillait joyeusement. « Bienvenue à bord, aventurier(e) de la nuit ! » chuchota une voix douce et mélodieuse qui semblait venir des étoiles. Sans hésiter une seule seconde, ${hero} prit place sur le siège en mousse de barbe à papa et la navette décolla silencieusement, filant à toute allure vers les confins de l'Espace Intersidéral.`,
+          `Le voyage était tout simplement majestueux. Par le hublot panoramique, ${hero} contemplait des constellations entières de bonbons acidulés qui brillaient de mille feux dans le vide cosmique. Des nébuleuses de couleur pastel se balançaient doucement au rythme d'une berceuse céleste lointaine, tandis que de gentilles comètes de réglisse passaient en laissant derrière elles des traînées de poussière dorée et scintillante.`
+        ]
+      },
+      {
+        title: "Chapitre II : La Rencontre Magique",
+        content: [
+          moralId === 'partage' 
+            ? `Après avoir traversé un grand anneau de sucre glace autour de Saturne, la navette ralentit près d'une petite planète oubliée. Là, assis sur un cratère en chocolat, se tenait Piko, un minuscule extraterrestre aux grands yeux rieurs et à la peau bleu turquoise. Mais ce soir, Piko était triste. Il pleurait de chaudes larmes d'argent qui se transformaient instantanément en petites étoiles filantes. « Bonjour, je m'appelle Piko, dit-il d'une voix tremblante. Les feux de ma planète se sont éteints, et mes amis n'ont plus de lumière pour s'endormir ce soir... »`
+            : moralId === 'courage'
+            ? `Soudain, alors que la navette glissait paisiblement, le ciel s'assombrit brusquement. Une gigantesque tempête de comètes de réglisse commença à gronder tout autour d'eux, faisant tanguer le vaisseau de cristal. Piko, le petit robot de bord, commença à trembler de tous ses boulons. « Oh non ! Les courants cosmiques sont trop forts ! Si nous perdons le contrôle, nous allons nous égarer dans le grand vide noir ! » s'écria-t-il avec panique. ${hero} sentit son petit cœur battre très fort dans sa poitrine, mais il/elle savait qu'il fallait agir.`
+            : `La navette atterrit doucement sur une comète de cristal étincelante. En sortant, ${hero} fit la connaissance de Nova, un adorable petit chien de l'espace aux oreilles bleues scintillantes qui aboyait joyeusement en faisant des pirouettes en apesanteur. Mais Nova s'était égaré en voulant attraper une étoile filante et ne retrouvait plus son chemin. « Wouf ! Bonjour ! Je cherche ma maison près de la Grande Ourse, mais toutes ces constellations se ressemblent tant, wouf ! » dit-il en remuant tristement sa queue lumineuse.`,
+          
+          moralId === 'partage'
+            ? `${hero} fouilla avec attention dans sa poche et y trouva un sachet de sablés dorés à la vanille, préparés avec amour l'après-midi même. Avec un sourire bienveillant, ${hero} s'approcha de Piko : « Tiens, prenons-les ensemble, le partage rend tout plus joyeux ! » Ensemble, ils dégustèrent les sablés. Magiquement, chaque miette dorée tombant au sol se mit à grandir et à scintiller, libérant une immense énergie lumineuse. La planète entière de Piko s'illumina instantanément d'une splendide lueur bleu lagon chaleureuse et réconfortante.`
+            : moralId === 'courage'
+            ? `${hero} prit une grande inspiration, ferma les yeux une seconde pour rassembler toutes ses forces, puis attrapa fermement les commandes de la navette. D'une voix claire et douce, il/elle commença à chanter la berceuse que sa maman lui fredonnait chaque soir. Sa voix, portée par les haut-parleurs magiques de la navette, résonna à travers l'espace. Incroyablement, la douceur des paroles calma les vents cosmiques. La tempête de comètes se dissipa, se transformant en une pluie inoffensive de confettis argentés.`
+            : `${hero} s'agenouilla devant Nova et lui caressa doucement le dos. « Ne t'inquiète pas, petit Nova, nous allons faire équipe et trouver la solution ensemble ! » dit-il/elle avec assurance. Nova utilisa ses oreilles pour écouter les vibrations du vent stellaire, tandis que ${hero} dessinait une carte des étoiles en reliant les points brillants sur l'écran tactile du vaisseau. Grâce à cette merveilleuse collaboration, le chemin vers la Grande Ourse apparut clairement sous la forme d'un magnifique toboggan de lumière dorée.`,
+          
+          moralId === 'partage'
+            ? `Piko sauta de joie dans les bras de ${hero}. « Merci infiniment, aventurier(e) de la Terre ! Grâce à ta générosité, la nuit sera douce et belle pour tout le monde ici ! » Les habitants de la planète, sortant de leurs petites maisons de sucre, commencèrent à chanter en chœur pour célébrer ce geste de bonté.`
+            : moralId === 'courage'
+            ? `Piko ouvrit de grands yeux admiratifs. « Tu as été tellement brave ! Tu n'as pas fui face au danger, tu l'as affronté avec de la douceur et du sang-froid ! » La tempête avait laissé place à un calme absolu, et le ciel brillait désormais d'une pureté exceptionnelle, révélant des nébuleuses aux reflets irisés.`
+            : `Nova poussa un jappement de pur bonheur et fit trois fois le tour de la navette avant de lécher affectueusement la main de ${hero}. « Wouf ! Merci mon ami(e) ! Ensemble, nous sommes bien plus forts que tout seul ! » La Grande Ourse brilla d'un éclat bienveillant dans le ciel nocturne pour saluer leur réussite.`
+        ]
+      },
+      {
+        title: "Chapitre III : Le Retour au Pays des Rêves",
+        content: [
+          `Pour remercier chaleureusement ${hero}, les habitants des étoiles lui offrirent un cadeau inestimable : une petite veilleuse en forme de croissant de lune, remplie de poussière d'étoile scintillante. Cette poussière magique avait le pouvoir de diffuser une douce chaleur et d'apporter les rêves les plus apaisants à quiconque la contemplait.`,
+          `La navette spatiale de cristal prit alors le chemin du retour, glissant sur un rayon de lune velouté. Elle se posa à nouveau sur le tapis de la chambre, aussi discrète qu'un souffle d'air frais. ${hero} se glissa sous sa couette moelleuse, serrant fort la petite veilleuse magique contre son cœur. En fermant doucement les yeux, il/elle sentit la douce chaleur des étoiles envelopper toute sa chambre.`,
+          `Alors que la lune veillait fidèlement au-dehors, ${hero} s'endormit paisiblement, l'esprit léger et le cœur rempli d'histoires merveilleuses. L'univers tout entier, avec ses constellations infinies et ses planètes chantantes, s'accorda en une douce symphonie silencieuse pour accompagner sa nuit. Fais de beaux rêves, ${hero}. L'espace t'attend pour d'autres voyages demain. Dors bien.`
+        ]
+      }
+    ];
   }
   // 2. Enchanted Forest
   else if (universeId === 'foret') {
-    title = `${hero} et le Secret de la Forêt Enchantée`;
-    
-    pages[0] = `Dans la douce pénombre du soir, ${hero} découvrit une petite porte en écorce d'arbre secrète au fond du jardin. En la franchissant, il/elle pénétra dans la majestueuse Forêt Enchantée. Sous ses pieds, la mousse de velours brillait d'une lueur vert émeraude et les arbres chuchotaient de joyeux secrets. Les lucioles s'organisaient en petits cœurs lumineux pour éclairer ses pas. C'était un monde mystérieux où la magie prenait vie à chaque instant.`;
-    
-    if (moralId === 'partage') {
-      pages[1] = `Au détour d'un ruisseau argenté, ${hero} aperçut un petit lutin nommé Pipin qui tentait de construire un abri pour la nuit, mais il grelottait de froid. ${hero} portait une écharpe douce et chaude tricotée par sa famille. Avec bienveillance, il/elle l'enleva et la partagea avec Pipin en la drapant sur ses épaules. Touché par ce geste, le lutin sourit chaleureusement. L'écharpe magique grandit instantanément pour former une magnifique tente douillette en laine lumineuse capable de les abriter tous les deux.`;
-    } else if (moralId === 'courage') {
-      pages[1] = `Soudain, un grand bruit sourd retentit : c'était l'Ombre Grognon, un immense nuage gris qui adorait éteindre la lumière des fleurs. Les lucioles prirent peur et s'éteignirent. ${hero} eut un instant d'hésitation, puis s'avança courageusement face au géant gris. Il/Elle tendit les mains en avant et prononça des mots doux d'amitié et de joie. Devant tant de bravoure et de gentillesse, l'Ombre commença à fondre et se transforma en une douce brume parfumée à la menthe et à la lavande.`;
-    } else {
-      pages[1] = `Au milieu de la clairière, ${hero} fit la rencontre de Willow, un faon timide aux sabots de nacre qui n'arrivait pas à sauter par-dessus le ruisseau pour rejoindre ses amis. ${hero} s'approcha doucement, lui caressa la tête et lui murmura des paroles rassurantes. Ensemble, en unissant leurs forces, ${hero} montra le chemin en sautant en premier sur une pierre plate, et Willow le suivit d'un bond gracieux. Libéré, le petit faon sautille de joie autour de son nouvel ami.`;
-    }
-    
-    pages[2] = `Pour remercier ${hero}, le grand chêne de la forêt lui offrit une feuille dorée magique qui ne fane jamais. En repassant la porte secrète pour revenir dans sa chambre, ${hero} glissa la feuille sous son oreiller. Une douce chaleur se répandit dans tout son lit, lui rappelant que la gentillesse est la plus belle des magies. Ses paupières se firent lourdes de jolis rêves de nature. Dors bien, ${hero}, la forêt veille sur toi.`;
+    title = `${hero} et la Cloche d'Argent de la Forêt Enchantée`;
+    chapters = [
+      {
+        title: "Chapitre I : Le Passage Secret sous le Grand Chêne",
+        content: [
+          `Il était une fois, dans un petit cottage de campagne aux volets de couleur lavande, un(e) enfant curieux(se) et intrépide prénommé(e) ${hero}. Ce soir-là, alors que le soleil venait de se coucher en laissant une douce traînée de pourpre dans le ciel, ${hero} aperçut une clé dorée posée sur le rebord de sa fenêtre, suspendue à un ruban de soie verte. Intrigué(e), il/elle prit la clé et descendit dans le jardin pour rejoindre le vieux chêne centenaire.`,
+          `Au pied de l'arbre géant, dissimulée derrière un rideau de lierre épais, se trouvait une petite porte en écorce sculptée. ${hero} glissa la clé dorée dans la serrure. La porte s'ouvrit avec un doux tintement de clochette, révélant un escalier de racine qui descendait vers la Forêt Enchantée. En posant le pied sur la mousse douce comme un tapis de laine, ${hero} vit que toute la forêt brillait d'une lueur émeraude fantastique.`,
+          `Les fleurs s'ouvraient lentement pour libérer des petites lucioles bleues, roses et jaunes, qui s'organisaient en grappes lumineuses pour guider ses pas. Les arbres centenaires se balançaient en douceur, murmurant des poèmes oubliés dans le vent du soir, tandis que des petits lapins blancs aux oreilles dorées le/la regardaient passer avec des yeux remplis de malice et de bienveillance.`
+        ]
+      },
+      {
+        title: "Chapitre II : L'Énigme du Ruisseau de Cristal",
+        content: [
+          moralId === 'partage'
+            ? `En arrivant près d'un magnifique pont de branches entrelacées, ${hero} fit la rencontre de Pipin, le gardien des chemins sylvestres. Pipin était un tout petit écureuil portant un gilet de feuilles sèches et un petit chapeau en forme de gland. Mais Pipin tremblait de froid, recroquevillé sous une grande feuille de fougère. « Bonjour voyageur(se), murmura-t-il. Le vent du nord a soufflé très fort ce soir, et j'ai perdu mon nid chaud... »`
+            : moralId === 'courage'
+            ? `Soudain, une ombre immense et sombre commença à s'étendre sur la forêt, masquant la jolie lumière des lucioles. C'était l'Ombre Grognon, un grand esprit de brume grise qui s'était égaré et qui, par tristesse, éteignait toutes les fleurs lumineuses sur son passage. Les lapins s'enfuirent dans leurs terriers et les lucioles tremblèrent de peur. « Chut, il arrive... » murmura une fleur de lys en fermant ses pétales. ${hero} sentit une pointe d'inquiétude, mais refusa de reculer.`
+            : `Dans une clairière baignée de lumière argentée, ${hero} aperçut Willow, un petit faon aux yeux doux comme des noisettes et aux sabots brillants comme de la nacre. Willow était coincé de l'autre côté d'un ruisseau de cristal dont l'eau coulait trop rapidement pour lui. « Oh, je veux tellement rejoindre ma maman de l'autre côté, mais j'ai peur de glisser sur ces pierres mouillées ! » dit-il d'une petite voix craintive en regardant le courant.`,
+          
+          moralId === 'partage'
+            ? `${hero} portait autour du cou une écharpe en laine très douce et bien chaude, tricotée par sa grand-mère. Sans hésiter une seconde, ${hero} s'approcha doucement de Pipin, détacha son écharpe et l'enroula tendrement autour du petit animal. « Tiens, petit Pipin, partageons ma chaleur, elle est faite pour cela ! » dit-il/elle avec tendresse. Aussitôt, l'écharpe se mit à briller d'une lumière dorée réconfortante, réchauffant instantanément le petit écureuil qui se mit à sautiller de joie.`
+            : moralId === 'courage'
+            ? `${hero} décida de faire preuve d'audace. Au lieu de se cacher, il/elle fit un pas en avant vers le grand nuage gris. D'une voix forte et chaleureuse, il/elle s'exclama : « Bonjour, grand nuage ! Tu n'as pas besoin d'être triste ou en colère. Viens plutôt écouter une jolie histoire avec nous ! » Surpris par tant de bravoure et de gentillesse, l'esprit de brume s'arrêta. Il commença à s'adoucir, à changer de couleur pour devenir blanc comme un mouton de laine, puis se dissipa en une brume parfumée.`
+            : `${hero} s'approcha du bord du ruisseau et s'assit sur une grosse pierre pour se mettre à la hauteur du faon. « Ne t'en fais pas, Willow, nous allons le faire ensemble, pas après pas ! » dit-il/elle d'une voix apaisante. ${hero} repéra de grandes pierres plates stables et sauta gracieusement sur la première en tendant la main. Encouragé par cette complicité et cette confiance, Willow fit un petit bond courageux, puis un deuxième, jusqu'à traverser en toute sécurité.`,
+          
+          moralId === 'partage'
+            ? `Pipin, ravi, offrit à ${hero} une noisette dorée magique : « Merci, généreux(se) ami(e) ! Ton geste de partage a réchauffé mon corps, mais surtout mon cœur ! » Toute la forêt sembla s'illuminer davantage pour célébrer ce moment de pure bonté.`
+            : moralId === 'courage'
+            ? `Les lucioles revinrent en grand nombre, entourant ${hero} d'une couronne de lumière scintillante. « Tu es le/la plus courageux(se) des aventuriers ! Ta voix a ramené la paix dans notre forêt sacrée ! » chuchotèrent les arbres centenaires.`
+            : `Willow frotta gentiment son petit museau tout doux contre la joue de ${hero} en poussant de légers cris de bonheur. « Merci ! Grâce à ton aide et ton amitié, j'ai retrouvé ma famille et dépassé mes peurs ! »`
+        ]
+      },
+      {
+        title: "Chapitre III : La Douce Nuit des Bois",
+        content: [
+          `Pour le/la remercier de sa visite, le Grand Chêne fit tomber doucement une feuille dorée magique dans la main de ${hero}. Cette feuille avait la propriété extraordinaire de diffuser un léger parfum de lavande et de pin sauvage, idéal pour apaiser l'esprit avant de s'endormir.`,
+          `Guidé(e) par la douce lumière des lucioles, ${hero} remonta l'escalier de racines et referma la petite porte en écorce avec précaution. De retour dans sa chambre chaleureuse, il/elle posa la feuille dorée sur sa table de chevet et se glissa avec délices sous sa couette douillette.`,
+          `Un profond sentiment de sérénité enveloppa la pièce alors que la lune montait haut dans le ciel. Les yeux lourds de fatigue, ${hero} s'endormit paisiblement, rêvant d'écureuils rieurs, de faons courageux et de forêts de lumière émeraude. Dors bien, ${hero}, la forêt enchantée veille sur tes rêves les plus doux. Bonsoir.`
+        ]
+      }
+    ];
   }
   // 3. Dinosaur Kingdom
   else if (universeId === 'dinos') {
-    title = `L'Aventure Sucrée de ${hero} au Pays des Dinos`;
-    
-    pages[0] = `Ce soir-là, en ouvrant son livre d'images préféré, ${hero} fut enveloppé(e) d'une douce brume parfumée au cacao. En ouvrant les yeux, il/elle se retrouva au sommet d'une colline de guimauve, au cœur du Royaume des Dinosaures. Au loin, un immense volcan crachait de douces vagues de chocolat chaud tiède. C'était un monde préhistorique magique où les dinosaures avaient la taille de gentils chiots et adoraient jouer à cache-cache.`;
-    
-    if (moralId === 'partage') {
-      pages[1] = `Un adorable bébé Diplodocus nommé Choco s'approcha de ${hero}. Il était triste car il n'atteignait pas les feuilles de bonbons accrochées en haut de l'arbre. ${hero} monta alors sur une colline de caramel et cueillit délicatement les plus jolies feuilles sucrées pour les partager avec Choco. Enchanté par ce festin partagé, le petit dinosaure battit joyeusement de la queue. En guise de remerciement, il fit glisser ${hero} le long de son grand cou doux comme sur un toboggan magique !`;
-    } else if (moralId === 'courage') {
-      pages[1] = `Soudain, un grand Tyrannosaure miniature se dressa devant eux. Il rugissait fort pour impressionner la galerie, mais ${hero} remarqua qu'il tenait sa patte en l'air avec une grosse épine de sucre plantée dedans. Surmontant sa peur, ${hero} s'approcha doucement en murmurant des mots doux. Avec précaution et précision, il/elle retira l'épine. Soulagé, le T-Rex se mit à ronronner comme un gros chaton et offrit à ${hero} un gros câlin préhistorique tout doux.`;
-    } else {
-      pages[1] = `Choco et ${hero} voulaient traverser la rivière de lait concentré pour rejoindre la vallée des jeux, mais le courant était trop fort. C'est alors qu'un ptérodactyle en pain d'épices vint à leur rencontre. Ensemble, en combinant la force du dinosaure et les idées de ${hero}, ils construisirent un pont solide avec de grandes gaufres trouvées sur la rive. En travaillant en équipe, ils purent traverser en toute sécurité sous un ciel de confettis.`;
-    }
-    
-    pages[2] = `La lune de vanille commença à briller dans le ciel ensoleillé de cacao. Choco raccompagna ${hero} jusqu'à son lit de nuages moelleux. De retour chez lui/elle, encore émerveillé(e), ${hero} s'endormit avec un léger parfum de chocolat sur la peau, sachant que la bienveillance transforme même les géants en amis. Fais de doux rêves, petit(e) aventurier(e) des dinos.`;
+    title = `L'Incroyable Vallée des Dinosaures de Sucre et le Volcan Chocolat`;
+    chapters = [
+      {
+        title: "Chapitre I : Voyage dans le Temps Gourmand",
+        content: [
+          `Il était une fois, dans une maison baignée de la douce lumière du soir, un(e) jeune aventurier(e) curieux(se) nommé(e) ${hero}. Ce soir-là, en ouvrant son grand livre sur la préhistoire, ${hero} vit une petite étincelle orange s'échapper des pages illustrées. Soudain, une délicieuse odeur de cacao tiède et de biscuit chaud enveloppa toute sa chambre. Les pages du livre se mirent à tourner d'elles-mêmes à toute vitesse, créant un petit tourbillon de vent magique.`,
+          `Sans avoir le temps d'avoir peur, ${hero} se sentit doucement flotter et atterrit en douceur sur un lit de mousse moelleuse. En ouvrant les yeux, il/elle découvrit un paysage extraordinaire : des arbres géants en sucre de canne, des collines de guimauve rose et, tout au bout de l'horizon, un grand volcan majestueux qui crachait des vagues paresseuses de chocolat chaud fumant. ${hero} venait de pénétrer dans le Royaume des Dinosaures Gourmands !`,
+          `Tout y était paisible et coloré. Les dinosaures de ce monde fantastique étaient de gentilles créatures de la taille de petits chiots, couvertes d'une peau douce et parfumée. Des petits tricératops jouaient à cache-cache derrière des buissons de barbe à papa, tandis que des diplodocus miniatures se laissaient glisser le long des collines de gaufres en poussant des petits cris de joie.`
+        ]
+      },
+      {
+        title: "Chapitre II : Le Mystère du T-Rex Timide",
+        content: [
+          moralId === 'partage'
+            ? `Alors qu'il/elle marchait joyeusement sur un chemin de biscuits sablés, ${hero} rencontra Choco, un bébé Diplodocus tout mignon. Choco pleurait près d'un grand arbre à bonbons car il avait très faim, mais son cou était trop court pour atteindre les feuilles de caramel situées au sommet. « Bonjour, dit Choco tristement. Je n'arrive pas à attraper mon dîner, et mon petit ventre fait de gros bruits... »`
+            : moralId === 'courage'
+            ? `Soudain, un grand bruit fit trembler le sol de guimauve. Un petit Tyrannosaure, haut comme trois pommes, surgit d'un buisson de réglisse. Il rugissait de toutes ses forces pour essayer de paraître effrayant, mais ses yeux étaient remplis de larmes. ${hero} remarqua immédiatement qu'il tenait sa petite patte droite en l'air : une grosse épine de sucre d'orge y était profondément enfoncée. Le petit dinosaure avait mal et avait peur qu'on lui fasse du mal.`
+            : `Près d'une rivière de lait chaud, ${hero} fit la connaissance de Kiki, un petit Ptérodactyle aux ailes colorées comme des bonbons acidulés. Kiki voulait traverser la rivière pour rejoindre son nid au sommet de la falaise de meringue, mais ses petites ailes étaient fatiguées par le vent frais. « Oh, le courant est si rapide, si je tombe à l'eau je vais me mouiller les ailes et je ne pourrai plus voler ! » dit-il en frissonnant.`,
+          
+          moralId === 'partage'
+            ? `${hero} décida de l'aider. Il/Elle monta agilement sur le dos d'un grand rocher de nougatine et cueillit délicatement les plus belles feuilles de caramel du sommet de l'arbre. Il/Elle redescendit et les posa devant Choco : « Tiens, partageons ce délicieux festin de bonbons ! Il y en a bien assez pour nous deux ! » dis-t-il/elle. Ravi de cette générosité, Choco mangea avec appétit, sa queue frétillant de bonheur, et son ventre cessa immédiatement de gronder.`
+            : moralId === 'courage'
+            ? `${hero} décida de faire preuve d'un grand courage. Au lieu de s'enfuir face aux rugissements du T-Rex, il/elle s'approcha doucement, les mains ouvertes pour montrer sa gentillesse. « N'aie pas peur, petit dinosaure. Je suis ton ami et je vais t'aider », dit-il/elle d'une voix douce et rassurante. ${hero} s'agenouilla avec précaution, attrapa délicatement la patte blessée et, d'un geste précis, retira la grosse épine de sucre d'orge.`
+            : `${hero} regarda autour de lui/elle et vit de grandes gaufres sèches posées sur la rive. « Ne t'inquiète pas, Kiki, nous allons unir nos forces ! » dit-il/elle en souriant. Ensemble, en déplaçant les grandes gaufres avec soin, ils construisirent un magnifique pont solide au-dessus de la rivière de lait chaud. ${hero} prit Kiki par la petite patte pour le rassurer et ils traversèrent ensemble, étape par étape, en riant de bon cœur.`,
+          
+          moralId === 'partage'
+            ? `Choco fit un grand câlin préhistorique tout chaud à ${hero}. « Tu es le/la plus gentil(le) des terriens ! Partager ton repas m'a redonné des forces et le sourire ! » chuchota-t-il avec affection.`
+            : moralId === 'courage'
+            ? `Le petit Tyrannosaure s'arrêta instantanément de rugir. Il frotta joyeusement sa tête contre l'épaule de ${hero} en ronronnant comme un gros chat. « Merci ! Tu as été si courageux(se) de venir m'aider malgré mes vilains grognements ! »`
+            : `Kiki s'envola joyeusement au-dessus du nid de meringue en faisant des loopings dans le ciel de cacao. « Merci infiniment ! Grâce à notre travail d'équipe et notre amitié, j'ai surmonté cet obstacle avec brio ! »`
+        ]
+      },
+      {
+        title: "Chapitre III : Une Nuit Parfumée au Chocolat",
+        content: [
+          `Pour remercier ${hero}, le grand conseil des dinosaures lui fit cadeau d'un petit œuf en chocolat magique qui ne fond jamais, mais qui diffuse une douce et rassurante odeur de gousse de vanille quand on le garde près de soi.`,
+          `Alors que la lune de sucre glace commençait à briller dans le ciel étoilé de cannelle, un grand nuage moelleux en barbe à papa descendit doucement pour accueillir ${hero}. Il/Elle s'y installa confortablement et s'envola vers le présent, atterrissant en douceur sous sa propre couette chaude.`,
+          `Serrant fort son petit œuf de vanille, ${hero} ferma les yeux, le cœur rempli d'images gourmandes et d'amis fantastiques. Les yeux lourds de sommeil, il/elle s'endormit paisiblement dans un monde de douceur infinie. Fais de doux rêves sucrés, ${hero}. Dors bien, la nuit est belle.`
+        ]
+      }
+    ];
   }
   // 4. Mysterious Ocean
   else if (universeId === 'ocean') {
-    title = `${hero} et la Cité de Corail Lumineux`;
-    
-    pages[0] = `En glissant un coquillage magique contre son oreille, ${hero} entendit une douce mélodie marine. Une bulle d'air protectrice et dorée l'enveloppa délicatement et l'emmena flotter sous les vagues de l'Océan Mystérieux. Autour de lui/elle, des dauphins luminescents dansaient en formant des arabesques d'eau et de lumière. Au fond de l'eau brillait une splendide cité de corail aux mille éclats bleus et mauves.`;
-    
-    if (moralId === 'partage') {
-      pages[1] = `Dans les allées de la cité sous-marine, ${hero} rencontra Marina, une petite sirène couronnée d'algues nacrées. Marina avait perdu ses perles de lumière pour éclairer les bébés tortues qui allaient naître. ${hero} sortit alors de sa bulle son petit trésor de coquillages polis brillants qu'il/elle avait collectés sur la plage. Il/Elle les partagea tous avec Marina. Posés sur le corail, les coquillages de ${hero} se mirent à briller d'une lueur dorée féerique, guidant parfaitement les bébés tortues vers la mer ouverte.`;
-    } else if (moralId === 'courage') {
-      pages[1] = `Soudain, un grand poulpe timide nommé Octo bloqua l'entrée de la grotte aux merveilles car il avait peur du noir des abysses. ${hero} s'approcha doucement d'Octo malgré l'obscurité impressionnante de l'eau. Il/Elle alluma une veilleuse magique de poche et la tendit au poulpe avec un grand sourire rassurant. Octo, rassuré par le courage de son ami(e), changea de couleur pour devenir rose scintillant et ouvrit grand les bras pour laisser place à la lumière.`;
-    } else {
-      pages[1] = `Marina et ${hero} cherchaient le trésor perdu du Roi Triton, enfoui sous un banc de sable mouvant. C'est en s'associant avec un crabe musicien rigolo qu'ils trouvèrent la solution. Le crabe tapotait le sable en rythme pour détecter le coffre, et ${hero} creusait doucement à l'aide d'une coquille Saint-Jacques géante. En équipe, ils sortirent de l'eau une magnifique harpe dorée magique qui se mit à jouer une douce berceuse.`;
-    }
-    
-    pages[2] = `Porté(e) par la douce mélodie de la harpe d'or, la bulle de ${hero} remonta tranquillement à la surface pour le/la déposer dans sa chambre. En ouvrant les yeux au chaud sous sa couette, ${hero} se sentit bercé(e) par le va-et-vient des vagues. Il/elle s'endormit paisiblement, l'esprit rempli de coquillages scintillants et de poissons magiques. Bonsoir, ${hero}, fais de doux rêves marins.`;
+    title = `${hero} et la Symphonie de la Cité Sous-Marine`;
+    chapters = [
+      {
+        title: "Chapitre I : La Plongée dans le Bleu Profond",
+        content: [
+          `Il était une fois, dans une chambre paisible éclairée par la douce lueur d'une veilleuse, un(e) enfant à l'esprit rêveur nommé(e) ${hero}. Ce soir-là, en posant l'oreille contre un grand coquillage nacré rapporté de vacances, ${hero} entendit non pas le bruit de la mer, mais une magnifique mélodie de harpe jouée par les courants marins. Une jolie bulle dorée et protectrice, douce comme une caresse d'air chaud, enveloppa délicatement ${hero} et l'emmena flotter à travers le sol de sa chambre.`,
+          `Sans ressentir la moindre peur, ${hero} commença à descendre doucement dans les profondeurs de l'Océan Mystérieux. La bulle magique lui permettait de respirer et de se déplacer avec une incroyable légèreté. Autour de lui/elle, l'eau était d'un bleu saphir magnifique, éclairée par des bancs de poissons-lanternes qui dansaient en dessinant des vagues lumineuses. C'était un monde sous-marin merveilleux où tout semblait calme et magique.`,
+          `Au fond de l'eau brillait une splendide cité de corail aux mille éclats mauves et argentés. Des dauphins luminescents faisaient des acrobaties autour des tours de coquillages géants, tandis que des petites étoiles de mer jouaient de la musique en tapotant sur des perles de cristal brillantes.`
+        ]
+      },
+      {
+        title: "Chapitre II : Le Trésor de la Sirène",
+        content: [
+          moralId === 'partage'
+            ? `Près d'un grand palais de nacre, ${hero} fit la connaissance de Marina, une petite sirène couronnée de fleurs marines. Marina était très triste car toutes ses perles lumineuses s'étaient éparpillées au fond d'une faille sombre, et elle n'avait plus de lumière pour guider les bébés tortues qui allaient naître ce soir sur la plage. « Bonjour, murmura Marina. Sans mes perles de lumière, les petites tortues vont s'égarer dans l'ombre... »`
+            : moralId === 'courage'
+            ? `Soudain, un grand grondement résonna dans la grotte aux merveilles. Octo, un calamar géant très timide, s'était caché à l'intérieur car il avait peur de la grande obscurité des abysses profonds. Pour empêcher quiconque d'entrer, il agitait ses grands tentacules de manière impressionnante, créant de gros tourbillons d'eau. Les poissons-lanternes s'enfuirent de peur. ${hero} sentit le courant bouger fort autour de sa bulle, mais décida de garder son calme.`
+            : `Sur un récif de corail rose, ${hero} aperçut Bulle, un petit hippocampe aux reflets dorés qui pleurait doucement. Bulle s'était éloigné de sa famille en suivant un banc de poissons rigolos et s'était perdu. « Oh, le chemin du retour passe par le grand jardin d'algues qui bougent sans cesse, et j'ai peur de m'y perdre tout seul ! » dit-il d'une voix tremblante en regardant les grandes feuilles vertes danser.`,
+          
+          moralId === 'partage'
+            ? `${hero} fouilla dans sa bulle et y trouva son magnifique trésor de coquillages polis et de galets brillants ramassés l'été dernier. Avec un grand sourire protecteur, ${hero} ouvrit les mains pour les partager avec Marina. « Tiens, Marina, mes coquillages brillent très fort aussi ! Partageons-les pour éclairer le chemin des bébés tortues ! » dit-il/elle. Magiquement, en touchant l'eau sacrée, les coquillages de ${hero} se mirent à briller d'une splendide lueur d'or chaleureuse.`
+            : moralId === 'courage'
+            ? `${hero} prit une grande décision de bravoure. Guidant sa bulle magique avec douceur, il/elle s'approcha doucement d'Octo malgré les mouvements impressionnants de ses tentacules. D'une voix douce et rassurante qui traversa la paroi de verre, il/elle lui dit : « N'aie pas peur, grand Octo. Tiens, prends ma veilleuse de cristal, elle va éclairer ta grotte et réchauffer ton cœur. » Rassuré par tant de gentillesse, le calamar se calma instantanément.`
+            : `${hero} prit délicatement le petit hippocampe dans le creux de sa main pour le rassurer. « Ne t'inquiète pas, petit Bulle, nous allons faire équipe et trouver la sortie ensemble ! » dit-il/elle avec assurance. Bulle utilisait ses grands yeux pour repérer les passages libres entre les algues en mouvement, tandis que ${hero} guidait sa bulle dorée pour écarter doucement les grandes feuilles vertes. Grâce à cette collaboration, ils franchirent le jardin d'algues sans aucun problème.`,
+          
+          moralId === 'partage'
+            ? `Marina réunit les coquillages lumineux de ${hero} pour former un magnifique chemin d'or sur le sable. « Merci infiniment, généreux(se) ami(e) ! Grâce à ton esprit de partage, toutes les petites tortues sont nées en sécurité ce soir sous les étoiles ! » chuchota-t-elle avec gratitude.`
+            : moralId === 'courage'
+            ? `Octo prit délicatement la veilleuse de cristal avec l'un de ses tentacules. La grotte entière s'illumina d'une douce couleur rose et violette. « Merci, aventurier(e) courageux(se) ! Ta présence et ta bonté ont chassé toutes mes peurs du noir ! » murmura-t-il avec soulagement.`
+            : `Bulle retrouva sa maman hippocampe qui l'attendait avec impatience. Il fit trois fois le tour de la main de ${hero} en poussant des petits cris de joie : « Merci ! Ensemble, nous avons été plus forts que tous les obstacles du grand océan ! »`
+        ]
+      },
+      {
+        title: "Chapitre III : Le Sommeil des Abysses",
+        content: [
+          `Pour le/la remercier de son aide précieuse, le grand roi de la mer offrit à ${hero} un magnifique coquillage magique bleu nacré qui murmurait la plus douce des chansons de mer quand on le posait sur sa table de nuit.`,
+          `La bulle dorée de ${hero} remonta tranquillement à travers l'eau tiède, le/la ramenant en douceur dans sa chambre douillette. Il/Elle se glissa avec délices sous sa couette chaude, posant le coquillage bleu près de son oreiller.`,
+          `Une magnifique sensation de calme et de sécurité envahit toute la pièce alors que le murmure apaisant de l'océan berçait son esprit. Les paupières de ${hero} se firent lourdes de beaux rêves aquatiques. Fais de doux rêves marins, petit(e) explorateur(trice). Dors bien, l'océan veille sur toi. Bonsoir.`
+        ]
+      }
+    ];
   }
   // 5. Candy World
   else {
-    title = `${hero} au Pays des Nuages en Barbe à Papa`;
-    
-    pages[0] = `Un soir, un chemin de petits bonbons acidulés se dessina sur le sol de la chambre de ${hero}. En le suivant pas à pas, il/elle s'envola vers le Monde des Bonbons ! Le sol y était moelleux comme de la brioche, des rivières de sirop de fraise coulaient paisiblement entre des collines de chocolat blanc, et de grands arbres en sucette abritaient des oiseaux en sucre filé qui chantaient doucement.`;
-    
-    if (moralId === 'partage') {
-      pages[1] = `Au bord de la rivière de fraise, ${hero} fit la connaissance de Gribouille, un petit ours en guimauve tout triste car son biscuit en gaufrette s'était brisé. ${hero} sortit de son sac une magnifique tablette de chocolat multicolore qu'il/elle avait reçue. Avec joie, il/elle la cassa en deux et partagea la plus grande moitié avec Gribouille. Instantanément, la guimauve de l'ours s'illumina de paillettes arc-en-ciel et un parfum délicieux de vanille envahit toute la clairière sucrée.`;
-    } else if (moralId === 'courage') {
-      pages[1] = `Soudain, le pont en sucre d'orge qui permettait de traverser la falaise de chocolat commença à fondre sous les rayons d'une lune de miel trop chaude. Gribouille était paralysé de panique à l'idée de traverser. ${hero} prit alors le petit ours par la patte molle, lui parla doucement pour le rassurer, et s'avança en premier d'un pas assuré sur le pont. Grâce à son sang-froid et sa bienveillance, ils traversèrent juste à temps avant que le pont ne se transforme en un toboggan de caramel amusant !`;
-    } else {
-      pages[1] = `Gribouille et ${hero} voulaient cueillir les cerises confites géantes situées au sommet de la plus haute colline de meringue. Mais la meringue était glissante comme de la glace ! En unissant leurs efforts, l'ours en guimauve fit la courte échelle à ${hero} tandis que ${hero} s'accrochait à une branche de réglisse solide pour se hisser. En travaillant main dans la main, ils récoltèrent un plein panier de cerises confites brillantes en riant de bon cœur.`;
-    }
-    
-    pages[2] = `Le soleil de caramel coulant se coucha doucement, laissant place à une nuit de sucre glace. Fatigué(e) mais le cœur comblé, ${hero} se laissa glisser sur un nuage de barbe à papa rose qui le/la ramena tout en douceur dans son lit douillet. En fermant les yeux, ${hero} garda en mémoire le goût sucré de cette aventure et la certitude que le partage rend le monde infiniment plus doux. Dors bien, ${hero}, fais de délicieux rêves sucrés.`;
+    title = `${hero} et le Mystère de la Montagne en Barbe à Papa`;
+    chapters = [
+      {
+        title: "Chapitre I : L'Envol vers le Pays Sucré",
+        content: [
+          `Il était une fois, dans une maison baignée par le calme de la nuit, un(e) jeune aventurier(e) gourmand(e) et joyeux(se) prénommé(e) ${hero}. Ce soir-là, alors que les étoiles commençaient à clignoter comme de petits sucres d'orge dans le ciel sombre, ${hero} découvrit un petit sentier de bonbons multicolores dessiné sur le tapis de sa chambre. Curieux(se), il/elle posa le pied sur le premier bonbon violet, puis sur le bleu... et soudain, il/elle s'envola doucement comme un ballon de baudruche !`,
+          `Porté(e) par une brise tiède parfumée à la fraise, ${hero} atterrit tout en douceur sur une colline de brioche moelleuse. En ouvrant les yeux, il/elle poussa un cri d'admiration : sous ses pieds s'étendait le Monde des Bonbons ! Une magnifique rivière de sirop de fraise coulait paisiblement entre des collines de chocolat blanc, et de grands arbres en sucette abritaient des oiseaux en sucre filé qui chantaient la plus douce des mélodies du soir.`,
+          `Tout dans ce monde magique était fait pour s'amuser et se régaler. Le sol était si souple qu'on pouvait y rebondir sans aucun danger, et de grands nuages blancs en barbe à papa flottaient dans le ciel, prêts à accueillir les enfants fatigués pour leur offrir le plus doux des lits de repos.`
+        ]
+      },
+      {
+        title: "Chapitre II : L'Ours en Guimauve et le Pont de Caramel",
+        content: [
+          moralId === 'partage'
+            ? `Alors qu'il/elle marchait au bord de la rivière de sirop, ${hero} fit la rencontre de Gribouille, un adorable petit ours en guimauve rose. Gribouille était assis sur un rocher de nougat et pleurait doucement, car son grand biscuit en gaufrette s'était brisé en tombant dans l'eau. « Bonjour, murmura le petit ours tristement. C'était mon seul goûter pour ce soir, et maintenant je n'ai plus rien à manger... »`
+            : moralId === 'courage'
+            ? `Soudain, un grand bruit se fit entendre : le pont de sucre d'orge qui permettait de traverser la falaise de chocolat commençait à fondre sous la chaleur d'une lune de miel trop brillante. Gribouille, l'ours en guimauve, était paralysé par la peur au milieu du pont, n'osant plus faire un pas en avant ni en arrière. Le caramel coulait tout autour de lui et il risquait de glisser à tout moment. ${hero} savait qu'il fallait agir avec assurance.`
+            : `Près d'une colline de meringue géante, ${hero} aperçut Pip, un petit oiseau en sucre filé bleu qui essayait désespérément d'atteindre le sommet pour cueillir une cerise confite magique. Mais la meringue était terriblement glissante comme de la vraie glace, et Pip n'arrivait pas à s'y accrocher avec ses petites pattes de sucre. « Oh, c'est trop difficile d'y monter tout seul, je glisse sans cesse ! » dit-il tristement en soupirant.`,
+          
+          moralId === 'partage'
+            ? `${hero} fouilla dans son petit sac à dos et y trouva une magnifique tablette de chocolat multicolore aux éclats de caramel, reçue l'après-midi même. Avec un grand sourire chaleureux, ${hero} s'approcha de Gribouille, cassa la tablette en deux et lui offrit la plus grande moitié. « Tiens, petit Gribouille ! Partageons mon chocolat magique, c'est encore meilleur à deux ! » dit-il/elle. Instantanément, la guimauve de l'ours s'illumina de paillettes dorées.`
+            : moralId === 'courage'
+            ? `${hero} prit une grande décision de bravoure. S'avançant sans hésiter sur le pont de sucre d'orge chancelant, il/elle prit le petit ours par sa patte molle en guimauve. D'une voix forte, rassurante et douce, ${hero} lui dit : « Ne t'en fais pas, Gribouille, serre fort ma main et marche dans mes pas. Nous allons y arriver ensemble ! » Inspiré par tant de courage, Gribouille serra la main de son ami(e) et avança pas après pas.`
+            : `${hero} s'approcha de Pip avec un grand sourire complice. « Ne t'inquiète pas, Pip, nous allons faire équipe et réussir ensemble ! » dit-il/elle. ${hero} s'agenouilla pour faire la courte échelle au petit oiseau en lui servant de marchepied avec ses mains douces, tandis que Pip utilisait son bec pour s'accrocher solidement à une branche de réglisse robuste. En unissant leurs efforts, ils atteignirent le sommet de la meringue.`,
+          
+          moralId === 'partage'
+            ? `Gribouille dégusta le chocolat avec un immense bonheur, sa peau rose brillant de mille feux. « Merci infiniment, généreux(se) terrien(ne) ! Ton geste de partage a rendu ma soirée infiniment plus douce ! » chuchota-t-il avec tendresse.`
+            : moralId === 'courage'
+            ? `Ils atteignirent la rive solide juste au moment où le pont de sucre d'orge se transformait en un toboggan amusant de caramel doré. Gribouille poussa un cri de joie : « Merci ! Tu as été tellement courageux(se) d'affronter le danger pour venir me sauver la vie ! »`
+            : `Pip attrapa la magnifique cerise confite brillante et la déposa délicatement dans la main de ${hero} : « Merci ! Grâce à notre travail d'équipe et notre belle amitié, nous avons conquis le sommet de la colline magique ! »`
+        ]
+      },
+      {
+        title: "Chapitre III : Le Repos sur les Nuages de Sucre",
+        content: [
+          `Pour remercier ${hero} de sa visite inoubliable, la reine du royaume des bonbons lui offrit un petit sucre d'orge scintillant magique qui diffusait un doux parfum de fraise et de vanille propice aux rêves les plus apaisants.`,
+          `Un magnifique nuage de barbe à papa rose descendit doucement du ciel étoilé de sucre glace pour accueillir ${hero}. Il/Elle s'y installa comme dans un nid douillet et s'envola paisiblement vers sa chambre, se retrouvant blotti(e) sous sa propre couette chaude.`,
+          `Une délicieuse sensation de paix et de douceur enveloppa toute la pièce alors que le parfum de fraise apaisait son esprit fatigué. Les paupières de ${hero} se fermèrent doucement sur des rêves de rivières de sirop et d'oursons rieurs. Fais de délicieux rêves sucrés, ${hero}. Dors bien, la nuit est magique. Bonsoir.`
+        ]
+      }
+    ];
   }
 
-  return { title, pages, bgGlow: universe.bgGlow, emoji: universe.emoji };
+  return { title, chapters, bgGlow: universe.bgGlow, emoji: universe.emoji, themeColor: universe.themeColor };
 };
 
 export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
@@ -147,17 +289,59 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
   const [selectedUniverse, setSelectedUniverse] = useState<string>('espace');
   const [selectedMoral, setSelectedMoral] = useState<string>('partage');
   
-  // Generation & playback state
+  // Story state
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [genStep, setGenStep] = useState<number>(0);
   const [activeStory, setActiveStory] = useState<any | null>(null);
-  const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
+  const [currentChapterIndex, setCurrentChapterIndex] = useState<number>(0);
+  
+  // Text-To-Speech Controls
   const [isReadingAloud, setIsReadingAloud] = useState<boolean>(false);
+  const [speechRate, setSpeechRate] = useState<number>(0.85); // Storytelling speed
+  const [speechPitch, setSpeechPitch] = useState<number>(1.05); // Gentler pitch
+  const [selectedVoiceName, setSelectedVoiceName] = useState<string>('');
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [showVoiceSettings, setShowVoiceSettings] = useState<boolean>(false);
+  const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('lg');
+
+  // Soundscape (Web Audio API)
+  const [ambientSound, setAmbientSound] = useState<'none' | 'rain' | 'crickets' | 'lullaby'>('none');
+  const [ambientVolume, setAmbientVolume] = useState<number>(0.15);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const ambientNodesRef = useRef<{ source: AudioNode | null; gainNode: GainNode | null }>({ source: null, gainNode: null });
+
+  // 3D Flip animation triggers
+  const [isFlipping, setIsFlipping] = useState<boolean>(false);
+  const [flipDirection, setFlipDirection] = useState<'next' | 'prev'>('next');
+
+  // Load browser speech synthesis voices
+  useEffect(() => {
+    const loadVoices = () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        const voices = window.speechSynthesis.getVoices();
+        // Filter French voices
+        const french = voices.filter(v => v.lang.startsWith('fr'));
+        setAvailableVoices(french);
+        
+        // Pick best default French voice
+        if (french.length > 0) {
+          const googleFrench = french.find(v => v.name.toLowerCase().includes('google'));
+          const premiumFrench = french.find(v => v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('soft'));
+          const fallback = googleFrench || premiumFrench || french[0];
+          setSelectedVoiceName(fallback.name);
+        }
+      }
+    };
+
+    loadVoices();
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
 
   // Set default hero based on family members
   useEffect(() => {
     if (members && members.length > 0) {
-      // Prioritize child members if available (Amadou or Awa)
       const kids = members.filter(m => m.id === '3' || m.id === '4');
       if (kids.length > 0) {
         setSelectedHero(kids[0].name);
@@ -169,12 +353,191 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
     }
   }, [members]);
 
-  // Clean up speech synthesis on unmount
+  // Clean up sounds and speech on unmount
   useEffect(() => {
     return () => {
       window.speechSynthesis.cancel();
+      stopAmbientSound();
     };
   }, []);
+
+  // Sync ambient sound volume
+  useEffect(() => {
+    if (ambientNodesRef.current.gainNode && audioContextRef.current) {
+      ambientNodesRef.current.gainNode.gain.setValueAtTime(ambientVolume, audioContextRef.current.currentTime);
+    }
+  }, [ambientVolume]);
+
+  // Handle ambient sound activation
+  useEffect(() => {
+    if (ambientSound !== 'none') {
+      startAmbientSound(ambientSound);
+    } else {
+      stopAmbientSound();
+    }
+  }, [ambientSound]);
+
+  // Stop background sounds
+  const stopAmbientSound = () => {
+    if (ambientNodesRef.current.source) {
+      try {
+        (ambientNodesRef.current.source as any).stop();
+      } catch (e) {
+        try {
+          (ambientNodesRef.current.source as any).disconnect();
+        } catch (_) {}
+      }
+      ambientNodesRef.current.source = null;
+    }
+  };
+
+  // Start Bedtime background generator using pure Web Audio API (soothing pink noise & synthesized frequencies)
+  const startAmbientSound = (type: 'rain' | 'crickets' | 'lullaby') => {
+    stopAmbientSound();
+
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      
+      const ctx = audioContextRef.current;
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      const gainNode = ctx.createGain();
+      gainNode.gain.setValueAtTime(ambientVolume, ctx.currentTime);
+      gainNode.connect(ctx.destination);
+      ambientNodesRef.current.gainNode = gainNode;
+
+      // 1. Rain Synthesizer (Filtered White/Brown Noise)
+      if (type === 'rain') {
+        const bufferSize = 2 * ctx.sampleRate;
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        
+        let lastOut = 0.0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          // Apply low-pass filtering to approximate soothing brown noise
+          output[i] = (lastOut + (0.02 * white)) / 1.02;
+          lastOut = output[i];
+          output[i] *= 3.5; // Gain boost
+        }
+
+        const noiseNode = ctx.createBufferSource();
+        noiseNode.buffer = noiseBuffer;
+        noiseNode.loop = true;
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(600, ctx.currentTime);
+
+        noiseNode.connect(filter);
+        filter.connect(gainNode);
+        noiseNode.start(0);
+        ambientNodesRef.current.source = noiseNode;
+      }
+
+      // 2. Crickets Synthesizer (Pulsing high-frequency bandpass bands)
+      else if (type === 'crickets') {
+        // Create an oscillator that plays a chirping high pitch modulated by a low frequency pulse
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(3200, ctx.currentTime);
+
+        const modGain = ctx.createGain();
+        modGain.gain.setValueAtTime(0, ctx.currentTime);
+
+        osc.connect(modGain);
+        modGain.connect(gainNode);
+
+        osc.start(0);
+        ambientNodesRef.current.source = osc;
+
+        // Custom synthesizer pulse loop for cric-cric sound
+        let isChirping = true;
+        const pulseInterval = setInterval(() => {
+          if (!ambientNodesRef.current.source) {
+            clearInterval(pulseInterval);
+            return;
+          }
+          const now = ctx.currentTime;
+          if (isChirping) {
+            // High frequency mod bursts
+            modGain.gain.setValueAtTime(0, now);
+            modGain.gain.linearRampToValueAtTime(0.3, now + 0.03);
+            modGain.gain.setValueAtTime(0.3, now + 0.07);
+            modGain.gain.linearRampToValueAtTime(0, now + 0.1);
+          }
+          isChirping = !isChirping;
+        }, 150);
+
+        // Keep interval reference inside the source node to stop it later
+        (osc as any).stop = () => {
+          clearInterval(pulseInterval);
+          osc.disconnect();
+        };
+      }
+
+      // 3. Gentle Lullaby Synthesizer (Soft slow pentatonic notes in delay loop)
+      else if (type === 'lullaby') {
+        const pentatonic = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25]; // C-D-E-G-A-C
+        const notesNode = ctx.createGain();
+        notesNode.connect(gainNode);
+
+        // Simple delay node for magical space/bedtime echoes
+        const delay = ctx.createDelay(1.0);
+        delay.delayTime.setValueAtTime(0.4, ctx.currentTime);
+        const delayGain = ctx.createGain();
+        delayGain.gain.setValueAtTime(0.4, ctx.currentTime);
+
+        notesNode.connect(delay);
+        delay.connect(delayGain);
+        delayGain.connect(notesNode); // feedback loop
+
+        let step = 0;
+        const playNote = () => {
+          if (!ambientNodesRef.current.source) return;
+          
+          const now = ctx.currentTime;
+          const noteOsc = ctx.createOscillator();
+          noteOsc.type = 'triangle'; // Sweet flute-like sound
+          
+          const noteFreq = pentatonic[Math.floor(Math.random() * pentatonic.length)];
+          noteOsc.frequency.setValueAtTime(noteFreq, now);
+
+          const noteEnvelope = ctx.createGain();
+          noteEnvelope.gain.setValueAtTime(0, now);
+          noteEnvelope.gain.linearRampToValueAtTime(0.4, now + 0.1); // slow attack
+          noteEnvelope.gain.exponentialRampToValueAtTime(0.001, now + 2.0); // long release
+
+          noteOsc.connect(noteEnvelope);
+          noteEnvelope.connect(notesNode);
+
+          noteOsc.start(now);
+          noteOsc.stop(now + 2.2);
+          
+          step++;
+          // Play notes with soft, asymmetrical intervals
+          setTimeout(playNote, 1800 + Math.random() * 1200);
+        };
+
+        playNote();
+        
+        // Custom stop handler to interrupt lullaby
+        const stopper = {
+          stop: () => {
+            notesNode.disconnect();
+          }
+        };
+        ambientNodesRef.current.source = stopper as any;
+      }
+
+    } catch (err) {
+      console.warn("Web Audio API not fully initialized yet:", err);
+    }
+  };
 
   const handleStartGeneration = () => {
     if (!selectedHero.trim()) return;
@@ -183,40 +546,50 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
     window.speechSynthesis.cancel();
     setIsReadingAloud(false);
 
-    // Dynamic generation simulation step-by-step for magical immersion
     setTimeout(() => {
       setGenStep(2);
       setTimeout(() => {
         setGenStep(3);
         setTimeout(() => {
-          const story = generateStory(selectedHero.trim(), selectedUniverse, selectedMoral);
+          const story = generateExtensiveStory(selectedHero.trim(), selectedUniverse, selectedMoral);
           setActiveStory(story);
-          setCurrentPageIndex(0);
+          setCurrentChapterIndex(0);
           setIsGenerating(false);
           setGenStep(0);
-        }, 1200);
-      }, 1200);
-    }, 1200);
+        }, 1500);
+      }, 1500);
+    }, 1500);
+  };
+
+  // Flip Page Anim Trigger with direction parameter
+  const changeChapter = (index: number, direction: 'next' | 'prev') => {
+    if (isFlipping) return;
+    window.speechSynthesis.cancel();
+    setIsReadingAloud(false);
+    
+    setFlipDirection(direction);
+    setIsFlipping(true);
+
+    setTimeout(() => {
+      setCurrentChapterIndex(index);
+      setIsFlipping(false);
+    }, 550); // half second flip duration
   };
 
   const handleNextPage = () => {
     if (!activeStory) return;
-    window.speechSynthesis.cancel();
-    setIsReadingAloud(false);
-    if (currentPageIndex < activeStory.pages.length - 1) {
-      setCurrentPageIndex(prev => prev + 1);
+    if (currentChapterIndex < activeStory.chapters.length - 1) {
+      changeChapter(currentChapterIndex + 1, 'next');
     }
   };
 
   const handlePrevPage = () => {
-    window.speechSynthesis.cancel();
-    setIsReadingAloud(false);
-    if (currentPageIndex > 0) {
-      setCurrentPageIndex(prev => prev - 1);
+    if (currentChapterIndex > 0) {
+      changeChapter(currentChapterIndex - 1, 'prev');
     }
   };
 
-  // Ultra-premium audio-reading aloud feature (Text-To-Speech)
+  // Upgraded Premium TTS Voice Engine
   const handleToggleReadAloud = () => {
     if (!activeStory) return;
 
@@ -226,16 +599,17 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
       return;
     }
 
-    const textToRead = activeStory.pages[currentPageIndex];
+    // Combine all paragraphs of the current chapter for a long reading
+    const textToRead = activeStory.chapters[currentChapterIndex].content.join(' ');
     const utterance = new SpeechSynthesisUtterance(textToRead);
+    
     utterance.lang = 'fr-FR';
-    utterance.rate = 0.9; // Soft, slow storytelling voice speed
+    utterance.rate = speechRate;
+    utterance.pitch = speechPitch;
 
-    // Attempt to pick a soft voice if available in the browser
-    const voices = window.speechSynthesis.getVoices();
-    const frenchVoice = voices.find(v => v.lang.startsWith('fr') && v.name.toLowerCase().includes('google') || v.name.toLowerCase().includes('soft'));
-    if (frenchVoice) {
-      utterance.voice = frenchVoice;
+    const voice = availableVoices.find(v => v.name === selectedVoiceName);
+    if (voice) {
+      utterance.voice = voice;
     }
 
     utterance.onend = () => {
@@ -253,15 +627,17 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
   const handleReset = () => {
     window.speechSynthesis.cancel();
     setIsReadingAloud(false);
+    stopAmbientSound();
+    setAmbientSound('none');
     setActiveStory(null);
-    setCurrentPageIndex(0);
+    setCurrentChapterIndex(0);
   };
 
   return (
-    <div className="relative glass-panel border border-white/10 rounded-[36px] p-6 md:p-8 overflow-hidden min-h-[600px] w-full flex flex-col justify-between transition-all animate-fade-in shadow-[0_20px_50px_rgba(255,176,32,0.15)] bg-slate-950/40">
+    <div className="relative glass-panel border border-white/10 rounded-[40px] p-6 md:p-8 overflow-hidden min-h-[660px] w-full flex flex-col justify-between transition-all duration-700 shadow-[0_25px_60px_rgba(0,0,0,0.5)] bg-[#070e17]/80">
       
-      {/* Dynamic ambient glowing spheres based on universe */}
-      <div className={`absolute -top-24 -left-24 w-80 h-80 rounded-full bg-gradient-to-tr filter blur-[100px] opacity-35 transition-all duration-1000 ${
+      {/* Dynamic ambient glowing background circles */}
+      <div className={`absolute -top-32 -left-32 w-96 h-96 rounded-full bg-gradient-to-tr filter blur-[120px] opacity-20 transition-all duration-1000 ${
         activeStory ? activeStory.bgGlow : 
         selectedUniverse === 'espace' ? 'from-indigo-600 to-purple-600' :
         selectedUniverse === 'foret' ? 'from-emerald-600 to-teal-600' :
@@ -270,38 +646,91 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
         'from-pink-600 to-rose-600'
       }`}></div>
 
-      {/* Header */}
+      {/* Embedded modular CSS styling for physical 3D book fold effect */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .book-container {
+          perspective: 1200px;
+          transform-style: preserve-3d;
+        }
+        .book-cover-mock {
+          box-shadow: 0 35px 80px rgba(0,0,0,0.7), inset 0 2px 5px rgba(255,255,255,0.1), inset 0 -2px 5px rgba(0,0,0,0.5);
+          background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+          position: relative;
+        }
+        .book-cover-mock::after {
+          content: '';
+          position: absolute;
+          top: 0; left: 18px; bottom: 0; w: 4px;
+          background: rgba(255,255,255,0.06);
+          box-shadow: 1px 0 3px rgba(0,0,0,0.4);
+        }
+        .book-spine-line {
+          box-shadow: inset -2px 0 8px rgba(0,0,0,0.6), inset 2px 0 8px rgba(0,0,0,0.6);
+          background: rgba(15, 23, 42, 0.95);
+        }
+        .audio-wave-bar {
+          animation: dance 1.2s ease-in-out infinite alternate;
+        }
+        @keyframes dance {
+          0% { transform: scaleY(0.15); }
+          100% { transform: scaleY(1.0); }
+        }
+        .flip-active-next {
+          animation: flipNext 0.55s cubic-bezier(0.645, 0.045, 0.355, 1.0) forwards;
+          transform-origin: left center;
+        }
+        .flip-active-prev {
+          animation: flipPrev 0.55s cubic-bezier(0.645, 0.045, 0.355, 1.0) forwards;
+          transform-origin: right center;
+        }
+        @keyframes flipNext {
+          0% { transform: rotateY(0deg); opacity: 1; filter: brightness(1); }
+          50% { transform: rotateY(-90deg); opacity: 0.5; filter: brightness(0.7); }
+          100% { transform: rotateY(-180deg); opacity: 0; filter: brightness(0.4); }
+        }
+        @keyframes flipPrev {
+          0% { transform: rotateY(0deg); opacity: 1; filter: brightness(1); }
+          50% { transform: rotateY(90deg); opacity: 0.5; filter: brightness(0.7); }
+          100% { transform: rotateY(180deg); opacity: 0; filter: brightness(0.4); }
+        }
+        .gold-border {
+          border: 1px solid rgba(251, 191, 36, 0.15);
+          box-shadow: 0 0 10px rgba(251, 191, 36, 0.05);
+        }
+      `}} />
+
+      {/* Header Bar */}
       <div className="relative z-10 flex items-center justify-between w-full pb-4 border-b border-white/8">
         <button 
           onClick={activeStory ? handleReset : onBack}
-          className="flex items-center space-x-2 text-xs font-bold text-white/60 hover:text-white transition-colors cursor-pointer"
+          className="flex items-center space-x-2 text-xs font-bold text-white/50 hover:text-white transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>{activeStory ? 'Créer un autre conte' : 'Retour'}</span>
+          <span>{activeStory ? 'Nouveau conte' : 'Retour'}</span>
         </button>
-        <div className="flex items-center space-x-2">
-          <Sparkles className="w-5 h-5 text-[#FFB020] animate-pulse" />
-          <span className="text-xs font-black uppercase tracking-wider text-[#FFB020]">Conteur Magique IA</span>
+        <div className="flex items-center space-x-2 bg-white/5 border border-white/8 px-4 py-1.5 rounded-full">
+          <Sparkles className="w-4 h-4 text-[#FFB020] animate-pulse" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-[#FFB020] font-sans">Le Conteur Céleste</span>
         </div>
       </div>
 
-      {/* MAIN CONTAINER */}
-      <div className="relative z-10 my-auto py-6 flex flex-col items-center justify-center w-full min-h-[420px]">
+      {/* DYNAMIC SCREEN LAYOUT */}
+      <div className="relative z-10 my-auto py-6 flex flex-col items-center justify-center w-full min-h-[460px] book-container">
         
-        {/* STATE 1: SELECTION/CREATION SCREEN */}
+        {/* SCREEN 1: THE INPUTS PANEL */}
         {!isGenerating && !activeStory && (
           <div className="w-full max-w-xl space-y-6 animate-fade-in">
             <div className="text-center space-y-2">
-              <h2 className="text-xl md:text-2xl font-black text-white leading-tight">Générez une Histoire pour le Soir</h2>
-              <p className="text-xs text-white/50">Choisissez les ingrédients secrets et laissez la magie de l'IA opérer...</p>
+              <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">Générer un Conte du Soir Merveilleux</h2>
+              <p className="text-xs text-white/50">Configurez l'histoire rêvée pour endormir doucement les enfants...</p>
             </div>
 
-            <div className="space-y-4 bg-white/5 border border-white/10 rounded-[28px] p-5 md:p-6 backdrop-blur-md">
+            <div className="space-y-5 bg-white/5 border border-white/10 rounded-[32px] p-5 md:p-6 backdrop-blur-md">
               
-              {/* Ingredient 1: The Hero */}
+              {/* Choice 1: The Hero */}
               <div className="space-y-2">
-                <label className="text-[10px] font-extrabold uppercase tracking-wider text-[#FFB020] flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5" /> Le Héros de l'Aventure
+                <label className="text-[10px] font-black uppercase tracking-wider text-[#FFB020] flex items-center gap-1.5">
+                  <User className="w-4 h-4" /> Héros principal de la famille
                 </label>
                 <div className="flex gap-2">
                   <select 
@@ -314,53 +743,51 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
                         {m.name} ({m.role})
                       </option>
                     ))}
-                    <option value="custom" className="bg-slate-900 text-white">Nom personnalisé...</option>
+                    <option value="custom" className="bg-slate-900 text-white">Prénom sur mesure...</option>
                   </select>
                   
-                  {selectedHero === 'custom' || !members.some(m => m.name === selectedHero) ? (
+                  {(selectedHero === 'custom' || !members.some(m => m.name === selectedHero)) && (
                     <input 
                       type="text"
-                      placeholder="Prénom de l'enfant..."
+                      placeholder="Taper son prénom..."
                       value={selectedHero === 'custom' ? '' : selectedHero}
                       onChange={(e) => setSelectedHero(e.target.value)}
                       className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
                     />
-                  ) : null}
+                  )}
                 </div>
               </div>
 
-              {/* Ingredient 2: The Universe */}
+              {/* Choice 2: The Universe */}
               <div className="space-y-2">
-                <label className="text-[10px] font-extrabold uppercase tracking-wider text-[#FFB020] flex items-center gap-1.5">
-                  <Compass className="w-3.5 h-3.5" /> L'Univers Merveilleux
+                <label className="text-[10px] font-black uppercase tracking-wider text-[#FFB020] flex items-center gap-1.5">
+                  <Compass className="w-4 h-4" /> Monde magique à explorer
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   {UNIVERSES.map((u) => (
                     <button
                       key={u.id}
                       onClick={() => setSelectedUniverse(u.id)}
-                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between h-[84px] ${
+                      className={`p-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-between h-[82px] ${
                         selectedUniverse === u.id 
-                          ? 'bg-[#FFB020]/15 border-[#FFB020] shadow-[0_0_15px_rgba(255,176,32,0.15)]' 
+                          ? 'bg-[#FFB020]/15 border-[#FFB020] shadow-[0_0_12px_rgba(255,176,32,0.15)]' 
                           : 'bg-white/5 border-white/10 hover:bg-white/8'
                       }`}
                     >
-                      <span className="text-xl">{u.emoji}</span>
-                      <div>
-                        <p className="text-[11px] font-bold text-white leading-tight">{u.name}</p>
-                      </div>
+                      <span className="text-2xl">{u.emoji}</span>
+                      <span className="text-[9px] font-bold text-white leading-none tracking-tight block mt-1">{u.name}</span>
                     </button>
                   ))}
                 </div>
-                <p className="text-[9px] text-white/40 italic">
-                  {UNIVERSES.find(u => u.id === selectedUniverse)?.desc}
+                <p className="text-[9.5px] text-white/40 italic text-center">
+                  « {UNIVERSES.find(u => u.id === selectedUniverse)?.desc} »
                 </p>
               </div>
 
-              {/* Ingredient 3: The Moral/Value */}
+              {/* Choice 3: The Moral */}
               <div className="space-y-2">
-                <label className="text-[10px] font-extrabold uppercase tracking-wider text-[#FFB020] flex items-center gap-1.5">
-                  <Heart className="w-3.5 h-3.5" /> La Douce Leçon (Morale)
+                <label className="text-[10px] font-black uppercase tracking-wider text-[#FFB020] flex items-center gap-1.5">
+                  <Heart className="w-4 h-4" /> Valeur douce enseignée (Morale)
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   {MORALS.map((m) => (
@@ -373,13 +800,13 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
                           : 'bg-white/5 border-white/10 hover:bg-white/8'
                       }`}
                     >
-                      <span className="text-base">{m.emoji}</span>
-                      <span className="text-[9px] font-bold text-white leading-none">{m.name}</span>
+                      <span className="text-lg">{m.emoji}</span>
+                      <span className="text-[9px] font-extrabold text-white leading-none">{m.name}</span>
                     </button>
                   ))}
                 </div>
-                <p className="text-[9px] text-white/40 italic text-center">
-                  « {MORALS.find(m => m.id === selectedMoral)?.desc} »
+                <p className="text-[9.5px] text-white/40 italic text-center">
+                  Leçon : {MORALS.find(m => m.id === selectedMoral)?.desc}
                 </p>
               </div>
 
@@ -397,10 +824,9 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
           </div>
         )}
 
-        {/* STATE 2: MAGICAL GENERATION SCREEN (IMMERSIVE LOADING STATE) */}
+        {/* SCREEN 2: GENERATING STORY LOADER */}
         {isGenerating && (
           <div className="flex flex-col items-center justify-center space-y-6 text-center animate-fade-in max-w-sm">
-            {/* Spinning core */}
             <div className="relative w-28 h-28 flex items-center justify-center">
               <div className="absolute inset-0 rounded-full border-4 border-dashed border-[#FFB020]/40 animate-spin-slow"></div>
               <div className="absolute inset-2 rounded-full border-2 border-[#FF4D6D]/40 animate-spin-reverse"></div>
@@ -409,148 +835,408 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
             </div>
 
             <div className="space-y-2">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FFB020] animate-pulse">
-                {genStep === 1 ? 'Mélange des ingrédients...' :
-                 genStep === 2 ? 'Écriture du conte magique...' :
-                 'Saupoudrage d\'étoiles filantes...'}
+              <span className="text-[10px] font-black uppercase tracking-widest text-[#FFB020] animate-pulse">
+                {genStep === 1 ? 'Mélange magique...' :
+                 genStep === 2 ? 'Écriture du conte long...' :
+                 'Dessin des pages dorées...'}
               </span>
-              <h3 className="text-base font-extrabold text-white">Chuuut... L'IA écrit l'histoire</h3>
-              <p className="text-[11px] text-white/50">
-                {genStep === 1 && `Nous préparons l'aventure de ${selectedHero} dans ${UNIVERSES.find(u => u.id === selectedUniverse)?.name}...`}
-                {genStep === 2 && `Création d'une leçon sur ${MORALS.find(m => m.id === selectedMoral)?.name.toLowerCase()}...`}
-                {genStep === 3 && `Finitions poétiques pour de beaux rêves doux...`}
+              <h3 className="text-base font-extrabold text-white">Création du livre magique</h3>
+              <p className="text-[11px] text-white/50 leading-relaxed">
+                {genStep === 1 && `Rédaction de l'expédition de ${selectedHero} dans ${UNIVERSES.find(u => u.id === selectedUniverse)?.name}...`}
+                {genStep === 2 && `Incorporation des dialogues et de la leçon sur ${MORALS.find(m => m.id === selectedMoral)?.name.toLowerCase()}...`}
+                {genStep === 3 && `Génération des chapitres audio et de l'ambiance sonore...`}
               </p>
             </div>
 
-            {/* Glowing progress line */}
             <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden border border-white/10">
               <div 
-                className="bg-gradient-to-r from-[#FFB020] to-[#FF4D6D] h-full transition-all duration-[1200ms] rounded-full"
+                className="bg-gradient-to-r from-[#FFB020] to-[#FF4D6D] h-full transition-all duration-[1500ms] rounded-full"
                 style={{ width: `${genStep === 1 ? '33%' : genStep === 2 ? '66%' : '100%'}` }}
               ></div>
             </div>
           </div>
         )}
 
-        {/* STATE 3: IMMERSIVE BOOK READING INTERFACE (SCEPTICISM DEFLATOR!) */}
+        {/* SCREEN 3: HIGH-FIDELITY 3D PHYSICAL STORYBOOK INTERFACE */}
         {!isGenerating && activeStory && (
           <div className="w-full max-w-4xl space-y-6 animate-scale-up">
             
-            {/* The Book Box */}
-            <div className="relative glass-panel border border-white/15 rounded-[36px] bg-slate-900/60 shadow-[0_30px_70px_rgba(0,0,0,0.6)] overflow-hidden p-6 md:p-8 flex flex-col md:grid md:grid-cols-2 gap-6 min-h-[400px]">
+            {/* The Leather / Wood physical 3D book cover layout */}
+            <div className="book-cover-mock rounded-[32px] p-4 md:p-5 border border-white/10 shadow-2xl relative">
               
-              {/* Left Page: Abstract dynamic visual representation of the universe */}
-              <div className="relative rounded-[24px] overflow-hidden flex flex-col items-center justify-center p-6 text-center border border-white/8 bg-slate-950/50 shadow-inner group min-h-[220px] md:min-h-full">
-                
-                {/* Flowing animated backgrounds based on universe */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${activeStory.bgGlow} opacity-30 filter blur-[40px] animate-pulse`}></div>
-                
-                {/* Visual orbits or glowing particles */}
-                <div className="absolute inset-4 rounded-[20px] border border-white/5 flex items-center justify-center">
-                  <div className="absolute w-40 h-40 rounded-full border border-white/10 animate-spin-slow opacity-25"></div>
-                  <div className="absolute w-52 h-52 rounded-full border border-dashed border-[#FFB020]/20 animate-spin-reverse opacity-30"></div>
-                </div>
+              {/* Golden corner decorations */}
+              <div className="absolute top-2 left-2 w-6 h-6 border-t-2 border-l-2 border-[#FFB020]/40 rounded-tl-lg"></div>
+              <div className="absolute top-2 right-2 w-6 h-6 border-t-2 border-r-2 border-[#FFB020]/40 rounded-tr-lg"></div>
+              <div className="absolute bottom-2 left-2 w-6 h-6 border-b-2 border-l-2 border-[#FFB020]/40 rounded-bl-lg"></div>
+              <div className="absolute bottom-2 right-2 w-6 h-6 border-b-2 border-r-2 border-[#FFB020]/40 rounded-br-lg"></div>
 
-                <div className="relative z-10 space-y-4">
-                  {/* Glowing Floating Emoji Sphere */}
-                  <div className="relative w-24 h-24 mx-auto bg-gradient-to-tr from-white/10 to-white/5 rounded-full border border-white/15 shadow-xl flex items-center justify-center group-hover:scale-105 transition-transform duration-500">
-                    <span className="text-5xl filter drop-shadow-[0_10px_15px_rgba(0,0,0,0.3)] animate-pulse">{activeStory.emoji}</span>
-                    <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[#FFB020] text-black text-xs font-black flex items-center justify-center shadow-lg border border-slate-900">
-                      {currentPageIndex + 1}
+              {/* Opened Pages Area (Glassmorphism layout simulating open pages) */}
+              <div className="relative rounded-[24px] overflow-hidden bg-slate-900/90 border border-white/8 flex flex-col md:grid md:grid-cols-2 min-h-[460px] shadow-[inset_0_0_40px_rgba(0,0,0,0.8)]">
+                
+                {/* Physical Book Spine (The central fold shadow) */}
+                <div className="hidden md:block absolute top-0 bottom-0 left-1/2 -ml-[12px] w-[24px] z-20 book-spine-line opacity-80"></div>
+                
+                {/* LEFT PAGE: DYNAMIC GRAPHICAL SCENE REPRESENTATION */}
+                <div className="relative hidden md:flex flex-col justify-between p-6 md:p-8 text-center border-b md:border-b-0 md:border-r border-white/6 bg-slate-950/60 shadow-inner overflow-hidden min-h-[260px] md:min-h-full">
+                  
+                  {/* Dynamic Glowing Aurora Backdrops */}
+                  <div 
+                    className="absolute inset-0 opacity-20 filter blur-[40px] animate-pulse transition-all duration-1000"
+                    style={{ background: `radial-gradient(circle, ${activeStory.themeColor} 0%, transparent 70%)` }}
+                  ></div>
+
+                  {/* Left Page Header */}
+                  <div className="relative z-10 flex items-center justify-between text-[10px] font-bold text-white/30">
+                    <span className="uppercase tracking-widest">{UNIVERSES.find(u => u.id === selectedUniverse)?.name}</span>
+                    <Sparkle className="w-3.5 h-3.5 text-[#FFB020]/50 animate-spin-slow" />
+                  </div>
+
+                  {/* Orbital Graphic and Floating Emoji Sphere */}
+                  <div className="relative z-10 my-auto py-4 space-y-4">
+                    
+                    {/* Glowing floating core */}
+                    <div className="relative w-28 h-28 mx-auto flex items-center justify-center">
+                      <div className="absolute inset-0 rounded-full border border-white/10 animate-spin-slow"></div>
+                      <div 
+                        className="absolute inset-3 rounded-full border border-dashed animate-spin-reverse"
+                        style={{ borderColor: `${activeStory.themeColor}40` }}
+                      ></div>
+                      <div 
+                        className="absolute inset-5 rounded-full filter blur-[15px] opacity-30 animate-pulse"
+                        style={{ backgroundColor: activeStory.themeColor }}
+                      ></div>
+                      
+                      {/* Floating Emoji */}
+                      <span className="text-5xl relative z-10 filter drop-shadow-[0_8px_10px_rgba(0,0,0,0.5)] animate-bounce-slow">
+                        {activeStory.emoji}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-[#FFB020]">{selectedHero}'s Journey</span>
+                      <h3 className="text-base font-black text-white max-w-xs mx-auto leading-tight">
+                        {activeStory.title}
+                      </h3>
                     </div>
                   </div>
+
+                  {/* Left Page Footer */}
+                  <div className="relative z-10 flex justify-center text-[9px] text-white/40 italic">
+                    <span>Leçon nocturne : {MORALS.find(m => m.id === selectedMoral)?.name} ({MORALS.find(m => m.id === selectedMoral)?.emoji})</span>
+                  </div>
+
+                </div>
+
+                {/* RIGHT PAGE: THE DENSE BOOK TEXT AREA */}
+                <div className={`relative flex flex-col justify-between p-6 md:p-8 min-h-[320px] md:min-h-full bg-slate-900/40 ${
+                  isFlipping ? (flipDirection === 'next' ? 'flip-active-next' : 'flip-active-prev') : ''
+                }`}>
                   
-                  <div className="space-y-1">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-[#FFB020]">{UNIVERSES.find(u => u.id === selectedUniverse)?.name}</span>
-                    <h4 className="text-sm font-extrabold text-white max-w-xs mx-auto leading-snug">
-                      {activeStory.title}
-                    </h4>
-                  </div>
-
-                  <p className="text-[10px] text-white/40 italic max-w-xs leading-normal">
-                    Morale du soir : {MORALS.find(m => m.id === selectedMoral)?.name} ({MORALS.find(m => m.id === selectedMoral)?.emoji})
-                  </p>
-                </div>
-              </div>
-
-              {/* Right Page: The story text page */}
-              <div className="relative flex flex-col justify-between p-2 md:p-4 min-h-[300px] md:min-h-full">
-                
-                {/* Page content with high-fidelity typography */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between pb-3 border-b border-white/6">
-                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-white/30 font-sans">
-                      {currentPageIndex === 0 ? 'Chapitre I : L\'Entrée' :
-                       currentPageIndex === 1 ? 'Chapitre II : L\'Événement' :
-                       'Chapitre III : Le Sommeil'}
-                    </span>
+                  <div className="space-y-4 flex-1 flex flex-col justify-between">
                     
-                    {/* Read aloud toggle button */}
-                    <button
-                      onClick={handleToggleReadAloud}
-                      className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
-                        isReadingAloud 
-                          ? 'bg-[#FF4D6D]/15 border-[#FF4D6D] text-[#FF4D6D] animate-pulse shadow-[0_0_10px_rgba(255,77,109,0.1)]' 
-                          : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/8'
-                      }`}
-                    >
-                      {isReadingAloud ? (
-                        <>
-                          <VolumeX className="w-3.5 h-3.5" />
-                          <span>Arrêter l'audio</span>
-                        </>
-                      ) : (
-                        <>
-                          <Volume2 className="w-3.5 h-3.5" />
-                          <span>Raconter l'histoire</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                    {/* Chapter Header & Voice Synthesis Panel Toggle */}
+                    <div className="flex items-center justify-between pb-3 border-b border-white/6">
+                      <span className="text-[9.5px] font-black uppercase tracking-widest text-white/40">
+                        {activeStory.chapters[currentChapterIndex].title}
+                      </span>
 
-                  {/* Story Text (Serif font for rich book feel) */}
-                  <p className="text-sm md:text-base leading-relaxed text-white/90 font-serif font-medium tracking-normal text-justify select-none indent-6 animate-fade-in py-2">
-                    {activeStory.pages[currentPageIndex]}
-                  </p>
-                </div>
+                      {/* Control Panel Toggle */}
+                      <div className="flex items-center space-x-1.5">
+                        {/* Font size adjustment buttons */}
+                        <div className="flex items-center bg-white/5 border border-white/8 rounded-lg overflow-hidden mr-1">
+                          <button
+                            onClick={() => {
+                              if (fontSize === 'xl') setFontSize('lg');
+                              else if (fontSize === 'lg') setFontSize('base');
+                              else if (fontSize === 'base') setFontSize('sm');
+                            }}
+                            disabled={fontSize === 'sm'}
+                            className="px-2 py-1 text-[8.5px] font-black text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-20 disabled:pointer-events-none transition-all cursor-pointer border-r border-white/6"
+                            title="Texte plus petit"
+                          >
+                            A-
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (fontSize === 'sm') setFontSize('base');
+                              else if (fontSize === 'base') setFontSize('lg');
+                              else if (fontSize === 'lg') setFontSize('xl');
+                            }}
+                            disabled={fontSize === 'xl'}
+                            className="px-2 py-1 text-[10px] font-black text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-20 disabled:pointer-events-none transition-all cursor-pointer"
+                            title="Texte plus grand"
+                          >
+                            A+
+                          </button>
+                        </div>
 
-                {/* Footer page control bar */}
-                <div className="flex items-center justify-between pt-4 border-t border-white/6 font-sans">
-                  <span className="text-[10px] font-bold text-white/30">
-                    Page {currentPageIndex + 1} sur {activeStory.pages.length}
-                  </span>
+                        <button
+                          onClick={() => setShowVoiceSettings(prev => !prev)}
+                          className={`p-1.5 rounded-lg border text-white/50 hover:text-white transition-all cursor-pointer ${
+                            showVoiceSettings ? 'bg-white/10 border-white/20 text-white' : 'bg-transparent border-transparent'
+                          }`}
+                          title="Paramètres de conte"
+                        >
+                          <Sliders className="w-3.5 h-3.5" />
+                        </button>
 
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={handlePrevPage}
-                      disabled={currentPageIndex === 0}
-                      className="p-2.5 rounded-xl bg-white/5 border border-white/8 hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
-                    >
-                      <ChevronLeft className="w-4 h-4 text-white" />
-                    </button>
-                    
-                    {currentPageIndex < activeStory.pages.length - 1 ? (
-                      <button
-                        onClick={handleNextPage}
-                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#FFB020] to-[#FF4D6D] text-black font-extrabold text-[10px] uppercase tracking-wider flex items-center space-x-1 cursor-pointer hover:opacity-90 active:scale-95 transition-all shadow-md shadow-[#FFB020]/10 animate-pulse-subtle"
-                      >
-                        <span>Page Suivante</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </button>
-                    ) : (
-                      <button
-                        onClick={handleReset}
-                        className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-extrabold text-[10px] uppercase tracking-wider flex items-center space-x-1 cursor-pointer active:scale-95 transition-all border border-white/10"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span>Recommencer</span>
-                      </button>
+                        {/* Speech synthesis controller trigger */}
+                        <button
+                          onClick={handleToggleReadAloud}
+                          className={`px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                            isReadingAloud 
+                              ? 'bg-[#FF4D6D]/15 border-[#FF4D6D] text-[#FF4D6D] shadow-[0_0_12px_rgba(255,77,109,0.15)]' 
+                              : 'bg-white/5 border-white/8 text-white/60 hover:text-white hover:bg-white/8'
+                          }`}
+                        >
+                          {isReadingAloud ? (
+                            <>
+                              <VolumeX className="w-3 h-3 animate-pulse" />
+                              <span>Stop</span>
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 className="w-3 h-3" />
+                              <span>Vocaliser</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* DYNAMIC SETTINGS PANEL overlay */}
+                    {showVoiceSettings && (
+                      <div className="bg-slate-950/90 border border-white/10 rounded-2xl p-4 space-y-3 animate-fade-in relative z-35 my-2">
+                        <h4 className="text-[10px] font-black text-white uppercase tracking-wider">Réglages du Conte Vocalisé</h4>
+                        
+                        {/* Voice Selector */}
+                        <div className="space-y-1">
+                          <label className="text-[8.5px] font-extrabold uppercase text-white/40">Voix de lecture</label>
+                          <select
+                            value={selectedVoiceName}
+                            onChange={(e) => setSelectedVoiceName(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white focus:outline-none"
+                          >
+                            {availableVoices.map(v => (
+                              <option key={v.name} value={v.name} className="bg-slate-950 text-white">
+                                {v.name} ({v.lang})
+                              </option>
+                            ))}
+                            {availableVoices.length === 0 && (
+                              <option className="bg-slate-950 text-white">Voix système par défaut...</option>
+                            )}
+                          </select>
+                        </div>
+
+                        {/* Tone & Pitch controls */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[8.5px] font-extrabold uppercase text-white/40 flex justify-between">
+                              <span>Vitesse</span> <span>{Math.round(speechRate * 100)}%</span>
+                            </label>
+                            <input
+                              type="range"
+                              min="0.6"
+                              max="1.1"
+                              step="0.05"
+                              value={speechRate}
+                              onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
+                              className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#FFB020]"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8.5px] font-extrabold uppercase text-white/40 flex justify-between">
+                              <span>Hauteur</span> <span>{Math.round(speechPitch * 100)}%</span>
+                            </label>
+                            <input
+                              type="range"
+                              min="0.8"
+                              max="1.3"
+                              step="0.05"
+                              value={speechPitch}
+                              onChange={(e) => setSpeechPitch(parseFloat(e.target.value))}
+                              className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#FFB020]"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-[8.5px] text-white/40 italic">
+                          💡 Conseil : Diminuez la vitesse à 75% ou 80% pour obtenir une tonalité de conte apaisante de qualité premium.
+                        </p>
+                      </div>
                     )}
+
+                    {/* Mobile Themed Banner to remind children of the universe */}
+                    <div className="flex md:hidden items-center justify-between bg-white/5 border border-white/8 rounded-xl p-2.5 mb-1.5 backdrop-blur-sm">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-2xl filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] animate-bounce-slow">{activeStory.emoji}</span>
+                        <div className="flex flex-col text-left">
+                          <span className="text-[8px] font-black uppercase tracking-widest text-[#FFB020] leading-none">Univers actif</span>
+                          <span className="text-[10px] font-extrabold text-white leading-tight">{activeStory.title}</span>
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-bold text-white/30 italic">{selectedHero} 🧸</span>
+                    </div>
+
+                    {/* DENSE IMMERSIVE STORY TEXT WRAPPER */}
+                    <div className="flex-1 overflow-y-auto max-h-[300px] pr-2 space-y-4 py-2 custom-scrollbar">
+                      {activeStory.chapters[currentChapterIndex].content.map((paragraph: string, pIdx: number) => (
+                        <p 
+                          key={pIdx} 
+                          className={`leading-relaxed text-white/95 font-serif text-justify font-normal select-none indent-6 transition-all duration-350 ${
+                            fontSize === 'sm' ? 'text-[11px] md:text-xs' :
+                            fontSize === 'base' ? 'text-xs md:text-[13px]' :
+                            fontSize === 'lg' ? 'text-sm md:text-[15.5px]' :
+                            'text-[15px] md:text-[18px]'
+                          }`}
+                        >
+                          {paragraph}
+                        </p>
+                      ))}
+                    </div>
+
+                    {/* Speech active pulsating neon waveform */}
+                    {isReadingAloud && (
+                      <div className="flex items-center justify-center space-x-1.5 h-6 bg-gradient-to-r from-transparent via-[#FF4D6D]/10 to-transparent border-y border-[#FF4D6D]/15 rounded-lg py-1">
+                        <span className="text-[8px] font-bold text-[#FF4D6D] uppercase tracking-widest animate-pulse mr-1">Lecture contée active</span>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(bar => (
+                          <div
+                            key={bar}
+                            className="w-[2px] bg-[#FF4D6D] rounded-full audio-wave-bar"
+                            style={{ 
+                              height: '100%', 
+                              animationDelay: `${bar * 0.12}s`,
+                              animationDuration: `${0.8 + Math.random() * 0.7}s`
+                            }}
+                          ></div>
+                        ))}
+                      </div>
+                    )}
+
                   </div>
+
+                  {/* Right Page Footer controls */}
+                  <div className="flex items-center justify-between pt-4 border-t border-white/6 font-sans mt-2">
+                    <span className="text-[9.5px] font-black text-white/30">
+                      Chapitre {currentChapterIndex + 1} / {activeStory.chapters.length}
+                    </span>
+
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={handlePrevPage}
+                        disabled={currentChapterIndex === 0 || isFlipping}
+                        className="p-2 rounded-xl bg-white/5 border border-white/8 hover:bg-white/10 disabled:opacity-20 disabled:pointer-events-none transition-all cursor-pointer"
+                      >
+                        <ChevronLeft className="w-4 h-4 text-white" />
+                      </button>
+
+                      {currentChapterIndex < activeStory.chapters.length - 1 ? (
+                        <button
+                          onClick={handleNextPage}
+                          disabled={isFlipping}
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#FFB020] to-[#FF4D6D] text-black font-extrabold text-[9px] uppercase tracking-widest flex items-center space-x-1 hover:opacity-90 active:scale-95 transition-all shadow-md shadow-[#FFB020]/15 animate-pulse-subtle cursor-pointer"
+                        >
+                          <span>Tourner Page</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleReset}
+                          className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-extrabold text-[9px] uppercase tracking-widest flex items-center space-x-1.5 active:scale-95 transition-all border border-white/10 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Recommencer</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                 </div>
 
               </div>
 
+            </div>
+
+            {/* DOWNTIME IMMERSIVE SOUNDSCAPE PANEL (AMPLIFYING AMBIENT NOISE & REMOVING ROBOT FEEL) */}
+            <div className="bg-slate-900/60 border border-white/8 rounded-3xl p-5 md:p-6 shadow-xl relative z-10 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Music className="w-4 h-4 text-[#FFB020]" />
+                  <h4 className="text-[10px] font-black uppercase text-white tracking-widest">
+                    Veilleuse Sonore d'Ambiance (Web Audio API)
+                  </h4>
+                </div>
+                <span className="text-[8px] font-extrabold text-[#FFB020] uppercase tracking-widest bg-[#FFB020]/10 px-2 py-0.5 rounded-full">
+                  Auto-Généré Direct
+                </span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                {/* Mode Selector */}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setAmbientSound('none')}
+                    className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      ambientSound === 'none' 
+                        ? 'bg-white/15 border-white/30 text-white' 
+                        : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
+                    }`}
+                  >
+                    🔇 Silence
+                  </button>
+                  <button
+                    onClick={() => setAmbientSound('rain')}
+                    className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      ambientSound === 'rain' 
+                        ? 'bg-sky-500/20 border-sky-500 text-sky-400 shadow-[0_0_10px_rgba(14,165,233,0.15)]' 
+                        : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
+                    }`}
+                  >
+                    🌧️ Douce Pluie
+                  </button>
+                  <button
+                    onClick={() => setAmbientSound('crickets')}
+                    className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      ambientSound === 'crickets' 
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.15)]' 
+                        : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
+                    }`}
+                  >
+                    🦗 Grillons d'Été
+                  </button>
+                  <button
+                    onClick={() => setAmbientSound('lullaby')}
+                    className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      ambientSound === 'lullaby' 
+                        ? 'bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_10px_rgba(236,72,153,0.15)]' 
+                        : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
+                    }`}
+                  >
+                    🎵 Berceuse Céleste
+                  </button>
+                </div>
+
+                {/* Volume slider */}
+                {ambientSound !== 'none' && (
+                  <div className="flex items-center space-x-3 bg-white/5 border border-white/8 rounded-2xl px-4 py-2">
+                    <span className="text-[9px] font-bold text-white/40 uppercase">Volume fond :</span>
+                    <input
+                      type="range"
+                      min="0.05"
+                      max="0.45"
+                      step="0.05"
+                      value={ambientVolume}
+                      onChange={(e) => setAmbientVolume(parseFloat(e.target.value))}
+                      className="w-24 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#FFB020]"
+                    />
+                    <span className="text-[9px] font-bold text-white/60 w-6 text-right">
+                      {Math.round(ambientVolume * 200)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+              <p className="text-[8.5px] text-white/30 italic">
+                💡 Conseil premium : Lancez la « Berceuse Céleste » ou la « Douce Pluie » à 100% de volume de fond en activant en même temps la lecture contée. Les deux s'harmonisent magnifiquement pour plonger la chambre dans le sommeil.
+              </p>
             </div>
 
           </div>
@@ -558,10 +1244,10 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
 
       </div>
 
-      {/* Footer warning hint */}
+      {/* Footer information bar */}
       <div className="relative z-10 pt-4 border-t border-white/6 flex items-center justify-between text-[9px] text-white/30">
-        <span>© MaFamille+ Conteur IA Merveilleux</span>
-        <span>Recommandé pour les 3 à 10 ans 🧸</span>
+        <span>© MaFamille+ Conteur IA Merveilleux 2.0</span>
+        <span>Recommandé pour les contes du soir 🧸</span>
       </div>
 
     </div>
