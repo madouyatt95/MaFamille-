@@ -210,6 +210,7 @@ function App() {
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [voiceFeedback, setVoiceFeedback] = useState('');
   const [voiceWave, setVoiceWave] = useState(false);
+  const [manualVoiceCommand, setManualVoiceCommand] = useState('');
   const voiceRecognitionRef = useRef<any>(null);
 
   const startVoiceAssistant = () => {
@@ -251,11 +252,8 @@ function App() {
 
     recognition.onerror = (event: any) => {
       console.error("Vocal search error", event.error);
-      setVoiceTranscript("Désolé, je n'ai pas bien compris...");
+      setVoiceTranscript("🎙️ Micro non autorisé ou inactif. Saisissez votre commande ci-dessous :");
       setVoiceWave(false);
-      setTimeout(() => {
-        setVoiceActive(false);
-      }, 2000);
     };
 
     recognition.onend = () => {
@@ -988,6 +986,41 @@ function App() {
               <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF4D6D] animate-pulse">Contrôle Vocal Global</span>
               <p className="text-lg font-bold text-white leading-snug">{voiceTranscript}</p>
             </div>
+
+            {/* Formulaire de saisie manuelle de secours */}
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!manualVoiceCommand.trim()) return;
+                const cmd = manualVoiceCommand.trim();
+                setVoiceTranscript(`"${cmd}"`);
+                setVoiceWave(false);
+                setTimeout(() => {
+                  parseVoiceCommand(cmd);
+                }, 500);
+                setManualVoiceCommand('');
+              }}
+              className="space-y-3 pt-2"
+            >
+              <div className="relative">
+                <input 
+                  type="text"
+                  placeholder="Écrivez votre commande ici..."
+                  value={manualVoiceCommand}
+                  onChange={(e) => setManualVoiceCommand(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020] pr-12 text-center"
+                />
+                <button
+                  type="submit"
+                  className="absolute right-1 top-1 bottom-1 px-3 rounded-lg bg-[#FFB020] text-black text-[10px] font-extrabold hover:opacity-90 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+                >
+                  Go
+                </button>
+              </div>
+              <p className="text-[9px] text-white/30 italic">
+                Ex : "Ajoute du lait", "Ouvre la carte", "Affiche l'agenda"
+              </p>
+            </form>
 
             {voiceFeedback && (
               <div className="bg-white/5 border border-white/10 rounded-[20px] p-4 text-xs font-semibold text-[#00D26A] leading-normal animate-fade-in">
