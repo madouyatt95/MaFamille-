@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { 
   Menu, 
   Bell, 
-  Calendar as CalendarIcon, 
-  Wallet, 
   Users, 
   Brush, 
   ShoppingBasket, 
@@ -137,8 +135,8 @@ export const Accueil: React.FC<AccueilProps> = ({
   const activeDishes = dishes.filter(d => d.day === selectedMealDay);
 
   const quickActions = [
-    { label: 'Agenda', icon: CalendarIcon, tab: 'agenda', color: 'text-[#6C5CFF] bg-[#6C5CFF]/10' },
-    { label: isChild ? 'Cagnotte' : 'Finances', icon: Wallet, tab: 'finances', color: 'text-[#4F8CFF] bg-[#4F8CFF]/10' },
+    { label: 'Conseil', icon: MessageCircle, tab: 'menu', module: 'conseil', color: 'text-[#6C5CFF] bg-[#6C5CFF]/10' },
+    { label: 'Contes', icon: BookOpen, tab: 'menu', module: 'conteur', color: 'text-[#FFB020] bg-[#FFB020]/10' },
     { label: 'Membres', icon: Users, tab: 'menu', module: 'membres', color: 'text-[#FFB020] bg-[#FFB020]/10' },
     { label: 'Tâches', icon: Brush, tab: 'menu', module: 'taches', color: 'text-[#00D26A] bg-[#00D26A]/10' },
     { label: 'Courses', icon: ShoppingBasket, tab: 'menu', module: 'courses', color: 'text-[#FF4D6D] bg-[#FF4D6D]/10' },
