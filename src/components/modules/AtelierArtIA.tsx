@@ -182,57 +182,39 @@ export const AtelierArtIA: React.FC<AtelierArtIAProps> = ({
       setTimeout(() => {
         setGenerationStep(3);
         setTimeout(() => {
-          // Moteur intelligent de mots-clés pour correspondre EXACTEMENT au prompt
-          const p = (artPrompt || "fantasy,magic").toLowerCase();
-          
-          let queryKeyword = "fantasy,art";
-          if (p.includes("chat") || p.includes("cat")) {
-            queryKeyword = "cat,cartoon,illustration";
-          } else if (p.includes("lion")) {
-            queryKeyword = "lion,illustration,art";
-          } else if (p.includes("chien") || p.includes("dog")) {
-            queryKeyword = "dog,cute,illustration";
-          } else if (p.includes("château") || p.includes("castle")) {
-            queryKeyword = "castle,magic,palace";
-          } else if (p.includes("dino") || p.includes("dinosaur")) {
-            queryKeyword = "dinosaur,prehistoric,cartoon";
-          } else if (p.includes("licorne") || p.includes("unicorn")) {
-            queryKeyword = "unicorn,magic,fairy";
-          } else if (p.includes("fusée") || p.includes("rocket") || p.includes("espace") || p.includes("space")) {
-            queryKeyword = "space,rocket,nebula,galaxy";
-          } else if (p.includes("dauphin") || p.includes("dolphin") || p.includes("océan") || p.includes("ocean")) {
-            queryKeyword = "ocean,dolphin,underwater";
-          } else if (p.includes("renard") || p.includes("fox")) {
-            queryKeyword = "fox,forest,cute";
-          } else if (p.includes("bonbon") || p.includes("candy") || p.includes("sweets")) {
-            queryKeyword = "candy,sweets,land";
-          } else {
-            // Nettoyage et utilisation des mots significatifs
-            const words = p.replace(/[^\w\s]/gi, '').split(' ').filter(w => w.length > 3);
-            if (words.length > 0) {
-              queryKeyword = `${words.join(",")},illustration`;
-            }
+          // 1. Récupérer le prompt de l'enfant ou un prompt par défaut magique
+          const basePrompt = artPrompt.trim() || (hasDrawn ? "Dessin magique et créatif d'un enfant" : "Paysage féérique et magique");
+
+          // 2. Traduction ou enrichissement automatique selon le style choisi
+          let styleEnrichment = "digital art, highly detailed, vibrant colors";
+          if (selectedStyle === '3d') {
+            styleEnrichment = "cute 3D render, Disney Pixar style, claymation toy, soft volumetric lighting, vibrant cheerful colors, highly detailed, masterpiece";
+          } else if (selectedStyle === 'watercolor') {
+            styleEnrichment = "beautiful dreamy watercolor painting, soft pastel color wash, fairytale illustration, wet-on-wet technique, magical aesthetic";
+          } else if (selectedStyle === 'anime') {
+            styleEnrichment = "vibrant anime style, digital art, Studio Ghibli aesthetic, anime illustration, colorful glowing lights, beautiful sky background";
+          } else if (selectedStyle === 'neon') {
+            styleEnrichment = "glowing neon cosmic illustration, cyberpunk luminescent paint, galaxy background, glowing lines, ultraviolet glow effect, majestic fantasy art";
           }
 
-          // Ajout du style pour enrichir la recherche
-          let styleModifier = "fantasy";
-          if (selectedStyle === '3d') styleModifier = "3d,rendering,toy";
-          else if (selectedStyle === 'watercolor') styleModifier = "watercolor,painting";
-          else if (selectedStyle === 'anime') styleModifier = "anime,cartoon";
-          else if (selectedStyle === 'neon') styleModifier = "neon,glowing";
+          // 3. Encoder le prompt complet pour l'URL
+          const fullPrompt = `${basePrompt}, ${styleEnrichment}`;
+          const encodedPrompt = encodeURIComponent(fullPrompt);
 
-          // URL dynamique Unsplash Source avec signature unique aléatoire pour forcer un rechargement varié
-          const dynamicUrl = `https://images.unsplash.com/featured/600x600/?${queryKeyword},${styleModifier}&sig=${Math.floor(Math.random() * 10000)}`;
+          // 4. URL de génération d'image IA générative en direct de Pollinations.ai !
+          // Nous ajoutons une graine de bruit (seed) aléatoire pour garantir que deux générations du même prompt donnent des œuvres uniques !
+          const randomSeed = Math.floor(Math.random() * 1000000);
+          const aiGeneratedUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=600&height=600&seed=${randomSeed}&nologo=true`;
 
           setGeneratedArt({
-            title: artPrompt ? artPrompt : `Création Cosmique ${styleModifier}`,
-            url: dynamicUrl
+            title: artPrompt ? artPrompt : `Œuvre Magique ${selectedStyle.toUpperCase()}`,
+            url: aiGeneratedUrl
           });
           setIsGenerating(false);
           setGenerationStep(0);
           setIsPublished(false);
           setIsOrdered(false);
-        }, 1500);
+        }, 2000);
       }, 1200);
     }, 1200);
   };
