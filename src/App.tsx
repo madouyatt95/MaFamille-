@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   demoMembers, 
   demoEvents, 
@@ -59,7 +59,7 @@ import { SharedPackView } from './components/modules/SharedPackView';
 import { KidsDashboard } from './views/KidsDashboard';
 
 // Lucide icon for inline notifications
-import { Bell, X, ChevronRight, Bot } from 'lucide-react';
+import { Bell, X, ChevronRight, Mic, MicOff, Volume2 } from 'lucide-react';
 
 function App() {
   // ----------------------------------------------------
@@ -204,6 +204,173 @@ function App() {
   const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
   const [sharedPackId, setSharedPackId] = useState<string | null>(null);
   const [sosActive, setSosActive] = useState(false);
+
+  // Voice Command Assistant State
+  const [voiceActive, setVoiceActive] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [voiceFeedback, setVoiceFeedback] = useState('');
+  const [voiceWave, setVoiceWave] = useState(false);
+  const voiceRecognitionRef = useRef<any>(null);
+
+  const startVoiceAssistant = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Votre navigateur ne supporte pas l'API de reconnaissance vocale.");
+      return;
+    }
+
+    if (voiceActive) {
+      if (voiceRecognitionRef.current) {
+        voiceRecognitionRef.current.stop();
+      }
+      setVoiceActive(false);
+      return;
+    }
+
+    setVoiceActive(true);
+    setVoiceTranscript('Je vous écoute...');
+    setVoiceFeedback('');
+    setVoiceWave(true);
+
+    const recognition = new SpeechRecognition();
+    voiceRecognitionRef.current = recognition;
+    recognition.lang = 'fr-FR';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setVoiceTranscript(`"${transcript}"`);
+      setVoiceWave(false);
+      
+      // Parse Voice Command
+      setTimeout(() => {
+        parseVoiceCommand(transcript);
+      }, 1000);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Vocal search error", event.error);
+      setVoiceTranscript("Désolé, je n'ai pas bien compris...");
+      setVoiceWave(false);
+      setTimeout(() => {
+        setVoiceActive(false);
+      }, 2000);
+    };
+
+    recognition.onend = () => {
+      setVoiceWave(false);
+    };
+
+    recognition.start();
+  };
+
+  const parseVoiceCommand = (text: string) => {
+    const promptLower = text.toLowerCase().trim();
+    let feedback = "";
+
+    // 1. Navigation to tabs
+    if (promptLower.includes('carte') || promptLower.includes('gps') || promptLower.includes('position') || promptLower.includes('itiné')) {
+      setActiveTab('carte');
+      setActiveModule('');
+      feedback = "🧭 Navigation : J'affiche la Carte Familiale.";
+    } 
+    else if (promptLower.includes('agenda') || promptLower.includes('planning') || promptLower.includes('calendrier') || promptLower.includes('évènement') || promptLower.includes('rdv') || promptLower.includes('rendez')) {
+      setActiveTab('agenda');
+      setActiveModule('');
+      feedback = "📅 Navigation : J'ouvre l'Agenda Familial.";
+    } 
+    else if (promptLower.includes('finance') || promptLower.includes('budget') || promptLower.includes('dépense') || promptLower.includes('argent') || promptLower.includes('cagnotte') || promptLower.includes('solde')) {
+      setActiveTab('finances');
+      setActiveModule('');
+      feedback = "💰 Navigation : J'ouvre le module Finances & Épargne.";
+    } 
+    // 2. Navigation to specific submodules inside Menu
+    else if (promptLower.includes('course') || promptLower.includes('caddie') || promptLower.includes('achat') || promptLower.includes('épicerie') || promptLower.includes('supermar')) {
+      setActiveTab('menu');
+      setActiveModule('courses');
+      feedback = "🛒 Navigation : J'affiche la liste de courses partagée (Éco-Chef).";
+    } 
+    else if (promptLower.includes('capsule') || promptLower.includes('temps') || promptLower.includes('souvenir') || promptLower.includes('moment')) {
+      setActiveTab('menu');
+      setActiveModule('capsule');
+      feedback = "🔒 Navigation : J'ouvre la Capsule Temporelle de vos souvenirs.";
+    } 
+    else if (promptLower.includes('peacemaker') || promptLower.includes('dispute') || promptLower.includes('arbitre') || promptLower.includes('juge')) {
+      setActiveTab('menu');
+      setActiveModule('peacemaker');
+      feedback = "⚖️ Navigation : J'active le PeaceMaker IA pour résoudre le conflit.";
+    } 
+    else if (promptLower.includes('simul') || promptLower.includes('mavie') || promptLower.includes('vie')) {
+      setActiveTab('menu');
+      setActiveModule('mavie');
+      feedback = "🎮 Navigation : Je lance le simulateur d'éducation MaVie.";
+    } 
+    else if (promptLower.includes('conseil') || promptLower.includes('vote') || promptLower.includes('décision') || promptLower.includes('scrutin')) {
+      setActiveTab('menu');
+      setActiveModule('conseil');
+      feedback = "🗳️ Navigation : J'ouvre le Conseil de Famille.";
+    } 
+    else if (promptLower.includes('messagerie') || promptLower.includes('discussion') || promptLower.includes('tchat') || promptLower.includes('chat') || promptLower.includes('parle')) {
+      setActiveTab('menu');
+      setActiveModule('messagerie');
+      feedback = "💬 Navigation : J'affiche la messagerie familiale.";
+    }
+    else if (promptLower.includes('devoir') || promptLower.includes('tuteur') || promptLower.includes('école') || promptLower.includes('prof')) {
+      setActiveTab('menu');
+      setActiveModule('devoirs');
+      feedback = "🎓 Navigation : J'ouvre le Tuteur Scolaire IA.";
+    }
+    else if (promptLower.includes('coffre') || promptLower.includes('document') || promptLower.includes('papier') || promptLower.includes('cni')) {
+      setActiveTab('menu');
+      setActiveModule('documents');
+      feedback = "📂 Navigation : J'ouvre le Coffre-Fort administratif.";
+    }
+    else if (promptLower.includes('voyage') || promptLower.includes('vacance') || promptLower.includes('bagage')) {
+      setActiveTab('menu');
+      setActiveModule('voyage');
+      feedback = "✈️ Navigation : Je lance l'Assistant Voyage IA.";
+    }
+    // 3. Action commands (e.g. ajoute des bananes)
+    else if (promptLower.includes('ajoute') || promptLower.includes('ajouter') || promptLower.includes('mets') || promptLower.includes('mettre') || promptLower.includes('rajoute')) {
+      const addMatch = promptLower.match(/(?:ajoute|ajouter|mets|mettre|rajoute|rajouter)\s+(?:des|de\s+la|du|un|une|le|la)?\s*([a-zA-Zà-üÀ-Ü\s\-]{2,25}?)(?:\s+(?:à\s+la|dans\s+la|dans\s+le)?\s*(?:liste|courses|caddie|panier)|$)/i);
+      if (addMatch) {
+        const itemName = addMatch[1].trim();
+        const formattedName = itemName.charAt(0).toUpperCase() + itemName.slice(1);
+        
+        const itemLower = itemName.toLowerCase();
+        let category = 'Épicerie';
+        if (itemLower.includes('banane') || itemLower.includes('pomme') || itemLower.includes('tomate') || itemLower.includes('salade') || itemLower.includes('carotte') || itemLower.includes('avocat') || itemLower.includes('fraise') || itemLower.includes('citron') || itemLower.includes('fruit') || itemLower.includes('légume')) {
+          category = 'Fruits & Légumes';
+        } else if (itemLower.includes('lait') || itemLower.includes('beurre') || itemLower.includes('fromage') || itemLower.includes('yaourt') || itemLower.includes('crème')) {
+          category = 'Produits Laitiers';
+        } else if (itemLower.includes('pain') || itemLower.includes('baguette') || itemLower.includes('croissant') || itemLower.includes('pain de mie')) {
+          category = 'Boulangerie';
+        } else if (itemLower.includes('poulet') || itemLower.includes('viande') || itemLower.includes('steak') || itemLower.includes('jambon') || itemLower.includes('saumon') || itemLower.includes('poisson') || itemLower.includes('sardine')) {
+          category = 'Viandes & Poissons';
+        }
+
+        handleAddGroceryItem(formattedName, category, '1 pièce');
+        feedback = `🛒 Action : J'ai ajouté "${formattedName}" à votre vraie liste de courses partagée !`;
+      } else {
+        feedback = "🤔 Je n'ai pas compris quel article ajouter à vos courses...";
+      }
+    } 
+    else if (promptLower.includes('alerte') || promptLower.includes('sos') || promptLower.includes('danger')) {
+      setSosActive(true);
+      feedback = "🚨 ACTION CRITIQUE : Alerte SOS activée ! Vos proches ont été notifiés.";
+    }
+    else {
+      feedback = `🔍 Recherche : Commande "${text}" non reconnue. Essayez : "Ouvre l'agenda", "Affiche la carte" ou "Ajoute du lait".`;
+    }
+
+    setVoiceFeedback(feedback);
+    
+    // Automatically close overlay after 3.5 seconds
+    setTimeout(() => {
+      setVoiceActive(false);
+    }, 3500);
+  };
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -795,18 +962,59 @@ function App() {
         activeMemberId={activeMemberId}
       />
 
-      {/* Floating AI Assistant Button (fixed bottom-24 right-6, just above the Menu tab on the right) */}
-      {activeModule !== 'assistant' && (
-        <button 
-          onClick={() => {
-            setActiveTab('menu');
-            setActiveModule('assistant');
-          }}
-          className="fixed bottom-24 right-6 z-[39] w-14 h-14 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] text-white flex items-center justify-center shadow-lg shadow-[#6C5CFF]/30 hover:scale-110 active:scale-95 transition-all cursor-pointer group"
-        >
-          <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] blur-md opacity-40 group-hover:opacity-70 transition-opacity animate-pulse"></div>
-          <Bot className="w-6 h-6 relative z-10 text-white animate-bounce" style={{ animationDuration: '3s' }} />
-        </button>
+      {/* Floating Global Voice Assistant Button (fixed bottom-24 right-6, just above the Menu tab on the right) */}
+      <button 
+        onClick={startVoiceAssistant}
+        className={`fixed bottom-24 right-6 z-[39] w-14 h-14 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] text-white flex items-center justify-center shadow-lg shadow-[#6C5CFF]/30 hover:scale-110 active:scale-95 transition-all cursor-pointer group ${voiceActive ? 'scale-110' : ''}`}
+      >
+        <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] blur-md opacity-40 group-hover:opacity-70 transition-opacity animate-pulse"></div>
+        {voiceActive ? (
+          <MicOff className="w-6 h-6 relative z-10 text-white animate-pulse" />
+        ) : (
+          <Mic className="w-6 h-6 relative z-10 text-white animate-bounce" style={{ animationDuration: '3s' }} />
+        )}
+      </button>
+
+      {/* Voice Command pulsing HUD overlay */}
+      {voiceActive && (
+        <div className="fixed inset-0 bg-[#07111F]/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+          <div className="glass-panel border border-white/15 rounded-[40px] p-8 max-w-sm w-full space-y-6 shadow-[0_20px_50px_rgba(108,92,255,0.3)]">
+            
+            {/* Pulsing microphone or waveform icon */}
+            <div className="relative w-24 h-24 mx-auto flex items-center justify-center rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] text-white shadow-lg">
+              {voiceWave ? (
+                <>
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] animate-ping opacity-60"></div>
+                  <div className="absolute -inset-4 rounded-full border-2 border-[#6C5CFF]/30 animate-pulse"></div>
+                  <Volume2 className="w-10 h-10 relative z-10 animate-bounce" />
+                </>
+              ) : (
+                <Mic className="w-10 h-10 relative z-10 animate-pulse" />
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF4D6D] animate-pulse">Contrôle Vocal Global</span>
+              <p className="text-lg font-bold text-white leading-snug">{voiceTranscript}</p>
+            </div>
+
+            {voiceFeedback && (
+              <div className="bg-white/5 border border-white/10 rounded-[20px] p-4 text-xs font-semibold text-[#00D26A] leading-normal animate-fade-in">
+                {voiceFeedback}
+              </div>
+            )}
+
+            <button 
+              onClick={() => {
+                if (voiceRecognitionRef.current) voiceRecognitionRef.current.stop();
+                setVoiceActive(false);
+              }}
+              className="text-xs font-extrabold uppercase text-white/40 hover:text-white pt-2 cursor-pointer transition-colors"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Floating Profile Switcher for Kids Mode Escape */}

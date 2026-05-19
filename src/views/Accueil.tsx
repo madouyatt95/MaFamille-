@@ -23,7 +23,11 @@ import {
   Award,
   PiggyBank,
   MessageCircle,
-  ShieldAlert
+  ShieldAlert,
+  Camera,
+  Heart,
+  Smile,
+  Plus
 } from 'lucide-react';
 import type { Member, FamilyEvent, Dish, NotificationAlert, ChatGroup, ChatMessage } from '../types';
 
@@ -76,6 +80,78 @@ export const Accueil: React.FC<AccueilProps> = ({
 
   const activeMember = members.find(m => m.id === activeMemberId) || members[0];
   const isChild = activeMemberId === '3' || activeMemberId === '4';
+
+  const [moments, setMoments] = useState<any[]>([
+    {
+      id: 'mom-1',
+      photoUrl: 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=500&auto=format&fit=crop&q=80',
+      caption: 'Superbe balade en forêt ce dimanche en famille ! 🌲🚶‍♂️',
+      author: 'Papa',
+      likes: 4,
+      comments: 2,
+      hasLiked: false,
+      date: 'Hier'
+    },
+    {
+      id: 'mom-2',
+      photoUrl: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=500&auto=format&fit=crop&q=80',
+      caption: 'Nouveau dessin d\'Amadou pour décorer le salon ! 🦁🎨',
+      author: 'Maman',
+      likes: 5,
+      comments: 3,
+      hasLiked: true,
+      date: 'Aujourd\'hui'
+    },
+    {
+      id: 'mom-3',
+      photoUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=80',
+      caption: 'Soirée pizzas maison réussie à 100% ! 🍕🤤',
+      author: 'Amadou',
+      likes: 3,
+      comments: 1,
+      hasLiked: false,
+      date: 'Il y a 3 jours'
+    }
+  ]);
+
+  const handleLikeMoment = (id: string) => {
+    setMoments(prev => prev.map(m => {
+      if (m.id === id) {
+        return {
+          ...m,
+          likes: m.hasLiked ? m.likes - 1 : m.likes + 1,
+          hasLiked: !m.hasLiked
+        };
+      }
+      return m;
+    }));
+  };
+
+  const handleAddMomentClick = () => {
+    const caption = prompt("Quel souvenir ou moment marquant voulez-vous partager ?");
+    if (!caption) return;
+    
+    const randomPhotos = [
+      'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=500&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1511895426328-dc8714191300?w=500&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?w=500&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=500&auto=format&fit=crop&q=80'
+    ];
+    const randomPhoto = randomPhotos[Math.floor(Math.random() * randomPhotos.length)];
+    
+    const newMoment = {
+      id: `mom-${Date.now()}`,
+      photoUrl: randomPhoto,
+      caption: caption,
+      author: activeMember.name,
+      likes: 1,
+      comments: 0,
+      hasLiked: true,
+      date: "À l'instant"
+    };
+    
+    setMoments(prev => [newMoment, ...prev]);
+  };
 
   // Compute unread messages count
   const unreadMessagesCount = chatMessages.filter(m => {
@@ -483,6 +559,62 @@ export const Accueil: React.FC<AccueilProps> = ({
               <p className="text-xs text-white/40 text-center py-2">Aucun repas planifié pour ce jour.</p>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Le Mur des Moments Partagés */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Camera className="w-5 h-5 text-[#FF4D6D]" />
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Le Mur des Moments Partagés</h3>
+          </div>
+          <button 
+            onClick={handleAddMomentClick}
+            className="text-xs font-bold text-[#FF4D6D] bg-[#FF4D6D]/15 border border-[#FF4D6D]/30 px-3 py-1.5 rounded-[12px] hover:bg-[#FF4D6D]/25 active:scale-95 transition-all flex items-center space-x-1 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Publier</span>
+          </button>
+        </div>
+
+        <div className="flex space-x-4 overflow-x-auto pb-4 no-scrollbar scroll-smooth snap-x snap-mandatory">
+          {moments.map((moment) => (
+            <div 
+              key={moment.id}
+              className="w-[240px] shrink-0 snap-start bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-[24px] p-3 shadow-lg flex flex-col space-y-3 transform transition-transform duration-300"
+              style={{ transform: `rotate(${(parseInt(moment.id.replace('mom-', '')) % 2 === 0 ? 1.5 : -1.5)}deg)` }}
+            >
+              <div className="relative aspect-[4/3] rounded-[16px] overflow-hidden border border-white/5 shadow-inner">
+                <img src={moment.photoUrl} alt={moment.caption} className="w-full h-full object-cover" />
+                <span className="absolute top-2 left-2 text-[9px] font-extrabold uppercase bg-black/60 backdrop-blur-sm text-white/90 px-2 py-0.5 rounded-full">
+                  Par {moment.author}
+                </span>
+                <span className="absolute top-2 right-2 text-[9px] font-bold bg-[#FF4D6D]/90 text-white px-2 py-0.5 rounded-full">
+                  {moment.date}
+                </span>
+              </div>
+              
+              <p className="text-xs text-white/85 leading-snug line-clamp-2 h-[34px] px-1 font-medium italic">
+                "{moment.caption}"
+              </p>
+
+              <div className="flex items-center justify-between pt-1 border-t border-white/5 text-xs text-white/50">
+                <button 
+                  onClick={() => handleLikeMoment(moment.id)}
+                  className={`flex items-center space-x-1.5 hover:text-[#FF4D6D] transition-colors ${moment.hasLiked ? 'text-[#FF4D6D] font-extrabold' : ''}`}
+                >
+                  <Heart className={`w-4 h-4 ${moment.hasLiked ? 'fill-current' : ''}`} />
+                  <span>{moment.likes}</span>
+                </button>
+
+                <button className="flex items-center space-x-1.5 hover:text-[#4F8CFF] transition-colors">
+                  <Smile className="w-4 h-4" />
+                  <span>Réagir</span>
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
