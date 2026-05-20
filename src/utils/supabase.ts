@@ -1,30 +1,27 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Client Supabase unique, initialisé depuis les variables d'environnement
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+/**
+ * Récupère le client Supabase unique.
+ * Priorité : arguments passés -> localStorage (saisie utilisateur facultative) -> variables d'environnement (.env).
+ */
+export const getSupabaseClient = (customUrl?: string, customKey?: string): SupabaseClient | null => {
+  const url = customUrl || localStorage.getItem('mf_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '';
+  const key = customKey || localStorage.getItem('mf_supabase_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-let supabaseInstance: SupabaseClient | null = null;
+  if (!url || !key) return null;
 
-export const getSupabaseClient = (): SupabaseClient | null => {
-  if (!supabaseUrl || !supabaseKey) return null;
-
-  if (!supabaseInstance) {
-    try {
-      supabaseInstance = createClient(supabaseUrl, supabaseKey, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true
-        },
-        realtime: {
-          params: { eventsPerSecond: 10 }
-        }
-      });
-    } catch (err) {
-      console.error("Erreur d'initialisation du client Supabase :", err);
-      return null;
-    }
+  try {
+    return createClient(url, key, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true
+      },
+      realtime: {
+        params: { eventsPerSecond: 10 }
+      }
+    });
+  } catch (err) {
+    console.error("Erreur d'initialisation du client Supabase :", err);
+    return null;
   }
-
-  return supabaseInstance;
 };

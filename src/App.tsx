@@ -204,7 +204,7 @@ function App() {
 
   // Navigation and Sheets UI State
   const [activeTab, setActiveTab] = useState('accueil');
-  const [activeModule, setActiveModule] = useState('');
+  const [activeModule, rawSetActiveModule] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
@@ -230,6 +230,14 @@ function App() {
     return localStorage.getItem('mf_is_premium') === 'true';
   });
   const [paywallOpen, setPaywallOpen] = useState(false);
+  
+  const setActiveModule = (modName: string) => {
+    if (['conteur', 'atelier_art'].includes(modName) && !isPremium) {
+      setPaywallOpen(true);
+      return;
+    }
+    rawSetActiveModule(modName);
+  };
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {

@@ -43,8 +43,10 @@ interface SettingsProps {
 export const Settings: React.FC<SettingsProps> = ({
   currency,
   setCurrency,
-  supabaseUrl: _supabaseUrl,
-  supabaseKey: _supabaseKey,
+  supabaseUrl,
+  setSupabaseUrl,
+  supabaseKey,
+  setSupabaseKey,
   onResetData,
   isPremium,
   onOpenPaywall: _onOpenPaywall,
@@ -55,6 +57,7 @@ export const Settings: React.FC<SettingsProps> = ({
   onRefreshFoyer
 }) => {
   const [savingBackup, setSavingBackup] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
@@ -84,7 +87,7 @@ export const Settings: React.FC<SettingsProps> = ({
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supabaseClient) {
-      setAuthMessage({ text: "Erreur d'initialisation de Supabase.", type: 'error' });
+      setAuthMessage({ text: "Erreur d'initialisation de Supabase. Veuillez vérifier vos clés dans la Configuration Technique ci-dessous.", type: 'error' });
       return;
     }
 
@@ -113,7 +116,7 @@ export const Settings: React.FC<SettingsProps> = ({
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supabaseClient) {
-      setAuthMessage({ text: "Erreur d'initialisation de Supabase.", type: 'error' });
+      setAuthMessage({ text: "Erreur d'initialisation de Supabase. Veuillez vérifier vos clés dans la Configuration Technique ci-dessous.", type: 'error' });
       return;
     }
 
@@ -547,6 +550,61 @@ export const Settings: React.FC<SettingsProps> = ({
             <span>Réinitialiser</span>
           </button>
         </div>
+      </div>
+
+      {/* 5. Configuration Technique (Collapsed by default, allows fixing connection/credentials) */}
+      <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="w-full flex items-center justify-between text-xs font-bold text-white uppercase tracking-wider cursor-pointer"
+        >
+          <div className="flex items-center space-x-2">
+            <Lock className="w-4 h-4 text-[#FFB020]" />
+            <span>Configuration Technique (Avancé)</span>
+          </div>
+          <span className="text-[10px] text-white/40">{showAdvanced ? 'Masquer ▲' : 'Afficher ▼'}</span>
+        </button>
+
+        {showAdvanced && (
+          <div className="space-y-4 pt-2 animate-fade-in">
+            <p className="text-[11px] text-white/50 leading-relaxed font-medium">
+              Par défaut, l'application utilise la configuration de votre serveur cloud. Si la clé dans vos fichiers d'environnement est invalide ou expirée, vous pouvez spécifier vos clés d'accès Supabase personnalisées ci-dessous.
+            </p>
+
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">URL Supabase</label>
+              <input
+                type="text"
+                placeholder="https://votre-projet.supabase.co"
+                value={supabaseUrl}
+                onChange={(e) => {
+                  setSupabaseUrl(e.target.value.trim());
+                  localStorage.setItem('mf_supabase_url', e.target.value.trim());
+                }}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Clé API Anon (Publishable)</label>
+              <input
+                type="password"
+                placeholder="eyJhbGciOi..."
+                value={supabaseKey}
+                onChange={(e) => {
+                  setSupabaseKey(e.target.value.trim());
+                  localStorage.setItem('mf_supabase_key', e.target.value.trim());
+                }}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+              />
+            </div>
+            
+            <p className="text-[9px] text-[#FFB020] bg-[#FFB020]/5 p-2.5 rounded-xl border border-[#FFB020]/10 leading-normal">
+              ⚠️ Note : Les modifications sont enregistrées localement dans votre navigateur et écrasent la configuration par défaut du serveur.
+            </p>
+          </div>
+        )}
       </div>
 
     </div>
