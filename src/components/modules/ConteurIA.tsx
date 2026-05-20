@@ -298,6 +298,46 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
   const [selectedHero, setSelectedHero] = useState<string>('Awa'); // Default select Awa as in reference image
   const [isCustomHero, setIsCustomHero] = useState<boolean>(false);
   const [customHeroName, setCustomHeroName] = useState<string>('');
+  const [isListening, setIsListening] = useState<boolean>(false);
+
+  const startSpeechRecognition = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("🎙️ La reconnaissance vocale n'est pas supportée ou est bloquée sur votre navigateur.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'fr-FR';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setIsCustomHero(true);
+      setSelectedHero('custom');
+      setCustomHeroName("À l'écoute... 🎙️");
+    };
+
+    recognition.onresult = (event: any) => {
+      const speechToText = event.results[0][0].transcript;
+      const formattedText = speechToText.charAt(0).toUpperCase() + speechToText.slice(1);
+      setCustomHeroName(formattedText);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error", event.error);
+      setIsListening(false);
+      setCustomHeroName("");
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
+  };
+
   const [selectedUniverse, setSelectedUniverse] = useState<string>('espace');
   const [selectedMoral, setSelectedMoral] = useState<string>('partage');
   
@@ -1038,37 +1078,19 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
               </div>
 
               {/* Glowing Full-Screen Action Buttons section */}
-              <div className="pt-5 border-t border-white/6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 relative z-10 w-full">
+              <div className="pt-5 border-t border-white/6 flex items-center relative z-10 w-full">
                 
                 {/* Main magic wand generate button */}
                 <button
                   onClick={handleStartGeneration}
                   disabled={isCustomHero ? !customHeroName.trim() : !selectedHero.trim()}
-                  className="flex-1 bg-gradient-to-r from-violet-600 via-pink-500 to-[#FFB020] hover:brightness-110 shadow-[0_4px_25px_rgba(124,58,237,0.35)] transition-all active:scale-[0.99] font-black py-4.5 rounded-[22px] text-white flex items-center justify-center space-x-2 tracking-wide cursor-pointer disabled:opacity-50 disabled:pointer-events-none group"
+                  className="w-full bg-gradient-to-r from-violet-600 via-pink-500 to-[#FFB020] hover:brightness-110 shadow-[0_4px_25px_rgba(124,58,237,0.35)] transition-all active:scale-[0.99] font-black py-4.5 rounded-[22px] text-white flex items-center justify-center space-x-2 tracking-wide cursor-pointer disabled:opacity-50 disabled:pointer-events-none group"
                 >
                   <Sparkles className="w-4 h-4 text-white animate-pulse group-hover:scale-110 transition-transform" />
                   <div className="flex flex-col items-center">
                     <span className="text-[10px] font-black uppercase tracking-widest leading-none">GÉNÉRER L'HISTOIRE MAGIQUE</span>
                     <span className="text-[7.5px] text-white/85 font-extrabold tracking-widest mt-0.8 leading-none">COMMENCER L'AVENTURE DANS LES ÉTOILES &gt;</span>
                   </div>
-                </button>
-
-                {/* Soothing Pulse Microphone Button */}
-                <button
-                  onClick={() => {
-                    if (typeof window !== 'undefined' && window.speechSynthesis) {
-                      window.speechSynthesis.cancel();
-                    }
-                    setIsCustomHero(true);
-                    setSelectedHero('custom');
-                    setCustomHeroName("Voyageur des Étoiles");
-                  }}
-                  className="h-13 sm:h-auto sm:w-16 rounded-[22px] bg-gradient-to-tr from-pink-500 to-purple-600 hover:brightness-110 flex items-center justify-center text-white shadow-lg active:scale-95 transition-all cursor-pointer relative shrink-0"
-                  title="Saisir par voix ou audio"
-                >
-                  {/* Pulsing visual halo */}
-                  <div className="absolute inset-0 rounded-[22px] bg-pink-500/20 animate-ping"></div>
-                  <Mic className="w-4.5 h-4.5 relative z-10" />
                 </button>
               </div>
 
