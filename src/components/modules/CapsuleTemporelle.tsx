@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Camera, 
   Heart, 
   Printer, 
   RefreshCw,
-  Lock
+  Lock,
+  Sparkles,
+  Download,
+  Share2
 } from 'lucide-react';
 import type { MemoryLog } from '../../types';
 
@@ -42,7 +45,6 @@ const MemoryCard: React.FC<MemoryCardProps> = ({
           
           {images.length > 1 && (
             <>
-              {/* Left arrow */}
               <button 
                 type="button"
                 onClick={(e) => {
@@ -53,7 +55,6 @@ const MemoryCard: React.FC<MemoryCardProps> = ({
               >
                 ‹
               </button>
-              {/* Right arrow */}
               <button 
                 type="button"
                 onClick={(e) => {
@@ -64,7 +65,6 @@ const MemoryCard: React.FC<MemoryCardProps> = ({
               >
                 ›
               </button>
-              {/* Dots indicator */}
               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex space-x-1 z-10 bg-black/40 px-2 py-1 rounded-full border border-white/5">
                 {images.map((_, idx) => (
                   <span 
@@ -78,7 +78,6 @@ const MemoryCard: React.FC<MemoryCardProps> = ({
         </div>
       )}
       
-      {/* Private label indicators overlay */}
       {m.isPrivate && (
         <span className="absolute top-3 left-3 px-2 py-0.5 rounded-lg bg-[#FF4D6D]/90 text-[8px] font-extrabold text-white border border-[#FF4D6D]/20 shadow-md uppercase tracking-wider flex items-center space-x-1">
           <Lock className="w-2.5 h-2.5 shrink-0" />
@@ -98,7 +97,7 @@ const MemoryCard: React.FC<MemoryCardProps> = ({
           <span className="text-[9px] text-white/40 shrink-0 font-medium">{m.date}</span>
         </div>
         
-        <p className="text-[11px] text-white/50 leading-relaxed font-sans font-medium">{m.description}</p>
+        <p className="text-[11px] text-white/55 leading-relaxed font-sans font-medium">{m.description}</p>
         
         <div className="flex items-center justify-between pt-3 border-t border-white/5">
           <div className="flex items-center space-x-2">
@@ -162,7 +161,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
   setMemories,
   activeMemberId 
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'album' | 'gazette'>('album');
+  const [activeSubTab, setActiveSubTab] = useState<'album' | 'gazette' | 'comic'>('album');
   
   // Advanced Form states
   const [newTitle, setNewTitle] = useState('');
@@ -176,6 +175,13 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
   const [uploading, setUploading] = useState(false);
   const [generatingGazette, setGeneratingGazette] = useState(false);
   const [gazetteStep, setGazetteStep] = useState(0);
+
+  // === BD ÉPIQUE STATES ===
+  const [selectedComicStyle, setSelectedComicStyle] = useState<'retro' | 'manga' | 'fantasy' | 'cyberpunk'>('retro');
+  const [isGeneratingComic, setIsGeneratingComic] = useState(false);
+  const [comicImage, setComicImage] = useState<string>('');
+  const [comicChapters, setComicChapters] = useState<{ title: string; desc: string; author: string; photo?: string }[]>([]);
+  const [comicGenerationProgress, setComicGenerationProgress] = useState<string>('');
 
   const isParent = activeMemberId === '1' || activeMemberId === '2';
 
@@ -257,7 +263,6 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
         setTimeout(() => {
           setGeneratingGazette(false);
           setGazetteStep(0);
-          // Inject print-specific stylesheet then trigger print
           const printStyle = document.createElement('style');
           printStyle.id = 'gazette-print-style';
           printStyle.textContent = `
@@ -286,6 +291,141 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
     }, 1000);
   };
 
+  // === BD GENERATION ENGINE ===
+  const generateComicBook = () => {
+    setIsGeneratingComic(true);
+    setComicGenerationProgress("Chiffonnage du papier Comics vintage...");
+
+    // 1. Lire les 3 derniers souvenirs ou charger des aventures par défaut si vide
+    const sampleMemories = memories.slice(0, 3);
+    
+    setTimeout(() => {
+      setComicGenerationProgress("Scénarisation de l'aventure épique...");
+      
+      const chapters: { title: string; desc: string; author: string; photo?: string }[] = [];
+      
+      // Souvenir 1
+      if (sampleMemories[0]) {
+        chapters.push({
+          title: `L'Odyssée de ${sampleMemories[0].authorName}`,
+          desc: `Notre vaillant explorateur ${sampleMemories[0].authorName} a entrepris l'exploit intitulé: "${sampleMemories[0].title}". Les récits disent qu'il a bravé tous les vents célestes pour écrire ce souvenir : "${sampleMemories[0].description}" !`,
+          author: sampleMemories[0].authorName,
+          photo: sampleMemories[0].imageUrl
+        });
+      } else {
+        chapters.push({
+          title: "L'exploration de la Nébuleuse des Arbres Sacrés",
+          desc: "Le vaillant Chef Papa et son clan s'aventurent au cœur de la forêt des murmures célestes, découvrant le secret des runes dorées cachées sous les écorces millénaires !",
+          author: "Papa",
+          photo: "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=500&auto=format&fit=crop&q=80"
+        });
+      }
+
+      // Souvenir 2
+      if (sampleMemories[1]) {
+        chapters.push({
+          title: `L'Invocation Céleste de ${sampleMemories[1].authorName}`,
+          desc: `Alors, ${sampleMemories[1].authorName} fit surgir une onde magique appelée "${sampleMemories[1].title}". L'assemblée en fut stupéfaite: "${sampleMemories[1].description}" !`,
+          author: sampleMemories[1].authorName,
+          photo: sampleMemories[1].imageUrl
+        });
+      } else {
+        chapters.push({
+          title: "L'Invocation du Lion d'Or",
+          desc: "Le jeune Mage Amadou canalise l'esprit de l'art magique pour matérialiser le Lion Céleste aux crins de braise, protecteur éternel du salon de la maisonnée !",
+          author: "Amadou",
+          photo: "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=500&auto=format&fit=crop&q=80"
+        });
+      }
+
+      // Souvenir 3
+      if (sampleMemories[2]) {
+        chapters.push({
+          title: `Le Banquet Héroïque de ${sampleMemories[2].authorName}`,
+          desc: `Pour clore cette épopée, ${sampleMemories[2].authorName} réunit les troupes autour de "${sampleMemories[2].title}". Un festin mémorable : "${sampleMemories[2].description}" !`,
+          author: sampleMemories[2].authorName,
+          photo: sampleMemories[2].imageUrl
+        });
+      } else {
+        chapters.push({
+          title: "Le Festin Cosmique des Pizzas Étoilées",
+          desc: "Le clan se réunit autour d'un grand Banquet Lunaire de Pizzas Cosmiques aux fromages coulants de la Voie Lactée, célébrant la paix et les rires du royaume !",
+          author: "Maman",
+          photo: "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=80"
+        });
+      }
+
+      setComicChapters(chapters);
+
+      setTimeout(() => {
+        setComicGenerationProgress("Invoquer l'IA de Stable Diffusion pour peindre la couverture...");
+
+        // Construire un prompt ultra stylisé selon le style choisi
+        let stylePrompt = "";
+        if (selectedComicStyle === 'retro') {
+          stylePrompt = "retro marvel comic book cover, 1980s vintage style, ink drawings, highly detailed graphic novel, colorful speech bubbles, pop art accents";
+        } else if (selectedComicStyle === 'manga') {
+          stylePrompt = "shonen manga colorful volume cover, anime key visual, highly detailed art style, vibrant gradient lighting, emotional character pose";
+        } else if (selectedComicStyle === 'fantasy') {
+          stylePrompt = "epic high-fantasy novel illustration, oil painting style, glowing magical pipes, ancient wizard scrolls, grand warrior posture, warm fantasy lighting";
+        } else {
+          stylePrompt = "cyberpunk neon graphic novel panel, sci-fi concept art, dark futuristic background, glowing holographic symbols, high contrast violet and cyan";
+        }
+
+        const keywords = sampleMemories.map(m => m.title).join(", ") || "family adventure, magical forest, pizza feast, heroic golden lion";
+        const finalPrompt = encodeURIComponent(`${stylePrompt}, depicting: a family having an epic fantasy quest including ${keywords}, dramatic lighting, masterpiece illustration`);
+
+        const seed = Math.floor(Math.random() * 1000000);
+        const generatedUrl = `https://image.pollinations.ai/prompt/${finalPrompt}?width=800&height=1000&nologo=true&seed=${seed}`;
+
+        // Préchargement sécurisé en arrière-plan pour éviter les clignotements
+        const img = new Image();
+        img.src = generatedUrl;
+
+        img.onload = () => {
+          setComicImage(generatedUrl);
+          setIsGeneratingComic(false);
+        };
+
+        img.onerror = () => {
+          // Fallback en direct sur Unsplash en cas d'erreur de serveur IA
+          setComicImage(`https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=800&q=80&sig=${seed}`);
+          setIsGeneratingComic(false);
+        };
+
+      }, 1000);
+    }, 1000);
+  };
+
+  // Auto generate at start when clicking the sub-tab
+  useEffect(() => {
+    if (activeSubTab === 'comic' && !comicImage && !isGeneratingComic) {
+      generateComicBook();
+    }
+  }, [activeSubTab]);
+
+  const handleShareComicToWall = () => {
+    if (!comicImage) return;
+
+    const newMemory: MemoryLog = {
+      id: `mem-comic-${Date.now()}`,
+      title: `🦸 LA GAZETTE BD : Les Aventures Épiques du Clan !`,
+      description: `Nous avons généré en direct notre BD personnalisée de la semaine basée sur nos souvenirs ! Style choisi : ${selectedComicStyle.toUpperCase()}.`,
+      imageUrl: comicImage,
+      imageUrls: [comicImage],
+      date: new Date().toLocaleDateString('fr-FR'),
+      authorName: activeMemberId === '1' ? 'Papa' : 'Maman',
+      authorPhoto: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+      likesCount: 0,
+      theme: '🦸 Gazette BD',
+      isPrivate: false
+    };
+
+    setMemories(prev => [newMemory, ...prev]);
+    alert("Votre incroyable Bande Dessinée a été publiée sur le Mur de la Famille avec succès ! 🌟");
+    setActiveSubTab('album');
+  };
+
   // Filter memories based on parental privacy settings
   const visibleMemories = memories.filter(m => {
     if (m.isPrivate && !isParent) return false;
@@ -299,36 +439,47 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className="p-3 rounded-2xl bg-[#FF4D6D]/10 border border-[#FF4D6D]/20 text-[#FF4D6D]">
-            <Camera className="w-6 h-6" />
+            <Camera className="w-6 h-6 animate-pulse" />
           </div>
           <div>
-            <h2 className="text-lg font-extrabold text-white">Capsule Temporelle</h2>
-            <p className="text-xs text-white/50">Journal intime et souvenirs partagés de votre foyer</p>
+            <h2 className="text-lg font-extrabold text-white">Capsule Temporelle & IA</h2>
+            <p className="text-xs text-white/50">Journal intime, souvenirs partagés et créations d'IA de votre foyer</p>
           </div>
         </div>
       </div>
 
       {/* Navigation sub-tabs */}
-      <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 flex">
+      <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 flex gap-1">
         <button
           onClick={() => setActiveSubTab('album')}
-          className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 py-2.5 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
             activeSubTab === 'album' 
               ? 'bg-[#FF4D6D] text-white shadow-md' 
               : 'text-white/40 hover:text-white/60'
           }`}
         >
-          Album Photo Partagé
+          <span>📸 Album Photo</span>
         </button>
         <button
           onClick={() => setActiveSubTab('gazette')}
-          className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 py-2.5 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
             activeSubTab === 'gazette' 
               ? 'bg-[#FF4D6D] text-white shadow-md' 
               : 'text-white/40 hover:text-white/60'
           }`}
         >
-          La Gazette du Dimanche 📰
+          <span>📰 Gazette Rétro</span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab('comic')}
+          className={`flex-1 py-2.5 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 bg-[#6C5CFF]/10 text-[#6C5CFF] border border-[#6C5CFF]/20 ${
+            activeSubTab === 'comic' 
+              ? 'bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white border-none shadow-md' 
+              : 'hover:text-white/60'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>🦸 Gazette BD IA</span>
         </button>
       </div>
 
@@ -401,7 +552,6 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                 <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Image (Appareil photo / Bibliothèque locale - Sélectionnez plusieurs)</label>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Native input camera picker */}
                   <div className="relative flex flex-col items-center justify-center border border-dashed border-white/20 hover:border-[#FF4D6D]/45 rounded-xl p-4 bg-white/5 cursor-pointer min-h-[90px] transition-all">
                     <input 
                       type="file" 
@@ -415,7 +565,6 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                     <span className="text-[8px] text-white/40 mt-0.5">Appareil photo ou Galerie</span>
                   </div>
 
-                  {/* Photo Preview / Fallback indicator */}
                   <div className="rounded-xl p-2 border border-white/10 flex flex-wrap gap-2 bg-black/20 min-h-[90px] items-center justify-center overflow-y-auto max-h-[140px]">
                     {uploadedImages.length > 0 ? (
                       uploadedImages.map((img, idx) => (
@@ -455,7 +604,6 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                 />
               </div>
 
-              {/* Parent Privacy Toggle Switch */}
               {isParent && (
                 <div className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 mt-1">
                   <div className="flex items-center space-x-2.5">
@@ -510,14 +658,11 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       {activeSubTab === 'gazette' && (
         <div className="space-y-6">
           
-          {/* Gazette Promo Cover - Designed like a French Vintage Luxury Newspaper */}
           <div className="gazette-printable relative rounded-[32px] overflow-hidden border border-amber-500/20 bg-[#0f1524] text-white p-6 md:p-8 flex flex-col justify-between min-h-[500px] shadow-[0_20px_50px_rgba(0,0,0,0.4)] font-serif">
             
-            {/* Background design accents */}
             <div className="absolute top-0 right-0 w-80 h-80 bg-[#FFB020]/4 rounded-full blur-[80px] pointer-events-none"></div>
             <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-[#FF4D6D]/4 rounded-full blur-[80px] pointer-events-none"></div>
             
-            {/* Header vintage paper look on screen */}
             <div className="text-center relative z-10">
               <span className="text-[8.5px] font-black text-[#FFB020] uppercase tracking-widest block font-sans">
                 Chronique Hebdomadaire des Temps Merveilleux
@@ -527,7 +672,6 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                 {activeMemberId === '1' || activeMemberId === '2' ? 'LA GAZETTE DES DJITÉ' : 'L\'ÉCHO DES DJITÉ'}
               </h2>
               
-              {/* Retro divider */}
               <div className="w-full h-1 bg-gradient-to-r from-transparent via-white/20 to-transparent my-3"></div>
               
               <div className="flex justify-between items-center text-[9.5px] text-white/55 font-sans px-3 uppercase tracking-wider font-bold border-y border-white/8 py-2">
@@ -539,10 +683,8 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
               </div>
             </div>
 
-            {/* Main Newspaper Grid */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6 my-6 relative z-10 border-b border-white/8 pb-6 items-stretch">
               
-              {/* Column 1: L'Éditorial du Jour (IA / Chronique) */}
               <div className="md:col-span-5 space-y-3 md:border-r border-white/8 pr-0 md:pr-6 flex flex-col justify-between">
                 <div className="space-y-2.5">
                   <div className="inline-block bg-[#FFB020]/10 border border-[#FFB020]/25 rounded-md px-2 py-0.5">
@@ -556,7 +698,6 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                   </p>
                 </div>
                 
-                {/* Vintage decorative border inside */}
                 <div className="border-t border-dashed border-white/10 pt-3 mt-3">
                   <span className="text-[8.5px] font-bold text-white/35 italic block font-sans">
                     — Rédigé avec tendresse par le Majordome IA
@@ -564,14 +705,12 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                 </div>
               </div>
 
-              {/* Column 2: Les Faits Marquants & L'Album Photo */}
               <div className="md:col-span-4 space-y-4 md:border-r border-white/8 px-0 md:px-6 flex flex-col justify-between">
                 <div className="space-y-3">
                   <div className="inline-block bg-[#FF4D6D]/10 border border-[#FF4D6D]/25 rounded-md px-2 py-0.5">
                     <span className="text-[8.5px] font-black text-[#FF4D6D] uppercase tracking-wider font-sans">Instant Figé</span>
                   </div>
                   
-                  {/* Photo from memory or default Unsplash preset in news-frame */}
                   <div className="border-2 border-white/10 p-1.5 bg-white/3 rounded-xl overflow-hidden shadow-inner group">
                     <img 
                       src={visibleMemories[0]?.imageUrl || "https://images.unsplash.com/photo-1541614101331-1a5a3a194e92?w=600&auto=format&fit=crop&q=80"} 
@@ -594,7 +733,6 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                 </div>
               </div>
 
-              {/* Column 3: Les Chroniques humoristiques & Météo des Cœurs */}
               <div className="md:col-span-3 space-y-4 pl-0 md:pl-6 flex flex-col justify-between">
                 <div className="space-y-3">
                   <div className="inline-block bg-[#00D26A]/10 border border-[#00D26A]/25 rounded-md px-2 py-0.5">
@@ -620,7 +758,6 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                   </div>
                 </div>
 
-                {/* Love climate signoff */}
                 <div className="pt-2 border-t border-double border-white/10 text-center font-sans">
                   <span className="text-[8.5px] text-[#FF4D6D] font-extrabold uppercase tracking-widest block animate-pulse">
                     Météo des Cœurs : Radieuse ☀️
@@ -630,7 +767,6 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
 
             </div>
 
-            {/* Bottom Section: Print Trigger & Action Layout */}
             <div className="pt-3 flex flex-col items-center justify-center relative z-10 w-full no-print">
               {generatingGazette ? (
                 <div className="w-full p-4 rounded-[20px] bg-white/3 border border-white/6 flex flex-col items-center justify-center space-y-2.5 animate-pulse">
@@ -654,6 +790,176 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
 
           </div>
           
+        </div>
+      )}
+
+      {/* 🦸 100% REAL IA COMIC TAB VIEW */}
+      {activeSubTab === 'comic' && (
+        <div className="space-y-6">
+          
+          {/* Style Selector Toolbar */}
+          <div className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
+            <span className="text-[10px] font-black text-[#6C5CFF] uppercase tracking-widest block flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 animate-spin" style={{ animationDuration: '4s' }} />
+              Style Artistique de votre Bande Dessinée :
+            </span>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { id: 'retro', label: '🦸 Comics Rétro', desc: 'Marvel Vintage 1980' },
+                { id: 'manga', label: '🏮 Shonen Manga', desc: 'Anime Moderne' },
+                { id: 'fantasy', label: '🧙 Fantasy Épique', desc: 'Livre Enchanté' },
+                { id: 'cyberpunk', label: '🌆 Cyberpunk', desc: 'Futur Néon' }
+              ].map(st => (
+                <button
+                  key={st.id}
+                  onClick={() => setSelectedComicStyle(st.id as any)}
+                  className={`p-2.5 rounded-xl border transition-all text-left flex flex-col justify-between cursor-pointer ${
+                    selectedComicStyle === st.id 
+                      ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] text-white shadow-md' 
+                      : 'bg-white/3 border-white/5 text-white/50 hover:bg-white/5'
+                  }`}
+                >
+                  <span className="text-[10.5px] font-black">{st.label}</span>
+                  <span className="text-[8.5px] opacity-60 font-sans mt-0.5">{st.desc}</span>
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={generateComicBook}
+              disabled={isGeneratingComic}
+              className="w-full py-3.5 rounded-[18px] bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:brightness-105 transition-all shadow-md shadow-[#6C5CFF]/20 flex items-center justify-center gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${isGeneratingComic ? 'animate-spin' : ''}`} />
+              <span>Re-générer l'œuvre de la semaine</span>
+            </button>
+          </div>
+
+          {/* Loader Overlay */}
+          {isGeneratingComic ? (
+            <div className="glass-panel border border-white/10 rounded-[32px] p-8 text-center flex flex-col items-center justify-center min-h-[350px] space-y-4 animate-pulse">
+              <div className="relative w-16 h-16 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] animate-ping opacity-30"></div>
+                <Sparkles className="w-7 h-7 text-white animate-bounce" />
+              </div>
+              <div className="space-y-1.5">
+                <span className="text-[9px] font-bold text-[#FF4D6D] uppercase tracking-widest block">Studio d'IA Céleste</span>
+                <h4 className="text-sm font-black text-white">{comicGenerationProgress}</h4>
+                <p className="text-[10px] text-white/40 italic font-sans max-w-xs mx-auto">
+                  Stable Diffusion dessine vos souvenirs à la volée. Cela peut prendre 3 à 6 secondes...
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              
+              {/* Planche de BD */}
+              <div className="relative rounded-[36px] overflow-hidden border border-[#6C5CFF]/25 bg-black/60 p-6 md:p-8 space-y-8 shadow-[0_20px_60px_rgba(108,92,255,0.15)]">
+                
+                {/* 1. Couverture de Comics Héroïque */}
+                {comicImage && (
+                  <div className="relative w-full max-w-sm mx-auto rounded-[24px] overflow-hidden border-4 border-white shadow-2xl transform rotate-[-0.5deg] group hover:rotate-0 transition-transform duration-500">
+                    <img src={comicImage} alt="Comic Cover" className="w-full h-auto object-cover" />
+                    
+                    {/* Retro Comic Labels overlay */}
+                    <div className="absolute top-0 inset-x-0 bg-gradient-to-b from-black/80 to-transparent p-4 flex justify-between items-start">
+                      <div className="bg-[#FFB020] text-black px-2 py-0.5 rounded text-[8px] font-black tracking-widest uppercase">
+                        N° 01 • SEMAINE OR
+                      </div>
+                      <div className="bg-[#FF4D6D] text-white px-2 py-0.5 rounded text-[8px] font-black tracking-widest uppercase">
+                        0.15 €
+                      </div>
+                    </div>
+
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 text-center">
+                      <span className="text-[8.5px] font-bold text-[#FFB020] uppercase tracking-widest block font-sans">
+                        Les Chroniques Héroïques du Clan
+                      </span>
+                      <h3 className="text-base font-black text-white font-serif tracking-tight uppercase leading-none mt-1">
+                        L'Aventure Merveilleuse
+                      </h3>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Planche de Cases avec Bulles Retro CSS */}
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                    <span className="text-[10px] font-black text-white/50 uppercase tracking-widest block">
+                      📖 Épopée en 3 chapitres réels
+                    </span>
+                    <span className="text-[9px] text-[#6C5CFF] font-bold font-sans">
+                      Photos réelles de la semaine intégrées
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {comicChapters.map((ch, idx) => (
+                      <div 
+                        key={idx} 
+                        className={`glass-panel border border-white/10 rounded-[28px] p-4 flex flex-col justify-between relative shadow-lg transform transition-all hover:scale-102 duration-300 ${
+                          idx === 0 ? 'rotate-[-0.8deg] border-l-[#FF4D6D]' :
+                          idx === 1 ? 'rotate-[0.5deg] border-t-[#FFB020]' :
+                          'rotate-[-0.5deg] border-r-[#6C5CFF]'
+                        }`}
+                      >
+                        {/* Incrustation photo réelle */}
+                        {ch.photo && (
+                          <div className="relative w-full h-32 rounded-xl overflow-hidden border border-white/8 bg-black/40 mb-3 shadow-inner">
+                            <img src={ch.photo} alt={ch.title} className="w-full h-full object-cover grayscale brightness-90 hover:grayscale-0 hover:brightness-100 transition-all duration-500" />
+                            <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/75 text-[7.5px] font-extrabold text-[#FFB020] uppercase tracking-wider">
+                              Capture Réelle
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Bulle de dialogue CSS rétro */}
+                        <div className="relative bg-white text-black p-3.5 rounded-[20px] shadow-md border-2 border-black font-sans text-[11px] leading-relaxed font-semibold mb-4">
+                          <p className="italic">« {ch.desc} »</p>
+                          {/* Triangle point direction of speech bubble */}
+                          <div className="absolute bottom-[-10px] left-6 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[10px] border-t-black"></div>
+                          <div className="absolute bottom-[-7px] left-[25px] w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent border-t-[8px] border-t-white"></div>
+                        </div>
+
+                        {/* Infos auteur */}
+                        <div className="flex items-center space-x-2 pt-2 border-t border-white/5">
+                          <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">
+                            Chapitre {idx + 1} • <span className="text-[#6C5CFF]">{ch.author}</span>
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Actions Toolbar */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4">
+                  <a 
+                    href={comicImage} 
+                    download="MaFamille_BD_Semaine.png"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="py-3.5 rounded-xl border border-white/10 bg-white/5 text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Télécharger la Couverture</span>
+                  </a>
+
+                  <button
+                    onClick={handleShareComicToWall}
+                    className="py-3.5 rounded-xl bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:brightness-110 transition-all shadow-md shadow-[#6C5CFF]/15 flex items-center justify-center gap-2"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    <span>Publier la BD sur le Mur</span>
+                  </button>
+                </div>
+
+              </div>
+
+            </div>
+          )}
+
         </div>
       )}
 

@@ -39,6 +39,14 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [googleSynced, setGoogleSynced] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
+  // Invitation card states
+  const [activeInvitationEvent, setActiveInvitationEvent] = useState<FamilyEvent | null>(null);
+  const [invitationStyle, setInvitationStyle] = useState<'disney' | 'cyberpunk' | 'retro' | 'comics'>('disney');
+  const [invitationDesc, setInvitationDesc] = useState<string>('');
+  const [invitationUrl, setInvitationUrl] = useState<string>('');
+  const [loadingInvitation, setLoadingInvitation] = useState<boolean>(false);
+  const [invitationStep, setInvitationStep] = useState<number>(0);
+
   useEffect(() => {
     if (defaultSelectedDate) {
       setSelectedDate(defaultSelectedDate);
@@ -451,6 +459,20 @@ export const Agenda: React.FC<AgendaProps> = ({
                               <span>{event.description}</span>
                             </div>
                           )}
+
+                          {event.type === 'social' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setInvitationUrl('');
+                                setInvitationDesc('');
+                                setActiveInvitationEvent(event);
+                              }}
+                              className="mt-2.5 px-3 py-1.5 rounded-xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-[#6C5CFF] text-[9.5px] font-black uppercase tracking-wider flex items-center space-x-1 hover:bg-[#6C5CFF]/20 active:scale-95 transition-all cursor-pointer"
+                            >
+                              <span>🎨 Carton d'Invitation IA</span>
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -474,6 +496,185 @@ export const Agenda: React.FC<AgendaProps> = ({
         )}
 
       </div>
+
+      {/* DYNAMIC HIGH-FIDELITY AI INVITATION CARD CREATOR MODAL */}
+      {activeInvitationEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-lg glass-panel rounded-[32px] border border-[#6C5CFF]/30 p-6 space-y-5 relative overflow-hidden">
+            
+            <div className="flex justify-between items-center pb-3 border-b border-white/5">
+              <div>
+                <span className="text-[9px] font-black text-[#6C5CFF] uppercase tracking-widest block font-sans">
+                  Visual Studio : Carton d'Invitation IA
+                </span>
+                <h3 className="text-sm font-black text-white mt-1 uppercase tracking-tight">
+                  {activeInvitationEvent.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => setActiveInvitationEvent(null)}
+                className="p-2 rounded-xl bg-white/5 text-white/50 hover:text-white border border-white/5 cursor-pointer transition-all"
+              >
+                Fermer
+              </button>
+            </div>
+
+            {loadingInvitation ? (
+              <div className="py-12 text-center space-y-4">
+                <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border border-dashed border-[#6C5CFF] animate-spin"></div>
+                  <span className="text-2xl animate-bounce">🎈</span>
+                </div>
+                <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest font-sans">
+                  {invitationStep === 1 ? "Configuration de l'ambiance visuelle..." : 
+                   invitationStep === 2 ? "Dessin des ornements festifs..." : 
+                   "Stable Diffusion finalise votre carton..."}
+                </p>
+              </div>
+            ) : invitationUrl ? (
+              <div className="space-y-4 text-center">
+                <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-[#00D26A] shadow-lg group">
+                  <img 
+                    src={invitationUrl} 
+                    alt="AI Invitation Card" 
+                    className="w-full h-full object-cover transition-transform duration-[5000ms] group-hover:scale-103"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                  
+                  <div className="absolute bottom-3 left-3 text-left">
+                    <span className="text-[8px] font-extrabold text-[#00D26A] uppercase tracking-widest block font-sans">
+                      Carton prêt à envoyer !
+                    </span>
+                    <h4 className="text-xs font-black text-white uppercase mt-0.5">
+                      {activeInvitationEvent.title}
+                    </h4>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setInvitationUrl('')}
+                    className="flex-1 py-3 rounded-xl bg-white/5 text-white border border-white/8 text-[10px] font-bold cursor-pointer transition-all hover:bg-white/8"
+                  >
+                    Recommencer ↺
+                  </button>
+                  <a
+                    href={invitationUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 py-3 rounded-xl bg-[#6C5CFF] text-white text-[10px] font-black uppercase tracking-wider shadow-md hover:scale-105 active:scale-95 transition-all text-center flex items-center justify-center space-x-1.5"
+                  >
+                    <span>📥 Ouvrir & Partager</span>
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 text-left">
+                
+                {/* Style Selector */}
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">1. Style de l'Invitation</label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[
+                      { id: 'disney', label: 'Magie Disney', icon: '✨' },
+                      { id: 'cyberpunk', label: 'Cyberpunk', icon: '🌌' },
+                      { id: 'retro', label: 'Rétro Fête', icon: '🎉' },
+                      { id: 'comics', label: 'Super-Héros', icon: '🦸' }
+                    ].map(st => (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => setInvitationStyle(st.id as any)}
+                        className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                          invitationStyle === st.id 
+                            ? 'border-[#6C5CFF] bg-[#6C5CFF]/15 text-white' 
+                            : 'border-white/5 bg-white/3 text-white/40 hover:text-white/60'
+                        }`}
+                      >
+                        <span className="text-base block mb-0.5">{st.icon}</span>
+                        <span className="text-[7.5px] font-black uppercase font-sans tracking-tight block truncate">{st.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Additional Description */}
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">2. Thème ou Précisions (Facultatif)</label>
+                  <input 
+                    type="text"
+                    value={invitationDesc}
+                    onChange={(e) => setInvitationDesc(e.target.value)}
+                    placeholder="ex: sur le thème de l'espace, avec un gâteau géant, couleurs bleues..."
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF] font-sans font-medium"
+                  />
+                </div>
+
+                <div className="p-3 bg-white/3 border border-white/5 rounded-xl space-y-1">
+                  <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest block font-sans">Détails inclus sur le carton :</span>
+                  <p className="text-[10px] text-white/80 font-medium font-sans">
+                    📅 Date : {new Date(activeInvitationEvent.dateTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} à {activeInvitationEvent.time}
+                  </p>
+                  {activeInvitationEvent.location && (
+                    <p className="text-[10px] text-white/80 font-medium font-sans">
+                      📍 Lieu : {activeInvitationEvent.location}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoadingInvitation(true);
+                    setInvitationStep(1);
+
+                    let promptStyle = '';
+                    if (invitationStyle === 'disney') {
+                      promptStyle = 'beautiful disney Pixar magical fairy tale style, sparkling gold stars, warm glowing pastel colors';
+                    } else if (invitationStyle === 'cyberpunk') {
+                      promptStyle = 'neon futuristic cyberpunk city lights, synthwave neon pink and cosmic purple colors';
+                    } else if (invitationStyle === 'retro') {
+                      promptStyle = 'nostalgic vintage retro party poster style, cute warm colors, decorative flowers';
+                    } else {
+                      promptStyle = 'epic retro comic book style, bold pop art retro text borders, superhero family design';
+                    }
+
+                    const title = activeInvitationEvent.title;
+                    const extra = invitationDesc.trim() ? `, themed ${invitationDesc.trim()}` : '';
+                    const finalPrompt = encodeURIComponent(`high-resolution festive family invitation card poster for ${title}${extra}, ${promptStyle}, vibrant graphic layout, kid-friendly design, space for text, decorative borders`);
+                    const seed = Math.floor(Math.random() * 1000000);
+                    const generatedUrl = `https://image.pollinations.ai/prompt/${finalPrompt}?width=800&height=600&nologo=true&seed=${seed}`;
+
+                    setTimeout(() => {
+                      setInvitationStep(2);
+                      setTimeout(() => {
+                        setInvitationStep(3);
+
+                        const img = new Image();
+                        img.src = generatedUrl;
+                        img.onload = () => {
+                          setInvitationUrl(generatedUrl);
+                          setLoadingInvitation(false);
+                        };
+                        img.onerror = () => {
+                          // Fallback standard
+                          setInvitationUrl(`https://images.unsplash.com/photo-1513151233558-d860c5398176?w=800&q=80&sig=${seed}`);
+                          setLoadingInvitation(false);
+                        };
+                      }, 1000);
+                    }, 1000);
+                  }}
+                  className="w-full py-3.5 rounded-[18px] bg-[#6C5CFF] text-white font-extrabold text-xs uppercase tracking-wider cursor-pointer shadow-md hover:scale-[1.03] active:scale-[0.97] transition-all flex items-center justify-center space-x-1.5"
+                >
+                  <span>🪄 Peindre le Carton par IA</span>
+                </button>
+
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };

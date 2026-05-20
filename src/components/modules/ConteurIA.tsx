@@ -14,7 +14,8 @@ import {
   Plus,
   Shield,
   Mic,
-  Check
+  Check,
+  RefreshCw
 } from 'lucide-react';
 
 interface ConteurIAProps {
@@ -305,6 +306,8 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
   const [genStep, setGenStep] = useState<number>(0);
   const [activeStory, setActiveStory] = useState<any | null>(null);
   const [currentChapterIndex, setCurrentChapterIndex] = useState<number>(0);
+  const [storyImage, setStoryImage] = useState<string>('');
+  const [loadingStoryImage, setLoadingStoryImage] = useState<boolean>(false);
   
   // Text-To-Speech Controls
   const [isReadingAloud, setIsReadingAloud] = useState<boolean>(false);
@@ -557,6 +560,7 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
     setGenStep(1);
     window.speechSynthesis.cancel();
     setIsReadingAloud(false);
+    setStoryImage('');
 
     setTimeout(() => {
       setGenStep(2);
@@ -568,6 +572,26 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
           setCurrentChapterIndex(0);
           setIsGenerating(false);
           setGenStep(0);
+
+          // Lancer le chargement de l'illustration d'IA céleste !
+          setLoadingStoryImage(true);
+          const universeName = UNIVERSES.find(u => u.id === selectedUniverse)?.name || selectedUniverse;
+          const finalPrompt = encodeURIComponent(`dreamy fairytale watercolor children book illustration of ${story.title}, magical landscape in ${universeName}, warm soft glow, master key art, 3d pixar fantasy style, vivid colors`);
+          const seed = Math.floor(Math.random() * 1000000);
+          const generatedUrl = `https://image.pollinations.ai/prompt/${finalPrompt}?width=600&height=800&nologo=true&seed=${seed}`;
+
+          const img = new Image();
+          img.src = generatedUrl;
+          img.onload = () => {
+            setStoryImage(generatedUrl);
+            setLoadingStoryImage(false);
+          };
+          img.onerror = () => {
+            // Secours sur Unsplash
+            setStoryImage(`https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?w=600&q=80&sig=${seed}`);
+            setLoadingStoryImage(false);
+          };
+
         }, 1500);
       }, 1500);
     }, 1500);
@@ -1112,52 +1136,52 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
                 <div className="hidden md:block absolute top-0 bottom-0 left-1/2 -ml-[12px] w-[24px] z-20 book-spine-line opacity-80"></div>
                 
                 {/* LEFT PAGE: DYNAMIC GRAPHICAL SCENE REPRESENTATION */}
-                <div className="relative hidden md:flex flex-col justify-between p-6 md:p-8 text-center border-b md:border-b-0 md:border-r border-white/6 bg-slate-950/60 shadow-inner overflow-hidden min-h-[260px] md:min-h-full">
+                <div className="relative hidden md:flex flex-col justify-between p-0 text-center border-b md:border-b-0 md:border-r border-white/6 bg-slate-950 shadow-inner overflow-hidden min-h-[260px] md:min-h-full">
                   
-                  {/* Dynamic Glowing Aurora Backdrops */}
-                  <div 
-                    className="absolute inset-0 opacity-20 filter blur-[40px] animate-pulse transition-all duration-1000"
-                    style={{ background: `radial-gradient(circle, ${activeStory.themeColor} 0%, transparent 70%)` }}
-                  ></div>
-
-                  {/* Left Page Header */}
-                  <div className="relative z-10 flex items-center justify-between text-[10px] font-bold text-white/30">
-                    <span className="uppercase tracking-widest">{UNIVERSES.find(u => u.id === selectedUniverse)?.name}</span>
-                    <Sparkle className="w-3.5 h-3.5 text-[#FFB020]/50 animate-spin-slow" />
-                  </div>
-
-                  {/* Orbital Graphic and Floating Emoji Sphere */}
-                  <div className="relative z-10 my-auto py-4 space-y-4">
-                    
-                    {/* Glowing floating core */}
-                    <div className="relative w-28 h-28 mx-auto flex items-center justify-center">
-                      <div className="absolute inset-0 rounded-full border border-white/10 animate-spin-slow"></div>
-                      <div 
-                        className="absolute inset-3 rounded-full border border-dashed animate-spin-reverse"
-                        style={{ borderColor: `${activeStory.themeColor}40` }}
-                      ></div>
-                      <div 
-                        className="absolute inset-5 rounded-full filter blur-[15px] opacity-30 animate-pulse"
-                        style={{ backgroundColor: activeStory.themeColor }}
-                      ></div>
-                      
-                      {/* Floating Emoji */}
-                      <span className="text-5xl relative z-10 filter drop-shadow-[0_8px_10px_rgba(0,0,0,0.5)] animate-bounce-slow">
-                        {activeStory.emoji}
+                  {loadingStoryImage ? (
+                    <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center space-y-3 z-10">
+                      <RefreshCw className="w-8 h-8 text-[#7C3AED] animate-spin" />
+                      <span className="text-[9px] font-black text-white/50 uppercase tracking-widest font-sans">
+                        Stable Diffusion peint le conte...
                       </span>
                     </div>
-
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-[#FFB020]">{selectedHero}'s Journey</span>
-                      <h3 className="text-base font-black text-white max-w-xs mx-auto leading-tight">
-                        {activeStory.title}
-                      </h3>
+                  ) : storyImage ? (
+                    <div className="absolute inset-0 w-full h-full group">
+                      <img 
+                        src={storyImage} 
+                        alt="Story Illustration" 
+                        className="w-full h-full object-cover transition-transform duration-[6000ms] group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30"></div>
+                      
+                      {/* Floating title overlay */}
+                      <div className="absolute bottom-4 inset-x-4 text-center z-10">
+                        <span className="text-[8px] font-black text-[#FFB020] uppercase tracking-widest block font-sans">
+                          {selectedHero} dans l'univers {UNIVERSES.find(u => u.id === selectedUniverse)?.name}
+                        </span>
+                        <h4 className="text-xs font-black text-white uppercase tracking-tight leading-tight mt-1 max-w-[200px] mx-auto">
+                          {activeStory.title}
+                        </h4>
+                      </div>
                     </div>
+                  ) : (
+                    <div className="absolute inset-0 bg-[#0d1322] flex flex-col items-center justify-center p-6 space-y-4">
+                      <div className="relative w-20 h-20 rounded-full border border-white/10 flex items-center justify-center">
+                        <span className="text-4xl animate-bounce-slow">{activeStory.emoji}</span>
+                      </div>
+                      <h4 className="text-[11px] font-black text-white/80 uppercase tracking-widest">{activeStory.title}</h4>
+                    </div>
+                  )}
+
+                  {/* Left Page Header decoration overlay */}
+                  <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between text-[9px] font-bold text-white/40 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] font-sans">
+                    <span className="uppercase tracking-widest">{UNIVERSES.find(u => u.id === selectedUniverse)?.name}</span>
+                    <Sparkle className="w-3.5 h-3.5 text-[#FFB020] animate-spin-slow" />
                   </div>
 
-                  {/* Left Page Footer */}
-                  <div className="relative z-10 flex justify-center text-[9px] text-white/40 italic">
-                    <span>Leçon nocturne : {MORALS.find(m => m.id === selectedMoral)?.name} ({MORALS.find(m => m.id === selectedMoral)?.emoji})</span>
+                  {/* Left Page Footer decoration overlay */}
+                  <div className="absolute bottom-4 left-4 right-4 z-20 flex justify-center text-[8px] text-white/50 italic drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)] font-sans mt-auto">
+                    <span>Morale : {MORALS.find(m => m.id === selectedMoral)?.name}</span>
                   </div>
 
                 </div>

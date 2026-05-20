@@ -200,6 +200,42 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   const [quizScore, setQuizScore] = useState(0);
   const [quizFinished, setQuizFinished] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [eduSchemaUrl, setEduSchemaUrl] = useState<string>('');
+  const [loadingSchema, setLoadingSchema] = useState<boolean>(false);
+
+  const triggerEduSchemaGeneration = (subj: string) => {
+    setLoadingSchema(true);
+    setEduSchemaUrl('');
+
+    let promptKeywords = '';
+    if (subj === 'maths') {
+      promptKeywords = 'mathematical geometric figures, chalkboard drawings of a triangle and rectangle with colorful chalk formulas, architectural sketch style, clean educational graphic';
+    } else if (subj === 'histoire') {
+      promptKeywords = 'vintage ancient map of the world, Christopher Columbus sailing ship caravel detailed illustration, 3d historical cartoon style, warm parchment paper texture';
+    } else if (subj === 'sciences') {
+      promptKeywords = 'colorful solar system orbit map, glowing sun and planets in dark space, scientific educational graphic, detailed 3d rendering, bright kid-friendly design';
+    } else {
+      promptKeywords = 'vintage feather quill writing in a magical glowing wizard book of grammar, ancient calligraphy letters floating, 3d pixar book style, cozy lighting';
+    }
+
+    const seed = Math.floor(Math.random() * 1000000);
+    const finalPrompt = encodeURIComponent(`educational school graphic, ${promptKeywords}, clear diagram, vibrant colors, white background border, vector design style`);
+    const generatedUrl = `https://image.pollinations.ai/prompt/${finalPrompt}?width=600&height=400&nologo=true&seed=${seed}`;
+
+    const img = new Image();
+    img.src = generatedUrl;
+
+    img.onload = () => {
+      setEduSchemaUrl(generatedUrl);
+      setLoadingSchema(false);
+    };
+
+    img.onerror = () => {
+      // Fallback Unsplash
+      setEduSchemaUrl(`https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=600&q=80&sig=${seed}`);
+      setLoadingSchema(false);
+    };
+  };
 
   const mathQuiz = [
     {
@@ -616,7 +652,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setSelectedSubject('maths')}
+                  onClick={() => { setSelectedSubject('maths'); triggerEduSchemaGeneration('maths'); }}
                   className="p-5 rounded-[28px] bg-white/5 border border-white/8 hover:border-[#6C5CFF] hover:bg-[#6C5CFF]/10 text-left transition-all cursor-pointer flex flex-col space-y-3 group"
                 >
                   <div className="p-3 bg-[#6C5CFF]/10 rounded-2xl border border-[#6C5CFF]/20 text-[#6C5CFF] w-fit group-hover:scale-110 transition-transform">
@@ -629,7 +665,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSelectedSubject('histoire')}
+                  onClick={() => { setSelectedSubject('histoire'); triggerEduSchemaGeneration('histoire'); }}
                   className="p-5 rounded-[28px] bg-white/5 border border-white/8 hover:border-[#6C5CFF] hover:bg-[#6C5CFF]/10 text-left transition-all cursor-pointer flex flex-col space-y-3 group"
                 >
                   <div className="p-3 bg-[#FFB020]/10 rounded-2xl border border-[#FFB020]/20 text-[#FFB020] w-fit group-hover:scale-110 transition-transform">
@@ -644,7 +680,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                 {/* SVT / Sciences */}
                 <button
                   type="button"
-                  onClick={() => setSelectedSubject('sciences')}
+                  onClick={() => { setSelectedSubject('sciences'); triggerEduSchemaGeneration('sciences'); }}
                   className="p-5 rounded-[28px] bg-white/5 border border-white/8 hover:border-[#00D26A] hover:bg-[#00D26A]/10 text-left transition-all cursor-pointer flex flex-col space-y-3 group"
                 >
                   <div className="p-3 bg-[#00D26A]/10 rounded-2xl border border-[#00D26A]/20 text-[#00D26A] w-fit group-hover:scale-110 transition-transform">
@@ -659,7 +695,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                 {/* Français */}
                 <button
                   type="button"
-                  onClick={() => setSelectedSubject('francais')}
+                  onClick={() => { setSelectedSubject('francais'); triggerEduSchemaGeneration('francais'); }}
                   className="p-5 rounded-[28px] bg-white/5 border border-white/8 hover:border-[#FF4D6D] hover:bg-[#FF4D6D]/10 text-left transition-all cursor-pointer flex flex-col space-y-3 group"
                 >
                   <div className="p-3 bg-[#FF4D6D]/10 rounded-2xl border border-[#FF4D6D]/20 text-[#FF4D6D] w-fit group-hover:scale-110 transition-transform">
@@ -720,6 +756,32 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                 </span>
                 <span className="text-[9px] font-bold text-[#6C5CFF] bg-[#6C5CFF]/15 px-2 py-0.5 rounded shrink-0">
                   Score : {quizScore}
+                </span>
+              </div>
+
+              {/* Educational IA Schema Frame */}
+              <div className="relative w-full h-44 rounded-2xl overflow-hidden border border-white/8 bg-black/40 shadow-inner flex items-center justify-center">
+                {loadingSchema ? (
+                  <div className="absolute inset-0 bg-white/3 flex flex-col items-center justify-center space-y-2 animate-pulse">
+                    <span className="text-xl animate-bounce">✍️</span>
+                    <span className="text-[8.5px] font-black text-white/40 uppercase tracking-widest font-sans">
+                      L'IA dessine votre schéma de révision...
+                    </span>
+                  </div>
+                ) : eduSchemaUrl ? (
+                  <img 
+                    src={eduSchemaUrl} 
+                    alt="Schéma éducatif" 
+                    className="w-full h-full object-cover brightness-95"
+                  />
+                ) : (
+                  <div className="p-4 text-center">
+                    <span className="text-xs text-white/30 italic">Aucun schéma disponible.</span>
+                  </div>
+                )}
+                
+                <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/75 text-[7px] font-extrabold text-[#6C5CFF] uppercase tracking-wider">
+                  Schéma IA explicatif
                 </span>
               </div>
 

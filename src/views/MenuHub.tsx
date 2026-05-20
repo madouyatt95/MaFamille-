@@ -217,6 +217,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     target: number;
     current: number;
     reward: string;
+    posterUrl?: string;
   }
   const [sharedQuests, setSharedQuests] = useState<SharedQuest[]>(() => {
     const stored = localStorage.getItem('mf_shared_quests');
@@ -230,6 +231,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newQuestTitle, setNewQuestTitle] = useState('');
   const [newQuestTarget, setNewQuestTarget] = useState(5);
   const [newQuestReward, setNewQuestReward] = useState('');
+
+  // Quest IA visual generator states
+  const [generatingQuestVisual, setGeneratingQuestVisual] = useState<string>('');
+  const [questVisualStep, setQuestVisualStep] = useState<number>(0);
 
   // --- Feature 6: Health Emergency Card ---
   const [healthSubTab, setHealthSubTab] = useState<'croissance' | 'vaccins' | 'urgence'>('croissance');
@@ -2297,8 +2302,39 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             {sharedQuests.map(quest => {
               const pct = Math.min(100, Math.round((quest.current / quest.target) * 100));
               const isComplete = pct >= 100;
+              const isGenerating = generatingQuestVisual === quest.id;
+              
               return (
-                <div key={quest.id} className={`glass-panel border rounded-[24px] p-4 space-y-3 ${isComplete ? 'border-[#00D26A]/30 bg-[#00D26A]/5' : 'border-white/8'}`}>
+                <div key={quest.id} className={`glass-panel border rounded-[24px] p-4 space-y-3 relative overflow-hidden transition-all ${
+                  isComplete ? 'border-[#00D26A]/30 bg-[#00D26A]/5' : 'border-white/8'
+                }`}>
+                  
+                  {/* Visual Poster / Trophy Frame */}
+                  {isGenerating ? (
+                    <div className="w-full h-32 rounded-xl bg-slate-950 flex flex-col items-center justify-center space-y-2 border border-white/5">
+                      <div className="w-8 h-8 rounded-full border border-dashed border-[#6C5CFF] animate-spin flex items-center justify-center">
+                        <span className="text-xs">🪄</span>
+                      </div>
+                      <span className="text-[8px] font-black text-white/50 uppercase tracking-widest font-sans">
+                        {questVisualStep === 1 ? "Polissage des reflets dorés..." : 
+                         questVisualStep === 2 ? "Gravure de la récompense..." : 
+                         "L'IA sculpte votre trophée..."}
+                      </span>
+                    </div>
+                  ) : quest.posterUrl ? (
+                    <div className="relative w-full h-32 rounded-xl overflow-hidden border border-white/5 shadow-md group">
+                      <img 
+                        src={quest.posterUrl} 
+                        alt={quest.title} 
+                        className="w-full h-full object-cover transition-transform duration-[6000ms] group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20"></div>
+                      <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 text-[7px] font-extrabold text-[#FFB020] uppercase tracking-wider font-sans border border-white/5">
+                        {isComplete ? "🏆 Trophée Débloqué" : "🎬 Affiche de Mission"}
+                      </span>
+                    </div>
+                  ) : null}
+
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-bold text-white leading-relaxed flex-1">{quest.title}</h4>
                     {isParent && (
@@ -2323,17 +2359,73 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     <span className="text-white/50 font-bold">{quest.current} / {quest.target} • {pct}%</span>
                     <span className="text-[#FFB020] font-bold">🏆 {quest.reward}</span>
                   </div>
-                  {!isComplete && (
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    {!isComplete && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSharedQuests(prev => prev.map(q => q.id === quest.id ? { ...q, current: Math.min(q.target, q.current + 1) } : q));
+                        }}
+                        className="py-2.5 rounded-xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/20 text-[#6C5CFF] text-[10px] font-extrabold hover:bg-[#6C5CFF]/25 transition cursor-pointer"
+                      >
+                        ➕ Contribuer (+1)
+                      </button>
+                    )}
+                    
+                    {/* Generative IA visual quest button */}
                     <button
                       type="button"
+                      disabled={isGenerating}
                       onClick={() => {
-                        setSharedQuests(prev => prev.map(q => q.id === quest.id ? { ...q, current: Math.min(q.target, q.current + 1) } : q));
+                        setGeneratingQuestVisual(quest.id);
+                        setQuestVisualStep(1);
+
+                        let promptStyle = '';
+                        if (isComplete) {
+                          // Générer un Trophée 3D Pixar en Or Massif de la Victoire basé sur la récompense !
+                          promptStyle = `shiny premium 3D Pixar gold trophy award representation of reward ${quest.reward}, sitting on a polished wooden desk, soft glowing aura backdrops, cinematic dramatic key lighting, photorealistic highly detailed award trophy`;
+                        } else {
+                          // Générer une Affiche Épique de Mission de Cinéma Pixar 3D basée sur le titre du défi !
+                          promptStyle = `highly detailed epic 3D Pixar animation movie poster illustrating: ${quest.title}, cheerful cute family characters working together as superheroes, colorful dust, bright sunny dynamic lighting`;
+                        }
+
+                        const finalPrompt = encodeURIComponent(promptStyle);
+                        const seed = Math.floor(Math.random() * 1000000);
+                        const generatedUrl = `https://image.pollinations.ai/prompt/${finalPrompt}?width=600&height=400&nologo=true&seed=${seed}`;
+
+                        setTimeout(() => {
+                          setQuestVisualStep(2);
+                          setTimeout(() => {
+                            setQuestVisualStep(3);
+
+                            const img = new Image();
+                            img.src = generatedUrl;
+                            img.onload = () => {
+                              setSharedQuests(prev => prev.map(q => q.id === quest.id ? { ...q, posterUrl: generatedUrl } : q));
+                              setGeneratingQuestVisual('');
+                            };
+                            img.onerror = () => {
+                              // Fallback Unsplash
+                              const unsplashUrl = isComplete 
+                                ? `https://images.unsplash.com/photo-1578269174936-2709b5a5e023?w=600&q=80&sig=${seed}` // Trophy
+                                : `https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=600&q=80&sig=${seed}`; // Cooperation/Motivation
+                              setSharedQuests(prev => prev.map(q => q.id === quest.id ? { ...q, posterUrl: unsplashUrl } : q));
+                              setGeneratingQuestVisual('');
+                            };
+                          }, 1000);
+                        }, 1000);
                       }}
-                      className="w-full py-2 rounded-xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/20 text-[#6C5CFF] text-[10px] font-bold hover:bg-[#6C5CFF]/25 transition cursor-pointer"
+                      className={`py-2.5 rounded-xl border text-[10px] font-extrabold transition cursor-pointer ${
+                        quest.posterUrl 
+                          ? 'border-[#FFB020]/25 bg-[#FFB020]/10 text-[#FFB020] hover:bg-[#FFB020]/15' 
+                          : 'border-white/8 bg-white/5 text-white/50 hover:text-white hover:bg-white/8'
+                      } ${!isComplete ? '' : 'col-span-2'}`}
                     >
-                      ➕ Contribuer (+1)
+                      {isComplete ? "🏆 Trophée de la Victoire IA" : quest.posterUrl ? "🪄 Regénérer Visuel" : "🪄 Affiche de Mission IA"}
                     </button>
-                  )}
+                  </div>
+
                   {isComplete && (
                     <div className="text-center py-1 text-[10px] font-bold text-[#00D26A]">🎉 Défi accompli ! Récompense débloquée !</div>
                   )}

@@ -30,6 +30,14 @@ export const Membres: React.FC<MembresProps> = ({
   const [selectedMember, setSelectedMember] = useState<Member | null>(() => members.length > 0 ? members[0] : null);
   const [isEditing, setIsEditing] = useState(false);
 
+  // Generative AI Avatar states
+  const [showAvatarGenerator, setShowAvatarGenerator] = useState<boolean>(false);
+  const [avatarStyle, setAvatarStyle] = useState<'pixar' | 'anime' | 'fantasy' | 'pixel'>('pixar');
+  const [avatarDesc, setAvatarDesc] = useState<string>('');
+  const [generatedAvatar, setGeneratedAvatar] = useState<string>('');
+  const [generatingAvatar, setGeneratingAvatar] = useState<boolean>(false);
+  const [avatarStep, setAvatarStep] = useState<number>(0);
+
   const isChild = activeMemberId === '3' || activeMemberId === '4';
 
   // Local storage persisted state for vaccineList
@@ -335,17 +343,186 @@ export const Membres: React.FC<MembresProps> = ({
                 /* Dossier Content */
                 <>
                   {/* Photo & Identity Heading */}
-                  <div className="flex flex-col items-center text-center space-y-3 pt-4">
-                    <img 
-                      src={selectedMember.photoUrl} 
-                      alt={selectedMember.name} 
-                      className="w-24 h-24 rounded-full object-cover border-4 border-[#6C5CFF]/20"
-                    />
+                  <div className="flex flex-col items-center text-center space-y-2 pt-4">
+                    <div className="relative group">
+                      <img 
+                        src={selectedMember.photoUrl} 
+                        alt={selectedMember.name} 
+                        className="w-24 h-24 rounded-full object-cover border-4 border-[#6C5CFF]/20"
+                      />
+                      <button
+                        onClick={() => {
+                          setGeneratedAvatar('');
+                          setAvatarDesc('');
+                          setShowAvatarGenerator(!showAvatarGenerator);
+                        }}
+                        className="absolute -bottom-1.5 -right-1.5 p-2 rounded-full bg-[#6C5CFF] text-white hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer"
+                        title="Générer un avatar IA"
+                      >
+                        <span className="text-xs">🪄</span>
+                      </button>
+                    </div>
                     <div>
-                      <h2 className="text-lg font-extrabold text-white">{selectedMember.name}</h2>
+                      <h2 className="text-lg font-extrabold text-white flex items-center justify-center space-x-1.5">
+                        <span>{selectedMember.name}</span>
+                      </h2>
                       <p className="text-xs text-[#4F8CFF] font-semibold">{selectedMember.role}</p>
                     </div>
                   </div>
+
+                  {/* GENERATIVE AI AVATAR CONFIGURATION PANEL */}
+                  {showAvatarGenerator && (
+                    <div className="p-5 rounded-[24px] bg-slate-900/90 border border-[#6C5CFF]/30 space-y-4 animate-scale-up">
+                      <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                        <span className="text-[10px] font-black text-[#6C5CFF] uppercase tracking-widest block font-sans">
+                          Générateur d'Avatars IA Premium
+                        </span>
+                        <button
+                          onClick={() => setShowAvatarGenerator(false)}
+                          className="text-white/40 hover:text-white text-xs font-bold font-sans cursor-pointer"
+                        >
+                          Fermer
+                        </button>
+                      </div>
+
+                      {generatingAvatar ? (
+                        <div className="py-6 text-center space-y-3">
+                          <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+                            <div className="absolute inset-0 rounded-full border border-[#6C5CFF]/20 border-t-[#6C5CFF] animate-spin"></div>
+                            <span className="text-xl animate-bounce">🎨</span>
+                          </div>
+                          <p className="text-[10px] font-bold text-white/60 uppercase tracking-wider font-sans">
+                            {avatarStep === 1 ? "Séchage de la peinture d'avatar..." : 
+                             avatarStep === 2 ? "Ajustement de l'éclat des yeux..." : 
+                             "Stable Diffusion sculpte l'avatar..."}
+                          </p>
+                        </div>
+                      ) : generatedAvatar ? (
+                        <div className="space-y-4 text-center">
+                          <img 
+                            src={generatedAvatar} 
+                            alt="Generated Avatar" 
+                            className="w-24 h-24 rounded-full mx-auto object-cover border-4 border-[#00D26A]"
+                          />
+                          <p className="text-[10px] text-white/50 leading-relaxed font-sans max-w-xs mx-auto">
+                            Votre avatar d'IA personnalisé est prêt à embellir votre profil !
+                          </p>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setGeneratedAvatar('')}
+                              className="flex-1 py-2.5 rounded-xl bg-white/5 text-white border border-white/8 text-[10px] font-bold cursor-pointer transition-all hover:bg-white/8"
+                            >
+                              Recommencer ↺
+                            </button>
+                            <button
+                              onClick={() => {
+                                // Mettre à jour le membre dans le state global
+                                setMembers(prev => prev.map(m => m.id === selectedMember.id ? { ...m, photoUrl: generatedAvatar } : m));
+                                // Mettre à jour l'entité locale
+                                setSelectedMember(prev => prev ? { ...prev, photoUrl: generatedAvatar } : null);
+                                setShowAvatarGenerator(false);
+                                alert("🎉 Photo de profil IA mise à jour avec succès dans toute l'application !");
+                              }}
+                              className="flex-1 py-2.5 rounded-xl bg-[#00D26A] text-white text-[10px] font-extrabold shadow-md cursor-pointer transition-all hover:scale-105 active:scale-95"
+                            >
+                              Appliquer l'Avatar ✅
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3.5 text-left">
+                          
+                          {/* Style Grid */}
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">1. Style Artistique</label>
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {[
+                                { id: 'pixar', label: 'Pixar 3D', icon: '🧸' },
+                                { id: 'anime', label: 'Anime', icon: '🌸' },
+                                { id: 'fantasy', label: 'Fantasy', icon: '⚔️' },
+                                { id: 'pixel', label: 'Pixel Art', icon: '👾' }
+                              ].map(st => (
+                                <button
+                                  key={st.id}
+                                  type="button"
+                                  onClick={() => setAvatarStyle(st.id as any)}
+                                  className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
+                                    avatarStyle === st.id 
+                                      ? 'border-[#6C5CFF] bg-[#6C5CFF]/10 text-white' 
+                                      : 'border-white/5 bg-white/3 text-white/40 hover:text-white/60'
+                                  }`}
+                                >
+                                  <span className="text-base block mb-0.5">{st.icon}</span>
+                                  <span className="text-[7.5px] font-black uppercase font-sans tracking-tight block truncate">{st.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Traits Description */}
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">2. Traits physiques ou humeur</label>
+                            <input 
+                              type="text"
+                              value={avatarDesc}
+                              onChange={(e) => setAvatarDesc(e.target.value)}
+                              placeholder="ex: souriant, cheveux bouclés bruns, yeux marrons, t-shirt bleu..."
+                              className="w-full bg-white/5 border border-white/8 rounded-xl px-3.5 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF] font-sans font-medium"
+                            />
+                          </div>
+
+                          {/* Trigger Generation */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setGeneratingAvatar(true);
+                              setAvatarStep(1);
+                              
+                              let stylePrompt = '';
+                              if (avatarStyle === 'pixar') {
+                                stylePrompt = 'highly detailed 3D Pixar disney character profile portrait, cute stylized rendering, glowing soft studio lighting, vibrantly colored background';
+                              } else if (avatarStyle === 'anime') {
+                                stylePrompt = 'modern bright anime character portrait, stunning studio ghibli illustration style, sparkling colorful details, clean lines';
+                              } else if (avatarStyle === 'fantasy') {
+                                stylePrompt = 'magical heroic fantasy wizard knight character portrait, glowing magic sparks, high fantasy oil painting book cover style';
+                              } else {
+                                stylePrompt = '16-bit cute retro pixel art profile icon, vibrant pixel colors, nostalgic game portrait';
+                              }
+
+                              const targetName = selectedMember.name;
+                              const extraDesc = avatarDesc.trim() ? `, ${avatarDesc.trim()}` : '';
+                              const finalPrompt = encodeURIComponent(`headshot profile avatar of a child named ${targetName}${extraDesc}, cute face, ${stylePrompt}, square avatar shape`);
+                              const seed = Math.floor(Math.random() * 1000000);
+                              const generatedUrl = `https://image.pollinations.ai/prompt/${finalPrompt}?width=500&height=500&nologo=true&seed=${seed}`;
+
+                              setTimeout(() => {
+                                setAvatarStep(2);
+                                setTimeout(() => {
+                                  setAvatarStep(3);
+                                  
+                                  const img = new Image();
+                                  img.src = generatedUrl;
+                                  img.onload = () => {
+                                    setGeneratedAvatar(generatedUrl);
+                                    setGeneratingAvatar(false);
+                                  };
+                                  img.onerror = () => {
+                                    // Fallback standard
+                                    setGeneratedAvatar(`https://api.dicebear.com/7.x/bottts/svg?seed=${targetName}`);
+                                    setGeneratingAvatar(false);
+                                  };
+                                }, 1200);
+                              }, 1200);
+                            }}
+                            className="w-full py-3 rounded-xl bg-[#6C5CFF] text-white font-extrabold text-[10px] uppercase tracking-wider cursor-pointer shadow-md hover:scale-103 active:scale-97 transition-all flex items-center justify-center space-x-1.5"
+                          >
+                            <span>🪄 Peindre mon Avatar par IA</span>
+                          </button>
+
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Details Grid */}
                   <div className="space-y-4 pt-4 border-t border-white/5">
