@@ -660,10 +660,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 <button
                   key={mod.id}
                   onClick={() => {
-                    if (mod.id === 'documents' && !isPremium) {
-                      onTriggerPaywall?.();
-                      return;
-                    }
                     if (mod.id === 'finances_hub' && !isParent && !authorizedModules.includes('finances_hub')) {
                       setActiveModule('finances_hub');
                     } else if (mod.id === 'finances_hub') {
@@ -702,7 +698,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   <button
                     key={mod.id}
                     onClick={() => {
-                      if (['conteur', 'atelier_art', 'capsule'].includes(mod.id) && !isPremium) {
+                      if (['conteur', 'atelier_art'].includes(mod.id) && !isPremium) {
                         onTriggerPaywall?.();
                         return;
                       }
@@ -772,7 +768,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
       {/* SUB-MODULE 1: Documents Vault */}
       {activeModule === 'documents' && !isLockedForChild && (
-        <CoffreFortAvance documents={documents} setDocuments={setDocuments} members={members} demarches={demarches} setDemarches={setDemarches} packs={justificatifPacks} setPacks={setJustificatifPacks} onAddEvent={onAddEvent} />
+        <CoffreFortAvance documents={documents} setDocuments={setDocuments} members={members} demarches={demarches} setDemarches={setDemarches} packs={justificatifPacks} setPacks={setJustificatifPacks} onAddEvent={onAddEvent} isPremium={isPremium} onTriggerPaywall={onTriggerPaywall} />
       )}
 
       {/* SUB-MODULE 1.5: Messagerie */}
@@ -965,14 +961,20 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               Menus 🍳
             </button>
             <button
-              onClick={() => setGrocerySubTab('ecochef')}
+              onClick={() => {
+                if (!isPremium) {
+                  onTriggerPaywall?.();
+                } else {
+                  setGrocerySubTab('ecochef');
+                }
+              }}
               className={`flex-1 py-2.5 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
                 grocerySubTab === 'ecochef' 
                   ? 'bg-[#FFB020] text-black shadow-md' 
                   : 'text-white/40 hover:text-white/60 hover:bg-white/5'
               }`}
             >
-              Éco-Chef IA 🥦
+              Éco-Chef IA 🥦 👑
             </button>
           </div>
 
@@ -2477,6 +2479,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           memories={memories} 
           setMemories={setMemories} 
           activeMemberId={activeMemberId} 
+          isPremium={isPremium}
+          onTriggerPaywall={onTriggerPaywall}
         />
       )}
 

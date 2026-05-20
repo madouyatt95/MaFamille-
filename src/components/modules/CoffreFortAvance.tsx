@@ -14,9 +14,11 @@ interface CoffreFortAvanceProps {
   packs: JustificatifPack[];
   setPacks: React.Dispatch<React.SetStateAction<JustificatifPack[]>>;
   onAddEvent?: (title: string, dateTime: string) => void;
+  isPremium?: boolean;
+  onTriggerPaywall?: () => void;
 }
 
-export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, setDocuments, members, demarches, setDemarches, packs, setPacks, onAddEvent }) => {
+export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, setDocuments, members, demarches, setDemarches, packs, setPacks, onAddEvent, isPremium = false, onTriggerPaywall }) => {
   const [mainTab, setMainTab] = useState<'docs' | 'demarches' | 'packs'>('docs');
   const [viewMode, setViewMode] = useState<'categories' | 'members' | 'expiring' | 'all'>('categories');
   const [searchQuery, setSearchQuery] = useState('');
@@ -268,8 +270,17 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
           <button onClick={() => setMainTab('docs')} className={`py-2.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${mainTab === 'docs' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
             📁 Documents
           </button>
-          <button onClick={() => setMainTab('demarches')} className={`py-2.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer relative ${mainTab === 'demarches' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
-            📋 Démarches
+          <button 
+            onClick={() => {
+              if (!isPremium) {
+                onTriggerPaywall?.();
+              } else {
+                setMainTab('demarches');
+              }
+            }} 
+            className={`py-2.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer relative ${mainTab === 'demarches' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}
+          >
+            📋 Démarches 👑
             {demarches.filter(d => d.status !== 'completed').length > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#FFB020] rounded-full text-[8px] font-bold text-black flex items-center justify-center">{demarches.filter(d => d.status !== 'completed').length}</span>
             )}

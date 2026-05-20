@@ -1,24 +1,30 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Récupération des clés par défaut de l'environnement ou du localStorage
-const defaultUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const defaultKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// Client Supabase unique, initialisé depuis les variables d'environnement
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-export const getSupabaseClient = (customUrl?: string, customKey?: string) => {
-  const url = customUrl || localStorage.getItem('mf_sb_url') || defaultUrl;
-  const key = customKey || localStorage.getItem('mf_sb_key') || defaultKey;
+let supabaseInstance: SupabaseClient | null = null;
 
-  if (!url || !key) return null;
-  
-  try {
-    return createClient(url, key, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true
-      }
-    });
-  } catch (err) {
-    console.error("Erreur d'initialisation du client Supabase :", err);
-    return null;
+export const getSupabaseClient = (): SupabaseClient | null => {
+  if (!supabaseUrl || !supabaseKey) return null;
+
+  if (!supabaseInstance) {
+    try {
+      supabaseInstance = createClient(supabaseUrl, supabaseKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true
+        },
+        realtime: {
+          params: { eventsPerSecond: 10 }
+        }
+      });
+    } catch (err) {
+      console.error("Erreur d'initialisation du client Supabase :", err);
+      return null;
+    }
   }
+
+  return supabaseInstance;
 };

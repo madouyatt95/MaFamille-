@@ -15,6 +15,8 @@ interface CapsuleTemporelleProps {
   memories: MemoryLog[];
   setMemories: React.Dispatch<React.SetStateAction<MemoryLog[]>>;
   activeMemberId: string;
+  isPremium?: boolean;
+  onTriggerPaywall?: () => void;
 }
 
 interface MemoryCardProps {
@@ -159,7 +161,9 @@ const MemoryCard: React.FC<MemoryCardProps> = ({
 export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({ 
   memories, 
   setMemories,
-  activeMemberId 
+  activeMemberId,
+  isPremium = false,
+  onTriggerPaywall
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'album' | 'gazette' | 'comic'>('album');
   
@@ -471,7 +475,13 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
           <span>📰 Gazette Rétro</span>
         </button>
         <button
-          onClick={() => setActiveSubTab('comic')}
+          onClick={() => {
+            if (!isPremium) {
+              onTriggerPaywall?.();
+            } else {
+              setActiveSubTab('comic');
+            }
+          }}
           className={`flex-1 py-2.5 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 bg-[#6C5CFF]/10 text-[#6C5CFF] border border-[#6C5CFF]/20 ${
             activeSubTab === 'comic' 
               ? 'bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white border-none shadow-md' 
@@ -479,7 +489,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
           }`}
         >
           <Sparkles className="w-3.5 h-3.5" />
-          <span>🦸 Gazette BD IA</span>
+          <span>🦸 Gazette BD IA 👑</span>
         </button>
       </div>
 

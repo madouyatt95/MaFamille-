@@ -1,3 +1,49 @@
+// === FOYER SYSTEM ===
+
+export type MemberRole = 'admin' | 'parent' | 'child' | 'guest';
+
+export interface Foyer {
+  id: string;
+  name: string;
+  inviteCode: string;
+  inviteLink?: string;
+  createdBy: string;
+  createdAt: string;
+  isPremium: boolean;
+  maxMembers: number;
+}
+
+export interface FoyerMember {
+  id: string;
+  foyerId: string;
+  userId: string;
+  displayName: string;
+  role: MemberRole;
+  photoUrl?: string;
+  age?: string;
+  birthDate?: string;
+  bloodGroup?: string;
+  allergies?: string[];
+  treatments?: string[];
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelation?: string;
+  schoolOrEmployer?: string;
+  joinedAt: string;
+}
+
+export interface FoyerInvitation {
+  id: string;
+  foyerId: string;
+  email: string;
+  role: MemberRole;
+  invitedBy: string;
+  createdAt: string;
+  accepted: boolean;
+}
+
+// === DATA TYPES ===
+
 export interface MedicalLog {
   id: string;
   date: string;

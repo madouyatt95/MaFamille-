@@ -29,6 +29,8 @@ interface SidebarProps {
   setActiveModule: (moduleName: string) => void;
   members: Member[];
   activeMemberId: string;
+  user: any;
+  onLogout: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
@@ -37,7 +39,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setActiveTab,
   setActiveModule,
   members,
-  activeMemberId
+  activeMemberId,
+  user,
+  onLogout
 }) => {
   const activeMember = members.find(m => m.id === activeMemberId) || {
     name: 'Papa',
@@ -140,14 +144,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-white/8 bg-[#07111F]/50">
-          <div className="flex items-center space-x-2 p-3 rounded-2xl bg-white/5 border border-white/5">
-            <Lock className="w-4 h-4 text-[#00D26A]" />
-            <div className="flex-1">
-              <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider">Sécurité active</p>
-              <p className="text-[11px] text-white/80 font-medium">Données cryptées localement</p>
+        <div className="p-4 border-t border-white/8 bg-[#07111F]/50 space-y-3">
+          {user ? (
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2 p-3 rounded-2xl bg-white/5 border border-white/5">
+                <div className="w-8 h-8 rounded-full bg-[#6C5CFF]/15 flex items-center justify-center text-white border border-[#6C5CFF]/20 text-[10px] font-bold uppercase">
+                  {user.email?.slice(0, 2) || 'US'}
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider">Compte connecté</p>
+                  <p className="text-[11px] text-white/80 font-medium truncate">{user.email}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  onLogout();
+                  onClose();
+                }}
+                className="w-full py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-2"
+              >
+                <span>Se déconnecter</span>
+              </button>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2 p-3 rounded-2xl bg-white/5 border border-white/5">
+                <Lock className="w-4 h-4 text-white/40" />
+                <div className="flex-1">
+                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider">Mode Local</p>
+                  <p className="text-[11px] text-white/80 font-medium">Données non synchronisées</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setActiveTab('menu');
+                  setActiveModule('settings');
+                  onClose();
+                }}
+                className="w-full py-2.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5B4BE0] text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-2 shadow-md border border-[#6C5CFF]/20"
+              >
+                <span>Se connecter / S'inscrire</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </>

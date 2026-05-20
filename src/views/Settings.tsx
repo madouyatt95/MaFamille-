@@ -3,21 +3,23 @@ import {
   Settings as SettingsIcon, 
   Coins, 
   Database, 
-  Server, 
   Trash2, 
   RefreshCw, 
-  Eye, 
-  EyeOff, 
   Lock,
-  User,
   Mail,
   Key,
   LogOut,
   Sparkles,
-  CheckCircle2,
-  AlertTriangle
+  Users,
+  Copy,
+  Check,
+  Share2,
+  Plus,
+  Crown
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
+import { foyerService } from '../services/foyerService';
+import type { Foyer, FoyerMember } from '../types';
 
 interface SettingsProps {
   currency: string;
@@ -31,56 +33,58 @@ interface SettingsProps {
   onResetData: () => void;
   isPremium: boolean;
   onOpenPaywall: () => void;
+  user: any;
+  onLogout: () => void;
+  foyer?: Foyer | null;
+  myMemberProfile?: FoyerMember | null;
+  onRefreshFoyer?: () => void;
 }
 
 export const Settings: React.FC<SettingsProps> = ({
   currency,
   setCurrency,
-  supabaseUrl,
-  setSupabaseUrl,
-  supabaseKey,
-  setSupabaseKey,
-  syncActive,
-  setSyncActive,
+  supabaseUrl: _supabaseUrl,
+  supabaseKey: _supabaseKey,
   onResetData,
   isPremium,
-  onOpenPaywall
+  onOpenPaywall: _onOpenPaywall,
+  user,
+  onLogout,
+  foyer,
+  myMemberProfile,
+  onRefreshFoyer
 }) => {
-  const [showApiKey, setShowApiKey] = useState(false);
   const [savingBackup, setSavingBackup] = useState(false);
   
-  // Auth state local to view
-  const [user, setUser] = useState<any>(null);
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authMessage, setAuthMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-  const supabaseClient = getSupabaseClient(supabaseUrl, supabaseKey);
+  // Invite states
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'parent' | 'child' | 'guest'>('child');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  
+  // Members list local state for current foyer
+  const [foyerMembers, setFoyerMembers] = useState<FoyerMember[]>([]);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
-  // Monitor auth state changes
+  const supabaseClient = getSupabaseClient();
+
   useEffect(() => {
-    if (!supabaseClient) {
-      setUser(null);
-      return;
+    if (foyer) {
+      foyerService.getFoyerMembers(foyer.id).then(setFoyerMembers);
     }
-
-    supabaseClient.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user || null);
-    });
-
-    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, [supabaseUrl, supabaseKey]);
+  }, [foyer]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supabaseClient) {
-      setAuthMessage({ text: "Veuillez d'abord configurer une URL et une clé API Supabase valides.", type: 'error' });
+      setAuthMessage({ text: "Erreur d'initialisation de Supabase.", type: 'error' });
       return;
     }
 
@@ -98,6 +102,7 @@ export const Settings: React.FC<SettingsProps> = ({
       setAuthMessage({ text: `Ravi de vous revoir ! Foyer connecté.`, type: 'success' });
       setEmail('');
       setPassword('');
+      if (onRefreshFoyer) onRefreshFoyer();
     } catch (err: any) {
       setAuthMessage({ text: err.message || "Erreur de connexion.", type: 'error' });
     } finally {
@@ -108,7 +113,7 @@ export const Settings: React.FC<SettingsProps> = ({
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supabaseClient) {
-      setAuthMessage({ text: "Veuillez d'abord configurer une URL et une clé API Supabase valides.", type: 'error' });
+      setAuthMessage({ text: "Erreur d'initialisation de Supabase.", type: 'error' });
       return;
     }
 
@@ -124,7 +129,7 @@ export const Settings: React.FC<SettingsProps> = ({
       if (error) throw error;
       
       setAuthMessage({ 
-        text: `Compte créé avec succès ! Un e-mail de confirmation vous a été envoyé si configuré, sinon vous pouvez directement vous connecter.`, 
+        text: `Compte créé ! Veuillez confirmer votre email ou vous connecter directement si la confirmation automatique est active.`, 
         type: 'success' 
       });
       setAuthTab('login');
@@ -136,14 +141,50 @@ export const Settings: React.FC<SettingsProps> = ({
     }
   };
 
-  const handleLogout = async () => {
-    if (!supabaseClient) return;
+  const handleSendInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!foyer || !inviteEmail.trim()) return;
+
+    setInviteLoading(true);
+    setInviteMessage(null);
+
     try {
-      await supabaseClient.auth.signOut();
-      setAuthMessage({ text: "Vous avez été déconnecté avec succès.", type: 'success' });
+      await foyerService.inviteByEmail(foyer.id, inviteEmail.trim(), inviteRole);
+      setInviteMessage({ text: `Invitation envoyée avec succès à ${inviteEmail} !`, type: 'success' });
+      setInviteEmail('');
     } catch (err: any) {
-      console.error(err);
+      setInviteMessage({ text: err.message || "Impossible d'envoyer l'invitation.", type: 'error' });
+    } finally {
+      setInviteLoading(false);
     }
+  };
+
+  const handleRegenerateCode = async () => {
+    if (!foyer) return;
+    if (!window.confirm("Voulez-vous vraiment régénérer le code d'invitation ? L'ancien code ne fonctionnera plus.")) return;
+
+    try {
+      const newCode = await foyerService.regenerateInviteCode(foyer.id);
+      alert(`Nouveau code généré : ${newCode}`);
+      if (onRefreshFoyer) onRefreshFoyer();
+    } catch (err: any) {
+      alert(err.message || "Erreur lors de la régénération du code.");
+    }
+  };
+
+  const handleCopyCode = () => {
+    if (!foyer) return;
+    navigator.clipboard.writeText(foyer.inviteCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleCopyLink = () => {
+    if (!foyer) return;
+    const link = `${window.location.origin}/join/${foyer.inviteCode}`;
+    navigator.clipboard.writeText(link);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const triggerManualBackup = () => {
@@ -152,6 +193,16 @@ export const Settings: React.FC<SettingsProps> = ({
       setSavingBackup(false);
       alert('Sauvegarde locale et cloud effectuée avec succès !');
     }, 1000);
+  };
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'admin': return 'Chef de famille (Admin) 👑';
+      case 'parent': return 'Parent 👨‍👩‍👧';
+      case 'child': return 'Enfant 🧒';
+      case 'guest': return 'Invité (Lecture seule) 👥';
+      default: return role;
+    }
   };
 
   return (
@@ -199,228 +250,257 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
       </div>
 
-      {/* 2. Supabase Integration (Backups & Keys) */}
-      <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-            <Server className="w-4 h-4 text-[#4F8CFF]" />
-            <span>Serveur Supabase Cloud</span>
-          </h3>
-          {/* Switch toggle */}
-          <button
-            onClick={() => setSyncActive(!syncActive)}
-            className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-              syncActive ? 'bg-[#00D26A]' : 'bg-white/10'
-            }`}
-          >
-            <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform transform ${
-              syncActive ? 'translate-x-5' : 'translate-x-0'
-            }`} />
-          </button>
-        </div>
-
-        <p className="text-xs text-white/50 leading-relaxed font-medium">
-          Configurez votre propre base de données cloud pour activer la synchronisation familiale et la sauvegarde automatique.
-        </p>
-
-        {syncActive && (
-          <div className="space-y-3 pt-2 border-t border-white/5">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider">URL du Projet Supabase</label>
-              <input 
-                type="text" 
-                placeholder="https://your-project.supabase.co"
-                value={supabaseUrl}
-                onChange={(e) => setSupabaseUrl(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Clé API Publique (anon key)</label>
-              <div className="relative">
-                <input 
-                  type={showApiKey ? 'text' : 'password'} 
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  value={supabaseKey}
-                  onChange={(e) => setSupabaseKey(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs pr-10 focus:outline-none focus:border-[#6C5CFF]"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-3 top-2.5 text-white/40 hover:text-white transition-colors"
-                >
-                  {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 3. Authentication Panel (Show only if Supabase config is loaded) */}
-      {syncActive && supabaseUrl && supabaseKey && (
-        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 animate-fade-in">
+      {/* 2. Foyer Management Section */}
+      {user && foyer ? (
+        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-5 animate-fade-in">
           
-          {user ? (
-            /* Logged in state */
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-                  <User className="w-4 h-4 text-[#6C5CFF]" />
-                  <span>Compte Foyer</span>
-                </h3>
-                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-[#00D26A]/20 text-[#00D26A]">Connecté</span>
-              </div>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+              <Users className="w-4 h-4 text-[#6C5CFF]" />
+              <span>Mon Foyer : {foyer.name}</span>
+            </h3>
+            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-[#00D26A]/20 text-[#00D26A]">Compte Actif</span>
+          </div>
 
-              <div className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-3">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-[#6C5CFF]/15 flex items-center justify-center text-white border border-[#6C5CFF]/20 font-bold uppercase">
-                    {user.email?.slice(0, 2) || 'US'}
-                  </div>
-                  <div>
-                    <span className="text-xs font-extrabold text-white block">{user.email}</span>
-                    <span className="text-[10px] text-white/40 font-medium mt-0.5 block">UUID : {user.id.slice(0, 8)}...</span>
-                  </div>
-                </div>
+          {/* Invitation Code widget */}
+          <div className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-white/50 font-bold uppercase tracking-wider">Invitation du Foyer</span>
+              {foyer.isPremium ? (
+                <span className="text-[9px] font-black text-[#FFB020] flex items-center gap-0.5 uppercase tracking-wider">
+                  <Crown className="w-3 h-3 fill-[#FFB020]" />
+                  Membres Illimités (Premium)
+                </span>
+              ) : (
+                <span className="text-[9px] font-bold text-white/40">
+                  Limite : {foyerMembers.length} / 3 membres (Gratuit)
+                </span>
+              )}
+            </div>
 
-                <div className="pt-3 border-t border-white/5 flex items-center justify-between">
-                  <span className="text-[10px] text-white/50 font-bold uppercase tracking-wider">État Cloud :</span>
-                  {isPremium ? (
-                    <span className="text-[10px] font-black text-[#00D26A] flex items-center gap-1 uppercase tracking-wider">
-                      <Sparkles className="w-3.5 h-3.5 fill-[#00D26A] animate-pulse" />
-                      Premium Synced ☁️
-                    </span>
-                  ) : (
-                    <button
-                      onClick={onOpenPaywall}
-                      className="text-[10px] font-black text-[#FF4D6D] flex items-center gap-1 uppercase tracking-wider bg-[#FF4D6D]/10 px-2.5 py-1 rounded-lg border border-[#FF4D6D]/20 animate-pulse hover:scale-[1.02] cursor-pointer"
-                    >
-                      <Lock className="w-3.5 h-3.5" />
-                      Free (Click to Sync) 👑
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-white/3 border border-white/5 text-[10px] text-white/50 leading-relaxed font-sans space-y-2">
-                <div className="flex items-start space-x-2 text-white/60">
-                  <CheckCircle2 className="w-4 h-4 text-[#00D26A] shrink-0 mt-0.5" />
-                  <span>Votre session de synchronisation familiale en temps réel est active.</span>
-                </div>
-                {!isPremium && (
-                  <div className="flex items-start space-x-2 text-[#FFB020] bg-[#FFB020]/5 p-2 rounded-xl border border-[#FFB020]/10">
-                    <AlertTriangle className="w-4 h-4 text-[#FFB020] shrink-0 mt-0.5" />
-                    <span>L'usage gratuit limite les données à cet appareil. Débloquez le plan Premium pour activer la synchronisation cloud sur les autres smartphones !</span>
-                  </div>
-                )}
-              </div>
-
+            <div className="grid grid-cols-2 gap-2">
+              {/* Copy Code button */}
               <button
-                onClick={handleLogout}
-                className="w-full py-3 rounded-xl bg-white/5 hover:bg-[#FF4D6D]/15 border border-white/10 hover:border-[#FF4D6D]/20 text-white/70 hover:text-[#FF4D6D] font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer"
+                onClick={handleCopyCode}
+                className="py-3 px-4 rounded-xl bg-white/5 border border-white/8 text-white text-xs font-bold flex items-center justify-between hover:bg-white/8 active:scale-95 transition-all cursor-pointer"
               >
-                <LogOut className="w-4 h-4" />
-                <span>Déconnecter mon Foyer</span>
+                <div className="text-left">
+                  <span className="text-[9px] text-white/40 block font-normal uppercase">Code à 6 caractères</span>
+                  <span className="font-mono text-sm font-black text-[#6C5CFF] block mt-0.5">{foyer.inviteCode}</span>
+                </div>
+                {copiedCode ? <Check className="w-4 h-4 text-[#00D26A]" /> : <Copy className="w-4 h-4 text-white/40" />}
+              </button>
+
+              {/* Share Link button */}
+              <button
+                onClick={handleCopyLink}
+                className="py-3 px-4 rounded-xl bg-white/5 border border-white/8 text-white text-xs font-bold flex items-center justify-between hover:bg-white/8 active:scale-95 transition-all cursor-pointer"
+              >
+                <div className="text-left">
+                  <span className="text-[9px] text-white/40 block font-normal uppercase">Lien d'invitation</span>
+                  <span className="text-[10px] text-white/80 block mt-1">Copier le lien</span>
+                </div>
+                {copiedLink ? <Check className="w-4 h-4 text-[#00D26A]" /> : <Share2 className="w-4 h-4 text-white/40" />}
               </button>
             </div>
-          ) : (
-            /* Login / Register forms */
-            <div className="space-y-4">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-                <Lock className="w-4 h-4 text-[#FF4D6D]" />
-                <span>Connexion & Synchronisation</span>
-              </h3>
 
-              {/* Form Selector Tabs */}
-              <div className="grid grid-cols-2 gap-1 p-1 bg-white/5 rounded-xl border border-white/5">
-                <button
-                  type="button"
-                  onClick={() => setAuthTab('login')}
-                  className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    authTab === 'login' ? 'bg-[#6C5CFF] text-white shadow' : 'text-white/40 hover:text-white'
-                  }`}
-                >
-                  Se connecter
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAuthTab('register')}
-                  className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    authTab === 'register' ? 'bg-[#6C5CFF] text-white shadow' : 'text-white/40 hover:text-white'
-                  }`}
-                >
-                  S'inscrire
-                </button>
+            {myMemberProfile?.role === 'admin' && (
+              <button
+                onClick={handleRegenerateCode}
+                className="text-[9px] text-white/30 hover:text-white/60 font-bold block pt-1 cursor-pointer transition-colors"
+              >
+                Régénérer le code d'invitation
+              </button>
+            )}
+          </div>
+
+          {/* Members List */}
+          <div className="space-y-2">
+            <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Membres connectés ({foyerMembers.length})</span>
+            <div className="space-y-2">
+              {foyerMembers.map((member) => (
+                <div key={member.id} className="flex items-center justify-between p-3 rounded-2xl bg-white/3 border border-white/5">
+                  <div className="flex items-center space-x-3">
+                    <img 
+                      src={member.photoUrl || 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150'} 
+                      alt={member.displayName}
+                      className="w-8 h-8 rounded-full object-cover border border-white/10"
+                    />
+                    <div>
+                      <span className="text-xs font-extrabold text-white block">
+                        {member.displayName}
+                        {member.userId === user.id && <span className="text-[9px] text-[#6C5CFF] ml-1 font-bold">(Vous)</span>}
+                      </span>
+                      <span className="text-[9px] text-white/40 block mt-0.5">{getRoleLabel(member.role)}</span>
+                    </div>
+                  </div>
+
+                  <span className="text-[9px] text-[#00D26A] font-bold">Synchronisé</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Send invite by email (admin or parent only) */}
+          {(myMemberProfile?.role === 'admin' || myMemberProfile?.role === 'parent') && (
+            <form onSubmit={handleSendInvite} className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-3">
+              <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Inviter un nouveau membre</span>
+              
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 w-4 h-4 text-white/30" />
+                <input
+                  type="email"
+                  required
+                  placeholder="Adresse email de l'invité..."
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                />
               </div>
 
-              <form onSubmit={authTab === 'login' ? handleLogin : handleRegister} className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-2 items-center">
                 <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Adresse e-mail</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-2.5 w-4 h-4 text-white/30" />
-                    <input
-                      type="email"
-                      required
-                      placeholder="ex: amadou@gmail.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
-                    />
-                  </div>
+                  <span className="text-[8px] font-bold text-white/40 uppercase tracking-wider block">Rôle assigné</span>
+                  <select
+                    value={inviteRole}
+                    onChange={(e: any) => setInviteRole(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[10px] text-white focus:outline-none"
+                  >
+                    <option value="parent" className="bg-[#07111F]">Parent</option>
+                    <option value="child" className="bg-[#07111F]">Enfant</option>
+                    <option value="guest" className="bg-[#07111F]">Invité</option>
+                  </select>
                 </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Mot de passe</label>
-                  <div className="relative">
-                    <Key className="absolute left-3 top-2.5 w-4 h-4 text-white/30" />
-                    <input
-                      type="password"
-                      required
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
-                    />
-                  </div>
-                </div>
-
-                {authMessage && (
-                  <div className={`p-3 rounded-xl border text-[11px] font-medium leading-relaxed ${
-                    authMessage.type === 'success' 
-                      ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]' 
-                      : 'bg-[#FF4D6D]/10 border-[#FF4D6D]/20 text-[#FF4D6D]'
-                  }`}>
-                    {authMessage.text}
-                  </div>
-                )}
 
                 <button
                   type="submit"
-                  disabled={authLoading}
-                  className="w-full py-3.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5b4eff] text-white font-extrabold text-xs uppercase tracking-wider shadow-[0_4px_15px_rgba(108,92,255,0.3)] flex items-center justify-center space-x-2 transition-all cursor-pointer"
+                  disabled={inviteLoading}
+                  className="w-full py-2.5 rounded-xl bg-[#6C5CFF] text-white font-bold text-xs flex items-center justify-center space-x-1 hover:bg-[#5b4eff] transition-all cursor-pointer shrink-0 mt-3"
                 >
-                  {authLoading ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Traitement en cours...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      <span>{authTab === 'login' ? 'Se connecter' : 'Créer un compte Foyer'}</span>
-                    </>
-                  )}
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{inviteLoading ? 'Envoi...' : 'Envoyer'}</span>
                 </button>
-              </form>
-            </div>
+              </div>
+
+              {inviteMessage && (
+                <div className={`p-2.5 rounded-xl border text-[10px] ${
+                  inviteMessage.type === 'success' ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]' : 'bg-[#FF4D6D]/10 border-[#FF4D6D]/20 text-[#FF4D6D]'
+                }`}>
+                  {inviteMessage.text}
+                </div>
+              )}
+            </form>
           )}
 
+          {/* Leave household button */}
+          <button
+            onClick={onLogout}
+            className="w-full py-3 rounded-xl bg-white/5 hover:bg-[#FF4D6D]/15 border border-white/10 hover:border-[#FF4D6D]/20 text-white/70 hover:text-[#FF4D6D] font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Déconnecter mon Foyer</span>
+          </button>
+
+        </div>
+      ) : (
+        /* 3. Authentication Panel (Show if not logged in) */
+        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 animate-fade-in">
+          
+          <div className="space-y-1">
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+              <Lock className="w-4 h-4 text-[#FF4D6D]" />
+              <span>Connexion & Synchronisation</span>
+            </h3>
+            <p className="text-[10px] text-white/40 leading-normal">
+              Connectez-vous pour activer la synchronisation multi-appareils de votre foyer.
+            </p>
+          </div>
+
+          {/* Form Selector Tabs */}
+          <div className="grid grid-cols-2 gap-1 p-1 bg-white/5 rounded-xl border border-white/5">
+            <button
+              type="button"
+              onClick={() => setAuthTab('login')}
+              className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                authTab === 'login' ? 'bg-[#6C5CFF] text-white shadow' : 'text-white/40 hover:text-white'
+              }`}
+            >
+              Se connecter
+            </button>
+            <button
+              type="button"
+              onClick={() => setAuthTab('register')}
+              className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                authTab === 'register' ? 'bg-[#6C5CFF] text-white shadow' : 'text-white/40 hover:text-white'
+              }`}
+            >
+              S'inscrire
+            </button>
+          </div>
+
+          <form onSubmit={authTab === 'login' ? handleLogin : handleRegister} className="space-y-3.5">
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Adresse e-mail</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-2.5 w-4 h-4 text-white/30" />
+                <input
+                  type="email"
+                  required
+                  placeholder="ex: amadou@gmail.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Mot de passe</label>
+              <div className="relative">
+                <Key className="absolute left-3 top-2.5 w-4 h-4 text-white/30" />
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                />
+              </div>
+            </div>
+
+            {authMessage && (
+              <div className={`p-3 rounded-xl border text-[11px] font-medium leading-relaxed ${
+                authMessage.type === 'success' 
+                  ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]' 
+                  : 'bg-[#FF4D6D]/10 border-[#FF4D6D]/20 text-[#FF4D6D]'
+              }`}>
+                {authMessage.text}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={authLoading}
+              className="w-full py-3.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5b4eff] text-white font-extrabold text-xs uppercase tracking-wider shadow-[0_4px_15px_rgba(108,92,255,0.3)] flex items-center justify-center space-x-2 transition-all cursor-pointer"
+            >
+              {authLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Traitement en cours...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  <span>{authTab === 'login' ? 'Se connecter' : 'Créer un compte Foyer'}</span>
+                </>
+              )}
+            </button>
+          </form>
         </div>
       )}
 
-      {/* 4. Base de données & Stockage */}
+      {/* 4. Database & Storage */}
       <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
           <Database className="w-4 h-4 text-[#00D26A]" />
@@ -430,7 +510,7 @@ export const Settings: React.FC<SettingsProps> = ({
         <div className="space-y-2.5 text-xs">
           <div className="flex justify-between py-1 border-b border-white/5">
             <span className="text-white/50">Base de données principale :</span>
-            <span className="font-bold text-white">{syncActive && user ? 'Cloud Supabase' : 'LocalStorage Local'}</span>
+            <span className="font-bold text-white">{user ? 'Cloud Supabase' : 'LocalStorage Local'}</span>
           </div>
           <div className="flex justify-between py-1 border-b border-white/5">
             <span className="text-white/50">Chiffrement actif :</span>
