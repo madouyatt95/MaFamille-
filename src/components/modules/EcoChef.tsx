@@ -54,59 +54,59 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem }) => {
   };
 
   const generateRecipes = () => {
+    const activeInFull = fridgeIngredients.filter(i => i.checked).map(i => i.name);
+    if (activeInFull.length === 0) {
+      alert("Veuillez sélectionner au moins un ingrédient dans votre frigo pour que l'Éco-Chef IA puisse inventer des recettes !");
+      return;
+    }
+
     setGenerating(true);
     setRecipes([]);
 
     setTimeout(() => {
-      const activeIn = fridgeIngredients.filter(i => i.checked).map(i => i.name.toLowerCase());
+      const ingNames = [...activeInFull];
       
-      const allSimulatedRecipes = [
+      const dynamicRecipes = [
         {
           id: 'rec-1',
-          title: 'Gratin Royal aux Restes de Poulet & Pâtes',
-          desc: 'Une recette réconfortante et crémeuse pour liquider vos restes en 20 minutes.',
-          uses: ['Poulet rôti (Reste)', 'Pâtes cuites', 'Crème fraîche'],
-          missing: ['Fromage râpé'],
-          time: '20 min',
-          difficulty: 'Facile',
-          rating: 'Papa ⭐️5, Amadou ⭐️4.5',
-          promptKeywords: 'delicious cheesy pasta chicken gratin, gourmet pasta bake, 3d pixar food style, warm steam, studio lighting'
+          title: `Poêlée Express : ${ingNames.slice(0, 2).join(' & ')}`,
+          desc: `Une cuisson rapide et savoureuse à la poêle pour sublimer vos restes de ${ingNames.join(', ').toLowerCase()} en quelques minutes.`,
+          uses: activeInFull,
+          missing: ['Huile d\'olive', 'Oignon blanc', 'Herbes de Provence'],
+          time: '12 min',
+          difficulty: 'Très Facile',
+          rating: 'Maman ⭐️4.9, Awa ⭐️4.6',
+          promptKeywords: `pan-seared gourmet meal with ${ingNames.slice(0, 2).join(' and ').toLowerCase()}, colorful steam, fresh herbs, delicious food photography, pixar style`
         },
         {
           id: 'rec-2',
-          title: 'Poêlée Anti-Gaspi Tomates & Poulet',
-          desc: 'Faites caraméliser le poulet et les tomates douces avec un filet d\'huile d\'olive.',
-          uses: ['Poulet rôti (Reste)', 'Tomates fatiguées'],
-          missing: ['Ail', 'Herbes de Provence'],
-          time: '15 min',
-          difficulty: 'Très Facile',
-          rating: 'Maman ⭐️5, Awa ⭐️4',
-          promptKeywords: 'gourmet pan-seared chicken breast with juicy caramelized tomatoes, fine dining presentation, 3d pixar food style'
+          title: `Gratin Fondant : ${ingNames[0]} ${ingNames[1] ? '& ' + ingNames[1] : 'Maison'}`,
+          desc: `Mélangez vos restes de ${ingNames.join(' et ').toLowerCase()} dans un plat, nappez de crème et saupoudrez de fromage avant de gratiner au four.`,
+          uses: activeInFull,
+          missing: ['Crème fraîche', 'Fromage râpé', 'Gousse d\'ail'],
+          time: '22 min',
+          difficulty: 'Facile',
+          rating: 'Papa ⭐️5, Amadou ⭐️4.8',
+          promptKeywords: `hot bubbling oven baked gratin casserole with ${ingNames.slice(0, 2).join(' and ').toLowerCase()}, melted cheese pull, warm studio lighting, Pixar movie style food`
         },
         {
           id: 'rec-3',
-          title: 'Pudding Salé au Pain Rassis & Crème',
-          desc: 'Le secret des grands-mères pour ne jamais jeter de pain dur.',
-          uses: ['Pain rassis', 'Crème fraîche'],
-          missing: ['Œufs', 'Lardons'],
-          time: '35 min',
-          difficulty: 'Moyen',
-          rating: 'Famille ⭐️4.2',
-          promptKeywords: 'golden savory bread pudding, traditional French pain perdu sale, rustic kitchen bake, cozy pixar style'
+          title: `Bowl de l'Éco-Chef : ${[...ingNames].reverse().slice(0, 2).join(' & ')}`,
+          desc: `Un assemblage sain, équilibré et coloré pour consommer vos restes de ${activeInFull.join(' et ').toLowerCase()} sans passer des heures en cuisine.`,
+          uses: activeInFull,
+          missing: ['Vinaigrette au citron', 'Graines de sésame', 'Jeunes pousses de salade'],
+          time: '8 min',
+          difficulty: 'Très Facile',
+          rating: 'Famille ⭐️4.5',
+          promptKeywords: `gourmet healthy salad bowl with ${ingNames.slice(0, 2).join(' and ').toLowerCase()}, aesthetic plating, chef presentation, Pixar style vibrant food 3d`
         }
       ];
 
-      // Filter recipes based on ingredients selected
-      const filtered = allSimulatedRecipes.filter(r => 
-        r.uses.some(u => activeIn.some(act => u.toLowerCase().includes(act.substring(0, 5))))
-      );
-
-      const finalRecipes = filtered.length > 0 ? filtered : allSimulatedRecipes;
-      setRecipes(finalRecipes);
+      setRecipes(dynamicRecipes);
       setGenerating(false);
 
       // Déclencher le chargement d'image pour chaque recette générée de manière réelle !
-      finalRecipes.forEach(rec => {
+      dynamicRecipes.forEach(rec => {
         loadRecipeImage(rec.id, rec.promptKeywords);
       });
 

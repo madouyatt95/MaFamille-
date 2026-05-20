@@ -57,6 +57,8 @@ import { Settings } from './views/Settings';
 import { Membres } from './views/Membres';
 import { SharedPackView } from './components/modules/SharedPackView';
 import { KidsDashboard } from './views/KidsDashboard';
+import { Paywall } from './components/Paywall';
+import { getSupabaseClient } from './utils/supabase';
 
 // Lucide icon for inline notifications
 import { Bell, X, ChevronRight, Mic, MicOff, Volume2 } from 'lucide-react';
@@ -165,13 +167,15 @@ function App() {
     return localStorage.getItem('mf_currency') || 'EUR (€)';
   });
   const [supabaseUrl, setSupabaseUrl] = useState(() => {
-    return localStorage.getItem('mf_sb_url') || '';
+    return localStorage.getItem('mf_sb_url') || import.meta.env.VITE_SUPABASE_URL || '';
   });
   const [supabaseKey, setSupabaseKey] = useState(() => {
-    return localStorage.getItem('mf_sb_key') || '';
+    return localStorage.getItem('mf_sb_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
   });
   const [syncActive, setSyncActive] = useState(() => {
-    return localStorage.getItem('mf_sync_active') === 'true';
+    const cached = localStorage.getItem('mf_sync_active');
+    if (cached !== null) return cached === 'true';
+    return !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
   });
 
   // New modules states
@@ -213,7 +217,131 @@ function App() {
   const [manualVoiceCommand, setManualVoiceCommand] = useState('');
   const voiceRecognitionRef = useRef<any>(null);
 
+  // Premium Freemium States
+  const [isPremium, setIsPremium] = useState<boolean>(() => {
+    return localStorage.getItem('mf_is_premium') === 'true';
+  });
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    localStorage.setItem('mf_is_premium', String(isPremium));
+  }, [isPremium]);
+
+  // Monitor Supabase Auth changes
+  useEffect(() => {
+    const client = getSupabaseClient(supabaseUrl, supabaseKey);
+    if (!client) {
+      setUser(null);
+      return;
+    }
+
+    client.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user || null);
+    });
+
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabaseUrl, supabaseKey]);
+
+  // Hydrate local state from Cloud on startup or login
+  useEffect(() => {
+    const fetchCloudData = async () => {
+      if (!syncActive || !user || !isPremium) return;
+      const client = getSupabaseClient(supabaseUrl, supabaseKey);
+      if (!client) return;
+
+      const { data } = await client
+        .from('family_data')
+        .select('state_json')
+        .eq('id', user.id)
+        .single();
+
+      if (data?.state_json) {
+        const state = data.state_json;
+        if (state.members) setMembers(state.members);
+        if (state.events) setEvents(state.events);
+        if (state.transactions) setTransactions(state.transactions);
+        if (state.dishes) setDishes(state.dishes);
+        if (state.documents) setDocuments(state.documents);
+        if (state.tasks) setTasks(state.tasks);
+        if (state.groceries) setGroceries(state.groceries);
+        if (state.savingGoals) setSavingGoals(state.savingGoals);
+        if (state.alerts) setAlerts(state.alerts);
+        if (state.chatGroups) setChatGroups(state.chatGroups);
+        if (state.chatMessages) setChatMessages(state.chatMessages);
+        if (state.demarches) setDemarches(state.demarches);
+        if (state.packs) setJustificatifPacks(state.packs);
+        if (state.memories) setMemories(state.memories);
+        if (state.votes) setVotes(state.votes);
+        if (state.schoolTasks) setSchoolTasks(state.schoolTasks);
+        if (state.currency) setCurrency(state.currency);
+        console.log("☁️ Hydratation du statut familial réussie depuis Supabase !");
+      }
+    };
+    fetchCloudData();
+  }, [user, syncActive, isPremium]);
+
+  // Save changes to cloud on mutation
+  useEffect(() => {
+    const saveCloudData = async () => {
+      if (!syncActive || !user || !isPremium) return;
+      const client = getSupabaseClient(supabaseUrl, supabaseKey);
+      if (!client) return;
+
+      const fullState = {
+        members,
+        events,
+        transactions,
+        dishes,
+        documents,
+        tasks,
+        groceries,
+        savingGoals,
+        alerts,
+        chatGroups,
+        chatMessages,
+        demarches,
+        packs: justificatifPacks,
+        memories,
+        votes,
+        schoolTasks,
+        currency
+      };
+
+      const { error } = await client
+        .from('family_data')
+        .upsert({
+          id: user.id,
+          state_json: fullState,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.warn("La table 'family_data' n'est pas encore prête sur Supabase :", error.message);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      saveCloudData();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [
+    syncActive, user, isPremium,
+    members, events, transactions, dishes, documents, tasks, groceries,
+    savingGoals, alerts, chatGroups, chatMessages, demarches, justificatifPacks,
+    memories, votes, schoolTasks, currency
+  ]);
+
   const startVoiceAssistant = () => {
+    if (!isPremium) {
+      setPaywallOpen(true);
+      return;
+    }
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert("Votre navigateur ne supporte pas l'API de reconnaissance vocale.");
@@ -552,6 +680,14 @@ function App() {
   // Callbacks and Form Submissions
   // ----------------------------------------------------
   const handleAddEvent = (newEvent: any) => {
+    if (!isPremium) {
+      const currentMonth = new Date().toISOString().substring(0, 7); // "YYYY-MM"
+      const monthlyEventsCount = events.filter(e => e.dateTime.startsWith(currentMonth)).length;
+      if (monthlyEventsCount >= 10) {
+        setPaywallOpen(true);
+        return;
+      }
+    }
     const id = `ev-${Date.now()}`;
     setEvents(prev => [{ ...newEvent, id }, ...prev]);
   };
@@ -580,6 +716,10 @@ function App() {
   };
 
   const handleAddMember = (newMem: any) => {
+    if (!isPremium && members.length >= 3) {
+      setPaywallOpen(true);
+      return;
+    }
     const id = `${members.length + 1}`;
     setMembers(prev => [...prev, { ...newMem, id }]);
   };
@@ -804,6 +944,8 @@ function App() {
             syncActive={syncActive}
             setSyncActive={setSyncActive}
             onResetData={handleResetData}
+            isPremium={isPremium}
+            onOpenPaywall={() => setPaywallOpen(true)}
           />
         );
       }
@@ -851,6 +993,14 @@ function App() {
           justificatifPacks={justificatifPacks}
           setJustificatifPacks={setJustificatifPacks}
           onAddEvent={(title, dateTime) => {
+            if (!isPremium) {
+              const currentMonth = new Date().toISOString().substring(0, 7);
+              const monthlyEventsCount = events.filter(e => e.dateTime.startsWith(currentMonth)).length;
+              if (monthlyEventsCount >= 10) {
+                setPaywallOpen(true);
+                return;
+              }
+            }
             const newEvent: FamilyEvent = {
               id: `evt-dem-${Date.now()}`,
               title: `📋 ${title}`,
@@ -869,6 +1019,8 @@ function App() {
           setSchoolTasks={setSchoolTasks}
           dishes={dishes}
           setDishes={setDishes}
+          isPremium={isPremium}
+          onTriggerPaywall={() => setPaywallOpen(true)}
         />
       );
     }
@@ -927,6 +1079,15 @@ function App() {
         }}
         onAddClick={() => setQuickActionsOpen(true)}
         activeMemberId={activeMemberId}
+      />
+
+      {/* Premium Subscription Paywall Screen */}
+      <Paywall 
+        isOpen={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        onUnlockPremium={() => {
+          setIsPremium(true);
+        }}
       />
 
       {/* Floating Global Voice Assistant Button (fixed bottom-24 right-6, just above the Menu tab on the right) */}

@@ -13,7 +13,6 @@ import {
   Sparkle,
   Plus,
   Shield,
-  Mic,
   Check,
   RefreshCw
 } from 'lucide-react';
@@ -298,45 +297,6 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
   const [selectedHero, setSelectedHero] = useState<string>('Awa'); // Default select Awa as in reference image
   const [isCustomHero, setIsCustomHero] = useState<boolean>(false);
   const [customHeroName, setCustomHeroName] = useState<string>('');
-  const [isListening, setIsListening] = useState<boolean>(false);
-
-  const startSpeechRecognition = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("🎙️ La reconnaissance vocale n'est pas supportée ou est bloquée sur votre navigateur.");
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'fr-FR';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-
-    recognition.onstart = () => {
-      setIsListening(true);
-      setIsCustomHero(true);
-      setSelectedHero('custom');
-      setCustomHeroName("À l'écoute... 🎙️");
-    };
-
-    recognition.onresult = (event: any) => {
-      const speechToText = event.results[0][0].transcript;
-      const formattedText = speechToText.charAt(0).toUpperCase() + speechToText.slice(1);
-      setCustomHeroName(formattedText);
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error("Speech recognition error", event.error);
-      setIsListening(false);
-      setCustomHeroName("");
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognition.start();
-  };
 
   const [selectedUniverse, setSelectedUniverse] = useState<string>('espace');
   const [selectedMoral, setSelectedMoral] = useState<string>('partage');

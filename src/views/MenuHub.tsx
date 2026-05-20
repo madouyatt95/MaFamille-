@@ -122,6 +122,8 @@ interface MenuHubProps {
   justificatifPacks: JustificatifPack[];
   setJustificatifPacks: React.Dispatch<React.SetStateAction<JustificatifPack[]>>;
   onAddEvent?: (title: string, dateTime: string) => void;
+  isPremium?: boolean;
+  onTriggerPaywall?: () => void;
 }
 
 export const MenuHub: React.FC<MenuHubProps> = ({
@@ -169,7 +171,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   setDemarches,
   justificatifPacks,
   setJustificatifPacks,
-  onAddEvent
+  onAddEvent,
+  isPremium = false,
+  onTriggerPaywall
 }) => {
   const [newGroceryName, setNewGroceryName] = useState('');
   const [newGroceryCat, setNewGroceryCat] = useState('Épicerie');
@@ -286,6 +290,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const recognitionRef = useRef<any>(null);
 
   const handleDictation = () => {
+    if (!isPremium) {
+      onTriggerPaywall?.();
+      return;
+    }
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert("Votre navigateur ne supporte pas la dictée vocale.");
@@ -652,6 +660,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 <button
                   key={mod.id}
                   onClick={() => {
+                    if (mod.id === 'documents' && !isPremium) {
+                      onTriggerPaywall?.();
+                      return;
+                    }
                     if (mod.id === 'finances_hub' && !isParent && !authorizedModules.includes('finances_hub')) {
                       setActiveModule('finances_hub');
                     } else if (mod.id === 'finances_hub') {
@@ -689,7 +701,13 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 return (
                   <button
                     key={mod.id}
-                    onClick={() => setActiveModule(mod.id)}
+                    onClick={() => {
+                      if (['conteur', 'atelier_art', 'capsule'].includes(mod.id) && !isPremium) {
+                        onTriggerPaywall?.();
+                        return;
+                      }
+                      setActiveModule(mod.id);
+                    }}
                     className="glass-panel rounded-[24px] p-4 flex items-center justify-between border border-white/5 hover:bg-white/8 transition-all cursor-pointer text-left"
                   >
                     <div className="flex items-center space-x-3">
