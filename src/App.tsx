@@ -67,16 +67,32 @@ import type { Foyer, FoyerMember } from './types';
 import { Bell, X, ChevronRight, Mic, MicOff, Volume2 } from 'lucide-react';
 
 function App() {
-  // ----------------------------------------------------
-  // Local reactive storage initialization
-  // ----------------------------------------------------
+  // Safe localStorage helper functions to prevent any corrupt cache startup crashes
+  const safeGetLocalStorage = <T,>(key: string, fallback: T): T => {
+    try {
+      const val = localStorage.getItem(key);
+      if (!val) return fallback;
+      return JSON.parse(val) as T;
+    } catch (e) {
+      console.warn(`Error parsing localStorage key "${key}":`, e);
+      return fallback;
+    }
+  };
+
+  const safeSetLocalStorage = (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      console.warn(`Storage quota exceeded or error saving key "${key}":`, e);
+    }
+  };
+
   // If a cloud foyer was active last session, start empty (cloud data will load)
   const hadCloudFoyer = !!localStorage.getItem('mf_cloud_foyer_id');
 
   const [members, setMembers] = useState<Member[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_members');
-    return val ? JSON.parse(val) : demoMembers;
+    return safeGetLocalStorage('mf_members', demoMembers);
   });
 
   const [activeMemberId, setActiveMemberId] = useState<string>(() => {
@@ -85,103 +101,86 @@ function App() {
 
   const [events, setEvents] = useState<FamilyEvent[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_events');
-    return val ? JSON.parse(val) : demoEvents;
+    return safeGetLocalStorage('mf_events', demoEvents);
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_transactions');
-    return val ? JSON.parse(val) : demoTransactions;
+    return safeGetLocalStorage('mf_transactions', demoTransactions);
   });
 
   const [dishes, setDishes] = useState<Dish[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_dishes');
-    return val ? JSON.parse(val) : demoDishes;
+    return safeGetLocalStorage('mf_dishes', demoDishes);
   });
 
   const [documents, setDocuments] = useState<DocumentFile[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_documents');
-    return val ? JSON.parse(val) : demoDocuments;
+    return safeGetLocalStorage('mf_documents', demoDocuments);
   });
 
   const [tasks, setTasks] = useState<ChoreTask[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_tasks');
-    return val ? JSON.parse(val) : demoTasks;
+    return safeGetLocalStorage('mf_tasks', demoTasks);
   });
 
   const [groceries, setGroceries] = useState<GroceryItem[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_groceries');
-    return val ? JSON.parse(val) : demoGroceries;
+    return safeGetLocalStorage('mf_groceries', demoGroceries);
   });
 
   const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_vehicles');
-    return val ? JSON.parse(val) : demoVehicles;
+    return safeGetLocalStorage('mf_vehicles', demoVehicles);
   });
   const [maintenance, setMaintenance] = useState<HomeMaintenance[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_maintenance');
-    return val ? JSON.parse(val) : demoMaintenance;
+    return safeGetLocalStorage('mf_maintenance', demoMaintenance);
   });
   const [trips, setTrips] = useState<Trip[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_trips');
-    return val ? JSON.parse(val) : demoTrips;
+    return safeGetLocalStorage('mf_trips', demoTrips);
   });
   const [pets, setPets] = useState<PetRecord[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_pets');
-    return val ? JSON.parse(val) : demoPets;
+    return safeGetLocalStorage('mf_pets', demoPets);
   });
   const [pocketMoney, setPocketMoney] = useState<{ id: string; name: string; balance: number; points: number; avatar: string; }[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_pocket_money');
-    return val ? JSON.parse(val) : [
+    return safeGetLocalStorage('mf_pocket_money', [
       { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150' },
       { id: '4', name: 'Awa', balance: 22.50, points: 225, avatar: 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150' }
-    ];
+    ]);
   });
 
   const [savingGoals, setSavingGoals] = useState<SavingGoal[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_saving_goals');
-    return val ? JSON.parse(val) : demoSavingGoals;
+    return safeGetLocalStorage('mf_saving_goals', demoSavingGoals);
   });
 
   const [alerts, setAlerts] = useState<NotificationAlert[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_alerts');
-    return val ? JSON.parse(val) : demoAlerts;
+    return safeGetLocalStorage('mf_alerts', demoAlerts);
   });
 
   const [chatGroups, setChatGroups] = useState(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_chat_groups');
-    return val ? JSON.parse(val) : demoChatGroups;
+    return safeGetLocalStorage('mf_chat_groups', demoChatGroups);
   });
 
   const [chatMessages, setChatMessages] = useState(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_chat_messages');
-    return val ? JSON.parse(val) : demoChatMessages;
+    return safeGetLocalStorage('mf_chat_messages', demoChatMessages);
   });
 
   const [demarches, setDemarches] = useState<Demarche[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_demarches');
-    return val ? JSON.parse(val) : demoDemarches;
+    return safeGetLocalStorage('mf_demarches', demoDemarches);
   });
 
   const [justificatifPacks, setJustificatifPacks] = useState<JustificatifPack[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_packs');
-    return val ? JSON.parse(val) : demoPacks;
+    return safeGetLocalStorage('mf_packs', demoPacks);
   });
 
   const [agendaSelectedDate, setAgendaSelectedDate] = useState<string>('');
@@ -209,25 +208,21 @@ function App() {
   // New modules states
   const [memories, setMemories] = useState<MemoryLog[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_memories');
-    return val ? JSON.parse(val) : demoMemories;
+    return safeGetLocalStorage('mf_memories', demoMemories);
   });
 
   const [votes, setVotes] = useState<FamilyVote[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_votes');
-    return val ? JSON.parse(val) : demoFamilyVotes;
+    return safeGetLocalStorage('mf_votes', demoFamilyVotes);
   });
 
   const [schoolTasks, setSchoolTasks] = useState<SchoolTask[]>(() => {
     if (hadCloudFoyer) return [];
-    const val = localStorage.getItem('mf_school_tasks');
-    return val ? JSON.parse(val) : demoSchoolTasks;
+    return safeGetLocalStorage('mf_school_tasks', demoSchoolTasks);
   });
 
   const [memberMoods, setMemberMoods] = useState<Record<string, string>>(() => {
-    const val = localStorage.getItem('mf_moods');
-    return val ? JSON.parse(val) : { '1': '☀️', '2': '☀️', '3': '🌈', '4': '☁️' };
+    return safeGetLocalStorage('mf_moods', { '1': '☀️', '2': '☀️', '3': '🌈', '4': '☁️' });
   });
 
   // Navigation and Sheets UI State
@@ -1127,111 +1122,107 @@ function App() {
     }
   }, []);
 
-  // Sync state to localStorage on modification
+  // Sync state to localStorage safely on modification
   useEffect(() => {
-    localStorage.setItem('mf_members', JSON.stringify(members));
+    safeSetLocalStorage('mf_members', JSON.stringify(members));
   }, [members]);
 
   useEffect(() => {
-    localStorage.setItem('mf_dishes', JSON.stringify(dishes));
+    safeSetLocalStorage('mf_dishes', JSON.stringify(dishes));
   }, [dishes]);
 
   useEffect(() => {
-    localStorage.setItem('mf_active_member_id', activeMemberId);
+    safeSetLocalStorage('mf_active_member_id', activeMemberId);
   }, [activeMemberId]);
 
   useEffect(() => {
-    localStorage.setItem('mf_events', JSON.stringify(events));
+    safeSetLocalStorage('mf_events', JSON.stringify(events));
   }, [events]);
 
   useEffect(() => {
-    localStorage.setItem('mf_transactions', JSON.stringify(transactions));
+    safeSetLocalStorage('mf_transactions', JSON.stringify(transactions));
   }, [transactions]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('mf_documents', JSON.stringify(documents));
-    } catch (error) {
-      console.error("Storage quota exceeded, failed to save documents in localStorage:", error);
-    }
+    safeSetLocalStorage('mf_documents', JSON.stringify(documents));
   }, [documents]);
 
   useEffect(() => {
-    localStorage.setItem('mf_tasks', JSON.stringify(tasks));
+    safeSetLocalStorage('mf_tasks', JSON.stringify(tasks));
   }, [tasks]);
 
   useEffect(() => {
-    localStorage.setItem('mf_groceries', JSON.stringify(groceries));
+    safeSetLocalStorage('mf_groceries', JSON.stringify(groceries));
   }, [groceries]);
 
   useEffect(() => {
-    localStorage.setItem('mf_saving_goals', JSON.stringify(savingGoals));
+    safeSetLocalStorage('mf_saving_goals', JSON.stringify(savingGoals));
   }, [savingGoals]);
 
   useEffect(() => {
-    localStorage.setItem('mf_alerts', JSON.stringify(alerts));
+    safeSetLocalStorage('mf_alerts', JSON.stringify(alerts));
   }, [alerts]);
 
   useEffect(() => {
-    localStorage.setItem('mf_chat_groups', JSON.stringify(chatGroups));
+    safeSetLocalStorage('mf_chat_groups', JSON.stringify(chatGroups));
   }, [chatGroups]);
 
   useEffect(() => {
-    localStorage.setItem('mf_chat_messages', JSON.stringify(chatMessages));
+    safeSetLocalStorage('mf_chat_messages', JSON.stringify(chatMessages));
   }, [chatMessages]);
 
   useEffect(() => {
-    localStorage.setItem('mf_demarches', JSON.stringify(demarches));
+    safeSetLocalStorage('mf_demarches', JSON.stringify(demarches));
   }, [demarches]);
 
   useEffect(() => {
-    localStorage.setItem('mf_packs', JSON.stringify(justificatifPacks));
+    safeSetLocalStorage('mf_packs', JSON.stringify(justificatifPacks));
   }, [justificatifPacks]);
 
   useEffect(() => {
-    localStorage.setItem('mf_currency', currency);
+    safeSetLocalStorage('mf_currency', currency);
   }, [currency]);
 
   useEffect(() => {
-    localStorage.setItem('mf_sb_url', supabaseUrl);
-    localStorage.setItem('mf_sb_key', supabaseKey);
-    localStorage.setItem('mf_sync_active', String(syncActive));
+    safeSetLocalStorage('mf_sb_url', supabaseUrl);
+    safeSetLocalStorage('mf_sb_key', supabaseKey);
+    safeSetLocalStorage('mf_sync_active', String(syncActive));
   }, [supabaseUrl, supabaseKey, syncActive]);
 
   useEffect(() => {
-    localStorage.setItem('mf_memories', JSON.stringify(memories));
+    safeSetLocalStorage('mf_memories', JSON.stringify(memories));
   }, [memories]);
 
   useEffect(() => {
-    localStorage.setItem('mf_votes', JSON.stringify(votes));
+    safeSetLocalStorage('mf_votes', JSON.stringify(votes));
   }, [votes]);
 
   useEffect(() => {
-    localStorage.setItem('mf_school_tasks', JSON.stringify(schoolTasks));
+    safeSetLocalStorage('mf_school_tasks', JSON.stringify(schoolTasks));
   }, [schoolTasks]);
 
   useEffect(() => {
-    localStorage.setItem('mf_moods', JSON.stringify(memberMoods));
+    safeSetLocalStorage('mf_moods', JSON.stringify(memberMoods));
   }, [memberMoods]);
 
   useEffect(() => {
-    localStorage.setItem('mf_vehicles', JSON.stringify(vehicles));
+    safeSetLocalStorage('mf_vehicles', JSON.stringify(vehicles));
   }, [vehicles]);
 
   useEffect(() => {
-    localStorage.setItem('mf_maintenance', JSON.stringify(maintenance));
+    safeSetLocalStorage('mf_maintenance', JSON.stringify(maintenance));
   }, [maintenance]);
 
   useEffect(() => {
-    localStorage.setItem('mf_trips', JSON.stringify(trips));
+    safeSetLocalStorage('mf_trips', JSON.stringify(trips));
   }, [trips]);
 
   useEffect(() => {
-    localStorage.setItem('mf_pets', JSON.stringify(pets));
+    safeSetLocalStorage('mf_pets', JSON.stringify(pets));
   }, [pets]);
 
   useEffect(() => {
-    localStorage.setItem('mf_pocket_money', JSON.stringify(pocketMoney));
+    safeSetLocalStorage('mf_pocket_money', JSON.stringify(pocketMoney));
   }, [pocketMoney]);
 
   // ----------------------------------------------------

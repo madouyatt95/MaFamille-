@@ -63,7 +63,15 @@ export const Accueil: React.FC<AccueilProps> = ({
 }) => {
   const [selectedMealDay, setSelectedMealDay] = useState<string>('Lun');
 
-  const activeMember = members.find(m => m.id === activeMemberId) || members[0];
+  const activeMember = members.find(m => m.id === activeMemberId) || members[0] || {
+    id: activeMemberId || '1',
+    name: 'Chargement...',
+    role: 'Parent',
+    photoUrl: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150',
+    allergies: [],
+    treatments: [],
+    emergencyContact: { name: '', phone: '', relation: '' }
+  };
   const isChild = activeMember ? ['child', 'guest', 'Enfant', 'Invité'].includes(activeMember.role) : false;
 
   const [moments, setMoments] = useState<any[]>([

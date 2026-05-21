@@ -727,39 +727,41 @@ export const Settings: React.FC<SettingsProps> = ({
       )}
 
       {/* 4. Données locales & Sauvegarde */}
-      <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
-        <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-          <Database className="w-4 h-4 text-[#00D26A]" />
-          <span>Données locales & Sauvegarde</span>
-        </h3>
-        
-        <p className="text-xs text-white/50 leading-relaxed font-medium">
-          Sauvegardez vos données locales sur votre appareil ou réinitialisez l'application pour restaurer les paramètres de démo par défaut.
-        </p>
-
-        <div className="grid grid-cols-2 gap-2 pt-2">
-          <button 
-            onClick={triggerManualBackup}
-            disabled={savingBackup}
-            className="py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${savingBackup ? 'animate-spin' : ''}`} />
-            <span>{savingBackup ? 'Sauvegarde...' : 'Sauvegarder'}</span>
-          </button>
+      {!user && (
+        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+            <Database className="w-4 h-4 text-[#00D26A]" />
+            <span>Données locales & Sauvegarde</span>
+          </h3>
           
-          <button 
-            onClick={() => {
-              if (window.confirm('Voulez-vous réinitialiser le système ? Les modifications locales seront effacées et remplacées par la famille de démo.')) {
-                onResetData();
-              }
-            }}
-            className="py-3 rounded-xl bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 border border-[#FF4D6D]/20 text-[#FF4D6D] font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Réinitialiser</span>
-          </button>
+          <p className="text-xs text-white/50 leading-relaxed font-medium">
+            Sauvegardez vos données locales sur votre appareil ou réinitialisez l'application pour restaurer les paramètres de démo par défaut.
+          </p>
+
+          <div className="grid grid-cols-2 gap-2 pt-2">
+            <button 
+              onClick={triggerManualBackup}
+              disabled={savingBackup}
+              className="py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${savingBackup ? 'animate-spin' : ''}`} />
+              <span>{savingBackup ? 'Sauvegarde...' : 'Sauvegarder'}</span>
+            </button>
+            
+            <button 
+              onClick={() => {
+                if (window.confirm('Voulez-vous réinitialiser le système ? Les modifications locales seront effacées et remplacées par la famille de démo.')) {
+                  onResetData();
+                }
+              }}
+              className="py-3 rounded-xl bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 border border-[#FF4D6D]/20 text-[#FF4D6D] font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Réinitialiser</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
     </div>
   );
