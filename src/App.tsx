@@ -191,15 +191,19 @@ function App() {
     return localStorage.getItem('mf_currency') || 'EUR (€)';
   });
   const [supabaseUrl, setSupabaseUrl] = useState(() => {
-    return localStorage.getItem('mf_sb_url') || import.meta.env.VITE_SUPABASE_URL || '';
+    const raw = (import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('mf_sb_url') || '').trim();
+    return raw.replace(/^['"]|['"]$/g, '');
   });
   const [supabaseKey, setSupabaseKey] = useState(() => {
-    return localStorage.getItem('mf_sb_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+    const raw = (import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('mf_sb_key') || '').trim();
+    return raw.replace(/^['"]|['"]$/g, '');
   });
   const [syncActive, setSyncActive] = useState(() => {
     const cached = localStorage.getItem('mf_sync_active');
     if (cached !== null) return cached === 'true';
-    return !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+    const envUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+    const envKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+    return !!(envUrl && envKey && envKey.replace(/^['"]|['"]$/g, '').startsWith('eyJ'));
   });
 
   // New modules states
