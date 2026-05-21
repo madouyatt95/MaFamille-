@@ -99,7 +99,11 @@ export const foyerService = {
       emergencyContactPhone: memberData.emergency_contact_phone,
       emergencyContactRelation: memberData.emergency_contact_relation,
       schoolOrEmployer: memberData.school_or_employer,
-      joinedAt: memberData.joined_at
+      joinedAt: memberData.joined_at,
+      latitude: memberData.latitude,
+      longitude: memberData.longitude,
+      locationStatus: memberData.location_status,
+      lastLocatedAt: memberData.last_located_at
     };
 
     return { foyer, member };
@@ -138,7 +142,11 @@ export const foyerService = {
       emergencyContactPhone: m.emergency_contact_phone,
       emergencyContactRelation: m.emergency_contact_relation,
       schoolOrEmployer: m.school_or_employer,
-      joinedAt: m.joined_at
+      joinedAt: m.joined_at,
+      latitude: m.latitude,
+      longitude: m.longitude,
+      locationStatus: m.location_status,
+      lastLocatedAt: m.last_located_at
     }));
   },
 
@@ -227,6 +235,10 @@ export const foyerService = {
     if (updates.emergencyContactPhone !== undefined) rpcParams.p_emergency_contact_phone = updates.emergencyContactPhone;
     if (updates.emergencyContactRelation !== undefined) rpcParams.p_emergency_contact_relation = updates.emergencyContactRelation;
     if (updates.schoolOrEmployer !== undefined) rpcParams.p_school_or_employer = updates.schoolOrEmployer;
+    if (updates.latitude !== undefined) rpcParams.p_latitude = updates.latitude;
+    if (updates.longitude !== undefined) rpcParams.p_longitude = updates.longitude;
+    if (updates.locationStatus !== undefined) rpcParams.p_location_status = updates.locationStatus;
+    if (updates.lastLocatedAt !== undefined) rpcParams.p_last_located_at = updates.lastLocatedAt;
 
     console.log('[MaFamille+ DB] updateMemberProfile via RPC → memberId:', memberId, '| params:', JSON.stringify(rpcParams));
 
@@ -254,6 +266,10 @@ export const foyerService = {
     if (updates.emergencyContactRelation !== undefined) dbUpdates.emergency_contact_relation = updates.emergencyContactRelation;
     if (updates.schoolOrEmployer !== undefined) dbUpdates.school_or_employer = updates.schoolOrEmployer;
     if (updates.role !== undefined) dbUpdates.role = updates.role;
+    if (updates.latitude !== undefined) dbUpdates.latitude = updates.latitude;
+    if (updates.longitude !== undefined) dbUpdates.longitude = updates.longitude;
+    if (updates.locationStatus !== undefined) dbUpdates.location_status = updates.locationStatus;
+    if (updates.lastLocatedAt !== undefined) dbUpdates.last_located_at = updates.lastLocatedAt;
 
     const { data, error } = await supabase
       .from('foyer_members')

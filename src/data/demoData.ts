@@ -19,7 +19,8 @@ import type {
   ChatMessage,
   DemarcheTemplate,
   Demarche,
-  JustificatifPack
+  JustificatifPack,
+  Artisan
 } from '../types';
 
 
@@ -42,7 +43,11 @@ export const demoMembers: Member[] = [
     photoUrl: '/avatars/papa.png',
     medicalHistory: [
       { id: 'm1', date: '10/01/2026', title: 'Bilan de santé annuel', doctor: 'Dr. Martin', notes: 'Excellente santé générale, tension normale.' }
-    ]
+    ],
+    latitude: 48.8566,
+    longitude: 2.3522,
+    locationStatus: 'Au bureau 💼',
+    lastLocatedAt: new Date().toISOString()
   },
   {
     id: '2',
@@ -62,7 +67,11 @@ export const demoMembers: Member[] = [
     photoUrl: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=150&auto=format&fit=crop&q=80',
     medicalHistory: [
       { id: 'm2', date: '22/03/2026', title: 'Consultation dentaire', doctor: 'Dr. Duval', notes: 'Détartrage effectué, aucune carie.' }
-    ]
+    ],
+    latitude: 48.8584,
+    longitude: 2.2945,
+    locationStatus: 'Visite de chantier 🏗️',
+    lastLocatedAt: new Date().toISOString()
   },
   {
     id: '3',
@@ -82,7 +91,11 @@ export const demoMembers: Member[] = [
     photoUrl: '/avatars/amadou.png',
     medicalHistory: [
       { id: 'm3', date: '05/02/2026', title: 'Rappel vaccin DTC', doctor: 'Dr. Clinique de la Paix', notes: 'Vaccin à jour, prochaine injection dans 5 ans.' }
-    ]
+    ],
+    latitude: 48.8606,
+    longitude: 2.3376,
+    locationStatus: 'Au collège 🏫',
+    lastLocatedAt: new Date().toISOString()
   },
   {
     id: '4',
@@ -102,7 +115,11 @@ export const demoMembers: Member[] = [
     photoUrl: '/avatars/awa.png',
     medicalHistory: [
       { id: 'm4', date: '18/05/2026', title: 'Rendez-vous pédiatre', doctor: 'Dr. Clinique de la Paix', notes: 'Suivi de croissance parfait. Courbe de poids dans les normes.' }
-    ]
+    ],
+    latitude: 48.8534,
+    longitude: 2.3488,
+    locationStatus: 'À la maison 🏠',
+    lastLocatedAt: new Date().toISOString()
   },
   {
     id: '5',
@@ -262,8 +279,8 @@ export const demoTasks: ChoreTask[] = [
 ];
 
 export const demoVehicles: Vehicle[] = [
-  { id: 'v1', name: 'Peugeot 3008', plate: 'AB-123-CD', insuranceExpiry: '15/10/2026', technicalControl: '12/04/2027', lastService: '05/01/2026', nextService: '05/01/2027' },
-  { id: 'v2', name: 'Renault Zoe (Électrique)', plate: 'EF-456-GH', insuranceExpiry: '22/11/2026', technicalControl: '14/09/2028', lastService: '10/03/2026', nextService: '10/03/2027' }
+  { id: 'v1', name: 'Peugeot 3008', plate: 'AB-123-CD', insuranceExpiry: '15/10/2026', technicalControl: '12/04/2027', lastService: '05/01/2026', nextService: '05/01/2027', mileage: 72400 },
+  { id: 'v2', name: 'Renault Zoe (Électrique)', plate: 'EF-456-GH', insuranceExpiry: '22/11/2026', technicalControl: '14/09/2028', lastService: '10/03/2026', nextService: '10/03/2027', mileage: 18200 }
 ];
 
 export const demoMaintenance: HomeMaintenance[] = [
@@ -289,7 +306,21 @@ export const demoTrips: Trip[] = [
 ];
 
 export const demoPets: PetRecord[] = [
-  { id: 'p1', name: 'Simba', species: 'Chat (Siamois)', lastVaccine: '12/10/2025', nextVaccine: '12/10/2026', vetAppointment: '12/10/2026', notes: 'Prendre carnet de santé.' }
+  { 
+    id: 'p1', 
+    name: 'Simba', 
+    species: 'Chat (Siamois)', 
+    lastVaccine: '12/10/2025', 
+    nextVaccine: '12/10/2026', 
+    vetAppointment: '12/10/2026', 
+    notes: 'Prendre carnet de santé.',
+    weightHistory: [
+      { date: '12/10/2025', weight: 4.2 },
+      { date: '15/01/2026', weight: 4.4 },
+      { date: '12/04/2026', weight: 4.5 }
+    ],
+    documentIds: []
+  }
 ];
 
 export const demoSavingGoals: SavingGoal[] = [
@@ -589,4 +620,10 @@ export const demoPacks: JustificatifPack[] = [
     documentIds: ['doc-1', 'doc-4', 'doc-8'],
     createdAt: '01/05/2026'
   }
+];
+
+export const demoArtisans: Artisan[] = [
+  { id: 'art-1', name: 'Jean Plombier 🪠', specialty: 'Plomberie & Chauffage', phone: '06 12 34 56 78', email: 'jean.plombier@example.com', rating: 5, notes: 'Très réactif. Est intervenu pour la fuite d\'évier.' },
+  { id: 'art-2', name: 'ÉlecPro Paris ⚡️', specialty: 'Électricité générale', phone: '01 45 67 89 10', email: 'contact@elecpro.com', rating: 4, notes: 'Bon rapport qualité-prix.' },
+  { id: 'art-3', name: 'Allo Chauffage 🔥', specialty: 'Entretien chaudière', phone: '06 98 76 54 32', email: 'contact@allochauffage.fr', rating: 5, notes: 'A effectué la révision de la chaudière annuelle.' }
 ];

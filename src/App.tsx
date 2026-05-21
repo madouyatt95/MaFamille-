@@ -20,7 +20,8 @@ import {
   demoChatGroups,
   demoChatMessages,
   demoDemarches,
-  demoPacks
+  demoPacks,
+  demoArtisans
 } from './data/demoData';
 import type { 
   Member, 
@@ -40,7 +41,8 @@ import type {
   FamilyVote,
   SchoolTask,
   Demarche,
-  JustificatifPack
+  JustificatifPack,
+  Artisan
 } from './types';
 
 // Component imports
@@ -176,6 +178,11 @@ function App() {
   const [demarches, setDemarches] = useState<Demarche[]>(() => {
     if (hadCloudFoyer) return [];
     return safeGetLocalStorage('mf_demarches', demoDemarches);
+  });
+
+  const [artisans, setArtisans] = useState<Artisan[]>(() => {
+    if (hadCloudFoyer) return [];
+    return safeGetLocalStorage('mf_artisans', demoArtisans);
   });
 
   const [justificatifPacks, setJustificatifPacks] = useState<JustificatifPack[]>(() => {
@@ -328,6 +335,7 @@ function App() {
         setMaintenance([]);
         setTrips([]);
         setPets([]);
+        setPocketMoney([]);
 
         setFoyer(myFoyer);
         setMyMemberProfile(myMember);
@@ -589,6 +597,80 @@ function App() {
       documentIds: p.document_ids || [],
       createdAt: p.created_at_text
     })) : []);
+
+    // Load Vehicles
+    const { data: vehiclesData } = await client.from('vehicles').select('*').eq('foyer_id', foyerId);
+    setVehicles(vehiclesData ? vehiclesData.map(v => ({
+      id: v.id,
+      name: v.name,
+      plate: v.plate || '',
+      insuranceExpiry: v.insurance_expiry || '',
+      technicalControl: v.technical_control || '',
+      lastService: v.last_service || '',
+      nextService: v.next_service || '',
+      mileage: v.mileage ? Number(v.mileage) : 0
+    })) : []);
+
+    // Load Maintenance
+    const { data: maintData } = await client.from('maintenance').select('*').eq('foyer_id', foyerId);
+    setMaintenance(maintData ? maintData.map(m => ({
+      id: m.id,
+      title: m.title,
+      provider: m.provider || '',
+      date: m.date || '',
+      cost: Number(m.cost || 0),
+      status: (m.status as any) || 'scheduled'
+    })) : []);
+
+    // Load Trips
+    const { data: tripsData } = await client.from('trips').select('*').eq('foyer_id', foyerId);
+    setTrips(tripsData ? tripsData.map(t => ({
+      id: t.id,
+      destination: t.destination,
+      startDate: t.start_date || '',
+      endDate: t.end_date || '',
+      budget: Number(t.budget || 0),
+      checklist: typeof t.checklist === 'string' ? JSON.parse(t.checklist) : t.checklist || [],
+      bookingRefs: t.booking_refs || []
+    })) : []);
+
+    // Load Pets
+    const { data: petsData } = await client.from('pets').select('*').eq('foyer_id', foyerId);
+    setPets(petsData ? petsData.map(p => ({
+      id: p.id,
+      name: p.name,
+      species: p.species || '',
+      lastVaccine: p.last_vaccine || '',
+      nextVaccine: p.next_vaccine || '',
+      vetAppointment: p.vet_appointment || undefined,
+      notes: p.notes || undefined,
+      weightHistory: typeof p.weight_history === 'string' ? JSON.parse(p.weight_history) : p.weight_history || [],
+      documentIds: p.document_ids || []
+    })) : []);
+
+    // Load Pocket Money
+    const { data: pmData } = await client.from('pocket_money').select('*').eq('foyer_id', foyerId);
+    setPocketMoney(pmData ? pmData.map(p => ({
+      id: p.id,
+      name: p.name,
+      balance: Number(p.balance || 0),
+      points: Number(p.points || 0),
+      avatar: p.avatar || '',
+      goalTitle: p.goal_title || undefined,
+      goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined
+    })) : []);
+
+    // Load Artisans
+    const { data: artisansData } = await client.from('artisans').select('*').eq('foyer_id', foyerId);
+    setArtisans(artisansData ? artisansData.map(a => ({
+      id: a.id,
+      name: a.name,
+      specialty: a.specialty,
+      phone: a.phone || '',
+      email: a.email || '',
+      rating: a.rating || 5,
+      notes: a.notes || ''
+    })) : []);
   };
 
   // 2. Realtime collaborative subscriptions
@@ -694,6 +776,104 @@ function App() {
       });
     });
 
+    const subVehicles = foyerService.subscribeToChanges('vehicles', foyer.id, () => {
+      foyerService.fetchTableData('vehicles', foyer.id).then(vehiclesData => {
+        if (vehiclesData) {
+          setVehicles(vehiclesData.map(v => ({
+            id: v.id,
+            name: v.name,
+            plate: v.plate || '',
+            insuranceExpiry: v.insurance_expiry || '',
+            technicalControl: v.technical_control || '',
+            lastService: v.last_service || '',
+            nextService: v.next_service || '',
+            mileage: v.mileage ? Number(v.mileage) : 0
+          })));
+        }
+      });
+    });
+
+    const subMaintenance = foyerService.subscribeToChanges('maintenance', foyer.id, () => {
+      foyerService.fetchTableData('maintenance', foyer.id).then(maintData => {
+        if (maintData) {
+          setMaintenance(maintData.map(m => ({
+            id: m.id,
+            title: m.title,
+            provider: m.provider || '',
+            date: m.date || '',
+            cost: Number(m.cost || 0),
+            status: (m.status as any) || 'scheduled'
+          })));
+        }
+      });
+    });
+
+    const subTrips = foyerService.subscribeToChanges('trips', foyer.id, () => {
+      foyerService.fetchTableData('trips', foyer.id).then(tripsData => {
+        if (tripsData) {
+          setTrips(tripsData.map(t => ({
+            id: t.id,
+            destination: t.destination,
+            startDate: t.start_date || '',
+            endDate: t.end_date || '',
+            budget: Number(t.budget || 0),
+            checklist: typeof t.checklist === 'string' ? JSON.parse(t.checklist) : t.checklist || [],
+            bookingRefs: t.booking_refs || []
+          })));
+        }
+      });
+    });
+
+    const subPets = foyerService.subscribeToChanges('pets', foyer.id, () => {
+      foyerService.fetchTableData('pets', foyer.id).then(petsData => {
+        if (petsData) {
+          setPets(petsData.map(p => ({
+            id: p.id,
+            name: p.name,
+            species: p.species || '',
+            lastVaccine: p.last_vaccine || '',
+            nextVaccine: p.next_vaccine || '',
+            vetAppointment: p.vet_appointment || undefined,
+            notes: p.notes || undefined,
+            weightHistory: typeof p.weight_history === 'string' ? JSON.parse(p.weight_history) : p.weight_history || [],
+            documentIds: p.document_ids || []
+          })));
+        }
+      });
+    });
+
+    const subPocketMoney = foyerService.subscribeToChanges('pocket_money', foyer.id, () => {
+      foyerService.fetchTableData('pocket_money', foyer.id).then(pmData => {
+        if (pmData) {
+          setPocketMoney(pmData.map(p => ({
+            id: p.id,
+            name: p.name,
+            balance: Number(p.balance || 0),
+            points: Number(p.points || 0),
+            avatar: p.avatar || '',
+            goalTitle: p.goal_title || undefined,
+            goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined
+          })));
+        }
+      });
+    });
+
+    const subArtisans = foyerService.subscribeToChanges('artisans', foyer.id, () => {
+      foyerService.fetchTableData('artisans', foyer.id).then(artisansData => {
+        if (artisansData) {
+          setArtisans(artisansData.map(a => ({
+            id: a.id,
+            name: a.name,
+            specialty: a.specialty,
+            phone: a.phone || '',
+            email: a.email || '',
+            rating: a.rating || 5,
+            notes: a.notes || ''
+          })));
+        }
+      });
+    });
+
     return () => {
       if (subEvents) subEvents.unsubscribe();
       if (subGroceries) subGroceries.unsubscribe();
@@ -701,6 +881,12 @@ function App() {
       if (subMessages) subMessages.unsubscribe();
       if (subMemories) subMemories.unsubscribe();
       if (subMembers) subMembers.unsubscribe();
+      if (subVehicles) subVehicles.unsubscribe();
+      if (subMaintenance) subMaintenance.unsubscribe();
+      if (subTrips) subTrips.unsubscribe();
+      if (subPets) subPets.unsubscribe();
+      if (subPocketMoney) subPocketMoney.unsubscribe();
+      if (subArtisans) subArtisans.unsubscribe();
     };
   }, [foyer]);
 
@@ -932,6 +1118,80 @@ function App() {
         document_ids: p.documentIds || [],
         created_at_text: p.createdAt
       }));
+
+      // Vehicles
+      await syncTable('vehicles', vehicles, v => ({
+        id: v.id,
+        foyer_id: foyer.id,
+        name: v.name,
+        plate: v.plate || null,
+        insurance_expiry: v.insuranceExpiry || null,
+        technical_control: v.technicalControl || null,
+        last_service: v.lastService || null,
+        next_service: v.nextService || null,
+        mileage: v.mileage || 0
+      }));
+
+      // Maintenance
+      await syncTable('maintenance', maintenance, m => ({
+        id: m.id,
+        foyer_id: foyer.id,
+        title: m.title,
+        date: m.date || null,
+        cost: m.cost || 0,
+        status: m.status || 'scheduled',
+        provider: m.provider || null
+      }));
+
+      // Trips
+      await syncTable('trips', trips, t => ({
+        id: t.id,
+        foyer_id: foyer.id,
+        destination: t.destination,
+        start_date: t.startDate || null,
+        end_date: t.endDate || null,
+        budget: t.budget || 0,
+        checklist: t.checklist || [],
+        booking_refs: t.bookingRefs || []
+      }));
+
+      // Pets
+      await syncTable('pets', pets, p => ({
+        id: p.id,
+        foyer_id: foyer.id,
+        name: p.name,
+        species: p.species || null,
+        last_vaccine: p.lastVaccine || null,
+        next_vaccine: p.nextVaccine || null,
+        vet_appointment: p.vetAppointment || null,
+        notes: p.notes || null,
+        weight_history: p.weightHistory || [],
+        document_ids: p.documentIds || []
+      }));
+
+      // Pocket Money
+      await syncTable('pocket_money', pocketMoney, p => ({
+        id: p.id,
+        foyer_id: foyer.id,
+        name: p.name,
+        balance: p.balance || 0,
+        points: p.points || 0,
+        avatar: p.avatar || null,
+        goal_title: p.goalTitle || null,
+        goal_amount: p.goalAmount || null
+      }));
+
+      // Artisans
+      await syncTable('artisans', artisans, a => ({
+        id: a.id,
+        foyer_id: foyer.id,
+        name: a.name,
+        specialty: a.specialty,
+        phone: a.phone || null,
+        email: a.email || null,
+        rating: a.rating || 5,
+        notes: a.notes || null
+      }));
     };
 
     const timer = setTimeout(() => {
@@ -943,7 +1203,7 @@ function App() {
     foyer,
     events, groceries, transactions, documents, dishes, tasks, savingGoals,
     alerts, memories, votes, schoolTasks, chatGroups, chatMessages, demarches,
-    justificatifPacks
+    justificatifPacks, vehicles, maintenance, trips, pets, pocketMoney, artisans
   ]);
 
   const startVoiceAssistant = () => {
@@ -1259,6 +1519,10 @@ function App() {
     safeSetLocalStorage('mf_pocket_money', JSON.stringify(pocketMoney));
   }, [pocketMoney]);
 
+  useEffect(() => {
+    safeSetLocalStorage('mf_artisans', JSON.stringify(artisans));
+  }, [artisans]);
+
   // ----------------------------------------------------
   // Dynamic Currency Converter Engine
   // ----------------------------------------------------
@@ -1340,6 +1604,17 @@ function App() {
     setEvents(prev => prev.map(e => e.id === id ? { ...e, done: !e.done } : e));
   };
 
+  const handleUpdateMemberProfile = async (memberId: string, updates: Partial<FoyerMember>) => {
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, ...updates } : m));
+    if (foyer) {
+      try {
+        await foyerService.updateMemberProfile(memberId, updates);
+      } catch (e) {
+        console.error("Erreur lors de la mise à jour du profil membre :", e);
+      }
+    }
+  };
+
   const handleMoveEvent = (id: string, newDate: string) => {
     setEvents(prev => prev.map(e => {
       if (e.id === id) {
@@ -1367,6 +1642,19 @@ function App() {
           title: `Récompense : ${t.title}`,
           memberName: t.assignedMemberName
         });
+        
+        // Mettre à jour l'argent de poche de l'enfant (points)
+        if (t.assignedMemberId || t.assignedMemberName) {
+          setPocketMoney(prev => prev.map(child => {
+            if (child.id === t.assignedMemberId || child.name.toLowerCase() === t.assignedMemberName?.toLowerCase()) {
+              return {
+                ...child,
+                points: child.points + t.rewardPoints
+              };
+            }
+            return child;
+          }));
+        }
         
         return { ...t, validatedByParent: true };
       }
@@ -1413,6 +1701,15 @@ function App() {
     setChatMessages(demoChatMessages);
     setDemarches(demoDemarches);
     setJustificatifPacks(demoPacks);
+    setVehicles(demoVehicles);
+    setMaintenance(demoMaintenance);
+    setTrips(demoTrips);
+    setPets(demoPets);
+    setArtisans(demoArtisans);
+    setPocketMoney([
+      { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150' },
+      { id: '4', name: 'Awa', balance: 22.50, points: 225, avatar: 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150' }
+    ]);
     setCurrency('EUR (€)');
     setSyncActive(false);
     setSupabaseUrl('');
@@ -1440,6 +1737,15 @@ function App() {
       setGroceries(demoGroceries);
       setDocuments(demoDocuments);
       setDishes(demoDishes);
+      setVehicles(demoVehicles);
+      setMaintenance(demoMaintenance);
+      setTrips(demoTrips);
+      setPets(demoPets);
+      setArtisans(demoArtisans);
+      setPocketMoney([
+        { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150' },
+        { id: '4', name: 'Awa', balance: 22.50, points: 225, avatar: 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150' }
+      ]);
       alert("Foyer déconnecté. Les données de démonstration ont été restaurées.");
     } catch (err: any) {
       console.error("Erreur lors de la déconnexion :", err);
@@ -1620,6 +1926,9 @@ function App() {
           setPets={setPets}
           pocketMoney={pocketMoney}
           setPocketMoney={setPocketMoney}
+          artisans={artisans}
+          setArtisans={setArtisans}
+          onUpdateMemberProfile={handleUpdateMemberProfile}
           goals={savingGoals}
           alerts={alerts}
           currencySymbol={getCurrencySymbol()}
@@ -1646,6 +1955,8 @@ function App() {
           setDemarches={setDemarches}
           justificatifPacks={justificatifPacks}
           setJustificatifPacks={setJustificatifPacks}
+          onAddTransaction={handleAddTransaction}
+          onAddEventDirect={handleAddEvent}
           onAddEvent={(title, dateTime) => {
             if (!isPremium) {
               const currentMonth = new Date().toISOString().substring(0, 7);

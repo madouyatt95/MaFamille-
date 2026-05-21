@@ -30,6 +30,10 @@ export interface FoyerMember {
   emergencyContactRelation?: string;
   schoolOrEmployer?: string;
   joinedAt: string;
+  latitude?: number;
+  longitude?: number;
+  locationStatus?: string;
+  lastLocatedAt?: string;
 }
 
 export interface FoyerInvitation {
@@ -69,6 +73,10 @@ export interface Member {
   schoolOrEmployer: string;
   photoUrl: string;
   medicalHistory: MedicalLog[];
+  latitude?: number;
+  longitude?: number;
+  locationStatus?: string;
+  lastLocatedAt?: string;
 }
 
 export type EventType = 'medical' | 'school' | 'bill' | 'grocery' | 'social' | 'other';
@@ -158,6 +166,7 @@ export interface Vehicle {
   technicalControl: string;
   lastService: string;
   nextService: string;
+  mileage?: number;
 }
 
 export interface HomeMaintenance {
@@ -187,6 +196,8 @@ export interface PetRecord {
   nextVaccine: string;
   vetAppointment?: string;
   notes?: string;
+  weightHistory?: { date: string; weight: number }[];
+  documentIds?: string[];
 }
 
 export interface SavingGoal {
@@ -319,4 +330,24 @@ export interface JustificatifPack {
   templateType: 'location' | 'ecole' | 'banque' | 'emploi' | 'custom';
   documentIds: string[];
   createdAt: string;
+}
+
+export interface Artisan {
+  id: string;
+  name: string;
+  specialty: string;
+  phone?: string;
+  email?: string;
+  rating: number;
+  notes?: string;
+}
+
+export interface PocketMoneyChild {
+  id: string;
+  name: string;
+  balance: number;
+  points: number;
+  avatar: string;
+  goalTitle?: string;
+  goalAmount?: number;
 }

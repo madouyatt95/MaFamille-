@@ -37,7 +37,10 @@ import {
   BookOpen,
   Paintbrush,
   Save,
-  X
+  X,
+  Phone,
+  Mail,
+  Star
 } from 'lucide-react';
 import type { 
   DocumentFile, 
@@ -57,7 +60,9 @@ import type {
   ChatGroup,
   ChatMessage,
   Demarche,
-  JustificatifPack
+  JustificatifPack,
+  Artisan,
+  PocketMoneyChild
 } from '../types';
 
 // Import newly built premium sub-modules
@@ -75,6 +80,68 @@ import { FamilyMap } from './FamilyMap';
 import { ConteurIA } from '../components/modules/ConteurIA';
 import { AtelierArtIA } from '../components/modules/AtelierArtIA';
 
+// Utility helper to parse French custom input dates (e.g. "12 Octobre 2027", "24/06/2026") into YYYY-MM-DD ISO strings.
+function parseCustomDateToISO(dateStr: string): string {
+  if (!dateStr) return new Date().toISOString().split('T')[0];
+  
+  // Try directly parsing standard formats like YYYY-MM-DD
+  const matchISO = dateStr.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (matchISO) return dateStr.trim();
+  
+  // Try parsing DD/MM/YYYY
+  const matchSlash = dateStr.trim().match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{4})$/);
+  if (matchSlash) {
+    const day = matchSlash[1].padStart(2, '0');
+    const month = matchSlash[2].padStart(2, '0');
+    const year = matchSlash[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  // Parse text format like "24 Juin 2026"
+  const cleanStr = dateStr.toLowerCase().trim();
+  const months: Record<string, string> = {
+    'janvier': '01', 'jan': '01',
+    'février': '02', 'fevrier': '02', 'fév': '02', 'fev': '02',
+    'mars': '03',
+    'avril': '04', 'avr': '04',
+    'mai': '05',
+    'juin': '06',
+    'juillet': '07', 'juil': '07',
+    'août': '08', 'aout': '08',
+    'septembre': '09', 'sept': '09', 'sep': '09',
+    'octobre': '10', 'oct': '10',
+    'novembre': '11', 'nov': '11',
+    'décembre': '12', 'decembre': '12', 'déc': '12', 'dec': '12'
+  };
+
+  const words = cleanStr.split(/\s+/);
+  let day = '01';
+  let month = '01';
+  let year = String(new Date().getFullYear());
+
+  // Find month
+  for (const word of words) {
+    if (months[word]) {
+      month = months[word];
+      break;
+    }
+  }
+
+  // Find day (1 or 2 digits)
+  const dayMatch = cleanStr.match(/\b(\d{1,2})\b/);
+  if (dayMatch) {
+    day = dayMatch[1].padStart(2, '0');
+  }
+
+  // Find year (4 digits)
+  const yearMatch = cleanStr.match(/\b(\d{4})\b/);
+  if (yearMatch) {
+    year = yearMatch[1];
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
 interface MenuHubProps {
   documents: DocumentFile[];
   setDocuments: React.Dispatch<React.SetStateAction<DocumentFile[]>>;
@@ -89,8 +156,8 @@ interface MenuHubProps {
   setTrips: React.Dispatch<React.SetStateAction<Trip[]>>;
   pets: PetRecord[];
   setPets: React.Dispatch<React.SetStateAction<PetRecord[]>>;
-  pocketMoney: { id: string; name: string; balance: number; points: number; avatar: string; }[];
-  setPocketMoney: React.Dispatch<React.SetStateAction<{ id: string; name: string; balance: number; points: number; avatar: string; }[]>>;
+  pocketMoney: PocketMoneyChild[];
+  setPocketMoney: React.Dispatch<React.SetStateAction<PocketMoneyChild[]>>;
   goals: SavingGoal[];
   alerts: NotificationAlert[];
   currencySymbol: string;
@@ -126,11 +193,16 @@ interface MenuHubProps {
   justificatifPacks: JustificatifPack[];
   setJustificatifPacks: React.Dispatch<React.SetStateAction<JustificatifPack[]>>;
   onAddEvent?: (title: string, dateTime: string) => void;
+  onAddTransaction?: (newTrans: any) => void;
+  onAddEventDirect?: (newEvent: any) => void;
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
   vaccines?: any[];
   setVaccines?: React.Dispatch<React.SetStateAction<any[]>>;
   setMembers?: React.Dispatch<React.SetStateAction<Member[]>>;
+  artisans?: Artisan[];
+  setArtisans?: React.Dispatch<React.SetStateAction<Artisan[]>>;
+  onUpdateMemberProfile?: (memberId: string, updates: any) => Promise<void>;
 }
 
 export const MenuHub: React.FC<MenuHubProps> = ({
@@ -149,6 +221,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   setPets,
   pocketMoney,
   setPocketMoney,
+  artisans = [],
+  setArtisans,
+  onUpdateMemberProfile,
   goals,
   formatMoney,
   activeModule,
@@ -179,6 +254,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   justificatifPacks,
   setJustificatifPacks,
   onAddEvent,
+  onAddTransaction,
+  onAddEventDirect,
   isPremium = false,
   onTriggerPaywall,
   vaccines = [],
@@ -282,8 +359,17 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [editEmergencyPhone, setEditEmergencyPhone] = useState('');
 
   // --- Feature 8: House Plan View ---
-  const [logementViewMode, setLogementViewMode] = useState<'list' | 'plan'>('list');
+  const [logementViewMode, setLogementViewMode] = useState<'list' | 'plan' | 'artisans'>('list');
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+
+  // Artisan form states
+  const [newArtisanName, setNewArtisanName] = useState('');
+  const [newArtisanSpecialty, setNewArtisanSpecialty] = useState('Plomberie');
+  const [newArtisanPhone, setNewArtisanPhone] = useState('');
+  const [newArtisanEmail, setNewArtisanEmail] = useState('');
+  const [newArtisanRating, setNewArtisanRating] = useState(5);
+  const [newArtisanNotes, setNewArtisanNotes] = useState('');
+  const [artisanSearchQuery, setArtisanSearchQuery] = useState('');
 
   const modules = [
     { id: 'carte', title: 'Carte Familiale', desc: 'Localisation sécurisée en temps réel', badge: 'En direct', icon: MapIcon, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
@@ -468,12 +554,38 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       nextService: newVehService || '14 Novembre 2026'
     };
     setVehicles(prev => [...prev, newV]);
+
+    // Agenda reminders integration
+    if (onAddEventDirect) {
+      onAddEventDirect({
+        title: `🚗 CT : ${newVehName}`,
+        type: 'other',
+        dateTime: parseCustomDateToISO(newV.technicalControl),
+        time: '09:00',
+        done: false
+      });
+      onAddEventDirect({
+        title: `🛡️ Assurance : ${newVehName}`,
+        type: 'other',
+        dateTime: parseCustomDateToISO(newV.insuranceExpiry),
+        time: '09:00',
+        done: false
+      });
+      onAddEventDirect({
+        title: `🔧 Révision : ${newVehName}`,
+        type: 'other',
+        dateTime: parseCustomDateToISO(newV.nextService),
+        time: '09:00',
+        done: false
+      });
+    }
+
     setNewVehName('');
     setNewVehPlate('');
     setNewVehCT('');
     setNewVehAssur('');
     setNewVehService('');
-    alert('🚗 Véhicule ajouté avec succès !');
+    alert('🚗 Véhicule ajouté avec succès et rappels planifiés dans l\'agenda !');
   };
 
   // Maintenance Form states
@@ -486,20 +598,71 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const handleAddMaintenance = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMaintTitle || !newMaintCost) return;
+    const costVal = parseFloat(newMaintCost) || 0;
     const newM: HomeMaintenance = {
       id: `m-${Date.now()}`,
       title: newMaintTitle,
       provider: newMaintProvider || 'Artisan Local',
-      date: newMaintDate || 'Aujourd\'hui',
-      cost: parseFloat(newMaintCost) || 0,
+      date: newMaintDate || new Date().toISOString().split('T')[0],
+      cost: costVal,
       status: newMaintStatus
     };
     setMaintenance(prev => [...prev, newM]);
+
+    const dateISO = parseCustomDateToISO(newM.date);
+
+    // Financial transaction integration
+    if (costVal > 0 && onAddTransaction) {
+      onAddTransaction({
+        amount: costVal,
+        type: 'expense',
+        category: 'Logement',
+        date: dateISO,
+        title: `Maintenance : ${newMaintTitle}`,
+        memberName: 'Foyer'
+      });
+    }
+
+    // Agenda event integration
+    if (newMaintStatus === 'scheduled' && onAddEventDirect) {
+      onAddEventDirect({
+        title: `🔧 Maintenance : ${newMaintTitle}`,
+        type: 'other',
+        dateTime: dateISO,
+        time: '08:00',
+        done: false,
+        location: newMaintProvider
+      });
+    }
+
     setNewMaintTitle('');
     setNewMaintProvider('');
     setNewMaintDate('');
     setNewMaintCost('');
-    alert('🔧 Intervention logement ajoutée !');
+    alert('🔧 Intervention logement ajoutée (impacts Finances / Agenda synchronisés) !');
+  };
+
+  const handleAddArtisan = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newArtisanName || !newArtisanSpecialty) return;
+    const newA: Artisan = {
+      id: `art-${Date.now()}`,
+      name: newArtisanName,
+      specialty: newArtisanSpecialty,
+      phone: newArtisanPhone,
+      email: newArtisanEmail,
+      rating: newArtisanRating,
+      notes: newArtisanNotes
+    };
+    if (setArtisans) {
+      setArtisans((prev: Artisan[]) => [...prev, newA]);
+    }
+    setNewArtisanName('');
+    setNewArtisanPhone('');
+    setNewArtisanEmail('');
+    setNewArtisanRating(5);
+    setNewArtisanNotes('');
+    alert(`👷 Artisan ${newArtisanName} ajouté avec succès !`);
   };
 
   // Trips Form states
@@ -511,12 +674,13 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const handleAddTrip = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTripDest || !newTripBudget) return;
+    const budgetVal = parseFloat(newTripBudget) || 0;
     const newT: Trip = {
       id: `t-${Date.now()}`,
       destination: newTripDest,
       startDate: newTripStart || '15 Juillet 2026',
       endDate: newTripEnd || '22 Juillet 2026',
-      budget: parseFloat(newTripBudget) || 0,
+      budget: budgetVal,
       bookingRefs: ['Hôtel réservé ✓', 'Transport planifié ✓'],
       checklist: [
         { id: 'c1', text: 'Passeports valides', done: true },
@@ -524,11 +688,45 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       ]
     };
     setTrips(prev => [...prev, newT]);
+
+    const startISO = parseCustomDateToISO(newT.startDate);
+    const endISO = parseCustomDateToISO(newT.endDate);
+
+    // Financial transaction integration
+    if (budgetVal > 0 && onAddTransaction) {
+      onAddTransaction({
+        amount: budgetVal,
+        type: 'expense',
+        category: 'Voyages',
+        date: startISO,
+        title: `Budget Voyage : ${newTripDest}`,
+        memberName: 'Foyer'
+      });
+    }
+
+    // Agenda travel events integration
+    if (onAddEventDirect) {
+      onAddEventDirect({
+        title: `✈️ Départ : ${newTripDest}`,
+        type: 'leisure',
+        dateTime: startISO,
+        time: '09:00',
+        done: false
+      });
+      onAddEventDirect({
+        title: `🛬 Retour : ${newTripDest}`,
+        type: 'leisure',
+        dateTime: endISO,
+        time: '18:00',
+        done: false
+      });
+    }
+
     setNewTripDest('');
     setNewTripStart('');
     setNewTripEnd('');
     setNewTripBudget('');
-    alert('✈️ Voyage ajouté avec succès !');
+    alert('✈️ Voyage ajouté avec succès (impacts Finances / Agenda synchronisés) !');
   };
 
   // Pets Form states
@@ -550,11 +748,34 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       vetAppointment: newPetAppointment || undefined
     };
     setPets(prev => [...prev, newP]);
+
+    // Agenda integration for vet & vaccine
+    if (onAddEventDirect) {
+      if (newP.nextVaccine) {
+        onAddEventDirect({
+          title: `💉 Vaccin : ${newPetName}`,
+          type: 'other',
+          dateTime: parseCustomDateToISO(newP.nextVaccine),
+          time: '10:00',
+          done: false
+        });
+      }
+      if (newP.vetAppointment) {
+        onAddEventDirect({
+          title: `🐶 RDV Vétérinaire : ${newPetName}`,
+          type: 'other',
+          dateTime: parseCustomDateToISO(newP.vetAppointment),
+          time: '14:00',
+          done: false
+        });
+      }
+    }
+
     setNewPetName('');
     setNewPetLastVaccine('');
     setNewPetNextVaccine('');
     setNewPetAppointment('');
-    alert('🐶 Animal ajouté au suivi de la famille !');
+    alert('🐶 Animal ajouté et rappels vétérinaires ajoutés à l\'agenda !');
   };
 
   // Pocket Money Form states
@@ -565,21 +786,35 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const handleAddPocketMoney = (e: React.FormEvent) => {
     e.preventDefault();
     if (!allowanceAmount && !allowancePoints) return;
+    const amountVal = parseFloat(allowanceAmount) || 0;
     
     setPocketMoney(prev => prev.map(child => {
       if (child.id === allowanceChildId) {
         return {
           ...child,
-          balance: child.balance + (parseFloat(allowanceAmount) || 0),
+          balance: child.balance + amountVal,
           points: child.points + (parseInt(allowancePoints) || 0)
         };
       }
       return child;
     }));
+
+    // Financial transaction integration
+    if (amountVal > 0 && onAddTransaction) {
+      const childName = pocketMoney.find(c => c.id === allowanceChildId)?.name || 'Enfant';
+      onAddTransaction({
+        amount: amountVal,
+        type: 'expense',
+        category: 'Argent de Poche',
+        date: new Date().toISOString().split('T')[0],
+        title: `Distribution argent de poche à ${childName}`,
+        memberName: childName
+      });
+    }
     
     setAllowanceAmount('');
     setAllowancePoints('');
-    alert('💰 Argent / Points distribués avec succès !');
+    alert('💰 Argent / Points distribués et enregistrés en transaction financière !');
   };
 
 
@@ -806,7 +1041,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
       {/* SUB-MODULE 0.5: Carte Familiale */}
       {activeModule === 'carte' && (
-        <FamilyMap members={members} activeMemberId={activeMemberId} />
+        <FamilyMap members={members} activeMemberId={activeMemberId} onUpdateMemberProfile={onUpdateMemberProfile} />
       )}
 
       {/* SUB-MODULE 1: Documents Vault */}
@@ -1969,68 +2204,114 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           </div>
 
           <div className="space-y-4">
-            {vehicles.map((v) => (
-              <div key={v.id} className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
-                <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2.5 rounded-xl bg-[#4F8CFF]/10 text-[#4F8CFF] border border-white/5">
-                      <Car className="w-5 h-5" />
+            {vehicles.map((v) => {
+              const getVigilanceStatus = (dateStr: string) => {
+                if (!dateStr) return { class: 'text-white/60', label: 'Inconnu' };
+                const dateLower = dateStr.toLowerCase();
+                if (dateLower.includes('2026') || dateLower.includes('juin') || dateLower.includes('juillet')) {
+                  return { class: 'bg-[#FFB020]/10 border border-[#FFB020]/20 text-[#FFB020]', label: 'Vigilance' };
+                }
+                if (dateLower.includes('2025') || dateLower.includes('passé')) {
+                  return { class: 'bg-[#FF3B30]/10 border border-[#FF3B30]/20 text-[#FF3B30] animate-pulse', label: 'Urgent' };
+                }
+                return { class: 'bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A]', label: 'À jour' };
+              };
+
+              const ctStatus = getVigilanceStatus(v.technicalControl);
+              const insStatus = getVigilanceStatus(v.insuranceExpiry);
+              const revStatus = getVigilanceStatus(v.nextService);
+
+              return (
+                <div key={v.id} className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2.5 rounded-xl bg-[#4F8CFF]/10 text-[#4F8CFF] border border-white/5">
+                        <Car className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-white">{v.name}</h3>
+                        <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider mt-0.5">Plaque: {v.plate}</p>
+                      </div>
+                    </div>
+                    {isParent && (
+                      <div className="flex space-x-1.5">
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const newName = window.prompt("Modifier le modèle du véhicule :", v.name);
+                            if (!newName) return;
+                            const newPlate = window.prompt("Modifier la plaque d'immatriculation :", v.plate);
+                            if (!newPlate) return;
+                            setVehicles(prev => prev.map(item => item.id === v.id ? { ...item, name: newName, plate: newPlate } : item));
+                          }}
+                          className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/70 hover:text-white transition text-xs font-bold"
+                        >
+                          ✏️ Modifier
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm("Supprimer ce véhicule ?")) {
+                              setVehicles(prev => prev.filter(item => item.id !== v.id));
+                            }
+                          }}
+                          className="p-2 bg-red-500/10 hover:bg-red-500/20 rounded-xl text-red-400 hover:text-red-300 transition text-xs font-bold"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-1">
+                      <p className="text-white/40 font-semibold">Expiration Assurance :</p>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white">{v.insuranceExpiry}</span>
+                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${insStatus.class}`}>{insStatus.label}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-white/40 font-semibold">Contrôle Technique :</p>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white">{v.technicalControl}</span>
+                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${ctStatus.class}`}>{ctStatus.label}</span>
+                      </div>
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-white">{v.name}</h3>
-                      <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider mt-0.5">Plaque: {v.plate}</p>
+                      <p className="text-white/40 font-semibold">Dernière Révision :</p>
+                      <p className="font-bold text-white mt-0.5">{v.lastService}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-white/40 font-semibold">Prochaine Révision :</p>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white">{v.nextService}</span>
+                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${revStatus.class}`}>{revStatus.label}</span>
+                      </div>
                     </div>
                   </div>
-                  {isParent && (
-                    <div className="flex space-x-1.5">
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          const newName = window.prompt("Modifier le modèle du véhicule :", v.name);
-                          if (!newName) return;
-                          const newPlate = window.prompt("Modifier la plaque d'immatriculation :", v.plate);
-                          if (!newPlate) return;
-                          setVehicles(prev => prev.map(item => item.id === v.id ? { ...item, name: newName, plate: newPlate } : item));
-                        }}
-                        className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/70 hover:text-white transition text-xs font-bold"
-                      >
-                        ✏️ Modifier
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm("Supprimer ce véhicule ?")) {
-                            setVehicles(prev => prev.filter(item => item.id !== v.id));
-                          }
-                        }}
-                        className="p-2 bg-red-500/10 hover:bg-red-500/20 rounded-xl text-red-400 hover:text-red-300 transition text-xs font-bold"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  )}
-                </div>
 
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <p className="text-white/40 font-semibold">Expiration Assurance :</p>
-                    <p className="font-bold text-white mt-0.5">{v.insuranceExpiry}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/40 font-semibold">Contrôle Technique :</p>
-                    <p className="font-bold text-white mt-0.5">{v.technicalControl}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/40 font-semibold">Dernière Révision :</p>
-                    <p className="font-bold text-white mt-0.5">{v.lastService}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/40 font-semibold">Prochaine Révision :</p>
-                    <p className="font-bold text-[#FFB020] mt-0.5">{v.nextService}</p>
+                  {/* Kilométrage Suivi */}
+                  <div className="pt-3 border-t border-white/5 flex items-center justify-between text-xs">
+                    <div className="flex items-center space-x-1">
+                      <span className="text-white/40">Kilométrage actuel :</span>
+                      <span className="font-extrabold text-[#4F8CFF]">{v.mileage || 0} km</span>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const newMileage = window.prompt(`Mettre à jour le kilométrage de ${v.name} (km) :`, String(v.mileage || 0));
+                        if (newMileage === null) return;
+                        setVehicles(prev => prev.map(item => item.id === v.id ? { ...item, mileage: Number(newMileage) } : item));
+                      }}
+                      className="text-[10px] font-extrabold text-[#4F8CFF] hover:underline"
+                    >
+                      ✏️ Mettre à jour
+                    </button>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Formulaire d'ajout de Véhicule */}
@@ -2052,7 +2333,19 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#4F8CFF]"
                 />
               </div>
-              
+
+              <div className="space-y-1.5 text-left font-medium">
+                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Kilométrage initial</label>
+                <input 
+                  type="number" 
+                  required
+                  placeholder="ex: 45000"
+                  className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#4F8CFF]"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-left">
               <div className="space-y-1.5 text-left font-medium">
                 <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Plaque d'Immatriculation</label>
                 <input 
@@ -2064,9 +2357,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#4F8CFF]"
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-3 gap-2 text-left">
               <div className="space-y-1.5 text-left font-medium">
                 <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Échéance CT</label>
                 <input 
@@ -2077,7 +2368,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#4F8CFF]"
                 />
               </div>
-              
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-left">
               <div className="space-y-1.5 text-left font-medium">
                 <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Échéance Assurance</label>
                 <input 
@@ -2127,6 +2420,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             </button>
             <button type="button" onClick={() => setLogementViewMode('plan')} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition ${logementViewMode === 'plan' ? 'bg-[#FFB020] text-black' : 'bg-white/5 text-white/50'}`}>
               🗺️ Carte Interactive
+            </button>
+            <button type="button" onClick={() => { setLogementViewMode('artisans'); setSelectedRoom(null); }} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition ${logementViewMode === 'artisans' ? 'bg-[#FFB020] text-black' : 'bg-white/5 text-white/50'}`}>
+              👷 Artisans Partenaires
             </button>
           </div>
 
@@ -2186,142 +2482,328 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             </div>
           )}
 
-          <div className="space-y-3">
-            {maintenance.map((m) => (
-              <div key={m.id} className="glass-panel rounded-[28px] border border-white/8 p-4 flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2.5 rounded-xl bg-[#FFB020]/10 text-[#FFB020] border border-white/5">
-                    <HomeIcon className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-white">{m.title}</h4>
-                    <p className="text-[10px] text-white/40 font-medium mt-0.5">Prestataire: {m.provider} • Date: {m.date}</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3 text-right">
-                  <div>
-                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-xl uppercase tracking-wide ${
-                      m.status === 'scheduled' 
-                        ? 'bg-[#FFB020]/10 border border-[#FFB020]/20 text-[#FFB020]' 
-                        : 'bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A]'
-                    }`}>
-                      {m.status === 'scheduled' ? 'Planifié' : 'Effectué'}
-                    </span>
-                    <p className="text-xs font-bold text-white mt-1.5">{formatMoney(m.cost)}</p>
-                  </div>
-                  {isParent && (
-                    <div className="flex flex-col space-y-1">
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          const newTitle = window.prompt("Modifier l'intervention :", m.title);
-                          if (!newTitle) return;
-                          const newProvider = window.prompt("Modifier le prestataire :", m.provider);
-                          if (!newProvider) return;
-                          const newCost = window.prompt("Modifier le coût :", String(m.cost));
-                          if (newCost === null) return;
-                          setMaintenance(prev => prev.map(item => item.id === m.id ? { ...item, title: newTitle, provider: newProvider, cost: Number(newCost) } : item));
-                        }}
-                        className="p-1 hover:bg-white/10 rounded text-[10px] text-white/60 font-bold"
-                      >
-                        ✏️
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm("Supprimer cette intervention ?")) {
-                            setMaintenance(prev => prev.filter(item => item.id !== m.id));
-                          }
-                        }}
-                        className="p-1 hover:bg-red-500/10 rounded text-[10px] text-red-400 font-bold"
-                      >
-                        🗑️
-                      </button>
+          {logementViewMode === 'list' && (
+            <>
+              <div className="space-y-3">
+                {maintenance.map((m) => (
+                  <div key={m.id} className="glass-panel rounded-[28px] border border-white/8 p-4 flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2.5 rounded-xl bg-[#FFB020]/10 text-[#FFB020] border border-white/5">
+                        <HomeIcon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-bold text-white">{m.title}</h4>
+                        <p className="text-[10px] text-white/40 font-medium mt-0.5">Prestataire: {m.provider} • Date: {m.date}</p>
+                      </div>
                     </div>
-                  )}
+                    <div className="flex items-center space-x-3 text-right">
+                      <div>
+                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-xl uppercase tracking-wide ${
+                          m.status === 'scheduled' 
+                            ? 'bg-[#FFB020]/10 border border-[#FFB020]/20 text-[#FFB020]' 
+                            : 'bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A]'
+                        }`}>
+                          {m.status === 'scheduled' ? 'Planifié' : 'Effectué'}
+                        </span>
+                        <p className="text-xs font-bold text-white mt-1.5">{formatMoney(m.cost)}</p>
+                      </div>
+                      {isParent && (
+                        <div className="flex flex-col space-y-1">
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const newTitle = window.prompt("Modifier l'intervention :", m.title);
+                              if (!newTitle) return;
+                              const newProvider = window.prompt("Modifier le prestataire :", m.provider);
+                              if (!newProvider) return;
+                              const newCost = window.prompt("Modifier le coût :", String(m.cost));
+                              if (newCost === null) return;
+                              setMaintenance(prev => prev.map(item => item.id === m.id ? { ...item, title: newTitle, provider: newProvider, cost: Number(newCost) } : item));
+                            }}
+                            className="p-1 hover:bg-white/10 rounded text-[10px] text-white/60 font-bold"
+                          >
+                            ✏️
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm("Supprimer cette intervention ?")) {
+                                setMaintenance(prev => prev.filter(item => item.id !== m.id));
+                              }
+                            }}
+                            className="p-1 hover:bg-red-500/10 rounded text-[10px] text-red-400 font-bold"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Formulaire d'ajout de Maintenance */}
+              <form onSubmit={handleAddMaintenance} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
+                <span className="text-[10px] font-bold text-[#FFB020] uppercase tracking-widest block flex items-center space-x-1.5">
+                  <Plus className="w-3.5 h-3.5 text-[#FFB020]" />
+                  <span>Ajouter une intervention logement 🔧</span>
+                </span>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                  <div className="space-y-1.5 text-left font-medium">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Intitulé de l'Intervention</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="ex: Révision annuelle de la chaudière..."
+                      value={newMaintTitle}
+                      onChange={(e) => setNewMaintTitle(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
+                    />
+                  </div>
+                  
+                  <div className="space-y-1.5 text-left font-medium">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Prestataire / Artisan</label>
+                    <input 
+                      type="text" 
+                      placeholder="ex: Engie Home Services..."
+                      value={newMaintProvider}
+                      onChange={(e) => setNewMaintProvider(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
 
-          {/* Formulaire d'ajout de Maintenance */}
-          <form onSubmit={handleAddMaintenance} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
-            <span className="text-[10px] font-bold text-[#FFB020] uppercase tracking-widest block flex items-center space-x-1.5">
-              <Plus className="w-3.5 h-3.5 text-[#FFB020]" />
-              <span>Ajouter une intervention logement 🔧</span>
-            </span>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Intitulé de l'Intervention</label>
-                <input 
-                  type="text" 
-                  required
-                  placeholder="ex: Révision annuelle de la chaudière..."
-                  value={newMaintTitle}
-                  onChange={(e) => setNewMaintTitle(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
-                />
-              </div>
-              
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Prestataire / Artisan</label>
-                <input 
-                  type="text" 
-                  placeholder="ex: Engie Home Services..."
-                  value={newMaintProvider}
-                  onChange={(e) => setNewMaintProvider(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
-                />
-              </div>
-            </div>
+                <div className="grid grid-cols-3 gap-2 text-left">
+                  <div className="space-y-1.5 text-left font-medium">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Coût (€)</label>
+                    <input 
+                      type="number" 
+                      required
+                      placeholder="ex: 120"
+                      value={newMaintCost}
+                      onChange={(e) => setNewMaintCost(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
+                    />
+                  </div>
+                  
+                  <div className="space-y-1.5 text-left font-medium">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Date d'intervention</label>
+                    <input 
+                      type="text" 
+                      placeholder="ex: 20 Mai 2026"
+                      value={newMaintDate}
+                      onChange={(e) => setNewMaintDate(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
+                    />
+                  </div>
+                  
+                  <div className="space-y-1.5 text-left font-medium">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Statut</label>
+                    <select
+                      value={newMaintStatus}
+                      onChange={(e) => setNewMaintStatus(e.target.value as any)}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                    >
+                      <option value="scheduled">Planifié</option>
+                      <option value="completed">Effectué</option>
+                      <option value="urgent">Urgent 🚨</option>
+                    </select>
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-3 gap-2 text-left">
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Coût (€)</label>
-                <input 
-                  type="number" 
-                  required
-                  placeholder="ex: 120"
-                  value={newMaintCost}
-                  onChange={(e) => setNewMaintCost(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
-                />
-              </div>
-              
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Date d'intervention</label>
-                <input 
-                  type="text" 
-                  placeholder="ex: 20 Mai 2026"
-                  value={newMaintDate}
-                  onChange={(e) => setNewMaintDate(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
-                />
-              </div>
-              
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Statut</label>
-                <select
-                  value={newMaintStatus}
-                  onChange={(e) => setNewMaintStatus(e.target.value as any)}
-                  className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-[18px] bg-gradient-to-r from-[#FFB020] to-[#FF4D6D] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#FFB020]/20"
                 >
-                  <option value="scheduled">Planifié</option>
-                  <option value="completed">Effectué</option>
-                  <option value="urgent">Urgent 🚨</option>
-                </select>
-              </div>
-            </div>
+                  <Plus className="w-4 h-4 text-white" />
+                  <span>Enregistrer l'intervention</span>
+                </button>
+              </form>
+            </>
+          )}
 
-            <button
-              type="submit"
-              className="w-full py-3 rounded-[18px] bg-gradient-to-r from-[#FFB020] to-[#FF4D6D] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#FFB020]/20"
-            >
-              <Plus className="w-4 h-4 text-white" />
-              <span>Enregistrer l'intervention</span>
-            </button>
-          </form>
+          {logementViewMode === 'artisans' && (
+            <div className="space-y-4">
+              {/* Search Bar */}
+              <div className="glass-panel border border-white/8 rounded-2xl p-3 flex items-center space-x-2">
+                <input 
+                  type="text" 
+                  placeholder="Rechercher un artisan par nom ou spécialité..."
+                  value={artisanSearchQuery}
+                  onChange={(e) => setArtisanSearchQuery(e.target.value)}
+                  className="w-full bg-transparent border-0 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-0"
+                />
+              </div>
+
+              {/* Artisans list */}
+              <div className="space-y-3">
+                {(artisans || [])
+                  .filter((art: Artisan) => 
+                    art.name.toLowerCase().includes(artisanSearchQuery.toLowerCase()) || 
+                    art.specialty.toLowerCase().includes(artisanSearchQuery.toLowerCase())
+                  )
+                  .map((art: Artisan) => (
+                    <div key={art.id} className="glass-panel rounded-[24px] border border-white/8 p-4 space-y-3 text-left">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="text-xs sm:text-sm font-bold text-white">{art.name}</h4>
+                          <span className="text-[9px] font-extrabold text-[#FFB020] bg-[#FFB020]/10 px-2 py-0.5 rounded-md mt-1 inline-block uppercase tracking-wider">{art.specialty}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          {Array.from({ length: art.rating }).map((_, i) => (
+                            <Star key={i} className="w-3 h-3 text-[#FFB020] fill-[#FFB020]" />
+                          ))}
+                          {Array.from({ length: 5 - art.rating }).map((_, i) => (
+                            <Star key={i} className="w-3 h-3 text-white/20" />
+                          ))}
+                        </div>
+                      </div>
+
+                      {art.notes && (
+                        <p className="text-[11px] text-white/60 italic bg-white/5 p-2 rounded-xl border border-white/5">{art.notes}</p>
+                      )}
+
+                      <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                        <div className="flex items-center space-x-2">
+                          {art.phone && (
+                            <a 
+                              href={`tel:${art.phone}`}
+                              className="p-2 rounded-xl bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] hover:bg-[#00D26A]/20 transition flex items-center space-x-1.5 text-[10px] font-extrabold"
+                            >
+                              <Phone className="w-3 h-3" />
+                              <span>Appeler</span>
+                            </a>
+                          )}
+                          {art.email && (
+                            <a 
+                              href={`mailto:${art.email}`}
+                              className="p-2 rounded-xl bg-[#4F8CFF]/10 border border-[#4F8CFF]/20 text-[#4F8CFF] hover:bg-[#4F8CFF]/20 transition flex items-center space-x-1.5 text-[10px] font-extrabold"
+                            >
+                              <Mail className="w-3 h-3" />
+                              <span>E-mail</span>
+                            </a>
+                          )}
+                        </div>
+
+                        {isParent && (
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm("Supprimer cet artisan de l'annuaire ?")) {
+                                if (setArtisans) {
+                                  setArtisans((prev: Artisan[]) => prev.filter((a: Artisan) => a.id !== art.id));
+                                }
+                              }
+                            }}
+                            className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition text-[10px] font-bold"
+                          >
+                            🗑️ Supprimer
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+
+              {/* Add Artisan Form */}
+              {isParent && (
+                <form onSubmit={handleAddArtisan} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
+                  <span className="text-[10px] font-bold text-[#FFB020] uppercase tracking-widest block flex items-center space-x-1.5">
+                    <Plus className="w-3.5 h-3.5 text-[#FFB020]" />
+                    <span>Ajouter un Artisan Partenaire 👷</span>
+                  </span>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left font-sans font-medium">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Nom de l'Artisan / Entreprise</label>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="ex: Jean Depannage..."
+                        value={newArtisanName}
+                        onChange={(e) => setNewArtisanName(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
+                      />
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Spécialité</label>
+                      <select
+                        value={newArtisanSpecialty}
+                        onChange={(e) => setNewArtisanSpecialty(e.target.value)}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                      >
+                        <option value="Plomberie">Plomberie 🚰</option>
+                        <option value="Électricité">Électricité ⚡</option>
+                        <option value="Chauffage / Gaz">Chauffage / Gaz 🔥</option>
+                        <option value="Serrurerie">Serrurerie 🔑</option>
+                        <option value="Peinture / Rénovation">Peinture / Rénovation 🎨</option>
+                        <option value="Jardinage">Jardinage 🌿</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-left font-sans font-medium">
+                    <div className="space-y-1.5 col-span-2">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Téléphone</label>
+                      <input 
+                        type="text" 
+                        placeholder="ex: +33 6 12 34 56 78"
+                        value={newArtisanPhone}
+                        onChange={(e) => setNewArtisanPhone(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
+                      />
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Note (Étoiles)</label>
+                      <select
+                        value={newArtisanRating}
+                        onChange={(e) => setNewArtisanRating(Number(e.target.value))}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                      >
+                        <option value="5">⭐⭐⭐⭐⭐</option>
+                        <option value="4">⭐⭐⭐⭐</option>
+                        <option value="3">⭐⭐⭐</option>
+                        <option value="2">⭐⭐</option>
+                        <option value="1">⭐</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 text-left font-medium font-sans">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Adresse E-mail</label>
+                    <input 
+                      type="email" 
+                      placeholder="ex: contact@jeandepannage.fr"
+                      value={newArtisanEmail}
+                      onChange={(e) => setNewArtisanEmail(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 text-left font-medium font-sans">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Notes / Commentaires</label>
+                    <textarea 
+                      placeholder="Indiquez les horaires, tarifs moyens ou retours d'expérience..."
+                      value={newArtisanNotes}
+                      onChange={(e) => setNewArtisanNotes(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020] min-h-[60px]"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 rounded-[18px] bg-gradient-to-r from-[#FFB020] to-[#6C5CFF] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#FFB020]/20"
+                  >
+                    <Plus className="w-4 h-4 text-white" />
+                    <span>Enregistrer l'Artisan</span>
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -2382,6 +2864,26 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 </div>
               </div>
 
+              {/* Widget Météo Local */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/15 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <span className="text-2xl">
+                    {t.destination.toLowerCase().includes('dakar') || t.destination.toLowerCase().includes('rome') || t.destination.toLowerCase().includes('marseille') ? '☀️' : '⛅'}
+                  </span>
+                  <div>
+                    <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Météo Locale Prévue</p>
+                    <h4 className="text-xs font-bold text-white">
+                      {t.destination.toLowerCase().includes('dakar') ? 'Dakar • Soleil éclatant' : t.destination.toLowerCase().includes('rome') ? 'Rome • Temps Radieux' : t.destination.toLowerCase().includes('marseille') ? 'Marseille • Grand Soleil' : `${t.destination} • Partiellement Nuageux`}
+                    </h4>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-black text-white">
+                    {t.destination.toLowerCase().includes('dakar') ? '31°C' : t.destination.toLowerCase().includes('rome') ? '27°C' : t.destination.toLowerCase().includes('marseille') ? '28°C' : '20°C'}
+                  </span>
+                </div>
+              </div>
+
               {/* Reservations lists */}
               <div className="space-y-2">
                 <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Réservations</p>
@@ -2399,7 +2901,14 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Checklist Voyage</p>
                 <div className="space-y-1.5">
                   {t.checklist.map((item) => (
-                    <div key={item.id} className="flex items-center space-x-2 text-xs">
+                    <div 
+                      key={item.id} 
+                      onClick={() => {
+                        const updatedChecklist = t.checklist.map(c => c.id === item.id ? { ...c, done: !c.done } : c);
+                        setTrips(prev => prev.map(trip => trip.id === t.id ? { ...trip, checklist: updatedChecklist } : trip));
+                      }}
+                      className="flex items-center space-x-2 text-xs cursor-pointer select-none py-1 hover:bg-white/5 px-2 rounded-lg transition"
+                    >
                       <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[10px] ${
                         item.done ? 'bg-[#00D26A] border-[#00D26A] text-white' : 'border-white/30 text-transparent'
                       }`}>
@@ -2409,6 +2918,31 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     </div>
                   ))}
                 </div>
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const form = e.currentTarget;
+                    const input = form.elements.namedItem('newItem') as HTMLInputElement;
+                    const text = input.value.trim();
+                    if (!text) return;
+                    const updatedChecklist = [...t.checklist, { id: `chk-${Date.now()}-${Math.random()}`, text, done: false }];
+                    setTrips(prev => prev.map(trip => trip.id === t.id ? { ...trip, checklist: updatedChecklist } : trip));
+                    input.value = '';
+                  }}
+                  className="flex items-center space-x-2 mt-2"
+                >
+                  <input 
+                    name="newItem"
+                    placeholder="Ajouter une tâche à emporter..." 
+                    className="flex-1 bg-white/5 border border-white/8 rounded-xl px-3 py-1.5 text-[11px] text-white placeholder-white/30 focus:outline-none"
+                  />
+                  <button 
+                    type="submit"
+                    className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-[11px] text-white font-bold transition shrink-0"
+                  >
+                    Ajouter
+                  </button>
+                </form>
               </div>
             </div>
           ))}
@@ -2553,6 +3087,84 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     <p className="text-xs font-bold text-white mt-1">Le {p.vetAppointment} • Clinique Vétérinaire</p>
                   </div>
                 )}
+              </div>
+
+              {/* Weight history tracking */}
+              <div className="space-y-2 pt-3 border-t border-white/5 text-left">
+                <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest flex items-center space-x-1.5">
+                  <span>⚖️ Suivi de poids</span>
+                </p>
+                {p.weightHistory && p.weightHistory.length > 0 ? (
+                  <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-thin">
+                    {p.weightHistory.map((w, idx) => (
+                      <div key={idx} className="bg-white/5 border border-white/8 rounded-xl px-3 py-1.5 text-center shrink-0 min-w-[70px]">
+                        <span className="text-[9px] text-white/40 block">{w.date}</span>
+                        <span className="text-xs font-bold text-white block mt-0.5">{w.weight} kg</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-white/30 italic">Aucun poids enregistré.</p>
+                )}
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const weight = window.prompt("Entrez le poids en kg (ex: 4.2) :");
+                    if (!weight) return;
+                    const newHist = [...(p.weightHistory || []), { date: new Date().toLocaleDateString('fr-FR'), weight: Number(weight) }];
+                    setPets(prev => prev.map(item => item.id === p.id ? { ...item, weightHistory: newHist } : item));
+                  }}
+                  className="text-[10px] font-extrabold text-[#00D26A] hover:underline"
+                >
+                  + Enregistrer une pesée
+                </button>
+              </div>
+
+              {/* Documents liés */}
+              <div className="space-y-2 pt-3 border-t border-white/5 text-left">
+                <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Carnet de santé & Documents</p>
+                <div className="space-y-1.5">
+                  {documents.filter(doc => (p.documentIds || []).includes(doc.id)).map(doc => (
+                    <div key={doc.id} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 text-xs">
+                      <span className="text-white font-medium">📄 {doc.name}</span>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          if (doc.fileBase64) {
+                            const w = window.open();
+                            if (w) w.document.write(`<iframe src="${doc.fileBase64}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                          } else {
+                            alert("Ce document n'a pas de fichier associé.");
+                          }
+                        }}
+                        className="text-[9px] text-[#6C5CFF] font-bold hover:underline"
+                      >
+                        Consulter
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const availableDocs = documents.filter(doc => !(p.documentIds || []).includes(doc.id));
+                      if (availableDocs.length === 0) {
+                        alert("Aucun nouveau document disponible dans le coffre-fort.");
+                        return;
+                      }
+                      const list = availableDocs.map((d, i) => `${i + 1}. ${d.name}`).join('\n');
+                      const choice = window.prompt(`Sélectionnez le numéro du document à lier :\n\n${list}`);
+                      if (!choice) return;
+                      const idx = Number(choice) - 1;
+                      if (availableDocs[idx]) {
+                        const updatedDocIds = [...(p.documentIds || []), availableDocs[idx].id];
+                        setPets(prev => prev.map(item => item.id === p.id ? { ...item, documentIds: updatedDocIds } : item));
+                      }
+                    }}
+                    className="text-[10px] font-extrabold text-[#6C5CFF] hover:underline block"
+                  >
+                    + Lier un document du Coffre-Fort
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -2701,17 +3313,78 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   </div>
                 </div>
 
+                {/* Objectif d'épargne */}
+                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/5 text-left space-y-2">
+                  {child.goalTitle ? (
+                    <>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-white">🎯 {child.goalTitle}</span>
+                        <span className="font-bold text-white/60">{child.balance.toFixed(2)}€ / {child.goalAmount}€</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden border border-white/5">
+                        <div 
+                          className="h-full bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] transition-all"
+                          style={{ width: `${Math.min(100, (child.balance / (child.goalAmount || 1)) * 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between text-[9px] text-white/40">
+                        <span>Progression: {Math.min(100, Math.round((child.balance / (child.goalAmount || 1)) * 100))}%</span>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setPocketMoney(prev => prev.map(c => c.id === child.id ? { ...c, goalTitle: undefined, goalAmount: undefined } : c));
+                          }}
+                          className="text-red-400 hover:underline"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest block">🎯 Objectif d'épargne</span>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const goalTitle = window.prompt("Quel est l'objectif d'épargne ? (ex: Vélo, Console...) :");
+                          if (!goalTitle) return;
+                          const goalAmount = window.prompt("Montant de l'objectif (€) :");
+                          if (!goalAmount) return;
+                          setPocketMoney(prev => prev.map(c => c.id === child.id ? { ...c, goalTitle, goalAmount: Number(goalAmount) } : c));
+                        }}
+                        className="w-full py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-[10px] transition text-center border border-dashed border-white/20"
+                      >
+                        + Définir un objectif d'épargne
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <button 
                   type="button"
                   onClick={() => {
                     if (child.points >= 50) {
+                      const amountEarned = child.points / 10;
                       setPocketMoney(prev => prev.map(c => {
                         if (c.id === child.id) {
-                          return { ...c, balance: c.balance + (c.points / 10), points: 0 };
+                          return { ...c, balance: c.balance + amountEarned, points: 0 };
                         }
                         return c;
                       }));
-                      alert(`🎉 Points convertis en euros pour ${child.name} ! (+${(child.points / 10).toFixed(2)} €)`);
+
+                      // Financial transaction integration
+                      if (onAddTransaction) {
+                        onAddTransaction({
+                          amount: amountEarned,
+                          type: 'expense',
+                          category: 'Argent de Poche',
+                          date: new Date().toISOString().split('T')[0],
+                          title: `Conversion points de ${child.name} en euros`,
+                          memberName: child.name
+                        });
+                      }
+
+                      alert(`🎉 Points convertis en euros pour ${child.name} ! (+${amountEarned.toFixed(2)} €)`);
                     } else {
                       alert("⚠️ Il faut au moins 50 points pour effectuer une conversion en argent de poche.");
                     }
