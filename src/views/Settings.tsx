@@ -214,6 +214,8 @@ export const Settings: React.FC<SettingsProps> = ({
   const [password, setPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authMessage, setAuthMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [registerDisplayName, setRegisterDisplayName] = useState('');
+  const [registerInviteCode, setRegisterInviteCode] = useState('');
 
   // Invite states
   const [inviteEmail, setInviteEmail] = useState('');
@@ -266,6 +268,11 @@ export const Settings: React.FC<SettingsProps> = ({
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!registerDisplayName.trim()) {
+      setAuthMessage({ text: "Veuillez saisir votre prénom / nom d'affichage.", type: 'error' });
+      return;
+    }
+
     const activeClient = getSupabaseClient();
     if (!activeClient) {
       setAuthMessage({ text: "L'inscription au serveur cloud n'est pas configurée. Veuillez contacter l'administrateur.", type: 'error' });
@@ -276,6 +283,14 @@ export const Settings: React.FC<SettingsProps> = ({
     setAuthMessage(null);
 
     try {
+      // Persist values in localStorage for automatic onboarding upon successful session load
+      localStorage.setItem('pending_display_name', registerDisplayName.trim());
+      if (registerInviteCode.trim()) {
+        localStorage.setItem('pending_invite_code', registerInviteCode.trim().toUpperCase());
+      } else {
+        localStorage.removeItem('pending_invite_code');
+      }
+
       const { error } = await activeClient.auth.signUp({
         email: email.trim(),
         password: password
@@ -284,12 +299,15 @@ export const Settings: React.FC<SettingsProps> = ({
       if (error) throw error;
       
       setAuthMessage({ 
-        text: `Compte créé ! Veuillez confirmer votre email ou vous connecter directement si la confirmation automatique est active.`, 
+        text: `Compte créé ! Votre foyer ou raccordement sera automatiquement configuré lors de votre première connexion. Veuillez confirmer votre e-mail si nécessaire.`, 
         type: 'success' 
       });
       setAuthTab('login');
       setPassword('');
     } catch (err: any) {
+      // Clear storage on failure to prevent accidental side effects
+      localStorage.removeItem('pending_display_name');
+      localStorage.removeItem('pending_invite_code');
       setAuthMessage({ text: err.message || "Erreur d'inscription.", type: 'error' });
     } finally {
       setAuthLoading(false);
@@ -661,10 +679,44 @@ export const Settings: React.FC<SettingsProps> = ({
               </div>
 
               {inviteMessage && (
-                <div className={`p-2.5 rounded-xl border text-[10px] ${
-                  inviteMessage.type === 'success' ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]' : 'bg-[#FF4D6D]/10 border-[#FF4D6D]/20 text-[#FF4D6D]'
-                }`}>
-                  {inviteMessage.text}
+                <div className="space-y-2.5">
+                  <div className={`p-2.5 rounded-xl border text-[10px] ${
+                    inviteMessage.type === 'success' ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]' : 'bg-[#FF4D6D]/10 border-[#FF4D6D]/20 text-[#FF4D6D]'
+                  }`}>
+                    {inviteMessage.text}
+                  </div>
+                  {inviteMessage.type === 'success' && foyer && (
+                    <div className="p-3.5 bg-[#6C5CFF]/8 border border-[#6C5CFF]/20 rounded-2xl space-y-2.5 animate-scale-up text-left">
+                      <span className="text-[9.5px] font-black text-[#6C5CFF] block uppercase tracking-widest">⚡ Partage direct (Alternative)</span>
+                      <p className="text-[10px] text-white/50 leading-relaxed">
+                        Si votre proche ne reçoit pas le mail de confirmation (délai de réception ou filtre anti-spam), transmettez-lui directement le code ou le lien d'invitation :
+                      </p>
+                      
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={handleCopyCode}
+                          className="py-2 px-3 rounded-xl bg-white/5 border border-white/8 text-white text-[10px] font-bold flex items-center justify-between hover:bg-white/8 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <span className="font-mono text-[#6C5CFF] font-black">{foyer.inviteCode}</span>
+                          <span className="text-[8px] bg-[#6C5CFF]/15 text-[#6C5CFF] px-1.5 py-0.5 rounded font-black uppercase">
+                            {copiedCode ? 'Copié' : 'Copier'}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleCopyLink}
+                          className="py-2 px-3 rounded-xl bg-white/5 border border-white/8 text-white text-[10px] font-bold flex items-center justify-between hover:bg-white/8 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <span className="text-white/60">Lien direct</span>
+                          <span className="text-[8px] bg-[#00D26A]/15 text-[#00D26A] px-1.5 py-0.5 rounded font-black uppercase">
+                            {copiedLink ? 'Copié' : 'Copier'}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </form>
@@ -717,8 +769,25 @@ export const Settings: React.FC<SettingsProps> = ({
           </div>
 
           <form onSubmit={authTab === 'login' ? handleLogin : handleRegister} className="space-y-3.5">
+            {authTab === 'register' && (
+              <div className="space-y-3.5 animate-fade-in">
+                {/* Display Name Input */}
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Prénom / Nom d'affichage</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Amadou, Awa, Maman..."
+                    value={registerDisplayName}
+                    onChange={(e) => setRegisterDisplayName(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-1">
-              <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Adresse e-mail</label>
+              <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Adresse e-mail</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-2.5 w-4 h-4 text-white/30" />
                 <input
@@ -733,7 +802,7 @@ export const Settings: React.FC<SettingsProps> = ({
             </div>
 
             <div className="space-y-1">
-              <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Mot de passe</label>
+              <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Mot de passe</label>
               <div className="relative">
                 <Key className="absolute left-3 top-2.5 w-4 h-4 text-white/30" />
                 <input
@@ -746,6 +815,25 @@ export const Settings: React.FC<SettingsProps> = ({
                 />
               </div>
             </div>
+
+            {authTab === 'register' && (
+              <div className="space-y-1.5 animate-fade-in pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Code d'invitation (Optionnel)</label>
+                  <span className="text-[8px] text-[#6C5CFF] font-bold bg-[#6C5CFF]/15 px-1.5 py-0.5 rounded-full uppercase">Rejoindre</span>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Ex: FAM-XXXXX (pour rejoindre un foyer)"
+                  value={registerInviteCode}
+                  onChange={(e) => setRegisterInviteCode(e.target.value.toUpperCase())}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-[#6C5CFF]"
+                />
+                <p className="text-[9px] text-white/30 leading-normal">
+                  Laissez vide pour créer automatiquement un nouveau foyer pour vous.
+                </p>
+              </div>
+            )}
 
             {authMessage && (
               <div className={`p-3 rounded-xl border text-[11px] font-medium leading-relaxed ${

@@ -347,6 +347,44 @@ function App() {
         // Hydrate all granular tables
         await loadFoyerData(myFoyer.id);
       } else {
+        // Check for automatic onboarding inputs from signup
+        const pendingInviteCode = localStorage.getItem('pending_invite_code');
+        const pendingDisplayName = localStorage.getItem('pending_display_name');
+        
+        if (pendingDisplayName) {
+          try {
+            if (pendingInviteCode) {
+              console.log("[MaFamille+ Sync] Automatic join triggered for code:", pendingInviteCode);
+              await foyerService.joinFoyer(pendingInviteCode.trim(), pendingDisplayName.trim(), 'child');
+              localStorage.removeItem('pending_invite_code');
+              localStorage.removeItem('pending_display_name');
+            } else {
+              console.log("[MaFamille+ Sync] Automatic foyer creation triggered for:", pendingDisplayName);
+              const defaultFoyerName = `Foyer ${pendingDisplayName}`;
+              await foyerService.createFoyer(defaultFoyerName, pendingDisplayName.trim(), false);
+              localStorage.removeItem('pending_display_name');
+            }
+            
+            // Re-fetch now that the foyer is linked
+            const { foyer: newFoyer, member: newMember } = await foyerService.getMyFoyer();
+            if (newFoyer && newMember) {
+              setFoyer(newFoyer);
+              setMyMemberProfile(newMember);
+              setActiveMemberId(newMember.id);
+              setIsPremium(newFoyer.isPremium);
+              setOnboardingActive(false);
+              localStorage.setItem('mf_cloud_foyer_id', newFoyer.id);
+              await loadFoyerData(newFoyer.id);
+              return;
+            }
+          } catch (autoErr: any) {
+            console.error("[MaFamille+ Sync] Automatic onboarding failed:", autoErr);
+            localStorage.removeItem('pending_invite_code');
+            localStorage.removeItem('pending_display_name');
+            alert(`L'onboarding automatique a échoué : ${autoErr.message || autoErr}. Veuillez configurer votre foyer manuellement.`);
+          }
+        }
+        
         setOnboardingActive(true);
       }
     } catch (err) {
