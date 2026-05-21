@@ -580,7 +580,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 value={supabaseUrl}
                 onChange={(e) => {
                   setSupabaseUrl(e.target.value.trim());
-                  localStorage.setItem('mf_supabase_url', e.target.value.trim());
+                  localStorage.setItem('mf_sb_url', e.target.value.trim());
                 }}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
               />
@@ -594,7 +594,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 value={supabaseKey}
                 onChange={(e) => {
                   setSupabaseKey(e.target.value.trim());
-                  localStorage.setItem('mf_supabase_key', e.target.value.trim());
+                  localStorage.setItem('mf_sb_key', e.target.value.trim());
                 }}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
               />
