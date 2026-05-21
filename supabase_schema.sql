@@ -615,6 +615,60 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- METTRE À JOUR LE PROFIL D'UN MEMBRE (contourne le RLS)
+CREATE OR REPLACE FUNCTION public.update_member_profile(
+    p_member_id UUID,
+    p_display_name TEXT DEFAULT NULL,
+    p_photo_url TEXT DEFAULT NULL,
+    p_age TEXT DEFAULT NULL,
+    p_birth_date TEXT DEFAULT NULL,
+    p_blood_group TEXT DEFAULT NULL,
+    p_allergies TEXT[] DEFAULT NULL,
+    p_treatments TEXT[] DEFAULT NULL,
+    p_emergency_contact_name TEXT DEFAULT NULL,
+    p_emergency_contact_phone TEXT DEFAULT NULL,
+    p_emergency_contact_relation TEXT DEFAULT NULL,
+    p_school_or_employer TEXT DEFAULT NULL
+)
+RETURNS JSON AS $$
+DECLARE
+    v_foyer_id UUID;
+BEGIN
+    -- 1. Vérifier que le membre cible existe et récupérer son foyer
+    SELECT foyer_id INTO v_foyer_id
+    FROM public.foyer_members WHERE id = p_member_id;
+
+    IF v_foyer_id IS NULL THEN
+        RAISE EXCEPTION 'Membre introuvable.';
+    END IF;
+
+    -- 2. Vérifier que l'appelant est membre du même foyer
+    IF NOT EXISTS (
+        SELECT 1 FROM public.foyer_members
+        WHERE foyer_id = v_foyer_id AND user_id = auth.uid()
+    ) THEN
+        RAISE EXCEPTION 'Vous n''êtes pas membre de ce foyer.';
+    END IF;
+
+    -- 3. Appliquer les mises à jour (seuls les champs non-NULL sont modifiés)
+    UPDATE public.foyer_members SET
+        display_name = COALESCE(p_display_name, display_name),
+        photo_url = COALESCE(p_photo_url, photo_url),
+        age = COALESCE(p_age, age),
+        birth_date = COALESCE(p_birth_date, birth_date),
+        blood_group = COALESCE(p_blood_group, blood_group),
+        allergies = COALESCE(p_allergies, allergies),
+        treatments = COALESCE(p_treatments, treatments),
+        emergency_contact_name = COALESCE(p_emergency_contact_name, emergency_contact_name),
+        emergency_contact_phone = COALESCE(p_emergency_contact_phone, emergency_contact_phone),
+        emergency_contact_relation = COALESCE(p_emergency_contact_relation, emergency_contact_relation),
+        school_or_employer = COALESCE(p_school_or_employer, school_or_employer)
+    WHERE id = p_member_id;
+
+    RETURN json_build_object('success', true, 'member_id', p_member_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- ========================
 -- 5. ACTIVER REALTIME
 -- ========================

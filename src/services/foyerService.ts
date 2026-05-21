@@ -214,6 +214,33 @@ export const foyerService = {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
+    // Build RPC params
+    const rpcParams: any = { p_member_id: memberId };
+    if (updates.displayName !== undefined) rpcParams.p_display_name = updates.displayName;
+    if (updates.photoUrl !== undefined) rpcParams.p_photo_url = updates.photoUrl;
+    if (updates.age !== undefined) rpcParams.p_age = updates.age;
+    if (updates.birthDate !== undefined) rpcParams.p_birth_date = updates.birthDate;
+    if (updates.bloodGroup !== undefined) rpcParams.p_blood_group = updates.bloodGroup;
+    if (updates.allergies !== undefined) rpcParams.p_allergies = updates.allergies;
+    if (updates.treatments !== undefined) rpcParams.p_treatments = updates.treatments;
+    if (updates.emergencyContactName !== undefined) rpcParams.p_emergency_contact_name = updates.emergencyContactName;
+    if (updates.emergencyContactPhone !== undefined) rpcParams.p_emergency_contact_phone = updates.emergencyContactPhone;
+    if (updates.emergencyContactRelation !== undefined) rpcParams.p_emergency_contact_relation = updates.emergencyContactRelation;
+    if (updates.schoolOrEmployer !== undefined) rpcParams.p_school_or_employer = updates.schoolOrEmployer;
+
+    console.log('[MaFamille+ DB] updateMemberProfile via RPC → memberId:', memberId, '| params:', JSON.stringify(rpcParams));
+
+    // Try RPC first (SECURITY DEFINER, bypasses RLS)
+    const { data: rpcData, error: rpcError } = await supabase.rpc('update_member_profile', rpcParams);
+
+    if (!rpcError) {
+      console.log('[MaFamille+ DB] RPC update_member_profile success:', rpcData);
+      return;
+    }
+
+    // Fallback to direct update if RPC function doesn't exist yet
+    console.warn('[MaFamille+ DB] RPC failed, falling back to direct update:', rpcError.message);
+
     const dbUpdates: any = {};
     if (updates.displayName !== undefined) dbUpdates.display_name = updates.displayName;
     if (updates.photoUrl !== undefined) dbUpdates.photo_url = updates.photoUrl;
@@ -228,19 +255,15 @@ export const foyerService = {
     if (updates.schoolOrEmployer !== undefined) dbUpdates.school_or_employer = updates.schoolOrEmployer;
     if (updates.role !== undefined) dbUpdates.role = updates.role;
 
-    console.log('[MaFamille+ DB] updateMemberProfile → memberId:', memberId, '| updates:', JSON.stringify(dbUpdates));
-
     const { data, error } = await supabase
       .from('foyer_members')
       .update(dbUpdates)
       .eq('id', memberId)
       .select();
 
-    console.log('[MaFamille+ DB] updateMemberProfile result → data:', data, '| error:', error, '| count:', data?.length);
-
     if (error) throw error;
     if (!data || data.length === 0) {
-      console.warn('[MaFamille+ DB] UPDATE returned 0 rows — RLS may have blocked the update for memberId:', memberId);
+      console.warn('[MaFamille+ DB] Direct UPDATE returned 0 rows — RLS blocked the update for memberId:', memberId);
     }
   },
 
