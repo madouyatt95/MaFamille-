@@ -1546,14 +1546,7 @@ function App() {
           <Settings 
             currency={currency}
             setCurrency={setCurrency}
-            supabaseUrl={supabaseUrl}
-            setSupabaseUrl={setSupabaseUrl}
-            supabaseKey={supabaseKey}
-            setSupabaseKey={setSupabaseKey}
-            syncActive={syncActive}
-            setSyncActive={setSyncActive}
             onResetData={handleResetData}
-            isPremium={isPremium}
             onOpenPaywall={() => setPaywallOpen(true)}
             user={user}
             onLogout={handleLogout}

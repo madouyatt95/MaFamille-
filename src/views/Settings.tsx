@@ -26,14 +26,7 @@ import type { Foyer, FoyerMember } from '../types';
 interface SettingsProps {
   currency: string;
   setCurrency: (c: string) => void;
-  supabaseUrl: string;
-  setSupabaseUrl: (u: string) => void;
-  supabaseKey: string;
-  setSupabaseKey: (k: string) => void;
-  syncActive: boolean;
-  setSyncActive: (s: boolean) => void;
   onResetData: () => void;
-  isPremium: boolean;
   onOpenPaywall: () => void;
   user: any;
   onLogout: () => void;
@@ -45,12 +38,7 @@ interface SettingsProps {
 export const Settings: React.FC<SettingsProps> = ({
   currency,
   setCurrency,
-  supabaseUrl,
-  setSupabaseUrl,
-  supabaseKey,
-  setSupabaseKey,
   onResetData,
-  isPremium,
   onOpenPaywall: _onOpenPaywall,
   user,
   onLogout,
@@ -59,7 +47,6 @@ export const Settings: React.FC<SettingsProps> = ({
   onRefreshFoyer
 }) => {
   const [savingBackup, setSavingBackup] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Profil et avatars
   const [profileName, setProfileName] = useState(myMemberProfile?.displayName || '');
@@ -187,7 +174,7 @@ export const Settings: React.FC<SettingsProps> = ({
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const supabaseClient = getSupabaseClient();
+
 
   useEffect(() => {
     if (foyer) {
@@ -199,7 +186,7 @@ export const Settings: React.FC<SettingsProps> = ({
     e.preventDefault();
     const activeClient = getSupabaseClient();
     if (!activeClient) {
-      setAuthMessage({ text: "Erreur d'initialisation de Supabase. Veuillez renseigner l'URL et la Clé Anon ci-dessus.", type: 'error' });
+      setAuthMessage({ text: "La connexion au serveur cloud n'est pas configurée. Veuillez contacter l'administrateur.", type: 'error' });
       return;
     }
 
@@ -229,7 +216,7 @@ export const Settings: React.FC<SettingsProps> = ({
     e.preventDefault();
     const activeClient = getSupabaseClient();
     if (!activeClient) {
-      setAuthMessage({ text: "Erreur d'initialisation de Supabase. Veuillez renseigner l'URL et la Clé Anon ci-dessus.", type: 'error' });
+      setAuthMessage({ text: "L'inscription au serveur cloud n'est pas configurée. Veuillez contacter l'administrateur.", type: 'error' });
       return;
     }
 
@@ -678,48 +665,6 @@ export const Settings: React.FC<SettingsProps> = ({
           </div>
 
           <form onSubmit={authTab === 'login' ? handleLogin : handleRegister} className="space-y-3.5">
-            {/* Show Supabase config inputs directly if not set in environmental variables */}
-            {!supabaseClient && (
-              <div className="p-3.5 rounded-2xl bg-[#FFB020]/5 border border-[#FFB020]/15 space-y-3">
-                <span className="text-[10px] font-bold text-[#FFB020] uppercase tracking-wider flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 animate-pulse" /> Configuration Cloud Requise
-                </span>
-                <p className="text-[10px] text-white/50 leading-relaxed font-medium">
-                  Pour activer la synchronisation de votre foyer, veuillez saisir l'URL et la Clé Anon de votre base de données Supabase.
-                </p>
-                <div className="space-y-2">
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-bold text-white/40 uppercase tracking-wider block">URL Supabase</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="https://xxxx.supabase.co"
-                      value={supabaseUrl}
-                      onChange={(e) => {
-                        setSupabaseUrl(e.target.value.trim());
-                        localStorage.setItem('mf_sb_url', e.target.value.trim());
-                      }}
-                      className="w-full px-3 py-2 rounded-xl bg-[#07111F]/60 border border-white/10 text-white text-[11px] focus:outline-none focus:border-[#6C5CFF]"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-bold text-white/40 uppercase tracking-wider block">Clé API Anon</label>
-                    <input
-                      type="password"
-                      required
-                      placeholder="eyJhbGciOi..."
-                      value={supabaseKey}
-                      onChange={(e) => {
-                        setSupabaseKey(e.target.value.trim());
-                        localStorage.setItem('mf_sb_key', e.target.value.trim());
-                      }}
-                      className="w-full px-3 py-2 rounded-xl bg-[#07111F]/60 border border-white/10 text-white text-[11px] focus:outline-none focus:border-[#6C5CFF]"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div className="space-y-1">
               <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Adresse e-mail</label>
               <div className="relative">
@@ -781,30 +726,16 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
       )}
 
-      {/* 4. Database & Storage */}
+      {/* 4. Données locales & Sauvegarde */}
       <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
           <Database className="w-4 h-4 text-[#00D26A]" />
-          <span>Sécurité & Télémétrie</span>
+          <span>Données locales & Sauvegarde</span>
         </h3>
         
-        <div className="space-y-2.5 text-xs">
-          <div className="flex justify-between py-1 border-b border-white/5">
-            <span className="text-white/50">Base de données principale :</span>
-            <span className="font-bold text-white">{user ? 'Cloud Supabase' : 'LocalStorage Local'}</span>
-          </div>
-          <div className="flex justify-between py-1 border-b border-white/5">
-            <span className="text-white/50">Chiffrement actif :</span>
-            <span className="font-bold text-[#00D26A] flex items-center gap-1">
-              <Lock className="w-3.5 h-3.5" />
-              AES-256 local
-            </span>
-          </div>
-          <div className="flex justify-between py-1 border-b border-white/5">
-            <span className="text-white/50">État d'Abonnement :</span>
-            <span className={`font-bold ${isPremium ? 'text-[#00D26A]' : 'text-white/50'}`}>{isPremium ? '👑 Premium' : 'Gratuit'}</span>
-          </div>
-        </div>
+        <p className="text-xs text-white/50 leading-relaxed font-medium">
+          Sauvegardez vos données locales sur votre appareil ou réinitialisez l'application pour restaurer les paramètres de démo par défaut.
+        </p>
 
         <div className="grid grid-cols-2 gap-2 pt-2">
           <button 
@@ -828,61 +759,6 @@ export const Settings: React.FC<SettingsProps> = ({
             <span>Réinitialiser</span>
           </button>
         </div>
-      </div>
-
-      {/* 5. Configuration Technique (Collapsed by default, allows fixing connection/credentials) */}
-      <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
-        <button
-          type="button"
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          className="w-full flex items-center justify-between text-xs font-bold text-white uppercase tracking-wider cursor-pointer"
-        >
-          <div className="flex items-center space-x-2">
-            <Lock className="w-4 h-4 text-[#FFB020]" />
-            <span>Configuration Technique (Avancé)</span>
-          </div>
-          <span className="text-[10px] text-white/40">{showAdvanced ? 'Masquer ▲' : 'Afficher ▼'}</span>
-        </button>
-
-        {showAdvanced && (
-          <div className="space-y-4 pt-2 animate-fade-in">
-            <p className="text-[11px] text-white/50 leading-relaxed font-medium">
-              Par défaut, l'application utilise la configuration de votre serveur cloud. Si la clé dans vos fichiers d'environnement est invalide ou expirée, vous pouvez spécifier vos clés d'accès Supabase personnalisées ci-dessous.
-            </p>
-
-            <div className="space-y-1">
-              <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">URL Supabase</label>
-              <input
-                type="text"
-                placeholder="https://votre-projet.supabase.co"
-                value={supabaseUrl}
-                onChange={(e) => {
-                  setSupabaseUrl(e.target.value.trim());
-                  localStorage.setItem('mf_sb_url', e.target.value.trim());
-                }}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Clé API Anon (Publishable)</label>
-              <input
-                type="password"
-                placeholder="eyJhbGciOi..."
-                value={supabaseKey}
-                onChange={(e) => {
-                  setSupabaseKey(e.target.value.trim());
-                  localStorage.setItem('mf_sb_key', e.target.value.trim());
-                }}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
-              />
-            </div>
-            
-            <p className="text-[9px] text-[#FFB020] bg-[#FFB020]/5 p-2.5 rounded-xl border border-[#FFB020]/10 leading-normal">
-              ⚠️ Note : Les modifications sont enregistrées localement dans votre navigateur et écrasent la configuration par défaut du serveur.
-            </p>
-          </div>
-        )}
       </div>
 
     </div>
