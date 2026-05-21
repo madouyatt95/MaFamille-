@@ -84,7 +84,9 @@ export const Membres: React.FC<MembresProps> = ({
   const [generatingAvatar, setGeneratingAvatar] = useState<boolean>(false);
   const [avatarStep, setAvatarStep] = useState<number>(0);
 
-  const isChild = activeMemberId === '3' || activeMemberId === '4';
+  const isChild = myMemberProfile 
+    ? ['child', 'Enfant'].includes(myMemberProfile.role)
+    : (activeMemberId === '3' || activeMemberId === '4');
 
   // Local storage persisted state for vaccineList
   const [vaccineList, setVaccineList] = useState(() => {
