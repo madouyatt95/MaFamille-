@@ -176,37 +176,59 @@ export const Finances: React.FC<FinancesProps> = ({
     );
   }
 
-  // Calculs financiers réels basés sur les transactions du state
-  const totalRevenus = transactions
+  // Helper to match transaction date to selected month (e.g. 'Mai 2026', 'Avril 2026', 'Mars 2026')
+  const isTransactionInSelectedMonth = (tDate: string, selMonth: string) => {
+    if (!tDate) return false;
+    const monthMap: Record<string, string> = {
+      'janvier': '01', 'février': '02', 'mars': '03', 'avril': '04',
+      'mai': '05', 'juin': '06', 'juillet': '07', 'août': '08',
+      'septembre': '09', 'octobre': '10', 'novembre': '11', 'décembre': '12'
+    };
+    const parts = selMonth.toLowerCase().split(' ');
+    const expectedMonth = monthMap[parts[0]];
+    const expectedYear = parts[1];
+
+    if (tDate.includes('/')) {
+      const dParts = tDate.split('/');
+      return dParts[1] === expectedMonth && dParts[2] === expectedYear;
+    } else if (tDate.includes('-')) {
+      const dParts = tDate.split('-');
+      return dParts[1] === expectedMonth && dParts[0] === expectedYear;
+    }
+    return false;
+  };
+
+  const monthlyTransactions = transactions.filter(t => isTransactionInSelectedMonth(t.date, selectedMonth));
+
+  // Calculs financiers réels basés sur les transactions du mois sélectionné
+  const totalRevenus = monthlyTransactions
     .filter(t => t.type === 'income')
     .reduce((acc, t) => acc + t.amount, 0);
 
-  const totalDepenses = transactions
+  const totalDepenses = monthlyTransactions
     .filter(t => t.type === 'expense')
     .reduce((acc, t) => acc + t.amount, 0);
 
-  const totalEpargne = transactions
+  const totalEpargne = monthlyTransactions
     .filter(t => t.type === 'savings')
     .reduce((acc, t) => acc + t.amount, 0);
 
   // Catégories statiques / dynamiques de dépenses
-
   const categoriesDef = [
-    { name: 'Alimentation', icon: ShoppingCart, color: 'bg-[#00D26A]', textCol: 'text-[#00D26A]', raw: 650 },
-    { name: 'Logement', icon: Home, color: 'bg-[#4F8CFF]', textCol: 'text-[#4F8CFF]', raw: 450 },
-    { name: 'Transport', icon: Car, color: 'bg-[#FFB020]', textCol: 'text-[#FFB020]', raw: 250 },
-    { name: 'Santé', icon: HeartPulse, color: 'bg-[#FF4D6D]', textCol: 'text-[#FF4D6D]', raw: 150 },
-    { name: 'Éducation', icon: GraduationCap, color: 'bg-[#6C5CFF]', textCol: 'text-[#6C5CFF]', raw: 100 },
-    { name: 'Autres', icon: MoreHorizontal, color: 'bg-white/40', textCol: 'text-white/60', raw: 100 }
+    { name: 'Alimentation', icon: ShoppingCart, color: 'bg-[#00D26A]', textCol: 'text-[#00D26A]' },
+    { name: 'Logement', icon: Home, color: 'bg-[#4F8CFF]', textCol: 'text-[#4F8CFF]' },
+    { name: 'Transport', icon: Car, color: 'bg-[#FFB020]', textCol: 'text-[#FFB020]' },
+    { name: 'Santé', icon: HeartPulse, color: 'bg-[#FF4D6D]', textCol: 'text-[#FF4D6D]' },
+    { name: 'Éducation', icon: GraduationCap, color: 'bg-[#6C5CFF]', textCol: 'text-[#6C5CFF]' },
+    { name: 'Autres', icon: MoreHorizontal, color: 'bg-white/40', textCol: 'text-white/60' }
   ];
 
-  // Calculer les pourcentages de chaque catégorie de dépenses
-  const totalRaw = categoriesDef.reduce((acc, c) => acc + c.raw, 0);
+  // Calculer les pourcentages réels de chaque catégorie de dépenses
   const categoriesBreakdown = categoriesDef.map(cat => {
-    // Calculer le montant réel par rapport au budget (ou proportionnel au montant total des dépenses réelles)
-    const proportion = cat.raw / totalRaw;
-    const realAmount = totalDepenses * proportion;
-    const percentage = Math.round(proportion * 100);
+    const realAmount = monthlyTransactions
+      .filter(t => t.type === 'expense' && t.category === cat.name)
+      .reduce((acc, t) => acc + t.amount, 0);
+    const percentage = totalDepenses > 0 ? Math.round((realAmount / totalDepenses) * 100) : 0;
     
     return {
       ...cat,
@@ -215,15 +237,9 @@ export const Finances: React.FC<FinancesProps> = ({
     };
   });
 
-  // Objectif d'épargne principal
-  const mainGoal = savingGoals[0] || {
-    title: 'Vacances été 2026',
-    targetAmount: 2500,
-    currentAmount: 1100,
-    targetDate: '01/07/2026',
-    category: 'Voyages'
-  };
-  const goalPercentage = Math.min(100, Math.round((mainGoal.currentAmount / mainGoal.targetAmount) * 100));
+  // Objectif d'épargne principal (réel si existant)
+  const mainGoal = savingGoals.length > 0 ? savingGoals[0] : null;
+  const goalPercentage = mainGoal ? Math.min(100, Math.round((mainGoal.currentAmount / mainGoal.targetAmount) * 100)) : 0;
 
   return (
     <div className="pb-32 pt-6 px-4 md:px-8 space-y-6 max-w-4xl mx-auto premium-glow-purple">
@@ -390,122 +406,149 @@ export const Finances: React.FC<FinancesProps> = ({
           </button>
         </div>
 
-        <div 
-          onClick={() => setIsSavingGoalsModalOpen(true)}
-          className="glass-panel rounded-[28px] border border-white/8 p-6 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 cursor-pointer hover:border-[#FFB020]/45 transition-all"
-        >
-          <div className="absolute -top-12 -left-12 w-32 h-32 bg-[#FFB020]/10 rounded-full blur-2xl pointer-events-none"></div>
+        {mainGoal ? (
+          <div 
+            onClick={() => setIsSavingGoalsModalOpen(true)}
+            className="glass-panel rounded-[28px] border border-white/8 p-6 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 cursor-pointer hover:border-[#FFB020]/45 transition-all"
+          >
+            <div className="absolute -top-12 -left-12 w-32 h-32 bg-[#FFB020]/10 rounded-full blur-2xl pointer-events-none"></div>
 
-          {/* Tropical vector graphics */}
-          <div className="absolute right-4 bottom-2 w-36 h-36 opacity-95 pointer-events-none select-none hidden sm:block">
-            <svg viewBox="0 0 160 160" fill="none" className="w-full h-full">
-              {/* Island Ground */}
-              <ellipse cx="80" cy="135" rx="55" ry="15" fill="#FFB020" fillOpacity="0.85" />
-              <ellipse cx="80" cy="140" rx="40" ry="8" fill="#4F8CFF" fillOpacity="0.25" filter="blur(4px)" />
-              
-              {/* Sea base */}
-              <path d="M10,135 Q80,125 150,135" stroke="rgba(79, 140, 255, 0.4)" strokeWidth="2.5" strokeLinecap="round" />
-              
-              {/* Palm tree trunk */}
-              <path d="M105,135 Q92,100 95,70" stroke="rgba(255, 255, 255, 0.25)" strokeWidth="5.5" strokeLinecap="round" />
-              <path d="M105,135 Q92,100 95,70" stroke="#FFB020" strokeWidth="2" strokeLinecap="round" />
-              
-              {/* Palm leaves - dynamic success green paths */}
-              <path d="M95,70 Q75,65 65,75" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
-              <path d="M95,70 Q80,50 82,40" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
-              <path d="M95,70 Q110,50 120,55" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
-              <path d="M95,70 Q115,70 125,82" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
-              <path d="M95,70 Q95,85 92,95" stroke="#00D26A" strokeWidth="3" strokeLinecap="round" />
-              
-              {/* Coconuts */}
-              <circle cx="91" cy="74" r="3.5" fill="#FF4D6D" />
-              <circle cx="98" cy="73" r="3" fill="#FF4D6D" />
-              
-              {/* Sun glowing yellow */}
-              <circle cx="45" cy="50" r="16" fill="#FFB020" fillOpacity="0.15" />
-              <circle cx="45" cy="50" r="11" fill="#FFB020" fillOpacity="0.85" className="animate-pulse" />
-              
-              {/* Minimal birds */}
-              <path d="M25,25 Q30,22 35,26 Q40,22 45,25" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" />
-              <path d="M135,30 Q138,27 141,31 Q144,27 147,30" stroke="rgba(255,255,255,0.4)" strokeWidth="1" strokeLinecap="round" />
-            </svg>
-          </div>
-
-          {/* Goal Content */}
-          <div className="z-10 space-y-4 flex-1">
-            <div>
-              <span className="text-[9px] font-extrabold text-[#FFB020] uppercase tracking-widest bg-[#FFB020]/10 border border-[#FFB020]/20 px-3 py-1 rounded-full">
-                {mainGoal.category}
-              </span>
-              <h4 className="text-base font-extrabold text-white mt-2">{mainGoal.title}</h4>
-              <p className="text-xs text-white/50 font-medium">Échéance cible : {mainGoal.targetDate}</p>
+            {/* Tropical vector graphics */}
+            <div className="absolute right-4 bottom-2 w-36 h-36 opacity-95 pointer-events-none select-none hidden sm:block">
+              <svg viewBox="0 0 160 160" fill="none" className="w-full h-full">
+                {/* Island Ground */}
+                <ellipse cx="80" cy="135" rx="55" ry="15" fill="#FFB020" fillOpacity="0.85" />
+                <ellipse cx="80" cy="140" rx="40" ry="8" fill="#4F8CFF" fillOpacity="0.25" filter="blur(4px)" />
+                
+                {/* Sea base */}
+                <path d="M10,135 Q80,125 150,135" stroke="rgba(79, 140, 255, 0.4)" strokeWidth="2.5" strokeLinecap="round" />
+                
+                {/* Palm tree trunk */}
+                <path d="M105,135 Q92,100 95,70" stroke="rgba(255, 255, 255, 0.25)" strokeWidth="5.5" strokeLinecap="round" />
+                <path d="M105,135 Q92,100 95,70" stroke="#FFB020" strokeWidth="2" strokeLinecap="round" />
+                
+                {/* Palm leaves - dynamic success green paths */}
+                <path d="M95,70 Q75,65 65,75" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
+                <path d="M95,70 Q80,50 82,40" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
+                <path d="M95,70 Q110,50 120,55" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
+                <path d="M95,70 Q115,70 125,82" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
+                <path d="M95,70 Q95,85 92,95" stroke="#00D26A" strokeWidth="3" strokeLinecap="round" />
+                
+                {/* Coconuts */}
+                <circle cx="91" cy="74" r="3.5" fill="#FF4D6D" />
+                <circle cx="98" cy="73" r="3" fill="#FF4D6D" />
+                
+                {/* Sun glowing yellow */}
+                <circle cx="45" cy="50" r="16" fill="#FFB020" fillOpacity="0.15" />
+                <circle cx="45" cy="50" r="11" fill="#FFB020" fillOpacity="0.85" className="animate-pulse" />
+                
+                {/* Minimal birds */}
+                <path d="M25,25 Q30,22 35,26 Q40,22 45,25" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M135,30 Q138,27 141,31 Q144,27 147,30" stroke="rgba(255,255,255,0.4)" strokeWidth="1" strokeLinecap="round" />
+              </svg>
             </div>
-            
-            <div className="space-y-2">
-              <div className="flex items-end justify-between">
-                <p className="text-sm font-extrabold text-white">
-                  {formatMoney(mainGoal.currentAmount)}
-                  <span className="text-xs text-white/40 font-medium"> / {formatMoney(mainGoal.targetAmount)}</span>
-                </p>
-                <span className="text-xs font-bold text-[#FFB020] bg-[#FFB020]/10 px-2 py-0.5 rounded-lg">
-                  {goalPercentage}%
+
+            {/* Goal Content */}
+            <div className="z-10 space-y-4 flex-1">
+              <div>
+                <span className="text-[9px] font-extrabold text-[#FFB020] uppercase tracking-widest bg-[#FFB020]/10 border border-[#FFB020]/20 px-3 py-1 rounded-full">
+                  {mainGoal.category}
                 </span>
+                <h4 className="text-base font-extrabold text-white mt-2">{mainGoal.title}</h4>
+                <p className="text-xs text-white/50 font-medium">Échéance cible : {mainGoal.targetDate}</p>
               </div>
               
-              {/* Progress bar */}
-              <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5 max-w-sm">
-                <div 
-                  style={{ width: `${goalPercentage}%` }}
-                  className="h-full bg-gradient-to-r from-[#FFB020] to-[#6C5CFF] rounded-full transition-all duration-1000 ease-out"
-                />
+              <div className="space-y-2">
+                <div className="flex items-end justify-between">
+                  <p className="text-sm font-extrabold text-white">
+                    {formatMoney(mainGoal.currentAmount)}
+                    <span className="text-xs text-white/40 font-medium"> / {formatMoney(mainGoal.targetAmount)}</span>
+                  </p>
+                  <span className="text-xs font-bold text-[#FFB020] bg-[#FFB020]/10 px-2 py-0.5 rounded-lg">
+                    {goalPercentage}%
+                  </span>
+                </div>
+                
+                {/* Progress bar */}
+                <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5 max-w-sm">
+                  <div 
+                    style={{ width: `${goalPercentage}%` }}
+                    className="h-full bg-gradient-to-r from-[#FFB020] to-[#6C5CFF] rounded-full transition-all duration-1000 ease-out"
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div 
+            onClick={() => setIsSavingGoalsModalOpen(true)}
+            className="glass-panel rounded-[28px] border border-dashed border-white/20 p-8 text-center cursor-pointer hover:border-[#FFB020]/45 transition-all space-y-3"
+          >
+            <div className="w-12 h-12 rounded-full bg-[#FFB020]/10 text-[#FFB020] flex items-center justify-center mx-auto border border-[#FFB020]/20">
+              <PiggyBank className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-white">Aucun objectif d'épargne défini 🎯</h4>
+              <p className="text-xs text-white/40 mt-1">Créez votre premier projet d'épargne familial (Vacances, projets, imprévus).</p>
+            </div>
+            <button 
+              type="button"
+              className="px-4 py-2 rounded-xl bg-[#FFB020]/15 text-[#FFB020] border border-[#FFB020]/25 text-xs font-bold hover:bg-[#FFB020]/25 transition"
+            >
+              Créer un objectif maintenant
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Transaction History Feed */}
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-white uppercase tracking-wider">Transactions récentes</h3>
         <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar pr-1">
-          {transactions.map((t) => (
-            <div 
-              key={t.id}
-              className="glass-panel rounded-[28px] p-4 border border-white/6 flex items-center justify-between hover:bg-white/8 transition-all"
-            >
-              <div className="flex items-center space-x-3">
-                <div className={`p-2.5 rounded-xl border border-white/5 ${
-                  t.type === 'income' 
-                    ? 'text-[#00D26A] bg-[#00D26A]/10' 
-                    : t.type === 'savings'
-                      ? 'text-[#4F8CFF] bg-[#4F8CFF]/10'
-                      : 'text-[#FF4D6D] bg-[#FF4D6D]/10'
-                }`}>
-                  {t.type === 'income' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+          {monthlyTransactions.length > 0 ? (
+            monthlyTransactions.map((t) => (
+              <div 
+                key={t.id}
+                className="glass-panel rounded-[28px] p-4 border border-white/6 flex items-center justify-between hover:bg-white/8 transition-all"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className={`p-2.5 rounded-xl border border-white/5 ${
+                    t.type === 'income' 
+                      ? 'text-[#00D26A] bg-[#00D26A]/10' 
+                      : t.type === 'savings'
+                        ? 'text-[#4F8CFF] bg-[#4F8CFF]/10'
+                        : 'text-[#FF4D6D] bg-[#FF4D6D]/10'
+                  }`}>
+                    {t.type === 'income' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold text-white">{t.title}</h4>
+                    <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider mt-0.5">
+                      {t.category} {t.memberName ? `• ${t.memberName}` : ''}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-xs sm:text-sm font-bold text-white">{t.title}</h4>
-                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider mt-0.5">
-                    {t.category} {t.memberName ? `• ${t.memberName}` : ''}
-                  </p>
+                
+                <div className="text-right">
+                  <span className={`text-xs sm:text-sm font-extrabold ${
+                    t.type === 'income' 
+                      ? 'text-[#00D26A]' 
+                      : t.type === 'savings'
+                        ? 'text-[#4F8CFF]'
+                        : 'text-white'
+                  }`}>
+                    {t.type === 'income' ? '+' : t.type === 'savings' ? '→' : '-'}
+                    {formatMoney(t.amount)}
+                  </span>
+                  <p className="text-[9px] text-white/30 font-medium mt-0.5">{t.date}</p>
                 </div>
               </div>
-              
-              <div className="text-right">
-                <span className={`text-xs sm:text-sm font-extrabold ${
-                  t.type === 'income' 
-                    ? 'text-[#00D26A]' 
-                    : t.type === 'savings'
-                      ? 'text-[#4F8CFF]'
-                      : 'text-white'
-                }`}>
-                  {t.type === 'income' ? '+' : t.type === 'savings' ? '→' : '-'}
-                  {formatMoney(t.amount)}
-                </span>
-                <p className="text-[9px] text-white/30 font-medium mt-0.5">{t.date}</p>
-              </div>
+            ))
+          ) : (
+            <div className="p-8 text-center glass-panel rounded-2xl border border-white/5">
+              <span className="text-xs text-white/30">Aucune transaction enregistrée pour ce mois.</span>
             </div>
-          ))}
+          )}
         </div>
       </div>
 

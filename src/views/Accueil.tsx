@@ -24,7 +24,7 @@ import {
   Plus,
   Trash2
 } from 'lucide-react';
-import type { Member, FamilyEvent, Dish, NotificationAlert, ChatGroup, ChatMessage } from '../types';
+import type { Member, FamilyEvent, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog } from '../types';
 
 interface AccueilProps {
   members: Member[];
@@ -39,9 +39,12 @@ interface AccueilProps {
   onTriggerSos: () => void;
   activeMemberId?: string;
   onProfileSwitcherOpen?: () => void;
+  onAvatarClick?: () => void;
   chatGroups: ChatGroup[];
   chatMessages: ChatMessage[];
   onEventClick: (dateStr: string) => void;
+  memories: MemoryLog[];
+  setMemories: React.Dispatch<React.SetStateAction<MemoryLog[]>>;
 }
 
 export const Accueil: React.FC<AccueilProps> = ({
@@ -57,9 +60,12 @@ export const Accueil: React.FC<AccueilProps> = ({
   onTriggerSos,
   activeMemberId = '1',
   onProfileSwitcherOpen,
+  onAvatarClick,
   chatGroups,
   chatMessages,
-  onEventClick
+  onEventClick,
+  memories,
+  setMemories
 }) => {
   const [selectedMealDay, setSelectedMealDay] = useState<string>('Lun');
 
@@ -74,46 +80,62 @@ export const Accueil: React.FC<AccueilProps> = ({
   };
   const isChild = activeMember ? ['child', 'guest', 'Enfant', 'Invité'].includes(activeMember.role) : false;
 
-  const [moments, setMoments] = useState<any[]>([
-    {
-      id: 'mom-1',
-      photoUrl: 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=500&auto=format&fit=crop&q=80',
-      caption: 'Superbe balade en forêt ce dimanche en famille ! 🌲🚶‍♂️',
-      author: 'Papa',
-      likes: 4,
-      comments: 2,
-      hasLiked: false,
-      date: 'Hier'
-    },
-    {
-      id: 'mom-2',
-      photoUrl: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=500&auto=format&fit=crop&q=80',
-      caption: 'Nouveau dessin d\'Amadou pour décorer le salon ! 🦁🎨',
-      author: 'Maman',
-      likes: 5,
-      comments: 3,
-      hasLiked: true,
-      date: 'Aujourd\'hui'
-    },
-    {
-      id: 'mom-3',
-      photoUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=80',
-      caption: 'Soirée pizzas maison réussie à 100% ! 🍕🤤',
-      author: 'Amadou',
-      likes: 3,
-      comments: 1,
-      hasLiked: false,
-      date: 'Il y a 3 jours'
-    }
-  ]);
+  // Expiration helpers for moments on the wall
+  const getMomentExpiration = (moment: MemoryLog) => {
+    if (!moment.theme || !moment.theme.startsWith('Exp: ')) return null;
+    const parts = moment.theme.split(' | ');
+    if (parts.length < 2) return null;
+    const expiresAt = parseInt(parts[1]);
+    const label = parts[0].replace('Exp: ', '');
+    return { expiresAt, label };
+  };
+
+  const getRemainingTimeStr = (expiresAt: number) => {
+    const diff = expiresAt - Date.now();
+    if (diff <= 0) return 'Expiré';
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    if (minutes > 0) return `${minutes}m ${seconds}s`;
+    return `${seconds}s`;
+  };
+
+  // State to force re-render of remaining time countdowns every second
+  const [tick, setTick] = useState(0);
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(t => t + 1);
+
+      // Automatically clean up expired moments in state / database
+      const now = Date.now();
+      const expiredIds = memories
+        .filter(moment => {
+          const exp = getMomentExpiration(moment);
+          return exp && exp.expiresAt < now;
+        })
+        .map(m => m.id);
+
+      if (expiredIds.length > 0) {
+        setMemories(prev => prev.filter(m => !expiredIds.includes(m.id)));
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [memories, setMemories]);
+
+  // Local state for tracking liked state of memories (so heart icon remains fully interactive per-user session)
+  const [likedMemories, setLikedMemories] = useState<Record<string, boolean>>({});
 
   const handleLikeMoment = (id: string) => {
-    setMoments(prev => prev.map(m => {
+    const isLiked = !!likedMemories[id];
+    setLikedMemories(prev => ({ ...prev, [id]: !isLiked }));
+    setMemories(prev => prev.map(m => {
       if (m.id === id) {
         return {
           ...m,
-          likes: m.hasLiked ? m.likes - 1 : m.likes + 1,
-          hasLiked: !m.hasLiked
+          likesCount: isLiked ? Math.max(0, m.likesCount - 1) : m.likesCount + 1
         };
       }
       return m;
@@ -122,7 +144,7 @@ export const Accueil: React.FC<AccueilProps> = ({
 
   const handleDeleteMoment = (id: string) => {
     if (confirm("Voulez-vous vraiment supprimer ce souvenir du Mur des Moments ?")) {
-      setMoments(prev => prev.filter(m => m.id !== id));
+      setMemories(prev => prev.filter(m => m.id !== id));
     }
   };
 
@@ -159,6 +181,7 @@ export const Accueil: React.FC<AccueilProps> = ({
 
   return (
     <div className="pb-32 pt-6 px-4 md:px-8 space-y-6 max-w-7xl mx-auto premium-glow-purple">
+      {tick > -1 && <span className="hidden" aria-hidden="true">{tick}</span>}
       
       {/* 1. Header Section */}
       <div className="flex items-center justify-between">
@@ -212,8 +235,9 @@ export const Accueil: React.FC<AccueilProps> = ({
           </button>
           
           <button 
-            onClick={onProfileSwitcherOpen}
+            onClick={onAvatarClick || onProfileSwitcherOpen}
             className="relative cursor-pointer transition-all hover:scale-105 active:scale-95 border border-white/10 rounded-full p-0.5"
+            title="Modifier mon profil"
           >
             <img 
               src={activeMember.photoUrl} 
@@ -249,17 +273,42 @@ export const Accueil: React.FC<AccueilProps> = ({
                   const caption = prompt("Quel souvenir ou moment marquant voulez-vous associer à cette photo ?");
                   if (!caption) return;
 
-                  const newMoment = {
+                  const delayPrompt = prompt(
+                    "Dans combien de temps cette photo doit-elle disparaître automatiquement ?\n" +
+                    "Entrez un délai (ex: 24h, 12h, 2h, 30m) ou tapez 'jamais' pour un souvenir permanent :",
+                    "24h"
+                  );
+                  
+                  let themeStr = "🏖️ Famille";
+                  if (delayPrompt && delayPrompt.toLowerCase().trim() !== 'jamais') {
+                    const cleanDelay = delayPrompt.toLowerCase().trim();
+                    let durationMs = 24 * 60 * 60 * 1000; // 24h default
+                    
+                    if (cleanDelay.endsWith('h')) {
+                      const val = parseInt(cleanDelay.replace('h', ''));
+                      if (!isNaN(val)) durationMs = val * 60 * 60 * 1000;
+                    } else if (cleanDelay.endsWith('m')) {
+                      const val = parseInt(cleanDelay.replace('m', ''));
+                      if (!isNaN(val)) durationMs = val * 60 * 1000;
+                    }
+                    
+                    themeStr = `Exp: ${cleanDelay} | ${Date.now() + durationMs}`;
+                  }
+
+                  const newMemory: MemoryLog = {
                     id: `mom-${Date.now()}`,
-                    photoUrl: base64Url,
-                    caption: caption,
-                    author: activeMember.name,
-                    likes: 1,
-                    comments: 0,
-                    hasLiked: true,
-                    date: "À l'instant"
+                    title: caption,
+                    description: caption,
+                    imageUrl: base64Url,
+                    imageUrls: [base64Url],
+                    authorName: activeMember.name,
+                    authorPhoto: activeMember.photoUrl || '',
+                    date: "Aujourd'hui",
+                    likesCount: 0,
+                    isPrivate: false,
+                    theme: themeStr
                   };
-                  setMoments(prev => [newMoment, ...prev]);
+                  setMemories(prev => [newMemory, ...prev]);
                 };
                 reader.readAsDataURL(file);
               }}
@@ -275,57 +324,78 @@ export const Accueil: React.FC<AccueilProps> = ({
         </div>
 
         <div className="flex space-x-4 overflow-x-auto pb-4 no-scrollbar scroll-smooth snap-x snap-mandatory">
-          {moments.map((moment) => (
-            <div 
-              key={moment.id}
-              className="w-[240px] shrink-0 snap-start bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-[28px] p-3.5 shadow-lg flex flex-col space-y-3 transform transition-all duration-300 hover:scale-[1.02] hover:bg-white/[0.06]"
-              style={{ transform: `rotate(${(parseInt(moment.id.replace('mom-', '')) % 2 === 0 ? 1.5 : -1.5)}deg)` }}
-            >
-              <div className="relative aspect-[4/3] rounded-[20px] overflow-hidden border border-white/5 shadow-inner">
-                <img src={moment.photoUrl} alt={moment.caption} className="w-full h-full object-cover" />
-                <span className="absolute top-2 left-2 text-[9px] font-extrabold uppercase bg-black/60 backdrop-blur-sm text-white/90 px-2.5 py-1 rounded-full border border-white/5">
-                  Par {moment.author}
-                </span>
-                
-                {/* Suppression du moment s'il s'agit de sa propre publication ou d'un parent */}
-                {(moment.author === activeMember.name || !isChild) && (
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteMoment(moment.id);
-                    }}
-                    className="absolute bottom-2 right-2 p-1.5 rounded-xl bg-black/60 hover:bg-[#FF4D6D] text-white/80 hover:text-white backdrop-blur-sm transition-all border border-white/10 cursor-pointer shadow-md z-10 active:scale-90"
-                    title="Supprimer ce souvenir"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-
-                <span className="absolute top-2 right-2 text-[9px] font-bold bg-[#FF4D6D]/95 text-white px-2.5 py-1 rounded-full border border-white/5 shadow-md">
-                  {moment.date}
-                </span>
-              </div>
+          {memories
+            .filter(moment => {
+              const exp = getMomentExpiration(moment);
+              return !exp || exp.expiresAt > Date.now();
+            })
+            .map((moment) => {
+              const hasLiked = !!likedMemories[moment.id];
+              const numericId = parseInt(moment.id.replace(/\D/g, '')) || 0;
+              const rotation = numericId % 2 === 0 ? 1.5 : -1.5;
+              const exp = getMomentExpiration(moment);
+              const remainingStr = exp ? getRemainingTimeStr(exp.expiresAt) : null;
               
-              <p className="text-xs text-white/90 leading-snug line-clamp-2 h-[34px] px-1 font-semibold italic">
-                "{moment.caption}"
-              </p>
-
-              <div className="flex items-center justify-between pt-2 border-t border-white/5 text-xs text-white/50">
-                <button 
-                  onClick={() => handleLikeMoment(moment.id)}
-                  className={`flex items-center space-x-1.5 hover:text-[#FF4D6D] transition-colors py-1 px-2 rounded-lg hover:bg-white/5 ${moment.hasLiked ? 'text-[#FF4D6D] font-extrabold' : ''}`}
+              return (
+                <div 
+                  key={moment.id}
+                  className="w-[240px] shrink-0 snap-start bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-[28px] p-3.5 shadow-lg flex flex-col space-y-3 transform transition-all duration-300 hover:scale-[1.02] hover:bg-white/[0.06]"
+                  style={{ transform: `rotate(${rotation}deg)` }}
                 >
-                  <Heart className={`w-4 h-4 ${moment.hasLiked ? 'fill-current animate-pulse' : ''}`} />
-                  <span>{moment.likes}</span>
-                </button>
+                  <div className="relative aspect-[4/3] rounded-[20px] overflow-hidden border border-white/5 shadow-inner">
+                    <img src={moment.imageUrl} alt={moment.title} className="w-full h-full object-cover" />
+                    <span className="absolute top-2 left-2 text-[9px] font-extrabold uppercase bg-black/60 backdrop-blur-sm text-white/90 px-2.5 py-1 rounded-full border border-white/5">
+                      Par {moment.authorName}
+                    </span>
+                    
+                    {/* Expiration badge / remaining time */}
+                    {remainingStr && (
+                      <span className="absolute bottom-2 left-2 text-[8px] font-black uppercase bg-[#FF4D6D] text-white px-2 py-0.5 rounded-md border border-white/10 shadow-sm animate-pulse z-10 flex items-center gap-1">
+                        <Clock className="w-2.5 h-2.5" />
+                        <span>{remainingStr}</span>
+                      </span>
+                    )}
 
-                <button className="flex items-center space-x-1.5 hover:text-[#4F8CFF] transition-colors py-1 px-2 rounded-lg hover:bg-white/5">
-                  <Smile className="w-4 h-4" />
-                  <span>Réagir</span>
-                </button>
-              </div>
-            </div>
-          ))}
+                    {/* Suppression du moment s'il s'agit de sa propre publication ou d'un parent */}
+                    {(moment.authorName === activeMember.name || !isChild) && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteMoment(moment.id);
+                        }}
+                        className="absolute bottom-2 right-2 p-1.5 rounded-xl bg-black/60 hover:bg-[#FF4D6D] text-white/80 hover:text-white backdrop-blur-sm transition-all border border-white/10 cursor-pointer shadow-md z-10 active:scale-90"
+                        title="Supprimer ce souvenir"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    <span className="absolute top-2 right-2 text-[9px] font-bold bg-[#FF4D6D]/95 text-white px-2.5 py-1 rounded-full border border-white/5 shadow-md">
+                      {moment.date}
+                    </span>
+                  </div>
+                  
+                  <p className="text-xs text-white/90 leading-snug line-clamp-2 h-[34px] px-1 font-semibold italic">
+                    "{moment.title}"
+                  </p>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-white/5 text-xs text-white/50">
+                    <button 
+                      onClick={() => handleLikeMoment(moment.id)}
+                      className={`flex items-center space-x-1.5 hover:text-[#FF4D6D] transition-colors py-1 px-2 rounded-lg hover:bg-white/5 ${hasLiked ? 'text-[#FF4D6D] font-extrabold' : ''}`}
+                    >
+                      <Heart className={`w-4 h-4 ${hasLiked ? 'fill-current animate-pulse' : ''}`} />
+                      <span>{moment.likesCount}</span>
+                    </button>
+
+                    <button className="flex items-center space-x-1.5 hover:text-[#4F8CFF] transition-colors py-1 px-2 rounded-lg hover:bg-white/5">
+                      <Smile className="w-4 h-4" />
+                      <span>Réagir</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
         </div>
       </div>
 

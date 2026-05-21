@@ -1477,6 +1477,10 @@ function App() {
           members={members}
           activeMemberId={activeMemberId}
           onProfileSwitcherOpen={() => setProfileSwitcherOpen(true)}
+          onAvatarClick={() => {
+            setActiveTab('menu');
+            setActiveModule('settings');
+          }}
           events={events}
           dishes={dishes}
           alerts={alerts}
@@ -1492,6 +1496,8 @@ function App() {
             setAgendaSelectedDate(dateStr.split('T')[0]);
             setActiveTab('agenda');
           }}
+          memories={memories}
+          setMemories={setMemories}
         />
       );
     }
