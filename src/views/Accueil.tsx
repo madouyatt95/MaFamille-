@@ -64,7 +64,7 @@ export const Accueil: React.FC<AccueilProps> = ({
   const [selectedMealDay, setSelectedMealDay] = useState<string>('Lun');
 
   const activeMember = members.find(m => m.id === activeMemberId) || members[0];
-  const isChild = activeMemberId === '3' || activeMemberId === '4';
+  const isChild = activeMember ? ['child', 'guest', 'Enfant', 'Invité'].includes(activeMember.role) : false;
 
   const [moments, setMoments] = useState<any[]>([
     {
@@ -163,11 +163,9 @@ export const Accueil: React.FC<AccueilProps> = ({
           </button>
           <div>
             <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-1.5">
-              {activeMemberId === '1' ? 'Bonjour Papa ! 👑' :
-               activeMemberId === '2' ? 'Bonjour Maman ! 👑' :
-               activeMemberId === '3' ? 'Salut Amadou ! 👋' :
-               activeMemberId === '4' ? 'Salut Awa ! 👋' :
-               'Bonjour, Fatou'}
+              {activeMember 
+                ? `Bonjour ${activeMember.name} ! ${['Chef de famille', 'Gestionnaire', 'admin', 'parent'].includes(activeMember.role) ? '👑' : '👋'}`
+                : 'Bonjour ! 👋'}
             </h1>
             <div className="flex items-center space-x-2 mt-1">
               <p className="text-[11px] text-white/50 font-medium">Famille :</p>

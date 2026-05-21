@@ -10,23 +10,69 @@ import {
   GraduationCap, 
   Activity,
   Edit,
-  Lock
+  Lock,
+  Copy,
+  Check,
+  RefreshCw
 } from 'lucide-react';
-import type { Member } from '../types';
+import { foyerService } from '../services/foyerService';
+import type { Member, Foyer, FoyerMember } from '../types';
 
 interface MembresProps {
   members: Member[];
   setMembers: React.Dispatch<React.SetStateAction<Member[]>>;
   onAddMemberClick: () => void;
   activeMemberId?: string;
+  foyer?: Foyer | null;
+  myMemberProfile?: FoyerMember | null;
 }
 
 export const Membres: React.FC<MembresProps> = ({ 
   members, 
   setMembers,
   onAddMemberClick,
-  activeMemberId = '1'
+  activeMemberId = '1',
+  foyer,
+  myMemberProfile
 }) => {
+  // Invitation réelle
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'parent' | 'child' | 'guest'>('child');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const handleAddMemberClick = () => {
+    if (foyer) {
+      setShowInviteModal(true);
+    } else {
+      onAddMemberClick();
+    }
+  };
+
+  const handleSendInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!foyer || !inviteEmail.trim()) return;
+    setInviteLoading(true);
+    setInviteMessage(null);
+    try {
+      await foyerService.inviteByEmail(foyer.id, inviteEmail.trim(), inviteRole);
+      setInviteMessage({ text: `Invitation envoyée avec succès à ${inviteEmail} ! ✉️`, type: 'success' });
+      setInviteEmail('');
+    } catch (err: any) {
+      setInviteMessage({ text: err.message || "Erreur lors de l'envoi de l'invitation.", type: 'error' });
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const handleCopyInviteCode = () => {
+    if (!foyer) return;
+    navigator.clipboard.writeText(foyer.inviteCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
   const [selectedMember, setSelectedMember] = useState<Member | null>(() => members.length > 0 ? members[0] : null);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -149,7 +195,7 @@ export const Membres: React.FC<MembresProps> = ({
         
         {!isChild && (
           <button 
-            onClick={onAddMemberClick}
+            onClick={handleAddMemberClick}
             className="p-3 rounded-2xl bg-[#6C5CFF] text-white hover:opacity-90 transition-all cursor-pointer shadow-[0_4px_12px_rgba(108,92,255,0.4)]"
           >
             <Plus className="w-5 h-5" />
@@ -190,7 +236,7 @@ export const Membres: React.FC<MembresProps> = ({
           {/* Inviter Member Row (Only parents) */}
           {!isChild && (
             <button
-              onClick={onAddMemberClick}
+              onClick={handleAddMemberClick}
               className="w-full glass-panel rounded-[28px] p-4 flex items-center justify-between border border-dashed border-white/20 transition-all cursor-pointer text-left hover:bg-white/5 hover:border-[#6C5CFF]/40"
             >
               <div className="flex items-center space-x-4">
@@ -871,8 +917,108 @@ export const Membres: React.FC<MembresProps> = ({
           )}
         </div>
 
-      </div>
+    </div>
 
+      {/* Real Supabase Invite Modal */}
+      {showInviteModal && foyer && (
+        <div className="fixed inset-0 bg-[#07111F]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="glass-panel border border-white/10 rounded-[32px] w-full max-w-md p-6 space-y-5 shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-white">Ajouter un membre</h3>
+                <p className="text-[10px] text-white/40 mt-1">Invitez des membres à rejoindre votre foyer {foyer.name}</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowInviteModal(false);
+                  setInviteMessage(null);
+                }}
+                className="p-1.5 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Option A: Invite Code */}
+            <div className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-2">
+              <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Option 1 : Partager le Code du Foyer</span>
+              <p className="text-[10px] text-white/60 leading-relaxed font-medium">
+                Donnez ce code de foyer à vos proches. Ils pourront le saisir lors de leur inscription pour rejoindre instantanément votre foyer.
+              </p>
+              <button
+                onClick={handleCopyInviteCode}
+                className="w-full mt-1.5 py-3 px-4 rounded-xl bg-white/5 border border-white/8 text-white text-xs font-bold flex items-center justify-between hover:bg-white/8 active:scale-95 transition-all cursor-pointer"
+              >
+                <div className="text-left">
+                  <span className="text-[8px] text-white/40 block font-normal uppercase">Code à 6 caractères</span>
+                  <span className="font-mono text-sm font-black text-[#6C5CFF] block mt-0.5">{foyer.inviteCode}</span>
+                </div>
+                {copiedCode ? (
+                  <span className="text-[9px] font-bold text-[#00D26A] flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5" /> Copié
+                  </span>
+                ) : (
+                  <span className="text-[9px] text-white/40 flex items-center gap-1 font-bold">
+                    <Copy className="w-3.5 h-3.5" /> Copier
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Option B: Email Invitation */}
+            <form onSubmit={handleSendInvite} className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-3">
+              <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Option 2 : Envoyer une invitation par e-mail</span>
+              
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Adresse e-mail</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="ex: epouse@gmail.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Rôle dans la famille</label>
+                <select
+                  value={inviteRole}
+                  onChange={(e: any) => setInviteRole(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                >
+                  <option value="parent">Parent / Co-gestionnaire</option>
+                  <option value="child">Enfant</option>
+                  <option value="guest">Invité (Lecture seule)</option>
+                </select>
+              </div>
+
+              {inviteMessage && (
+                <div className={`p-2.5 rounded-xl border text-[10px] font-medium leading-normal ${
+                  inviteMessage.type === 'success' ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]' : 'bg-red-500/10 border-red-500/20 text-red-400'
+                }`}>
+                  {inviteMessage.text}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={inviteLoading}
+                className="w-full py-2.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5B4EFA] disabled:opacity-50 text-white text-xs font-bold shadow-md active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center space-x-2"
+              >
+                {inviteLoading ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <span>Envoyer l'invitation</span>
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

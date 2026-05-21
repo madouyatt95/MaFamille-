@@ -70,7 +70,11 @@ function App() {
   // ----------------------------------------------------
   // Local reactive storage initialization
   // ----------------------------------------------------
+  // If a cloud foyer was active last session, start empty (cloud data will load)
+  const hadCloudFoyer = !!localStorage.getItem('mf_cloud_foyer_id');
+
   const [members, setMembers] = useState<Member[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_members');
     return val ? JSON.parse(val) : demoMembers;
   });
@@ -80,52 +84,63 @@ function App() {
   });
 
   const [events, setEvents] = useState<FamilyEvent[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_events');
     return val ? JSON.parse(val) : demoEvents;
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_transactions');
     return val ? JSON.parse(val) : demoTransactions;
   });
 
   const [dishes, setDishes] = useState<Dish[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_dishes');
     return val ? JSON.parse(val) : demoDishes;
   });
 
   const [documents, setDocuments] = useState<DocumentFile[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_documents');
     return val ? JSON.parse(val) : demoDocuments;
   });
 
   const [tasks, setTasks] = useState<ChoreTask[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_tasks');
     return val ? JSON.parse(val) : demoTasks;
   });
 
   const [groceries, setGroceries] = useState<GroceryItem[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_groceries');
     return val ? JSON.parse(val) : demoGroceries;
   });
 
   const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_vehicles');
     return val ? JSON.parse(val) : demoVehicles;
   });
   const [maintenance, setMaintenance] = useState<HomeMaintenance[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_maintenance');
     return val ? JSON.parse(val) : demoMaintenance;
   });
   const [trips, setTrips] = useState<Trip[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_trips');
     return val ? JSON.parse(val) : demoTrips;
   });
   const [pets, setPets] = useState<PetRecord[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_pets');
     return val ? JSON.parse(val) : demoPets;
   });
   const [pocketMoney, setPocketMoney] = useState<{ id: string; name: string; balance: number; points: number; avatar: string; }[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_pocket_money');
     return val ? JSON.parse(val) : [
       { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150' },
@@ -134,31 +149,37 @@ function App() {
   });
 
   const [savingGoals, setSavingGoals] = useState<SavingGoal[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_saving_goals');
     return val ? JSON.parse(val) : demoSavingGoals;
   });
 
   const [alerts, setAlerts] = useState<NotificationAlert[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_alerts');
     return val ? JSON.parse(val) : demoAlerts;
   });
 
   const [chatGroups, setChatGroups] = useState(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_chat_groups');
     return val ? JSON.parse(val) : demoChatGroups;
   });
 
   const [chatMessages, setChatMessages] = useState(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_chat_messages');
     return val ? JSON.parse(val) : demoChatMessages;
   });
 
   const [demarches, setDemarches] = useState<Demarche[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_demarches');
     return val ? JSON.parse(val) : demoDemarches;
   });
 
   const [justificatifPacks, setJustificatifPacks] = useState<JustificatifPack[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_packs');
     return val ? JSON.parse(val) : demoPacks;
   });
@@ -183,16 +204,19 @@ function App() {
 
   // New modules states
   const [memories, setMemories] = useState<MemoryLog[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_memories');
     return val ? JSON.parse(val) : demoMemories;
   });
 
   const [votes, setVotes] = useState<FamilyVote[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_votes');
     return val ? JSON.parse(val) : demoFamilyVotes;
   });
 
   const [schoolTasks, setSchoolTasks] = useState<SchoolTask[]>(() => {
+    if (hadCloudFoyer) return [];
     const val = localStorage.getItem('mf_school_tasks');
     return val ? JSON.parse(val) : demoSchoolTasks;
   });
@@ -278,8 +302,11 @@ function App() {
       if (myFoyer && myMember) {
         setFoyer(myFoyer);
         setMyMemberProfile(myMember);
+        setActiveMemberId(myMember.id);
         setIsPremium(myFoyer.isPremium);
         setOnboardingActive(false);
+        // Mark that a cloud foyer is active (persists across reloads)
+        localStorage.setItem('mf_cloud_foyer_id', myFoyer.id);
         // Hydrate all granular tables
         await loadFoyerData(myFoyer.id);
       } else {
@@ -331,240 +358,208 @@ function App() {
     const client = getSupabaseClient();
     if (!client) return;
 
-    // Load members
+    // Load members — always replace local data with cloud data (even if empty)
     const membersList = await foyerService.getFoyerMembers(foyerId);
-    if (membersList.length > 0) {
-      setMembers(membersList.map(mapFoyerMemberToMember));
-    }
+    setMembers(membersList.length > 0 ? membersList.map(mapFoyerMemberToMember) : []);
 
     // Load Events
     const { data: eventsData } = await client.from('events').select('*').eq('foyer_id', foyerId);
-    if (eventsData && eventsData.length > 0) {
-      setEvents(eventsData.map(e => ({
-        id: e.id,
-        title: e.title,
-        type: e.type,
-        dateTime: e.date_time,
-        time: e.time,
-        memberId: e.member_id,
-        memberName: e.member_name,
-        location: e.location,
-        description: e.description,
-        done: e.done,
-        amount: e.amount ? Number(e.amount) : undefined
-      })));
-    }
+    setEvents(eventsData ? eventsData.map(e => ({
+      id: e.id,
+      title: e.title,
+      type: e.type,
+      dateTime: e.date_time,
+      time: e.time,
+      memberId: e.member_id,
+      memberName: e.member_name,
+      location: e.location,
+      description: e.description,
+      done: e.done,
+      amount: e.amount ? Number(e.amount) : undefined
+    })) : []);
 
     // Load Groceries
     const { data: groceriesData } = await client.from('groceries').select('*').eq('foyer_id', foyerId);
-    if (groceriesData && groceriesData.length > 0) {
-      setGroceries(groceriesData.map(g => ({
-        id: g.id,
-        name: g.name,
-        category: g.category,
-        quantity: g.quantity,
-        checked: g.checked,
-        inStock: g.in_stock,
-        expiryDate: g.expiry_date
-      })));
-    }
+    setGroceries(groceriesData ? groceriesData.map(g => ({
+      id: g.id,
+      name: g.name,
+      category: g.category,
+      quantity: g.quantity,
+      checked: g.checked,
+      inStock: g.in_stock,
+      expiryDate: g.expiry_date
+    })) : []);
 
     // Load Transactions
     const { data: transactionsData } = await client.from('transactions').select('*').eq('foyer_id', foyerId);
-    if (transactionsData && transactionsData.length > 0) {
-      setTransactions(transactionsData.map(t => ({
-        id: t.id,
-        amount: Number(t.amount),
-        type: t.type,
-        category: t.category,
-        date: t.date,
-        title: t.title,
-        memberId: t.member_id,
-        memberName: t.member_name
-      })));
-    }
+    setTransactions(transactionsData ? transactionsData.map(t => ({
+      id: t.id,
+      amount: Number(t.amount),
+      type: t.type,
+      category: t.category,
+      date: t.date,
+      title: t.title,
+      memberId: t.member_id,
+      memberName: t.member_name
+    })) : []);
 
     // Load Documents
     const { data: documentsData } = await client.from('documents').select('*').eq('foyer_id', foyerId);
-    if (documentsData && documentsData.length > 0) {
-      setDocuments(documentsData.map(d => ({
-        id: d.id,
-        name: d.name,
-        category: d.category,
-        subCategory: d.sub_category,
-        memberId: d.member_id,
-        memberName: d.member_name,
-        tags: d.tags || [],
-        uploadDate: d.upload_date,
-        expiryDate: d.expiry_date,
-        fileSize: d.file_size,
-        isExpired: d.is_expired,
-        description: d.description,
-        fileBase64: d.file_base64,
-        isSecure: d.is_secure
-      })));
-    }
+    setDocuments(documentsData ? documentsData.map(d => ({
+      id: d.id,
+      name: d.name,
+      category: d.category,
+      subCategory: d.sub_category,
+      memberId: d.member_id,
+      memberName: d.member_name,
+      tags: d.tags || [],
+      uploadDate: d.upload_date,
+      expiryDate: d.expiry_date,
+      fileSize: d.file_size,
+      isExpired: d.is_expired,
+      description: d.description,
+      fileBase64: d.file_base64,
+      isSecure: d.is_secure
+    })) : []);
 
     // Load Dishes
     const { data: dishesData } = await client.from('dishes').select('*').eq('foyer_id', foyerId);
-    if (dishesData && dishesData.length > 0) {
-      setDishes(dishesData.map(d => ({
-        id: d.id,
-        day: d.day,
-        mealType: d.meal_type,
-        name: d.name,
-        image: d.image,
-        ingredients: d.ingredients || []
-      })));
-    }
+    setDishes(dishesData ? dishesData.map(d => ({
+      id: d.id,
+      day: d.day,
+      mealType: d.meal_type,
+      name: d.name,
+      image: d.image,
+      ingredients: d.ingredients || []
+    })) : []);
 
     // Load Tasks
     const { data: tasksData } = await client.from('chore_tasks').select('*').eq('foyer_id', foyerId);
-    if (tasksData && tasksData.length > 0) {
-      setTasks(tasksData.map(t => ({
-        id: t.id,
-        title: t.title,
-        rewardPoints: t.reward_points,
-        assignedMemberId: t.assigned_member_id,
-        assignedMemberName: t.assigned_member_name,
-        done: t.done,
-        rotation: t.rotation,
-        validatedByParent: t.validated_by_parent,
-        dueDate: t.due_date
-      })));
-    }
+    setTasks(tasksData ? tasksData.map(t => ({
+      id: t.id,
+      title: t.title,
+      rewardPoints: t.reward_points,
+      assignedMemberId: t.assigned_member_id,
+      assignedMemberName: t.assigned_member_name,
+      done: t.done,
+      rotation: t.rotation,
+      validatedByParent: t.validated_by_parent,
+      dueDate: t.due_date
+    })) : []);
 
     // Load Saving Goals
     const { data: savingGoalsData } = await client.from('saving_goals').select('*').eq('foyer_id', foyerId);
-    if (savingGoalsData && savingGoalsData.length > 0) {
-      setSavingGoals(savingGoalsData.map(s => ({
-        id: s.id,
-        title: s.title,
-        targetAmount: Number(s.target_amount),
-        currentAmount: Number(s.current_amount),
-        targetDate: s.target_date,
-        category: s.category
-      })));
-    }
+    setSavingGoals(savingGoalsData ? savingGoalsData.map(s => ({
+      id: s.id,
+      title: s.title,
+      targetAmount: Number(s.target_amount),
+      currentAmount: Number(s.current_amount),
+      targetDate: s.target_date,
+      category: s.category
+    })) : []);
 
     // Load Alerts
     const { data: alertsData } = await client.from('alerts').select('*').eq('foyer_id', foyerId);
-    if (alertsData && alertsData.length > 0) {
-      setAlerts(alertsData.map(a => ({
-        id: a.id,
-        title: a.title,
-        description: a.description,
-        time: a.time,
-        type: a.type,
-        read: a.read,
-        module: a.module
-      })));
-    }
+    setAlerts(alertsData ? alertsData.map(a => ({
+      id: a.id,
+      title: a.title,
+      description: a.description,
+      time: a.time,
+      type: a.type,
+      read: a.read,
+      module: a.module
+    })) : []);
 
     // Load Memories
     const { data: memoriesData } = await client.from('memories').select('*').eq('foyer_id', foyerId);
-    if (memoriesData && memoriesData.length > 0) {
-      setMemories(memoriesData.map(m => ({
-        id: m.id,
-        date: m.date,
-        title: m.title,
-        description: m.description,
-        authorName: m.author_name,
-        authorPhoto: m.author_photo,
-        imageUrl: m.image_url,
-        imageUrls: m.image_urls || [],
-        likesCount: m.likes_count,
-        isPrivate: m.is_private,
-        theme: m.theme
-      })));
-    }
+    setMemories(memoriesData ? memoriesData.map(m => ({
+      id: m.id,
+      date: m.date,
+      title: m.title,
+      description: m.description,
+      authorName: m.author_name,
+      authorPhoto: m.author_photo,
+      imageUrl: m.image_url,
+      imageUrls: m.image_urls || [],
+      likesCount: m.likes_count,
+      isPrivate: m.is_private,
+      theme: m.theme
+    })) : []);
 
     // Load Votes
     const { data: votesData } = await client.from('votes').select('*').eq('foyer_id', foyerId);
-    if (votesData && votesData.length > 0) {
-      setVotes(votesData.map(v => ({
-        id: v.id,
-        question: v.question,
-        options: typeof v.options === 'string' ? JSON.parse(v.options) : v.options || [],
-        authorName: v.author_name,
-        active: v.active,
-        dueDate: v.due_date
-      })));
-    }
+    setVotes(votesData ? votesData.map(v => ({
+      id: v.id,
+      question: v.question,
+      options: typeof v.options === 'string' ? JSON.parse(v.options) : v.options || [],
+      authorName: v.author_name,
+      active: v.active,
+      dueDate: v.due_date
+    })) : []);
 
     // Load School Tasks
     const { data: schoolTasksData } = await client.from('school_tasks').select('*').eq('foyer_id', foyerId);
-    if (schoolTasksData && schoolTasksData.length > 0) {
-      setSchoolTasks(schoolTasksData.map(s => ({
-        id: s.id,
-        subject: s.subject,
-        title: s.title,
-        dueDate: s.due_date,
-        done: s.done,
-        assignedMemberId: s.assigned_member_id,
-        difficulty: s.difficulty,
-        grade: s.grade
-      })));
-    }
+    setSchoolTasks(schoolTasksData ? schoolTasksData.map(s => ({
+      id: s.id,
+      subject: s.subject,
+      title: s.title,
+      dueDate: s.due_date,
+      done: s.done,
+      assignedMemberId: s.assigned_member_id,
+      difficulty: s.difficulty,
+      grade: s.grade
+    })) : []);
 
     // Load Chat Groups
     const { data: chatGroupsData } = await client.from('chat_groups').select('*').eq('foyer_id', foyerId);
-    if (chatGroupsData && chatGroupsData.length > 0) {
-      setChatGroups(chatGroupsData.map(c => ({
-        id: c.id,
-        name: c.name,
-        isPrivate: c.is_private,
-        memberIds: c.member_ids || [],
-        lastMessage: c.last_message,
-        lastMessageTime: c.last_message_time,
-        unreadCount: c.unread_count
-      })));
-    }
+    setChatGroups(chatGroupsData ? chatGroupsData.map(c => ({
+      id: c.id,
+      name: c.name,
+      isPrivate: c.is_private,
+      memberIds: c.member_ids || [],
+      lastMessage: c.last_message,
+      lastMessageTime: c.last_message_time,
+      unreadCount: c.unread_count
+    })) : []);
 
     // Load Chat Messages
     const { data: chatMessagesData } = await client.from('chat_messages').select('*').eq('foyer_id', foyerId);
-    if (chatMessagesData && chatMessagesData.length > 0) {
-      setChatMessages(chatMessagesData.map(c => ({
-        id: c.id,
-        groupId: c.group_id,
-        senderId: c.sender_id,
-        senderName: c.sender_name,
-        type: c.type,
-        content: c.content,
-        timestamp: c.timestamp,
-        readBy: c.read_by || []
-      })));
-    }
+    setChatMessages(chatMessagesData ? chatMessagesData.map(c => ({
+      id: c.id,
+      groupId: c.group_id,
+      senderId: c.sender_id,
+      senderName: c.sender_name,
+      type: c.type,
+      content: c.content,
+      timestamp: c.timestamp,
+      readBy: c.read_by || []
+    })) : []);
 
     // Load Demarches
     const { data: demarchesData } = await client.from('demarches').select('*').eq('foyer_id', foyerId);
-    if (demarchesData && demarchesData.length > 0) {
-      setDemarches(demarchesData.map(d => ({
-        id: d.id,
-        templateId: d.template_id,
-        title: d.title,
-        icon: d.icon,
-        status: d.status,
-        assignedMemberId: d.assigned_member_id,
-        assignedMemberName: d.assigned_member_name,
-        steps: typeof d.steps === 'string' ? JSON.parse(d.steps) : d.steps || [],
-        pieces: typeof d.pieces === 'string' ? JSON.parse(d.pieces) : d.pieces || [],
-        createdAt: d.created_at_text,
-        notes: d.notes
-      })));
-    }
+    setDemarches(demarchesData ? demarchesData.map(d => ({
+      id: d.id,
+      templateId: d.template_id,
+      title: d.title,
+      icon: d.icon,
+      status: d.status,
+      assignedMemberId: d.assigned_member_id,
+      assignedMemberName: d.assigned_member_name,
+      steps: typeof d.steps === 'string' ? JSON.parse(d.steps) : d.steps || [],
+      pieces: typeof d.pieces === 'string' ? JSON.parse(d.pieces) : d.pieces || [],
+      createdAt: d.created_at_text,
+      notes: d.notes
+    })) : []);
 
     // Load Packs
     const { data: packsData } = await client.from('justificatif_packs').select('*').eq('foyer_id', foyerId);
-    if (packsData && packsData.length > 0) {
-      setJustificatifPacks(packsData.map(p => ({
-        id: p.id,
-        name: p.name,
-        templateType: p.template_type,
-        documentIds: p.document_ids || [],
-        createdAt: p.created_at_text
-      })));
-    }
+    setJustificatifPacks(packsData ? packsData.map(p => ({
+      id: p.id,
+      name: p.name,
+      templateType: p.template_type,
+      documentIds: p.document_ids || [],
+      createdAt: p.created_at_text
+    })) : []);
   };
 
   // 2. Realtime collaborative subscriptions
@@ -1103,6 +1098,9 @@ function App() {
 
   // Robust Versioned Migration: Force override corrupted cache with correct data
   useEffect(() => {
+    // Skip migration reset if a cloud foyer is active — cloud data takes priority
+    if (hadCloudFoyer) return;
+
     const appVersion = localStorage.getItem('mf_app_version');
     if (appVersion !== '1.2') {
       // 1. Purge corrupted avatars
@@ -1403,7 +1401,17 @@ function App() {
       setFoyer(null);
       setMyMemberProfile(null);
       setOnboardingActive(false);
-      alert("Foyer déconnecté.");
+      // Remove cloud foyer flag so demo data loads again on next visit
+      localStorage.removeItem('mf_cloud_foyer_id');
+      // Restore demo data for offline browsing
+      setMembers(demoMembers);
+      setEvents(demoEvents);
+      setTransactions(demoTransactions);
+      setTasks(demoTasks);
+      setGroceries(demoGroceries);
+      setDocuments(demoDocuments);
+      setDishes(demoDishes);
+      alert("Foyer déconnecté. Les données de démonstration ont été restaurées.");
     } catch (err: any) {
       console.error("Erreur lors de la déconnexion :", err);
     }
@@ -1526,6 +1534,8 @@ function App() {
             setMembers={setMembers}
             activeMemberId={activeMemberId}
             onAddMemberClick={() => setQuickActionsOpen(true)}
+            foyer={foyer}
+            myMemberProfile={myMemberProfile}
           />
         );
       }
@@ -1896,7 +1906,7 @@ function App() {
 
             <div className="grid grid-cols-2 gap-3 py-1">
               {members.filter(m => m.id !== '5').map((m) => {
-                const isParent = m.id === '1' || m.id === '2';
+                const isParent = ['admin', 'parent', 'Chef de famille', 'Gestionnaire'].includes(m.role);
                 const isActive = m.id === activeMemberId;
                 return (
                   <button

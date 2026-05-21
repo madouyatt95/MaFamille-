@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Settings as SettingsIcon, 
   Coins, 
@@ -15,7 +15,9 @@ import {
   Check,
   Share2,
   Plus,
-  Crown
+  Crown,
+  Camera,
+  ImagePlus
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
@@ -58,6 +60,115 @@ export const Settings: React.FC<SettingsProps> = ({
 }) => {
   const [savingBackup, setSavingBackup] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Profil et avatars
+  const [profileName, setProfileName] = useState(myMemberProfile?.displayName || '');
+  const [profilePhoto, setProfilePhoto] = useState(myMemberProfile?.photoUrl || '');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMsg, setProfileMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  const compressAndConvert = (file: File, maxSize = 300): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let w = img.width, h = img.height;
+          if (w > maxSize || h > maxSize) {
+            if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+            else { w = Math.round(w * maxSize / h); h = maxSize; }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d')!;
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/webp', 0.8));
+        };
+        img.onerror = reject;
+        img.src = ev.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handlePhotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      // Try Supabase Storage upload first
+      const supabase = getSupabaseClient();
+      if (supabase && myMemberProfile) {
+        const ext = file.name.split('.').pop() || 'jpg';
+        const filePath = `avatars/${myMemberProfile.id}_${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(filePath, file, { upsert: true, contentType: file.type });
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+          if (urlData?.publicUrl) {
+            setProfilePhoto(urlData.publicUrl);
+            setUploadingPhoto(false);
+            return;
+          }
+        }
+      }
+      // Fallback: compress to data URL
+      const dataUrl = await compressAndConvert(file);
+      setProfilePhoto(dataUrl);
+    } catch (err) {
+      console.error('Photo upload error:', err);
+      // Last resort fallback
+      const dataUrl = await compressAndConvert(file);
+      setProfilePhoto(dataUrl);
+    } finally {
+      setUploadingPhoto(false);
+      // Reset input so same file can be re-selected
+      e.target.value = '';
+    }
+  };
+
+  useEffect(() => {
+    if (myMemberProfile) {
+      setProfileName(myMemberProfile.displayName);
+      setProfilePhoto(myMemberProfile.photoUrl || '');
+    }
+  }, [myMemberProfile]);
+
+  const presetAvatars = [
+    { emoji: '👨‍👩‍👧', label: 'Famille', url: 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=150' },
+    { emoji: '👨‍💼', label: 'Papa', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150' },
+    { emoji: '👩‍💼', label: 'Maman', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150' },
+    { emoji: '🧒', label: 'Garçon', url: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150' },
+    { emoji: '👧', label: 'Fille', url: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=150' },
+    { emoji: '🦁', label: 'Lion', url: 'https://images.unsplash.com/photo-1546182990-dffeafbe841d?w=150' },
+    { emoji: '🐱', label: 'Chat', url: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150' },
+    { emoji: '🥑', label: 'Avocat', url: 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?w=150' }
+  ];
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!myMemberProfile) return;
+    setSavingProfile(true);
+    setProfileMsg(null);
+    try {
+      await foyerService.updateMemberProfile(myMemberProfile.id, {
+        displayName: profileName.trim(),
+        photoUrl: profilePhoto
+      });
+      setProfileMsg({ text: 'Profil mis à jour avec succès ! ✨', type: 'success' });
+      if (onRefreshFoyer) onRefreshFoyer();
+    } catch (err: any) {
+      setProfileMsg({ text: err.message || 'Erreur de mise à jour.', type: 'error' });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
   
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
@@ -221,6 +332,129 @@ export const Settings: React.FC<SettingsProps> = ({
           <p className="text-xs text-white/50 font-medium">Configuration globale de l'OS familial</p>
         </div>
       </div>
+
+      {/* 0. Mon Profil */}
+      {user && myMemberProfile && (
+        <form onSubmit={handleSaveProfile} className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-5 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+              <Sparkles className="w-4 h-4 text-[#6C5CFF]" />
+              <span>Mon Profil</span>
+            </h3>
+            <span className="text-[9px] font-bold text-[#6C5CFF] bg-[#6C5CFF]/10 px-2 py-0.5 rounded-full uppercase">
+              Rôle : {getRoleLabel(myMemberProfile.role)}
+            </span>
+          </div>
+
+          {/* Profile Photo selector */}
+          <div className="flex flex-col items-center justify-center space-y-4 p-4 bg-white/3 rounded-2xl border border-white/5">
+            <div className="relative group">
+              {uploadingPhoto ? (
+                <div className="w-20 h-20 rounded-full border-2 border-[#6C5CFF] bg-white/5 flex items-center justify-center">
+                  <RefreshCw className="w-6 h-6 text-[#6C5CFF] animate-spin" />
+                </div>
+              ) : (
+                <img 
+                  src={profilePhoto || 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150'} 
+                  alt="Avatar" 
+                  className="w-20 h-20 rounded-full object-cover border-2 border-[#6C5CFF] shadow-[0_0_15px_rgba(108,92,255,0.3)]"
+                />
+              )}
+              <span className="absolute bottom-0 right-0 bg-[#6C5CFF] text-white p-1 rounded-full text-[9px] font-black border border-[#07111F]">
+                📸
+              </span>
+            </div>
+
+            {/* Camera & Gallery buttons */}
+            <div className="flex gap-2 w-full">
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                className="flex-1 py-2.5 rounded-xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-white text-[10px] font-bold flex items-center justify-center gap-1.5 hover:bg-[#6C5CFF]/20 active:scale-95 transition-all cursor-pointer"
+              >
+                <Camera className="w-3.5 h-3.5 text-[#6C5CFF]" />
+                <span>Prendre une photo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                className="flex-1 py-2.5 rounded-xl bg-[#00D26A]/10 border border-[#00D26A]/20 text-white text-[10px] font-bold flex items-center justify-center gap-1.5 hover:bg-[#00D26A]/20 active:scale-95 transition-all cursor-pointer"
+              >
+                <ImagePlus className="w-3.5 h-3.5 text-[#00D26A]" />
+                <span>Galerie</span>
+              </button>
+            </div>
+            {/* Hidden file inputs */}
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoFile} className="hidden" />
+            <input ref={galleryInputRef} type="file" accept="image/*" onChange={handlePhotoFile} className="hidden" />
+
+            {/* Preset avatars */}
+            <div className="space-y-2 w-full">
+              <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block text-center">Ou choisir un avatar</span>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {presetAvatars.map((av) => (
+                  <button
+                    type="button"
+                    key={av.url}
+                    onClick={() => setProfilePhoto(av.url)}
+                    className={`p-2 rounded-xl bg-white/5 border text-sm hover:bg-white/10 active:scale-95 transition-all cursor-pointer ${
+                      profilePhoto === av.url ? 'border-[#6C5CFF] bg-[#6C5CFF]/10 scale-110 shadow-md' : 'border-transparent'
+                    }`}
+                    title={av.label}
+                  >
+                    {av.emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom URL Input */}
+            <div className="w-full space-y-1">
+              <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Ou coller l'URL d'une image</label>
+              <input
+                type="text"
+                placeholder="https://images.unsplash.com/..."
+                value={profilePhoto}
+                onChange={(e) => setProfilePhoto(e.target.value)}
+                className="w-full px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+              />
+            </div>
+          </div>
+
+          {/* Display Name input */}
+          <div className="space-y-1">
+            <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Mon Prénom / Nom d'affichage</label>
+            <input
+              type="text"
+              required
+              placeholder="Ex: Amadou, Fatou..."
+              value={profileName}
+              onChange={(e) => setProfileName(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-[#6C5CFF]"
+            />
+          </div>
+
+          {profileMsg && (
+            <div className={`p-3 rounded-xl border text-[11px] font-medium leading-normal animate-fade-in ${
+              profileMsg.type === 'success' ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]' : 'bg-red-500/10 border-red-500/20 text-red-400'
+            }`}>
+              {profileMsg.text}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={savingProfile}
+            className="w-full py-3 rounded-xl bg-[#6C5CFF] hover:bg-[#5B4EFA] disabled:opacity-50 text-white text-xs font-bold shadow-lg shadow-[#6C5CFF]/20 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center space-x-2"
+          >
+            {savingProfile ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <span>Enregistrer mon profil</span>
+            )}
+          </button>
+        </form>
+      )}
 
       {/* 1. Devise Section */}
       <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
