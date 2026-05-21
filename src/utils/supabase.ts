@@ -8,9 +8,17 @@ let currentActiveKey = '';
  * Récupère le client Supabase unique.
  * Invalide et recrée l'instance si les clés ou l'URL changent (saisie en temps réel).
  */
+const cleanInput = (val: string): string => {
+  let cleaned = val.trim().replace(/^['"]|['"]$/g, '');
+  if (cleaned.includes('=')) {
+    cleaned = cleaned.substring(cleaned.indexOf('=') + 1).trim();
+  }
+  return cleaned.replace(/^['"]|['"]$/g, '');
+};
+
 export const getSupabaseClient = (customUrl?: string, customKey?: string): SupabaseClient | null => {
-  const envUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/^['"]|['"]$/g, '');
-  const envKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim().replace(/^['"]|['"]$/g, '');
+  const envUrl = cleanInput(import.meta.env.VITE_SUPABASE_URL || '');
+  const envKey = cleanInput(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
 
   // Log de debug sécurisé et informatif pour l'administrateur
   console.log("[MaFamille+ DB Debug] URL détectée :", envUrl ? `'${envUrl}'` : "VIDE", "| Clé valide :", envKey.startsWith('eyJ'));
@@ -20,8 +28,8 @@ export const getSupabaseClient = (customUrl?: string, customKey?: string): Supab
   const rawUrl = customUrl || (isEnvValid ? envUrl : localStorage.getItem('mf_sb_url')) || envUrl || '';
   const rawKey = customKey || (isEnvValid ? envKey : localStorage.getItem('mf_sb_key')) || envKey || '';
 
-  const url = rawUrl.trim().replace(/^['"]|['"]$/g, '');
-  const key = rawKey.trim().replace(/^['"]|['"]$/g, '');
+  const url = cleanInput(rawUrl);
+  const key = cleanInput(rawKey);
 
   // Validation stricte de format pour éviter l'exception d'initialisation Supabase
   if (!url || !key || (!url.startsWith('http://') && !url.startsWith('https://'))) {
