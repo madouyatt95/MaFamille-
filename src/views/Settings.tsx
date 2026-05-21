@@ -181,6 +181,14 @@ export const Settings: React.FC<SettingsProps> = ({
           displayName: profileName.trim(),
           photoUrl: profilePhoto
         });
+        // Optimistic local update — immediately reflect in UI
+        if (setMembers) {
+          setMembers(prev => prev.map(m => m.id === targetMemberId ? {
+            ...m,
+            name: profileName.trim(),
+            photoUrl: profilePhoto
+          } : m));
+        }
         setProfileMsg({ text: 'Profil cloud mis à jour avec succès ! ✨', type: 'success' });
         if (onRefreshFoyer) await onRefreshFoyer();
       } else if (members && setMembers) {

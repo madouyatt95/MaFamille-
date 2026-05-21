@@ -228,12 +228,20 @@ export const foyerService = {
     if (updates.schoolOrEmployer !== undefined) dbUpdates.school_or_employer = updates.schoolOrEmployer;
     if (updates.role !== undefined) dbUpdates.role = updates.role;
 
-    const { error } = await supabase
+    console.log('[MaFamille+ DB] updateMemberProfile → memberId:', memberId, '| updates:', JSON.stringify(dbUpdates));
+
+    const { data, error } = await supabase
       .from('foyer_members')
       .update(dbUpdates)
-      .eq('id', memberId);
+      .eq('id', memberId)
+      .select();
+
+    console.log('[MaFamille+ DB] updateMemberProfile result → data:', data, '| error:', error, '| count:', data?.length);
 
     if (error) throw error;
+    if (!data || data.length === 0) {
+      console.warn('[MaFamille+ DB] UPDATE returned 0 rows — RLS may have blocked the update for memberId:', memberId);
+    }
   },
 
   // ============================================
