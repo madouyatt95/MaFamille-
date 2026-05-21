@@ -12,10 +12,10 @@ export const getSupabaseClient = (customUrl?: string, customKey?: string): Supab
   const envUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/^['"]|['"]$/g, '');
   const envKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim().replace(/^['"]|['"]$/g, '');
 
-  // Log de debug sécurisé pour aider l'utilisateur à voir si Vercel a bien injecté les variables
-  console.log("[MaFamille+ DB Debug] VITE_SUPABASE_URL définie:", !!envUrl, "| VITE_SUPABASE_ANON_KEY valide:", envKey.startsWith('eyJ'));
+  // Log de debug sécurisé et informatif pour l'administrateur
+  console.log("[MaFamille+ DB Debug] URL détectée :", envUrl ? `'${envUrl}'` : "VIDE", "| Clé valide :", envKey.startsWith('eyJ'));
 
-  const isEnvValid = !!(envUrl && envKey && envKey.startsWith('eyJ'));
+  const isEnvValid = !!(envUrl && envKey && envKey.startsWith('eyJ') && (envUrl.startsWith('http://') || envUrl.startsWith('https://')));
 
   const rawUrl = customUrl || (isEnvValid ? envUrl : localStorage.getItem('mf_sb_url')) || envUrl || '';
   const rawKey = customKey || (isEnvValid ? envKey : localStorage.getItem('mf_sb_key')) || envKey || '';
@@ -23,7 +23,11 @@ export const getSupabaseClient = (customUrl?: string, customKey?: string): Supab
   const url = rawUrl.trim().replace(/^['"]|['"]$/g, '');
   const key = rawKey.trim().replace(/^['"]|['"]$/g, '');
 
-  if (!url || !key) return null;
+  // Validation stricte de format pour éviter l'exception d'initialisation Supabase
+  if (!url || !key || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+    console.warn("[MaFamille+ DB Warning] URL Supabase invalide ou non configurée :", url ? `'${url}'` : "VIDE");
+    return null;
+  }
 
   if (url !== currentActiveUrl || key !== currentActiveKey) {
     supabaseInstance = null;
