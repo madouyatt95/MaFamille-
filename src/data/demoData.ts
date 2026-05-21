@@ -439,13 +439,15 @@ export const demoSchoolTasks: SchoolTask[] = [
 
 export const demoChatGroups: ChatGroup[] = [
   { id: 'g_family', name: 'Famille ❤️', isPrivate: false, memberIds: ['1', '2', '3', '4', '5'], lastMessage: 'À table dans 10 min !', lastMessageTime: '19:45' },
-  { id: 'g_parents', name: 'Parents (Secret)', isPrivate: true, memberIds: ['1', '2'], lastMessage: 'Tu as payé la facture ?', lastMessageTime: '14:20' }
+  { id: 'g_parents', name: 'Parents (Secret)', isPrivate: true, memberIds: ['1', '2'], lastMessage: 'Tu as payé la facture ?', lastMessageTime: '14:20' },
+  { id: 'g_ai_assistant', name: '🤖 Assistant Familial IA', isPrivate: false, memberIds: ['1', '2', '3', '4', '5'], lastMessage: 'Bonjour ! Comment puis-je aider votre famille aujourd\'hui ?', lastMessageTime: '08:00' }
 ];
 
 export const demoChatMessages: ChatMessage[] = [
   { id: 'm1', groupId: 'g_family', senderId: '1', senderName: 'Papa', type: 'text', content: 'N\'oubliez pas vos affaires de sport demain !', timestamp: '18:30', readBy: ['1', '2', '3', '4', '5'] },
   { id: 'm2', groupId: 'g_family', senderId: '3', senderName: 'Amadou', type: 'text', content: 'Oui c\'est déjà dans le sac 🎒', timestamp: '18:35', readBy: ['1', '2', '3', '4', '5'] },
   { id: 'm3', groupId: 'g_family', senderId: '2', senderName: 'Maman', type: 'text', content: 'À table dans 10 min !', timestamp: '19:45', readBy: ['1', '2'] },
+  { id: 'm_ai_init', groupId: 'g_ai_assistant', senderId: 'ai', senderName: 'Assistant IA', type: 'text', content: 'Bonjour ! Je suis l\'Assistant Familial IA. Posez-moi des questions sur les devoirs, des recettes de cuisine, ou demandez-moi des conseils d\'organisation familiale !', timestamp: '08:00', readBy: ['1', '2', '3', '4', '5'] }
 ];
 
 // === DOCSBOX INTEGRATION ===

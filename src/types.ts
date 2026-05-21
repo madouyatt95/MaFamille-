@@ -271,6 +271,7 @@ export interface ChatMessage {
   content: string; // text or base64 data for media
   timestamp: string;
   readBy: string[]; // array of member IDs
+  reactions?: { emoji: string; senderName: string }[];
 }
 
 export interface ChatGroup {
@@ -281,6 +282,7 @@ export interface ChatGroup {
   lastMessage?: string;
   lastMessageTime?: string;
   unreadCount?: number;
+  pinnedMessageId?: string;
 }
 
 // === DOCSBOX INTEGRATION ===

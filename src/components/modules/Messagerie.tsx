@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Phone, Video, Search, Palette, X } from 'lucide-react';
+import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Phone, Video, Search, Palette, X, Pin, PinOff, Smile, Sparkles } from 'lucide-react';
 import type { Member, ChatMessage, ChatGroup } from '../../types';
 
 interface MessagerieProps {
@@ -26,6 +26,9 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   const [showCanvas, setShowCanvas] = useState(false);
   const [drawColor, setDrawColor] = useState('#FF4D6D');
   const [isDrawing, setIsDrawing] = useState(false);
+  const [showReactionsForId, setShowReactionsForId] = useState<string | null>(null);
+  const [isAiTyping, setIsAiTyping] = useState(false);
+  
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -75,9 +78,47 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeGroupId]);
 
+  const simulateAiResponse = (userText: string) => {
+    setIsAiTyping(true);
+    setTimeout(() => {
+      setIsAiTyping(false);
+      
+      const query = userText.toLowerCase();
+      let reply = "Je suis votre Assistant Familial IA 🤖. Je peux vous aider à planifier les repas, organiser les corvées des enfants ou résoudre des questions scolaires. Que souhaitez-vous savoir ?";
+      
+      if (query.includes('recette') || query.includes('manger') || query.includes('cuisine') || query.includes('dîner') || query.includes('repas')) {
+        reply = "Voici une idée de recette familiale saine et rapide : *Gratin de Pâtes aux Tomates & Mozzarella* 🍅🧀.\n\n• Préparation : 10 min\n• Cuisson : 15 min au four\n• Ingrédients : Pâtes penne, sauce tomate basilic, mozzarella fraîche, parmesan.\n\nBon appétit à toute la famille !";
+      } else if (query.includes('devoir') || query.includes('école') || query.includes('exercice') || query.includes('apprendre') || query.includes('math') || query.includes('histoire')) {
+        reply = "Besoin d'aide pour les devoirs ? 📚 Pas de panique ! L'agenda scolaire et le Tuteur IA sont là pour vous aider. Je vous conseille de diviser le travail en sessions de 25 minutes (méthode Pomodoro) suivies d'une passe active de 5 minutes.";
+      } else if (query.includes('organisation') || query.includes('tâche') || query.includes('corvée') || query.includes('ménage') || query.includes('ranger')) {
+        reply = "Pour optimiser les corvées de la maison 🧹, attribuez les tâches équitablement aux enfants dans le module *Tâches*. Les enfants gagnent des points échangeables contre de l'argent de poche !";
+      } else if (query.includes('budget') || query.includes('argent') || query.includes('épargne') || query.includes('tirelire')) {
+        reply = "Pour encourager l'épargne chez les enfants 🪙, fixez un objectif d'épargne précis (ex: pour un jeu vidéo ou un livre) dans leur espace argent de poche. La jauge de progression s'actualisera en direct !";
+      } else if (query.includes('bonjour') || query.includes('salut') || query.includes('hello')) {
+        reply = "Bonjour ! Comment se passe votre journée en famille ? Comment puis-je vous aider aujourd'hui ? 🌸";
+      }
+      
+      const aiMsg: ChatMessage = {
+        id: `msg_ai_${Date.now()}`,
+        groupId: 'g_ai_assistant',
+        senderId: 'ai',
+        senderName: 'Assistant IA',
+        type: 'text',
+        content: reply,
+        timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+        readBy: [activeMemberId]
+      };
+      
+      setMessages(prev => [...prev, aiMsg]);
+      setGroups(prev => prev.map(g => g.id === 'g_ai_assistant' ? { ...g, lastMessage: aiMsg.content.substring(0, 30) + '...', lastMessageTime: aiMsg.timestamp } : g));
+    }, 1500);
+  };
+
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeGroupId || !activeUser) return;
+
+    const userText = newMessage.trim();
 
     const newMsg: ChatMessage = {
       id: `msg_${Date.now()}`,
@@ -85,7 +126,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
       senderId: activeUser.id,
       senderName: activeUser.name,
       type: 'text',
-      content: newMessage.trim(),
+      content: userText,
       timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
       readBy: [activeUser.id]
     };
@@ -93,6 +134,40 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     setMessages(prev => [...prev, newMsg]);
     setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: newMsg.content, lastMessageTime: newMsg.timestamp } : g));
     setNewMessage('');
+
+    if (activeGroupId === 'g_ai_assistant') {
+      simulateAiResponse(userText);
+    }
+  };
+
+  const handleAddReaction = (msgId: string, emoji: string) => {
+    setMessages(prev => prev.map(m => {
+      if (m.id === msgId) {
+        const existing = m.reactions || [];
+        const alreadyReacted = existing.some(r => r.senderName === activeUser?.name && r.emoji === emoji);
+        let updated;
+        if (alreadyReacted) {
+          updated = existing.filter(r => !(r.senderName === activeUser?.name && r.emoji === emoji));
+        } else {
+          const filtered = existing.filter(r => r.senderName !== activeUser?.name);
+          updated = [...filtered, { emoji, senderName: activeUser?.name || 'Inconnu' }];
+        }
+        return { ...m, reactions: updated };
+      }
+      return m;
+    }));
+    setShowReactionsForId(null);
+  };
+
+  const handleTogglePinMessage = (msgId: string) => {
+    if (!activeGroupId) return;
+    setGroups(prev => prev.map(g => {
+      if (g.id === activeGroupId) {
+        const isCurrentlyPinned = g.pinnedMessageId === msgId;
+        return { ...g, pinnedMessageId: isCurrentlyPinned ? undefined : msgId };
+      }
+      return g;
+    }));
   };
 
   const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -278,8 +353,8 @@ export const Messagerie: React.FC<MessagerieProps> = ({
               onClick={() => setActiveGroupId(group.id)}
               className="flex items-center p-4 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors"
             >
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#6C5CFF] to-[#00D26A] flex items-center justify-center shrink-0 mr-4 shadow-lg shadow-[#6C5CFF]/20">
-                {group.isPrivate ? <Users className="w-6 h-6 text-white" /> : <MessageCircle className="w-6 h-6 text-white" />}
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 mr-4 shadow-lg ${group.id === 'g_ai_assistant' ? 'bg-gradient-to-br from-[#FFB020] to-[#FF4D6D] shadow-[#FFB020]/20' : 'bg-gradient-to-br from-[#6C5CFF] to-[#00D26A] shadow-[#6C5CFF]/20'}`}>
+                {group.id === 'g_ai_assistant' ? <Sparkles className="w-6 h-6 text-white" /> : group.isPrivate ? <Users className="w-6 h-6 text-white" /> : <MessageCircle className="w-6 h-6 text-white" />}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center mb-1">
@@ -325,38 +400,78 @@ export const Messagerie: React.FC<MessagerieProps> = ({
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#6C5CFF] to-[#00D26A] flex items-center justify-center shadow-lg overflow-hidden shrink-0">
-            {activeGroup?.isPrivate && activeGroup.memberIds.length === 2 ? (
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg overflow-hidden shrink-0 ${activeGroupId === 'g_ai_assistant' ? 'bg-gradient-to-br from-[#FFB020] to-[#FF4D6D]' : 'bg-gradient-to-br from-[#6C5CFF] to-[#00D26A]'}`}>
+            {activeGroupId === 'g_ai_assistant' ? <Sparkles className="w-5 h-5 text-white" /> : activeGroup?.isPrivate && activeGroup.memberIds.length === 2 ? (
               <img src={members.find(m => m.id !== activeMemberId && activeGroup.memberIds.includes(m.id))?.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
             ) : activeGroup?.isPrivate ? <Users className="w-5 h-5 text-white" /> : <MessageCircle className="w-5 h-5 text-white" />}
           </div>
           <div>
             <h2 className="text-base font-bold">{activeGroup?.name}</h2>
-            <p className="text-[10px] text-white/50">{activeGroup?.memberIds.length} membres</p>
+            <p className="text-[10px] text-white/50">{activeGroupId === 'g_ai_assistant' ? 'IA locale • Hors ligne' : `${activeGroup?.memberIds.length} membres`}</p>
           </div>
         </div>
         <div className="flex space-x-1">
-          <button className="p-2 hover:bg-white/10 rounded-full"><Video className="w-5 h-5 text-[#00D26A]" /></button>
-          <button className="p-2 hover:bg-white/10 rounded-full"><Phone className="w-5 h-5 text-[#00D26A]" /></button>
+          {activeGroupId !== 'g_ai_assistant' && (
+            <>
+              <button className="p-2 hover:bg-white/10 rounded-full"><Video className="w-5 h-5 text-[#00D26A]" /></button>
+              <button className="p-2 hover:bg-white/10 rounded-full"><Phone className="w-5 h-5 text-[#00D26A]" /></button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Pinned Message Banner */}
+      {(() => {
+        const pinnedMsg = activeMessages.find(m => m.id === activeGroup?.pinnedMessageId);
+        if (!pinnedMsg) return null;
+        return (
+          <div 
+            onClick={() => {
+              const el = document.getElementById(`msg-${pinnedMsg.id}`);
+              el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }}
+            className="flex items-center justify-between px-4 py-2.5 bg-[#6C5CFF]/10 border-b border-[#6C5CFF]/20 cursor-pointer hover:bg-[#6C5CFF]/15 transition-colors"
+          >
+            <div className="flex items-center space-x-2 truncate min-w-0">
+              <Pin className="w-3.5 h-3.5 text-[#FFB020] shrink-0" />
+              <span className="text-[10px] font-extrabold text-[#FFB020] uppercase tracking-wider shrink-0">Épinglé</span>
+              <span className="text-[11px] text-white/70 truncate italic">{pinnedMsg.content.substring(0, 60)}{pinnedMsg.content.length > 60 ? '...' : ''}</span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleTogglePinMessage(pinnedMsg.id); }}
+              className="p-1 hover:bg-white/10 rounded-full transition shrink-0 ml-2"
+              title="Désépingler"
+            >
+              <X className="w-3.5 h-3.5 text-white/40" />
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-[#0A0D18] to-[#121829]">
         {activeMessages.map(msg => {
           const isMe = msg.senderId === activeUser?.id;
+          const isAiMsg = msg.senderId === 'ai';
           const sender = members.find(m => m.id === msg.senderId);
+          const isPinned = activeGroup?.pinnedMessageId === msg.id;
           
           return (
-            <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-              {!isMe && <span className="text-[10px] text-white/50 mb-1 ml-2">{msg.senderName}</span>}
+            <div key={msg.id} id={`msg-${msg.id}`} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group/msg relative`}>
+              {!isMe && <span className="text-[10px] text-white/50 mb-1 ml-2">{isAiMsg ? '🤖 Assistant IA' : msg.senderName}</span>}
               <div className="flex items-end space-x-2 max-w-[80%]">
-                {!isMe && sender && (
+                {!isMe && !isAiMsg && sender && (
                   <img src={sender.photoUrl} alt={sender.name} className="w-6 h-6 rounded-full object-cover shrink-0 mb-1" />
                 )}
+                {isAiMsg && (
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#FFB020] to-[#FF4D6D] flex items-center justify-center shrink-0 mb-1">
+                    <Sparkles className="w-3 h-3 text-white" />
+                  </div>
+                )}
                 
-                <div className={`p-3 rounded-2xl ${isMe ? 'bg-[#00D26A] text-black rounded-br-sm' : 'bg-[#1C2C4E] text-white rounded-bl-sm'}`}>
-                  {msg.type === 'text' && <p className="text-sm">{msg.content}</p>}
+                <div className={`p-3 rounded-2xl relative ${isAiMsg ? 'bg-gradient-to-br from-[#1C2C4E] to-[#2A1F4E] text-white rounded-bl-sm border border-[#6C5CFF]/20' : isMe ? 'bg-[#00D26A] text-black rounded-br-sm' : 'bg-[#1C2C4E] text-white rounded-bl-sm'}`}>
+                  {msg.type === 'text' && <p className="text-sm whitespace-pre-line">{msg.content}</p>}
                   {msg.type === 'image' && <img src={msg.content} alt="Media" className="rounded-xl max-h-48 object-cover" />}
                   {msg.type === 'voice' && (
                     <div className="flex items-center space-x-2">
@@ -373,9 +488,62 @@ export const Messagerie: React.FC<MessagerieProps> = ({
                   <div className={`flex items-center justify-end space-x-1 mt-1 ${isMe ? 'text-black/50' : 'text-white/40'}`}>
                     <span className="text-[9px]">{msg.timestamp}</span>
                     {isMe && <CheckCheck className="w-3 h-3" />}
+                    {isPinned && <Pin className="w-3 h-3 text-[#FFB020]" />}
                   </div>
                 </div>
+
+                {/* Action buttons (reaction + pin) */}
+                <div className="flex flex-col space-y-1 opacity-0 group-hover/msg:opacity-100 transition-opacity shrink-0 mb-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowReactionsForId(showReactionsForId === msg.id ? null : msg.id)}
+                    className="p-1 hover:bg-white/10 rounded-full transition"
+                    title="Réagir"
+                  >
+                    <Smile className="w-3.5 h-3.5 text-white/40" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTogglePinMessage(msg.id)}
+                    className="p-1 hover:bg-white/10 rounded-full transition"
+                    title={isPinned ? 'Désépingler' : 'Épingler'}
+                  >
+                    {isPinned ? <PinOff className="w-3.5 h-3.5 text-[#FFB020]" /> : <Pin className="w-3.5 h-3.5 text-white/40" />}
+                  </button>
+                </div>
               </div>
+
+              {/* Reaction Picker Popup */}
+              {showReactionsForId === msg.id && (
+                <div className={`flex items-center space-x-1 mt-1 p-1.5 bg-[#1C2C4E] border border-white/10 rounded-full shadow-xl z-20 ${isMe ? 'self-end' : 'self-start ml-8'}`}>
+                  {['👍', '❤️', '😂', '😮', '😢', '👏'].map(emoji => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => handleAddReaction(msg.id, emoji)}
+                      className="text-lg hover:scale-125 transition-transform p-0.5 cursor-pointer"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Display reactions */}
+              {msg.reactions && msg.reactions.length > 0 && (
+                <div className={`flex items-center space-x-0.5 mt-1 bg-white/5 px-2 py-0.5 rounded-full border border-white/5 ${isMe ? 'self-end' : 'self-start ml-8'}`}>
+                  {Object.entries(msg.reactions.reduce((acc: Record<string, string[]>, r) => {
+                    acc[r.emoji] = acc[r.emoji] || [];
+                    acc[r.emoji].push(r.senderName);
+                    return acc;
+                  }, {})).map(([emoji, names]) => (
+                    <span key={emoji} title={(names as string[]).join(', ')} className="text-xs cursor-help flex items-center space-x-0.5">
+                      <span>{emoji}</span>
+                      {(names as string[]).length > 1 && <span className="text-[9px] text-white/50 font-bold">{(names as string[]).length}</span>}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
@@ -385,6 +553,21 @@ export const Messagerie: React.FC<MessagerieProps> = ({
                 <Mic className="w-4 h-4 animate-bounce" />
                 <span className="text-sm font-bold">Enregistrement...</span>
              </div>
+          </div>
+        )}
+        {isAiTyping && (
+          <div className="flex items-start">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#FFB020] to-[#FF4D6D] flex items-center justify-center shrink-0 mr-2">
+              <Sparkles className="w-3 h-3 text-white" />
+            </div>
+            <div className="p-3 rounded-2xl bg-gradient-to-br from-[#1C2C4E] to-[#2A1F4E] text-white rounded-bl-sm border border-[#6C5CFF]/20">
+              <div className="flex items-center space-x-1.5">
+                <span className="w-2 h-2 bg-[#FFB020] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                <span className="w-2 h-2 bg-[#FFB020] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                <span className="w-2 h-2 bg-[#FFB020] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                <span className="text-[10px] text-white/50 ml-2 font-medium">L'assistant rédige...</span>
+              </div>
+            </div>
           </div>
         )}
         <div ref={messagesEndRef} />
