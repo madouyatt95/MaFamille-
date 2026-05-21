@@ -56,19 +56,19 @@ export const Settings: React.FC<SettingsProps> = ({
 
   // Profil et avatars
   const [profileName, setProfileName] = useState(() => {
-    if (myMemberProfile) return myMemberProfile.displayName;
     if (members && activeMemberId) {
       const activeMem = members.find(m => m.id === activeMemberId);
-      return activeMem ? activeMem.name : '';
+      if (activeMem) return activeMem.name;
     }
+    if (myMemberProfile) return myMemberProfile.displayName;
     return '';
   });
   const [profilePhoto, setProfilePhoto] = useState(() => {
-    if (myMemberProfile) return myMemberProfile.photoUrl || '';
     if (members && activeMemberId) {
       const activeMem = members.find(m => m.id === activeMemberId);
-      return activeMem ? activeMem.photoUrl || '' : '';
+      if (activeMem) return activeMem.photoUrl || '';
     }
+    if (myMemberProfile) return myMemberProfile.photoUrl || '';
     return '';
   });
   const [savingProfile, setSavingProfile] = useState(false);
@@ -110,9 +110,10 @@ export const Settings: React.FC<SettingsProps> = ({
     try {
       // Try Supabase Storage upload first
       const supabase = getSupabaseClient();
-      if (supabase && myMemberProfile) {
+      const targetMemberId = activeMemberId || (myMemberProfile ? myMemberProfile.id : null);
+      if (supabase && targetMemberId) {
         const ext = file.name.split('.').pop() || 'jpg';
-        const filePath = `avatars/${myMemberProfile.id}_${Date.now()}.${ext}`;
+        const filePath = `avatars/${targetMemberId}_${Date.now()}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from('avatars')
           .upload(filePath, file, { upsert: true, contentType: file.type });
@@ -141,15 +142,17 @@ export const Settings: React.FC<SettingsProps> = ({
   };
 
   useEffect(() => {
-    if (myMemberProfile) {
-      setProfileName(myMemberProfile.displayName);
-      setProfilePhoto(myMemberProfile.photoUrl || '');
-    } else if (members && activeMemberId) {
+    if (members && activeMemberId) {
       const activeMem = members.find(m => m.id === activeMemberId);
       if (activeMem) {
         setProfileName(activeMem.name);
         setProfilePhoto(activeMem.photoUrl || '');
+        return;
       }
+    }
+    if (myMemberProfile) {
+      setProfileName(myMemberProfile.displayName);
+      setProfilePhoto(myMemberProfile.photoUrl || '');
     }
   }, [myMemberProfile, members, activeMemberId]);
 
@@ -169,17 +172,20 @@ export const Settings: React.FC<SettingsProps> = ({
     setSavingProfile(true);
     setProfileMsg(null);
     try {
+      const targetMemberId = activeMemberId || (myMemberProfile ? myMemberProfile.id : null);
+      if (!targetMemberId) throw new Error("Aucun membre actif trouvé");
+
       if (myMemberProfile) {
         // Mode Cloud (Supabase)
-        await foyerService.updateMemberProfile(myMemberProfile.id, {
+        await foyerService.updateMemberProfile(targetMemberId, {
           displayName: profileName.trim(),
           photoUrl: profilePhoto
         });
         setProfileMsg({ text: 'Profil cloud mis à jour avec succès ! ✨', type: 'success' });
         if (onRefreshFoyer) await onRefreshFoyer();
-      } else if (members && activeMemberId && setMembers) {
+      } else if (members && setMembers) {
         // Mode Local (Demo)
-        setMembers(prev => prev.map(m => m.id === activeMemberId ? {
+        setMembers(prev => prev.map(m => m.id === targetMemberId ? {
           ...m,
           name: profileName.trim(),
           photoUrl: profilePhoto
@@ -369,7 +375,7 @@ export const Settings: React.FC<SettingsProps> = ({
               <span>Mon Profil</span>
             </h3>
             <span className="text-[9px] font-bold text-[#6C5CFF] bg-[#6C5CFF]/10 px-2 py-0.5 rounded-full uppercase">
-              Rôle : {getRoleLabel(myMemberProfile ? myMemberProfile.role : (members.find(m => m.id === activeMemberId)?.role || 'Chef de famille'))}
+              Rôle : {getRoleLabel((members.find(m => m.id === activeMemberId)?.role) || (myMemberProfile ? myMemberProfile.role : 'Chef de famille'))}
             </span>
           </div>
 
