@@ -393,6 +393,8 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   };
 
   const getChildName = (assignedMemberId: string) => {
+    const found = members?.find(m => m.id === assignedMemberId);
+    if (found) return found.name;
     return assignedMemberId === '3' ? 'Amadou' : assignedMemberId === '4' ? 'Awa' : 'Général';
   };
 
@@ -600,8 +602,16 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                       onChange={(e) => setNewHomeworkAssignee(e.target.value)}
                       className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
                     >
-                      <option value="3">Amadou (12 ans)</option>
-                      <option value="4">Awa (8 ans)</option>
+                      {members && members.length > 0 ? (
+                        members.filter(m => m.role === 'Enfant' || m.id === '3' || m.id === '4').map(m => (
+                          <option key={m.id} value={m.id}>{m.name} ({m.id === '3' ? '12 ans' : m.id === '4' ? '8 ans' : m.role})</option>
+                        ))
+                      ) : (
+                        <>
+                          <option value="3">Amadou (12 ans)</option>
+                          <option value="4">Awa (8 ans)</option>
+                        </>
+                      )}
                     </select>
                   </div>
                 </div>

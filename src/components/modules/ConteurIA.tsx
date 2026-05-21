@@ -285,13 +285,17 @@ const generateExtensiveStory = (hero: string, universeId: string, moralId: strin
 };
 
 export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
-  // Default heroes list based on the user's design reference
-  const defaultHeroes = [
-    { name: 'Awa', level: 'Niv. 5', photoUrl: '/avatars/awa.png', age: '9 ans' },
-    { name: 'Amadou', level: '12 ans', photoUrl: '/avatars/amadou.png', age: '12 ans' },
-    { name: 'Mariam', level: '9 ans', photoUrl: '/avatars/mariam.png', age: '9 ans' },
-    { name: 'Abdou', level: '7 ans', photoUrl: '/avatars/ibrahima.png', age: '7 ans' }
-  ];
+  // Dynamically build heroes list from real family members passed via props
+  const defaultHeroes = (members && members.length > 0)
+    ? members.map(m => ({
+        name: m.name,
+        photoUrl: m.photoUrl,
+        age: m.role === 'Enfant' ? (m.id === '3' ? '12 ans' : m.id === '4' ? '8 ans' : 'Enfant') : m.role
+      }))
+    : [
+        { name: 'Amadou', photoUrl: '/avatars/amadou.png', age: '12 ans' },
+        { name: 'Awa', photoUrl: '/avatars/awa.png', age: '8 ans' }
+      ];
 
   // Config state
   const [selectedHero, setSelectedHero] = useState<string>('Awa'); // Default select Awa as in reference image

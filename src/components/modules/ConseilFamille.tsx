@@ -54,12 +54,18 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
     alert("🗳️ Nouveau scrutin démocratique publié avec succès au Conseil de Famille !");
   };
 
-  // Charter signatures state
-  const [signatures, setSignatures] = useState({
-    papa: true,
-    maman: true,
-    amadou: false,
-    awa: false
+  // Charter signatures state indexed by member ID
+  const [signatures, setSignatures] = useState<Record<string, boolean>>(() => {
+    const stored = localStorage.getItem('family_charter_signatures');
+    if (stored) return JSON.parse(stored);
+    
+    // Default signatures
+    return {
+      '1': true, // Papa / Chef de famille
+      '2': true, // Maman / Parent
+      '3': false, // Amadou
+      '4': false  // Awa
+    };
   });
 
   const memberName = activeMember ? activeMember.name : (activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa');
@@ -101,11 +107,10 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
   };
 
   const handleSignCharter = () => {
-    const key = activeMemberId === '3' ? 'amadou' : (activeMemberId === '4' ? 'awa' : (activeMember ? activeMember.name.toLowerCase() : null));
-    if (key) {
-      setSignatures(prev => ({ ...prev, [key]: true }));
-      alert("Charte signée numériquement avec fierté ! Faisons briller la maison ensemble. ✨");
-    }
+    const next = { ...signatures, [activeMemberId]: true };
+    setSignatures(next);
+    localStorage.setItem('family_charter_signatures', JSON.stringify(next));
+    alert("Charte signée numériquement avec fierté ! Faisons briller la maison ensemble. ✨");
   };
 
   return (
@@ -322,6 +327,7 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
       )}
 
       {/* CHARTER VIEW */}
+      {/* CHARTER VIEW */}
       {activeSubTab === 'charte' && (
         <div className="space-y-6">
           
@@ -331,7 +337,9 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
             
             <div className="text-center border-b border-white/10 pb-4">
               <span className="text-[9px] font-bold text-[#6C5CFF] uppercase tracking-widest">Pacte de Bienveillance</span>
-              <h3 className="text-lg font-serif font-extrabold text-white mt-1">LA CHARTE DE LA MAISON FATOU</h3>
+              <h3 className="text-lg font-serif font-extrabold text-white mt-1">
+                LA CHARTE DE LA FAMILLE {(members && members.length > 0 ? (members.find(m => ['Chef de famille', 'parent'].includes(m.role))?.name || members[0].name) : 'FATOU').toUpperCase()}
+              </h3>
             </div>
 
             <div className="space-y-4 text-xs font-medium text-white/70 leading-relaxed font-sans">
@@ -358,59 +366,83 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
               <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block text-center">Signatures Électroniques :</span>
               
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                
-                {/* Parents (always signed) */}
-                <div className="p-3 rounded-2xl bg-[#00D26A]/10 border border-[#00D26A]/20">
-                  <span className="text-[10px] font-bold text-white block">Papa</span>
-                  <span className="text-[9px] text-[#00D26A] font-bold mt-1.5 block">✍️ Signé</span>
-                </div>
-                <div className="p-3 rounded-2xl bg-[#00D26A]/10 border border-[#00D26A]/20">
-                  <span className="text-[10px] font-bold text-white block">Maman</span>
-                  <span className="text-[9px] text-[#00D26A] font-bold mt-1.5 block">✍️ Signé</span>
-                </div>
-
-                {/* Amadou */}
-                <div className={`p-3 rounded-2xl border transition-all ${
-                  signatures.amadou 
-                    ? 'bg-[#00D26A]/10 border-[#00D26A]/20' 
-                    : 'bg-white/5 border-white/5'
-                }`}>
-                  <span className="text-[10px] font-bold text-white block">Amadou</span>
-                  {signatures.amadou ? (
-                    <span className="text-[9px] text-[#00D26A] font-bold mt-1.5 block">✍️ Signé</span>
-                  ) : activeMemberId === '3' ? (
-                    <button 
-                      onClick={handleSignCharter}
-                      className="mt-2 w-full py-1.5 rounded-lg bg-[#6C5CFF] text-white font-bold text-[8px] cursor-pointer"
-                    >
-                      Signer ✍️
-                    </button>
-                  ) : (
-                    <span className="text-[9px] text-white/30 font-bold mt-1.5 block">En attente</span>
-                  )}
-                </div>
-
-                {/* Awa */}
-                <div className={`p-3 rounded-2xl border transition-all ${
-                  signatures.awa 
-                    ? 'bg-[#00D26A]/10 border-[#00D26A]/20' 
-                    : 'bg-white/5 border-white/5'
-                }`}>
-                  <span className="text-[10px] font-bold text-white block">Awa</span>
-                  {signatures.awa ? (
-                    <span className="text-[9px] text-[#00D26A] font-bold mt-1.5 block">✍️ Signé</span>
-                  ) : activeMemberId === '4' ? (
-                    <button 
-                      onClick={handleSignCharter}
-                      className="mt-2 w-full py-1.5 rounded-lg bg-[#6C5CFF] text-white font-bold text-[8px] cursor-pointer"
-                    >
-                      Signer ✍️
-                    </button>
-                  ) : (
-                    <span className="text-[9px] text-white/30 font-bold mt-1.5 block">En attente</span>
-                  )}
-                </div>
-
+                {members && members.length > 0 ? (
+                  members.map(m => {
+                    const isSigned = signatures[m.id] || false;
+                    const canSign = activeMemberId === m.id && !isSigned;
+                    
+                    return (
+                      <div key={m.id} className={`p-3 rounded-2xl border transition-all ${
+                        isSigned 
+                          ? 'bg-[#00D26A]/10 border-[#00D26A]/20' 
+                          : 'bg-white/5 border-white/5'
+                      }`}>
+                        <span className="text-[10px] font-bold text-white block">{m.name}</span>
+                        {isSigned ? (
+                          <span className="text-[9px] text-[#00D26A] font-bold mt-1.5 block">✍️ Signé</span>
+                        ) : canSign ? (
+                          <button 
+                            onClick={handleSignCharter}
+                            className="mt-2 w-full py-1.5 rounded-lg bg-[#6C5CFF] text-white font-bold text-[8px] cursor-pointer"
+                          >
+                            Signer ✍️
+                          </button>
+                        ) : (
+                          <span className="text-[9px] text-white/30 font-bold mt-1.5 block">En attente</span>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <>
+                    <div className="p-3 rounded-2xl bg-[#00D26A]/10 border border-[#00D26A]/20">
+                      <span className="text-[10px] font-bold text-white block">Papa</span>
+                      <span className="text-[9px] text-[#00D26A] font-bold mt-1.5 block">✍️ Signé</span>
+                    </div>
+                    <div className="p-3 rounded-2xl bg-[#00D26A]/10 border border-[#00D26A]/20">
+                      <span className="text-[10px] font-bold text-white block">Maman</span>
+                      <span className="text-[9px] text-[#00D26A] font-bold mt-1.5 block">✍️ Signé</span>
+                    </div>
+                    <div className={`p-3 rounded-2xl border transition-all ${
+                      signatures['3'] 
+                        ? 'bg-[#00D26A]/10 border-[#00D26A]/20' 
+                        : 'bg-white/5 border-white/5'
+                    }`}>
+                      <span className="text-[10px] font-bold text-white block">Amadou</span>
+                      {signatures['3'] ? (
+                        <span className="text-[9px] text-[#00D26A] font-bold mt-1.5 block">✍️ Signé</span>
+                      ) : activeMemberId === '3' ? (
+                        <button 
+                          onClick={handleSignCharter}
+                          className="mt-2 w-full py-1.5 rounded-lg bg-[#6C5CFF] text-white font-bold text-[8px] cursor-pointer"
+                        >
+                          Signer ✍️
+                        </button>
+                      ) : (
+                        <span className="text-[9px] text-white/30 font-bold mt-1.5 block">En attente</span>
+                      )}
+                    </div>
+                    <div className={`p-3 rounded-2xl border transition-all ${
+                      signatures['4'] 
+                        ? 'bg-[#00D26A]/10 border-[#00D26A]/20' 
+                        : 'bg-white/5 border-white/5'
+                    }`}>
+                      <span className="text-[10px] font-bold text-white block">Awa</span>
+                      {signatures['4'] ? (
+                        <span className="text-[9px] text-[#00D26A] font-bold mt-1.5 block">✍️ Signé</span>
+                      ) : activeMemberId === '4' ? (
+                        <button 
+                          onClick={handleSignCharter}
+                          className="mt-2 w-full py-1.5 rounded-lg bg-[#6C5CFF] text-white font-bold text-[8px] cursor-pointer"
+                        >
+                          Signer ✍️
+                        </button>
+                      ) : (
+                        <span className="text-[9px] text-white/30 font-bold mt-1.5 block">En attente</span>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
