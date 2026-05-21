@@ -197,8 +197,9 @@ export const Settings: React.FC<SettingsProps> = ({
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supabaseClient) {
-      setAuthMessage({ text: "Erreur d'initialisation de Supabase. Veuillez vérifier vos clés dans la Configuration Technique ci-dessous.", type: 'error' });
+    const activeClient = getSupabaseClient();
+    if (!activeClient) {
+      setAuthMessage({ text: "Erreur d'initialisation de Supabase. Veuillez renseigner l'URL et la Clé Anon ci-dessus.", type: 'error' });
       return;
     }
 
@@ -206,7 +207,7 @@ export const Settings: React.FC<SettingsProps> = ({
     setAuthMessage(null);
 
     try {
-      const { error } = await supabaseClient.auth.signInWithPassword({
+      const { error } = await activeClient.auth.signInWithPassword({
         email: email.trim(),
         password: password
       });
@@ -226,8 +227,9 @@ export const Settings: React.FC<SettingsProps> = ({
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supabaseClient) {
-      setAuthMessage({ text: "Erreur d'initialisation de Supabase. Veuillez vérifier vos clés dans la Configuration Technique ci-dessous.", type: 'error' });
+    const activeClient = getSupabaseClient();
+    if (!activeClient) {
+      setAuthMessage({ text: "Erreur d'initialisation de Supabase. Veuillez renseigner l'URL et la Clé Anon ci-dessus.", type: 'error' });
       return;
     }
 
@@ -235,7 +237,7 @@ export const Settings: React.FC<SettingsProps> = ({
     setAuthMessage(null);
 
     try {
-      const { error } = await supabaseClient.auth.signUp({
+      const { error } = await activeClient.auth.signUp({
         email: email.trim(),
         password: password
       });
@@ -676,6 +678,48 @@ export const Settings: React.FC<SettingsProps> = ({
           </div>
 
           <form onSubmit={authTab === 'login' ? handleLogin : handleRegister} className="space-y-3.5">
+            {/* Show Supabase config inputs directly if not set in environmental variables */}
+            {!supabaseClient && (
+              <div className="p-3.5 rounded-2xl bg-[#FFB020]/5 border border-[#FFB020]/15 space-y-3">
+                <span className="text-[10px] font-bold text-[#FFB020] uppercase tracking-wider flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 animate-pulse" /> Configuration Cloud Requise
+                </span>
+                <p className="text-[10px] text-white/50 leading-relaxed font-medium">
+                  Pour activer la synchronisation de votre foyer, veuillez saisir l'URL et la Clé Anon de votre base de données Supabase.
+                </p>
+                <div className="space-y-2">
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-bold text-white/40 uppercase tracking-wider block">URL Supabase</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="https://xxxx.supabase.co"
+                      value={supabaseUrl}
+                      onChange={(e) => {
+                        setSupabaseUrl(e.target.value.trim());
+                        localStorage.setItem('mf_sb_url', e.target.value.trim());
+                      }}
+                      className="w-full px-3 py-2 rounded-xl bg-[#07111F]/60 border border-white/10 text-white text-[11px] focus:outline-none focus:border-[#6C5CFF]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-bold text-white/40 uppercase tracking-wider block">Clé API Anon</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="eyJhbGciOi..."
+                      value={supabaseKey}
+                      onChange={(e) => {
+                        setSupabaseKey(e.target.value.trim());
+                        localStorage.setItem('mf_sb_key', e.target.value.trim());
+                      }}
+                      className="w-full px-3 py-2 rounded-xl bg-[#07111F]/60 border border-white/10 text-white text-[11px] focus:outline-none focus:border-[#6C5CFF]"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-1">
               <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Adresse e-mail</label>
               <div className="relative">
