@@ -258,7 +258,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     { id: 'finances_hub', title: 'Finances', desc: 'Budget, comptes et objectifs', badge: `${goals.length} objectifs`, icon: Wallet, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' }
   ];
 
-  const isAmadou = activeMemberId === '3';
+  const activeMember = members.find(m => m.id === activeMemberId);
+  const isAmadou = activeMember 
+    ? (activeMember.name.toLowerCase().includes('amadou') || ['Enfant', 'child'].includes(activeMember.role))
+    : activeMemberId === '3';
 
   const secondaryModules = [
     { id: 'vehicules', title: 'Véhicules', desc: 'Assurances et entretiens', icon: Car, color: 'text-[#4F8CFF] bg-[#4F8CFF]/10' },
@@ -402,7 +405,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     }
   };
 
-  const isParent = activeMemberId === '1' || activeMemberId === '2';
+  const isParent = activeMember 
+    ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent'].includes(activeMember.role)
+    : (activeMemberId === '1' || activeMemberId === '2');
   const isLockedForChild = !isParent && ['documents', 'finances_hub', 'vehicules', 'logement'].includes(activeModule) && !authorizedModules.includes(activeModule);
 
   // Vehicles Form states
@@ -1486,6 +1491,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               schoolTasks={schoolTasks} 
               setSchoolTasks={setSchoolTasks} 
               activeMemberId={activeMemberId} 
+              members={members}
             />
           </div>
         </div>
@@ -2481,6 +2487,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           activeMemberId={activeMemberId} 
           isPremium={isPremium}
           onTriggerPaywall={onTriggerPaywall}
+          members={members}
         />
       )}
 
@@ -2490,6 +2497,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           votes={votes} 
           setVotes={setVotes} 
           activeMemberId={activeMemberId} 
+          members={members}
         />
       )}
 

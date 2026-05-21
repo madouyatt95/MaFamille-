@@ -299,6 +299,27 @@ function App() {
     try {
       const { foyer: myFoyer, member: myMember } = await foyerService.getMyFoyer();
       if (myFoyer && myMember) {
+        // Clear all local states to avoid syncAllData pushing offline demo data to cloud
+        setEvents([]);
+        setGroceries([]);
+        setTransactions([]);
+        setDocuments([]);
+        setDishes([]);
+        setTasks([]);
+        setSavingGoals([]);
+        setAlerts([]);
+        setMemories([]);
+        setVotes([]);
+        setSchoolTasks([]);
+        setChatGroups([]);
+        setChatMessages([]);
+        setDemarches([]);
+        setJustificatifPacks([]);
+        setVehicles([]);
+        setMaintenance([]);
+        setTrips([]);
+        setPets([]);
+
         setFoyer(myFoyer);
         setMyMemberProfile(myMember);
         setActiveMemberId(myMember.id);
@@ -1547,7 +1568,13 @@ function App() {
             onLogout={handleLogout}
             foyer={foyer}
             myMemberProfile={myMemberProfile}
-            onRefreshFoyer={async () => { if (foyer) { await loadFoyerData(foyer.id); } }}
+            onRefreshFoyer={async () => {
+              if (foyer) {
+                await loadFoyerData(foyer.id);
+                const { member } = await foyerService.getMyFoyer();
+                if (member) setMyMemberProfile(member);
+              }
+            }}
           />
         );
       }

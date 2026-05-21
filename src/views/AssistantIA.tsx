@@ -20,6 +20,7 @@ interface AssistantIAProps {
   formatMoney: (amount: number) => string;
   activeMemberId?: string;
   onAddGroceryItem?: (name: string, category: string, qty: string) => void;
+  members?: any[];
 }
 
 interface Message {
@@ -36,10 +37,12 @@ export const AssistantIA: React.FC<AssistantIAProps> = ({
   groceries,
   formatMoney,
   activeMemberId = '1',
-  onAddGroceryItem
+  onAddGroceryItem,
+  members
 }) => {
   const [messages, setMessages] = useState<Message[]>(() => {
-    const name = activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa';
+    const activeMember = members?.find(m => m.id === activeMemberId);
+    const name = activeMember ? activeMember.name : (activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa');
     return [
       {
         id: 'm-init',

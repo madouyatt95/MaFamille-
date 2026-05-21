@@ -34,6 +34,7 @@ export const Finances: React.FC<FinancesProps> = ({
   setTransactions,
   savingGoals,
   setSavingGoals,
+  members,
   formatMoney,
   onAddTransactionClick,
   activeMemberId = '1'
@@ -52,12 +53,15 @@ export const Finances: React.FC<FinancesProps> = ({
       : { title: 'Kit de dessin 🎨', target: 20 };
   });
 
-  const isChild = activeMemberId === '3' || activeMemberId === '4';
-  const childName = activeMemberId === '3' ? 'Amadou' : 'Awa';
+  const activeMember = members?.find(m => m.id === activeMemberId);
+  const isChild = activeMember
+    ? ['Enfant', 'child'].includes(activeMember.role)
+    : (activeMemberId === '3' || activeMemberId === '4');
+  const childName = activeMember ? activeMember.name : (activeMemberId === '3' ? 'Amadou' : 'Awa');
   
   if (isChild) {
-    const balance = activeMemberId === '3' ? 15.00 : 22.50;
-    const points = activeMemberId === '3' ? 150 : 85;
+    const balance = activeMemberId === '3' ? 15.00 : (activeMemberId === '4' ? 22.50 : 0.00);
+    const points = activeMemberId === '3' ? 150 : (activeMemberId === '4' ? 85 : 0);
     
     // Filter transactions to show only their rewards / pocket money entries
     const childTransactions = transactions.filter(t => t.memberName === childName || t.category === 'Argent de Poche');

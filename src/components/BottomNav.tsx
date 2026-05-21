@@ -6,15 +6,20 @@ interface BottomNavProps {
   setActiveTab: (tab: string) => void;
   onAddClick: () => void;
   activeMemberId?: string;
+  members?: any[];
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({ 
   activeTab, 
   setActiveTab, 
   onAddClick,
-  activeMemberId
+  activeMemberId,
+  members
 }) => {
-  const isChild = activeMemberId === '3' || activeMemberId === '4';
+  const activeMember = members?.find(m => m.id === activeMemberId);
+  const isChild = activeMember
+    ? ['Enfant', 'child'].includes(activeMember.role)
+    : (activeMemberId === '3' || activeMemberId === '4');
   
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 pt-2 md:px-8 max-w-7xl mx-auto pointer-events-none">

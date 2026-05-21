@@ -17,6 +17,7 @@ interface CapsuleTemporelleProps {
   activeMemberId: string;
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
+  members?: any[];
 }
 
 interface MemoryCardProps {
@@ -163,7 +164,8 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
   setMemories,
   activeMemberId,
   isPremium = false,
-  onTriggerPaywall
+  onTriggerPaywall,
+  members
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'album' | 'gazette' | 'comic'>('album');
   
@@ -179,7 +181,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
   const [uploading, setUploading] = useState(false);
   const [generatingGazette, setGeneratingGazette] = useState(false);
   const [gazetteStep, setGazetteStep] = useState(0);
-
+ 
   // === BD ÉPIQUE STATES ===
   const [selectedComicStyle, setSelectedComicStyle] = useState<'retro' | 'manga' | 'fantasy' | 'cyberpunk'>('retro');
   const [isGeneratingComic, setIsGeneratingComic] = useState(false);
@@ -187,7 +189,10 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
   const [comicChapters, setComicChapters] = useState<{ title: string; desc: string; author: string; photo?: string }[]>([]);
   const [comicGenerationProgress, setComicGenerationProgress] = useState<string>('');
 
-  const isParent = activeMemberId === '1' || activeMemberId === '2';
+  const activeMember = members?.find(m => m.id === activeMemberId);
+  const isParent = activeMember 
+    ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent'].includes(activeMember.role)
+    : (activeMemberId === '1' || activeMemberId === '2');
 
   const PRESET_IMAGES = [
     { label: '🚴‍♂️ Sport', url: 'https://images.unsplash.com/photo-1541614101331-1a5a3a194e92?w=600&auto=format&fit=crop&q=80' },
@@ -215,14 +220,14 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
 
     setUploading(true);
     setTimeout(() => {
-      const author = activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa';
-      const authorPic = activeMemberId === '1' 
+      const author = activeMember ? activeMember.name : (activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa');
+      const authorPic = activeMember ? activeMember.photoUrl : (activeMemberId === '1' 
         ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80' 
         : activeMemberId === '2' 
           ? 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=150&auto=format&fit=crop&q=80'
           : activeMemberId === '3'
             ? 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150&auto=format&fit=crop&q=80'
-            : 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150&auto=format&fit=crop&q=80';
+            : 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150&auto=format&fit=crop&q=80');
 
       const finalImages = uploadedImages.length > 0 ? uploadedImages : [selectedPresetImage];
 

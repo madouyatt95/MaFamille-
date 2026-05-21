@@ -19,15 +19,20 @@ interface TuteurScolaireProps {
   schoolTasks: SchoolTask[];
   setSchoolTasks: React.Dispatch<React.SetStateAction<SchoolTask[]>>;
   activeMemberId: string;
+  members?: any[];
 }
 
 export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({ 
   schoolTasks, 
   setSchoolTasks, 
-  activeMemberId 
+  activeMemberId,
+  members
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'devoirs' | 'quizzes' | 'schedule' | 'grades'>('devoirs');
-  const isParent = activeMemberId === '1' || activeMemberId === '2';
+  const activeMember = members?.find(m => m.id === activeMemberId);
+  const isParent = activeMember 
+    ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent'].includes(activeMember.role)
+    : (activeMemberId === '1' || activeMemberId === '2');
 
   // --- Subjects List ---
   const [subjectsList, setSubjectsList] = useState<string[]>(() => {

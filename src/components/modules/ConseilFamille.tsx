@@ -9,15 +9,20 @@ interface ConseilFamilleProps {
   votes: FamilyVote[];
   setVotes: React.Dispatch<React.SetStateAction<FamilyVote[]>>;
   activeMemberId: string;
+  members?: any[];
 }
 
 export const ConseilFamille: React.FC<ConseilFamilleProps> = ({ 
   votes, 
   setVotes,
-  activeMemberId 
+  activeMemberId,
+  members
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'sondages' | 'charte'>('sondages');
-  const isParent = activeMemberId === '1' || activeMemberId === '2';
+  const activeMember = members?.find(m => m.id === activeMemberId);
+  const isParent = activeMember 
+    ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent'].includes(activeMember.role)
+    : (activeMemberId === '1' || activeMemberId === '2');
   
   // Form states for adding new polls
   const [newQuestion, setNewQuestion] = useState('');
@@ -57,7 +62,7 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
     awa: false
   });
 
-  const memberName = activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa';
+  const memberName = activeMember ? activeMember.name : (activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa');
 
   const handleVote = (pollId: string, optionIdx: number) => {
     let alreadyVoted = false;
@@ -96,7 +101,7 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
   };
 
   const handleSignCharter = () => {
-    const key = activeMemberId === '3' ? 'amadou' : activeMemberId === '4' ? 'awa' : null;
+    const key = activeMemberId === '3' ? 'amadou' : (activeMemberId === '4' ? 'awa' : (activeMember ? activeMember.name.toLowerCase() : null));
     if (key) {
       setSignatures(prev => ({ ...prev, [key]: true }));
       alert("Charte signée numériquement avec fierté ! Faisons briller la maison ensemble. ✨");

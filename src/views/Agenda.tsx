@@ -54,7 +54,10 @@ export const Agenda: React.FC<AgendaProps> = ({
     }
   }, [defaultSelectedDate]);
 
-  const isChild = activeMemberId === '3' || activeMemberId === '4';
+  const activeMember = members?.find(m => m.id === activeMemberId);
+  const isChild = activeMember
+    ? ['Enfant', 'child'].includes(activeMember.role)
+    : (activeMemberId === '3' || activeMemberId === '4');
 
   const visibleEvents = useMemo(() => {
     return events.filter(e => {

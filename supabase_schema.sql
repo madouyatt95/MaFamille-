@@ -420,6 +420,10 @@ CREATE POLICY "members_delete" ON public.foyer_members FOR DELETE
     USING (user_id = auth.uid() OR foyer_id IN (
         SELECT foyer_id FROM public.foyer_members WHERE user_id = auth.uid() AND role = 'admin'
     ));
+CREATE POLICY "members_update" ON public.foyer_members FOR UPDATE
+    USING (user_id = auth.uid() OR foyer_id IN (
+        SELECT foyer_id FROM public.foyer_members WHERE user_id = auth.uid() AND role IN ('admin', 'parent')
+    ));
 
 -- INVITATIONS : visible par les membres admin/parent du foyer
 CREATE POLICY "invitations_select" ON public.foyer_invitations FOR SELECT
