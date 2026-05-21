@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
-import type { Foyer, FoyerMember } from '../types';
+import type { Foyer, FoyerMember, Member } from '../types';
 
 interface SettingsProps {
   currency: string;
@@ -33,6 +33,9 @@ interface SettingsProps {
   foyer?: Foyer | null;
   myMemberProfile?: FoyerMember | null;
   onRefreshFoyer?: () => void;
+  members?: Member[];
+  setMembers?: React.Dispatch<React.SetStateAction<Member[]>>;
+  activeMemberId?: string;
 }
 
 export const Settings: React.FC<SettingsProps> = ({
@@ -44,13 +47,30 @@ export const Settings: React.FC<SettingsProps> = ({
   onLogout,
   foyer,
   myMemberProfile,
-  onRefreshFoyer
+  onRefreshFoyer,
+  members = [],
+  setMembers,
+  activeMemberId
 }) => {
   const [savingBackup, setSavingBackup] = useState(false);
 
   // Profil et avatars
-  const [profileName, setProfileName] = useState(myMemberProfile?.displayName || '');
-  const [profilePhoto, setProfilePhoto] = useState(myMemberProfile?.photoUrl || '');
+  const [profileName, setProfileName] = useState(() => {
+    if (myMemberProfile) return myMemberProfile.displayName;
+    if (members && activeMemberId) {
+      const activeMem = members.find(m => m.id === activeMemberId);
+      return activeMem ? activeMem.name : '';
+    }
+    return '';
+  });
+  const [profilePhoto, setProfilePhoto] = useState(() => {
+    if (myMemberProfile) return myMemberProfile.photoUrl || '';
+    if (members && activeMemberId) {
+      const activeMem = members.find(m => m.id === activeMemberId);
+      return activeMem ? activeMem.photoUrl || '' : '';
+    }
+    return '';
+  });
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -124,8 +144,14 @@ export const Settings: React.FC<SettingsProps> = ({
     if (myMemberProfile) {
       setProfileName(myMemberProfile.displayName);
       setProfilePhoto(myMemberProfile.photoUrl || '');
+    } else if (members && activeMemberId) {
+      const activeMem = members.find(m => m.id === activeMemberId);
+      if (activeMem) {
+        setProfileName(activeMem.name);
+        setProfilePhoto(activeMem.photoUrl || '');
+      }
     }
-  }, [myMemberProfile]);
+  }, [myMemberProfile, members, activeMemberId]);
 
   const presetAvatars = [
     { emoji: '👨‍👩‍👧', label: 'Famille', url: 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=150' },
@@ -140,16 +166,28 @@ export const Settings: React.FC<SettingsProps> = ({
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!myMemberProfile) return;
     setSavingProfile(true);
     setProfileMsg(null);
     try {
-      await foyerService.updateMemberProfile(myMemberProfile.id, {
-        displayName: profileName.trim(),
-        photoUrl: profilePhoto
-      });
-      setProfileMsg({ text: 'Profil mis à jour avec succès ! ✨', type: 'success' });
-      if (onRefreshFoyer) onRefreshFoyer();
+      if (myMemberProfile) {
+        // Mode Cloud (Supabase)
+        await foyerService.updateMemberProfile(myMemberProfile.id, {
+          displayName: profileName.trim(),
+          photoUrl: profilePhoto
+        });
+        setProfileMsg({ text: 'Profil cloud mis à jour avec succès ! ✨', type: 'success' });
+        if (onRefreshFoyer) await onRefreshFoyer();
+      } else if (members && activeMemberId && setMembers) {
+        // Mode Local (Demo)
+        setMembers(prev => prev.map(m => m.id === activeMemberId ? {
+          ...m,
+          name: profileName.trim(),
+          photoUrl: profilePhoto
+        } : m));
+        setProfileMsg({ text: 'Profil local mis à jour avec succès ! ✨', type: 'success' });
+      } else {
+        throw new Error("Impossible de mettre à jour le profil");
+      }
     } catch (err: any) {
       setProfileMsg({ text: err.message || 'Erreur de mise à jour.', type: 'error' });
     } finally {
@@ -323,7 +361,7 @@ export const Settings: React.FC<SettingsProps> = ({
       </div>
 
       {/* 0. Mon Profil */}
-      {user && myMemberProfile && (
+      {(myMemberProfile || activeMemberId) && (
         <form onSubmit={handleSaveProfile} className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-5 animate-fade-in">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
@@ -331,7 +369,7 @@ export const Settings: React.FC<SettingsProps> = ({
               <span>Mon Profil</span>
             </h3>
             <span className="text-[9px] font-bold text-[#6C5CFF] bg-[#6C5CFF]/10 px-2 py-0.5 rounded-full uppercase">
-              Rôle : {getRoleLabel(myMemberProfile.role)}
+              Rôle : {getRoleLabel(myMemberProfile ? myMemberProfile.role : (members.find(m => m.id === activeMemberId)?.role || 'Chef de famille'))}
             </span>
           </div>
 

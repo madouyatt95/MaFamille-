@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { parseGroceryNameAndQty, detectGroceryCategory } from '../utils/groceryParser';
+import { getSupabaseClient } from '../utils/supabase';
+import { foyerService } from '../services/foyerService';
 import { 
   FolderLock, 
   HeartPulse, 
@@ -33,7 +35,9 @@ import {
   Edit3,
   Map as MapIcon,
   BookOpen,
-  Paintbrush
+  Paintbrush,
+  Save,
+  X
 } from 'lucide-react';
 import type { 
   DocumentFile, 
@@ -124,6 +128,9 @@ interface MenuHubProps {
   onAddEvent?: (title: string, dateTime: string) => void;
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
+  vaccines?: any[];
+  setVaccines?: React.Dispatch<React.SetStateAction<any[]>>;
+  setMembers?: React.Dispatch<React.SetStateAction<Member[]>>;
 }
 
 export const MenuHub: React.FC<MenuHubProps> = ({
@@ -173,7 +180,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   setJustificatifPacks,
   onAddEvent,
   isPremium = false,
-  onTriggerPaywall
+  onTriggerPaywall,
+  vaccines = [],
+  setVaccines,
+  setMembers
 }) => {
   const [newGroceryName, setNewGroceryName] = useState('');
   const [newGroceryCat, setNewGroceryCat] = useState('Épicerie');
@@ -242,6 +252,34 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
   // --- Feature 6: Health Emergency Card ---
   const [healthSubTab, setHealthSubTab] = useState<'croissance' | 'vaccins' | 'urgence'>('croissance');
+  const [selectedHealthMemberId, setSelectedHealthMemberId] = useState(activeMemberId);
+  
+  const [growthLogs, setGrowthLogs] = useState<{ id: string; memberId: string; date: string; height: number; weight: number; }[]>(() => {
+    const stored = localStorage.getItem('mf_growth_logs');
+    return stored ? JSON.parse(stored) : [
+      { id: 'g-1', memberId: '1', date: '2025-01-10', height: 145, weight: 35 },
+      { id: 'g-2', memberId: '1', date: '2025-03-15', height: 148, weight: 37 },
+      { id: 'g-3', memberId: '1', date: '2026-05-20', height: 152, weight: 38 }
+    ];
+  });
+  React.useEffect(() => {
+    localStorage.setItem('mf_growth_logs', JSON.stringify(growthLogs));
+  }, [growthLogs]);
+
+  const [newLogDate, setNewLogDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [newLogHeight, setNewLogHeight] = useState('');
+  const [newLogWeight, setNewLogWeight] = useState('');
+
+  const [newVacName, setNewVacName] = useState('');
+  const [newVacDate, setNewVacDate] = useState('');
+  const [newVacDoctor, setNewVacDoctor] = useState('');
+
+  const [editingEmergencyMemberId, setEditingEmergencyMemberId] = useState<string | null>(null);
+  const [editBlood, setEditBlood] = useState('O+');
+  const [editAllergies, setEditAllergies] = useState('');
+  const [editTreatments, setEditTreatments] = useState('');
+  const [editEmergencyName, setEditEmergencyName] = useState('');
+  const [editEmergencyPhone, setEditEmergencyPhone] = useState('');
 
   // --- Feature 8: House Plan View ---
   const [logementViewMode, setLogementViewMode] = useState<'list' | 'plan'>('list');
@@ -791,9 +829,26 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       {/* SUB-MODULE 2: Santé */}
       {activeModule === 'sante' && (
         <div className="space-y-6">
-          <div>
-            <h2 className="text-lg font-extrabold text-white">Carnet Santé & Vaccins</h2>
-            <p className="text-xs text-white/50">Vaccination, suivi pédiatrique & Fiche d'Urgence</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-extrabold text-white">Carnet Santé & Vaccins</h2>
+              <p className="text-xs text-white/50">Vaccination, suivi de croissance & Fiche SOS</p>
+            </div>
+            
+            {/* Filtre de membre global pour la Santé */}
+            {(healthSubTab === 'croissance' || healthSubTab === 'vaccins') && (
+              <select
+                value={selectedHealthMemberId}
+                onChange={(e) => setSelectedHealthMemberId(e.target.value)}
+                className="bg-[#07111F]/80 text-white border border-white/10 rounded-xl px-3 py-1.5 text-xs font-bold focus:outline-none focus:border-[#FF4D6D] cursor-pointer"
+              >
+                {members.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} ({['parent', 'Parent'].includes(m.role) ? 'Parent' : 'Enfant'})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Sub-tab navigation */}
@@ -805,105 +860,512 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               💉 Vaccins
             </button>
             <button onClick={() => setHealthSubTab('urgence')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'urgence' ? 'bg-[#FF4D6D] text-white shadow-md animate-pulse' : 'text-white/40 hover:text-white/60'}`}>
-              🚨 Fiche Urgence
+              🚨 Fiches d'Urgence
             </button>
           </div>
 
-          {healthSubTab === 'croissance' && (
-            <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-                <Activity className="w-4 h-4 text-[#FF4D6D]" />
-                <span>Courbe de Croissance (Amadou)</span>
-              </h3>
-              <div className="h-44 w-full relative">
-                <svg className="w-full h-full" viewBox="0 0 300 150">
-                  <line x1="20" y1="20" x2="280" y2="20" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-                  <line x1="20" y1="60" x2="280" y2="60" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-                  <line x1="20" y1="100" x2="280" y2="100" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-                  <path d="M20,130 Q120,80 280,30" fill="none" stroke="rgba(108, 92, 255, 0.15)" strokeWidth="5" strokeLinecap="round" />
-                  <path d="M20,128 C80,105 180,68 280,38" fill="none" stroke="#FF4D6D" strokeWidth="2.5" strokeLinecap="round" />
-                  <circle cx="20" cy="128" r="4" fill="#FF4D6D" />
-                  <circle cx="100" cy="98" r="4" fill="#FF4D6D" />
-                  <circle cx="190" cy="65" r="4" fill="#FF4D6D" />
-                  <circle cx="280" cy="38" r="4" fill="#FF4D6D" />
-                  <text x="18" y="145" fill="rgba(255,255,255,0.4)" fontSize="8">Naissance</text>
-                  <text x="95" y="145" fill="rgba(255,255,255,0.4)" fontSize="8">3 ans</text>
-                  <text x="185" y="145" fill="rgba(255,255,255,0.4)" fontSize="8">6 ans</text>
-                  <text x="260" y="145" fill="rgba(255,255,255,0.4)" fontSize="8">12 ans</text>
-                  <text x="282" y="38" fill="#FF4D6D" fontSize="9" fontWeight="bold">152 cm</text>
-                </svg>
-              </div>
-              <p className="text-[10px] text-white/40 text-center font-medium">Ligne rouge: courbe d'Amadou • Zone floue: percentile normal</p>
-            </div>
-          )}
+          {/* 1. Croissance */}
+          {healthSubTab === 'croissance' && (() => {
+            const activeLogs = growthLogs.filter(log => log.memberId === selectedHealthMemberId).sort((a, b) => a.date.localeCompare(b.date));
+            const selectedMemberName = members.find(m => m.id === selectedHealthMemberId)?.name || 'Membre';
 
-          {healthSubTab === 'vaccins' && (
-            <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-3">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider">Statut des Vaccinations</h3>
-              <div className="space-y-2">
-                {[
-                  { name: 'DTC (Diphtérie-Tétanos-Coqueluche)', status: 'À Jour', date: '05/02/2026', member: 'Amadou', color: 'text-[#00D26A]' },
-                  { name: 'ROR (Rougeole-Oreillons-Rubéole)', status: 'À Jour', date: '12/04/2026', member: 'Ibrahima', color: 'text-[#00D26A]' },
-                  { name: 'Méningocoque B', status: 'À faire', date: '02/10/2026', member: 'Ibrahima', color: 'text-[#FFB020]' },
-                  { name: 'Rappel Tétanos', status: 'Recommandé', date: '12/12/2026', member: 'Papa', color: 'text-white/40' }
-                ].map((vac, idx) => (
-                  <div key={idx} className="flex items-center justify-between py-2 border-b border-white/5 last:border-b-0 text-xs">
+            // Projection mathématique des points SVG (30 à 270 en X, 120 à 20 en Y)
+            const minHeight = 40;
+            const maxHeight = 180;
+            const points = activeLogs.map((log, i) => {
+              const x = activeLogs.length > 1 ? 30 + (240 * i) / (activeLogs.length - 1) : 150;
+              const y = 120 - ((log.height - minHeight) / (maxHeight - minHeight)) * 90;
+              return { ...log, x, y };
+            });
+
+            const pathD = points.length > 1 ? points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ') : '';
+
+            const handleAddGrowthLog = (e: React.FormEvent) => {
+              e.preventDefault();
+              const h = parseFloat(newLogHeight);
+              const w = parseFloat(newLogWeight);
+              if (isNaN(h) || h <= 0) return;
+              const newLog = {
+                id: `g-${Date.now()}`,
+                memberId: selectedHealthMemberId,
+                date: newLogDate,
+                height: h,
+                weight: isNaN(w) ? 0 : w
+              };
+              setGrowthLogs(prev => [...prev, newLog]);
+              setNewLogHeight('');
+              setNewLogWeight('');
+            };
+
+            const handleDeleteGrowthLog = (id: string) => {
+              setGrowthLogs(prev => prev.filter(log => log.id !== id));
+            };
+
+            return (
+              <div className="space-y-4">
+                <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+                    <Activity className="w-4 h-4 text-[#FF4D6D]" />
+                    <span>Courbe de Croissance ({selectedMemberName})</span>
+                  </h3>
+
+                  <div className="h-44 w-full relative">
+                    {points.length > 0 ? (
+                      <svg className="w-full h-full" viewBox="0 0 300 140">
+                        {/* Axes horizontal */}
+                        <line x1="20" y1="20" x2="280" y2="20" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                        <line x1="20" y1="65" x2="280" y2="65" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                        <line x1="20" y1="110" x2="280" y2="110" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                        
+                        {/* Courbe moyenne (percentile flou) */}
+                        <path d="M30,115 Q150,75 270,35" fill="none" stroke="rgba(255, 77, 109, 0.1)" strokeWidth="8" strokeLinecap="round" />
+                        
+                        {/* Courbe réelle */}
+                        {pathD && (
+                          <path d={pathD} fill="none" stroke="#FF4D6D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                        )}
+
+                        {/* Points cliquables */}
+                        {points.map((p) => (
+                          <g key={p.id}>
+                            <circle cx={p.x} cy={p.y} r="4" fill="#FF4D6D" className="cursor-pointer hover:r-6 transition-all" />
+                            <text x={p.x - 10} y={p.y - 8} fill="white" fontSize="7" fontWeight="bold">
+                              {p.height}
+                            </text>
+                          </g>
+                        ))}
+
+                        <text x="25" y="130" fill="rgba(255,255,255,0.4)" fontSize="7">Début</text>
+                        <text x="260" y="130" fill="rgba(255,255,255,0.4)" fontSize="7">Récent</text>
+                      </svg>
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+                        <span className="text-xl">📈</span>
+                        <p className="text-xs text-white/40 mt-1 font-bold">Aucune mesure pour {selectedMemberName}</p>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[9px] text-white/30 text-center font-medium leading-relaxed">
+                    Ajoutez régulièrement la taille pour tracer la courbe de croissance en temps réel de votre enfant.
+                  </p>
+                </div>
+
+                {/* Formulaire ajout mesure */}
+                <form onSubmit={handleAddGrowthLog} className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Ajouter une mesure</h4>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-white/40 uppercase block">Date</label>
+                      <input 
+                        type="date"
+                        value={newLogDate}
+                        onChange={(e) => setNewLogDate(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-white/40 uppercase block">Taille (cm)</label>
+                      <input 
+                        type="number"
+                        placeholder="ex: 125"
+                        value={newLogHeight}
+                        onChange={(e) => setNewLogHeight(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-white/40 uppercase block">Poids (kg)</label>
+                      <input 
+                        type="number"
+                        placeholder="ex: 28"
+                        value={newLogWeight}
+                        onChange={(e) => setNewLogWeight(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 rounded-xl bg-[#FF4D6D] hover:bg-[#E03F5E] text-white text-xs font-bold cursor-pointer transition-all active:scale-[0.98]"
+                  >
+                    Enregistrer la mesure
+                  </button>
+                </form>
+
+                {/* Historique des mesures */}
+                {activeLogs.length > 0 && (
+                  <div className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-2">
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">Historique</h4>
+                    <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1 text-[11px]">
+                      {activeLogs.slice().reverse().map((log) => (
+                        <div key={log.id} className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-b-0 text-xs">
+                          <span className="font-bold text-white">{new Date(log.date).toLocaleDateString('fr-FR')}</span>
+                          <span className="text-white/60 font-semibold">{log.height} cm • {log.weight > 0 ? `${log.weight} kg` : '--'}</span>
+                          <button 
+                            type="button"
+                            onClick={() => handleDeleteGrowthLog(log.id)}
+                            className="p-1 hover:text-red-400 text-white/30 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* 2. Vaccins */}
+          {healthSubTab === 'vaccins' && (() => {
+            const activeVaccines = (vaccines || []).filter(v => v.memberId === selectedHealthMemberId);
+            const selectedMemberName = members.find(m => m.id === selectedHealthMemberId)?.name || 'Membre';
+
+            const handleToggleVac = (id: string) => {
+              if (setVaccines) {
+                setVaccines(prev => prev.map(v => v.id === id ? { ...v, status: v.status === 'Fait' ? 'À faire' : 'Fait' } : v));
+              }
+            };
+
+            const handleDeleteVac = (id: string) => {
+              if (setVaccines) {
+                setVaccines(prev => prev.filter(v => v.id !== id));
+              }
+            };
+
+            const handleAddVac = (e: React.FormEvent) => {
+              e.preventDefault();
+              if (!newVacName.trim() || !newVacDate) return;
+              const newVac = {
+                id: `v-${Date.now()}`,
+                memberId: selectedHealthMemberId,
+                name: newVacName.trim(),
+                date: newVacDate,
+                status: 'À faire',
+                doctor: newVacDoctor.trim() || 'Médecin traitant'
+              };
+              if (setVaccines) {
+                setVaccines(prev => [...prev, newVac]);
+              }
+              setNewVacName('');
+              setNewVacDate('');
+              setNewVacDoctor('');
+            };
+
+            return (
+              <div className="space-y-4">
+                <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-3">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+                    <span>Statut des Vaccinations ({selectedMemberName})</span>
+                  </h3>
+                  <div className="space-y-1">
+                    {activeVaccines.length > 0 ? (
+                      activeVaccines.map((vac) => (
+                        <div key={vac.id} className="flex items-center justify-between py-2.5 border-b border-white/5 last:border-b-0 text-xs">
+                          <div>
+                            <h4 className="font-bold text-white">{vac.name}</h4>
+                            <p className="text-[9px] text-white/40 mt-0.5">{vac.doctor}</p>
+                          </div>
+                          <div className="flex items-center space-x-3 text-right">
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleVac(vac.id)}
+                                className={`px-2.5 py-1 rounded-full text-[9px] font-black border transition-all cursor-pointer ${
+                                  vac.status === 'Fait'
+                                    ? 'bg-[#00D26A]/10 border-[#00D26A]/30 text-[#00D26A]'
+                                    : 'bg-[#FFB020]/10 border-[#FFB020]/30 text-[#FFB020]'
+                                }`}
+                              >
+                                {vac.status}
+                              </button>
+                              <p className="text-[9px] text-white/40 mt-0.5">{new Date(vac.date).toLocaleDateString('fr-FR')}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteVac(vac.id)}
+                              className="p-1 hover:text-red-400 text-white/20 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="py-6 text-center text-white/30 text-xs font-bold">
+                        Aucun vaccin enregistré pour {selectedMemberName}.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Formulaire ajout vaccin */}
+                <form onSubmit={handleAddVac} className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Ajouter un vaccin</h4>
+                  <div className="space-y-3 text-xs">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-white/40 uppercase block">Nom du vaccin</label>
+                      <input 
+                        type="text"
+                        placeholder="ex: DTC (Rappel coqueluche)"
+                        value={newVacName}
+                        onChange={(e) => setNewVacName(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-white/40 uppercase block">Date d'échéance</label>
+                        <input 
+                          type="date"
+                          value={newVacDate}
+                          onChange={(e) => setNewVacDate(e.target.value)}
+                          className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-white/40 uppercase block">Médecin / Lieu</label>
+                        <input 
+                          type="text"
+                          placeholder="ex: Pédiatre"
+                          value={newVacDoctor}
+                          onChange={(e) => setNewVacDoctor(e.target.value)}
+                          className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 rounded-xl bg-[#FF4D6D] hover:bg-[#E03F5E] text-white text-xs font-bold cursor-pointer transition-all active:scale-[0.98]"
+                  >
+                    Ajouter le vaccin
+                  </button>
+                </form>
+              </div>
+            );
+          })()}
+
+          {/* 3. Urgence */}
+          {healthSubTab === 'urgence' && (() => {
+            const handleSaveEmergency = async (memberId: string) => {
+              try {
+                const allergiesArr = editAllergies.split(',').map(s => s.trim()).filter(Boolean);
+                const treatmentsArr = editTreatments.split(',').map(s => s.trim()).filter(Boolean);
+                
+                // Mode local
+                if (setMembers) {
+                  setMembers(prev => prev.map(m => m.id === memberId ? {
+                    ...m,
+                    bloodGroup: editBlood,
+                    allergies: allergiesArr,
+                    treatments: treatmentsArr,
+                    emergencyContact: {
+                      name: editEmergencyName,
+                      phone: editEmergencyPhone,
+                      relation: (m as any).emergencyContact?.relation || ''
+                    },
+                    emergencyContactName: editEmergencyName,
+                    emergencyContactPhone: editEmergencyPhone
+                  } as any : m));
+                }
+
+                // Mode cloud
+                const supabase = getSupabaseClient();
+                if (supabase) {
+                  await foyerService.updateMemberProfile(memberId, {
+                    bloodGroup: editBlood,
+                    allergies: allergiesArr,
+                    treatments: treatmentsArr,
+                    emergencyContactName: editEmergencyName,
+                    emergencyContactPhone: editEmergencyPhone
+                  });
+                }
+                
+                setEditingEmergencyMemberId(null);
+              } catch (err) {
+                console.error(err);
+              }
+            };
+
+            const startEditingEmergency = (m: Member) => {
+              const mem = m as any;
+              setEditingEmergencyMemberId(m.id);
+              setEditBlood(mem.bloodGroup || 'O+');
+              setEditAllergies((mem.allergies || []).join(', '));
+              setEditTreatments((mem.treatments || []).join(', '));
+              setEditEmergencyName(mem.emergencyContactName || mem.emergencyContact?.name || '');
+              setEditEmergencyPhone(mem.emergencyContactPhone || mem.emergencyContact?.phone || '');
+            };
+
+            return (
+              <div className="space-y-4 animate-fade-in">
+                <div className="rounded-[28px] border-2 border-[#FF4D6D] bg-gradient-to-br from-[#FF4D6D]/15 to-[#FF4D6D]/5 p-5 space-y-4 shadow-[0_0_30px_rgba(255,77,109,0.15)]">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-3 bg-[#FF4D6D] rounded-2xl text-white animate-pulse">
+                      <AlertCircle className="w-6 h-6" />
+                    </div>
                     <div>
-                      <h4 className="font-bold text-white">{vac.name}</h4>
-                      <p className="text-[10px] text-white/40 mt-0.5">{vac.member}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className={`font-bold ${vac.color}`}>{vac.status}</span>
-                      <p className="text-[10px] text-white/40 mt-0.5">{vac.date}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {healthSubTab === 'urgence' && (
-            <div className="space-y-4">
-              <div className="rounded-[28px] border-2 border-[#FF4D6D] bg-gradient-to-br from-[#FF4D6D]/15 to-[#FF4D6D]/5 p-5 space-y-4 shadow-[0_0_30px_rgba(255,77,109,0.15)]">
-                <div className="flex items-center space-x-3">
-                  <div className="p-3 bg-[#FF4D6D] rounded-2xl text-white animate-pulse">
-                    <AlertCircle className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-extrabold text-white">FICHE D'URGENCE SOS</h3>
-                    <p className="text-[10px] text-white/60 font-bold">Informations vitales • Accès immédiat</p>
-                  </div>
-                </div>
-              </div>
-
-              {[
-                { name: 'Amadou', age: '12 ans', blood: 'A+', allergies: 'Aucune allergie connue', treatments: 'Aucun', emergency: 'Papa: 06 12 34 56 78' },
-                { name: 'Awa', age: '8 ans', blood: 'O+', allergies: 'Allergie aux arachides ⚠️', treatments: 'Stylo auto-injecteur EpiPen', emergency: 'Maman: 06 98 76 54 32' },
-                { name: 'Ibrahima', age: '2 ans', blood: 'A+', allergies: 'Aucune allergie connue', treatments: 'Aucun', emergency: 'Papa: 06 12 34 56 78' }
-              ].map((child, idx) => (
-                <div key={idx} className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-extrabold text-white">{child.name} <span className="text-white/40 font-medium text-xs">({child.age})</span></h4>
-                    <span className="px-3 py-1 rounded-xl bg-[#FF4D6D]/15 border border-[#FF4D6D]/30 text-[#FF4D6D] text-xs font-extrabold">{child.blood}</span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2 text-xs">
-                    <div className="p-2.5 bg-white/5 rounded-xl border border-white/5">
-                      <span className="text-[9px] font-bold text-[#FFB020] uppercase block">Allergies</span>
-                      <span className="text-white font-medium mt-0.5 block">{child.allergies}</span>
-                    </div>
-                    <div className="p-2.5 bg-white/5 rounded-xl border border-white/5">
-                      <span className="text-[9px] font-bold text-[#6C5CFF] uppercase block">Traitements en cours</span>
-                      <span className="text-white font-medium mt-0.5 block">{child.treatments}</span>
-                    </div>
-                    <div className="p-2.5 bg-[#00D26A]/5 rounded-xl border border-[#00D26A]/20">
-                      <span className="text-[9px] font-bold text-[#00D26A] uppercase block">Contact d'urgence</span>
-                      <span className="text-white font-bold mt-0.5 block">{child.emergency}</span>
+                      <h3 className="text-sm font-extrabold text-white">FICHE D'URGENCE SOS</h3>
+                      <p className="text-[10px] text-white/60 font-bold">Informations vitales du foyer • Accès immédiat</p>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+
+                {members.map((member) => {
+                  const isEditing = editingEmergencyMemberId === member.id;
+
+                  return (
+                    <div key={member.id} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 relative overflow-hidden">
+                      {/* Background accent */}
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-[#FF4D6D]/3 rounded-full blur-2xl" />
+
+                      {isEditing ? (
+                        <div className="space-y-3 text-xs">
+                          <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                            <h4 className="text-sm font-extrabold text-white">Modifier {member.name}</h4>
+                            <select
+                              value={editBlood}
+                              onChange={(e) => setEditBlood(e.target.value)}
+                              className="bg-[#07111F] text-white border border-white/10 rounded-xl px-2.5 py-1 font-bold text-xs"
+                            >
+                              {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bg => (
+                                <option key={bg} value={bg}>{bg}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="space-y-3">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-white/40 uppercase block">Allergies (séparées par virgules)</label>
+                              <input 
+                                type="text"
+                                value={editAllergies}
+                                onChange={(e) => setEditAllergies(e.target.value)}
+                                className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                                placeholder="ex: Arachides, Pénicilline"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-white/40 uppercase block">Traitements en cours</label>
+                              <input 
+                                type="text"
+                                value={editTreatments}
+                                onChange={(e) => setEditTreatments(e.target.value)}
+                                className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                                placeholder="ex: Stylo EpiPen, Aucun"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <label className="text-[9px] font-bold text-white/40 uppercase block">Nom Contact SOS</label>
+                                <input 
+                                  type="text"
+                                  value={editEmergencyName}
+                                  onChange={(e) => setEditEmergencyName(e.target.value)}
+                                  className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                                  placeholder="ex: Papa"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[9px] font-bold text-white/40 uppercase block">Téléphone SOS</label>
+                                <input 
+                                  type="text"
+                                  value={editEmergencyPhone}
+                                  onChange={(e) => setEditEmergencyPhone(e.target.value)}
+                                  className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                                  placeholder="ex: 0612345678"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-2 pt-2">
+                            <button
+                              type="button"
+                              onClick={() => handleSaveEmergency(member.id)}
+                              className="flex-1 py-2 rounded-xl bg-[#00D26A] text-white font-extrabold text-[10px] uppercase tracking-wider flex items-center justify-center space-x-1 cursor-pointer active:scale-97 transition-all"
+                            >
+                              <Save className="w-3.5 h-3.5" />
+                              <span>Enregistrer</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingEmergencyMemberId(null)}
+                              className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white font-bold cursor-pointer transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="text-sm font-extrabold text-white flex items-center space-x-2">
+                                <span>{member.name}</span>
+                                <span className="text-[10px] text-white/40 font-bold uppercase tracking-wider">
+                                  • {['parent', 'Parent'].includes(member.role) ? 'Parent' : 'Enfant'}
+                                </span>
+                              </h4>
+                            </div>
+                            <span className="px-3 py-1 rounded-xl bg-[#FF4D6D]/15 border border-[#FF4D6D]/30 text-[#FF4D6D] text-xs font-black shadow-md shadow-[#FF4D6D]/5">
+                              {member.bloodGroup || 'O+'}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-2 text-xs">
+                            <div className="p-3 bg-white/3 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                              <span className="text-[9px] font-black text-[#FFB020] uppercase tracking-wider block">⚠️ Allergies connues</span>
+                              <span className="text-white font-bold mt-0.5 block leading-relaxed">
+                                {member.allergies && member.allergies.length > 0 
+                                  ? member.allergies.join(', ') 
+                                  : 'Aucune allergie connue'}
+                              </span>
+                            </div>
+                            <div className="p-3 bg-white/3 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                              <span className="text-[9px] font-black text-[#6C5CFF] uppercase tracking-wider block">💊 Traitements réguliers</span>
+                              <span className="text-white font-bold mt-0.5 block leading-relaxed">
+                                {member.treatments && member.treatments.length > 0 
+                                  ? member.treatments.join(', ') 
+                                  : 'Aucun traitement médical en cours'}
+                              </span>
+                            </div>
+                            
+                            {((member as any).emergencyContactName || (member as any).emergencyContactPhone || member.emergencyContact?.name || member.emergencyContact?.phone) ? (
+                              <div className="p-3 bg-[#00D26A]/5 rounded-xl border border-[#00D26A]/20">
+                                <span className="text-[9px] font-black text-[#00D26A] uppercase tracking-wider block">🚨 Contact d'urgence SOS</span>
+                                <span className="text-white font-extrabold mt-0.5 block leading-relaxed">
+                                  {((member as any).emergencyContactName || member.emergencyContact?.name || 'SOS')} •{' '}
+                                  <a href={`tel:${(member as any).emergencyContactPhone || member.emergencyContact?.phone}`} className="underline hover:text-[#00FF87] transition-colors">
+                                    {((member as any).emergencyContactPhone || member.emergencyContact?.phone)}
+                                  </a>
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="p-3 bg-white/2 rounded-xl border border-dashed border-white/10 text-center">
+                                <span className="text-[9px] font-black text-white/30 uppercase tracking-wider block">🚨 Aucun contact d'urgence défini</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => startEditingEmergency(member)}
+                            className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center space-x-1"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Modifier les données SOS</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
 

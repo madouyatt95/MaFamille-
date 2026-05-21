@@ -221,6 +221,15 @@ function App() {
     return safeGetLocalStorage('mf_school_tasks', demoSchoolTasks);
   });
 
+  const [vaccines, setVaccines] = useState<any[]>(() => {
+    return safeGetLocalStorage('mf_vaccines', [
+      { id: 'v1', memberId: '3', name: 'ROR (Rappel)', date: '2026-04-12', status: 'Fait', doctor: 'Dr. Martin' },
+      { id: 'v2', memberId: '3', name: 'Hépatite B', date: '2026-10-18', status: 'À faire', doctor: 'Dr. Martin' },
+      { id: 'v3', memberId: '4', name: 'DTC (Rappel 12 ans)', date: '2026-01-05', status: 'Fait', doctor: 'Dr. Martin' },
+      { id: 'v4', memberId: '1', name: 'Grippe Annuelle', date: '2026-11-15', status: 'À faire', doctor: 'Pharmacie' },
+    ]);
+  });
+
   const [memberMoods, setMemberMoods] = useState<Record<string, string>>(() => {
     return safeGetLocalStorage('mf_moods', { '1': '☀️', '2': '☀️', '3': '🌈', '4': '☁️' });
   });
@@ -1185,6 +1194,10 @@ function App() {
   }, [alerts]);
 
   useEffect(() => {
+    safeSetLocalStorage('mf_vaccines', JSON.stringify(vaccines));
+  }, [vaccines]);
+
+  useEffect(() => {
     safeSetLocalStorage('mf_chat_groups', JSON.stringify(chatGroups));
   }, [chatGroups]);
 
@@ -1549,7 +1562,7 @@ function App() {
       }
 
       // Si un module secondaire est ouvert
-      if (activeModule === 'membres' || activeModule === 'sante') {
+      if (activeModule === 'membres') {
         return (
           <Membres 
             members={members}
@@ -1581,6 +1594,9 @@ function App() {
                 if (member) setMyMemberProfile(member);
               }
             }}
+            members={members}
+            setMembers={setMembers}
+            activeMemberId={activeMemberId}
           />
         );
       }
@@ -1593,6 +1609,7 @@ function App() {
           tasks={tasks}
           groceries={groceries}
           members={members}
+          setMembers={setMembers}
           vehicles={vehicles}
           setVehicles={setVehicles}
           maintenance={maintenance}
@@ -1609,6 +1626,8 @@ function App() {
           formatMoney={formatMoney}
           activeModule={activeModule}
           setActiveModule={setActiveModule}
+          vaccines={vaccines}
+          setVaccines={setVaccines}
           onAddTask={handleAddTask}
           onAddGrocery={handleToggleGrocery}
           onToggleTask={handleToggleTask}
