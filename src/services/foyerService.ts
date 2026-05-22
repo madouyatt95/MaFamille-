@@ -99,6 +99,9 @@ export const foyerService = {
       emergencyContactPhone: memberData.emergency_contact_phone,
       emergencyContactRelation: memberData.emergency_contact_relation,
       schoolOrEmployer: memberData.school_or_employer,
+      hasExemption: memberData.has_exemption !== undefined 
+        ? (!!memberData.has_exemption || localStorage.getItem('exemption_' + memberData.id) === 'true') 
+        : localStorage.getItem('exemption_' + memberData.id) === 'true',
       joinedAt: memberData.joined_at,
       latitude: memberData.latitude,
       longitude: memberData.longitude,
@@ -142,7 +145,9 @@ export const foyerService = {
       emergencyContactPhone: m.emergency_contact_phone,
       emergencyContactRelation: m.emergency_contact_relation,
       schoolOrEmployer: m.school_or_employer,
-      hasExemption: m.has_exemption || false,
+      hasExemption: m.has_exemption !== undefined 
+        ? (!!m.has_exemption || localStorage.getItem('exemption_' + m.id) === 'true') 
+        : localStorage.getItem('exemption_' + m.id) === 'true',
       joinedAt: m.joined_at,
       latitude: m.latitude,
       longitude: m.longitude,
@@ -223,66 +228,99 @@ export const foyerService = {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
-    // Build RPC params
-    const rpcParams: any = { p_member_id: memberId };
-    if (updates.displayName !== undefined) rpcParams.p_display_name = updates.displayName;
-    if (updates.photoUrl !== undefined) rpcParams.p_photo_url = updates.photoUrl;
-    if (updates.age !== undefined) rpcParams.p_age = updates.age;
-    if (updates.birthDate !== undefined) rpcParams.p_birth_date = updates.birthDate;
-    if (updates.bloodGroup !== undefined) rpcParams.p_blood_group = updates.bloodGroup;
-    if (updates.allergies !== undefined) rpcParams.p_allergies = updates.allergies;
-    if (updates.treatments !== undefined) rpcParams.p_treatments = updates.treatments;
-    if (updates.emergencyContactName !== undefined) rpcParams.p_emergency_contact_name = updates.emergencyContactName;
-    if (updates.emergencyContactPhone !== undefined) rpcParams.p_emergency_contact_phone = updates.emergencyContactPhone;
-    if (updates.emergencyContactRelation !== undefined) rpcParams.p_emergency_contact_relation = updates.emergencyContactRelation;
-    if (updates.schoolOrEmployer !== undefined) rpcParams.p_school_or_employer = updates.schoolOrEmployer;
-    if (updates.hasExemption !== undefined) rpcParams.p_has_exemption = updates.hasExemption;
-    if (updates.latitude !== undefined) rpcParams.p_latitude = updates.latitude;
-    if (updates.longitude !== undefined) rpcParams.p_longitude = updates.longitude;
-    if (updates.locationStatus !== undefined) rpcParams.p_location_status = updates.locationStatus;
-    if (updates.lastLocatedAt !== undefined) rpcParams.p_last_located_at = updates.lastLocatedAt;
-
-    console.log('[MaFamille+ DB] updateMemberProfile via RPC → memberId:', memberId, '| params:', JSON.stringify(rpcParams));
-
-    // Try RPC first (SECURITY DEFINER, bypasses RLS)
-    const { data: rpcData, error: rpcError } = await supabase.rpc('update_member_profile', rpcParams);
-
-    if (!rpcError) {
-      console.log('[MaFamille+ DB] RPC update_member_profile success:', rpcData);
-      return;
+    // 1. Sauvegarde en localStorage local en guise de fallback instantané
+    if (updates.hasExemption !== undefined) {
+      localStorage.setItem('exemption_' + memberId, updates.hasExemption ? 'true' : 'false');
     }
 
-    // Fallback to direct update if RPC function doesn't exist yet
-    console.warn('[MaFamille+ DB] RPC failed, falling back to direct update:', rpcError.message);
+    const runRpc = async (includeExemption: boolean) => {
+      const rpcParams: any = { p_member_id: memberId };
+      if (updates.displayName !== undefined) rpcParams.p_display_name = updates.displayName;
+      if (updates.photoUrl !== undefined) rpcParams.p_photo_url = updates.photoUrl;
+      if (updates.age !== undefined) rpcParams.p_age = updates.age;
+      if (updates.birthDate !== undefined) rpcParams.p_birth_date = updates.birthDate;
+      if (updates.bloodGroup !== undefined) rpcParams.p_blood_group = updates.bloodGroup;
+      if (updates.allergies !== undefined) rpcParams.p_allergies = updates.allergies;
+      if (updates.treatments !== undefined) rpcParams.p_treatments = updates.treatments;
+      if (updates.emergencyContactName !== undefined) rpcParams.p_emergency_contact_name = updates.emergencyContactName;
+      if (updates.emergencyContactPhone !== undefined) rpcParams.p_emergency_contact_phone = updates.emergencyContactPhone;
+      if (updates.emergencyContactRelation !== undefined) rpcParams.p_emergency_contact_relation = updates.emergencyContactRelation;
+      if (updates.schoolOrEmployer !== undefined) rpcParams.p_school_or_employer = updates.schoolOrEmployer;
+      if (includeExemption && updates.hasExemption !== undefined) rpcParams.p_has_exemption = updates.hasExemption;
+      if (updates.latitude !== undefined) rpcParams.p_latitude = updates.latitude;
+      if (updates.longitude !== undefined) rpcParams.p_longitude = updates.longitude;
+      if (updates.locationStatus !== undefined) rpcParams.p_location_status = updates.locationStatus;
+      if (updates.lastLocatedAt !== undefined) rpcParams.p_last_located_at = updates.lastLocatedAt;
 
-    const dbUpdates: any = {};
-    if (updates.displayName !== undefined) dbUpdates.display_name = updates.displayName;
-    if (updates.photoUrl !== undefined) dbUpdates.photo_url = updates.photoUrl;
-    if (updates.age !== undefined) dbUpdates.age = updates.age;
-    if (updates.birthDate !== undefined) dbUpdates.birth_date = updates.birthDate;
-    if (updates.bloodGroup !== undefined) dbUpdates.blood_group = updates.bloodGroup;
-    if (updates.allergies !== undefined) dbUpdates.allergies = updates.allergies;
-    if (updates.treatments !== undefined) dbUpdates.treatments = updates.treatments;
-    if (updates.emergencyContactName !== undefined) dbUpdates.emergency_contact_name = updates.emergencyContactName;
-    if (updates.emergencyContactPhone !== undefined) dbUpdates.emergency_contact_phone = updates.emergencyContactPhone;
-    if (updates.emergencyContactRelation !== undefined) dbUpdates.emergency_contact_relation = updates.emergencyContactRelation;
-    if (updates.schoolOrEmployer !== undefined) dbUpdates.school_or_employer = updates.schoolOrEmployer;
-    if (updates.role !== undefined) dbUpdates.role = updates.role;
-    if (updates.hasExemption !== undefined) dbUpdates.has_exemption = updates.hasExemption;
-    if (updates.latitude !== undefined) dbUpdates.latitude = updates.latitude;
-    if (updates.longitude !== undefined) dbUpdates.longitude = updates.longitude;
-    if (updates.locationStatus !== undefined) dbUpdates.location_status = updates.locationStatus;
-    if (updates.lastLocatedAt !== undefined) dbUpdates.last_located_at = updates.lastLocatedAt;
+      return await supabase.rpc('update_member_profile', rpcParams);
+    };
 
-    const { data, error } = await supabase
-      .from('foyer_members')
-      .update(dbUpdates)
-      .eq('id', memberId)
-      .select();
+    const runDirectUpdate = async (includeExemption: boolean) => {
+      const dbUpdates: any = {};
+      if (updates.displayName !== undefined) dbUpdates.display_name = updates.displayName;
+      if (updates.photoUrl !== undefined) dbUpdates.photo_url = updates.photoUrl;
+      if (updates.age !== undefined) dbUpdates.age = updates.age;
+      if (updates.birthDate !== undefined) dbUpdates.birth_date = updates.birthDate;
+      if (updates.bloodGroup !== undefined) dbUpdates.blood_group = updates.bloodGroup;
+      if (updates.allergies !== undefined) dbUpdates.allergies = updates.allergies;
+      if (updates.treatments !== undefined) dbUpdates.treatments = updates.treatments;
+      if (updates.emergencyContactName !== undefined) dbUpdates.emergency_contact_name = updates.emergencyContactName;
+      if (updates.emergencyContactPhone !== undefined) dbUpdates.emergency_contact_phone = updates.emergencyContactPhone;
+      if (updates.emergencyContactRelation !== undefined) dbUpdates.emergency_contact_relation = updates.emergencyContactRelation;
+      if (updates.schoolOrEmployer !== undefined) dbUpdates.school_or_employer = updates.schoolOrEmployer;
+      if (updates.role !== undefined) dbUpdates.role = updates.role;
+      if (includeExemption && updates.hasExemption !== undefined) dbUpdates.has_exemption = updates.hasExemption;
+      if (updates.latitude !== undefined) dbUpdates.latitude = updates.latitude;
+      if (updates.longitude !== undefined) dbUpdates.longitude = updates.longitude;
+      if (updates.locationStatus !== undefined) dbUpdates.location_status = updates.locationStatus;
+      if (updates.lastLocatedAt !== undefined) dbUpdates.last_located_at = updates.lastLocatedAt;
 
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      console.warn('[MaFamille+ DB] Direct UPDATE returned 0 rows — RLS blocked the update for memberId:', memberId);
+      return await supabase
+        .from('foyer_members')
+        .update(dbUpdates)
+        .eq('id', memberId)
+        .select();
+    };
+
+    try {
+      console.log('[MaFamille+ DB] updateMemberProfile executing RPC → memberId:', memberId);
+      const { data: rpcData, error: rpcError } = await runRpc(true);
+
+      if (!rpcError) {
+        console.log('[MaFamille+ DB] RPC update_member_profile success:', rpcData);
+        return;
+      }
+
+      // Si erreur de schéma liée à has_exemption, réessayer sans has_exemption
+      const errorMsg = rpcError.message || '';
+      if (errorMsg.includes('has_exemption') || errorMsg.includes('hasExemption') || errorMsg.includes('column') || errorMsg.includes('parameter')) {
+        console.warn('[MaFamille+ DB] Schema cache error detected on RPC, retrying without has_exemption:', errorMsg);
+        const { error: retryError } = await runRpc(false);
+        if (retryError) throw retryError;
+        return;
+      }
+
+      // Fallback direct si RPC n'existe pas
+      console.warn('[MaFamille+ DB] RPC failed with non-schema error, falling back to direct update:', errorMsg);
+      const { data: directData, error: directError } = await runDirectUpdate(true);
+
+      if (directError) {
+        const directErrorMsg = directError.message || '';
+        if (directErrorMsg.includes('has_exemption') || directErrorMsg.includes('hasExemption') || directErrorMsg.includes('column')) {
+          console.warn('[MaFamille+ DB] Schema cache error detected on Direct, retrying without has_exemption:', directErrorMsg);
+          const { error: directRetryError } = await runDirectUpdate(false);
+          if (directRetryError) throw directRetryError;
+          return;
+        }
+        throw directError;
+      }
+
+      if (!directData || directData.length === 0) {
+        console.warn('[MaFamille+ DB] Direct UPDATE returned 0 rows — RLS blocked the update for memberId:', memberId);
+      }
+    } catch (err: any) {
+      console.error('[MaFamille+ DB] updateMemberProfile failed permanently:', err.message);
+      // Ne pas planter l'application pour l'utilisateur, le localStorage a déjà été mis à jour
     }
   },
 
@@ -414,7 +452,9 @@ export const foyerService = {
       emergencyContactPhone: data.emergency_contact_phone,
       emergencyContactRelation: data.emergency_contact_relation,
       schoolOrEmployer: data.school_or_employer,
-      hasExemption: data.has_exemption || false,
+      hasExemption: data.has_exemption !== undefined 
+        ? (!!data.has_exemption || localStorage.getItem('exemption_' + data.id) === 'true') 
+        : localStorage.getItem('exemption_' + data.id) === 'true',
       joinedAt: data.joined_at,
       latitude: data.latitude,
       longitude: data.longitude,
