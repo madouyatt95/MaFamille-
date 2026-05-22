@@ -1949,10 +1949,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                                 <div key={item.id} className="relative group">
                                   <button
                                     onClick={() => {
-                                      if (!isParent && !groceryDerogation) {
-                                        alert("🔒 Dérogation parentale requise pour cocher ou modifier les courses !");
-                                        return;
-                                      }
                                       onToggleGrocery(item.id);
                                     }}
                                     className={`w-full glass-panel rounded-[24px] p-4 pr-24 border transition-all text-left flex items-center justify-between hover:bg-white/8 cursor-pointer ${
@@ -1970,7 +1966,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                                           {item.name}
                                         </h4>
                                         <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider mt-0.5">
-                                          Qté: {item.quantity} • <span className={item.inStock ? 'text-[#00D26A]' : 'text-[#FF4D6D]'}>{item.inStock ? 'En stock' : 'Rupture'}</span>
+                                          Qté: {item.quantity} • <span className={item.checked ? 'text-[#00D26A]' : (item.inStock ? 'text-[#00D26A]' : 'text-[#FF4D6D]')}>{item.checked ? 'Acheté' : (item.inStock ? 'En stock' : 'Rupture')}</span>
                                         </p>
                                       </div>
                                     </div>

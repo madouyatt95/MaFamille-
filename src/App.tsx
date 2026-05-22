@@ -1841,7 +1841,7 @@ function App() {
     setGroceries(prev => prev.map(g => {
       if (g.id === id) {
         newCheckedVal = !g.checked;
-        return { ...g, checked: newCheckedVal };
+        return { ...g, checked: newCheckedVal, inStock: newCheckedVal };
       }
       return g;
     }));
@@ -1850,7 +1850,10 @@ function App() {
       const client = getSupabaseClient();
       if (client) {
         try {
-          await client.from('groceries').update({ checked: newCheckedVal }).eq('foyer_id', foyer.id).eq('id', id);
+          await client.from('groceries').update({ 
+            checked: newCheckedVal,
+            in_stock: newCheckedVal
+          }).eq('foyer_id', foyer.id).eq('id', id);
         } catch (err) {
           console.error("Erreur lors du toggle cloud de la course :", err);
         }
