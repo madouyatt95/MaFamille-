@@ -493,7 +493,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
                 </div>
 
                 {/* Action buttons (reaction + pin) */}
-                <div className="flex flex-col space-y-1 opacity-0 group-hover/msg:opacity-100 transition-opacity shrink-0 mb-1">
+                <div className="flex flex-col space-y-1 opacity-70 md:opacity-0 md:group-hover/msg:opacity-100 transition-opacity shrink-0 mb-1">
                   <button
                     type="button"
                     onClick={() => setShowReactionsForId(showReactionsForId === msg.id ? null : msg.id)}

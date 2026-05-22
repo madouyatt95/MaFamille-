@@ -11,7 +11,7 @@ export const detectGroceryCategory = (itemName: string): string => {
     return 'Fruits & Légumes';
   } 
   
-  if (itemLower.includes('lait') || itemLower.includes('beurre') || itemLower.includes('fromage') || itemLower.includes('yaourt') || itemLower.includes('crème') || itemLower.includes('creme') || itemLower.includes('chèvre') || itemLower.includes('mozzarella') || itemLower.includes('gruyère') || itemLower.includes('parmesan') || itemLower.includes('frais') || itemLower.includes('oeuf') || itemLower.includes('œuf')) {
+  if (itemLower.includes('lait') || itemLower.includes('beurre') || itemLower.includes('fromage') || itemLower.includes('yaourt') || itemLower.includes('crème') || itemLower.includes('creme') || itemLower.includes('chèvre') || itemLower.includes('mozzarella') || itemLower.includes('gruyère') || itemLower.includes('parmesan') || itemLower.includes('frais') || itemLower.includes('oeuf') || itemLower.includes('œuf') || itemLower.includes('frite') || itemLower.includes('surgel') || itemLower.includes('congel') || itemLower.includes('glace')) {
     return 'Produits Frais';
   } 
   
@@ -23,7 +23,7 @@ export const detectGroceryCategory = (itemName: string): string => {
     return 'Boissons';
   } 
   
-  if (itemLower.includes('shampoing') || itemLower.includes('savon') || itemLower.includes('dentifrice') || itemLower.includes('brosse') || itemLower.includes('douche') || itemLower.includes('papier toilette') || itemLower.includes('essuie-tout') || itemLower.includes('couche') || itemLower.includes('coton') || itemLower.includes('serviette') || itemLower.includes('rasoir') || itemLower.includes('gel')) {
+  if (itemLower.includes('shampoing') || itemLower.includes('savon') || itemLower.includes('dentifrice') || itemLower.includes('brosse') || itemLower.includes('douche') || itemLower.includes('papier toilette') || itemLower.includes('essuie-tout') || itemLower.includes('couche') || itemLower.includes('coton') || itemLower.includes('serviette') || itemLower.includes('rasoir') || (/\bgel\b/.test(itemLower) && !itemLower.includes('surgel') && !itemLower.includes('congel'))) {
     return 'Hygiène';
   } 
   

@@ -1850,7 +1850,7 @@ function App() {
       const client = getSupabaseClient();
       if (client) {
         try {
-          await client.from('groceries').update({ checked: newCheckedVal }).eq('id', id);
+          await client.from('groceries').update({ checked: newCheckedVal }).eq('foyer_id', foyer.id).eq('id', id);
         } catch (err) {
           console.error("Erreur lors du toggle cloud de la course :", err);
         }
@@ -1898,7 +1898,7 @@ function App() {
       const client = getSupabaseClient();
       if (client) {
         try {
-          await client.from('groceries').delete().eq('id', id);
+          await client.from('groceries').delete().eq('foyer_id', foyer.id).eq('id', id);
         } catch (err) {
           console.error("Erreur lors de la suppression cloud de la course :", err);
         }
@@ -1913,7 +1913,7 @@ function App() {
       const client = getSupabaseClient();
       if (client) {
         try {
-          await client.from('groceries').update({ name, quantity: qty }).eq('id', id);
+          await client.from('groceries').update({ name, quantity: qty }).eq('foyer_id', foyer.id).eq('id', id);
         } catch (err) {
           console.error("Erreur lors de la modification cloud de la course :", err);
         }
@@ -2062,17 +2062,29 @@ function App() {
     if (!confirmPurge) return;
 
     try {
-      const tables = [
-        'events', 'transactions', 'groceries', 'dishes', 'chore_tasks', 
-        'saving_goals', 'alerts', 'memories', 'votes', 'school_tasks', 
-        'chat_groups', 'chat_messages', 'demarches', 'justificatif_packs', 
-        'vehicles', 'maintenance', 'trips', 'pets', 'pocket_money'
-      ];
+      const tableDemoIds: Record<string, string[]> = {
+        events: ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'],
+        transactions: ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9'],
+        groceries: ['g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g8'],
+        dishes: ['di1', 'di2', 'di3', 'di4', 'di5', 'di6', 'di7', 'di8', 'di9', 'di10', 'di11', 'di12', 'di13', 'di14'],
+        chore_tasks: ['ch1', 'ch2', 'ch3', 'ch4', 'ch5', 'ch6'],
+        saving_goals: ['sg1', 'sg2', 'sg3'],
+        alerts: ['a0', 'a1', 'a2', 'a3', 'a4'],
+        memories: ['mem-1', 'mem-2'],
+        votes: ['vote-1', 'vote-2'],
+        school_tasks: ['st-1', 'st-2', 'st-3', 'st-4', 'st-5'],
+        chat_groups: ['g_family', 'g_parents', 'g_ai_assistant'],
+        chat_messages: ['m1', 'm2', 'm3', 'm_ai_init'],
+        demarches: ['dem-1'],
+        justificatif_packs: ['pack-1'],
+        vehicles: ['v1', 'v2'],
+        maintenance: ['hm1', 'hm2'],
+        trips: ['tr1'],
+        pets: ['p1']
+      };
 
-      for (const table of tables) {
-        await client.from(table).delete().eq('foyer_id', foyer.id).or(
-          'id.ilike.e%,id.ilike.t%,id.ilike.g%,id.ilike.d%,id.ilike.s%,id.ilike.v%,id.ilike.m%,id.ilike.p%,id.ilike.tr%,id.ilike.c%,id.ilike.mom%'
-        );
+      for (const [table, ids] of Object.entries(tableDemoIds)) {
+        await client.from(table).delete().eq('foyer_id', foyer.id).in('id', ids);
       }
 
       if (myMemberProfile) {
