@@ -1029,6 +1029,24 @@ function App() {
       });
     });
 
+    const subAlerts = foyerService.subscribeToChanges('alerts', foyer.id, () => {
+      const client = getSupabaseClient();
+      if (!client) return;
+      client.from('alerts').select('*').eq('foyer_id', foyer.id).then(({ data: alertsData }) => {
+        if (alertsData) {
+          setAlerts(alertsData.map(a => ({
+            id: a.id,
+            title: a.title,
+            description: a.description,
+            time: a.time,
+            type: a.type,
+            read: a.read,
+            module: a.module
+          })));
+        }
+      });
+    });
+
     return () => {
       if (subEvents) subEvents.unsubscribe();
       if (subGroceries) subGroceries.unsubscribe();
@@ -1042,6 +1060,7 @@ function App() {
       if (subPets) subPets.unsubscribe();
       if (subPocketMoney) subPocketMoney.unsubscribe();
       if (subArtisans) subArtisans.unsubscribe();
+      if (subAlerts) subAlerts.unsubscribe();
     };
   }, [foyer]);
 

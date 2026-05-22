@@ -700,3 +700,34 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.chore_tasks;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.memories;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.foyer_members;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.alerts;
+
+-- TRIGGER POUR LES NOTIFICATIONS D'ADHÉSION
+CREATE OR REPLACE FUNCTION public.notify_member_join()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF (TG_OP = 'INSERT' AND NEW.approved = FALSE) THEN
+        INSERT INTO public.alerts (id, foyer_id, title, description, time, type, read, module)
+        VALUES (
+            NEW.id,
+            NEW.foyer_id,
+            'Demande d''adhésion',
+            NEW.display_name || ' souhaite rejoindre votre foyer.',
+            'À l''instant',
+            'warning',
+            FALSE,
+            'members'
+        );
+    ELSIF (TG_OP = 'UPDATE' AND OLD.approved = FALSE AND NEW.approved = TRUE) THEN
+        DELETE FROM public.alerts WHERE id = NEW.id;
+    ELSIF (TG_OP = 'DELETE') THEN
+        DELETE FROM public.alerts WHERE id = OLD.id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_notify_member_join ON public.foyer_members;
+CREATE TRIGGER trigger_notify_member_join
+AFTER INSERT OR UPDATE OR DELETE ON public.foyer_members
+FOR EACH ROW EXECUTE FUNCTION public.notify_member_join();
