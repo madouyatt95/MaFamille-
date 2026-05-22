@@ -1879,7 +1879,7 @@ function App() {
             console.log(`[Groceries Toggle] Inserted missing row id=${id}, checked=${newCheckedVal}`);
           }
         } else {
-          console.log(`[Groceries Toggle] OK — id=${id}, checked=${newCheckedVal}, returned data:`, data);
+          console.log(`[Groceries Toggle] OK — id=${id}, checked=${newCheckedVal}, returned checked: ${data?.[0]?.checked}, returned in_stock: ${data?.[0]?.in_stock}`);
         }
       }
     }
