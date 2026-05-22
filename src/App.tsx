@@ -1046,17 +1046,6 @@ function App() {
         amount: e.amount || null
       }));
 
-      // Groceries
-      await syncTable('groceries', groceries, g => ({
-        id: g.id,
-        foyer_id: foyer.id,
-        name: g.name,
-        category: g.category,
-        quantity: g.quantity,
-        checked: g.checked,
-        in_stock: g.inStock,
-        expiry_date: g.expiryDate || null
-      }));
 
       // Transactions
       await syncTable('transactions', transactions, t => ({
@@ -1312,7 +1301,7 @@ function App() {
     return () => clearTimeout(timer);
   }, [
     foyer,
-    events, groceries, transactions, documents, dishes, tasks, savingGoals,
+    events, transactions, documents, dishes, tasks, savingGoals,
     alerts, memories, votes, schoolTasks, chatGroups, chatMessages, demarches,
     justificatifPacks, vehicles, maintenance, trips, pets, pocketMoney, artisans
   ]);
