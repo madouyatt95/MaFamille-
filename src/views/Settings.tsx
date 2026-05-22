@@ -59,6 +59,23 @@ export const Settings: React.FC<SettingsProps> = ({
 }) => {
   const [savingBackup, setSavingBackup] = useState(false);
 
+  const [parentPinInput, setParentPinInput] = useState(() => {
+    return foyer?.parentPin || localStorage.getItem('mf_parent_pin') || '0000';
+  });
+
+  const handleSaveParentPin = async () => {
+    localStorage.setItem('mf_parent_pin', parentPinInput);
+    if (foyer && user) {
+      try {
+        await foyerService.updateFoyerParentPin(foyer.id, parentPinInput);
+        if (onRefreshFoyer) onRefreshFoyer();
+      } catch (err: any) {
+        console.error("Error saving parent pin to database:", err);
+      }
+    }
+    alert("Code PIN parent enregistré avec succès !");
+  };
+
   // Apparence thématique (Sombre / Clair / Sépia)
   const [theme, setTheme] = useState<'dark' | 'light' | 'sepia'>(() => {
     return (localStorage.getItem('app_appearance_mode') as 'dark' | 'light' | 'sepia') || 'dark';
@@ -499,6 +516,41 @@ export const Settings: React.FC<SettingsProps> = ({
               Gérer les Membres, Rôles & Invitations ➔
             </button>
           </div>
+
+          <div className="pt-2"></div>
+
+          {/* Parent PIN Lock Card */}
+          {(!myMemberProfile || ['admin', 'parent'].includes(myMemberProfile.role)) && (
+            <div className="p-5 rounded-2xl bg-white/3 border border-white/5 space-y-4">
+              <div className="flex items-center space-x-2 text-[#FF4D6D]">
+                <Lock className="w-4 h-4" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white">Code PIN de Contrôle Parental</h4>
+              </div>
+              <p className="text-[10px] text-white/50 leading-relaxed">
+                Définissez un code PIN à 4 chiffres requis pour basculer d'un profil enfant vers un profil parent/admin.
+              </p>
+              <div className="flex items-center space-x-3 pt-1">
+                <input
+                  type="password"
+                  maxLength={4}
+                  pattern="[0-9]*"
+                  inputMode="numeric"
+                  placeholder="PIN"
+                  value={parentPinInput}
+                  onChange={(e) => setParentPinInput(e.target.value.replace(/\D/g, ''))}
+                  className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white font-extrabold tracking-widest text-center text-sm w-24 focus:outline-none focus:border-[#6C5CFF]"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveParentPin}
+                  disabled={parentPinInput.length !== 4}
+                  className="flex-1 py-3.5 rounded-xl bg-[#6C5CFF]/15 hover:bg-[#6C5CFF]/25 border border-[#6C5CFF]/30 disabled:opacity-50 text-white font-extrabold text-[11px] uppercase tracking-wider transition-all active:scale-95 cursor-pointer text-center"
+                >
+                  Enregistrer le PIN
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="pt-2"></div>
 

@@ -80,7 +80,8 @@ export const foyerService = {
       createdBy: foyerData.created_by,
       createdAt: foyerData.created_at,
       isPremium: foyerData.is_premium,
-      maxMembers: foyerData.max_members
+      maxMembers: foyerData.max_members,
+      parentPin: foyerData.parent_pin
     };
 
     const member: FoyerMember = {
@@ -218,6 +219,21 @@ export const foyerService = {
     const { error } = await supabase
       .from('foyers')
       .delete()
+      .eq('id', foyerId);
+
+    if (error) throw error;
+  },
+
+  /**
+   * Mettre à jour le code PIN parent du foyer
+   */
+  async updateFoyerParentPin(foyerId: string, pinCode: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Supabase n'est pas configuré");
+
+    const { error } = await supabase
+      .from('foyers')
+      .update({ parent_pin: pinCode })
       .eq('id', foyerId);
 
     if (error) throw error;

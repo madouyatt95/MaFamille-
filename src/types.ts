@@ -11,6 +11,7 @@ export interface Foyer {
   createdAt: string;
   isPremium: boolean;
   maxMembers: number;
+  parentPin?: string;
 }
 
 export interface FoyerMember {

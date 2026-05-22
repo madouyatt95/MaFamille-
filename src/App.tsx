@@ -66,7 +66,7 @@ import { getSupabaseClient } from './utils/supabase';
 import type { Foyer, FoyerMember } from './types';
 
 // Lucide icon for inline notifications
-import { Bell, X, ChevronRight, Mic, MicOff, Volume2, Phone, Settings as SettingsIcon } from 'lucide-react';
+import { Bell, X, ChevronRight, Mic, MicOff, Volume2, Phone, Settings as SettingsIcon, Lock } from 'lucide-react';
 
 function App() {
   // Safe localStorage helper functions to prevent any corrupt cache startup crashes
@@ -248,6 +248,10 @@ function App() {
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
   const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
+  const [pinVerificationOpen, setPinVerificationOpen] = useState(false);
+  const [pinTargetMemberId, setPinTargetMemberId] = useState<string | null>(null);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
   const [sharedPackId, setSharedPackId] = useState<string | null>(null);
   const [sosActive, setSosActive] = useState(false);
 
@@ -280,6 +284,27 @@ function App() {
     }
     rawSetActiveModule(modName);
   };
+
+  const handleVerifyPin = (inputCode: string) => {
+    const savedPin = foyer?.parentPin || localStorage.getItem('mf_parent_pin') || '0000';
+    if (inputCode === savedPin) {
+      if (pinTargetMemberId) {
+        setActiveMemberId(pinTargetMemberId);
+      }
+      setPinVerificationOpen(false);
+      setProfileSwitcherOpen(false);
+      setPinTargetMemberId(null);
+      setActiveTab('accueil');
+      setActiveModule('');
+    } else {
+      setPinError(true);
+      setTimeout(() => {
+        setPinInput('');
+        setPinError(false);
+      }, 1000);
+    }
+  };
+
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
@@ -2798,10 +2823,17 @@ function App() {
                   <button
                     key={m.id}
                     onClick={() => {
-                      setActiveMemberId(m.id);
-                      setProfileSwitcherOpen(false);
-                      setActiveTab('accueil');
-                      setActiveModule('');
+                      if (isParent) {
+                        setPinTargetMemberId(m.id);
+                        setPinInput('');
+                        setPinError(false);
+                        setPinVerificationOpen(true);
+                      } else {
+                        setActiveMemberId(m.id);
+                        setProfileSwitcherOpen(false);
+                        setActiveTab('accueil');
+                        setActiveModule('');
+                      }
                     }}
                     className={`p-4 rounded-[24px] border text-left transition-all relative cursor-pointer flex flex-col items-center justify-center text-center space-y-2.5 ${
                       isActive 
@@ -2887,6 +2919,105 @@ function App() {
               <SettingsIcon className="w-4 h-4 text-[#6C5CFF]" />
               <span>Gérer les profils (Paramètres)</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* PARENT PIN LOCK SCREEN OVERLAY */}
+      {pinVerificationOpen && (
+        <div className="fixed inset-0 bg-[#07111F]/95 backdrop-blur-md z-[100] flex flex-col items-center justify-center p-6 animate-fade-in text-white">
+          <div className="max-w-xs w-full space-y-8 text-center">
+            <div className="flex flex-col items-center space-y-3">
+              <div className="w-16 h-16 rounded-full bg-[#FF4D6D]/15 border border-[#FF4D6D]/30 flex items-center justify-center text-[#FF4D6D] shadow-lg animate-bounce">
+                <Lock className="w-8 h-8" />
+              </div>
+              <h2 className="text-lg font-black uppercase tracking-wider">Contrôle Parental</h2>
+              <p className="text-xs text-white/50 leading-relaxed">
+                Veuillez saisir le code PIN parent à 4 chiffres pour accéder à ce profil.
+              </p>
+            </div>
+
+            {/* PIN Code Dots Indicator */}
+            <div className="flex justify-center space-x-4 py-2">
+              {[0, 1, 2, 3].map((idx) => (
+                <div 
+                  key={idx} 
+                  className={`w-3.5 h-3.5 rounded-full border border-white/20 transition-all duration-200 ${
+                    pinInput.length > idx 
+                      ? 'bg-[#6C5CFF] border-[#6C5CFF] scale-110 shadow-[0_0_8px_rgba(108,92,255,0.8)]' 
+                      : 'bg-white/5'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* Keypad */}
+            <div className="grid grid-cols-3 gap-4 max-w-[240px] mx-auto">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => {
+                    if (pinInput.length < 4) {
+                      const val = pinInput + num;
+                      setPinInput(val);
+                      if (val.length === 4) {
+                        handleVerifyPin(val);
+                      }
+                    }
+                  }}
+                  className="w-14 h-14 rounded-full bg-white/5 hover:bg-white/10 active:bg-white/20 border border-white/5 text-lg font-bold flex items-center justify-center transition-all cursor-pointer select-none active:scale-95"
+                >
+                  {num}
+                </button>
+              ))}
+              
+              <button
+                type="button"
+                onClick={() => {
+                  setPinInput('');
+                  setPinVerificationOpen(false);
+                  setPinTargetMemberId(null);
+                }}
+                className="w-14 h-14 rounded-full bg-red-950/20 hover:bg-red-950/40 border border-red-500/10 text-xs font-black uppercase flex items-center justify-center transition-all cursor-pointer text-red-400 active:scale-95"
+              >
+                Annuler
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (pinInput.length < 4) {
+                    const val = pinInput + '0';
+                    setPinInput(val);
+                    if (val.length === 4) {
+                      handleVerifyPin(val);
+                    }
+                  }
+                }}
+                className="w-14 h-14 rounded-full bg-white/5 hover:bg-white/10 active:bg-white/20 border border-white/5 text-lg font-bold flex items-center justify-center transition-all cursor-pointer select-none active:scale-95"
+              >
+                0
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (pinInput.length > 0) {
+                    setPinInput(prev => prev.slice(0, -1));
+                  }
+                }}
+                className="w-14 h-14 rounded-full bg-white/5 hover:bg-white/10 active:bg-white/20 border border-white/5 text-sm flex items-center justify-center transition-all cursor-pointer text-white/60 active:scale-95"
+              >
+                ⌫
+              </button>
+            </div>
+
+            {pinError && (
+              <p className="text-xs font-bold text-[#FF4D6D] uppercase tracking-wider animate-shake">
+                Code PIN Incorrect
+              </p>
+            )}
           </div>
         </div>
       )}

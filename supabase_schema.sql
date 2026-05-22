@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS public.foyers (
     name TEXT NOT NULL DEFAULT 'Mon Foyer',
     invite_code TEXT UNIQUE NOT NULL,
     invite_link TEXT,
+    parent_pin TEXT NOT NULL DEFAULT '0000',
     created_by UUID REFERENCES auth.users(id),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
