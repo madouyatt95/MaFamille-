@@ -807,6 +807,28 @@ export const Membres: React.FC<MembresProps> = ({
                             Accédez aux courbes de croissance dynamiques, suivi vaccinal et historique des soins de {selectedMember.name}.
                           </p>
                         </div>
+
+                        {/* Bouton d'accès rapide pour ajouter un membre depuis la fiche du chef de famille */}
+                        {!isChild && (selectedMember.role === 'admin' || selectedMember.role === 'Chef de famille' || selectedMember.role === 'Chef de famille (Admin)') && (
+                          <div className="pt-4 border-t border-white/5 space-y-3">
+                            <div className="p-4 rounded-[22px] bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 space-y-2">
+                              <p className="text-[10px] text-white/60 leading-normal">
+                                En tant que Chef de famille, vous pouvez configurer de nouveaux profils ou inviter vos proches à rejoindre votre foyer.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsAddingMember(true);
+                                  setSelectedMember(null);
+                                  setIsEditing(false);
+                                }}
+                                className="w-full py-3 rounded-xl bg-[#6C5CFF] text-white font-extrabold text-[10px] uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer text-center block shadow-md shadow-[#6C5CFF]/15"
+                              >
+                                Ajouter un membre à la famille ➕
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </>
                     )}
 
