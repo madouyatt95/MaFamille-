@@ -19,8 +19,8 @@ interface QuickActionsSheetProps {
   onAddEvent: (event: any) => void;
   onAddTransaction: (transaction: any) => void;
   onAddTask: (task: any) => void;
-  onAddMember: (member: any) => void;
   onNavigateToVault?: () => void;
+  onNavigateToMembers?: () => void;
   onTriggerSos?: () => void;
 }
 
@@ -33,8 +33,8 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   onAddEvent,
   onAddTransaction,
   onAddTask,
-  onAddMember,
   onNavigateToVault,
+  onNavigateToMembers,
   onTriggerSos
 }) => {
   const [activeTab, setActiveTab] = useState<AddTab>('event');
@@ -65,14 +65,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   const [taskDue, setTaskDue] = useState('Ce soir');
 
 
-  // Member
-  const [memName, setMemName] = useState('');
-  const [memRole, setMemRole] = useState('');
-  const [memAge, setMemAge] = useState('');
-  const [memBirth, setMemBirth] = useState('');
-  const [memBlood, setMemBlood] = useState('A+');
-  const [memAllergies, setMemAllergies] = useState('');
-  const [memTreatments, setMemTreatments] = useState('');
+
 
   const triggerSuccess = () => {
     setShowSuccess(true);
@@ -88,7 +81,6 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
     setEventTitle(''); setEventDate(''); setEventTime(''); setEventMemberId(''); setEventLoc(''); setEventDesc('');
     setTransTitle(''); setTransAmount(''); setTransMemberId('');
     setTaskTitle(''); setTaskMemberId('');
-    setMemName(''); setMemRole(''); setMemAge(''); setMemBirth(''); setMemAllergies(''); setMemTreatments('');
   };
 
   const handleEventSubmit = (e: React.FormEvent) => {
@@ -142,28 +134,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
     triggerSuccess();
   };
 
-  const handleMemberSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!memName || !memRole) return;
-    onAddMember({
-      name: memName,
-      role: memRole,
-      age: memAge || 'Nouveau',
-      birthDate: memBirth || 'Inconnue',
-      bloodGroup: memBlood,
-      allergies: memAllergies ? memAllergies.split(',').map((s: string) => s.trim()) : ['Aucune'],
-      treatments: memTreatments ? memTreatments.split(',').map((s: string) => s.trim()) : ['Aucun'],
-      emergencyContact: {
-        name: 'Maman',
-        phone: '+33 6 12 34 56 78',
-        relation: 'Mère'
-      },
-      schoolOrEmployer: 'Non renseigné',
-      photoUrl: '/avatars/amadou.png', // Avatar standard
-      medicalHistory: []
-    });
-    triggerSuccess();
-  };
+
 
   return (
     <>
@@ -575,106 +546,28 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
 
               {/* Member Form */}
               {activeTab === 'member' && (
-                <form onSubmit={handleMemberSubmit} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Nom complet</label>
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="Ex: Ibrahima" 
-                        value={memName}
-                        onChange={(e) => setMemName(e.target.value)}
-                        className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Rôle / Relation</label>
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="Ex: Bébé, Maman, Cousin..." 
-                        value={memRole}
-                        onChange={(e) => setMemRole(e.target.value)}
-                        className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
-                      />
-                    </div>
+                <div className="space-y-4 py-2 text-center">
+                  <div className="inline-flex p-3 rounded-full bg-[#6C5CFF]/10 text-[#6C5CFF] border border-[#6C5CFF]/20 animate-pulse">
+                    <UserPlus className="w-6 h-6" />
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Date de naissance</label>
-                      <input 
-                        type="text" 
-                        placeholder="JJ/MM/AAAA" 
-                        value={memBirth}
-                        onChange={(e) => setMemBirth(e.target.value)}
-                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Âge (ex: 2 ans, 12 ans)</label>
-                      <input 
-                        type="text" 
-                        placeholder="Ex: 8 ans, 38 ans..." 
-                        value={memAge}
-                        onChange={(e) => setMemAge(e.target.value)}
-                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
-                      />
-                    </div>
+                  <div>
+                    <h4 className="text-sm font-extrabold text-white uppercase tracking-wider">Unification de la Gestion 👨‍👩‍👧</h4>
+                    <p className="text-xs text-white/50 leading-relaxed max-w-xs mx-auto mt-1.5 font-medium">
+                      Pour garantir une sécurité et une cohérence absolue, l'ajout local de profils de santé et l'envoi d'invitations officielles par e-mail avec codes de foyer se font désormais depuis le panneau principal.
+                    </p>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2 col-span-2">
-                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Groupe Sanguin</label>
-                      <select 
-                        value={memBlood}
-                        onChange={(e) => setMemBlood(e.target.value)}
-                        className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
-                      >
-                        <option value="A+">A+</option>
-                        <option value="A-">A-</option>
-                        <option value="B+">B+</option>
-                        <option value="B-">B-</option>
-                        <option value="AB+">AB+</option>
-                        <option value="AB-">AB-</option>
-                        <option value="O+">O+</option>
-                        <option value="O-">O-</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Allergies (Séparées par virgules)</label>
-                    <input 
-                      type="text" 
-                      placeholder="Ex: Arachide, Pollen, Pénicilline..." 
-                      value={memAllergies}
-                      onChange={(e) => setMemAllergies(e.target.value)}
-                      className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Traitements (Séparés par virgules)</label>
-                    <input 
-                      type="text" 
-                      placeholder="Ex: Ventoline, Antihistaminique..." 
-                      value={memTreatments}
-                      onChange={(e) => setMemTreatments(e.target.value)}
-                      className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
-                    />
-                  </div>
-
+                  
                   <button 
-                    type="submit" 
-                    className="w-full py-4 rounded-[22px] bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white font-semibold text-sm hover:opacity-90 active:scale-98 transition-all cursor-pointer shadow-[0_4px_15px_rgba(108,92,255,0.4)]"
+                    type="button"
+                    onClick={() => {
+                      if (onNavigateToMembers) onNavigateToMembers();
+                      onClose();
+                    }}
+                    className="w-full py-4 rounded-[22px] bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white font-black text-xs uppercase tracking-wider hover:opacity-90 active:scale-98 transition-all cursor-pointer shadow-[0_4px_15px_rgba(108,92,255,0.4)] flex justify-center items-center space-x-2"
                   >
-                    Inviter le membre
+                    <span>Aller à la Gestion des Membres ➔</span>
                   </button>
-                </form>
+                </div>
               )}
 
             </div>

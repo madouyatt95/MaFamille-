@@ -290,17 +290,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     }
   }, [activeModule]);
 
-  const [groceryDerogation, setGroceryDerogation] = useState(() => {
-    return localStorage.getItem('mf_grocery_derogation') === 'true';
-  });
-
-  const handleToggleDerogation = () => {
-    const nextVal = !groceryDerogation;
-    setGroceryDerogation(nextVal);
-    localStorage.setItem('mf_grocery_derogation', String(nextVal));
-    alert(nextVal ? '🔓 Dérogation accordée aux enfants !' : '🔒 Dérogation retirée. Accès restreint.');
-  };
-
   // --- Feature 1: Shared Family Quests ---
   interface SharedQuest {
     id: string;
@@ -395,6 +384,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   ];
 
   const activeMember = members.find(m => m.id === activeMemberId);
+  const groceryDerogation = activeMember ? !!activeMember.hasExemption : false;
   const isAmadou = activeMember 
     ? (activeMember.name.toLowerCase().includes('amadou') || ['Enfant', 'child'].includes(activeMember.role))
     : activeMemberId === '3';
@@ -1634,20 +1624,18 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   <AlertCircle className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-white">Dérogation Enfants 🔓</h4>
-                  <p className="text-[10px] text-white/50">Autoriser Amadou & Awa à éditer la liste</p>
+                  <h4 className="text-xs font-bold text-white">Droits & Dérogations Enfants 🔓</h4>
+                  <p className="text-[9.5px] text-white/50 max-w-[200px] sm:max-w-xs mt-0.5 leading-normal">
+                    Gérez les dérogations d'écriture de vos enfants de manière sécurisée et unifiée.
+                  </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={handleToggleDerogation}
-                className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold tracking-wider uppercase border transition-all cursor-pointer ${
-                  groceryDerogation 
-                    ? 'bg-[#00D26A] border-[#00D26A] text-white' 
-                    : 'bg-white/5 border-white/10 text-white/40'
-                }`}
+                onClick={() => setActiveModule('membres')}
+                className="px-3.5 py-2.5 rounded-xl bg-[#6C5CFF] text-white text-[9.5px] font-black uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer shrink-0 shadow-md shadow-[#6C5CFF]/15"
               >
-                {groceryDerogation ? 'Accordée' : 'Bloquée'}
+                Gérer ➔
               </button>
             </div>
           )}
@@ -1856,6 +1844,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
+                            if (!isParent && !groceryDerogation) {
+                              alert("🔒 Dérogation parentale requise pour cocher ou modifier les courses !");
+                              return;
+                            }
                             const newName = prompt('Modifier le nom du produit:', item.name);
                             const newQty = prompt('Modifier la quantité:', item.quantity);
                             if (newName && newQty) onEditGroceryItem(item.id, newName, newQty);
@@ -1868,6 +1860,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
+                            if (!isParent && !groceryDerogation) {
+                              alert("🔒 Dérogation parentale requise pour supprimer les courses !");
+                              return;
+                            }
                             if(window.confirm('Supprimer cet article ?')) onDeleteGroceryItem(item.id);
                           }}
                           title="Supprimer"

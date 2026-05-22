@@ -300,6 +300,7 @@ function App() {
     },
     schoolOrEmployer: fm.schoolOrEmployer || '',
     photoUrl: fm.photoUrl || 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150',
+    hasExemption: fm.hasExemption || false,
     medicalHistory: []
   });
 
@@ -840,15 +841,13 @@ function App() {
 
     const subMembers = foyerService.subscribeToChanges('foyer_members', foyer.id, () => {
       foyerService.getFoyerMembers(foyer.id).then(membersList => {
-        if (membersList.length > 0) {
-          const mapped = membersList.map(mapFoyerMemberToMember);
-          setMembers(prev => {
-            const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
-            const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
-            if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
-            return mapped;
-          });
-        }
+        const mapped = (membersList || []).map(mapFoyerMemberToMember);
+        setMembers(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
       });
     });
 
@@ -1695,6 +1694,7 @@ function App() {
           },
           schoolOrEmployer: addedMem.schoolOrEmployer || 'Non renseigné',
           photoUrl: addedMem.photoUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${addedMem.displayName}`,
+          hasExemption: addedMem.hasExemption || false,
           medicalHistory: []
         };
         setMembers(prev => [...prev, mappedMember]);
@@ -1705,7 +1705,7 @@ function App() {
       }
     } else {
       const id = `${members.length + 1}`;
-      setMembers(prev => [...prev, { ...newMem, id }]);
+      setMembers(prev => [...prev, { ...newMem, id, hasExemption: newMem.hasExemption || false }]);
     }
   };
 
@@ -1984,6 +1984,7 @@ function App() {
             setMembers={setMembers}
             activeMemberId={activeMemberId}
             onAddMemberClick={() => setQuickActionsOpen(true)}
+            onAddMember={handleAddMember}
             foyer={foyer}
             myMemberProfile={myMemberProfile}
             setActiveTab={setActiveTab}
@@ -2014,6 +2015,8 @@ function App() {
             members={members}
             setMembers={setMembers}
             activeMemberId={activeMemberId}
+            setActiveTab={setActiveTab}
+            setActiveModule={setActiveModule}
           />
         );
       }
@@ -2149,10 +2152,14 @@ function App() {
         onAddEvent={handleAddEvent}
         onAddTransaction={handleAddTransaction}
         onAddTask={handleAddTask}
-        onAddMember={handleAddMember}
         onNavigateToVault={() => {
           setActiveTab('menu');
           setActiveModule('documents');
+          setQuickActionsOpen(false);
+        }}
+        onNavigateToMembers={() => {
+          setActiveTab('menu');
+          setActiveModule('membres');
           setQuickActionsOpen(false);
         }}
         onTriggerSos={() => setSosActive(true)}

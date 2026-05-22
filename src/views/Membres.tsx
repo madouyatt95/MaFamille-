@@ -12,8 +12,7 @@ import {
   Edit,
   Lock,
   Copy,
-  Check,
-  RefreshCw
+  Check
 } from 'lucide-react';
 import { foyerService } from '../services/foyerService';
 import type { Member, Foyer, FoyerMember } from '../types';
@@ -21,7 +20,8 @@ import type { Member, Foyer, FoyerMember } from '../types';
 interface MembresProps {
   members: Member[];
   setMembers: React.Dispatch<React.SetStateAction<Member[]>>;
-  onAddMemberClick: () => void;
+  onAddMemberClick?: () => void;
+  onAddMember?: (newMem: any) => Promise<void> | void;
   activeMemberId?: string;
   foyer?: Foyer | null;
   myMemberProfile?: FoyerMember | null;
@@ -32,15 +32,33 @@ interface MembresProps {
 export const Membres: React.FC<MembresProps> = ({ 
   members, 
   setMembers,
-  onAddMemberClick,
+  onAddMemberClick: _onAddMemberClick,
+  onAddMember,
   activeMemberId = '1',
   foyer,
   myMemberProfile,
   setActiveTab,
   setActiveModule
 }) => {
-  // Invitation réelle
-  const [showInviteModal, setShowInviteModal] = useState(false);
+  // Invitation réelle & Ajout unifié
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [addingTab, setAddingTab] = useState<'create' | 'invite'>('create');
+  
+  // Create form states
+  const [addName, setAddName] = useState('');
+  const [addRole, setAddRole] = useState<'parent' | 'child' | 'guest'>('child');
+  const [addAge, setAddAge] = useState('');
+  const [addBirth, setAddBirth] = useState('');
+  const [addBlood, setAddBlood] = useState('A+');
+  const [addAllergies, setAddAllergies] = useState('');
+  const [addTreatments, setAddTreatments] = useState('');
+  const [addSchool, setAddSchool] = useState('');
+  const [addEmergencyName, setAddEmergencyName] = useState('');
+  const [addEmergencyPhone, setAddEmergencyPhone] = useState('');
+  const [addEmergencyRelation, setAddEmergencyRelation] = useState('');
+  const [addHasExemption, setAddHasExemption] = useState(false);
+  const [submittingAdd, setSubmittingAdd] = useState(false);
+
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'parent' | 'child' | 'guest'>('child');
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -49,10 +67,54 @@ export const Membres: React.FC<MembresProps> = ({
   const [savingProfile, setSavingProfile] = useState(false);
 
   const handleAddMemberClick = () => {
-    if (foyer) {
-      setShowInviteModal(true);
-    } else {
-      onAddMemberClick();
+    setSelectedMember(null);
+    setIsEditing(false);
+    setIsAddingMember(true);
+  };
+
+  const handleCreateMemberSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onAddMember) return;
+    setSubmittingAdd(true);
+    try {
+      const newMemberPayload = {
+        name: addName.trim(),
+        role: addRole,
+        age: addAge.trim() || 'Nouveau',
+        birthDate: addBirth.trim() || 'Inconnue',
+        bloodGroup: addBlood,
+        allergies: addAllergies.trim() ? addAllergies.split(',').map(a => a.trim()) : ['Aucune'],
+        treatments: addTreatments.trim() ? addTreatments.split(',').map(t => t.trim()) : ['Aucun'],
+        schoolOrEmployer: addSchool.trim() || 'Non renseigné',
+        emergencyContact: {
+          name: addEmergencyName.trim() || 'Maman',
+          phone: addEmergencyPhone.trim() || '',
+          relation: addEmergencyRelation.trim() || 'Mère'
+        },
+        hasExemption: addRole === 'child' ? addHasExemption : false
+      };
+
+      await onAddMember(newMemberPayload);
+
+      // Reset form states
+      setAddName('');
+      setAddRole('child');
+      setAddAge('');
+      setAddBirth('');
+      setAddBlood('A+');
+      setAddAllergies('');
+      setAddTreatments('');
+      setAddSchool('');
+      setAddEmergencyName('');
+      setAddEmergencyPhone('');
+      setAddEmergencyRelation('');
+      setAddHasExemption(false);
+      setIsAddingMember(false);
+    } catch (err: any) {
+      console.error("Erreur lors de l'ajout du membre :", err);
+      alert(`Erreur : ${err.message || err}`);
+    } finally {
+      setSubmittingAdd(false);
     }
   };
 
@@ -104,10 +166,12 @@ export const Membres: React.FC<MembresProps> = ({
   const [editBirth, setEditBirth] = useState('');
   const [editBlood, setEditBlood] = useState('A+');
   const [editSchool, setEditSchool] = useState('');
+  const [editHasExemption, setEditHasExemption] = useState(false);
 
   const openDossier = (member: Member) => {
     setSelectedMember(member);
     setIsEditing(false);
+    setIsAddingMember(false);
   };
 
   const handleEditClick = (member: Member) => {
@@ -117,6 +181,7 @@ export const Membres: React.FC<MembresProps> = ({
     setEditBirth(member.birthDate);
     setEditBlood(member.bloodGroup);
     setEditSchool(member.schoolOrEmployer);
+    setEditHasExemption(!!member.hasExemption);
     setIsEditing(true);
   };
 
@@ -147,7 +212,8 @@ export const Membres: React.FC<MembresProps> = ({
           age: editAge.trim(),
           birthDate: editBirth.trim(),
           bloodGroup: editBlood,
-          schoolOrEmployer: editSchool.trim()
+          schoolOrEmployer: editSchool.trim(),
+          hasExemption: dbRole === 'child' ? editHasExemption : false
         });
       }
 
@@ -160,7 +226,8 @@ export const Membres: React.FC<MembresProps> = ({
             age: editAge.trim(),
             birthDate: editBirth.trim(),
             bloodGroup: editBlood,
-            schoolOrEmployer: editSchool.trim()
+            schoolOrEmployer: editSchool.trim(),
+            hasExemption: dbRole === 'child' ? editHasExemption : false
           };
           setSelectedMember(updated);
           return updated;
@@ -309,6 +376,24 @@ export const Membres: React.FC<MembresProps> = ({
                       <option value="child">Enfant (Droits d'écriture restreints) 🧒</option>
                       <option value="guest">Invité (Lecture seule) 👥</option>
                     </select>
+
+                    {(editRole === 'child' || editRole === 'Enfant') && (
+                      <div className="mt-2.5 p-3 rounded-2xl bg-white/3 border border-[#6C5CFF]/20 flex items-center justify-between animate-fade-in">
+                        <div>
+                          <span className="text-[10px] font-extrabold text-white block">🔓 Dérogation Spéciale Enfant</span>
+                          <span className="text-[8.5px] text-white/50 block mt-0.5 max-w-[200px]">Autoriser l'écriture sur les listes de courses, agenda et tâches ménagères.</span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer select-none">
+                          <input 
+                            type="checkbox"
+                            checked={editHasExemption}
+                            onChange={(e) => setEditHasExemption(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#00D26A]"></div>
+                        </label>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -382,12 +467,20 @@ export const Membres: React.FC<MembresProps> = ({
                   {!isChild && selectedMember.id !== activeMemberId && (
                     <button 
                       type="button" 
-                      onClick={() => {
+                      onClick={async () => {
                         if (window.confirm(`🚨 Êtes-vous ABSOLUMENT sûr de vouloir retirer le profil de ${selectedMember.name} de votre famille ? Cette action effacera définitivement ses données.`)) {
-                          setMembers(prev => prev.filter(m => m.id !== selectedMember.id));
-                          setSelectedMember(null);
-                          setIsEditing(false);
-                          alert(`🗑️ Profil de ${selectedMember.name} retiré avec succès !`);
+                          try {
+                            if (foyer) {
+                              await foyerService.removeMember(selectedMember.id);
+                            }
+                            setMembers(prev => prev.filter(m => m.id !== selectedMember.id));
+                            setSelectedMember(null);
+                            setIsEditing(false);
+                            alert(`🗑️ Profil de ${selectedMember.name} retiré avec succès !`);
+                          } catch (err: any) {
+                            console.error("Erreur lors du retrait du membre :", err);
+                            alert(`Impossible de retirer le membre du cloud : ${err.message || err}`);
+                          }
                         }
                       }}
                       className="w-full mt-2 py-3 rounded-xl bg-[#FF4D6D]/10 border border-[#FF4D6D]/30 text-[#FF4D6D] hover:bg-[#FF4D6D]/20 transition-all text-xs font-bold uppercase tracking-wider cursor-pointer text-center block"
@@ -710,6 +803,257 @@ export const Membres: React.FC<MembresProps> = ({
                 </>
               )}
             </>
+          ) : isAddingMember ? (
+            /* Unified Add & Invite Member Panel */
+            <div className="glass-panel rounded-[32px] border border-white/10 p-5 space-y-6 animate-scale-up">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-white/5 pb-3.5">
+                <div>
+                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">Ajouter un Membre</h3>
+                  <p className="text-[10px] text-white/40 mt-0.5">Configurez un nouveau profil ou invitez un proche.</p>
+                </div>
+                <button 
+                  onClick={() => setIsAddingMember(false)}
+                  className="p-1.5 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-all cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Tabs Switcher */}
+              <div className="flex p-1 rounded-2xl bg-black/20 border border-white/5">
+                <button
+                  type="button"
+                  onClick={() => setAddingTab('create')}
+                  className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                    addingTab === 'create' 
+                      ? 'bg-[#6C5CFF] text-white shadow-md shadow-[#6C5CFF]/15' 
+                      : 'text-white/40 hover:text-white/60'
+                  }`}
+                >
+                  Créer un Profil 🧒
+                </button>
+                {foyer && (
+                  <button
+                    type="button"
+                    onClick={() => setAddingTab('invite')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                      addingTab === 'invite' 
+                        ? 'bg-[#6C5CFF] text-white shadow-md shadow-[#6C5CFF]/15' 
+                        : 'text-white/40 hover:text-white/60'
+                    }`}
+                  >
+                    Inviter par Code/Mail ✉️
+                  </button>
+                )}
+              </div>
+
+              {addingTab === 'create' ? (
+                /* CREATE LOCAL/IA PROFILE FORM */
+                <form onSubmit={handleCreateMemberSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3.5">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Nom complet</label>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="Ex: Ibrahima" 
+                        value={addName}
+                        onChange={(e) => setAddName(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs placeholder-white/20 focus:outline-none focus:border-[#6C5CFF]"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Rôle / Droits</label>
+                      <select 
+                        value={addRole}
+                        onChange={(e) => setAddRole(e.target.value as any)}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                      >
+                        <option value="parent">Gestionnaire / Parent 👨‍👩‍👧</option>
+                        <option value="child">Enfant 🧒</option>
+                        <option value="guest">Invité (Lecture seule) 👥</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {addRole === 'child' && (
+                    <div className="p-3 rounded-2xl bg-[#6C5CFF]/5 border border-[#6C5CFF]/20 flex items-center justify-between animate-fade-in">
+                      <div>
+                        <span className="text-[10px] font-extrabold text-white block">🔓 Dérogation parentale d'écriture</span>
+                        <span className="text-[8.5px] text-white/50 block mt-0.5 max-w-[200px]">Autorise cet enfant à modifier les courses, agenda et tâches ménagères.</span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer select-none">
+                        <input 
+                          type="checkbox"
+                          checked={addHasExemption}
+                          onChange={(e) => setAddHasExemption(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#00D26A]"></div>
+                      </label>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3.5">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Date de naissance</label>
+                      <input 
+                        type="text" 
+                        placeholder="JJ/MM/AAAA" 
+                        value={addBirth}
+                        onChange={(e) => setAddBirth(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs placeholder-white/20 focus:outline-none focus:border-[#6C5CFF]"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Âge</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ex: 8 ans, 38 ans..." 
+                        value={addAge}
+                        onChange={(e) => setAddAge(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs placeholder-white/20 focus:outline-none focus:border-[#6C5CFF]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Établissement (École / Employeur)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: École Primaire Condorcet" 
+                      value={addSchool}
+                      onChange={(e) => setAddSchool(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs placeholder-white/20 focus:outline-none focus:border-[#6C5CFF]"
+                    />
+                  </div>
+
+                  {/* Medical Quick info */}
+                  <div className="p-3.5 rounded-2xl bg-white/3 border border-white/5 space-y-3">
+                    <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Informations Médicales</span>
+                    <div className="grid grid-cols-2 gap-3.5">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-white/30 uppercase tracking-wider block">Groupe Sanguin</label>
+                        <select 
+                          value={addBlood}
+                          onChange={(e) => setAddBlood(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                        >
+                          <option value="A+">A+</option>
+                          <option value="A-">A-</option>
+                          <option value="B+">B+</option>
+                          <option value="B-">B-</option>
+                          <option value="AB+">AB+</option>
+                          <option value="AB-">AB-</option>
+                          <option value="O+">O+</option>
+                          <option value="O-">O-</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-white/30 uppercase tracking-wider block">Allergies</label>
+                        <input 
+                          type="text" 
+                          placeholder="Pénicilline, arachides..." 
+                          value={addAllergies}
+                          onChange={(e) => setAddAllergies(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Submit Button */}
+                  <button 
+                    type="submit" 
+                    disabled={submittingAdd}
+                    className="w-full py-3.5 rounded-2xl bg-[#6C5CFF] text-white font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-[#6C5CFF]/15 hover:opacity-90 active:scale-98 transition-all cursor-pointer flex items-center justify-center space-x-2"
+                  >
+                    <span>{submittingAdd ? 'Création en cours...' : 'Créer la Fiche Membre ✅'}</span>
+                  </button>
+                </form>
+              ) : (
+                /* INVITATION METHOD FOR CLOUD FOYER */
+                foyer && (
+                  <div className="space-y-4 animate-fade-in">
+                    {/* Share Invitation Code */}
+                    <div className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-2">
+                      <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block font-sans">1. Partager le Code Unique</span>
+                      <p className="text-[10px] text-white/50 leading-relaxed font-medium">
+                        Donnez ce code de foyer à vos proches. Ils pourront le saisir lors de leur inscription pour rejoindre instantanément votre foyer.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleCopyInviteCode}
+                        className="w-full mt-1.5 py-3 px-4 rounded-xl bg-white/5 border border-white/8 text-white text-xs font-bold flex items-center justify-between hover:bg-white/8 active:scale-95 transition-all cursor-pointer"
+                      >
+                        <div className="text-left font-sans">
+                          <span className="text-[8px] text-white/40 block font-normal uppercase">Code à 6 caractères</span>
+                          <span className="font-mono text-sm font-black text-[#6C5CFF] block mt-0.5">{foyer.inviteCode}</span>
+                        </div>
+                        {copiedCode ? (
+                          <span className="text-[9px] font-bold text-[#00D26A] flex items-center gap-1">
+                            <Check className="w-3.5 h-3.5" /> Copié
+                          </span>
+                        ) : (
+                          <span className="text-[9px] text-white/40 flex items-center gap-1 font-bold">
+                            <Copy className="w-3.5 h-3.5" /> Copier
+                          </span>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Email Invitation Form */}
+                    <form onSubmit={handleSendInvite} className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-3.5">
+                      <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block font-sans">2. Envoyer par e-mail</span>
+                      
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Adresse e-mail de l'invité</label>
+                        <input
+                          type="email"
+                          required
+                          placeholder="ex: epouse@gmail.com"
+                          value={inviteEmail}
+                          onChange={(e) => setInviteEmail(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Rôle assigné</label>
+                        <select
+                          value={inviteRole}
+                          onChange={(e: any) => setInviteRole(e.target.value)}
+                          className="w-full px-3 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                        >
+                          <option value="parent">Parent / Co-gestionnaire 👨‍👩‍👧</option>
+                          <option value="child">Enfant 🧒</option>
+                          <option value="guest">Invité (Lecture seule) 👥</option>
+                        </select>
+                      </div>
+
+                      {inviteMessage && (
+                        <div className={`p-2.5 rounded-xl border text-[10px] font-medium leading-normal ${
+                          inviteMessage.type === 'success' ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]' : 'bg-red-500/10 border-red-500/20 text-red-400'
+                        }`}>
+                          {inviteMessage.text}
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={inviteLoading}
+                        className="w-full py-3 rounded-xl bg-[#6C5CFF] text-white text-xs font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-md shadow-[#6C5CFF]/15"
+                      >
+                        {inviteLoading ? 'Envoi...' : 'Envoyer l\'invitation ✉️'}
+                      </button>
+                    </form>
+                  </div>
+                )
+              )}
+            </div>
           ) : (
             /* No selected member view */
             <div className="h-full flex flex-col items-center justify-center text-center py-20 px-4 space-y-4">
@@ -719,7 +1063,7 @@ export const Membres: React.FC<MembresProps> = ({
               <div>
                 <h3 className="text-sm font-bold text-white">Sélectionnez un membre</h3>
                 <p className="text-xs text-white/40 max-w-[250px] mt-1 mx-auto leading-relaxed">
-                  Cliquez sur un profil familial pour ouvrir son coffre-fort d'identité sécurisé.
+                  Cliquez sur un profil familial pour ouvrir son coffre-fort d'identité sécurisé ou cliquez sur + pour en ajouter un.
                 </p>
               </div>
             </div>
@@ -727,107 +1071,7 @@ export const Membres: React.FC<MembresProps> = ({
         </div>
 
     </div>
-
-      {/* Real Supabase Invite Modal */}
-      {showInviteModal && foyer && (
-        <div className="fixed inset-0 bg-[#07111F]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="glass-panel border border-white/10 rounded-[32px] w-full max-w-md p-6 space-y-5 shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative">
-            
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/5 pb-3">
-              <div>
-                <h3 className="text-sm font-bold uppercase tracking-wider text-white">Ajouter un membre</h3>
-                <p className="text-[10px] text-white/40 mt-1">Invitez des membres à rejoindre votre foyer {foyer.name}</p>
-              </div>
-              <button 
-                onClick={() => {
-                  setShowInviteModal(false);
-                  setInviteMessage(null);
-                }}
-                className="p-1.5 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-all cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Option A: Invite Code */}
-            <div className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-2">
-              <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Option 1 : Partager le Code du Foyer</span>
-              <p className="text-[10px] text-white/60 leading-relaxed font-medium">
-                Donnez ce code de foyer à vos proches. Ils pourront le saisir lors de leur inscription pour rejoindre instantanément votre foyer.
-              </p>
-              <button
-                onClick={handleCopyInviteCode}
-                className="w-full mt-1.5 py-3 px-4 rounded-xl bg-white/5 border border-white/8 text-white text-xs font-bold flex items-center justify-between hover:bg-white/8 active:scale-95 transition-all cursor-pointer"
-              >
-                <div className="text-left">
-                  <span className="text-[8px] text-white/40 block font-normal uppercase">Code à 6 caractères</span>
-                  <span className="font-mono text-sm font-black text-[#6C5CFF] block mt-0.5">{foyer.inviteCode}</span>
-                </div>
-                {copiedCode ? (
-                  <span className="text-[9px] font-bold text-[#00D26A] flex items-center gap-1">
-                    <Check className="w-3.5 h-3.5" /> Copié
-                  </span>
-                ) : (
-                  <span className="text-[9px] text-white/40 flex items-center gap-1 font-bold">
-                    <Copy className="w-3.5 h-3.5" /> Copier
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {/* Option B: Email Invitation */}
-            <form onSubmit={handleSendInvite} className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-3">
-              <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Option 2 : Envoyer une invitation par e-mail</span>
-              
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Adresse e-mail</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="ex: epouse@gmail.com"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Rôle dans la famille</label>
-                <select
-                  value={inviteRole}
-                  onChange={(e: any) => setInviteRole(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
-                >
-                  <option value="parent">Parent / Co-gestionnaire</option>
-                  <option value="child">Enfant</option>
-                  <option value="guest">Invité (Lecture seule)</option>
-                </select>
-              </div>
-
-              {inviteMessage && (
-                <div className={`p-2.5 rounded-xl border text-[10px] font-medium leading-normal ${
-                  inviteMessage.type === 'success' ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]' : 'bg-red-500/10 border-red-500/20 text-red-400'
-                }`}>
-                  {inviteMessage.text}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={inviteLoading}
-                className="w-full py-2.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5B4EFA] disabled:opacity-50 text-white text-xs font-bold shadow-md active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center space-x-2"
-              >
-                {inviteLoading ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <span>Envoyer l'invitation</span>
-                )}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Old modal removed */}
     </div>
   );
 };

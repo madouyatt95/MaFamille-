@@ -142,6 +142,7 @@ export const foyerService = {
       emergencyContactPhone: m.emergency_contact_phone,
       emergencyContactRelation: m.emergency_contact_relation,
       schoolOrEmployer: m.school_or_employer,
+      hasExemption: m.has_exemption || false,
       joinedAt: m.joined_at,
       latitude: m.latitude,
       longitude: m.longitude,
@@ -235,6 +236,7 @@ export const foyerService = {
     if (updates.emergencyContactPhone !== undefined) rpcParams.p_emergency_contact_phone = updates.emergencyContactPhone;
     if (updates.emergencyContactRelation !== undefined) rpcParams.p_emergency_contact_relation = updates.emergencyContactRelation;
     if (updates.schoolOrEmployer !== undefined) rpcParams.p_school_or_employer = updates.schoolOrEmployer;
+    if (updates.hasExemption !== undefined) rpcParams.p_has_exemption = updates.hasExemption;
     if (updates.latitude !== undefined) rpcParams.p_latitude = updates.latitude;
     if (updates.longitude !== undefined) rpcParams.p_longitude = updates.longitude;
     if (updates.locationStatus !== undefined) rpcParams.p_location_status = updates.locationStatus;
@@ -266,6 +268,7 @@ export const foyerService = {
     if (updates.emergencyContactRelation !== undefined) dbUpdates.emergency_contact_relation = updates.emergencyContactRelation;
     if (updates.schoolOrEmployer !== undefined) dbUpdates.school_or_employer = updates.schoolOrEmployer;
     if (updates.role !== undefined) dbUpdates.role = updates.role;
+    if (updates.hasExemption !== undefined) dbUpdates.has_exemption = updates.hasExemption;
     if (updates.latitude !== undefined) dbUpdates.latitude = updates.latitude;
     if (updates.longitude !== undefined) dbUpdates.longitude = updates.longitude;
     if (updates.locationStatus !== undefined) dbUpdates.location_status = updates.locationStatus;
@@ -379,7 +382,8 @@ export const foyerService = {
       emergency_contact_name: member.emergencyContact?.name || 'Maman',
       emergency_contact_phone: member.emergencyContact?.phone || '',
       emergency_contact_relation: member.emergencyContact?.relation || 'Mère',
-      school_or_employer: member.schoolOrEmployer || 'Non renseigné'
+      school_or_employer: member.schoolOrEmployer || 'Non renseigné',
+      has_exemption: member.hasExemption || false
     };
 
     console.log('[MaFamille+ DB] addMemberToFoyer -> payload:', JSON.stringify(dbMember));
@@ -410,12 +414,32 @@ export const foyerService = {
       emergencyContactPhone: data.emergency_contact_phone,
       emergencyContactRelation: data.emergency_contact_relation,
       schoolOrEmployer: data.school_or_employer,
+      hasExemption: data.has_exemption || false,
       joinedAt: data.joined_at,
       latitude: data.latitude,
       longitude: data.longitude,
       locationStatus: data.location_status,
       lastLocatedAt: data.last_located_at
     };
+  },
+
+  /**
+   * Retirer / Supprimer définitivement un membre du foyer de la base de données
+   */
+  async removeMember(memberId: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Supabase n'est pas configuré");
+
+    console.log('[MaFamille+ DB] removeMember -> memberId:', memberId);
+    const { error } = await supabase
+      .from('foyer_members')
+      .delete()
+      .eq('id', memberId);
+
+    if (error) {
+      console.error("[MaFamille+ DB] Erreur suppression membre foyer :", error);
+      throw error;
+    }
   },
 
   /**

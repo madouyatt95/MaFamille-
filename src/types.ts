@@ -34,6 +34,7 @@ export interface FoyerMember {
   longitude?: number;
   locationStatus?: string;
   lastLocatedAt?: string;
+  hasExemption?: boolean;
 }
 
 export interface FoyerInvitation {
@@ -77,6 +78,7 @@ export interface Member {
   longitude?: number;
   locationStatus?: string;
   lastLocatedAt?: string;
+  hasExemption?: boolean;
 }
 
 export type EventType = 'medical' | 'school' | 'bill' | 'grocery' | 'social' | 'other';

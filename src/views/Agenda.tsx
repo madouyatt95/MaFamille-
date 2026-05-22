@@ -58,6 +58,10 @@ export const Agenda: React.FC<AgendaProps> = ({
   const isChild = activeMember
     ? ['Enfant', 'child'].includes(activeMember.role)
     : (activeMemberId === '3' || activeMemberId === '4');
+  
+  const isWritable = activeMember 
+    ? (activeMember.role !== 'child' || !!activeMember.hasExemption)
+    : true;
 
   const visibleEvents = useMemo(() => {
     return events.filter(e => {
@@ -170,7 +174,13 @@ export const Agenda: React.FC<AgendaProps> = ({
         </div>
         
         <button 
-          onClick={onAddEventClick}
+          onClick={() => {
+            if (!isWritable) {
+              alert("🔒 Dérogation parentale requise pour modifier l'agenda familial !");
+              return;
+            }
+            onAddEventClick();
+          }}
           className="p-3 rounded-2xl bg-[#6C5CFF] text-white hover:opacity-90 transition-all cursor-pointer shadow-[0_4px_12px_rgba(108,92,255,0.4)]"
         >
           <Plus className="w-5 h-5" />
@@ -321,8 +331,14 @@ export const Agenda: React.FC<AgendaProps> = ({
                       return (
                          <div 
                            key={event.id}
-                           draggable
-                           onDragStart={(e) => handleDragStart(e, event.id)}
+                           draggable={isWritable}
+                           onDragStart={(e) => {
+                             if (!isWritable) {
+                               e.preventDefault();
+                               return;
+                             }
+                             handleDragStart(e, event.id);
+                           }}
                            className={`absolute left-2 right-4 p-3 rounded-2xl border border-white/10 text-xs shadow-lg cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-all z-10 overflow-hidden ${
                              event.done ? 'bg-[#112240]/50 opacity-60' : 'bg-[#1C2C4E]/90 backdrop-blur-md'
                            }`}
@@ -427,7 +443,13 @@ export const Agenda: React.FC<AgendaProps> = ({
                     >
                       <div className="flex items-start space-x-3">
                         <button 
-                          onClick={() => onToggleEventDone(event.id)}
+                          onClick={() => {
+                            if (!isWritable) {
+                              alert("🔒 Dérogation parentale requise pour modifier les événements de l'agenda familial !");
+                              return;
+                            }
+                            onToggleEventDone(event.id);
+                          }}
                           className="text-white/40 hover:text-white transition-colors cursor-pointer mt-1"
                         >
                           {event.done ? (

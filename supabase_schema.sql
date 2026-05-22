@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS public.foyer_members (
     emergency_contact_phone TEXT,
     emergency_contact_relation TEXT,
     school_or_employer TEXT,
+    has_exemption BOOLEAN DEFAULT FALSE,
     joined_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(foyer_id, user_id)
 );
@@ -629,7 +630,8 @@ CREATE OR REPLACE FUNCTION public.update_member_profile(
     p_emergency_contact_name TEXT DEFAULT NULL,
     p_emergency_contact_phone TEXT DEFAULT NULL,
     p_emergency_contact_relation TEXT DEFAULT NULL,
-    p_school_or_employer TEXT DEFAULT NULL
+    p_school_or_employer TEXT DEFAULT NULL,
+    p_has_exemption BOOLEAN DEFAULT NULL
 )
 RETURNS JSON AS $$
 DECLARE
@@ -663,7 +665,8 @@ BEGIN
         emergency_contact_name = COALESCE(p_emergency_contact_name, emergency_contact_name),
         emergency_contact_phone = COALESCE(p_emergency_contact_phone, emergency_contact_phone),
         emergency_contact_relation = COALESCE(p_emergency_contact_relation, emergency_contact_relation),
-        school_or_employer = COALESCE(p_school_or_employer, school_or_employer)
+        school_or_employer = COALESCE(p_school_or_employer, school_or_employer),
+        has_exemption = COALESCE(p_has_exemption, has_exemption)
     WHERE id = p_member_id;
 
     RETURN json_build_object('success', true, 'member_id', p_member_id);
