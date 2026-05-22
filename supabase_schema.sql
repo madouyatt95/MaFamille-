@@ -404,6 +404,31 @@ RETURNS SETOF UUID AS $$
     SELECT foyer_id FROM public.foyer_members WHERE user_id = auth.uid();
 $$ LANGUAGE SQL SECURITY DEFINER STABLE;
 
+-- Helper functions pour éviter les boucles récursives sur la table foyer_members
+CREATE OR REPLACE FUNCTION public.is_foyer_admin(p_foyer_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.foyer_members 
+        WHERE foyer_id = p_foyer_id 
+          AND user_id = auth.uid() 
+          AND role = 'admin'
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
+CREATE OR REPLACE FUNCTION public.is_foyer_admin_or_parent(p_foyer_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.foyer_members 
+        WHERE foyer_id = p_foyer_id 
+          AND user_id = auth.uid() 
+          AND role IN ('admin', 'parent')
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
 -- FOYERS : visible par les membres
 CREATE POLICY "foyers_select" ON public.foyers FOR SELECT
     USING (id IN (SELECT public.user_foyer_ids()));
@@ -418,17 +443,11 @@ CREATE POLICY "foyers_delete" ON public.foyers FOR DELETE
 CREATE POLICY "members_select" ON public.foyer_members FOR SELECT
     USING (foyer_id IN (SELECT public.user_foyer_ids()));
 CREATE POLICY "members_insert" ON public.foyer_members FOR INSERT
-    WITH CHECK (user_id = auth.uid() OR foyer_id IN (
-        SELECT foyer_id FROM public.foyer_members WHERE user_id = auth.uid() AND role IN ('admin', 'parent')
-    ));
+    WITH CHECK (user_id = auth.uid() OR public.is_foyer_admin_or_parent(foyer_id));
 CREATE POLICY "members_delete" ON public.foyer_members FOR DELETE
-    USING (user_id = auth.uid() OR foyer_id IN (
-        SELECT foyer_id FROM public.foyer_members WHERE user_id = auth.uid() AND role = 'admin'
-    ));
+    USING (user_id = auth.uid() OR public.is_foyer_admin(foyer_id));
 CREATE POLICY "members_update" ON public.foyer_members FOR UPDATE
-    USING (user_id = auth.uid() OR foyer_id IN (
-        SELECT foyer_id FROM public.foyer_members WHERE user_id = auth.uid() AND role IN ('admin', 'parent')
-    ));
+    USING (user_id = auth.uid() OR public.is_foyer_admin_or_parent(foyer_id));
 
 -- INVITATIONS : visible par les membres admin/parent du foyer
 CREATE POLICY "invitations_select" ON public.foyer_invitations FOR SELECT
