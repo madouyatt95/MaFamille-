@@ -9,9 +9,13 @@ import {
   Square,
   RefreshCw,
   SlidersHorizontal,
-  GripHorizontal
+  GripHorizontal,
+  Globe,
+  Trash2,
+  Settings2
 } from 'lucide-react';
 import type { FamilyEvent, Member, EventType } from '../types';
+import { fetchExternalCalendar, type ExternalEvent } from '../utils/icalParser';
 
 interface AgendaProps {
   events: FamilyEvent[];
@@ -21,6 +25,15 @@ interface AgendaProps {
   onMoveEvent: (eventId: string, newDate: string) => void;
   activeMemberId?: string;
   defaultSelectedDate?: string;
+}
+
+export interface CalendarSource {
+  id: string;
+  name: string;
+  url: string;
+  color: string;
+  memberId?: string;
+  isActive: boolean;
 }
 
 export const Agenda: React.FC<AgendaProps> = ({
@@ -36,8 +49,109 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [viewType, setViewType] = useState<'month' | 'week'>('month');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('all');
   const [selectedMemberFilter, setSelectedMemberFilter] = useState<string>('all');
-  const [googleSynced, setGoogleSynced] = useState(false);
   const [syncing, setSyncing] = useState(false);
+
+  // Sources iCal et Événements Externes
+  const [calendarSources, setCalendarSources] = useState<CalendarSource[]>(() => {
+    const saved = localStorage.getItem('mf_external_calendar_sources');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'src-google-papa',
+        name: 'Google Agenda Papa',
+        url: 'https://calendar.google.com/calendar/ical/papa/public/basic.ics',
+        color: '#2563EB',
+        isActive: true
+      },
+      {
+        id: 'src-school-awa',
+        name: 'École Awa (Emploi du temps)',
+        url: 'https://ecole.directe/awa/agenda.ics',
+        color: '#EC4899',
+        memberId: '4', // Awa
+        isActive: true
+      }
+    ];
+  });
+
+  const [externalEvents, setExternalEvents] = useState<ExternalEvent[]>(() => {
+    const saved = localStorage.getItem('mf_external_calendar_events');
+    if (saved) return JSON.parse(saved);
+    // Événements de démo pré-remplis pour Mai 2026 correspondants aux dates
+    return [
+      {
+        id: 'ext-demo-1',
+        title: 'Réunion d\'affaires importante',
+        startDate: '2026-05-18',
+        endDate: '2026-05-18',
+        startTime: '10:00',
+        endTime: '12:00',
+        description: 'Point d\'étape sur les nouveaux projets de consulting.',
+        location: 'Paris Offices',
+        sourceName: 'Google Agenda Papa',
+        sourceColor: '#2563EB',
+        isAllDay: false
+      },
+      {
+        id: 'ext-demo-2',
+        title: 'Cours de Mathématiques',
+        startDate: '2026-05-19',
+        endDate: '2026-05-19',
+        startTime: '08:30',
+        endTime: '10:30',
+        description: 'Géométrie et algèbre linéaire.',
+        location: 'Salle 402 - Collège',
+        sourceName: 'École Awa (Emploi du temps)',
+        sourceColor: '#EC4899',
+        memberId: '4',
+        isAllDay: false
+      },
+      {
+        id: 'ext-demo-3',
+        title: 'Déjeuner client professionnel',
+        startDate: '2026-05-20',
+        endDate: '2026-05-20',
+        startTime: '12:30',
+        endTime: '14:00',
+        description: 'Signature de contrat de partenariat.',
+        location: 'L\'Atelier Bistrot',
+        sourceName: 'Google Agenda Papa',
+        sourceColor: '#2563EB',
+        isAllDay: false
+      },
+      {
+        id: 'ext-demo-4',
+        title: 'Cours d\'Anglais',
+        startDate: '2026-05-21',
+        endDate: '2026-05-21',
+        startTime: '14:00',
+        endTime: '16:00',
+        description: 'Préparation du brevet oral d\'anglais.',
+        location: 'Salle 105 - Collège',
+        sourceName: 'École Awa (Emploi du temps)',
+        sourceColor: '#EC4899',
+        memberId: '4',
+        isAllDay: false
+      }
+    ];
+  });
+
+  const [showSourcesModal, setShowSourcesModal] = useState(false);
+  
+  // États de saisie d'un nouveau calendrier
+  const [newSourceName, setNewSourceName] = useState('');
+  const [newSourceUrl, setNewSourceUrl] = useState('');
+  const [newSourceColor, setNewSourceColor] = useState('#6C5CFF');
+  const [newSourceMember, setNewSourceMember] = useState('none');
+
+  // Sauvegarde persistante
+  useEffect(() => {
+    localStorage.setItem('mf_external_calendar_sources', JSON.stringify(calendarSources));
+  }, [calendarSources]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_external_calendar_events', JSON.stringify(externalEvents));
+  }, [externalEvents]);
 
   // Invitation card states
   const [activeInvitationEvent, setActiveInvitationEvent] = useState<FamilyEvent | null>(null);
@@ -63,15 +177,40 @@ export const Agenda: React.FC<AgendaProps> = ({
     ? (activeMember.role !== 'child' || !!activeMember.hasExemption)
     : true;
 
+  // Convertit les événements externes en événements de format FamilyEvent
+  const mappedExternalEvents = useMemo(() => {
+    return externalEvents
+      .filter(ee => {
+        // Ne garder que les événements dont la source est active
+        const source = calendarSources.find(s => s.name === ee.sourceName);
+        return source ? source.isActive : true;
+      })
+      .map(ee => ({
+        id: ee.id,
+        title: ee.title,
+        dateTime: `${ee.startDate}T${ee.startTime || '00:00'}:00`,
+        time: ee.startTime || '00:00',
+        type: (ee.memberId ? 'school' : 'other') as EventType,
+        memberId: ee.memberId,
+        location: ee.location || '',
+        notes: ee.description || '',
+        done: false,
+        isExternal: true,
+        sourceName: ee.sourceName,
+        sourceColor: ee.sourceColor
+      }));
+  }, [externalEvents, calendarSources]);
+
   const visibleEvents = useMemo(() => {
-    return events.filter(e => {
+    const local = events.filter(e => {
       if (!isChild) return true;
       if (e.memberId === activeMemberId) return true;
       if (e.type === 'school' || e.type === 'social') return true;
       if (!e.memberId) return true;
       return false;
     });
-  }, [events, isChild, activeMemberId]);
+    return [...local, ...mappedExternalEvents];
+  }, [events, mappedExternalEvents, isChild, activeMemberId]);
 
   // May 2026 Calendar grid data
   const daysInMonth = 31;
@@ -121,15 +260,105 @@ export const Agenda: React.FC<AgendaProps> = ({
 
   const getDotsForDay = (dateStr: string) => {
     const dayEvents = visibleEvents.filter(e => e.dateTime.startsWith(dateStr));
-    return dayEvents.map(e => e.memberId ? memberColors[e.memberId] : 'bg-white/50').slice(0, 3);
+    return dayEvents.map(e => {
+      if ((e as any).isExternal && (e as any).sourceColor) {
+        return { style: { backgroundColor: (e as any).sourceColor }, isStyle: true, className: '' };
+      }
+      const cls = e.memberId ? memberColors[e.memberId] : 'bg-white/50';
+      return { className: cls, isStyle: false, style: {} };
+    }).slice(0, 3);
   };
 
-  const triggerGoogleSync = () => {
+  // Synchronisation de toutes les sources iCal actives
+  const syncAllExternalCalendars = async () => {
     setSyncing(true);
+    let allEvents: ExternalEvent[] = [];
+    
+    for (const source of calendarSources) {
+      if (!source.isActive) continue;
+      try {
+        // Démo locale
+        if (source.url.includes('basic.ics') || source.url.includes('agenda.ics')) {
+          const currentDemoEvents = externalEvents.filter(ee => ee.sourceName === source.name);
+          allEvents = [...allEvents, ...currentDemoEvents];
+          continue;
+        }
+        
+        // Vrai fetch CORS
+        const fetched = await fetchExternalCalendar(source.url, source.name, source.color, source.memberId);
+        allEvents = [...allEvents, ...fetched];
+      } catch (err) {
+        console.error(`Erreur synchro source ${source.name}:`, err);
+        const fallback = externalEvents.filter(ee => ee.sourceName === source.name);
+        allEvents = [...allEvents, ...fallback];
+      }
+    }
+    
+    const uniqueEventsMap = new Map<string, ExternalEvent>();
+    allEvents.forEach(e => uniqueEventsMap.set(e.id, e));
+    
     setTimeout(() => {
+      setExternalEvents(Array.from(uniqueEventsMap.values()));
       setSyncing(false);
-      setGoogleSynced(true);
+      alert('📅 Tous vos calendriers externes et emplois du temps scolaires ont été synchronisés !');
     }, 1200);
+  };
+
+  // Synchronisation d'une seule source iCal spécifique
+  const syncSingleSource = async (source: CalendarSource) => {
+    setSyncing(true);
+    try {
+      const fetched = await fetchExternalCalendar(source.url, source.name, source.color, source.memberId);
+      setExternalEvents(prev => {
+        const filtered = prev.filter(ee => ee.sourceName !== source.name);
+        return [...filtered, ...fetched];
+      });
+      alert(`✅ Source "${source.name}" synchronisée avec succès !`);
+    } catch (err: any) {
+      alert(`⚠️ Erreur d'import : ${err.message || 'Lien invalide ou problème de connexion.'}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Ajout d'une nouvelle source iCal
+  const handleAddSource = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSourceName.trim() || !newSourceUrl.trim()) return;
+    
+    const newSource: CalendarSource = {
+      id: `src-${Date.now()}`,
+      name: newSourceName.trim(),
+      url: newSourceUrl.trim(),
+      color: newSourceColor,
+      memberId: newSourceMember === 'none' ? undefined : newSourceMember,
+      isActive: true
+    };
+    
+    setCalendarSources(prev => [...prev, newSource]);
+    
+    setNewSourceName('');
+    setNewSourceUrl('');
+    setNewSourceColor('#6C5CFF');
+    setNewSourceMember('none');
+    
+    // Forcer la synchro de cette nouvelle source immédiatement
+    setTimeout(() => {
+      syncSingleSource(newSource);
+    }, 200);
+  };
+
+  // Suppression d'une source iCal
+  const handleDeleteSource = (id: string, name: string) => {
+    if (window.confirm(`Supprimer la source "${name}" ? Ses événements importés seront retirés.`)) {
+      setCalendarSources(prev => prev.filter(s => s.id !== id));
+      setExternalEvents(prev => prev.filter(ee => ee.sourceName !== name));
+    }
+  };
+
+  // Activer/Désactiver une source iCal
+  const handleToggleSource = (id: string) => {
+    setCalendarSources(prev => prev.map(s => s.id === id ? { ...s, isActive: !s.isActive } : s));
   };
 
   const filteredEvents = useMemo(() => {
@@ -187,28 +416,43 @@ export const Agenda: React.FC<AgendaProps> = ({
         </button>
       </div>
 
-      {/* Google Calendar Sync Card */}
+      {/* Panneau de Synchronisation Multi-Calendriers & ICS */}
       <div className="glass-panel rounded-[28px] p-4 border border-white/6 flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <div className="p-2 rounded-xl bg-white/5 border border-white/5 text-white/40">
-            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin text-[#6C5CFF]' : ''}`} />
+          <div className="p-3 rounded-2xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF]">
+            <Globe className={`w-5 h-5 ${syncing ? 'animate-spin' : ''}`} />
           </div>
           <div>
-            <h4 className="text-xs font-bold text-white">Synchronisation Google Calendar</h4>
-            <p className="text-[10px] text-white/50">Mise à jour en temps réel activée</p>
+            <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+              <span>Synchronisation iCal / ICS & Emplois du Temps</span>
+              <span className="text-[9px] bg-[#6C5CFF]/20 text-[#6C5CFF] px-1.5 py-0.5 rounded-full font-black">
+                {calendarSources.filter(s => s.isActive).length} actifs
+              </span>
+            </h4>
+            <p className="text-[10px] text-white/50 leading-relaxed font-medium">
+              Google Calendar, Apple, Outlook et emplois scolaires synchronisés.
+            </p>
           </div>
         </div>
-        <button 
-          onClick={triggerGoogleSync}
-          disabled={syncing}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            googleSynced 
-              ? 'bg-[#00D26A]/10 border border-[#00D26A]/30 text-[#00D26A]' 
-              : 'bg-[#6C5CFF] text-white hover:opacity-90'
-          }`}
-        >
-          {syncing ? 'Synchro...' : googleSynced ? 'Synchronisé' : 'Synchroniser'}
-        </button>
+        
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setShowSourcesModal(true)}
+            className="p-2.5 rounded-xl bg-white/5 border border-white/8 text-white/70 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+            title="Gérer les calendriers"
+          >
+            <Settings2 className="w-4 h-4" />
+          </button>
+          
+          <button 
+            onClick={syncAllExternalCalendars}
+            disabled={syncing}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-[#6C5CFF] text-white hover:opacity-90 transition-all cursor-pointer shadow-md shadow-[#6C5CFF]/20 flex items-center space-x-1.5 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+            <span>{syncing ? 'Synchro...' : 'Tout synchroniser'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Container */}
@@ -253,8 +497,12 @@ export const Agenda: React.FC<AgendaProps> = ({
                     <span className="text-xs font-semibold">{cell.day}</span>
                     {cell.day && cell.dateStr && hasEvents && (
                       <div className="absolute bottom-1.5 flex justify-center space-x-0.5 pointer-events-none">
-                        {getDotsForDay(cell.dateStr).map((dotClass, dIdx) => (
-                          <span key={dIdx} className={`w-1 h-1 rounded-full ${dotClass}`} />
+                        {getDotsForDay(cell.dateStr).map((dot, dIdx) => (
+                          <span 
+                            key={dIdx} 
+                            className={`w-1.5 h-1.5 rounded-full ${!dot.isStyle ? dot.className : ''}`} 
+                            style={dot.isStyle ? dot.style : undefined}
+                          />
                         ))}
                       </div>
                     )}
@@ -317,8 +565,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                   {visibleEvents
                     .filter(e => e.dateTime.startsWith(selectedDate))
                     .map(event => {
-                      const member = members.find(m => m.id === event.memberId);
-                      const dotColor = event.memberId ? memberColors[event.memberId] : 'bg-white/40';
+                      const member = !event.isExternal ? members.find(m => m.id === event.memberId) : null;
                       
                       // Calculate position based on time (assuming time is format "HH:MM")
                       let topOffset = 0;
@@ -331,9 +578,9 @@ export const Agenda: React.FC<AgendaProps> = ({
                       return (
                          <div 
                            key={event.id}
-                           draggable={isWritable}
+                           draggable={!event.isExternal && isWritable}
                            onDragStart={(e) => {
-                             if (!isWritable) {
+                             if (!isWritable || event.isExternal) {
                                e.preventDefault();
                                return;
                              }
@@ -345,13 +592,23 @@ export const Agenda: React.FC<AgendaProps> = ({
                            style={{ top: `${topOffset}px`, minHeight: '56px' }}
                          >
                            {/* Left color bar */}
-                           <div className={`absolute left-0 top-0 bottom-0 w-1 ${dotColor}`}></div>
+                           <div 
+                             className={`absolute left-0 top-0 bottom-0 w-1 ${event.memberId && !event.isExternal ? memberColors[event.memberId] : 'bg-white/40'}`}
+                             style={event.isExternal && event.sourceColor ? { backgroundColor: event.sourceColor } : undefined}
+                           ></div>
                            
                            <div className="flex justify-between items-start pl-1">
                              <div className="flex items-center space-x-1.5 mb-1">
                                <span className="font-bold text-white text-[11px] bg-white/10 px-1.5 py-0.5 rounded-md">{event.time}</span>
                              </div>
-                             {member && <span className="text-[9px] font-black uppercase text-white/40 tracking-wider">{member.name}</span>}
+                             {event.isExternal ? (
+                               <span className="text-[8px] font-black uppercase text-white/50 bg-white/10 px-1.5 py-0.5 rounded-full tracking-wider flex items-center gap-1 shrink-0">
+                                 <Globe className="w-2 h-2 text-[#4F8CFF]" />
+                                 <span>{event.sourceName}</span>
+                               </span>
+                             ) : (
+                               member && <span className="text-[9px] font-black uppercase text-white/40 tracking-wider">{member.name}</span>
+                             )}
                            </div>
                            <p className={`font-bold text-white/90 leading-tight pl-1 mt-1 ${event.done ? 'line-through text-white/50' : ''}`}>{event.title}</p>
                          </div>
@@ -429,46 +686,59 @@ export const Agenda: React.FC<AgendaProps> = ({
 
               {filteredEvents.length > 0 ? (
                 filteredEvents.map((event) => {
-                  const member = members.find(m => m.id === event.memberId);
+                  const member = !event.isExternal ? members.find(m => m.id === event.memberId) : null;
                   const dotColor = event.memberId ? memberColors[event.memberId] : 'bg-white/40';
                   
                   return (
                     <div 
                       key={event.id}
-                      draggable
+                      draggable={!event.isExternal}
                       onDragStart={(e) => handleDragStart(e, event.id)}
                       className={`glass-panel rounded-[28px] p-4 border border-white/8 transition-all hover:bg-white/8 flex items-start justify-between cursor-grab active:cursor-grabbing ${
                         event.done ? 'opacity-50' : ''
                       }`}
                     >
                       <div className="flex items-start space-x-3">
-                        <button 
-                          onClick={() => {
-                            if (!isWritable) {
-                              alert("🔒 Dérogation parentale requise pour modifier les événements de l'agenda familial !");
-                              return;
-                            }
-                            onToggleEventDone(event.id);
-                          }}
-                          className="text-white/40 hover:text-white transition-colors cursor-pointer mt-1"
-                        >
-                          {event.done ? (
-                            <CheckSquare className="w-5 h-5 text-[#00D26A]" />
-                          ) : (
-                            <Square className="w-5 h-5 text-white/30" />
-                          )}
-                        </button>
+                        {event.isExternal ? (
+                          <div className="text-white/40 mt-1">
+                            <Globe className="w-5 h-5 text-[#4F8CFF] shadow-[0_0_8px_rgba(79,140,255,0.3)] animate-pulse" />
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={() => {
+                              if (!isWritable) {
+                                alert("🔒 Dérogation parentale requise pour modifier les événements de l'agenda familial !");
+                                return;
+                              }
+                              onToggleEventDone(event.id);
+                            }}
+                            className="text-white/40 hover:text-white transition-colors cursor-pointer mt-1"
+                          >
+                            {event.done ? (
+                              <CheckSquare className="w-5 h-5 text-[#00D26A]" />
+                            ) : (
+                              <Square className="w-5 h-5 text-white/30" />
+                            )}
+                          </button>
+                        )}
                         
                         <div className="space-y-1">
                           <div className="flex items-center space-x-2">
-                            <span className={`w-2.5 h-2.5 rounded-full ${dotColor} shadow-[0_0_8px_currentColor]`} />
+                            <span 
+                              className={`w-2.5 h-2.5 rounded-full ${event.memberId && !event.isExternal ? dotColor : 'bg-white/40'} shadow-[0_0_8px_currentColor]`} 
+                              style={event.isExternal && event.sourceColor ? { backgroundColor: event.sourceColor, color: event.sourceColor } : undefined}
+                            />
                             <h4 className={`text-xs sm:text-sm font-bold text-white ${event.done ? 'line-through text-white/40' : ''}`}>
                               {event.title}
                             </h4>
                           </div>
                           
                           <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider">
-                            {typeLabels[event.type]} {member ? `• ${member.name}` : ''}
+                            {event.isExternal ? (
+                              <span className="text-[#4F8CFF] font-extrabold">🌐 {event.sourceName}</span>
+                            ) : (
+                              `${typeLabels[event.type]} ${member ? `• ${member.name}` : ''}`
+                            )}
                           </p>
                           
                           {event.location && (
@@ -478,10 +748,10 @@ export const Agenda: React.FC<AgendaProps> = ({
                             </div>
                           )}
                           
-                          {event.description && (
+                          {(event as any).description && (
                             <div className="flex items-start space-x-1 text-[11px] text-white/50">
                               <Info className="w-3.5 h-3.5 text-[#4F8CFF] shrink-0 mt-0.5" />
-                              <span>{event.description}</span>
+                              <span>{(event as any).description}</span>
                             </div>
                           )}
 
@@ -697,6 +967,172 @@ export const Agenda: React.FC<AgendaProps> = ({
               </div>
             )}
 
+          </div>
+        </div>
+      )}
+      {/* Modal / Tiroir de Gestion des Sources iCal/ICS */}
+      {showSourcesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in font-sans">
+          <div className="relative w-full max-w-lg bg-[#0D1B2A]/95 border border-white/10 rounded-[32px] p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto no-scrollbar">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+              <div className="flex items-center space-x-2">
+                <Globe className="w-5 h-5 text-[#6C5CFF]" />
+                <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                  Flux Calendriers iCal / ICS
+                </h3>
+              </div>
+              <button 
+                onClick={() => setShowSourcesModal(false)}
+                className="w-8 h-8 rounded-full bg-white/5 border border-white/5 hover:bg-white/10 text-white flex items-center justify-center font-bold text-sm cursor-pointer transition-all active:scale-90"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* List of Connected Calendars */}
+            <div className="space-y-3">
+              <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest block">
+                Flux connectés ({calendarSources.length})
+              </span>
+              
+              {calendarSources.length === 0 ? (
+                <p className="text-xs text-white/30 italic py-2">
+                  Aucun calendrier externe configuré. Ajoutez-en un ci-dessous !
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {calendarSources.map(source => {
+                    const linkedMember = source.memberId ? members.find(m => m.id === source.memberId) : null;
+                    return (
+                      <div 
+                        key={source.id} 
+                        className="p-3.5 bg-white/3 border border-white/5 rounded-2xl flex items-center justify-between gap-3"
+                      >
+                        <div className="flex items-center space-x-2.5 min-w-0">
+                          {/* Dot / Indicator */}
+                          <span 
+                            className="w-3 h-3 rounded-full shrink-0 shadow-[0_0_8px_currentColor]" 
+                            style={{ backgroundColor: source.color, color: source.color }}
+                          />
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-bold text-white truncate">
+                              {source.name}
+                            </h4>
+                            <p className="text-[8px] text-white/40 truncate max-w-[200px] font-mono mt-0.5">
+                              {source.url}
+                            </p>
+                            {linkedMember && (
+                              <span className="inline-flex items-center mt-1 px-1.5 py-0.5 rounded bg-white/10 text-[8px] font-extrabold uppercase text-[#EC4899] tracking-wider">
+                                🎓 Lié à : {linkedMember.name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2 shrink-0">
+                          {/* Toggle active state */}
+                          <button
+                            onClick={() => handleToggleSource(source.id)}
+                            className={`w-9 h-5 rounded-full p-0.5 transition-all cursor-pointer flex ${
+                              source.isActive ? 'bg-[#00D26A] justify-end' : 'bg-white/15 justify-start'
+                            }`}
+                          >
+                            <span className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                          </button>
+
+                          {/* Delete source */}
+                          <button
+                            onClick={() => handleDeleteSource(source.id, source.name)}
+                            className="p-2 rounded-lg bg-white/3 border border-white/5 text-white/50 hover:text-[#FF4D6D] hover:bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/20 transition-all cursor-pointer active:scale-90"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Add Source Form */}
+            <form onSubmit={handleAddSource} className="space-y-4 pt-4 border-t border-white/5">
+              <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest block">
+                Ajouter un calendrier iCal/ICS
+              </span>
+
+              {/* Name */}
+              <div className="space-y-1">
+                <label className="text-[10px] text-white/50 font-bold font-sans">Nom du Calendrier</label>
+                <input 
+                  type="text"
+                  required
+                  value={newSourceName}
+                  onChange={(e) => setNewSourceName(e.target.value)}
+                  placeholder="ex: Agenda Travail, Collège Amadou..."
+                  className="w-full bg-white/3 border border-white/8 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF] font-sans font-medium"
+                />
+              </div>
+
+              {/* URL */}
+              <div className="space-y-1">
+                <label className="text-[10px] text-white/50 font-bold font-sans flex items-center justify-between">
+                  <span>URL du fichier ICS / iCal</span>
+                  <span className="text-[8px] text-[#4F8CFF] font-medium font-sans">HTTP / HTTPS uniquement</span>
+                </label>
+                <input 
+                  type="url"
+                  required
+                  value={newSourceUrl}
+                  onChange={(e) => setNewSourceUrl(e.target.value)}
+                  placeholder="https://calendar.google.com/calendar/ical/..."
+                  className="w-full bg-white/3 border border-white/8 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF] font-sans font-mono"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* Member Linking */}
+                <div className="space-y-1">
+                  <label className="text-[10px] text-white/50 font-bold font-sans">Associer à un Membre</label>
+                  <select 
+                    value={newSourceMember}
+                    onChange={(e) => setNewSourceMember(e.target.value)}
+                    className="w-full bg-[#0D1B2A] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                  >
+                    <option value="none">Aucun (Tout le monde)</option>
+                    {members.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Color Selection */}
+                <div className="space-y-1">
+                  <label className="text-[10px] text-white/50 font-bold font-sans">Couleur d'Affichage</label>
+                  <div className="flex items-center space-x-2">
+                    <input 
+                      type="color"
+                      value={newSourceColor}
+                      onChange={(e) => setNewSourceColor(e.target.value)}
+                      className="w-8 h-8 rounded-lg bg-transparent border-0 cursor-pointer"
+                    />
+                    <span className="text-[10px] font-mono text-white/50">{newSourceColor}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                className="w-full py-3.5 rounded-[18px] bg-[#6C5CFF] text-white font-extrabold text-xs uppercase tracking-wider cursor-pointer shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center space-x-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Enregistrer & Synchroniser</span>
+              </button>
+            </form>
+            
           </div>
         </div>
       )}

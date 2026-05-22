@@ -41,9 +41,9 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
 
   const premiumFeatures = [
     { 
-      title: "Synchronisation Cloud & Temps Réel", 
-      desc: "Connectez tous les appareils de la maison (Maman, Papa, Enfants, Nounou) pour collaborer en direct.", 
-      icon: RefreshCw, 
+      title: "Éco-Chef IA & Recettes anti-gaspi", 
+      desc: "L'assistant intelligent qui génère instantanément des idées de menus et recettes savoureuses avec vos restes de frigo.", 
+      icon: Sparkles, 
       color: "text-[#6C5CFF] bg-[#6C5CFF]/10" 
     },
     { 

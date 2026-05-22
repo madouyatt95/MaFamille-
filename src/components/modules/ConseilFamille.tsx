@@ -54,19 +54,36 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
     alert("🗳️ Nouveau scrutin démocratique publié avec succès au Conseil de Famille !");
   };
 
+  // Charter rules states
+  const [charterRules, setCharterRules] = useState<string[]>(() => {
+    const stored = localStorage.getItem('mf_charter_rules');
+    return stored ? JSON.parse(stored) : [
+      "L'Écoute Mutuelle : On s'exprime calmement, sans couper la parole et sans élever la voix. 🗣️",
+      "L'Aide Solidaire : On aide aux tâches quotidiennes (vaisselle, tri, rangement) dans l'harmonie. 🧹",
+      "Écrans & Sommeil : Les écrans (consoles, téléphones) s'éteignent à 21h00 pour un sommeil réparateur. 📱",
+      "Le Respect de l'Intimité : On frappe toujours avant d'entrer dans la chambre des autres. 🚪"
+    ];
+  });
+
+  const [charterVersion, setCharterVersion] = useState<number>(() => {
+    return parseInt(localStorage.getItem('mf_charter_version') || '1');
+  });
+
   // Charter signatures state indexed by member ID
   const [signatures, setSignatures] = useState<Record<string, boolean>>(() => {
     const stored = localStorage.getItem('family_charter_signatures');
     if (stored) return JSON.parse(stored);
-    
-    // Default signatures
     return {
-      '1': true, // Papa / Chef de famille
-      '2': true, // Maman / Parent
-      '3': false, // Amadou
-      '4': false  // Awa
+      '1': true,
+      '2': true,
+      '3': false,
+      '4': false
     };
   });
+
+  // Editing state for charter (Parents only)
+  const [isEditingCharter, setIsEditingCharter] = useState(false);
+  const [editedRules, setEditedRules] = useState<string[]>([]);
 
   const memberName = activeMember ? activeMember.name : (activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa');
 
@@ -77,7 +94,6 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
       prev.map(p => {
         if (p.id !== pollId) return p;
 
-        // Check if member already voted in any option of this poll
         const hasVotedThisPoll = p.options.some(o => o.votes.includes(memberName));
         if (hasVotedThisPoll) {
           alreadyVoted = true;
@@ -106,11 +122,86 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
     }
   };
 
+  // High performance CSS emoji confetti trigger
+  const triggerConfetti = () => {
+    const emojis = ['✨', '🎉', '💖', '🌟', '👍', '💪', '🏠', '🌈'];
+    for (let i = 0; i < 45; i++) {
+      const p = document.createElement('div');
+      p.innerText = emojis[Math.floor(Math.random() * emojis.length)];
+      p.style.position = 'fixed';
+      p.style.left = '50%';
+      p.style.top = '50%';
+      p.style.fontSize = `${Math.random() * 24 + 12}px`;
+      p.style.zIndex = '99999';
+      p.style.transform = 'translate(-50%, -50%)';
+      p.style.pointerEvents = 'none';
+      
+      const angle = Math.random() * Math.PI * 2;
+      const velocity = Math.random() * 180 + 60;
+      const x = Math.cos(angle) * velocity;
+      const y = Math.sin(angle) * velocity;
+      
+      p.animate([
+        { transform: 'translate(-50%, -50%) scale(1) rotate(0deg)', opacity: 1 },
+        { transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(0) rotate(${Math.random() * 360}deg)`, opacity: 0 }
+      ], {
+        duration: 1300,
+        easing: 'ease-out'
+      });
+      
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 1300);
+    }
+  };
+
   const handleSignCharter = () => {
     const next = { ...signatures, [activeMemberId]: true };
     setSignatures(next);
     localStorage.setItem('family_charter_signatures', JSON.stringify(next));
+    triggerConfetti();
     alert("Charte signée numériquement avec fierté ! Faisons briller la maison ensemble. ✨");
+  };
+
+  const handleStartEditCharter = () => {
+    setEditedRules([...charterRules]);
+    setIsEditingCharter(true);
+  };
+
+  const handleSaveCharterRules = () => {
+    const cleaned = editedRules.map(r => r.trim()).filter(Boolean);
+    if (cleaned.length === 0) {
+      alert("⚠️ La charte doit contenir au moins une règle.");
+      return;
+    }
+    
+    // Save rules & increment version
+    const nextVersion = charterVersion + 1;
+    setCharterRules(cleaned);
+    setCharterVersion(nextVersion);
+    localStorage.setItem('mf_charter_rules', JSON.stringify(cleaned));
+    localStorage.setItem('mf_charter_version', String(nextVersion));
+
+    // CRITICAL: Reset all signatures on version change!
+    const resetSigs: Record<string, boolean> = {};
+    if (members && members.length > 0) {
+      members.forEach(m => {
+        resetSigs[m.id] = false;
+      });
+    } else {
+      resetSigs['1'] = false;
+      resetSigs['2'] = false;
+      resetSigs['3'] = false;
+      resetSigs['4'] = false;
+    }
+    
+    // Parent who updated signs immediately
+    resetSigs[activeMemberId] = true;
+
+    setSignatures(resetSigs);
+    localStorage.setItem('family_charter_signatures', JSON.stringify(resetSigs));
+    setIsEditingCharter(false);
+    triggerConfetti();
+    alert(`📜 Charte révisée (v${nextVersion}) publiée avec succès ! Toutes les signatures du foyer ont été réinitialisées pour validation.`);
   };
 
   return (
@@ -212,7 +303,6 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
                           disabled={hasVoted}
                           className="w-full relative p-4 rounded-2xl border border-white/5 bg-white/5 overflow-hidden text-left transition-all hover:bg-white/8 flex justify-between items-center cursor-pointer group"
                         >
-                          {/* Real-time result visual slider */}
                           <div 
                             className="absolute left-0 top-0 bottom-0 bg-[#6C5CFF]/15 transition-all duration-700 pointer-events-none"
                             style={{ width: `${percentage}%` }}
@@ -241,7 +331,7 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
             })}
           </div>
 
-          {/* Formulaire d'ajout de scrutin pour parents */}
+          {/* Scrutin creation form */}
           {isParent && (
             <form onSubmit={handleAddPoll} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 my-6">
               <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block flex items-center space-x-1.5">
@@ -327,7 +417,6 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
       )}
 
       {/* CHARTER VIEW */}
-      {/* CHARTER VIEW */}
       {activeSubTab === 'charte' && (
         <div className="space-y-6">
           
@@ -335,31 +424,95 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
           <div className="glass-panel border border-white/8 rounded-[28px] p-6 space-y-6 relative overflow-hidden bg-gradient-to-b from-[#181B2B] to-[#0A0D18]">
             <div className="absolute top-0 right-0 w-36 h-36 bg-[#6C5CFF]/5 rounded-full blur-2xl pointer-events-none"></div>
             
-            <div className="text-center border-b border-white/10 pb-4">
-              <span className="text-[9px] font-bold text-[#6C5CFF] uppercase tracking-widest">Pacte de Bienveillance</span>
-              <h3 className="text-lg font-serif font-extrabold text-white mt-1">
+            <div className="text-center border-b border-white/10 pb-4 flex flex-col items-center justify-center relative">
+              <span className="text-[9px] font-bold text-[#6C5CFF] uppercase tracking-widest">Pacte de Bienveillance (v{charterVersion})</span>
+              <h3 className="text-lg font-serif font-extrabold text-white mt-1 uppercase">
                 LA CHARTE DE LA FAMILLE {(members && members.length > 0 ? (members.find(m => ['Chef de famille', 'parent'].includes(m.role))?.name || members[0].name) : 'FATOU').toUpperCase()}
               </h3>
+
+              {isParent && !isEditingCharter && (
+                <button
+                  type="button"
+                  onClick={handleStartEditCharter}
+                  className="absolute right-0 top-0 p-2 bg-[#FFB020]/10 border border-[#FFB020]/20 text-[#FFB020] rounded-xl text-[9px] font-extrabold uppercase hover:bg-[#FFB020]/20 transition cursor-pointer"
+                >
+                  Modifier ✏️
+                </button>
+              )}
             </div>
 
-            <div className="space-y-4 text-xs font-medium text-white/70 leading-relaxed font-sans">
-              <div className="flex items-start space-x-3">
-                <span className="p-1 rounded bg-[#6C5CFF]/10 text-[#6C5CFF] font-bold text-[10px] shrink-0 mt-0.5">01</span>
-                <p><span className="text-white font-bold">L'Écoute Mutuelle :</span> On s'exprime calmement, sans couper la parole et sans élever la voix.</p>
+            {/* Editable Mode for Parents */}
+            {isEditingCharter ? (
+              <div className="space-y-4">
+                <span className="text-[10px] font-bold text-[#FFB020] uppercase tracking-wider block">Zone de réécriture de la Charte (Parents uniquement) :</span>
+                
+                <div className="space-y-3">
+                  {editedRules.map((rule, idx) => (
+                    <div key={idx} className="flex items-center space-x-2">
+                      <span className="p-1 rounded bg-[#FFB020]/10 text-[#FFB020] font-bold text-[9px]">{String(idx + 1).padStart(2, '0')}</span>
+                      <input
+                        type="text"
+                        value={rule}
+                        onChange={(e) => {
+                          const updated = [...editedRules];
+                          updated[idx] = e.target.value;
+                          setEditedRules(updated);
+                        }}
+                        className="flex-1 bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = editedRules.filter((_, i) => i !== idx);
+                          setEditedRules(updated);
+                        }}
+                        className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/15 rounded-xl text-xs cursor-pointer"
+                        title="Retirer cette règle"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex space-x-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditedRules([...editedRules, ''])}
+                    className="flex-1 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-[10px] font-bold hover:bg-white/10 cursor-pointer"
+                  >
+                    ➕ Ajouter une règle
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveCharterRules}
+                    className="flex-1 py-2.5 rounded-xl bg-[#00D26A] text-[#07111F] text-[10px] font-black uppercase tracking-wider hover:opacity-95 cursor-pointer"
+                  >
+                    Enregistrer la révision 💾
+                  </button>
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={() => setIsEditingCharter(false)}
+                  className="w-full py-2 bg-white/5 border border-white/5 rounded-xl text-[9px] font-bold text-white/50 hover:text-white"
+                >
+                  Annuler les modifications
+                </button>
               </div>
-              <div className="flex items-start space-x-3">
-                <span className="p-1 rounded bg-[#6C5CFF]/10 text-[#6C5CFF] font-bold text-[10px] shrink-0 mt-0.5">02</span>
-                <p><span className="text-white font-bold">L'Aide Solidaire :</span> On aide aux tâches quotidiennes (vaisselle, tri, rangement) dans l'harmonie.</p>
+            ) : (
+              /* Regular Rules display */
+              <div className="space-y-4 text-xs font-medium text-white/70 leading-relaxed font-sans">
+                {charterRules.map((rule, idx) => (
+                  <div key={idx} className="flex items-start space-x-3">
+                    <span className="p-1 rounded bg-[#6C5CFF]/10 text-[#6C5CFF] font-bold text-[10px] shrink-0 mt-0.5 font-mono">
+                      {String(idx + 1).padStart(2, '0')}
+                    </span>
+                    <p>{rule}</p>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-start space-x-3">
-                <span className="p-1 rounded bg-[#6C5CFF]/10 text-[#6C5CFF] font-bold text-[10px] shrink-0 mt-0.5">03</span>
-                <p><span className="text-white font-bold">Écrans & Sommeil :</span> Les écrans (consoles, téléphones) s'éteignent à 21h00 pour un sommeil réparateur.</p>
-              </div>
-              <div className="flex items-start space-x-3">
-                <span className="p-1 rounded bg-[#6C5CFF]/10 text-[#6C5CFF] font-bold text-[10px] shrink-0 mt-0.5">04</span>
-                <p><span className="text-white font-bold">Le Respect de l'Intimité :</span> On frappe toujours avant d'entrer dans la chambre des autres.</p>
-              </div>
-            </div>
+            )}
 
             {/* Signature section */}
             <div className="pt-4 border-t border-white/5 space-y-4">
@@ -374,16 +527,18 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
                     return (
                       <div key={m.id} className={`p-3 rounded-2xl border transition-all ${
                         isSigned 
-                          ? 'bg-[#00D26A]/10 border-[#00D26A]/20' 
-                          : 'bg-white/5 border-white/5'
+                          ? 'bg-[#00D26A]/10 border-[#00D26A]/20 scale-100 shadow-[0_4px_15px_rgba(0,210,106,0.1)]' 
+                          : 'bg-white/5 border-white/5 scale-95 opacity-80'
                       }`}>
                         <span className="text-[10px] font-bold text-white block">{m.name}</span>
                         {isSigned ? (
-                          <span className="text-[9px] text-[#00D26A] font-bold mt-1.5 block">✍️ Signé</span>
+                          <span className="text-[9px] text-[#00D26A] font-extrabold mt-1.5 block flex items-center justify-center space-x-1">
+                            <span>✍️ Signé</span>
+                          </span>
                         ) : canSign ? (
                           <button 
                             onClick={handleSignCharter}
-                            className="mt-2 w-full py-1.5 rounded-lg bg-[#6C5CFF] text-white font-bold text-[8px] cursor-pointer"
+                            className="mt-2 w-full py-1.5 rounded-lg bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white font-extrabold text-[9px] cursor-pointer shadow-md active:scale-95 transition-all"
                           >
                             Signer ✍️
                           </button>

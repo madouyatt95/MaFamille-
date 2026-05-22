@@ -55,6 +55,21 @@ export const Settings: React.FC<SettingsProps> = ({
 }) => {
   const [savingBackup, setSavingBackup] = useState(false);
 
+  // Apparence thématique (Sombre / Clair / Sépia)
+  const [theme, setTheme] = useState<'dark' | 'light' | 'sepia'>(() => {
+    return (localStorage.getItem('app_appearance_mode') as 'dark' | 'light' | 'sepia') || 'dark';
+  });
+
+  useEffect(() => {
+    document.body.classList.remove('theme-light', 'theme-sepia');
+    if (theme === 'light') {
+      document.body.classList.add('theme-light');
+    } else if (theme === 'sepia') {
+      document.body.classList.add('theme-sepia');
+    }
+    localStorage.setItem('app_appearance_mode', theme);
+  }, [theme]);
+
   // Profil et avatars
   const [profileName, setProfileName] = useState(() => {
     if (members && activeMemberId) {
@@ -466,6 +481,38 @@ export const Settings: React.FC<SettingsProps> = ({
           </button>
         </form>
       )}
+
+      {/* Sélecteur de Mode d'Apparence */}
+      <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+          <Sparkles className="w-4 h-4 text-[#6C5CFF]" />
+          <span>Apparence & Mode visuel</span>
+        </h3>
+        <p className="text-xs text-white/50 leading-relaxed font-medium">
+          Personnalisez le style visuel de votre interface MaFamille+ selon vos préférences ou le moment de la journée.
+        </p>
+        
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { id: 'dark', label: 'Sombre 🌗', color: 'bg-[#07111F]' },
+            { id: 'light', label: 'Clair ☀️', color: 'bg-[#F3F4F6]' },
+            { id: 'sepia', label: 'Sépia 📜', color: 'bg-[#F4EBD0]' }
+          ].map((mode) => (
+            <button
+              type="button"
+              key={mode.id}
+              onClick={() => setTheme(mode.id as any)}
+              className={`py-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-center justify-center space-y-1.5 active:scale-95 ${
+                theme === mode.id
+                  ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] text-white shadow-md shadow-[#6C5CFF]/10 font-black'
+                  : 'bg-white/5 border-transparent text-white/50 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <span>{mode.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* 1. Devise Section */}
       <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">

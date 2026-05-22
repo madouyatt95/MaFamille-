@@ -95,6 +95,9 @@ export interface FamilyEvent {
   description?: string;
   done: boolean;
   amount?: number; // for bills
+  isExternal?: boolean;
+  sourceName?: string;
+  sourceColor?: string;
 }
 
 export type TransactionType = 'income' | 'expense' | 'savings';

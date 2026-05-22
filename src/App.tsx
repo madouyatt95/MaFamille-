@@ -66,7 +66,7 @@ import { getSupabaseClient } from './utils/supabase';
 import type { Foyer, FoyerMember } from './types';
 
 // Lucide icon for inline notifications
-import { Bell, X, ChevronRight, Mic, MicOff, Volume2 } from 'lucide-react';
+import { Bell, X, ChevronRight, Mic, MicOff, Volume2, Phone } from 'lucide-react';
 
 function App() {
   // Safe localStorage helper functions to prevent any corrupt cache startup crashes
@@ -282,6 +282,17 @@ function App() {
   useEffect(() => {
     localStorage.setItem('mf_is_premium', String(isPremium));
   }, [isPremium]);
+
+  // Chargement et application du thème visuel au démarrage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('app_appearance_mode') || 'dark';
+    document.body.classList.remove('theme-light', 'theme-sepia');
+    if (savedTheme === 'light') {
+      document.body.classList.add('theme-light');
+    } else if (savedTheme === 'sepia') {
+      document.body.classList.add('theme-sepia');
+    }
+  }, []);
 
   // Helper map function from FoyerMember to UI Member
   const mapFoyerMemberToMember = (fm: FoyerMember): Member => ({
@@ -2641,41 +2652,87 @@ function App() {
       )}
 
       {/* SOS EMERGENCY FULLSCREEN OVERLAY */}
-      {sosActive && (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-6 bg-red-950/95 backdrop-blur-lg animate-pulse">
-          <style dangerouslySetInnerHTML={{__html: `
-            @keyframes flash-bg {
-              0%, 100% { background-color: rgba(69, 10, 10, 0.95); }
-              50% { background-color: rgba(153, 27, 27, 0.98); }
+      {sosActive && (() => {
+        // Load urgent contacts dynamically
+        let urgentContacts = [
+          { id: 'c1', name: 'SAMU (Urgences)', phone: '15' },
+          { id: 'c2', name: 'Sapeurs-Pompiers', phone: '18' },
+          { id: 'c3', name: 'Police Secours', phone: '17' }
+        ];
+        try {
+          const saved = localStorage.getItem('mf_important_contacts');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            const filtered = parsed.filter((c: any) => c.isUrgent);
+            if (filtered.length > 0) {
+              urgentContacts = filtered;
             }
-            .animate-flash { animation: flash-bg 1s infinite; }
-          `}} />
-          <div className="absolute inset-0 animate-flash -z-10"></div>
-          
-          <div className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center border-4 border-white shadow-[0_0_50px_rgba(239,68,68,0.8)] mb-6 animate-bounce">
-            <Bell className="w-12 h-12 text-white fill-white animate-pulse" />
-          </div>
+          }
+        } catch (e) {}
 
-          <h1 className="text-3xl font-black text-white text-center tracking-tight mb-2">ALERTE SOS ENVOYÉE</h1>
-          <p className="text-sm font-bold text-red-300 text-center uppercase tracking-widest mb-6">Géolocalisation activée</p>
-          
-          <div className="glass-panel border-white/10 bg-white/5 rounded-3xl p-6 text-center max-w-sm space-y-4 mb-8">
-            <p className="text-sm text-white/80 leading-relaxed">
-              Votre position exacte a été transmise en direct à **Papa, Maman** ainsi qu'aux contacts d'urgence.
-            </p>
-            <p className="text-xs text-white/50">
-              Restez calme. Quelqu'un a été prévenu et est en route.
-            </p>
-          </div>
+        return (
+          <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-6 bg-red-950/95 backdrop-blur-lg animate-pulse overflow-y-auto no-scrollbar">
+            <style dangerouslySetInnerHTML={{__html: `
+              @keyframes flash-bg {
+                0%, 100% { background-color: rgba(69, 10, 10, 0.95); }
+                50% { background-color: rgba(153, 27, 27, 0.98); }
+              }
+              .animate-flash { animation: flash-bg 1.2s infinite; }
+            `}} />
+            <div className="absolute inset-0 animate-flash -z-10"></div>
+            
+            <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center border-4 border-white shadow-[0_0_50px_rgba(239,68,68,0.8)] mb-4 animate-bounce shrink-0">
+              <Bell className="w-10 h-10 text-white fill-white animate-pulse" />
+            </div>
 
-          <button
-            onClick={() => setSosActive(false)}
-            className="px-8 py-4 bg-white text-red-600 font-extrabold rounded-2xl shadow-xl hover:bg-red-50 active:scale-95 transition-all text-sm uppercase tracking-wider cursor-pointer"
-          >
-            Désactiver l'Alerte
-          </button>
-        </div>
-      )}
+            <h1 className="text-2xl font-black text-white text-center tracking-tight mb-1">ALERTE SOS ENVOYÉE</h1>
+            <p className="text-[10px] font-bold text-red-300 text-center uppercase tracking-widest mb-4">Géolocalisation activée</p>
+            
+            <div className="glass-panel border-white/10 bg-white/5 rounded-3xl p-5 text-center max-w-sm space-y-3 mb-5 shrink-0">
+              <p className="text-xs text-white/80 leading-relaxed">
+                Votre position exacte a été transmise en direct à **Papa, Maman** ainsi qu'aux contacts d'urgence.
+              </p>
+              <p className="text-[10px] text-white/50">
+                Restez calme. Quelqu'un a été prévenu et est en route.
+              </p>
+            </div>
+
+            {/* Emergency Direct Call Panel */}
+            <div className="w-full max-w-sm space-y-2 mb-6">
+              <span className="text-[9px] font-bold text-red-300/60 uppercase tracking-widest block text-center">
+                Appel d'urgence immédiat
+              </span>
+              
+              <div className="grid grid-cols-1 gap-2">
+                {urgentContacts.map(uc => (
+                  <a
+                    key={uc.id}
+                    href={`tel:${uc.phone}`}
+                    className="p-3.5 bg-red-600 hover:bg-red-500 border border-red-500/30 text-white font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-between shadow-lg shadow-red-900/30 transition-all active:scale-[0.98]"
+                  >
+                    <div className="flex items-center space-x-2.5 min-w-0">
+                      <div className="p-1.5 rounded-lg bg-white/10">
+                        <Phone className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <span className="truncate text-left">{uc.name}</span>
+                    </div>
+                    <span className="bg-white/20 px-2.5 py-0.5 rounded-lg font-mono text-[10px]">
+                      {uc.phone}
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={() => setSosActive(false)}
+              className="px-8 py-3.5 bg-white text-red-600 font-extrabold rounded-2xl shadow-xl hover:bg-red-50 active:scale-95 transition-all text-xs uppercase tracking-wider cursor-pointer shrink-0"
+            >
+              Désactiver l'Alerte
+            </button>
+          </div>
+        );
+      })()}
 
     </div>
   );

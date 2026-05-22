@@ -79,6 +79,7 @@ import { WidgetMeteo } from '../components/modules/WidgetMeteo';
 import { FamilyMap } from './FamilyMap';
 import { ConteurIA } from '../components/modules/ConteurIA';
 import { AtelierArtIA } from '../components/modules/AtelierArtIA';
+import { ContactsImportants } from '../components/modules/ContactsImportants';
 
 // Utility helper to parse French custom input dates (e.g. "12 Octobre 2027", "24/06/2026") into YYYY-MM-DD ISO strings.
 function parseCustomDateToISO(dateStr: string): string {
@@ -267,6 +268,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newGroceryQty, setNewGroceryQty] = useState(1);
   const [newGroceryUnit, setNewGroceryUnit] = useState('pièces');
   const [grocerySubTab, setGrocerySubTab] = useState<'liste' | 'ecochef' | 'menus'>('liste');
+  const [groceryFilter, setGroceryFilter] = useState<'all' | 'pending' | 'checked'>('all');
 
   // Form states for meals
   const [mealDay, setMealDay] = useState('Lun');
@@ -397,6 +399,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     { id: 'argent', title: 'Argent de Poche', desc: 'Portefeuilles enfants', icon: Coins, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10' },
     { id: 'capsule', title: 'Capsule Temporelle', desc: 'Album de souvenirs & Gazette', icon: Camera, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10' },
     { id: 'conseil', title: 'Conseil de Famille', desc: 'Sondages actifs & Charte de vie', icon: Users, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10' },
+    { id: 'contacts', title: 'Répertoire & SOS', desc: 'Numéros utiles & urgences directes', icon: Phone, color: 'text-red-500 bg-red-500/10' },
     { id: 'peacemaker', title: 'PeaceMaker IA', desc: 'Médiateur de conflits intelligents', icon: HeartHandshake, color: 'text-[#00D26A] bg-[#00D26A]/10' },
     { id: 'conteur', title: 'Histoires du Soir', desc: 'Contes IA personnalisés interactifs', icon: BookOpen, color: 'text-[#FFB020] bg-[#FFB020]/10' },
     { id: 'atelier_art', title: 'Atelier d\'Art IA', desc: 'Dessine & Imagine avec l\'IA', icon: Paintbrush, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
@@ -1713,7 +1716,15 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                           required
                           placeholder="Ex: Lait, Pommes, Pâtes..." 
                           value={newGroceryName}
-                          onChange={(e) => setNewGroceryName(e.target.value)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setNewGroceryName(val);
+                            // Realtime category auto-detection on type!
+                            const detected = detectGroceryCategory(val);
+                            if (detected) {
+                              setNewGroceryCat(detected);
+                            }
+                          }}
                           className="w-full bg-white/5 border border-white/8 rounded-xl pl-4 pr-10 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
                         />
                         <button
@@ -1804,77 +1815,209 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 </form>
               )}
 
-              {/* Grocery items checklist */}
-              <div className="space-y-3">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider px-1">Liste commune</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {groceries.map((item) => (
-                    <div key={item.id} className="relative group">
-                      <button
-                        onClick={() => {
-                          if (!isParent && !groceryDerogation) {
-                            alert("🔒 Dérogation parentale requise pour cocher ou modifier les courses !");
-                            return;
-                          }
-                          onToggleGrocery(item.id);
-                        }}
-                        className={`w-full glass-panel rounded-[24px] p-4 pr-24 border transition-all text-left flex items-center justify-between hover:bg-white/8 cursor-pointer ${
-                          item.checked ? 'border-[#00D26A]/30 bg-[#00D26A]/5 opacity-60' : 'border-white/8'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                            item.checked ? 'bg-[#00D26A] border-[#00D26A] text-white' : 'border-white/30 text-transparent'
-                          }`}>
-                            ✓
-                          </span>
-                          <div>
-                            <h4 className={`text-xs sm:text-sm font-bold text-white ${item.checked ? 'line-through text-white/40' : ''}`}>
-                              {item.name}
-                            </h4>
-                            <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider mt-0.5">
-                              {item.category} • Qté: {item.quantity} • <span className={item.inStock ? 'text-[#00D26A]' : 'text-[#FF4D6D]'}>{item.inStock ? 'En stock' : 'Rupture'}</span>
-                            </p>
-                          </div>
-                        </div>
-                      </button>
-                      
-                      {/* Action buttons - always visible on mobile */}
-                      <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center space-x-1 bg-[#112240] p-1.5 rounded-xl shadow-lg border border-white/10 backdrop-blur-md z-20">
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!isParent && !groceryDerogation) {
-                              alert("🔒 Dérogation parentale requise pour cocher ou modifier les courses !");
-                              return;
-                            }
-                            const newName = prompt('Modifier le nom du produit:', item.name);
-                            const newQty = prompt('Modifier la quantité:', item.quantity);
-                            if (newName && newQty) onEditGroceryItem(item.id, newName, newQty);
-                          }}
-                          title="Modifier"
-                          className="p-1.5 hover:bg-white/10 rounded-lg text-white/70 hover:text-white transition-colors cursor-pointer"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!isParent && !groceryDerogation) {
-                              alert("🔒 Dérogation parentale requise pour supprimer les courses !");
-                              return;
-                            }
-                            if(window.confirm('Supprimer cet article ?')) onDeleteGroceryItem(item.id);
-                          }}
-                          title="Supprimer"
-                          className="p-1.5 hover:bg-[#FF4D6D]/20 rounded-lg text-[#FF4D6D] transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+              {/* Intelligent Shelves / Aisles Sorted Checklist */}
+              <div className="space-y-4">
+                {/* Visual Aisle Filters Switcher */}
+                <div className="bg-[#07111F]/40 p-1 rounded-xl border border-white/5 flex items-center justify-between">
+                  <div className="flex space-x-1 flex-1">
+                    <button
+                      type="button"
+                      onClick={() => setGroceryFilter('all')}
+                      className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold transition-all cursor-pointer ${
+                        groceryFilter === 'all' 
+                          ? 'bg-white/10 text-white' 
+                          : 'text-white/40 hover:text-white/60'
+                      }`}
+                    >
+                      Tout ({groceries.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGroceryFilter('pending')}
+                      className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold transition-all cursor-pointer ${
+                        groceryFilter === 'pending' 
+                          ? 'bg-[#FFB020]/20 text-[#FFB020]' 
+                          : 'text-white/40 hover:text-white/60'
+                      }`}
+                    >
+                      À acheter ({groceries.filter(g => !g.checked).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGroceryFilter('checked')}
+                      className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold transition-all cursor-pointer ${
+                        groceryFilter === 'checked' 
+                          ? 'bg-[#00D26A]/20 text-[#00D26A]' 
+                          : 'text-white/40 hover:text-white/60'
+                      }`}
+                    >
+                      Achetés ({groceries.filter(g => g.checked).length})
+                    </button>
+                  </div>
                 </div>
+
+                <div className="flex items-center justify-between px-1">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Liste commune par rayons</h3>
+                  <span className="text-[9px] font-extrabold text-[#FFB020] bg-[#FFB020]/10 border border-[#FFB020]/20 px-2 py-0.5 rounded flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 bg-[#FFB020] rounded-full animate-ping"></span>
+                    <span>Rayons ordonnés</span>
+                  </span>
+                </div>
+
+                {(() => {
+                  const categoryOrder = [
+                    'Fruits & Légumes',
+                    'Boucherie',
+                    'Produits Frais',
+                    'Épicerie',
+                    'Boissons',
+                    'Hygiène',
+                    'Entretien'
+                  ];
+
+                  // Apply global quick filter to groceries before grouping
+                  const filteredGroceries = groceries.filter(item => {
+                    if (groceryFilter === 'pending') return !item.checked;
+                    if (groceryFilter === 'checked') return item.checked;
+                    return true;
+                  });
+
+                  // Group items by category
+                  const grouped: Record<string, typeof groceries> = {};
+                  filteredGroceries.forEach(item => {
+                    const cat = item.category || 'Épicerie';
+                    if (!grouped[cat]) {
+                      grouped[cat] = [];
+                    }
+                    grouped[cat].push(item);
+                  });
+
+                  // Sort categories
+                  const sortedCats = Object.keys(grouped).sort((a, b) => {
+                    let indexA = categoryOrder.indexOf(a);
+                    let indexB = categoryOrder.indexOf(b);
+                    if (indexA === -1) indexA = 99;
+                    if (indexB === -1) indexB = 99;
+                    return indexA - indexB;
+                  });
+
+                  if (filteredGroceries.length === 0) {
+                    return (
+                      <div className="p-8 text-center glass-panel rounded-2xl border border-white/5">
+                        <span className="text-xs text-white/30">Aucun produit ne correspond à ce filtre.</span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-5">
+                      {sortedCats.map((catName) => {
+                        // Sort items: non-checked first, then checked last, then alphabetically
+                        const sortedItems = [...grouped[catName]].sort((a, b) => {
+                          if (a.checked && !b.checked) return 1;
+                          if (!a.checked && b.checked) return -1;
+                          return a.name.localeCompare(b.name);
+                        });
+
+                        // Compute progress for this shelf based on total initial groceries
+                        const totalShelfItems = groceries.filter(g => g.category === catName);
+                        const boughtShelfItems = totalShelfItems.filter(g => g.checked);
+
+                        return (
+                          <div key={catName} className="space-y-2">
+                            {/* Shelf / Aisle Header */}
+                            <div className="flex items-center justify-between px-1 py-0.5">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-[10px] font-black text-[#FFB020] uppercase tracking-widest">
+                                  {catName}
+                                </span>
+                                <span className="text-[8px] font-bold text-white/30 font-mono">
+                                  ({sortedItems.length})
+                                </span>
+                              </div>
+                              <div className="flex items-center space-x-1.5">
+                                <span className="h-[1px] w-12 bg-white/10"></span>
+                                <span className="text-[9px] font-extrabold text-[#00D26A] bg-[#00D26A]/10 border border-[#00D26A]/20 px-1.5 py-0.2 rounded font-mono">
+                                  {boughtShelfItems.length}/{totalShelfItems.length} achetés
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Shelf items list */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {sortedItems.map((item) => (
+                                <div key={item.id} className="relative group">
+                                  <button
+                                    onClick={() => {
+                                      if (!isParent && !groceryDerogation) {
+                                        alert("🔒 Dérogation parentale requise pour cocher ou modifier les courses !");
+                                        return;
+                                      }
+                                      onToggleGrocery(item.id);
+                                    }}
+                                    className={`w-full glass-panel rounded-[24px] p-4 pr-24 border transition-all text-left flex items-center justify-between hover:bg-white/8 cursor-pointer ${
+                                      item.checked ? 'border-[#00D26A]/30 bg-[#00D26A]/5 opacity-60' : 'border-white/8'
+                                    }`}
+                                  >
+                                    <div className="flex items-center space-x-3">
+                                      <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                                        item.checked ? 'bg-[#00D26A] border-[#00D26A] text-white' : 'border-white/30 text-transparent'
+                                      }`}>
+                                        ✓
+                                      </span>
+                                      <div>
+                                        <h4 className={`text-xs sm:text-sm font-bold text-white ${item.checked ? 'line-through text-white/40' : ''}`}>
+                                          {item.name}
+                                        </h4>
+                                        <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider mt-0.5">
+                                          Qté: {item.quantity} • <span className={item.inStock ? 'text-[#00D26A]' : 'text-[#FF4D6D]'}>{item.inStock ? 'En stock' : 'Rupture'}</span>
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </button>
+                                  
+                                  {/* Action buttons */}
+                                  <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center space-x-1 bg-[#112240] p-1.5 rounded-xl shadow-lg border border-white/10 backdrop-blur-md z-20">
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (!isParent && !groceryDerogation) {
+                                          alert("🔒 Dérogation parentale requise pour cocher ou modifier les courses !");
+                                          return;
+                                        }
+                                        const newName = prompt('Modifier le nom du produit:', item.name);
+                                        const newQty = prompt('Modifier la quantité:', item.quantity);
+                                        if (newName && newQty) onEditGroceryItem(item.id, newName, newQty);
+                                      }}
+                                      title="Modifier"
+                                      className="p-1.5 hover:bg-white/10 rounded-lg text-white/70 hover:text-white transition-colors cursor-pointer"
+                                    >
+                                      <Edit3 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (!isParent && !groceryDerogation) {
+                                          alert("🔒 Dérogation parentale requise pour supprimer les courses !");
+                                          return;
+                                        }
+                                        if(window.confirm('Supprimer cet article ?')) onDeleteGroceryItem(item.id);
+                                      }}
+                                      title="Supprimer"
+                                      className="p-1.5 hover:bg-[#FF4D6D]/20 rounded-lg text-[#FF4D6D] transition-colors cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             </>
           ) : grocerySubTab === 'menus' ? (
@@ -2043,7 +2186,26 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
             </div>
           ) : (
-            <EcoChef onAddGroceryItem={onAddGroceryItem} formatMoney={formatMoney} />
+            isPremium ? (
+              <EcoChef onAddGroceryItem={onAddGroceryItem} formatMoney={formatMoney} />
+            ) : (
+              <div className="p-8 text-center glass-panel border border-[#6C5CFF]/30 rounded-[32px] bg-gradient-to-b from-[#0F1E3D]/50 to-[#07111F]/80 space-y-4">
+                <div className="inline-flex p-4 rounded-full bg-[#6C5CFF]/10 text-[#6C5CFF] border border-[#6C5CFF]/20 animate-pulse">
+                  <Sparkles className="w-8 h-8" />
+                </div>
+                <h3 className="text-sm font-black text-white uppercase tracking-wider">Éco-Chef IA & Anti-Gaspi 🥦 👑</h3>
+                <p className="text-xs text-white/60 leading-relaxed max-w-xs mx-auto">
+                  Débloquez l'assistant culinaire intelligent MaFamille+ ! Éco-Chef analyse vos restes de frigo, planifie vos menus hebdomadaires équilibrés et génère des listes de courses en un clic.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onTriggerPaywall?.()}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs uppercase tracking-wider shadow-lg hover:opacity-95 transition-all cursor-pointer"
+                >
+                  Débloquer Éco-Chef IA ⚡
+                </button>
+              </div>
+            )
           )}
         </div>
       )}
@@ -3669,6 +3831,22 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           onBack={() => setActiveModule('')}
           setMemories={setMemories}
         />
+      )}
+
+      {/* 17. Répertoire Important (Contacts) */}
+      {activeModule === 'contacts' && (
+        <div className="space-y-6">
+          {/* Bouton de retour vers le Hub */}
+          <button
+            onClick={() => setActiveModule('')}
+            className="flex items-center space-x-2 text-white/60 hover:text-white font-sans text-xs font-bold cursor-pointer transition-all active:scale-95 py-2 px-3 rounded-xl bg-white/5 border border-white/5"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Retour au Hub</span>
+          </button>
+          
+          <ContactsImportants />
+        </div>
       )}
 
     </div>

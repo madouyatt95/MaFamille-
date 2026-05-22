@@ -44,6 +44,25 @@ export const Finances: React.FC<FinancesProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isSavingGoalsModalOpen, setIsSavingGoalsModalOpen] = useState(false);
 
+  // Load and store category budgets
+  const [budgets, setBudgets] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem('mf_category_budgets');
+    return saved ? JSON.parse(saved) : {
+      'Alimentation': 600,
+      'Logement': 800,
+      'Transport': 250,
+      'Santé': 150,
+      'Éducation': 200,
+      'Autres': 150
+    };
+  });
+
+  const handleUpdateBudget = (category: string, amount: number) => {
+    const updated = { ...budgets, [category]: amount };
+    setBudgets(updated);
+    localStorage.setItem('mf_category_budgets', JSON.stringify(updated));
+  };
+
   // Dynamic purchases for children
   const [childGoal, setChildGoal] = useState(() => {
     const saved = localStorage.getItem(`child_purchase_goal_${activeMemberId}`);
@@ -288,7 +307,9 @@ export const Finances: React.FC<FinancesProps> = ({
 
       {/* Dynamic Selector Month */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-white uppercase tracking-wider">Ce mois-ci</h3>
+        <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+          {activeSubTab === 'budget' ? 'Suivi Budgétaire Mensuel' : 'Ce mois-ci'}
+        </h3>
         <select 
           value={selectedMonth}
           onChange={(e) => setSelectedMonth(e.target.value)}
@@ -300,257 +321,427 @@ export const Finances: React.FC<FinancesProps> = ({
         </select>
       </div>
 
-      {/* Revenues / Expenses / Savings Summary Cards Grid */}
-      <div className="grid grid-cols-3 gap-3">
-        
-        {/* Card 1: Rev */}
-        <div className="glass-panel rounded-[28px] p-4 border border-white/6 flex flex-col justify-between h-[120px] relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-3 text-[#00D26A]/20">
-            <TrendingUp className="w-8 h-8" />
-          </div>
-          <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Revenus</span>
-          <div>
-            <h3 className="text-base sm:text-lg font-extrabold text-[#00D26A] truncate">
-              {formatMoney(totalRevenus)}
-            </h3>
-            <p className="text-[9px] text-[#00D26A] font-semibold mt-0.5">+12% ce mois</p>
-          </div>
-        </div>
-
-        {/* Card 2: Dep */}
-        <div className="glass-panel rounded-[28px] p-4 border border-white/6 flex flex-col justify-between h-[120px] relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-3 text-[#FF4D6D]/20">
-            <TrendingDown className="w-8 h-8" />
-          </div>
-          <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Dépenses</span>
-          <div>
-            <h3 className="text-base sm:text-lg font-extrabold text-[#FF4D6D] truncate">
-              {formatMoney(totalDepenses)}
-            </h3>
-            <p className="text-[9px] text-[#FF4D6D] font-semibold mt-0.5">-3% ce mois</p>
-          </div>
-        </div>
-
-        {/* Card 3: Sav */}
-        <div className="glass-panel rounded-[28px] p-4 border border-white/6 flex flex-col justify-between h-[120px] relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-3 text-[#4F8CFF]/20">
-            <PiggyBank className="w-8 h-8" />
-          </div>
-          <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Épargne</span>
-          <div>
-            <h3 className="text-base sm:text-lg font-extrabold text-[#4F8CFF] truncate">
-              {formatMoney(totalEpargne)}
-            </h3>
-            <p className="text-[9px] text-[#4F8CFF] font-semibold mt-0.5">43% d'objectif</p>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Category Spendings Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Dépenses par catégorie</h3>
-          <button 
-            onClick={() => setSelectedCategory('Alimentation')}
-            className="text-xs font-semibold text-[#6C5CFF] hover:underline flex items-center cursor-pointer"
-          >
-            Voir tout <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
-          </button>
-        </div>
-
-        {/* Spendings List with Progress Bars */}
-        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
-          {categoriesBreakdown.map((cat, idx) => {
-            const CatIcon = cat.icon;
-            return (
-              <div 
-                key={idx} 
-                onClick={() => setSelectedCategory(cat.name)}
-                className="space-y-2 cursor-pointer p-2 rounded-xl hover:bg-white/5 transition-all"
-              >
-                <div className="flex items-center justify-between text-xs font-bold text-white">
-                  <div className="flex items-center space-x-3">
-                    <div className={`p-2.5 rounded-xl bg-white/5 ${cat.textCol} border border-white/5`}>
-                      <CatIcon className="w-4 h-4" />
-                    </div>
-                    <span>{cat.name}</span>
-                  </div>
-                  <div className="text-right">
-                    <span>{formatMoney(cat.amount)}</span>
-                    <span className="text-[10px] text-white/40 font-semibold ml-2">{cat.percentage}%</span>
-                  </div>
-                </div>
-                {/* Horizontal Progress Bar */}
-                <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
-                  <div 
-                    style={{ width: `${cat.percentage}%` }}
-                    className={`h-full ${cat.color} rounded-full transition-all duration-1000 ease-out`}
-                  />
-                </div>
+      {/* RENDER APERCU SUBTAB */}
+      {activeSubTab === 'apercu' && (
+        <>
+          {/* Revenues / Expenses / Savings Summary Cards Grid */}
+          <div className="grid grid-cols-3 gap-3">
+            {/* Card 1: Rev */}
+            <div className="glass-panel rounded-[28px] p-4 border border-white/6 flex flex-col justify-between h-[120px] relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-3 text-[#00D26A]/20">
+                <TrendingUp className="w-8 h-8" />
               </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Savings Goal Card with inline SVG vector beach */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Objectif d'épargne</h3>
-          <button 
-            onClick={() => setIsSavingGoalsModalOpen(true)}
-            className="text-xs font-semibold text-[#6C5CFF] hover:underline flex items-center cursor-pointer"
-          >
-            Voir tout <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
-          </button>
-        </div>
-
-        {mainGoal ? (
-          <div 
-            onClick={() => setIsSavingGoalsModalOpen(true)}
-            className="glass-panel rounded-[28px] border border-white/8 p-6 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 cursor-pointer hover:border-[#FFB020]/45 transition-all"
-          >
-            <div className="absolute -top-12 -left-12 w-32 h-32 bg-[#FFB020]/10 rounded-full blur-2xl pointer-events-none"></div>
-
-            {/* Tropical vector graphics */}
-            <div className="absolute right-4 bottom-2 w-36 h-36 opacity-95 pointer-events-none select-none hidden sm:block">
-              <svg viewBox="0 0 160 160" fill="none" className="w-full h-full">
-                {/* Island Ground */}
-                <ellipse cx="80" cy="135" rx="55" ry="15" fill="#FFB020" fillOpacity="0.85" />
-                <ellipse cx="80" cy="140" rx="40" ry="8" fill="#4F8CFF" fillOpacity="0.25" filter="blur(4px)" />
-                
-                {/* Sea base */}
-                <path d="M10,135 Q80,125 150,135" stroke="rgba(79, 140, 255, 0.4)" strokeWidth="2.5" strokeLinecap="round" />
-                
-                {/* Palm tree trunk */}
-                <path d="M105,135 Q92,100 95,70" stroke="rgba(255, 255, 255, 0.25)" strokeWidth="5.5" strokeLinecap="round" />
-                <path d="M105,135 Q92,100 95,70" stroke="#FFB020" strokeWidth="2" strokeLinecap="round" />
-                
-                {/* Palm leaves - dynamic success green paths */}
-                <path d="M95,70 Q75,65 65,75" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
-                <path d="M95,70 Q80,50 82,40" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
-                <path d="M95,70 Q110,50 120,55" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
-                <path d="M95,70 Q115,70 125,82" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
-                <path d="M95,70 Q95,85 92,95" stroke="#00D26A" strokeWidth="3" strokeLinecap="round" />
-                
-                {/* Coconuts */}
-                <circle cx="91" cy="74" r="3.5" fill="#FF4D6D" />
-                <circle cx="98" cy="73" r="3" fill="#FF4D6D" />
-                
-                {/* Sun glowing yellow */}
-                <circle cx="45" cy="50" r="16" fill="#FFB020" fillOpacity="0.15" />
-                <circle cx="45" cy="50" r="11" fill="#FFB020" fillOpacity="0.85" className="animate-pulse" />
-                
-                {/* Minimal birds */}
-                <path d="M25,25 Q30,22 35,26 Q40,22 45,25" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M135,30 Q138,27 141,31 Q144,27 147,30" stroke="rgba(255,255,255,0.4)" strokeWidth="1" strokeLinecap="round" />
-              </svg>
-            </div>
-
-            {/* Goal Content */}
-            <div className="z-10 space-y-4 flex-1">
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Revenus</span>
               <div>
-                <span className="text-[9px] font-extrabold text-[#FFB020] uppercase tracking-widest bg-[#FFB020]/10 border border-[#FFB020]/20 px-3 py-1 rounded-full">
-                  {mainGoal.category}
-                </span>
-                <h4 className="text-base font-extrabold text-white mt-2">{mainGoal.title}</h4>
-                <p className="text-xs text-white/50 font-medium">Échéance cible : {mainGoal.targetDate}</p>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-end justify-between">
-                  <p className="text-sm font-extrabold text-white">
-                    {formatMoney(mainGoal.currentAmount)}
-                    <span className="text-xs text-white/40 font-medium"> / {formatMoney(mainGoal.targetAmount)}</span>
-                  </p>
-                  <span className="text-xs font-bold text-[#FFB020] bg-[#FFB020]/10 px-2 py-0.5 rounded-lg">
-                    {goalPercentage}%
-                  </span>
-                </div>
-                
-                {/* Progress bar */}
-                <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5 max-w-sm">
-                  <div 
-                    style={{ width: `${goalPercentage}%` }}
-                    className="h-full bg-gradient-to-r from-[#FFB020] to-[#6C5CFF] rounded-full transition-all duration-1000 ease-out"
-                  />
-                </div>
+                <h3 className="text-base sm:text-lg font-extrabold text-[#00D26A] truncate">
+                  {formatMoney(totalRevenus)}
+                </h3>
+                <p className="text-[9px] text-[#00D26A] font-semibold mt-0.5">+12% ce mois</p>
               </div>
             </div>
-          </div>
-        ) : (
-          <div 
-            onClick={() => setIsSavingGoalsModalOpen(true)}
-            className="glass-panel rounded-[28px] border border-dashed border-white/20 p-8 text-center cursor-pointer hover:border-[#FFB020]/45 transition-all space-y-3"
-          >
-            <div className="w-12 h-12 rounded-full bg-[#FFB020]/10 text-[#FFB020] flex items-center justify-center mx-auto border border-[#FFB020]/20">
-              <PiggyBank className="w-6 h-6" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-white">Aucun objectif d'épargne défini 🎯</h4>
-              <p className="text-xs text-white/40 mt-1">Créez votre premier projet d'épargne familial (Vacances, projets, imprévus).</p>
-            </div>
-            <button 
-              type="button"
-              className="px-4 py-2 rounded-xl bg-[#FFB020]/15 text-[#FFB020] border border-[#FFB020]/25 text-xs font-bold hover:bg-[#FFB020]/25 transition"
-            >
-              Créer un objectif maintenant
-            </button>
-          </div>
-        )}
-      </div>
 
-      {/* Transaction History Feed */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold text-white uppercase tracking-wider">Transactions récentes</h3>
-        <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar pr-1">
-          {monthlyTransactions.length > 0 ? (
-            monthlyTransactions.map((t) => (
-              <div 
-                key={t.id}
-                className="glass-panel rounded-[28px] p-4 border border-white/6 flex items-center justify-between hover:bg-white/8 transition-all"
+            {/* Card 2: Dep */}
+            <div className="glass-panel rounded-[28px] p-4 border border-white/6 flex flex-col justify-between h-[120px] relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-3 text-[#FF4D6D]/20">
+                <TrendingDown className="w-8 h-8" />
+              </div>
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Dépenses</span>
+              <div>
+                <h3 className="text-base sm:text-lg font-extrabold text-[#FF4D6D] truncate">
+                  {formatMoney(totalDepenses)}
+                </h3>
+                <p className="text-[9px] text-[#FF4D6D] font-semibold mt-0.5">-3% ce mois</p>
+              </div>
+            </div>
+
+            {/* Card 3: Sav */}
+            <div className="glass-panel rounded-[28px] p-4 border border-white/6 flex flex-col justify-between h-[120px] relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-3 text-[#4F8CFF]/20">
+                <PiggyBank className="w-8 h-8" />
+              </div>
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Épargne</span>
+              <div>
+                <h3 className="text-base sm:text-lg font-extrabold text-[#4F8CFF] truncate">
+                  {formatMoney(totalEpargne)}
+                </h3>
+                <p className="text-[9px] text-[#4F8CFF] font-semibold mt-0.5">43% d'objectif</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Category Spendings Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Dépenses par catégorie</h3>
+              <button 
+                onClick={() => setSelectedCategory('Alimentation')}
+                className="text-xs font-semibold text-[#6C5CFF] hover:underline flex items-center cursor-pointer"
               >
-                <div className="flex items-center space-x-3">
-                  <div className={`p-2.5 rounded-xl border border-white/5 ${
-                    t.type === 'income' 
-                      ? 'text-[#00D26A] bg-[#00D26A]/10' 
-                      : t.type === 'savings'
-                        ? 'text-[#4F8CFF] bg-[#4F8CFF]/10'
-                        : 'text-[#FF4D6D] bg-[#FF4D6D]/10'
-                  }`}>
-                    {t.type === 'income' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                Voir tout <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+              </button>
+            </div>
+
+            {/* Spendings List with Progress Bars */}
+            <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+              {categoriesBreakdown.map((cat, idx) => {
+                const CatIcon = cat.icon;
+                return (
+                  <div 
+                    key={idx} 
+                    onClick={() => setSelectedCategory(cat.name)}
+                    className="space-y-2 cursor-pointer p-2 rounded-xl hover:bg-white/5 transition-all"
+                  >
+                    <div className="flex items-center justify-between text-xs font-bold text-white">
+                      <div className="flex items-center space-x-3">
+                        <div className={`p-2.5 rounded-xl bg-white/5 ${cat.textCol} border border-white/5`}>
+                          <CatIcon className="w-4 h-4" />
+                        </div>
+                        <span>{cat.name}</span>
+                      </div>
+                      <div className="text-right">
+                        <span>{formatMoney(cat.amount)}</span>
+                        <span className="text-[10px] text-white/40 font-semibold ml-2">{cat.percentage}%</span>
+                      </div>
+                    </div>
+                    {/* Horizontal Progress Bar */}
+                    <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                      <div 
+                        style={{ width: `${cat.percentage}%` }}
+                        className={`h-full ${cat.color} rounded-full transition-all duration-1000 ease-out`}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-white">{t.title}</h4>
-                    <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider mt-0.5">
-                      {t.category} {t.memberName ? `• ${t.memberName}` : ''}
-                    </p>
-                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Savings Goal Card */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Objectif d'épargne</h3>
+              <button 
+                onClick={() => setIsSavingGoalsModalOpen(true)}
+                className="text-xs font-semibold text-[#6C5CFF] hover:underline flex items-center cursor-pointer"
+              >
+                Voir tout <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+              </button>
+            </div>
+
+            {mainGoal ? (
+              <div 
+                onClick={() => setIsSavingGoalsModalOpen(true)}
+                className="glass-panel rounded-[28px] border border-white/8 p-6 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 cursor-pointer hover:border-[#FFB020]/45 transition-all"
+              >
+                <div className="absolute -top-12 -left-12 w-32 h-32 bg-[#FFB020]/10 rounded-full blur-2xl pointer-events-none"></div>
+
+                {/* Tropical vector graphics */}
+                <div className="absolute right-4 bottom-2 w-36 h-36 opacity-95 pointer-events-none select-none hidden sm:block">
+                  <svg viewBox="0 0 160 160" fill="none" className="w-full h-full">
+                    <ellipse cx="80" cy="135" rx="55" ry="15" fill="#FFB020" fillOpacity="0.85" />
+                    <ellipse cx="80" cy="140" rx="40" ry="8" fill="#4F8CFF" fillOpacity="0.25" filter="blur(4px)" />
+                    <path d="M10,135 Q80,125 150,135" stroke="rgba(79, 140, 255, 0.4)" strokeWidth="2.5" strokeLinecap="round" />
+                    <path d="M105,135 Q92,100 95,70" stroke="rgba(255, 255, 255, 0.25)" strokeWidth="5.5" strokeLinecap="round" />
+                    <path d="M105,135 Q92,100 95,70" stroke="#FFB020" strokeWidth="2" strokeLinecap="round" />
+                    <path d="M95,70 Q75,65 65,75" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
+                    <path d="M95,70 Q80,50 82,40" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
+                    <path d="M95,70 Q110,50 120,55" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
+                    <path d="M95,70 Q115,70 125,82" stroke="#00D26A" strokeWidth="4.5" strokeLinecap="round" />
+                    <path d="M95,70 Q95,85 92,95" stroke="#00D26A" strokeWidth="3" strokeLinecap="round" />
+                    <circle cx="91" cy="74" r="3.5" fill="#FF4D6D" />
+                    <circle cx="98" cy="73" r="3" fill="#FF4D6D" />
+                    <circle cx="45" cy="50" r="16" fill="#FFB020" fillOpacity="0.15" />
+                    <circle cx="45" cy="50" r="11" fill="#FFB020" fillOpacity="0.85" className="animate-pulse" />
+                    <path d="M25,25 Q30,22 35,26 Q40,22 45,25" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M135,30 Q138,27 141,31 Q144,27 147,30" stroke="rgba(255,255,255,0.4)" strokeWidth="1" strokeLinecap="round" />
+                  </svg>
                 </div>
-                
-                <div className="text-right">
-                  <span className={`text-xs sm:text-sm font-extrabold ${
-                    t.type === 'income' 
-                      ? 'text-[#00D26A]' 
-                      : t.type === 'savings'
-                        ? 'text-[#4F8CFF]'
-                        : 'text-white'
-                  }`}>
-                    {t.type === 'income' ? '+' : t.type === 'savings' ? '→' : '-'}
-                    {formatMoney(t.amount)}
-                  </span>
-                  <p className="text-[9px] text-white/30 font-medium mt-0.5">{t.date}</p>
+
+                {/* Goal Content */}
+                <div className="z-10 space-y-4 flex-1">
+                  <div>
+                    <span className="text-[9px] font-extrabold text-[#FFB020] uppercase tracking-widest bg-[#FFB020]/10 border border-[#FFB020]/20 px-3 py-1 rounded-full">
+                      {mainGoal.category}
+                    </span>
+                    <h4 className="text-base font-extrabold text-white mt-2">{mainGoal.title}</h4>
+                    <p className="text-xs text-white/50 font-medium">Échéance cible : {mainGoal.targetDate}</p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-end justify-between">
+                      <p className="text-sm font-extrabold text-white">
+                        {formatMoney(mainGoal.currentAmount)}
+                        <span className="text-xs text-white/40 font-medium"> / {formatMoney(mainGoal.targetAmount)}</span>
+                      </p>
+                      <span className="text-xs font-bold text-[#FFB020] bg-[#FFB020]/10 px-2 py-0.5 rounded-lg">
+                        {goalPercentage}%
+                      </span>
+                    </div>
+                    
+                    <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5 max-w-sm">
+                      <div 
+                        style={{ width: `${goalPercentage}%` }}
+                        className="h-full bg-gradient-to-r from-[#FFB020] to-[#6C5CFF] rounded-full transition-all duration-1000 ease-out"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-            ))
-          ) : (
-            <div className="p-8 text-center glass-panel rounded-2xl border border-white/5">
-              <span className="text-xs text-white/30">Aucune transaction enregistrée pour ce mois.</span>
+            ) : (
+              <div 
+                onClick={() => setIsSavingGoalsModalOpen(true)}
+                className="glass-panel rounded-[28px] border border-dashed border-white/20 p-8 text-center cursor-pointer hover:border-[#FFB020]/45 transition-all space-y-3"
+              >
+                <div className="w-12 h-12 rounded-full bg-[#FFB020]/10 text-[#FFB020] flex items-center justify-center mx-auto border border-[#FFB020]/20">
+                  <PiggyBank className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white">Aucun objectif d'épargne défini 🎯</h4>
+                  <p className="text-xs text-white/40 mt-1">Créez votre premier projet d'épargne familial.</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Transaction History Feed */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Transactions récentes</h3>
+            <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar pr-1">
+              {monthlyTransactions.length > 0 ? (
+                monthlyTransactions.map((t) => (
+                  <div 
+                    key={t.id}
+                    className="glass-panel rounded-[28px] p-4 border border-white/6 flex items-center justify-between hover:bg-white/8 transition-all"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className={`p-2.5 rounded-xl border border-white/5 ${
+                        t.type === 'income' 
+                          ? 'text-[#00D26A] bg-[#00D26A]/10' 
+                          : t.type === 'savings'
+                            ? 'text-[#4F8CFF] bg-[#4F8CFF]/10'
+                            : 'text-[#FF4D6D] bg-[#FF4D6D]/10'
+                      }`}>
+                        {t.type === 'income' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                      </div>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-bold text-white">{t.title}</h4>
+                        <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider mt-0.5">
+                          {t.category} {t.memberName ? `• ${t.memberName}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="text-right">
+                      <span className={`text-xs sm:text-sm font-extrabold ${
+                        t.type === 'income' 
+                          ? 'text-[#00D26A]' 
+                          : t.type === 'savings'
+                            ? 'text-[#4F8CFF]'
+                            : 'text-white'
+                      }`}>
+                        {t.type === 'income' ? '+' : t.type === 'savings' ? '→' : '-'}
+                        {formatMoney(t.amount)}
+                      </span>
+                      <p className="text-[9px] text-white/30 font-medium mt-0.5">{t.date}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="p-8 text-center glass-panel rounded-2xl border border-white/5">
+                  <span className="text-xs text-white/30">Aucune transaction enregistrée.</span>
+                </div>
+              )}
             </div>
-          )}
+          </div>
+        </>
+      )}
+
+      {/* RENDER DEPENSES SUBTAB */}
+      {activeSubTab === 'depenses' && (
+        <div className="space-y-4">
+          <div className="glass-panel border border-white/8 rounded-[28px] p-5 text-center bg-gradient-to-br from-[#2D161F]/20 to-[#0F172A]/50">
+            <span className="text-[10px] font-bold text-[#FF4D6D] uppercase tracking-widest block mb-1">Total Sorties Mensuel</span>
+            <h2 className="text-2xl font-black text-[#FF4D6D]">{formatMoney(totalDepenses)}</h2>
+            <p className="text-xs text-white/40 mt-1">Dépenses réelles comptabilisées ce mois-ci</p>
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider px-1">Toutes les dépenses du mois</h3>
+            <div className="space-y-2">
+              {monthlyTransactions.filter(t => t.type === 'expense').length > 0 ? (
+                monthlyTransactions.filter(t => t.type === 'expense').map((t) => (
+                  <div key={t.id} className="glass-panel rounded-[24px] p-4 border border-white/6 flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2.5 rounded-xl bg-[#FF4D6D]/10 text-[#FF4D6D] border border-white/5">
+                        <TrendingDown className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-bold text-white">{t.title}</h4>
+                        <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider mt-0.5">
+                          {t.category} {t.memberName ? `• ${t.memberName}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs sm:text-sm font-extrabold text-[#FF4D6D] block">-{formatMoney(t.amount)}</span>
+                      <span className="text-[9px] text-white/30 font-medium">{t.date}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-white/30 text-center py-8 glass-panel rounded-[24px] border border-white/5">
+                  Aucune dépense enregistrée.
+                </p>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* RENDER REVENUS SUBTAB */}
+      {activeSubTab === 'revenus' && (
+        <div className="space-y-4">
+          <div className="glass-panel border border-white/8 rounded-[28px] p-5 text-center bg-gradient-to-br from-[#162D21]/20 to-[#0F172A]/50">
+            <span className="text-[10px] font-bold text-[#00D26A] uppercase tracking-widest block mb-1">Total Entrées Mensuel</span>
+            <h2 className="text-2xl font-black text-[#00D26A]">{formatMoney(totalRevenus)}</h2>
+            <p className="text-xs text-white/40 mt-1">Revenus réels comptabilisés ce mois-ci</p>
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider px-1">Tous les revenus du mois</h3>
+            <div className="space-y-2">
+              {monthlyTransactions.filter(t => t.type === 'income').length > 0 ? (
+                monthlyTransactions.filter(t => t.type === 'income').map((t) => (
+                  <div key={t.id} className="glass-panel rounded-[24px] p-4 border border-white/6 flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2.5 rounded-xl bg-[#00D26A]/10 text-[#00D26A] border border-white/5">
+                        <TrendingUp className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-bold text-white">{t.title}</h4>
+                        <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider mt-0.5">
+                          {t.category} {t.memberName ? `• ${t.memberName}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs sm:text-sm font-extrabold text-[#00D26A] block">+{formatMoney(t.amount)}</span>
+                      <span className="text-[9px] text-white/30 font-medium">{t.date}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-white/30 text-center py-8 glass-panel rounded-[24px] border border-white/5">
+                  Aucun revenu enregistré.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RENDER BUDGET CONFIG & ALERTS SUBTAB */}
+      {activeSubTab === 'budget' && (
+        <div className="space-y-6">
+          <style dangerouslySetInnerHTML={{__html: `
+            @keyframes soft-pulse-red {
+              0%, 100% { box-shadow: 0 0 10px rgba(255, 77, 109, 0.2); border-color: rgba(255, 77, 109, 0.4); }
+              50% { box-shadow: 0 0 25px rgba(255, 77, 109, 0.65); border-color: rgba(255, 77, 109, 0.9); }
+            }
+            .animate-pulse-red { animation: soft-pulse-red 1.5s infinite; }
+          `}} />
+
+          {/* Budget Overview Header Banner */}
+          <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3 relative overflow-hidden bg-gradient-to-r from-[#1C2C4E]/40 to-[#0F1E3D]/50">
+            <h3 className="text-xs font-extrabold text-white tracking-wide">Plafonds de Budget & Alertes Anti-Dépassement</h3>
+            <p className="text-[11px] text-white/60 leading-relaxed font-sans font-medium">
+              Définissez les limites mensuelles pour chaque poste de dépenses. Le système surveille en temps réel les débits et déclenche des avertissements visuels si le seuil critique (75% ou 100%) est approché ou franchi.
+            </p>
+          </div>
+
+          {/* Category Budget Tracker Grid */}
+          <div className="space-y-4">
+            {categoriesBreakdown.map((cat, idx) => {
+              const CatIcon = cat.icon;
+              const limit = budgets[cat.name] || 0;
+              const spent = cat.amount;
+              const ratio = limit > 0 ? Math.round((spent / limit) * 100) : 0;
+              
+              // Dynamic Alert Color Scheme & Style
+              let badgeText = "Budget sain 👍";
+              let barColor = "bg-[#00D26A]";
+              let textClass = "text-[#00D26A]";
+              let containerClass = "border-white/5";
+              
+              if (ratio >= 100) {
+                badgeText = "DÉPASSEMENT CRITIQUE ! 🚨";
+                barColor = "bg-[#FF4D6D] animate-pulse";
+                textClass = "text-[#FF4D6D] font-extrabold animate-pulse";
+                containerClass = "border-[#FF4D6D]/40 bg-[#FF4D6D]/5 animate-pulse-red";
+              } else if (ratio >= 75) {
+                badgeText = "Alerte 75% atteinte ⚠️";
+                barColor = "bg-[#FFB020]";
+                textClass = "text-[#FFB020] font-bold";
+                containerClass = "border-[#FFB020]/30 bg-[#FFB020]/5";
+              }
+
+              return (
+                <div 
+                  key={idx}
+                  className={`glass-panel rounded-[28px] p-5 border transition-all duration-300 ${containerClass}`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-center space-x-3">
+                      <div className={`p-2.5 rounded-xl bg-white/5 ${cat.textCol} border border-white/5`}>
+                        <CatIcon className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-extrabold text-white">{cat.name}</h4>
+                        <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">
+                          Dépensé: {formatMoney(spent)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-4">
+                      {/* Budget configuration input (Parents only) */}
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-extrabold text-white/30 uppercase tracking-wider block">Plafond mensuel</label>
+                        <div className="flex items-center space-x-1.5 bg-white/5 border border-white/8 rounded-xl px-2 py-1">
+                          <input 
+                            type="number"
+                            min="0"
+                            value={limit || ''}
+                            onChange={(e) => handleUpdateBudget(cat.name, Number(e.target.value))}
+                            placeholder="Sans limite"
+                            className="bg-transparent text-white font-mono text-xs w-16 focus:outline-none text-right font-bold"
+                          />
+                          <span className="text-[10px] font-bold text-white/30">€</span>
+                        </div>
+                      </div>
+
+                      <div className="text-right min-w-[80px]">
+                        <span className={`text-xs block ${textClass}`}>{ratio}%</span>
+                        <span className="text-[9px] font-medium text-white/30 block mt-0.5">{badgeText}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Horizontal visual progress bar */}
+                  {limit > 0 && (
+                    <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5 mt-4">
+                      <div 
+                        style={{ width: `${Math.min(100, ratio)}%` }}
+                        className={`h-full ${barColor} rounded-full transition-all duration-1000 ease-out`}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Category Spendings Detail Modal */}
       {selectedCategory && (
