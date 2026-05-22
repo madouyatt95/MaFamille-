@@ -349,6 +349,76 @@ export const foyerService = {
   },
 
   /**
+   * Créer et ajouter une fiche de membre directement dans le foyer Cloud
+   */
+  async addMemberToFoyer(foyerId: string, member: any): Promise<FoyerMember> {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Supabase n'est pas configuré");
+
+    // Mapping du rôle de l'interface amicale vers la BDD
+    let dbRole = 'child';
+    const cleanRole = (member.role || '').toLowerCase();
+    if (cleanRole.includes('admin') || cleanRole.includes('chef')) {
+      dbRole = 'admin';
+    } else if (cleanRole.includes('parent') || cleanRole.includes('gestionnaire')) {
+      dbRole = 'parent';
+    } else if (cleanRole.includes('invit')) {
+      dbRole = 'guest';
+    }
+
+    const dbMember = {
+      foyer_id: foyerId,
+      display_name: member.name || 'Nouveau Membre',
+      role: dbRole,
+      photo_url: member.photoUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${member.name}`,
+      age: member.age || 'Nouveau',
+      birth_date: member.birthDate || 'Inconnue',
+      blood_group: member.bloodGroup || 'A+',
+      allergies: member.allergies || ['Aucune'],
+      treatments: member.treatments || ['Aucun'],
+      emergency_contact_name: member.emergencyContact?.name || 'Maman',
+      emergency_contact_phone: member.emergencyContact?.phone || '',
+      emergency_contact_relation: member.emergencyContact?.relation || 'Mère',
+      school_or_employer: member.schoolOrEmployer || 'Non renseigné'
+    };
+
+    console.log('[MaFamille+ DB] addMemberToFoyer -> payload:', JSON.stringify(dbMember));
+    const { data, error } = await supabase
+      .from('foyer_members')
+      .insert(dbMember)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[MaFamille+ DB] Erreur insertion membre foyer :", error);
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      foyerId: data.foyer_id,
+      userId: data.user_id,
+      displayName: data.display_name,
+      role: data.role,
+      photoUrl: data.photo_url,
+      age: data.age,
+      birthDate: data.birth_date,
+      bloodGroup: data.blood_group,
+      allergies: data.allergies || [],
+      treatments: data.treatments || [],
+      emergencyContactName: data.emergency_contact_name,
+      emergencyContactPhone: data.emergency_contact_phone,
+      emergencyContactRelation: data.emergency_contact_relation,
+      schoolOrEmployer: data.school_or_employer,
+      joinedAt: data.joined_at,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      locationStatus: data.location_status,
+      lastLocatedAt: data.last_located_at
+    };
+  },
+
+  /**
    * S'abonner aux changements temps réel sur une table pour un foyer
    */
   subscribeToChanges(tableName: string, foyerId: string, onEvent: (payload: any) => void) {

@@ -607,7 +607,8 @@ function App() {
       type: c.type,
       content: c.content,
       timestamp: c.timestamp,
-      readBy: c.read_by || []
+      readBy: c.read_by || [],
+      reactions: typeof c.reactions === 'string' ? JSON.parse(c.reactions) : c.reactions || []
     })) : []);
 
     // Load Demarches
@@ -798,7 +799,8 @@ function App() {
             type: c.type,
             content: c.content,
             timestamp: c.timestamp,
-            readBy: c.read_by || []
+            readBy: c.read_by || [],
+            reactions: typeof c.reactions === 'string' ? JSON.parse(c.reactions) : c.reactions || []
           }));
           setChatMessages(prev => {
             const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
@@ -1164,7 +1166,8 @@ function App() {
         type: c.type,
         content: c.content,
         timestamp: c.timestamp,
-        read_by: c.readBy || []
+        read_by: c.readBy || [],
+        reactions: c.reactions || []
       }));
 
       // Demarches
@@ -1665,13 +1668,45 @@ function App() {
     setTasks(prev => [{ ...newTask, id }, ...prev]);
   };
 
-  const handleAddMember = (newMem: any) => {
+  const handleAddMember = async (newMem: any) => {
     if (!isPremium && members.length >= 3) {
       setPaywallOpen(true);
       return;
     }
-    const id = `${members.length + 1}`;
-    setMembers(prev => [...prev, { ...newMem, id }]);
+    if (foyer) {
+      try {
+        const addedMem = await foyerService.addMemberToFoyer(foyer.id, newMem);
+        // Traduire le membre retourné de Supabase au format UI frontend
+        const mappedMember = {
+          id: addedMem.id,
+          name: addedMem.displayName,
+          role: addedMem.role === 'admin' ? 'Chef de famille' :
+                addedMem.role === 'parent' ? 'Gestionnaire' :
+                addedMem.role === 'guest' ? 'Invité' : 'Enfant',
+          age: addedMem.age || 'Nouveau',
+          birthDate: addedMem.birthDate || 'Inconnue',
+          bloodGroup: addedMem.bloodGroup || 'A+',
+          allergies: addedMem.allergies || ['Aucune'],
+          treatments: addedMem.treatments || ['Aucun'],
+          emergencyContact: {
+            name: addedMem.emergencyContactName || 'Maman',
+            phone: addedMem.emergencyContactPhone || '',
+            relation: addedMem.emergencyContactRelation || 'Mère'
+          },
+          schoolOrEmployer: addedMem.schoolOrEmployer || 'Non renseigné',
+          photoUrl: addedMem.photoUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${addedMem.displayName}`,
+          medicalHistory: []
+        };
+        setMembers(prev => [...prev, mappedMember]);
+        alert(`🎉 Fiche membre de ${mappedMember.name} créée et enregistrée avec succès dans le Cloud ! ✨`);
+      } catch (err: any) {
+        console.error("Erreur lors de la création du membre sur Supabase :", err);
+        alert(`Impossible d'enregistrer le membre dans le cloud : ${err.message || err}`);
+      }
+    } else {
+      const id = `${members.length + 1}`;
+      setMembers(prev => [...prev, { ...newMem, id }]);
+    }
   };
 
   const handleToggleEventDone = (id: string) => {
@@ -1951,6 +1986,8 @@ function App() {
             onAddMemberClick={() => setQuickActionsOpen(true)}
             foyer={foyer}
             myMemberProfile={myMemberProfile}
+            setActiveTab={setActiveTab}
+            setActiveModule={setActiveModule}
           />
         );
       }

@@ -329,7 +329,19 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
   // --- Feature 6: Health Emergency Card ---
   const [healthSubTab, setHealthSubTab] = useState<'croissance' | 'vaccins' | 'urgence'>('croissance');
-  const [selectedHealthMemberId, setSelectedHealthMemberId] = useState(activeMemberId);
+  const [selectedHealthMemberId, setSelectedHealthMemberId] = useState(() => {
+    return localStorage.getItem('mf_selected_health_member_id') || activeMemberId;
+  });
+
+  React.useEffect(() => {
+    if (activeModule === 'sante') {
+      const saved = localStorage.getItem('mf_selected_health_member_id');
+      if (saved) {
+        setSelectedHealthMemberId(saved);
+        localStorage.removeItem('mf_selected_health_member_id');
+      }
+    }
+  }, [activeModule]);
   
   const [growthLogs, setGrowthLogs] = useState<{ id: string; memberId: string; date: string; height: number; weight: number; }[]>(() => {
     const stored = localStorage.getItem('mf_growth_logs');

@@ -318,6 +318,7 @@ CREATE TABLE IF NOT EXISTS public.chat_messages (
     content TEXT,
     timestamp TEXT,
     read_by TEXT[] DEFAULT '{}',
+    reactions JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (id, foyer_id)
 );
