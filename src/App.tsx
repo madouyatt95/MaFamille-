@@ -751,26 +751,45 @@ function App() {
       });
     });
 
-    const subGroceries = foyerService.subscribeToChanges('groceries', foyer.id, () => {
-      foyerService.fetchTableData('groceries', foyer.id).then(groceriesData => {
-        if (groceriesData) {
-          const mapped = groceriesData.map(g => ({
-            id: g.id,
-            name: g.name,
-            category: g.category,
-            quantity: g.quantity,
-            checked: g.checked,
-            inStock: g.in_stock,
-            expiryDate: g.expiry_date
-          }));
-          setGroceries(prev => {
-            const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
-            const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
-            if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
-            return mapped;
-          });
-        }
-      });
+    const subGroceries = foyerService.subscribeToChanges('groceries', foyer.id, (payload: any) => {
+      if (!payload) return;
+
+      if (payload.eventType === 'DELETE') {
+        const deletedId = payload.old.id;
+        setGroceries(prev => prev.filter(g => g.id !== deletedId));
+      } 
+      else if (payload.eventType === 'INSERT') {
+        const newItem: GroceryItem = {
+          id: payload.new.id,
+          name: payload.new.name,
+          category: payload.new.category || 'Général',
+          quantity: payload.new.quantity || '',
+          checked: !!payload.new.checked,
+          inStock: !!payload.new.in_stock,
+          expiryDate: payload.new.expiry_date || undefined
+        };
+        setGroceries(prev => {
+          if (prev.some(g => g.id === newItem.id)) return prev;
+          return [newItem, ...prev];
+        });
+      } 
+      else if (payload.eventType === 'UPDATE') {
+        const updatedId = payload.new.id;
+        setGroceries(prev => prev.map(g => {
+          if (g.id === updatedId) {
+            return {
+              ...g,
+              name: payload.new.name,
+              category: payload.new.category || g.category,
+              quantity: payload.new.quantity || g.quantity,
+              checked: !!payload.new.checked,
+              inStock: !!payload.new.in_stock,
+              expiryDate: payload.new.expiry_date || g.expiryDate
+            };
+          }
+          return g;
+        }));
+      }
     });
 
     const subTasks = foyerService.subscribeToChanges('chore_tasks', foyer.id, () => {
@@ -1814,11 +1833,29 @@ function App() {
     }));
   };
 
-  const handleToggleGrocery = (id: string) => {
-    setGroceries(prev => prev.map(g => g.id === id ? { ...g, checked: !g.checked } : g));
+  const handleToggleGrocery = async (id: string) => {
+    let newCheckedVal = false;
+    setGroceries(prev => prev.map(g => {
+      if (g.id === id) {
+        newCheckedVal = !g.checked;
+        return { ...g, checked: newCheckedVal };
+      }
+      return g;
+    }));
+
+    if (foyer) {
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          await client.from('groceries').update({ checked: newCheckedVal }).eq('id', id);
+        } catch (err) {
+          console.error("Erreur lors du toggle cloud de la course :", err);
+        }
+      }
+    }
   };
 
-  const handleAddGroceryItem = (name: string, category: string, qty: string) => {
+  const handleAddGroceryItem = async (name: string, category: string, qty: string) => {
     const id = `gr-${Date.now()}`;
     const newItem: GroceryItem = {
       id,
@@ -1828,15 +1865,57 @@ function App() {
       checked: false,
       inStock: false
     };
+
     setGroceries(prev => [newItem, ...prev]);
+
+    if (foyer) {
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          await client.from('groceries').insert({
+            id,
+            foyer_id: foyer.id,
+            name,
+            category,
+            quantity: qty,
+            checked: false,
+            in_stock: false
+          });
+        } catch (err) {
+          console.error("Erreur lors de l'ajout cloud de la course :", err);
+        }
+      }
+    }
   };
 
-  const handleDeleteGroceryItem = (id: string) => {
+  const handleDeleteGroceryItem = async (id: string) => {
     setGroceries(prev => prev.filter(g => g.id !== id));
+
+    if (foyer) {
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          await client.from('groceries').delete().eq('id', id);
+        } catch (err) {
+          console.error("Erreur lors de la suppression cloud de la course :", err);
+        }
+      }
+    }
   };
 
-  const handleEditGroceryItem = (id: string, name: string, qty: string) => {
+  const handleEditGroceryItem = async (id: string, name: string, qty: string) => {
     setGroceries(prev => prev.map(g => g.id === id ? { ...g, name, quantity: qty } : g));
+
+    if (foyer) {
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          await client.from('groceries').update({ name, quantity: qty }).eq('id', id);
+        } catch (err) {
+          console.error("Erreur lors de la modification cloud de la course :", err);
+        }
+      }
+    }
   };
 
   const handleResetData = () => {
