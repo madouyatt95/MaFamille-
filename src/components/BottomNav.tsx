@@ -18,7 +18,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 }) => {
   const activeMember = members?.find(m => m.id === activeMemberId);
   const isChild = activeMember
-    ? ['Enfant', 'child'].includes(activeMember.role)
+    ? ['enfant', 'child', 'guest', 'invité'].includes(activeMember.role?.toLowerCase() || '')
     : (activeMemberId === '3' || activeMemberId === '4');
   
   return (

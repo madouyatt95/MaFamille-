@@ -2097,6 +2097,8 @@ function App() {
     setTrips(demoTrips);
     setPets(demoPets);
     setArtisans(demoArtisans);
+    setSchoolTasks(demoSchoolTasks);
+    setMemories(demoMemories);
     setPocketMoney([
       { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150' },
       { id: '4', name: 'Awa', balance: 22.50, points: 225, avatar: 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150' }
@@ -2134,6 +2136,8 @@ function App() {
       setTrips(demoTrips);
       setPets(demoPets);
       setArtisans(demoArtisans);
+      setSchoolTasks(demoSchoolTasks);
+      setMemories(demoMemories);
       setPocketMoney([
         { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150' },
         { id: '4', name: 'Awa', balance: 22.50, points: 225, avatar: 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150' }

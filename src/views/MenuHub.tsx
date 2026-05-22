@@ -40,7 +40,9 @@ import {
   X,
   Phone,
   Mail,
-  Star
+  Star,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import type { 
   DocumentFile, 
@@ -520,6 +522,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   // Parental PIN Lock States and Validator
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [showPin, setShowPin] = useState(false);
   const [authorizedModules, setAuthorizedModules] = useState<string[]>([]);
 
   const handleVerifyPin = (e: React.FormEvent) => {
@@ -888,20 +891,33 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           <form onSubmit={handleVerifyPin} className="space-y-4 pt-4 border-t border-white/5">
             <div className="space-y-1.5 text-left font-medium">
               <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block text-center">Saisir le Code PIN Parent pour débloquer :</label>
-              <input 
-                type="password"
-                required
-                maxLength={4}
-                placeholder="••••"
-                value={pinInput}
-                onChange={(e) => {
-                  setPinInput(e.target.value);
-                  setPinError(false);
-                }}
-                className={`w-32 mx-auto text-center tracking-[0.5em] font-mono text-lg bg-white/5 border rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FF4D6D] block ${
-                  pinError ? 'border-[#FF4D6D] bg-[#FF4D6D]/10 animate-shake' : 'border-white/10'
-                }`}
-              />
+              <div className="relative w-32 mx-auto">
+                <input 
+                  type={showPin ? "text" : "password"}
+                  required
+                  maxLength={4}
+                  placeholder="••••"
+                  value={pinInput}
+                  onChange={(e) => {
+                    setPinInput(e.target.value);
+                    setPinError(false);
+                  }}
+                  className={`w-full text-center tracking-[0.5em] font-mono text-lg bg-white/5 border rounded-xl pl-4 pr-9 py-2.5 text-white focus:outline-none focus:border-[#FF4D6D] block ${
+                    pinError ? 'border-[#FF4D6D] bg-[#FF4D6D]/10 animate-shake' : 'border-white/10'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPin(!showPin)}
+                  className="absolute right-2.5 top-3 text-white/30 hover:text-white/60 focus:outline-none cursor-pointer"
+                >
+                  {showPin ? (
+                    <EyeOff className="w-3.5 h-3.5" />
+                  ) : (
+                    <Eye className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
               {pinError && (
                 <p className="text-[10px] text-[#FF4D6D] font-bold text-center mt-1">Code PIN incorrect. Veuillez réessayer.</p>
               )}

@@ -10,7 +10,9 @@ import {
   Sparkles,
   Users,
   Camera,
-  ImagePlus
+  ImagePlus,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
@@ -62,6 +64,7 @@ export const Settings: React.FC<SettingsProps> = ({
   const [parentPinInput, setParentPinInput] = useState(() => {
     return foyer?.parentPin || localStorage.getItem('mf_parent_pin') || '0000';
   });
+  const [showParentPin, setShowParentPin] = useState(false);
 
   const handleSaveParentPin = async () => {
     localStorage.setItem('mf_parent_pin', parentPinInput);
@@ -530,16 +533,29 @@ export const Settings: React.FC<SettingsProps> = ({
                 Définissez un code PIN à 4 chiffres requis pour basculer d'un profil enfant vers un profil parent/admin.
               </p>
               <div className="flex items-center space-x-3 pt-1">
-                <input
-                  type="password"
-                  maxLength={4}
-                  pattern="[0-9]*"
-                  inputMode="numeric"
-                  placeholder="PIN"
-                  value={parentPinInput}
-                  onChange={(e) => setParentPinInput(e.target.value.replace(/\D/g, ''))}
-                  className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white font-extrabold tracking-widest text-center text-sm w-24 focus:outline-none focus:border-[#6C5CFF]"
-                />
+                <div className="relative w-24">
+                  <input
+                    type={showParentPin ? "text" : "password"}
+                    maxLength={4}
+                    pattern="[0-9]*"
+                    inputMode="numeric"
+                    placeholder="PIN"
+                    value={parentPinInput}
+                    onChange={(e) => setParentPinInput(e.target.value.replace(/\D/g, ''))}
+                    className="w-full pl-4 pr-9 py-3 rounded-xl bg-white/5 border border-white/10 text-white font-extrabold tracking-widest text-center text-sm focus:outline-none focus:border-[#6C5CFF]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowParentPin(!showParentPin)}
+                    className="absolute right-2.5 top-3.5 text-white/30 hover:text-white/60 focus:outline-none cursor-pointer"
+                  >
+                    {showParentPin ? (
+                      <EyeOff className="w-3.5 h-3.5" />
+                    ) : (
+                      <Eye className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={handleSaveParentPin}
