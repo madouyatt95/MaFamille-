@@ -399,10 +399,13 @@ ALTER TABLE public.demarches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.justificatif_packs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.medical_history ENABLE ROW LEVEL SECURITY;
 
--- Helper function: récupère les foyer_ids de l'utilisateur courant
+-- Helper function: récupère les foyer_ids de l'utilisateur courant (MEMBRES APPROUVÉS UNIQUEMENT)
 CREATE OR REPLACE FUNCTION public.user_foyer_ids()
 RETURNS SETOF UUID AS $$
-    SELECT foyer_id FROM public.foyer_members WHERE user_id = auth.uid();
+    SELECT foyer_id 
+    FROM public.foyer_members 
+    WHERE user_id = auth.uid() 
+      AND approved = TRUE; -- Sécurise les données vis-à-vis des membres non approuvés
 $$ LANGUAGE SQL SECURITY DEFINER STABLE;
 
 -- Helper functions pour éviter les boucles récursives sur la table foyer_members
@@ -430,9 +433,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
 
--- FOYERS : visible par les membres
+-- FOYERS : visible par les membres (approuvés ou en attente)
 CREATE POLICY "foyers_select" ON public.foyers FOR SELECT
-    USING (id IN (SELECT public.user_foyer_ids()));
+    USING (id IN (SELECT foyer_id FROM public.foyer_members WHERE user_id = auth.uid()));
 CREATE POLICY "foyers_insert" ON public.foyers FOR INSERT
     WITH CHECK (created_by = auth.uid());
 CREATE POLICY "foyers_update" ON public.foyers FOR UPDATE
@@ -440,9 +443,9 @@ CREATE POLICY "foyers_update" ON public.foyers FOR UPDATE
 CREATE POLICY "foyers_delete" ON public.foyers FOR DELETE
     USING (created_by = auth.uid());
 
--- FOYER MEMBERS : visible par les co-membres
+-- FOYER MEMBERS : visible par soi-même ou par les co-membres approuvés
 CREATE POLICY "members_select" ON public.foyer_members FOR SELECT
-    USING (foyer_id IN (SELECT public.user_foyer_ids()));
+    USING (user_id = auth.uid() OR foyer_id IN (SELECT public.user_foyer_ids()));
 CREATE POLICY "members_insert" ON public.foyer_members FOR INSERT
     WITH CHECK (user_id = auth.uid() OR public.is_foyer_admin_or_parent(foyer_id));
 CREATE POLICY "members_delete" ON public.foyer_members FOR DELETE
@@ -458,18 +461,17 @@ CREATE POLICY "invitations_insert" ON public.foyer_invitations FOR INSERT
         SELECT foyer_id FROM public.foyer_members WHERE user_id = auth.uid() AND role IN ('admin', 'parent')
     ));
 
--- MACRO : Politique générique "les membres du foyer peuvent tout faire"
--- Appliquée à toutes les tables de données
+-- MACRO 1 : Politique générique pour les tables de données non sensibles
+-- Tous les membres approuvés du foyer ont tous les droits
 DO $$
 DECLARE
     tbl TEXT;
 BEGIN
     FOR tbl IN SELECT unnest(ARRAY[
-        'events', 'transactions', 'documents', 'groceries', 'dishes',
-        'chore_tasks', 'vehicles', 'maintenance', 'trips', 'pets',
-        'pocket_money', 'saving_goals', 'alerts', 'memories', 'votes',
-        'school_tasks', 'chat_groups', 'chat_messages', 'demarches',
-        'justificatif_packs', 'medical_history'
+        'events', 'groceries', 'dishes', 'chore_tasks', 'vehicles', 
+        'maintenance', 'trips', 'pets', 'pocket_money', 'saving_goals', 
+        'alerts', 'memories', 'votes', 'school_tasks', 'chat_groups', 
+        'chat_messages', 'demarches', 'justificatif_packs'
     ])
     LOOP
         EXECUTE format('
@@ -481,6 +483,29 @@ BEGIN
                 USING (foyer_id IN (SELECT public.user_foyer_ids()));
             CREATE POLICY "%s_delete" ON public.%I FOR DELETE
                 USING (foyer_id IN (SELECT public.user_foyer_ids()));
+        ', tbl || '_sel', tbl, tbl || '_ins', tbl, tbl || '_upd', tbl, tbl || '_del', tbl);
+    END LOOP;
+END $$;
+
+-- MACRO 2 : Politiques restrictives pour les tables sensibles (Contrôle d''accès par rôle RBAC)
+-- Tous les membres approuvés lisent, mais seuls les parents et admins peuvent modifier
+DO $$
+DECLARE
+    tbl TEXT;
+BEGIN
+    FOR tbl IN SELECT unnest(ARRAY[
+        'transactions', 'documents', 'medical_history'
+    ])
+    LOOP
+        EXECUTE format('
+            CREATE POLICY "%s_select" ON public.%I FOR SELECT
+                USING (foyer_id IN (SELECT public.user_foyer_ids()));
+            CREATE POLICY "%s_insert" ON public.%I FOR INSERT
+                WITH CHECK (foyer_id IN (SELECT public.user_foyer_ids()) AND public.is_foyer_admin_or_parent(foyer_id));
+            CREATE POLICY "%s_update" ON public.%I FOR UPDATE
+                USING (foyer_id IN (SELECT public.user_foyer_ids()) AND public.is_foyer_admin_or_parent(foyer_id));
+            CREATE POLICY "%s_delete" ON public.%I FOR DELETE
+                USING (foyer_id IN (SELECT public.user_foyer_ids()) AND public.is_foyer_admin_or_parent(foyer_id));
         ', tbl || '_sel', tbl, tbl || '_ins', tbl, tbl || '_upd', tbl, tbl || '_del', tbl);
     END LOOP;
 END $$;
