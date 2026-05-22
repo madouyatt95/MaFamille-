@@ -15,13 +15,14 @@ import {
   Check
 } from 'lucide-react';
 import { foyerService } from '../services/foyerService';
-import type { Member, Foyer, FoyerMember } from '../types';
+import type { Member, Foyer, FoyerMember, MemberRole } from '../types';
 
 interface MembresProps {
   members: Member[];
   setMembers: React.Dispatch<React.SetStateAction<Member[]>>;
   onAddMemberClick?: () => void;
   onAddMember?: (newMem: any) => Promise<void> | void;
+  onUpdateMemberProfile?: (memberId: string, updates: Partial<FoyerMember>) => Promise<void> | void;
   activeMemberId?: string;
   foyer?: Foyer | null;
   myMemberProfile?: FoyerMember | null;
@@ -34,6 +35,7 @@ export const Membres: React.FC<MembresProps> = ({
   setMembers,
   onAddMemberClick: _onAddMemberClick,
   onAddMember,
+  onUpdateMemberProfile,
   activeMemberId = '1',
   foyer,
   myMemberProfile,
@@ -192,7 +194,7 @@ export const Membres: React.FC<MembresProps> = ({
     setSavingProfile(true);
     try {
       // Map friendly UI roles to database-compatible roles
-      const dbRole = 
+      const dbRole: MemberRole = 
         editRole === 'Chef de famille' || editRole === 'Chef de famille (Admin)' || editRole === 'admin' ? 'admin' :
         editRole === 'Gestionnaire' || editRole === 'Gestionnaire / Parent' || editRole === 'parent' ? 'parent' :
         editRole === 'Enfant' || editRole === 'child' ? 'child' :
@@ -204,17 +206,23 @@ export const Membres: React.FC<MembresProps> = ({
         dbRole === 'child' ? 'Enfant' :
         'Invité';
 
+      const updates = {
+        displayName: editName.trim(),
+        role: dbRole,
+        age: editAge.trim(),
+        birthDate: editBirth.trim(),
+        bloodGroup: editBlood,
+        schoolOrEmployer: editSchool.trim(),
+        hasExemption: dbRole === 'child' ? editHasExemption : false
+      };
+
       if (foyer) {
         // Persist to Supabase Cloud Foyer
-        await foyerService.updateMemberProfile(selectedMember.id, {
-          displayName: editName.trim(),
-          role: dbRole,
-          age: editAge.trim(),
-          birthDate: editBirth.trim(),
-          bloodGroup: editBlood,
-          schoolOrEmployer: editSchool.trim(),
-          hasExemption: dbRole === 'child' ? editHasExemption : false
-        });
+        await foyerService.updateMemberProfile(selectedMember.id, updates);
+      }
+
+      if (onUpdateMemberProfile) {
+        onUpdateMemberProfile(selectedMember.id, updates);
       }
 
       setMembers(prev => prev.map(m => {
@@ -571,6 +579,9 @@ export const Membres: React.FC<MembresProps> = ({
                                     await foyerService.updateMemberProfile(selectedMember.id, {
                                       photoUrl: generatedAvatar
                                     });
+                                  }
+                                  if (onUpdateMemberProfile) {
+                                    onUpdateMemberProfile(selectedMember.id, { photoUrl: generatedAvatar });
                                   }
                                   // Mettre à jour le membre dans le state global
                                   setMembers(prev => prev.map(m => m.id === selectedMember.id ? { ...m, photoUrl: generatedAvatar } : m));

@@ -437,6 +437,14 @@ function App() {
     // Load members — always replace local data with cloud data (even if empty)
     const membersList = await foyerService.getFoyerMembers(foyerId);
     setMembers(membersList.length > 0 ? membersList.map(mapFoyerMemberToMember) : []);
+    
+    // Dynamically refresh active user's own profile to match role changes instantly
+    if (myMemberProfile) {
+      const updatedSelf = membersList.find(m => m.id === myMemberProfile.id);
+      if (updatedSelf) {
+        setMyMemberProfile(updatedSelf);
+      }
+    }
 
     // Load Events
     const { data: eventsData } = await client.from('events').select('*').eq('foyer_id', foyerId);
@@ -848,6 +856,14 @@ function App() {
           if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
           return mapped;
         });
+
+        // Instant Realtime Role and Exemption synchronization for the connected user
+        if (myMemberProfile) {
+          const updatedSelf = membersList.find(m => m.id === myMemberProfile.id);
+          if (updatedSelf) {
+            setMyMemberProfile(updatedSelf);
+          }
+        }
       });
     });
 
@@ -1715,6 +1731,12 @@ function App() {
 
   const handleUpdateMemberProfile = async (memberId: string, updates: Partial<FoyerMember>) => {
     setMembers(prev => prev.map(m => m.id === memberId ? { ...m, ...updates } : m));
+    
+    // Instant update of active user's own profile state if they edited their own profile
+    if (myMemberProfile && memberId === myMemberProfile.id) {
+      setMyMemberProfile(prev => prev ? { ...prev, ...updates } : null);
+    }
+
     if (foyer) {
       try {
         await foyerService.updateMemberProfile(memberId, updates);
@@ -1985,6 +2007,7 @@ function App() {
             activeMemberId={activeMemberId}
             onAddMemberClick={() => setQuickActionsOpen(true)}
             onAddMember={handleAddMember}
+            onUpdateMemberProfile={handleUpdateMemberProfile}
             foyer={foyer}
             myMemberProfile={myMemberProfile}
             setActiveTab={setActiveTab}
