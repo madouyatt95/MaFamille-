@@ -631,7 +631,8 @@ CREATE OR REPLACE FUNCTION public.update_member_profile(
     p_emergency_contact_phone TEXT DEFAULT NULL,
     p_emergency_contact_relation TEXT DEFAULT NULL,
     p_school_or_employer TEXT DEFAULT NULL,
-    p_has_exemption BOOLEAN DEFAULT NULL
+    p_has_exemption BOOLEAN DEFAULT NULL,
+    p_role TEXT DEFAULT NULL
 )
 RETURNS JSON AS $$
 DECLARE
@@ -666,7 +667,8 @@ BEGIN
         emergency_contact_phone = COALESCE(p_emergency_contact_phone, emergency_contact_phone),
         emergency_contact_relation = COALESCE(p_emergency_contact_relation, emergency_contact_relation),
         school_or_employer = COALESCE(p_school_or_employer, school_or_employer),
-        has_exemption = COALESCE(p_has_exemption, has_exemption)
+        has_exemption = COALESCE(p_has_exemption, has_exemption),
+        role = COALESCE(p_role, role)
     WHERE id = p_member_id;
 
     RETURN json_build_object('success', true, 'member_id', p_member_id);

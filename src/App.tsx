@@ -2035,6 +2035,7 @@ function App() {
                 if (member) setMyMemberProfile(member);
               }
             }}
+            onUpdateMemberProfile={handleUpdateMemberProfile}
             members={members}
             setMembers={setMembers}
             activeMemberId={activeMemberId}

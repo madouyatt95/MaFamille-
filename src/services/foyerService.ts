@@ -247,6 +247,7 @@ export const foyerService = {
       if (updates.emergencyContactRelation !== undefined) rpcParams.p_emergency_contact_relation = updates.emergencyContactRelation;
       if (updates.schoolOrEmployer !== undefined) rpcParams.p_school_or_employer = updates.schoolOrEmployer;
       if (includeExemption && updates.hasExemption !== undefined) rpcParams.p_has_exemption = updates.hasExemption;
+      if (updates.role !== undefined) rpcParams.p_role = updates.role;
       if (updates.latitude !== undefined) rpcParams.p_latitude = updates.latitude;
       if (updates.longitude !== undefined) rpcParams.p_longitude = updates.longitude;
       if (updates.locationStatus !== undefined) rpcParams.p_location_status = updates.locationStatus;

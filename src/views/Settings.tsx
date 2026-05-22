@@ -28,6 +28,7 @@ interface SettingsProps {
   foyer?: Foyer | null;
   myMemberProfile?: FoyerMember | null;
   onRefreshFoyer?: () => void;
+  onUpdateMemberProfile?: (memberId: string, updates: Partial<FoyerMember>) => Promise<void> | void;
   members?: Member[];
   setMembers?: React.Dispatch<React.SetStateAction<Member[]>>;
   activeMemberId?: string;
@@ -45,6 +46,7 @@ export const Settings: React.FC<SettingsProps> = ({
   foyer,
   myMemberProfile,
   onRefreshFoyer,
+  onUpdateMemberProfile,
   members = [],
   setMembers,
   activeMemberId,
@@ -176,10 +178,16 @@ export const Settings: React.FC<SettingsProps> = ({
 
       if (myMemberProfile) {
         // Mode Cloud (Supabase)
-        await foyerService.updateMemberProfile(targetMemberId, {
+        const updates = {
           displayName: profileName.trim(),
           photoUrl: profilePhoto
-        });
+        };
+        await foyerService.updateMemberProfile(targetMemberId, updates);
+        
+        if (onUpdateMemberProfile) {
+          onUpdateMemberProfile(targetMemberId, updates);
+        }
+
         // Optimistic local update — immediately reflect in UI
         if (setMembers) {
           setMembers(prev => prev.map(m => m.id === targetMemberId ? {
