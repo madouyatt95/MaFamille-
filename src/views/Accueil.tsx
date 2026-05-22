@@ -44,7 +44,9 @@ interface AccueilProps {
   chatMessages: ChatMessage[];
   onEventClick: (dateStr: string) => void;
   memories: MemoryLog[];
-  setMemories: React.Dispatch<React.SetStateAction<MemoryLog[]>>;
+  onAddMemory: (newMemory: MemoryLog) => void;
+  onDeleteMemory: (id: string) => void;
+  onLikeMemory: (id: string, newLikesCount: number) => void;
 }
 
 export const Accueil: React.FC<AccueilProps> = ({
@@ -65,7 +67,9 @@ export const Accueil: React.FC<AccueilProps> = ({
   chatMessages,
   onEventClick,
   memories,
-  setMemories
+  onAddMemory,
+  onDeleteMemory,
+  onLikeMemory
 }) => {
   const [selectedMealDay, setSelectedMealDay] = useState<string>('Lun');
 
@@ -119,11 +123,13 @@ export const Accueil: React.FC<AccueilProps> = ({
         .map(m => m.id);
 
       if (expiredIds.length > 0) {
-        setMemories(prev => prev.filter(m => !expiredIds.includes(m.id)));
+        expiredIds.forEach(id => {
+          onDeleteMemory(id);
+        });
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [memories, setMemories]);
+  }, [memories, onDeleteMemory]);
 
   // Local state for tracking liked state of memories (so heart icon remains fully interactive per-user session)
   const [likedMemories, setLikedMemories] = useState<Record<string, boolean>>({});
@@ -131,20 +137,16 @@ export const Accueil: React.FC<AccueilProps> = ({
   const handleLikeMoment = (id: string) => {
     const isLiked = !!likedMemories[id];
     setLikedMemories(prev => ({ ...prev, [id]: !isLiked }));
-    setMemories(prev => prev.map(m => {
-      if (m.id === id) {
-        return {
-          ...m,
-          likesCount: isLiked ? Math.max(0, m.likesCount - 1) : m.likesCount + 1
-        };
-      }
-      return m;
-    }));
+    const target = memories.find(m => m.id === id);
+    if (target) {
+      const newLikesCount = isLiked ? Math.max(0, target.likesCount - 1) : target.likesCount + 1;
+      onLikeMemory(id, newLikesCount);
+    }
   };
 
   const handleDeleteMoment = (id: string) => {
     if (confirm("Voulez-vous vraiment supprimer ce souvenir du Mur des Moments ?")) {
-      setMemories(prev => prev.filter(m => m.id !== id));
+      onDeleteMemory(id);
     }
   };
 
@@ -308,7 +310,7 @@ export const Accueil: React.FC<AccueilProps> = ({
                     isPrivate: false,
                     theme: themeStr
                   };
-                  setMemories(prev => [newMemory, ...prev]);
+                  onAddMemory(newMemory);
                 };
                 reader.readAsDataURL(file);
               }}

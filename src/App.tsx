@@ -840,30 +840,48 @@ function App() {
       });
     });
 
-    const subMemories = foyerService.subscribeToChanges('memories', foyer.id, () => {
-      foyerService.fetchTableData('memories', foyer.id).then(memoriesData => {
-        if (memoriesData) {
-          const mapped = memoriesData.map(m => ({
-            id: m.id,
-            date: m.date,
-            title: m.title,
-            description: m.description,
-            authorName: m.author_name,
-            authorPhoto: m.author_photo,
-            imageUrl: m.image_url,
-            imageUrls: m.image_urls || [],
-            likesCount: m.likes_count,
-            isPrivate: m.is_private,
-            theme: m.theme
-          }));
-          setMemories(prev => {
-            const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
-            const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
-            if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
-            return mapped;
-          });
-        }
-      });
+    const subMemories = foyerService.subscribeToChanges('memories', foyer.id, (payload: any) => {
+      if (!payload) return;
+
+      if (payload.eventType === 'DELETE') {
+        const deletedId = payload.old.id;
+        setMemories(prev => prev.filter(m => m.id !== deletedId));
+      } 
+      else if (payload.eventType === 'INSERT') {
+        const newItem: MemoryLog = {
+          id: payload.new.id,
+          date: payload.new.date,
+          title: payload.new.title,
+          description: payload.new.description,
+          authorName: payload.new.author_name,
+          authorPhoto: payload.new.author_photo,
+          imageUrl: payload.new.image_url,
+          imageUrls: payload.new.image_urls || [],
+          likesCount: payload.new.likes_count || 0,
+          isPrivate: !!payload.new.is_private,
+          theme: payload.new.theme
+        };
+        setMemories(prev => {
+          if (prev.some(m => m.id === newItem.id)) return prev;
+          return [newItem, ...prev];
+        });
+      }
+      else if (payload.eventType === 'UPDATE') {
+        const updatedItem: MemoryLog = {
+          id: payload.new.id,
+          date: payload.new.date,
+          title: payload.new.title,
+          description: payload.new.description,
+          authorName: payload.new.author_name,
+          authorPhoto: payload.new.author_photo,
+          imageUrl: payload.new.image_url,
+          imageUrls: payload.new.image_urls || [],
+          likesCount: payload.new.likes_count || 0,
+          isPrivate: !!payload.new.is_private,
+          theme: payload.new.theme
+        };
+        setMemories(prev => prev.map(m => m.id === updatedItem.id ? updatedItem : m));
+      }
     });
 
     const subMembers = foyerService.subscribeToChanges('foyer_members', foyer.id, () => {
@@ -1127,21 +1145,6 @@ function App() {
         module: a.module || null
       }));
 
-      // Memories
-      await syncTable('memories', memories, m => ({
-        id: m.id,
-        foyer_id: foyer.id,
-        date: m.date,
-        title: m.title,
-        description: m.description,
-        author_name: m.authorName,
-        author_photo: m.authorPhoto,
-        image_url: m.imageUrl || null,
-        image_urls: m.imageUrls || [],
-        likes_count: m.likesCount,
-        is_private: m.isPrivate || false,
-        theme: m.theme || null
-      }));
 
       // Votes
       await syncTable('votes', votes, v => ({
@@ -1302,7 +1305,7 @@ function App() {
   }, [
     foyer,
     events, transactions, documents, dishes, tasks, savingGoals,
-    alerts, memories, votes, schoolTasks, chatGroups, chatMessages, demarches,
+    alerts, votes, schoolTasks, chatGroups, chatMessages, demarches,
     justificatifPacks, vehicles, maintenance, trips, pets, pocketMoney, artisans
   ]);
 
@@ -1907,6 +1910,67 @@ function App() {
     }
   };
 
+  const handleAddMemory = async (newMemory: MemoryLog) => {
+    setMemories(prev => {
+      if (prev.some(m => m.id === newMemory.id)) return prev;
+      return [newMemory, ...prev];
+    });
+
+    if (foyer) {
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          await client.from('memories').insert({
+            id: newMemory.id,
+            foyer_id: foyer.id,
+            date: newMemory.date || "Aujourd'hui",
+            title: newMemory.title,
+            description: newMemory.description || '',
+            image_url: newMemory.imageUrl,
+            image_urls: newMemory.imageUrls || [newMemory.imageUrl],
+            author_name: newMemory.authorName,
+            author_photo: newMemory.authorPhoto || '',
+            likes_count: newMemory.likesCount || 0,
+            is_private: newMemory.isPrivate || false,
+            theme: newMemory.theme || '🏖️ Famille'
+          });
+        } catch (err) {
+          console.error("Erreur lors de l'ajout cloud du souvenir :", err);
+        }
+      }
+    }
+  };
+
+  const handleDeleteMemory = async (id: string) => {
+    setMemories(prev => prev.filter(m => m.id !== id));
+
+    if (foyer) {
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          await client.from('memories').delete().eq('foyer_id', foyer.id).eq('id', id);
+        } catch (err) {
+          console.error("Erreur lors de la suppression cloud du souvenir :", err);
+        }
+      }
+    }
+  };
+
+  const handleLikeMemory = async (id: string, newLikesCount: number) => {
+    setMemories(prev => prev.map(m => m.id === id ? { ...m, likesCount: newLikesCount } : m));
+
+    if (foyer) {
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          await client.from('memories').update({ likes_count: newLikesCount }).eq('foyer_id', foyer.id).eq('id', id);
+        } catch (err) {
+          console.error("Erreur lors du like cloud du souvenir :", err);
+        }
+      }
+    }
+  };
+
   const handleResetData = () => {
     localStorage.clear();
     setMembers(demoMembers);
@@ -2036,7 +2100,9 @@ function App() {
             setActiveTab('agenda');
           }}
           memories={memories}
-          setMemories={setMemories}
+          onAddMemory={handleAddMemory}
+          onDeleteMemory={handleDeleteMemory}
+          onLikeMemory={handleLikeMemory}
         />
       );
     }
