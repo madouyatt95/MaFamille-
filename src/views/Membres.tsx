@@ -42,6 +42,7 @@ export const Membres: React.FC<MembresProps> = ({
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteMessage, setInviteMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
 
   const handleAddMemberClick = () => {
     if (foyer) {
@@ -155,29 +156,62 @@ export const Membres: React.FC<MembresProps> = ({
     setIsEditing(true);
   };
 
-  const saveEdit = (e: React.FormEvent) => {
+  const saveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMember) return;
     
-    setMembers(prev => prev.map(m => {
-      if (m.id === selectedMember.id) {
-        const updated = {
-          ...m,
-          name: editName,
-          role: editRole,
-          age: editAge,
-          birthDate: editBirth,
+    setSavingProfile(true);
+    try {
+      // Map friendly UI roles to database-compatible roles
+      const dbRole = 
+        editRole === 'Chef de famille' || editRole === 'Chef de famille (Admin)' || editRole === 'admin' ? 'admin' :
+        editRole === 'Gestionnaire' || editRole === 'Gestionnaire / Parent' || editRole === 'parent' ? 'parent' :
+        editRole === 'Enfant' || editRole === 'child' ? 'child' :
+        'guest';
+
+      const friendlyUIRole = 
+        dbRole === 'admin' ? 'Chef de famille' :
+        dbRole === 'parent' ? 'Gestionnaire' :
+        dbRole === 'child' ? 'Enfant' :
+        'Invité';
+
+      if (foyer) {
+        // Persist to Supabase Cloud Foyer
+        await foyerService.updateMemberProfile(selectedMember.id, {
+          displayName: editName.trim(),
+          role: dbRole,
+          age: editAge.trim(),
+          birthDate: editBirth.trim(),
           bloodGroup: editBlood,
-          schoolOrEmployer: editSchool
-        };
-        setSelectedMember(updated);
-        return updated;
+          schoolOrEmployer: editSchool.trim()
+        });
       }
-      return m;
-    }));
-    
-    setIsEditing(false);
-    alert('✏️ Profil modifié avec succès !');
+
+      setMembers(prev => prev.map(m => {
+        if (m.id === selectedMember.id) {
+          const updated = {
+            ...m,
+            name: editName.trim(),
+            role: friendlyUIRole,
+            age: editAge.trim(),
+            birthDate: editBirth.trim(),
+            bloodGroup: editBlood,
+            schoolOrEmployer: editSchool.trim()
+          };
+          setSelectedMember(updated);
+          return updated;
+        }
+        return m;
+      }));
+      
+      setIsEditing(false);
+      alert('✏️ Profil mis à jour avec succès ! ✨');
+    } catch (err: any) {
+      console.error("Erreur lors de la mise à jour du profil :", err);
+      alert(`Impossible de sauvegarder les modifications : ${err.message || err}`);
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   return (
@@ -294,14 +328,23 @@ export const Membres: React.FC<MembresProps> = ({
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Rôle / Statut</label>
-                    <input 
-                      type="text" 
-                      required
-                      value={editRole}
+                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Rôle / Droits dans la famille</label>
+                    <select
+                      value={
+                        editRole === 'Chef de famille' || editRole === 'Chef de famille (Admin)' || editRole === 'admin' ? 'admin' :
+                        editRole === 'Gestionnaire' || editRole === 'Gestionnaire / Parent' || editRole === 'parent' ? 'parent' :
+                        editRole === 'Enfant' || editRole === 'child' ? 'child' :
+                        'guest'
+                      }
                       onChange={(e) => setEditRole(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#6C5CFF]"
-                    />
+                      disabled={savingProfile}
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-sm focus:outline-none focus:border-[#6C5CFF] disabled:opacity-50"
+                    >
+                      <option value="admin">Chef de famille (Admin) 👑</option>
+                      <option value="parent">Gestionnaire / Parent (Écriture complète) 👨‍👩‍👧</option>
+                      <option value="child">Enfant (Droits d'écriture restreints) 🧒</option>
+                      <option value="guest">Invité (Lecture seule) 👥</option>
+                    </select>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -357,15 +400,17 @@ export const Membres: React.FC<MembresProps> = ({
                     <button 
                       type="button" 
                       onClick={() => setIsEditing(false)}
-                      className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium text-xs border border-white/5"
+                      disabled={savingProfile}
+                      className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium text-xs border border-white/5 disabled:opacity-50"
                     >
                       Annuler
                     </button>
                     <button 
                       type="submit" 
-                      className="flex-1 py-2.5 rounded-xl bg-[#6C5CFF] text-white font-semibold text-xs shadow-md"
+                      disabled={savingProfile}
+                      className="flex-1 py-2.5 rounded-xl bg-[#6C5CFF] text-white font-semibold text-xs shadow-md disabled:opacity-50 flex items-center justify-center space-x-1.5"
                     >
-                      Enregistrer
+                      {savingProfile ? 'Enregistrement...' : 'Enregistrer'}
                     </button>
                   </div>
 

@@ -718,7 +718,7 @@ function App() {
     const subEvents = foyerService.subscribeToChanges('events', foyer.id, () => {
       foyerService.fetchTableData('events', foyer.id).then(eventsData => {
         if (eventsData) {
-          setEvents(eventsData.map(e => ({
+          const mapped = eventsData.map(e => ({
             id: e.id,
             title: e.title,
             type: e.type,
@@ -730,7 +730,13 @@ function App() {
             description: e.description,
             done: e.done,
             amount: e.amount ? Number(e.amount) : undefined
-          })));
+          }));
+          setEvents(prev => {
+            const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+            const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+            if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+            return mapped;
+          });
         }
       });
     });
@@ -738,7 +744,7 @@ function App() {
     const subGroceries = foyerService.subscribeToChanges('groceries', foyer.id, () => {
       foyerService.fetchTableData('groceries', foyer.id).then(groceriesData => {
         if (groceriesData) {
-          setGroceries(groceriesData.map(g => ({
+          const mapped = groceriesData.map(g => ({
             id: g.id,
             name: g.name,
             category: g.category,
@@ -746,7 +752,13 @@ function App() {
             checked: g.checked,
             inStock: g.in_stock,
             expiryDate: g.expiry_date
-          })));
+          }));
+          setGroceries(prev => {
+            const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+            const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+            if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+            return mapped;
+          });
         }
       });
     });
@@ -754,7 +766,7 @@ function App() {
     const subTasks = foyerService.subscribeToChanges('chore_tasks', foyer.id, () => {
       foyerService.fetchTableData('chore_tasks', foyer.id).then(tasksData => {
         if (tasksData) {
-          setTasks(tasksData.map(t => ({
+          const mapped = tasksData.map(t => ({
             id: t.id,
             title: t.title,
             rewardPoints: t.reward_points,
@@ -764,7 +776,13 @@ function App() {
             rotation: t.rotation,
             validatedByParent: t.validated_by_parent,
             dueDate: t.due_date
-          })));
+          }));
+          setTasks(prev => {
+            const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+            const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+            if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+            return mapped;
+          });
         }
       });
     });
@@ -772,7 +790,7 @@ function App() {
     const subMessages = foyerService.subscribeToChanges('chat_messages', foyer.id, () => {
       foyerService.fetchTableData('chat_messages', foyer.id).then(chatMessagesData => {
         if (chatMessagesData) {
-          setChatMessages(chatMessagesData.map(c => ({
+          const mapped = chatMessagesData.map(c => ({
             id: c.id,
             groupId: c.group_id,
             senderId: c.sender_id,
@@ -781,7 +799,13 @@ function App() {
             content: c.content,
             timestamp: c.timestamp,
             readBy: c.read_by || []
-          })));
+          }));
+          setChatMessages(prev => {
+            const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+            const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+            if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+            return mapped;
+          });
         }
       });
     });
@@ -789,7 +813,7 @@ function App() {
     const subMemories = foyerService.subscribeToChanges('memories', foyer.id, () => {
       foyerService.fetchTableData('memories', foyer.id).then(memoriesData => {
         if (memoriesData) {
-          setMemories(memoriesData.map(m => ({
+          const mapped = memoriesData.map(m => ({
             id: m.id,
             date: m.date,
             title: m.title,
@@ -801,7 +825,13 @@ function App() {
             likesCount: m.likes_count,
             isPrivate: m.is_private,
             theme: m.theme
-          })));
+          }));
+          setMemories(prev => {
+            const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+            const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+            if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+            return mapped;
+          });
         }
       });
     });
@@ -809,7 +839,13 @@ function App() {
     const subMembers = foyerService.subscribeToChanges('foyer_members', foyer.id, () => {
       foyerService.getFoyerMembers(foyer.id).then(membersList => {
         if (membersList.length > 0) {
-          setMembers(membersList.map(mapFoyerMemberToMember));
+          const mapped = membersList.map(mapFoyerMemberToMember);
+          setMembers(prev => {
+            const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+            const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+            if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+            return mapped;
+          });
         }
       });
     });
