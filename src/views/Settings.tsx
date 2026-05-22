@@ -142,18 +142,24 @@ export const Settings: React.FC<SettingsProps> = ({
     }
   };
 
+  const lastActiveIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (members && activeMemberId) {
-      const activeMem = members.find(m => m.id === activeMemberId);
-      if (activeMem) {
-        setProfileName(activeMem.name);
-        setProfilePhoto(activeMem.photoUrl || '');
-        return;
+    const currentTargetId = activeMemberId || (myMemberProfile ? myMemberProfile.id : 'default');
+    if (lastActiveIdRef.current !== currentTargetId) {
+      lastActiveIdRef.current = currentTargetId;
+      if (members && activeMemberId) {
+        const activeMem = members.find(m => m.id === activeMemberId);
+        if (activeMem) {
+          setProfileName(activeMem.name);
+          setProfilePhoto(activeMem.photoUrl || '');
+          return;
+        }
       }
-    }
-    if (myMemberProfile) {
-      setProfileName(myMemberProfile.displayName);
-      setProfilePhoto(myMemberProfile.photoUrl || '');
+      if (myMemberProfile) {
+        setProfileName(myMemberProfile.displayName);
+        setProfilePhoto(myMemberProfile.photoUrl || '');
+      }
     }
   }, [myMemberProfile, members, activeMemberId]);
 

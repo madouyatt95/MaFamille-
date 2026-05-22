@@ -1730,7 +1730,28 @@ function App() {
   };
 
   const handleUpdateMemberProfile = async (memberId: string, updates: Partial<FoyerMember>) => {
-    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, ...updates } : m));
+    setMembers(prev => prev.map(m => {
+      if (m.id === memberId) {
+        const convertedUpdates: any = {};
+        if (updates.displayName !== undefined) convertedUpdates.name = updates.displayName;
+        if (updates.photoUrl !== undefined) convertedUpdates.photoUrl = updates.photoUrl;
+        if (updates.role !== undefined) {
+          convertedUpdates.role = 
+            updates.role === 'admin' ? 'Chef de famille' :
+            updates.role === 'parent' ? 'Gestionnaire' :
+            updates.role === 'child' ? 'Enfant' :
+            'Invité';
+        }
+        if (updates.age !== undefined) convertedUpdates.age = updates.age;
+        if (updates.birthDate !== undefined) convertedUpdates.birthDate = updates.birthDate;
+        if (updates.bloodGroup !== undefined) convertedUpdates.bloodGroup = updates.bloodGroup;
+        if (updates.schoolOrEmployer !== undefined) convertedUpdates.schoolOrEmployer = updates.schoolOrEmployer;
+        if (updates.hasExemption !== undefined) convertedUpdates.hasExemption = updates.hasExemption;
+        
+        return { ...m, ...convertedUpdates };
+      }
+      return m;
+    }));
     
     // Instant update of active user's own profile state if they edited their own profile
     if (myMemberProfile && memberId === myMemberProfile.id) {
