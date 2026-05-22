@@ -1851,10 +1851,10 @@ function App() {
     if (foyer) {
       const client = getSupabaseClient();
       if (client) {
-        const { error, count } = await client.from('groceries').update({ 
+        const { data, error, count } = await client.from('groceries').update({ 
           checked: newCheckedVal,
           in_stock: newCheckedVal
-        }, { count: 'exact' }).eq('foyer_id', foyer.id).eq('id', id);
+        }, { count: 'exact' }).eq('foyer_id', foyer.id).eq('id', id).select();
 
         if (error) {
           console.error("[Groceries Toggle] Supabase error:", error.message, error.details, error.hint);
@@ -1879,7 +1879,7 @@ function App() {
             console.log(`[Groceries Toggle] Inserted missing row id=${id}, checked=${newCheckedVal}`);
           }
         } else {
-          console.log(`[Groceries Toggle] OK — id=${id}, checked=${newCheckedVal}, rows=${count}`);
+          console.log(`[Groceries Toggle] OK — id=${id}, checked=${newCheckedVal}, returned data:`, data);
         }
       }
     }
