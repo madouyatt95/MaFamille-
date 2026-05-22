@@ -111,25 +111,36 @@ export const Accueil: React.FC<AccueilProps> = ({
 
   React.useEffect(() => {
     const interval = setInterval(() => {
-      setTick(t => t + 1);
+      setTick(prev => {
+        const nextTick = prev + 1;
+        
+        // Secure cleanup: run only once every 5 seconds (every 5 ticks) to reduce DB load
+        if (nextTick % 5 === 0) {
+          const now = Date.now();
+          const expiredIds = memories
+            .filter(moment => {
+              const exp = getMomentExpiration(moment);
+              // Only trigger DB cleanup if it is truly expired (with a safe 5-minute grace window to prevent clock mismatch deletions)
+              return exp && (exp.expiresAt + 300000) < now;
+            })
+            .map(m => m.id);
 
-      // Automatically clean up expired moments in state / database
-      const now = Date.now();
-      const expiredIds = memories
-        .filter(moment => {
-          const exp = getMomentExpiration(moment);
-          return exp && exp.expiresAt < now;
-        })
-        .map(m => m.id);
-
-      if (expiredIds.length > 0) {
-        expiredIds.forEach(id => {
-          onDeleteMemory(id);
-        });
-      }
+          if (expiredIds.length > 0) {
+            expiredIds.forEach(id => {
+              const m = memories.find(item => item.id === id);
+              // Only the author or an admin/parent can delete from database
+              if (m && (m.authorName === activeMember.name || !isChild)) {
+                onDeleteMemory(id);
+              }
+            });
+          }
+        }
+        
+        return nextTick;
+      });
     }, 1000);
     return () => clearInterval(interval);
-  }, [memories, onDeleteMemory]);
+  }, [memories, onDeleteMemory, activeMember.name, isChild]);
 
   // Local state for tracking liked state of memories (so heart icon remains fully interactive per-user session)
   const [likedMemories, setLikedMemories] = useState<Record<string, boolean>>({});
