@@ -418,7 +418,9 @@ CREATE POLICY "foyers_delete" ON public.foyers FOR DELETE
 CREATE POLICY "members_select" ON public.foyer_members FOR SELECT
     USING (foyer_id IN (SELECT public.user_foyer_ids()));
 CREATE POLICY "members_insert" ON public.foyer_members FOR INSERT
-    WITH CHECK (user_id = auth.uid());
+    WITH CHECK (user_id = auth.uid() OR foyer_id IN (
+        SELECT foyer_id FROM public.foyer_members WHERE user_id = auth.uid() AND role IN ('admin', 'parent')
+    ));
 CREATE POLICY "members_delete" ON public.foyer_members FOR DELETE
     USING (user_id = auth.uid() OR foyer_id IN (
         SELECT foyer_id FROM public.foyer_members WHERE user_id = auth.uid() AND role = 'admin'
