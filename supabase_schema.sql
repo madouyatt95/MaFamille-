@@ -617,7 +617,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- METTRE À JOUR LE PROFIL D'UN MEMBRE (contourne le RLS)
+-- METTRE À JOUR LE PROFIL D'UN MEMBRE (contourne le RLS - Version Unifiée sans Surcharges)
+DROP FUNCTION IF EXISTS public.update_member_profile(uuid, text, text, text, text, text, text[], text[], text, text, text, text);
+DROP FUNCTION IF EXISTS public.update_member_profile(uuid, text, text, text, text, text, text[], text[], text, text, text, text, boolean, text);
+DROP FUNCTION IF EXISTS public.update_member_profile(uuid, text, text, text, text, text, text[], text[], text, text, text, text, numeric, numeric, text, timestamp with time zone);
+DROP FUNCTION IF EXISTS public.update_member_profile(uuid, text, text, text, text, text, text[], text[], text, text, text, text, boolean, text, numeric, numeric, text, timestamp with time zone);
+
 CREATE OR REPLACE FUNCTION public.update_member_profile(
     p_member_id UUID,
     p_display_name TEXT DEFAULT NULL,
@@ -632,7 +637,11 @@ CREATE OR REPLACE FUNCTION public.update_member_profile(
     p_emergency_contact_relation TEXT DEFAULT NULL,
     p_school_or_employer TEXT DEFAULT NULL,
     p_has_exemption BOOLEAN DEFAULT NULL,
-    p_role TEXT DEFAULT NULL
+    p_role TEXT DEFAULT NULL,
+    p_latitude NUMERIC DEFAULT NULL,
+    p_longitude NUMERIC DEFAULT NULL,
+    p_location_status TEXT DEFAULT NULL,
+    p_last_located_at TIMESTAMP WITH TIME ZONE DEFAULT NULL
 )
 RETURNS JSON AS $$
 DECLARE
@@ -668,7 +677,11 @@ BEGIN
         emergency_contact_relation = COALESCE(p_emergency_contact_relation, emergency_contact_relation),
         school_or_employer = COALESCE(p_school_or_employer, school_or_employer),
         has_exemption = COALESCE(p_has_exemption, has_exemption),
-        role = COALESCE(p_role, role)
+        role = COALESCE(p_role, role),
+        latitude = COALESCE(p_latitude, latitude),
+        longitude = COALESCE(p_longitude, longitude),
+        location_status = COALESCE(p_location_status, location_status),
+        last_located_at = COALESCE(p_last_located_at, last_located_at)
     WHERE id = p_member_id;
 
     RETURN json_build_object('success', true, 'member_id', p_member_id);
