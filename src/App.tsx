@@ -1040,16 +1040,18 @@ function App() {
       if (!client) return;
 
       // Helper function to sync a table cleanly
-      const syncTable = async (tableName: string, localItems: any[], mapToDb: (item: any) => any) => {
+      const syncTable = async (tableName: string, localItems: any[], mapToDb: (item: any) => any, allowDelete: boolean = true) => {
         try {
           const { data: cloudItems } = await client.from(tableName).select('id').eq('foyer_id', foyer.id);
           const cloudIds = (cloudItems || []).map(item => item.id);
           const localIds = localItems.map(item => item.id);
 
           // Delete missing
-          const deletedIds = cloudIds.filter(id => !localIds.includes(id));
-          if (deletedIds.length > 0) {
-            await client.from(tableName).delete().eq('foyer_id', foyer.id).in('id', deletedIds);
+          if (allowDelete) {
+            const deletedIds = cloudIds.filter(id => !localIds.includes(id));
+            if (deletedIds.length > 0) {
+              await client.from(tableName).delete().eq('foyer_id', foyer.id).in('id', deletedIds);
+            }
           }
 
           // Upsert current
@@ -1156,7 +1158,7 @@ function App() {
         type: a.type,
         read: a.read,
         module: a.module || null
-      }));
+      }), false);
 
 
       // Votes
@@ -1168,7 +1170,7 @@ function App() {
         author_name: v.authorName,
         active: v.active,
         due_date: v.dueDate
-      }));
+      }), false);
 
       // School tasks
       await syncTable('school_tasks', schoolTasks, s => ({
@@ -1181,7 +1183,7 @@ function App() {
         assigned_member_id: s.assignedMemberId || null,
         difficulty: s.difficulty,
         grade: s.grade || null
-      }));
+      }), false);
 
       // Chat groups
       await syncTable('chat_groups', chatGroups, c => ({
@@ -1193,7 +1195,7 @@ function App() {
         last_message: c.lastMessage || null,
         last_message_time: c.lastMessageTime || null,
         unread_count: c.unreadCount || 0
-      }));
+      }), false);
 
       // Chat messages
       await syncTable('chat_messages', chatMessages, c => ({
@@ -1207,7 +1209,7 @@ function App() {
         timestamp: c.timestamp,
         read_by: c.readBy || [],
         reactions: c.reactions || []
-      }));
+      }), false);
 
       // Demarches
       await syncTable('demarches', demarches, d => ({
