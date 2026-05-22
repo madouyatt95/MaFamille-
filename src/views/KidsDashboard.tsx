@@ -38,7 +38,7 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32">
+    <div className="min-h-screen bg-[var(--family-bg)] text-[var(--family-text)] p-4 font-sans pb-32">
       {/* Header Profile */}
       <div className="flex flex-col items-center justify-center pt-8 pb-4 space-y-4">
         <div className="relative">

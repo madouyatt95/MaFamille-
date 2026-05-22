@@ -62,7 +62,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           <div className="absolute w-16 h-16 rounded-full bg-[#6C5CFF]/20 blur-xl animate-pulse-slow"></div>
           <button 
             onClick={onAddClick}
-            className="relative flex items-center justify-center w-14 h-14 rounded-full bg-[#07111F] border-2 border-[#6C5CFF] text-white hover:text-white float-btn-halo cursor-pointer transition-all duration-300 hover:scale-110 active:scale-95 group"
+            className="relative flex items-center justify-center w-14 h-14 rounded-full bg-[var(--family-bg)] border-2 border-[#6C5CFF] text-[var(--family-text)] hover:text-[#6C5CFF] float-btn-halo cursor-pointer transition-all duration-300 hover:scale-110 active:scale-95 group"
           >
             <div className="absolute inset-0.5 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#4F8CFF] opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
             <Plus className="w-7 h-7 text-white group-hover:rotate-90 transition-transform duration-300" />

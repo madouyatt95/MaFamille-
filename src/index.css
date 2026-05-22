@@ -189,3 +189,112 @@ body {
 .neon-glow-danger {
   box-shadow: 0 0 15px rgba(255, 77, 109, 0.25);
 }
+
+/* ==========================================================================
+   ADVANCED THEME OVERRIDES (Light & Sepia Modes)
+   Protects text readability and box styling against hardcoded dark styles.
+   ========================================================================== */
+
+/* LIGHT MODE OVERRIDES */
+.theme-light, .theme-light body {
+  color: var(--family-text) !important;
+}
+
+.theme-light .text-white {
+  color: var(--family-text) !important;
+}
+
+.theme-light .text-white\/90 { color: rgba(31, 41, 55, 0.90) !important; }
+.theme-light .text-white\/80 { color: rgba(31, 41, 55, 0.80) !important; }
+.theme-light .text-white\/70 { color: rgba(31, 41, 55, 0.70) !important; }
+.theme-light .text-white\/60 { color: rgba(31, 41, 55, 0.60) !important; }
+.theme-light .text-white\/50 { color: rgba(31, 41, 55, 0.50) !important; }
+.theme-light .text-white\/40 { color: rgba(31, 41, 55, 0.40) !important; }
+.theme-light .text-white\/30 { color: rgba(31, 41, 55, 0.30) !important; }
+.theme-light .text-white\/20 { color: rgba(31, 41, 55, 0.20) !important; }
+
+/* Invert glass backgrounds for Light Mode to be darker or solid grey-white */
+.theme-light .bg-white\/3 { background-color: rgba(0, 0, 0, 0.02) !important; }
+.theme-light .bg-white\/5 { background-color: rgba(0, 0, 0, 0.035) !important; }
+.theme-light .bg-white\/10 { background-color: rgba(0, 0, 0, 0.06) !important; }
+.theme-light .bg-white\/15 { background-color: rgba(0, 0, 0, 0.09) !important; }
+.theme-light .bg-white\/20 { background-color: rgba(0, 0, 0, 0.12) !important; }
+.theme-light .bg-white\/30 { background-color: rgba(0, 0, 0, 0.18) !important; }
+.theme-light .bg-white\/40 { background-color: rgba(0, 0, 0, 0.24) !important; }
+
+/* Border overrides */
+.theme-light .border-white\/5,
+.theme-light .border-white\/6,
+.theme-light .border-white\/8,
+.theme-light .border-white\/10,
+.theme-light .border-white\/20 {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Specific view element overrides for better contrast */
+.theme-light .glass-panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.04);
+}
+
+.theme-light [class*="ring-[#07111F]"] {
+  --tw-ring-color: #F3F4F6 !important;
+}
+
+.theme-light [class*="bg-[#07111F]"] {
+  background-color: var(--family-bg) !important;
+}
+
+
+/* SEPIA MODE OVERRIDES */
+.theme-sepia, .theme-sepia body {
+  color: var(--family-text) !important;
+}
+
+.theme-sepia .text-white {
+  color: var(--family-text) !important;
+}
+
+.theme-sepia .text-white\/90 { color: rgba(74, 53, 37, 0.90) !important; }
+.theme-sepia .text-white\/80 { color: rgba(74, 53, 37, 0.80) !important; }
+.theme-sepia .text-white\/70 { color: rgba(74, 53, 37, 0.70) !important; }
+.theme-sepia .text-white\/60 { color: rgba(74, 53, 37, 0.60) !important; }
+.theme-sepia .text-white\/50 { color: rgba(74, 53, 37, 0.50) !important; }
+.theme-sepia .text-white\/40 { color: rgba(74, 53, 37, 0.40) !important; }
+.theme-sepia .text-white\/30 { color: rgba(74, 53, 37, 0.30) !important; }
+.theme-sepia .text-white\/20 { color: rgba(74, 53, 37, 0.20) !important; }
+
+/* Invert glass backgrounds for Sepia Mode to brown translucencies */
+.theme-sepia .bg-white\/3 { background-color: rgba(90, 70, 50, 0.02) !important; }
+.theme-sepia .bg-white\/5 { background-color: rgba(90, 70, 50, 0.04) !important; }
+.theme-sepia .bg-white\/10 { background-color: rgba(90, 70, 50, 0.07) !important; }
+.theme-sepia .bg-white\/15 { background-color: rgba(90, 70, 50, 0.10) !important; }
+.theme-sepia .bg-white\/20 { background-color: rgba(90, 70, 50, 0.14) !important; }
+.theme-sepia .bg-white\/30 { background-color: rgba(90, 70, 50, 0.20) !important; }
+.theme-sepia .bg-white\/40 { background-color: rgba(90, 70, 50, 0.26) !important; }
+
+/* Border overrides */
+.theme-sepia .border-white\/5,
+.theme-sepia .border-white\/6,
+.theme-sepia .border-white\/8,
+.theme-sepia .border-white\/10,
+.theme-sepia .border-white\/20 {
+  border-color: rgba(90, 70, 50, 0.10) !important;
+}
+
+/* Specific view element overrides for better contrast */
+.theme-sepia .glass-panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px 0 rgba(139, 92, 26, 0.04);
+}
+
+.theme-sepia [class*="ring-[#07111F]"] {
+  --tw-ring-color: #F4EBD0 !important;
+}
+
+.theme-sepia [class*="bg-[#07111F]"] {
+  background-color: var(--family-bg) !important;
+}
+

@@ -2315,7 +2315,7 @@ function App() {
   const isKidMode = activeMemberObj && activeMemberObj.age && parseInt(activeMemberObj.age) < 11;
 
   return (
-    <div className={`min-h-screen ${syncActive ? 'bg-[#1a2b4c]' : 'bg-[#07111F]'} text-white font-sans transition-colors duration-1000 relative`}>
+    <div className={`min-h-screen ${syncActive ? 'bg-[#1a2b4c]' : 'bg-[var(--family-bg)]'} text-[var(--family-text)] font-sans transition-colors duration-1000 relative`}>
       
       {/* Dynamic render active layout page views */}
       <main className="w-full">
