@@ -66,7 +66,7 @@ import { getSupabaseClient } from './utils/supabase';
 import type { Foyer, FoyerMember } from './types';
 
 // Lucide icon for inline notifications
-import { Bell, X, ChevronRight, Mic, MicOff, Volume2, Phone } from 'lucide-react';
+import { Bell, X, ChevronRight, Mic, MicOff, Volume2, Phone, Settings as SettingsIcon } from 'lucide-react';
 
 function App() {
   // Safe localStorage helper functions to prevent any corrupt cache startup crashes
@@ -2260,10 +2260,7 @@ function App() {
           members={members}
           activeMemberId={activeMemberId}
           onProfileSwitcherOpen={() => setProfileSwitcherOpen(true)}
-          onAvatarClick={() => {
-            setActiveTab('menu');
-            setActiveModule('settings');
-          }}
+          onAvatarClick={() => setProfileSwitcherOpen(true)}
           events={events}
           dishes={dishes}
           alerts={alerts}
@@ -2783,7 +2780,7 @@ function App() {
             <div className="flex items-center justify-between border-b border-white/5 pb-3">
               <div>
                 <h3 className="text-sm font-bold uppercase tracking-wider text-white">Changer de profil</h3>
-                <p className="text-[10px] text-white/40 mt-1">Basculez entre les membres démo de la famille Fatou</p>
+                <p className="text-[10px] text-white/40 mt-1">Basculez entre les membres de la famille {foyer?.name ? `"${foyer.name}"` : ''}</p>
               </div>
               <button 
                 onClick={() => setProfileSwitcherOpen(false)}
@@ -2877,6 +2874,19 @@ function App() {
                 </div>
               </div>
             </div>
+
+            {/* Quick Link to Settings/Manage profiles */}
+            <button
+              onClick={() => {
+                setProfileSwitcherOpen(false);
+                setActiveTab('menu');
+                setActiveModule('settings');
+              }}
+              className="w-full py-3.5 bg-white/5 hover:bg-white/10 border border-white/8 text-white/85 rounded-2xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center space-x-2"
+            >
+              <SettingsIcon className="w-4 h-4 text-[#6C5CFF]" />
+              <span>Gérer les profils (Paramètres)</span>
+            </button>
           </div>
         </div>
       )}

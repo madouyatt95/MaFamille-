@@ -254,9 +254,9 @@ export const Accueil: React.FC<AccueilProps> = ({
           </button>
           
           <button 
-            onClick={onAvatarClick || onProfileSwitcherOpen}
+            onClick={onProfileSwitcherOpen || onAvatarClick}
             className="relative cursor-pointer transition-all hover:scale-105 active:scale-95 border border-white/10 rounded-full p-0.5"
-            title="Modifier mon profil"
+            title="Changer de profil"
           >
             <img 
               src={activeMember.photoUrl} 
