@@ -114,22 +114,28 @@ export const Accueil: React.FC<AccueilProps> = ({
       setTick(prev => {
         const nextTick = prev + 1;
         
+        // Safety check: do not run cleanup while profile is loading
+        if (activeMember.name === 'Chargement...') {
+          return nextTick;
+        }
+
         // Secure cleanup: run only once every 5 seconds (every 5 ticks) to reduce DB load
         if (nextTick % 5 === 0) {
           const now = Date.now();
           const expiredIds = memories
             .filter(moment => {
               const exp = getMomentExpiration(moment);
-              // Only trigger DB cleanup if it is truly expired (with a safe 5-minute grace window to prevent clock mismatch deletions)
-              return exp && (exp.expiresAt + 300000) < now;
+              // Only trigger DB cleanup if it is truly expired (with a safe 1-hour grace window to prevent clock mismatch deletions)
+              return exp && (exp.expiresAt + 3600000) < now;
             })
             .map(m => m.id);
 
           if (expiredIds.length > 0) {
             expiredIds.forEach(id => {
               const m = memories.find(item => item.id === id);
-              // Only the author or an admin/parent can delete from database
-              if (m && (m.authorName === activeMember.name || !isChild)) {
+              // Only the author can automatically clean up their own expired moments from the database
+              // (Parents/others can still delete them manually via the UI button, but not automatically to prevent clock skew deletions)
+              if (m && m.authorName === activeMember.name) {
                 onDeleteMemory(id);
               }
             });
@@ -140,7 +146,7 @@ export const Accueil: React.FC<AccueilProps> = ({
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [memories, onDeleteMemory, activeMember.name, isChild]);
+  }, [memories, onDeleteMemory, activeMember.name]);
 
   // Local state for tracking liked state of memories (so heart icon remains fully interactive per-user session)
   const [likedMemories, setLikedMemories] = useState<Record<string, boolean>>({});

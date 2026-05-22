@@ -1839,10 +1839,13 @@ function App() {
   };
 
   const handleToggleGrocery = async (id: string) => {
-    let newCheckedVal = false;
+    const item = groceries.find(g => g.id === id);
+    if (!item) return;
+
+    const newCheckedVal = !item.checked;
+
     setGroceries(prev => prev.map(g => {
       if (g.id === id) {
-        newCheckedVal = !g.checked;
         return { ...g, checked: newCheckedVal, inStock: newCheckedVal };
       }
       return g;
@@ -1865,19 +1868,16 @@ function App() {
         } else if (count === 0) {
           // Row doesn't exist in DB — insert it first, then it will work
           console.warn(`[Groceries Toggle] 0 rows matched for id=${id} — inserting row into DB`);
-          const item = groceries.find(g => g.id === id);
-          if (item) {
-            await client.from('groceries').insert({
-              id: item.id,
-              foyer_id: foyer.id,
-              name: item.name,
-              category: item.category,
-              quantity: item.quantity,
-              checked: newCheckedVal,
-              in_stock: newCheckedVal
-            });
-            console.log(`[Groceries Toggle] Inserted missing row id=${id}, checked=${newCheckedVal}`);
-          }
+          await client.from('groceries').insert({
+            id: item.id,
+            foyer_id: foyer.id,
+            name: item.name,
+            category: item.category,
+            quantity: item.quantity,
+            checked: newCheckedVal,
+            in_stock: newCheckedVal
+          });
+          console.log(`[Groceries Toggle] Inserted missing row id=${id}, checked=${newCheckedVal}`);
         } else {
           console.log(`[Groceries Toggle] OK — id=${id}, checked=${newCheckedVal}, returned JSON:`, JSON.stringify(data));
         }
@@ -2010,7 +2010,16 @@ function App() {
   };
 
   const handleResetData = () => {
+    const client = getSupabaseClient();
+    if (client) {
+      client.auth.signOut().catch(err => console.warn("SignOut during reset warning:", err));
+    }
+
     localStorage.clear();
+    setFoyer(null);
+    setMyMemberProfile(null);
+    setOnboardingActive(false);
+
     setMembers(demoMembers);
     setEvents(demoEvents);
     setTransactions(demoTransactions);

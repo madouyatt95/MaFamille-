@@ -460,7 +460,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
           return (
             <div key={msg.id} id={`msg-${msg.id}`} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group/msg relative`}>
               {!isMe && <span className="text-[10px] text-white/50 mb-1 ml-2">{isAiMsg ? '🤖 Assistant IA' : msg.senderName}</span>}
-              <div className="flex items-end space-x-2 max-w-[80%]">
+              <div className={`flex items-end space-x-2 max-w-[80%] ${isMe ? 'flex-row-reverse space-x-reverse' : ''}`}>
                 {!isMe && !isAiMsg && sender && (
                   <img src={sender.photoUrl} alt={sender.name} className="w-6 h-6 rounded-full object-cover shrink-0 mb-1" />
                 )}
