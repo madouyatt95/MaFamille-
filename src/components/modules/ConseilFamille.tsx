@@ -57,7 +57,10 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
   // Charter rules states
   const [charterRules, setCharterRules] = useState<string[]>(() => {
     const stored = localStorage.getItem('mf_charter_rules');
-    return stored ? JSON.parse(stored) : [
+    if (stored) return JSON.parse(stored);
+    const isCloud = !!localStorage.getItem('mf_cloud_foyer_id');
+    if (isCloud) return [];
+    return [
       "L'Écoute Mutuelle : On s'exprime calmement, sans couper la parole et sans élever la voix. 🗣️",
       "L'Aide Solidaire : On aide aux tâches quotidiennes (vaisselle, tri, rangement) dans l'harmonie. 🧹",
       "Écrans & Sommeil : Les écrans (consoles, téléphones) s'éteignent à 21h00 pour un sommeil réparateur. 📱",
@@ -73,6 +76,8 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
   const [signatures, setSignatures] = useState<Record<string, boolean>>(() => {
     const stored = localStorage.getItem('family_charter_signatures');
     if (stored) return JSON.parse(stored);
+    const isCloud = !!localStorage.getItem('mf_cloud_foyer_id');
+    if (isCloud) return {};
     return {
       '1': true,
       '2': true,

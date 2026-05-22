@@ -43,6 +43,8 @@ export const ContactsImportants: React.FC = () => {
   const [contacts, setContacts] = useState<ImportantContact[]>(() => {
     const saved = localStorage.getItem('mf_important_contacts');
     if (saved) return JSON.parse(saved);
+    const isCloud = !!localStorage.getItem('mf_cloud_foyer_id');
+    if (isCloud) return [];
     
     // Contacts par défaut hyper-immersifs
     return [

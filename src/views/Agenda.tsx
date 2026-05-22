@@ -55,6 +55,8 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [calendarSources, setCalendarSources] = useState<CalendarSource[]>(() => {
     const saved = localStorage.getItem('mf_external_calendar_sources');
     if (saved) return JSON.parse(saved);
+    const isCloud = !!localStorage.getItem('mf_cloud_foyer_id');
+    if (isCloud) return [];
     return [
       {
         id: 'src-google-papa',
@@ -77,6 +79,8 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [externalEvents, setExternalEvents] = useState<ExternalEvent[]>(() => {
     const saved = localStorage.getItem('mf_external_calendar_events');
     if (saved) return JSON.parse(saved);
+    const isCloud = !!localStorage.getItem('mf_cloud_foyer_id');
+    if (isCloud) return [];
     // Événements de démo pré-remplis pour Mai 2026 correspondants aux dates
     return [
       {

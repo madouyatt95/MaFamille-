@@ -2047,6 +2047,91 @@ function App() {
     }
   };
 
+  const handlePurgeDemoData = async () => {
+    if (!foyer) return;
+    const client = getSupabaseClient();
+    if (!client) {
+      alert("Erreur de connexion à Supabase.");
+      return;
+    }
+
+    const confirmPurge = window.confirm(
+      "Voulez-vous vraiment purger toutes les données d'exemple MaFamille+ (Amadou, Awa, etc.) de votre base de données en ligne ? \n\n" +
+      "Les données personnelles que vous avez créées vous-même ne seront pas supprimées."
+    );
+    if (!confirmPurge) return;
+
+    try {
+      const tables = [
+        'events', 'transactions', 'groceries', 'dishes', 'chore_tasks', 
+        'saving_goals', 'alerts', 'memories', 'votes', 'school_tasks', 
+        'chat_groups', 'chat_messages', 'demarches', 'justificatif_packs', 
+        'vehicles', 'maintenance', 'trips', 'pets', 'pocket_money'
+      ];
+
+      for (const table of tables) {
+        await client.from(table).delete().eq('foyer_id', foyer.id).or(
+          'id.ilike.e%,id.ilike.t%,id.ilike.g%,id.ilike.d%,id.ilike.s%,id.ilike.v%,id.ilike.m%,id.ilike.p%,id.ilike.tr%,id.ilike.c%,id.ilike.mom%'
+        );
+      }
+
+      if (myMemberProfile) {
+        await client.from('foyer_members')
+          .delete()
+          .eq('foyer_id', foyer.id)
+          .neq('id', myMemberProfile.id)
+          .in('display_name', ['Papa Amadou', 'Maman Yatta', 'Amadou', 'Awa', 'Yatta']);
+      }
+
+      await loadFoyerData(foyer.id);
+      alert("✨ Toutes les données d'exemples et de démonstration ont été purgées avec succès de votre compte en ligne !");
+    } catch (err: any) {
+      console.error(err);
+      alert("Erreur lors de la purge : " + err.message);
+    }
+  };
+
+  const handleClearAllFoyerData = async () => {
+    if (!foyer) return;
+    const client = getSupabaseClient();
+    if (!client) {
+      alert("Erreur de connexion à Supabase.");
+      return;
+    }
+
+    const confirmClear = window.confirm(
+      "⚠️ DANGER : Êtes-vous ABSOLUMENT sûr de vouloir vider ENTIÈREMENT votre foyer en ligne ?\n\n" +
+      "Toutes vos données (événements, transactions, tâches, documents, etc.) seront supprimées définitivement de la base de données. Cette action est irréversible !"
+    );
+    if (!confirmClear) return;
+
+    try {
+      const tables = [
+        'events', 'transactions', 'groceries', 'dishes', 'chore_tasks', 
+        'saving_goals', 'alerts', 'memories', 'votes', 'school_tasks', 
+        'chat_groups', 'chat_messages', 'demarches', 'justificatif_packs', 
+        'vehicles', 'maintenance', 'trips', 'pets', 'pocket_money', 'documents'
+      ];
+
+      for (const table of tables) {
+        await client.from(table).delete().eq('foyer_id', foyer.id);
+      }
+
+      if (myMemberProfile) {
+        await client.from('foyer_members')
+          .delete()
+          .eq('foyer_id', foyer.id)
+          .neq('id', myMemberProfile.id);
+      }
+
+      await loadFoyerData(foyer.id);
+      alert("🗑️ Votre foyer en ligne a été entièrement vidé et réinitialisé avec succès !");
+    } catch (err: any) {
+      console.error(err);
+      alert("Erreur lors de la remise à zéro : " + err.message);
+    }
+  };
+
   // ----------------------------------------------------
   // Dynamic Tab Router Panel
   // ----------------------------------------------------  // View rendering logic
@@ -2189,6 +2274,8 @@ function App() {
             currency={currency}
             setCurrency={setCurrency}
             onResetData={handleResetData}
+            onPurgeDemoData={handlePurgeDemoData}
+            onClearAllFoyerData={handleClearAllFoyerData}
             onOpenPaywall={() => setPaywallOpen(true)}
             user={user}
             onLogout={handleLogout}

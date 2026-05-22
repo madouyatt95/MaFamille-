@@ -22,6 +22,8 @@ interface SettingsProps {
   currency: string;
   setCurrency: (c: string) => void;
   onResetData: () => void;
+  onPurgeDemoData?: () => Promise<void> | void;
+  onClearAllFoyerData?: () => Promise<void> | void;
   onOpenPaywall: () => void;
   user: any;
   onLogout: () => void;
@@ -40,6 +42,8 @@ export const Settings: React.FC<SettingsProps> = ({
   currency,
   setCurrency,
   onResetData,
+  onPurgeDemoData,
+  onClearAllFoyerData,
   onOpenPaywall: _onOpenPaywall,
   user,
   onLogout,
@@ -584,6 +588,43 @@ export const Settings: React.FC<SettingsProps> = ({
 
           <div className="pt-2"></div>
 
+          {/* Database Maintenance and Cleansing Section */}
+          <div className="p-5 rounded-2xl bg-white/3 border border-white/5 space-y-4">
+            <div className="flex items-center space-x-2 text-[#FFB020]">
+              <Database className="w-4 h-4" />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-white">Maintenance BDD & Données Cloud</h4>
+            </div>
+            
+            <p className="text-[10px] text-white/50 leading-relaxed">
+              Si vous observez des données de démonstration résiduelles (ex: membres ou tâches fictives) sur votre compte en ligne, utilisez ces outils pour assainir votre base de données.
+            </p>
+
+            <div className="grid grid-cols-1 gap-2.5 pt-1">
+              {onPurgeDemoData && (
+                <button
+                  type="button"
+                  onClick={onPurgeDemoData}
+                  className="w-full py-3 rounded-xl border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-extrabold text-[11px] uppercase tracking-wider flex items-center justify-center space-x-1.5 active:scale-98 transition-all cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 animate-pulse" />
+                  <span>Purger les données de démo de ma BDD</span>
+                </button>
+              )}
+              
+              {onClearAllFoyerData && (
+                <button
+                  type="button"
+                  onClick={onClearAllFoyerData}
+                  className="w-full py-3 rounded-xl border border-red-500/20 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-extrabold text-[11px] uppercase tracking-wider flex items-center justify-center space-x-1.5 active:scale-98 transition-all cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Vider entièrement mon foyer en ligne</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-2"></div>
 
           {/* Leave household button */}
           <button
