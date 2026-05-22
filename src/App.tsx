@@ -764,6 +764,7 @@ function App() {
 
     const subGroceries = foyerService.subscribeToChanges('groceries', foyer.id, (payload: any) => {
       if (!payload) return;
+      console.log("[Groceries Realtime Change] Received payload:", payload.eventType, "new:", payload.new, "old:", payload.old);
 
       if (payload.eventType === 'DELETE') {
         const deletedId = payload.old.id;
@@ -786,6 +787,7 @@ function App() {
       } 
       else if (payload.eventType === 'UPDATE') {
         const updatedId = payload.new.id;
+        console.log("[Groceries Realtime Change] Updating item", updatedId, "checked from new payload:", payload.new.checked);
         setGroceries(prev => prev.map(g => {
           if (g.id === updatedId) {
             return {
