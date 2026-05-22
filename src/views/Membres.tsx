@@ -253,6 +253,9 @@ export const Membres: React.FC<MembresProps> = ({
     }
   };
 
+  const pendingMembers = members.filter(m => m.approved === false);
+  const approvedMembers = members.filter(m => m.approved !== false);
+
   return (
     <div className="pb-32 pt-6 px-4 md:px-8 space-y-6 max-w-4xl mx-auto premium-glow-blue">
       
@@ -283,7 +286,84 @@ export const Membres: React.FC<MembresProps> = ({
         
         {/* Members List */}
         <div className="space-y-3">
-          {members.map((member) => (
+          {/* Pending Members Section */}
+          {pendingMembers.length > 0 && (
+            <div className="space-y-2 mb-4 animate-fade-in bg-yellow-500/5 p-4 rounded-3xl border border-yellow-500/20 shadow-inner">
+              <h2 className="text-[10px] font-bold uppercase tracking-wider text-yellow-500 flex items-center space-x-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>
+                <span>Demandes d'adhésion en attente ({pendingMembers.length})</span>
+              </h2>
+              <div className="space-y-2 pt-1">
+                {pendingMembers.map((member) => {
+                  const isManagingAllowed = myMemberProfile?.role === 'admin' || myMemberProfile?.role === 'parent';
+                  return (
+                    <div 
+                      key={member.id}
+                      className="w-full glass-panel rounded-2xl p-3 flex items-center justify-between border border-white/5 bg-white/2"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <img 
+                          src={member.photoUrl} 
+                          alt={member.name} 
+                          className="w-9 h-9 rounded-full object-cover border border-white/10"
+                        />
+                        <div>
+                          <h3 className="text-xs font-bold text-white">{member.name}</h3>
+                          <p className="text-[9px] text-white/40">Rôle : {member.role}</p>
+                        </div>
+                      </div>
+                      
+                      {isManagingAllowed ? (
+                        <div className="flex items-center space-x-1.5">
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (confirm(`Approuver l'adhésion de ${member.name} ?`)) {
+                                try {
+                                  await foyerService.approveMember(member.id);
+                                  setMembers(prev => prev.map(m => m.id === member.id ? { ...m, approved: true } : m));
+                                } catch (err: any) {
+                                  alert(`Erreur d'approbation : ${err.message}`);
+                                }
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 transition-all cursor-pointer flex items-center justify-center"
+                            title="Accepter"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (confirm(`Refuser la demande de ${member.name} ?`)) {
+                                try {
+                                  await foyerService.removeMember(member.id);
+                                  setMembers(prev => prev.filter(m => m.id !== member.id));
+                                } catch (err: any) {
+                                  alert(`Erreur de suppression : ${err.message}`);
+                                }
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 text-[#FF4D6D] border border-[#FF4D6D]/20 transition-all cursor-pointer flex items-center justify-center"
+                            title="Refuser"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[8px] bg-yellow-500/10 border border-yellow-500/25 text-yellow-500 px-2 py-0.5 rounded-full font-bold">
+                          En attente
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Approved Members List */}
+          {approvedMembers.map((member) => (
             <button
               key={member.id}
               onClick={() => openDossier(member)}

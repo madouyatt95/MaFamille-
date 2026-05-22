@@ -106,7 +106,8 @@ export const foyerService = {
       latitude: memberData.latitude,
       longitude: memberData.longitude,
       locationStatus: memberData.location_status,
-      lastLocatedAt: memberData.last_located_at
+      lastLocatedAt: memberData.last_located_at,
+      approved: memberData.approved !== false
     };
 
     return { foyer, member };
@@ -152,7 +153,8 @@ export const foyerService = {
       latitude: m.latitude,
       longitude: m.longitude,
       locationStatus: m.location_status,
-      lastLocatedAt: m.last_located_at
+      lastLocatedAt: m.last_located_at,
+      approved: m.approved !== false
     }));
   },
 
@@ -479,6 +481,25 @@ export const foyerService = {
 
     if (error) {
       console.error("[MaFamille+ DB] Erreur suppression membre foyer :", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Approuver la demande d'adhésion d'un membre
+   */
+  async approveMember(memberId: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Supabase n'est pas configuré");
+
+    console.log('[MaFamille+ DB] approveMember -> memberId:', memberId);
+    const { error } = await supabase
+      .from('foyer_members')
+      .update({ approved: true })
+      .eq('id', memberId);
+
+    if (error) {
+      console.error("[MaFamille+ DB] Erreur approbation membre foyer :", error);
       throw error;
     }
   },

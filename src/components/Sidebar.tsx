@@ -31,6 +31,7 @@ interface SidebarProps {
   activeMemberId: string;
   user: any;
   onLogout: () => void;
+  onOpenOnboarding?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
@@ -41,7 +42,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   members,
   activeMemberId,
   user,
-  onLogout
+  onLogout,
+  onOpenOnboarding
 }) => {
   const activeMember = members.find(m => m.id === activeMemberId) || {
     name: 'Papa',
@@ -177,8 +179,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <button 
                 onClick={() => {
-                  setActiveTab('menu');
-                  setActiveModule('settings');
+                  if (onOpenOnboarding) {
+                    onOpenOnboarding();
+                  } else {
+                    setActiveTab('menu');
+                    setActiveModule('settings');
+                  }
                   onClose();
                 }}
                 className="w-full py-2.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5B4BE0] text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-2 shadow-md border border-[#6C5CFF]/20"

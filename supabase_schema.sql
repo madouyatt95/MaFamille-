@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS public.foyer_members (
     emergency_contact_relation TEXT,
     school_or_employer TEXT,
     has_exemption BOOLEAN DEFAULT FALSE,
+    approved BOOLEAN DEFAULT TRUE,
     joined_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(foyer_id, user_id)
 );
@@ -507,8 +508,8 @@ BEGIN
     RETURNING id INTO v_foyer_id;
 
     -- Ajouter le créateur comme admin
-    INSERT INTO public.foyer_members (foyer_id, user_id, display_name, role)
-    VALUES (v_foyer_id, auth.uid(), p_display_name, 'admin');
+    INSERT INTO public.foyer_members (foyer_id, user_id, display_name, role, approved)
+    VALUES (v_foyer_id, auth.uid(), p_display_name, 'admin', TRUE);
 
     RETURN json_build_object(
         'foyer_id', v_foyer_id,
@@ -562,8 +563,8 @@ BEGIN
     END IF;
 
     -- Ajouter
-    INSERT INTO public.foyer_members (foyer_id, user_id, display_name, role)
-    VALUES (v_foyer_id, auth.uid(), p_display_name, p_role);
+    INSERT INTO public.foyer_members (foyer_id, user_id, display_name, role, approved)
+    VALUES (v_foyer_id, auth.uid(), p_display_name, p_role, FALSE);
 
     RETURN json_build_object(
         'foyer_id', v_foyer_id,

@@ -263,6 +263,9 @@ function App() {
   const [foyer, setFoyer] = useState<Foyer | null>(null);
   const [myMemberProfile, setMyMemberProfile] = useState<FoyerMember | null>(null);
   const [onboardingActive, setOnboardingActive] = useState(false);
+  const [discoverMode, setDiscoverMode] = useState<boolean>(() => {
+    return localStorage.getItem('mf_discover_mode') === 'true';
+  });
 
   // Premium Freemium States
   const [isPremium, setIsPremium] = useState<boolean>(() => {
@@ -312,6 +315,7 @@ function App() {
     schoolOrEmployer: fm.schoolOrEmployer || '',
     photoUrl: fm.photoUrl || 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150',
     hasExemption: fm.hasExemption || false,
+    approved: fm.approved !== false,
     medicalHistory: []
   });
 
@@ -362,14 +366,16 @@ function App() {
         // Check for automatic onboarding inputs from signup
         const pendingInviteCode = localStorage.getItem('pending_invite_code');
         const pendingDisplayName = localStorage.getItem('pending_display_name');
+        const pendingRole = localStorage.getItem('pending_role') || 'child';
         
         if (pendingDisplayName) {
           try {
             if (pendingInviteCode) {
               console.log("[MaFamille+ Sync] Automatic join triggered for code:", pendingInviteCode);
-              await foyerService.joinFoyer(pendingInviteCode.trim(), pendingDisplayName.trim(), 'child');
+              await foyerService.joinFoyer(pendingInviteCode.trim(), pendingDisplayName.trim(), pendingRole as any);
               localStorage.removeItem('pending_invite_code');
               localStorage.removeItem('pending_display_name');
+              localStorage.removeItem('pending_role');
             } else {
               console.log("[MaFamille+ Sync] Automatic foyer creation triggered for:", pendingDisplayName);
               const defaultFoyerName = `Foyer ${pendingDisplayName}`;
@@ -416,12 +422,20 @@ function App() {
     client.auth.getSession().then(({ data: { session } }) => {
       const currentUser = session?.user || null;
       setUser(currentUser);
+      if (currentUser) {
+        setDiscoverMode(false);
+        localStorage.removeItem('mf_discover_mode');
+      }
       checkUserFoyerSession(currentUser);
     });
 
     const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
       const currentUser = session?.user || null;
       setUser(currentUser);
+      if (currentUser) {
+        setDiscoverMode(false);
+        localStorage.removeItem('mf_discover_mode');
+      }
       checkUserFoyerSession(currentUser);
     });
 
@@ -2060,7 +2074,8 @@ function App() {
       setFoyer(null);
       setMyMemberProfile(null);
       setOnboardingActive(false);
-      // Remove cloud foyer flag so demo data loads again on next visit
+      setDiscoverMode(false);
+      localStorage.removeItem('mf_discover_mode');
       localStorage.removeItem('mf_cloud_foyer_id');
       // Restore demo data for offline browsing
       setMembers(demoMembers);
@@ -2344,6 +2359,10 @@ function App() {
             activeMemberId={activeMemberId}
             setActiveTab={setActiveTab}
             setActiveModule={setActiveModule}
+            onOpenOnboarding={() => {
+              setOnboardingActive(true);
+              setDiscoverMode(false);
+            }}
           />
         );
       }
@@ -2434,13 +2453,64 @@ function App() {
     return null;
   };
 
-  if (onboardingActive && user) {
+  const shouldShowOnboarding = !discoverMode && (!user || onboardingActive);
+
+  if (shouldShowOnboarding) {
     return (
       <Onboarding 
         onSuccess={handleOnboardingSuccess} 
         onLogout={handleLogout} 
-        userEmail={user.email || ''} 
+        userEmail={user?.email || ''} 
+        onEnterDiscoverMode={() => {
+          localStorage.setItem('mf_discover_mode', 'true');
+          setDiscoverMode(true);
+        }}
       />
+    );
+  }
+
+  if (user && foyer && myMemberProfile && myMemberProfile.approved === false) {
+    return (
+      <div className="min-h-screen bg-[#07111F] text-white flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden font-sans">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#6C5CFF]/10 blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#FF4D6D]/10 blur-[120px] pointer-events-none" />
+
+        <div className="w-full max-w-md space-y-6 relative z-10 animate-fade-in text-center">
+          <div className="inline-flex p-4 rounded-3xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 animate-pulse">
+            <span className="text-3xl">🕒</span>
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+              Adhésion en Attente
+            </h1>
+            <p className="text-sm text-white/60">
+              Votre profil <span className="text-[#6C5CFF] font-semibold">{myMemberProfile.displayName}</span> est en cours de validation.
+            </p>
+          </div>
+
+          <div className="glass-panel border border-white/8 rounded-[28px] p-6 space-y-4 text-left">
+            <p className="text-xs text-white/70 leading-relaxed">
+              Votre demande pour rejoindre le foyer <span className="text-white font-bold">{foyer.name}</span> (code d'invitation <span className="font-mono bg-white/10 px-1.5 py-0.5 rounded text-[#6C5CFF]">{foyer.inviteCode}</span>) a bien été enregistrée.
+            </p>
+            <p className="text-xs text-white/55 leading-relaxed">
+              Pour des raisons de sécurité, le Chef de famille ou un parent gestionnaire doit approuver votre accès depuis son tableau de bord.
+            </p>
+            
+            <div className="flex items-center space-x-2 p-3.5 rounded-xl bg-white/5 border border-white/5 text-[11px] text-white/40">
+              <span className="text-base">ℹ️</span>
+              <span>Une fois validé, cette page se mettra à jour automatiquement.</span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="w-full py-3 rounded-xl bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 border border-[#FF4D6D]/20 text-[#FF4D6D] text-xs font-bold transition-all cursor-pointer"
+          >
+            Se déconnecter / Annuler la demande
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -2469,6 +2539,10 @@ function App() {
         activeMemberId={activeMemberId}
         user={user}
         onLogout={handleLogout}
+        onOpenOnboarding={() => {
+          setOnboardingActive(true);
+          setDiscoverMode(false);
+        }}
       />
 
       {/* Floating Bottom sheet dialog form (Quick Actions Sheet) */}

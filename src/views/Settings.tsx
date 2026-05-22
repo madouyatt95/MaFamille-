@@ -6,8 +6,6 @@ import {
   Trash2, 
   RefreshCw, 
   Lock,
-  Mail,
-  Key,
   LogOut,
   Sparkles,
   Users,
@@ -36,6 +34,7 @@ interface SettingsProps {
   activeMemberId?: string;
   setActiveTab?: (tab: string) => void;
   setActiveModule?: (moduleName: string) => void;
+  onOpenOnboarding?: () => void;
 }
 
 export const Settings: React.FC<SettingsProps> = ({
@@ -55,7 +54,8 @@ export const Settings: React.FC<SettingsProps> = ({
   setMembers,
   activeMemberId,
   setActiveTab,
-  setActiveModule
+  setActiveModule,
+  onOpenOnboarding
 }) => {
   const [savingBackup, setSavingBackup] = useState(false);
 
@@ -241,93 +241,7 @@ export const Settings: React.FC<SettingsProps> = ({
     }
   };
   
-  const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authMessage, setAuthMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-  const [registerDisplayName, setRegisterDisplayName] = useState('');
-  const [registerInviteCode, setRegisterInviteCode] = useState('');
 
-
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const activeClient = getSupabaseClient();
-    if (!activeClient) {
-      setAuthMessage({ text: "La connexion au serveur cloud n'est pas configurée. Veuillez contacter l'administrateur.", type: 'error' });
-      return;
-    }
-
-    setAuthLoading(true);
-    setAuthMessage(null);
-
-    try {
-      const { error } = await activeClient.auth.signInWithPassword({
-        email: email.trim(),
-        password: password
-      });
-
-      if (error) throw error;
-      
-      setAuthMessage({ text: `Ravi de vous revoir ! Foyer connecté.`, type: 'success' });
-      setEmail('');
-      setPassword('');
-      if (onRefreshFoyer) onRefreshFoyer();
-    } catch (err: any) {
-      setAuthMessage({ text: err.message || "Erreur de connexion.", type: 'error' });
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!registerDisplayName.trim()) {
-      setAuthMessage({ text: "Veuillez saisir votre prénom / nom d'affichage.", type: 'error' });
-      return;
-    }
-
-    const activeClient = getSupabaseClient();
-    if (!activeClient) {
-      setAuthMessage({ text: "L'inscription au serveur cloud n'est pas configurée. Veuillez contacter l'administrateur.", type: 'error' });
-      return;
-    }
-
-    setAuthLoading(true);
-    setAuthMessage(null);
-
-    try {
-      // Persist values in localStorage for automatic onboarding upon successful session load
-      localStorage.setItem('pending_display_name', registerDisplayName.trim());
-      if (registerInviteCode.trim()) {
-        localStorage.setItem('pending_invite_code', registerInviteCode.trim().toUpperCase());
-      } else {
-        localStorage.removeItem('pending_invite_code');
-      }
-
-      const { error } = await activeClient.auth.signUp({
-        email: email.trim(),
-        password: password
-      });
-
-      if (error) throw error;
-      
-      setAuthMessage({ 
-        text: `Compte créé ! Votre foyer ou raccordement sera automatiquement configuré lors de votre première connexion. Veuillez confirmer votre e-mail si nécessaire.`, 
-        type: 'success' 
-      });
-      setAuthTab('login');
-      setPassword('');
-    } catch (err: any) {
-      // Clear storage on failure to prevent accidental side effects
-      localStorage.removeItem('pending_display_name');
-      localStorage.removeItem('pending_invite_code');
-      setAuthMessage({ text: err.message || "Erreur d'inscription.", type: 'error' });
-    } finally {
-      setAuthLoading(false);
-    }
-  };
 
 
 
@@ -638,135 +552,32 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
       ) : (
         /* 3. Authentication Panel (Show if not logged in) */
-        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 animate-fade-in">
-          
-          <div className="space-y-1">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-              <Lock className="w-4 h-4 text-[#FF4D6D]" />
-              <span>Connexion & Synchronisation</span>
-            </h3>
-            <p className="text-[10px] text-white/40 leading-normal">
-              Connectez-vous pour activer la synchronisation multi-appareils de votre foyer.
-            </p>
+        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 animate-fade-in text-center">
+          <div className="space-y-2 py-4">
+            <div className="w-12 h-12 rounded-full bg-[#6C5CFF]/10 flex items-center justify-center mx-auto text-[#6C5CFF]">
+              <Lock className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                Portail de Connexion
+              </h3>
+              <p className="text-[10px] text-white/50 max-w-xs mx-auto leading-normal">
+                Rejoignez votre famille ou créez votre propre foyer pour synchroniser vos agendas, listes et photos.
+              </p>
+            </div>
           </div>
 
-          {/* Form Selector Tabs */}
-          <div className="grid grid-cols-2 gap-1 p-1 bg-white/5 rounded-xl border border-white/5">
-            <button
-              type="button"
-              onClick={() => setAuthTab('login')}
-              className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                authTab === 'login' ? 'bg-[#6C5CFF] text-white shadow' : 'text-white/40 hover:text-white'
-              }`}
-            >
-              Se connecter
-            </button>
-            <button
-              type="button"
-              onClick={() => setAuthTab('register')}
-              className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                authTab === 'register' ? 'bg-[#6C5CFF] text-white shadow' : 'text-white/40 hover:text-white'
-              }`}
-            >
-              S'inscrire
-            </button>
-          </div>
-
-          <form onSubmit={authTab === 'login' ? handleLogin : handleRegister} className="space-y-3.5">
-            {authTab === 'register' && (
-              <div className="space-y-3.5 animate-fade-in">
-                {/* Display Name Input */}
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Prénom / Nom d'affichage</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: Amadou, Awa, Maman..."
-                    value={registerDisplayName}
-                    onChange={(e) => setRegisterDisplayName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Adresse e-mail</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-2.5 w-4 h-4 text-white/30" />
-                <input
-                  type="email"
-                  required
-                  placeholder="ex: amadou@gmail.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Mot de passe</label>
-              <div className="relative">
-                <Key className="absolute left-3 top-2.5 w-4 h-4 text-white/30" />
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
-                />
-              </div>
-            </div>
-
-            {authTab === 'register' && (
-              <div className="space-y-1.5 animate-fade-in pt-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Code d'invitation (Optionnel)</label>
-                  <span className="text-[8px] text-[#6C5CFF] font-bold bg-[#6C5CFF]/15 px-1.5 py-0.5 rounded-full uppercase">Rejoindre</span>
-                </div>
-                <input
-                  type="text"
-                  placeholder="Ex: FAM-XXXXX (pour rejoindre un foyer)"
-                  value={registerInviteCode}
-                  onChange={(e) => setRegisterInviteCode(e.target.value.toUpperCase())}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-[#6C5CFF]"
-                />
-                <p className="text-[9px] text-white/30 leading-normal">
-                  Laissez vide pour créer automatiquement un nouveau foyer pour vous.
-                </p>
-              </div>
-            )}
-
-            {authMessage && (
-              <div className={`p-3 rounded-xl border text-[11px] font-medium leading-relaxed ${
-                authMessage.type === 'success' 
-                  ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]' 
-                  : 'bg-[#FF4D6D]/10 border-[#FF4D6D]/20 text-[#FF4D6D]'
-              }`}>
-                {authMessage.text}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={authLoading}
-              className="w-full py-3.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5b4eff] text-white font-extrabold text-xs uppercase tracking-wider shadow-[0_4px_15px_rgba(108,92,255,0.3)] flex items-center justify-center space-x-2 transition-all cursor-pointer"
-            >
-              {authLoading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Traitement en cours...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>{authTab === 'login' ? 'Se connecter' : 'Créer un compte Foyer'}</span>
-                </>
-              )}
-            </button>
-          </form>
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenOnboarding) {
+                onOpenOnboarding();
+              }
+            }}
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs uppercase tracking-wider shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+          >
+            Se connecter / Rejoindre / S'inscrire
+          </button>
         </div>
       )}
 
