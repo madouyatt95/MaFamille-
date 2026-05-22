@@ -1849,13 +1849,20 @@ function App() {
     if (foyer) {
       const client = getSupabaseClient();
       if (client) {
-        try {
-          await client.from('groceries').update({ 
-            checked: newCheckedVal,
-            in_stock: newCheckedVal
-          }).eq('foyer_id', foyer.id).eq('id', id);
-        } catch (err) {
-          console.error("Erreur lors du toggle cloud de la course :", err);
+        const { error, count } = await client.from('groceries').update({ 
+          checked: newCheckedVal,
+          in_stock: newCheckedVal
+        }).eq('foyer_id', foyer.id).eq('id', id);
+
+        if (error) {
+          console.error("[Groceries Toggle] Supabase error:", error.message, error.details, error.hint);
+          // Revert local state on failure
+          setGroceries(prev => prev.map(g => {
+            if (g.id === id) return { ...g, checked: !newCheckedVal, inStock: !newCheckedVal };
+            return g;
+          }));
+        } else {
+          console.log(`[Groceries Toggle] OK — id=${id}, checked=${newCheckedVal}, rows=${count}`);
         }
       }
     }
