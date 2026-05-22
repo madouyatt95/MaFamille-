@@ -1852,15 +1852,30 @@ function App() {
         const { error, count } = await client.from('groceries').update({ 
           checked: newCheckedVal,
           in_stock: newCheckedVal
-        }).eq('foyer_id', foyer.id).eq('id', id);
+        }, { count: 'exact' }).eq('foyer_id', foyer.id).eq('id', id);
 
         if (error) {
           console.error("[Groceries Toggle] Supabase error:", error.message, error.details, error.hint);
-          // Revert local state on failure
           setGroceries(prev => prev.map(g => {
             if (g.id === id) return { ...g, checked: !newCheckedVal, inStock: !newCheckedVal };
             return g;
           }));
+        } else if (count === 0) {
+          // Row doesn't exist in DB — insert it first, then it will work
+          console.warn(`[Groceries Toggle] 0 rows matched for id=${id} — inserting row into DB`);
+          const item = groceries.find(g => g.id === id);
+          if (item) {
+            await client.from('groceries').insert({
+              id: item.id,
+              foyer_id: foyer.id,
+              name: item.name,
+              category: item.category,
+              quantity: item.quantity,
+              checked: newCheckedVal,
+              in_stock: newCheckedVal
+            });
+            console.log(`[Groceries Toggle] Inserted missing row id=${id}, checked=${newCheckedVal}`);
+          }
         } else {
           console.log(`[Groceries Toggle] OK — id=${id}, checked=${newCheckedVal}, rows=${count}`);
         }
