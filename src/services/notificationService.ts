@@ -33,21 +33,11 @@ export const notificationService = {
     );
   },
 
-  /**
-   * Enregistre le service worker avec les paramètres d'URL pour configurer FCM
-   */
   async registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
     if (!this.isSupported()) return null;
 
     try {
-      const swUrl = `/firebase-messaging-sw.js` +
-        `?apiKey=${encodeURIComponent(firebaseConfig.apiKey || '')}` +
-        `&authDomain=${encodeURIComponent(firebaseConfig.authDomain || '')}` +
-        `&projectId=${encodeURIComponent(firebaseConfig.projectId || '')}` +
-        `&storageBucket=${encodeURIComponent(firebaseConfig.storageBucket || '')}` +
-        `&messagingSenderId=${encodeURIComponent(firebaseConfig.messagingSenderId || '')}` +
-        `&appId=${encodeURIComponent(firebaseConfig.appId || '')}`;
-
+      const swUrl = '/firebase-messaging-sw.js';
       const registration = await navigator.serviceWorker.register(swUrl, { scope: '/' });
       console.log('[FCM] Service Worker enregistré avec succès, scope:', registration.scope);
       return registration;
