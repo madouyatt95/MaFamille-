@@ -4,8 +4,14 @@ import {
   Sparkles, 
   HeartHandshake
 } from 'lucide-react';
+import { aiQuotaService } from '../../services/aiQuotaService';
 
-export const PeaceMaker: React.FC = () => {
+interface PeaceMakerProps {
+  isPremium?: boolean;
+  onTriggerPaywall?: () => void;
+}
+
+export const PeaceMaker: React.FC<PeaceMakerProps> = ({ isPremium = false, onTriggerPaywall }) => {
   const [conflictDesc, setConflictDesc] = useState('');
   const [mediating, setMediating] = useState(false);
   const [compromise, setCompromise] = useState<any | null>(null);
@@ -13,7 +19,9 @@ export const PeaceMaker: React.FC = () => {
   const presets = [
     { id: '1', label: 'Partage de la manette 🎮', text: 'Amadou a pris ma manette de console de jeu sans me demander mon avis et y joue depuis plus d\'une heure ! (Awa)' },
     { id: '2', label: 'Bruit pendant les devoirs 📚', text: 'Awa fait trop de bruit dans le salon et crie pendant que j\'essaie de me concentrer sur mon devoir de maths du Tuteur IA ! (Amadou)' },
-    { id: '3', label: 'Corvée de vaisselle 🍽️', text: 'C\'était au tour d\'Amadou de débarrasser la table ce soir, mais il fait semblant d\'avoir oublié pour aller jouer. (Maman)' }
+    { id: '3', label: 'Corvée de vaisselle 🍽️', text: 'C\'était au tour d\'Amadou de débarrasser la table ce soir, mais il fait semblant d\'avoir oublié pour aller jouer. (Maman)' },
+    { id: '4', label: 'Temps d\'écran dépassé 📱', text: 'Awa refuse de lâcher la tablette alors que son heure autorisée est dépassée depuis 20 minutes et que c\'est l\'heure du dîner. (Papa)' },
+    { id: '5', label: 'Chambre en désordre 🧸', text: 'Amadou a laissé toutes ses affaires de foot et ses livres éparpillés par terre dans sa chambre et refuse de ranger. (Maman)' }
   ];
 
   const handleSelectPreset = (text: string) => {
@@ -21,13 +29,78 @@ export const PeaceMaker: React.FC = () => {
     setCompromise(null);
   };
 
-  const runMediation = (e: React.FormEvent) => {
+  const runMediation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!conflictDesc) return;
-    setMediating(true);
 
+    // 1. Contrôle d'accès Premium obligatoire
+    if (!aiQuotaService.checkAIPremiumAccess(isPremium, onTriggerPaywall)) {
+      return;
+    }
+
+    setMediating(true);
+    setCompromise(null);
+
+    const groqKey = import.meta.env.VITE_GROQ_API_KEY || '';
+    // Consomme le quota si Premium
+    const useRealAI = aiQuotaService.consumeAIQuota(isPremium) && !!groqKey;
+
+    if (useRealAI) {
+      try {
+        const prompt = `Tu es PeaceMaker IA, un médiateur de conflits familiaux expert en Communication Non Violente (CNV) pour l'application MaFamille+.
+Analyse le litige familial suivant : "${conflictDesc}".
+Identifie les sentiments sous-jacents et les besoins profonds des deux parties, puis propose un compromis bienveillant, équitable et ludique.
+
+Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\`\`json), sans texte d'accompagnement, contenant cette structure exacte :
+{
+  "feelingA": "Sentiments de la partie A (court ex: Frustrée & Blessée)",
+  "needA": "Besoins profonds de la partie A (court)",
+  "feelingB": "Sentiments de la partie B (court ex: Stressé & Irrité)",
+  "needB": "Besoins profonds de la partie B (court)",
+  "compromiseText": "Proposition concrète de compromis en français (très claire, 2-3 phrases)",
+  "mediationTip": "Conseil de médiation de paix en français pour la famille (1 phrase)"
+}`;
+
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${groqKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'llama3-8b-8192',
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.3
+          })
+        });
+
+        if (!response.ok) throw new Error('Groq API call failed');
+        const data = await response.json();
+        let textResult = data.choices?.[0]?.message?.content || '';
+        textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
+
+        const parsedCompromise = JSON.parse(textResult);
+        if (parsedCompromise.feelingA && parsedCompromise.feelingB && parsedCompromise.compromiseText) {
+          const remaining = aiQuotaService.getRemainingCalls(isPremium);
+          const limit = aiQuotaService.getDailyLimit();
+          
+          setCompromise({
+            ...parsedCompromise,
+            mediationTip: `${parsedCompromise.mediationTip} ✨ (Médiation dynamique Groq Llama 3 • Quota restant : ${remaining}/${limit} aujourd'hui)`
+          });
+          setMediating(false);
+          alert("🕊️ Compromis de paix bienveillant calculé en temps réel par l'IA Groq !");
+          return;
+        } else {
+          throw new Error('Structure JSON reçue incorrecte');
+        }
+      } catch (err) {
+        console.warn("[PeaceMaker] Erreur lors de l'appel de l'IA réelle Groq, repli local :", err);
+      }
+    }
+
+    // Version locale de repli
     setTimeout(() => {
-      // Formulate CNV-based compromise
       let analysis = {
         feelingA: 'Frustrée & Oubliée',
         needA: 'Reconnaissance de son espace de jeu & Respect du partage',
@@ -55,11 +128,35 @@ export const PeaceMaker: React.FC = () => {
           compromiseText: 'Amadou s\'engage à débarrasser immédiatement les verres et assiettes en 3 minutes de chronomètre chrono. Maman l\'autorise ensuite à jouer sans culpabilité pour le reste de la soirée.',
           mediationTip: 'Une tâche rapide d\'abord, la liberté ensuite (méthode de la récompense immédiate) !'
         };
+      } else if (conflictDesc.includes('tablette') || conflictDesc.includes('écran') || conflictDesc.includes('téléphone')) {
+        analysis = {
+          feelingA: 'Inquiet & Soucieux',
+          needA: 'Respect des règles familiales & Sommeil de qualité pour Awa',
+          feelingB: 'Captivée & Résistante',
+          needB: 'Finir son activité ludique & Besoin d\'autonomie',
+          compromiseText: 'Awa s\'engage à éteindre la tablette immédiatement et à la brancher sur son socle de charge. En contrepartie, Papa lui accordera 10 minutes d\'histoire supplémentaire lue par le Conteur IA ce soir.',
+          mediationTip: 'Remplacer une transition d\'écran par une transition de connexion humaine et douce facilitera grandement le coucher !'
+        };
+      } else if (conflictDesc.includes('chambre') || conflictDesc.includes('ranger') || conflictDesc.includes('désordre')) {
+        analysis = {
+          feelingA: 'Exaspérée & Impatiente',
+          needA: 'Ordre visuel, clarté dans la maison & Respect du travail partagé',
+          feelingB: 'Fatigué & Surchargé',
+          needB: 'Liberté de son espace personnel & Repos après l\'entraînement',
+          compromiseText: 'Amadou s\'engage à ranger uniquement ses affaires de foot et ses manuels en 5 minutes de chrono musical. Il pourra laisser ses autres livres de côté jusqu\'au lendemain matin.',
+          mediationTip: 'Ranger en musique par petits blocs rend la corvée ludique et évite le sentiment d\'oppression !'
+        };
       }
 
       setCompromise(analysis);
       setMediating(false);
-      alert("🕊️ Compromis de paix bienveillant généré avec succès par l'IA ! Accord prêt pour signature.");
+      
+      const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
+      if (isPremium && remainingCalls === 0) {
+        alert("🕊️ (Quota d'IA réelle épuisé ! Le PeaceMaker local d'entraînement a pris le relais et a formulé une résolution positive standard.)");
+      } else {
+        alert("🕊️ (Configurez VITE_GROQ_API_KEY dans votre fichier .env.local pour activer la médiation dynamique par l'IA Groq en direct. Le planificateur local a pris le relais.)");
+      }
     }, 1200);
   };
 

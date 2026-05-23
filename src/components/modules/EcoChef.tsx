@@ -8,13 +8,16 @@ import {
   Clock,
   Utensils
 } from 'lucide-react';
+import { aiQuotaService } from '../../services/aiQuotaService';
 
 interface EcoChefProps {
   onAddGroceryItem: (name: string, category: string, qty: string) => void;
   formatMoney: (amount: number) => string;
+  isPremium?: boolean;
+  onTriggerPaywall?: () => void;
 }
 
-export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem }) => {
+export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, isPremium = false, onTriggerPaywall }) => {
   const [fridgeIngredients, setFridgeIngredients] = useState([
     { id: '1', name: 'Poulet rôti (Reste)', checked: true, type: 'meat' },
     { id: '2', name: 'Pâtes cuites', checked: true, type: 'carbs' },
@@ -53,24 +56,108 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem }) => {
     setCustomIngredient('');
   };
 
-  const generateRecipes = () => {
+  const generateRecipes = async () => {
     const activeInFull = fridgeIngredients.filter(i => i.checked).map(i => i.name);
     if (activeInFull.length === 0) {
       alert("Veuillez sélectionner au moins un ingrédient dans votre frigo pour que l'Éco-Chef IA puisse inventer des recettes !");
       return;
     }
 
+    // 1. Contrôle d'accès Premium obligatoire
+    if (!aiQuotaService.checkAIPremiumAccess(isPremium, onTriggerPaywall)) {
+      return;
+    }
+
     setGenerating(true);
     setRecipes([]);
 
+    const geminiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+    // Consomme le quota si Premium
+    const useRealAI = aiQuotaService.consumeAIQuota(isPremium) && !!geminiKey;
+
+    if (useRealAI) {
+      try {
+        const prompt = `Tu es l'Éco-Chef IA de MaFamille+, un cuisinier virtuose qui invente des recettes de cuisine merveilleuses pour éviter le gaspillage alimentaire.
+Voici les ingrédients disponibles dans mon réfrigérateur : ${activeInFull.join(', ')}.
+Génère EXACTEMENT 3 idées de recettes originales sous format JSON uniquement (sans aucun texte explicatif avant ou après, pas de balise markdown, juste un tableau JSON brut et valide).
+Chaque recette doit être un objet JSON avec les propriétés suivantes rédigées en français :
+- id (string unique ex: 'rec-gem-${Date.now()}-1')
+- title (titre court, moderne et appétissant en français)
+- desc (description alléchante et synthétique de la recette en français)
+- uses (tableau de strings contenant uniquement les ingrédients de la liste ci-dessus qui sont utilisés)
+- missing (tableau de strings d'ingrédients manquants réalistes à acheter pour compléter le plat)
+- time (ex: '15 min')
+- difficulty (ex: 'Très Facile', 'Facile' ou 'Moyen')
+- rating (avis fictif fun de la famille ex: 'Papa ⭐️5, Amadou ⭐️4.8')
+- promptKeywords (mots-clés très descriptifs en anglais séparés par des virgules pour générer la photo culinaire ex: 'creamy chicken soup with warm bread, hyper detailed food photography, Pixar style 3d')`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: prompt
+              }]
+            }]
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Gemini API request failed');
+        }
+
+        const data = await response.json();
+        let textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        
+        // Nettoyer d'éventuels marqueurs markdown retournés par le modèle
+        textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
+
+        const parsedRecipes = JSON.parse(textResult);
+        if (Array.isArray(parsedRecipes) && parsedRecipes.length > 0) {
+          const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
+          const dailyLimit = aiQuotaService.getDailyLimit();
+          
+          // Ajouter une indication discrète sur le quota dans les descriptions
+          const recipesWithQuotaInfo = parsedRecipes.map((rec, index) => {
+            if (index === 0) {
+              return {
+                ...rec,
+                desc: `${rec.desc} ✨ (Généré par Gemini Flash • Quota réel restant : ${remainingCalls}/${dailyLimit} aujourd'hui)`
+              };
+            }
+            return rec;
+          });
+
+          setRecipes(recipesWithQuotaInfo);
+          setGenerating(false);
+          
+          // Charger les images Stable Diffusion
+          recipesWithQuotaInfo.forEach(rec => {
+            loadRecipeImage(rec.id, rec.promptKeywords);
+          });
+          return;
+        } else {
+          throw new Error("Le format JSON reçu n'est pas un tableau valide.");
+        }
+      } catch (err) {
+        console.warn("[EcoChef] Erreur de génération IA en direct, basculement sur la simulation locale :", err);
+      }
+    }
+
+    // Version locale simulée en cas de quota épuisé ou clé absente
     setTimeout(() => {
       const ingNames = [...activeInFull];
-      
+      const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
+      const isQuotaFallback = isPremium && remainingCalls === 0;
+
       const dynamicRecipes = [
         {
           id: 'rec-1',
           title: `Poêlée Express : ${ingNames.slice(0, 2).join(' & ')}`,
-          desc: `Une cuisson rapide et savoureuse à la poêle pour sublimer vos restes de ${ingNames.join(', ').toLowerCase()} en quelques minutes.`,
+          desc: `Une cuisson rapide et savoureuse à la poêle pour sublimer vos restes de ${ingNames.join(', ').toLowerCase()} en quelques minutes.${isQuotaFallback ? ' ✨ (IA Locale simulée : votre quota quotidien d\'IA réelle est épuisé !)' : ' ✨ (IA Locale simulée : configurez VITE_GEMINI_API_KEY dans votre fichier .env.local)'}`,
           uses: activeInFull,
           missing: ['Huile d\'olive', 'Oignon blanc', 'Herbes de Provence'],
           time: '12 min',
@@ -105,11 +192,9 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem }) => {
       setRecipes(dynamicRecipes);
       setGenerating(false);
 
-      // Déclencher le chargement d'image pour chaque recette générée de manière réelle !
       dynamicRecipes.forEach(rec => {
         loadRecipeImage(rec.id, rec.promptKeywords);
       });
-
     }, 1200);
   };
 

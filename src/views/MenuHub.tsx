@@ -1054,7 +1054,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   <button
                     key={mod.id}
                     onClick={() => {
-                      if (['conteur', 'atelier_art'].includes(mod.id) && !isPremium) {
+                      if (['conteur', 'atelier_art', 'peacemaker'].includes(mod.id) && !isPremium) {
                         onTriggerPaywall?.();
                         return;
                       }
@@ -1137,6 +1137,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           messages={chatMessages}
           setMessages={setChatMessages}
           initialGroupId={initialChatGroupId}
+          isPremium={isPremium}
+          onTriggerPaywall={onTriggerPaywall}
         />
       )}
 
@@ -2582,7 +2584,12 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             </div>
           ) : (
             isPremium ? (
-              <EcoChef onAddGroceryItem={onAddGroceryItem} formatMoney={formatMoney} />
+              <EcoChef 
+                onAddGroceryItem={onAddGroceryItem} 
+                formatMoney={formatMoney} 
+                isPremium={isPremium}
+                onTriggerPaywall={onTriggerPaywall}
+              />
             ) : (
               <div className="p-8 text-center glass-panel border border-[#6C5CFF]/30 rounded-[32px] bg-gradient-to-b from-[#0F1E3D]/50 to-[#07111F]/80 space-y-4">
                 <div className="inline-flex p-4 rounded-full bg-[#6C5CFF]/10 text-[#6C5CFF] border border-[#6C5CFF]/20 animate-pulse">
@@ -2754,6 +2761,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               setSchoolTasks={setSchoolTasks} 
               activeMemberId={activeMemberId} 
               members={members}
+              isPremium={isPremium}
+              onTriggerPaywall={onTriggerPaywall}
             />
           </div>
         </div>
@@ -3582,7 +3591,12 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
           {/* AI custom packing checklists generator */}
           <div className="border-t border-white/5 pt-6">
-            <VoyageIA trips={trips} formatMoney={formatMoney} />
+            <VoyageIA 
+              trips={trips} 
+              formatMoney={formatMoney} 
+              isPremium={isPremium}
+              onTriggerPaywall={onTriggerPaywall}
+            />
           </div>
         </div>
       )}
@@ -4203,7 +4217,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
       {/* 13. PeaceMaker IA */}
       {activeModule === 'peacemaker' && (
-        <PeaceMaker />
+        <PeaceMaker 
+          isPremium={isPremium}
+          onTriggerPaywall={onTriggerPaywall}
+        />
       )}
 
       {/* 14. MaVie Simulator */}
@@ -4216,6 +4233,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
         <ConteurIA 
           onBack={() => setActiveModule('')} 
           members={members} 
+          isPremium={isPremium}
+          onTriggerPaywall={onTriggerPaywall}
         />
       )}
 

@@ -11,22 +11,28 @@ import {
   ArrowLeft,
   Calendar,
   TrendingUp,
-  Trash2
+  Trash2,
+  Sparkles
 } from 'lucide-react';
 import type { SchoolTask } from '../../types';
+import { aiQuotaService } from '../../services/aiQuotaService';
 
 interface TuteurScolaireProps {
   schoolTasks: SchoolTask[];
   setSchoolTasks: React.Dispatch<React.SetStateAction<SchoolTask[]>>;
   activeMemberId: string;
   members?: any[];
+  isPremium?: boolean;
+  onTriggerPaywall?: () => void;
 }
 
 export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({ 
   schoolTasks, 
   setSchoolTasks, 
   activeMemberId,
-  members
+  members,
+  isPremium = false,
+  onTriggerPaywall
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'devoirs' | 'quizzes' | 'schedule' | 'grades'>('devoirs');
   const activeMember = members?.find(m => m.id === activeMemberId);
@@ -207,6 +213,199 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [eduSchemaUrl, setEduSchemaUrl] = useState<string>('');
   const [loadingSchema, setLoadingSchema] = useState<boolean>(false);
+  
+  const [dynamicQuiz, setDynamicQuiz] = useState<any[] | null>(null);
+  const [generatingQuiz, setGeneratingQuiz] = useState(false);
+
+  const handleGenerateIAQuiz = async () => {
+    // 1. Contrôle d'accès Premium obligatoire
+    if (!aiQuotaService.checkAIPremiumAccess(isPremium, onTriggerPaywall)) {
+      return;
+    }
+
+    const topic = window.prompt("Sur quel sujet précis souhaitez-vous que le Tuteur IA crée votre quiz de révision ?\n(ex: Les Pharaons, Le cycle de l'eau, Addition de fractions, Le futur simple...)");
+    if (!topic || !topic.trim()) return;
+
+    setGeneratingQuiz(true);
+    setDynamicQuiz(null);
+    setSelectedSubject('ia-generated');
+    setLoadingSchema(true);
+
+    const geminiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+    const useRealAI = aiQuotaService.consumeAIQuota(isPremium) && !!geminiKey;
+
+    if (useRealAI) {
+      try {
+        const prompt = `Tu es le Tuteur IA Scolaire de l'application MaFamille+.
+Génère un quiz de révision interactif de 3 questions à choix multiples pour tester les connaissances d'un élève sur le sujet : ${topic.trim()}.
+Renvoie STRICTEMENT un tableau JSON brut valide (sans markdown, sans enrobage de texte, pas de balise \`\`\`json, juste le tableau JSON).
+Chaque question doit être un objet JSON contenant :
+- q (la question claire, éducative et bienveillante en français)
+- options (un tableau de 4 réponses possibles en français)
+- correct (l'index de la bonne réponse, de 0 à 3)
+
+Exemple de format valide :
+[
+  {"q": "Quelle est la capitale de la France ?", "options": ["Marseille", "Paris", "Lyon", "Nice"], "correct": 1}
+]`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: prompt
+              }]
+            }]
+          })
+        });
+
+        if (!response.ok) throw new Error("Gemini API call failed");
+        const data = await response.json();
+        let textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
+
+        const parsedQuiz = JSON.parse(textResult);
+        if (Array.isArray(parsedQuiz) && parsedQuiz.length === 3) {
+          setDynamicQuiz(parsedQuiz);
+          setGeneratingQuiz(false);
+          triggerEduSchemaGeneration(topic);
+          return;
+        } else {
+          throw new Error("Format JSON invalide ou nombre de questions incorrect");
+        }
+      } catch (err) {
+        console.warn("[TuteurScolaire] Échec génération IA réelle, basculement sur le simulateur local :", err);
+      }
+    }
+
+    // Version locale de repli si quota dépassé ou clé manquante
+    const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
+    const isQuotaFallback = isPremium && remainingCalls === 0;
+
+    let fallbackQuiz = [
+      {
+        q: `[Défi local : ${topic.trim()}] Quelle affirmation caractérise le mieux ce sujet d'étude ?`,
+        options: [
+          "C'est un domaine d'apprentissage fascinant et important !",
+          "C'est un sujet totalement inutile au quotidien.",
+          "Ça n'existe pas dans le monde réel.",
+          "C'est trop mystérieux pour être appris."
+        ],
+        correct: 0
+      },
+      {
+        q: `[Défi local : ${topic.trim()}] Quelle est la meilleure technique pour progresser sur ce sujet ?`,
+        options: [
+          "Attendre que l'évaluation passe.",
+          "La curiosité intellectuelle, les quiz réguliers et apprendre de ses erreurs !",
+          "N'étudier que 5 minutes par an.",
+          "Espérer avoir de la chance le jour J."
+        ],
+        correct: 1
+      },
+      {
+        q: `[Défi local : ${topic.trim()}] Quelle conclusion tirez-vous de cet entraînement ?`,
+        options: [
+          "Je ne veux plus jamais en entendre parler.",
+          "Que l'apprentissage actif par le jeu est une excellente clé du succès !",
+          "C'est beaucoup trop difficile.",
+          "Je n'ai pas compris la question."
+        ],
+        correct: 1
+      }
+    ];
+
+    const lowerTopic = topic.toLowerCase();
+    if (lowerTopic.includes('eau') || lowerTopic.includes('pluie') || lowerTopic.includes('cycle')) {
+      fallbackQuiz = [
+        {
+          q: "[Sciences 💧] Quel état prend l'eau lorsqu'elle s'évapore sous l'effet du soleil ?",
+          options: ["Solide (glace)", "Liquide (pluie)", "Gazeux (vapeur d'eau)", "Plasma brillant"],
+          correct: 2
+        },
+        {
+          q: "[Sciences 💧] Comment appelle-t-on le phénomène où l'eau des nuages retombe sur Terre ?",
+          options: ["La transpiration", "La condensation", "La précipitation (pluie, neige)", "La filtration"],
+          correct: 2
+        },
+        {
+          q: "[Sciences 💧] Quelle est la principale force qui fait redescendre l'eau sous forme de pluie ?",
+          options: ["Le magnétisme", "La gravité de la Terre", "Le vent solaire", "La rotation de la Lune"],
+          correct: 1
+        }
+      ];
+    } else if (lowerTopic.includes('fraction') || lowerTopic.includes('math') || lowerTopic.includes('addition') || lowerTopic.includes('nombre')) {
+      fallbackQuiz = [
+        {
+          q: "[Maths 📐] Si vous divisez une pizza en 8 parts égales et en mangez 3 parts, quelle fraction de la pizza reste-t-il ?",
+          options: ["3/8", "5/8", "1/2", "8/3"],
+          correct: 1
+        },
+        {
+          q: "[Maths 📐] Quelle fraction est équivalente à un demi (1/2) ?",
+          options: ["2/4", "3/9", "4/6", "1/3"],
+          correct: 0
+        },
+        {
+          q: "[Maths 📐] Comment appelle-t-on le nombre situé sous la barre de fraction ?",
+          options: ["Le numérateur", "La somme", "Le quotient", "Le dénominateur"],
+          correct: 3
+        }
+      ];
+    } else if (lowerTopic.includes('pharaon') || lowerTopic.includes('egypte') || lowerTopic.includes('histoire') || lowerTopic.includes('pyramide')) {
+      fallbackQuiz = [
+        {
+          q: "[Histoire 🏺] Quel jeune pharaon égyptien est devenu légendaire grâce à la découverte de son tombeau intact en 1922 ?",
+          options: ["Ramsès II", "Toutânkhamon", "Khéops", "Akhenaton"],
+          correct: 1
+        },
+        {
+          q: "[Histoire 🏺] Quelle écriture sacrée composée de petits dessins était utilisée par les scribes en Égypte antique ?",
+          options: ["Le cunéiforme", "L'alphabet grec", "Les hiéroglyphes", "L'alphabet phénicien"],
+          correct: 2
+        },
+        {
+          q: "[Histoire 🏺] Quel grand fleuve d'Afrique permettait l'agriculture en Égypte grâce à ses crues fertiles ?",
+          options: ["Le Nil", "L'Amazone", "Le Congo", "Le Mississippi"],
+          correct: 0
+        }
+      ];
+    } else if (lowerTopic.includes('planète') || lowerTopic.includes('espace') || lowerTopic.includes('soleil') || lowerTopic.includes('astro')) {
+      fallbackQuiz = [
+        {
+          q: "[Astronomie 🚀] Quelle planète du Système solaire est surnommée la 'Planète Rouge' ?",
+          options: ["Vénus", "Jupiter", "Mars", "Saturne"],
+          correct: 2
+        },
+        {
+          q: "[Astronomie 🚀] Quelle étoile géante se trouve au centre de notre Système solaire ?",
+          options: ["La Lune", "Proxima du Centaure", "Sirius", "Le Soleil"],
+          correct: 3
+        },
+        {
+          q: "[Astronomie 🚀] Combien de temps la Terre met-elle environ pour faire un tour complet autour du Soleil ?",
+          options: ["24 heures", "30 jours", "365 jours (1 an)", "28 jours"],
+          correct: 2
+        }
+      ];
+    }
+
+    setTimeout(() => {
+      setDynamicQuiz(fallbackQuiz);
+      setGeneratingQuiz(false);
+      triggerEduSchemaGeneration(topic);
+      
+      if (isQuotaFallback) {
+        alert("✨ (Quota journalier d'IA réelle épuisé ! Le Tuteur IA local a pris le relais avec un quiz d'entraînement sur-mesure.)");
+      } else {
+        alert("✨ (Configurez VITE_GEMINI_API_KEY dans votre fichier .env.local pour activer la génération de quiz intelligents par IA en direct. Le tuteur local a pris le relais.)");
+      }
+    }, 1000);
+  };
 
   const triggerEduSchemaGeneration = (subj: string) => {
     setLoadingSchema(true);
@@ -314,11 +513,12 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     }
   ];
 
-  const activeQuiz = 
+  const activeQuiz = dynamicQuiz || (
     selectedSubject === 'maths' ? mathQuiz : 
     selectedSubject === 'histoire' ? historyQuiz : 
     selectedSubject === 'sciences' ? sciencesQuiz : 
-    francaisQuiz;
+    francaisQuiz
+  );
 
   // Parent homework creator form states
   const [newHomeworkTitle, setNewHomeworkTitle] = useState('');
@@ -370,6 +570,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     setQuizScore(0);
     setQuizFinished(false);
     setSelectedAnswer(null);
+    setDynamicQuiz(null);
   };
 
   // Mark homework completed (waiting validation)
@@ -660,10 +861,44 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
       {activeSubTab === 'quizzes' && (
         <div className="space-y-4">
           
-          {!selectedSubject ? (
+          {generatingQuiz ? (
+            <div className="glass-panel border border-[#6C5CFF]/30 rounded-[28px] p-8 text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-[#6C5CFF]/10 border-2 border-[#6C5CFF] text-[#6C5CFF] flex items-center justify-center mx-auto animate-spin">
+                <Sparkles className="w-8 h-8" />
+              </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-white">Le Tuteur IA Scolaire réfléchit...</h3>
+                <p className="text-xs text-white/50 mt-1">Conception sur-mesure de votre quiz personnalisé de 3 questions...</p>
+              </div>
+            </div>
+          ) : !selectedSubject ? (
             /* Quiz selection */
             <div className="space-y-4">
-              <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Choisissez votre matière de révision :</span>
+              
+              {/* Premium IA Quiz Generator */}
+              <div className="glass-panel border border-[#6C5CFF]/30 rounded-[28px] p-5 bg-gradient-to-r from-[#6C5CFF]/10 to-[#00D26A]/5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="space-y-1 text-center sm:text-left">
+                  <span className="px-2.5 py-0.5 rounded bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-[8px] font-black text-white uppercase tracking-wider">Option Premium</span>
+                  <h3 className="text-sm font-extrabold text-white flex items-center justify-center sm:justify-start space-x-1.5 mt-1">
+                    <span>Générateur de Quiz IA ✨</span>
+                  </h3>
+                  <p className="text-[10px] text-white/50">Gemini 1.5 Flash crée un quiz sur-mesure sur n'importe quel sujet et niveau !</p>
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={handleGenerateIAQuiz}
+                  className="px-5 py-3 rounded-xl bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white font-extrabold text-[10px] tracking-wider uppercase shadow-md hover:brightness-105 active:scale-95 transition-all cursor-pointer w-full sm:w-auto shrink-0 flex items-center justify-center space-x-2"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-white animate-pulse" />
+                  <span>Générer avec l'IA</span>
+                </button>
+              </div>
+
+              <div className="border-t border-white/5 pt-4">
+                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block mb-3">Ou révisez avec les matières classiques :</span>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -805,7 +1040,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
               </h3>
 
               <div className="space-y-2.5">
-                {activeQuiz[currentQuestionIndex].options.map((opt, idx) => {
+                {activeQuiz[currentQuestionIndex].options.map((opt: string, idx: number) => {
                   const isSelected = selectedAnswer === idx;
                   const isCorrect = idx === activeQuiz[currentQuestionIndex].correct;
                   const isWrong = isSelected && !isCorrect;

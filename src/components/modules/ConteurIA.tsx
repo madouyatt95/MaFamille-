@@ -16,10 +16,13 @@ import {
   Check,
   RefreshCw
 } from 'lucide-react';
+import { aiQuotaService } from '../../services/aiQuotaService';
 
 interface ConteurIAProps {
   onBack: () => void;
   members: any[];
+  isPremium?: boolean;
+  onTriggerPaywall?: () => void;
 }
 
 interface Universe {
@@ -284,7 +287,12 @@ const generateExtensiveStory = (hero: string, universeId: string, moralId: strin
   return { title, chapters, bgGlow: universe.bgGlow, emoji: universe.emoji, themeColor: universe.themeColor };
 };
 
-export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
+export const ConteurIA: React.FC<ConteurIAProps> = ({ 
+  onBack, 
+  members, 
+  isPremium = false, 
+  onTriggerPaywall 
+}) => {
   // Dynamically build heroes list from real family members passed via props
   const defaultHeroes = (members && members.length > 0)
     ? members.map(m => ({
@@ -557,25 +565,150 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
     }
   };
 
-  const handleStartGeneration = () => {
+  const handleStartGeneration = async () => {
     const finalHeroName = isCustomHero ? customHeroName.trim() : selectedHero;
     if (!finalHeroName.trim()) return;
+
+    // 1. Contrôle d'accès Premium obligatoire
+    if (!aiQuotaService.checkAIPremiumAccess(isPremium, onTriggerPaywall)) {
+      return;
+    }
+
     setIsGenerating(true);
     setGenStep(1);
     window.speechSynthesis.cancel();
     setIsReadingAloud(false);
     setStoryImage('');
 
+    const geminiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+    // Consomme le quota si Premium
+    const useRealAI = aiQuotaService.consumeAIQuota(isPremium) && !!geminiKey;
+    const universe = UNIVERSES.find(u => u.id === selectedUniverse) || UNIVERSES[0];
+    const moral = MORALS.find(m => m.id === selectedMoral) || MORALS[0];
+
+    if (useRealAI) {
+      try {
+        setGenStep(2);
+        const prompt = `Tu es le Conteur Céleste IA de l'application MaFamille+.
+Génère une histoire merveilleuse, douce, poétique et apaisante pour endormir un enfant nommé ${finalHeroName}.
+L'univers de l'histoire est : "${universe.name} (${universe.desc})".
+La morale ou valeur à transmettre doucement à travers l'histoire est : "${moral.name} (${moral.desc})".
+
+L'histoire doit impérativement être structurée en 3 chapitres progressifs (Chapitre I, Chapitre II, Chapitre III).
+Chaque chapitre doit comporter exactement 2 à 3 longs paragraphes riches en descriptions magiques, en dialogues doux et en ambiance réconfortante propice au sommeil.
+
+Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\`\`json), sans texte explicatif avant ou après, respectant exactement cette structure :
+{
+  "title": "Le Titre de l'Histoire Merveilleuse",
+  "chapters": [
+    {
+      "title": "Chapitre I : [Titre du chapitre]",
+      "content": [
+        "Paragraphe 1 (très poétique et immersif)",
+        "Paragraphe 2 (installation de la trame)"
+      ]
+    },
+    {
+      "title": "Chapitre II : [Titre du chapitre]",
+      "content": [
+        "Paragraphe 1 (péripétie douce)",
+        "Paragraphe 2 (résolution douce mettant en valeur la morale)"
+      ]
+    },
+    {
+      "title": "Chapitre III : [Titre du chapitre]",
+      "content": [
+        "Paragraphe 1 (le retour calme à la maison)",
+        "Paragraphe 2 (berceuse chaleureuse finale)"
+      ]
+    }
+  ]
+}`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.7 }
+          })
+        });
+
+        if (!response.ok) throw new Error('Gemini API call failed');
+        const data = await response.json();
+        let textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
+
+        const parsedStory = JSON.parse(textResult);
+        if (parsedStory.title && parsedStory.chapters && parsedStory.chapters.length === 3) {
+          setGenStep(3);
+          const remaining = aiQuotaService.getRemainingCalls(isPremium);
+          const limit = aiQuotaService.getDailyLimit();
+          
+          const story = {
+            title: parsedStory.title,
+            chapters: parsedStory.chapters,
+            bgGlow: universe.bgGlow,
+            emoji: universe.emoji,
+            themeColor: universe.themeColor,
+            isRealAI: true,
+            quotaRemaining: remaining,
+            quotaLimit: limit
+          };
+
+          setTimeout(() => {
+            setActiveStory(story);
+            setCurrentChapterIndex(0);
+            setIsGenerating(false);
+            setGenStep(0);
+
+            // Charger l'illustration avec pollinations
+            setLoadingStoryImage(true);
+            const finalPrompt = encodeURIComponent(`dreamy fairytale watercolor children book illustration of ${story.title}, magical landscape in ${universe.name}, warm soft glow, master key art, 3d pixar fantasy style, vivid colors`);
+            const seed = Math.floor(Math.random() * 1000000);
+            const generatedUrl = `https://image.pollinations.ai/prompt/${finalPrompt}?width=600&height=800&nologo=true&seed=${seed}`;
+
+            const img = new Image();
+            img.src = generatedUrl;
+            img.onload = () => {
+              setStoryImage(generatedUrl);
+              setLoadingStoryImage(false);
+            };
+            img.onerror = () => {
+              setStoryImage(`https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?w=600&q=80&sig=${seed}`);
+              setLoadingStoryImage(false);
+            };
+          }, 1000);
+          return;
+        } else {
+          throw new Error('Structure JSON de histoire incorrecte');
+        }
+      } catch (err) {
+        console.warn("[ConteurIA] Erreur lors de la génération avec Gemini Flash, repli sur le conteur local :", err);
+      }
+    }
+
+    // Version locale de repli
     setTimeout(() => {
       setGenStep(2);
       setTimeout(() => {
         setGenStep(3);
         setTimeout(() => {
           const story = generateExtensiveStory(finalHeroName.trim(), selectedUniverse, selectedMoral);
+          
+          const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
+          const isQuotaFallback = isPremium && remainingCalls === 0;
+
           setActiveStory(story);
           setCurrentChapterIndex(0);
           setIsGenerating(false);
           setGenStep(0);
+
+          if (isQuotaFallback) {
+            alert("📖 (Votre quota quotidien d'IA réelle est épuisé ! Le Conteur Céleste local a pris le relais pour vous raconter une magnifique histoire pré-écrite.)");
+          } else {
+            alert("📖 (Configurez VITE_GEMINI_API_KEY dans votre fichier .env.local pour activer la génération illimitée d'histoires uniques par Gemini Flash. Le planificateur local a pris le relais.)");
+          }
 
           // Lancer le chargement de l'illustration d'IA céleste !
           setLoadingStoryImage(true);
@@ -591,14 +724,13 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({ onBack, members }) => {
             setLoadingStoryImage(false);
           };
           img.onerror = () => {
-            // Secours sur Unsplash
             setStoryImage(`https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?w=600&q=80&sig=${seed}`);
             setLoadingStoryImage(false);
           };
 
-        }, 1500);
-      }, 1500);
-    }, 1500);
+        }, 1000);
+      }, 1000);
+    }, 1000);
   };
 
   // Flip Page Anim Trigger with direction parameter

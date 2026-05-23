@@ -283,7 +283,7 @@ function App() {
   const [paywallOpen, setPaywallOpen] = useState(false);
   
   const setActiveModule = (modName: string) => {
-    if (['conteur', 'atelier_art'].includes(modName) && !isPremium) {
+    if (['conteur', 'atelier_art', 'peacemaker'].includes(modName) && !isPremium) {
       setPaywallOpen(true);
       return;
     }

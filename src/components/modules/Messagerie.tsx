@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Search, Palette, X, Pin, PinOff, Smile, Sparkles, Play, Pause } from 'lucide-react';
 import type { Member, ChatMessage, ChatGroup } from '../../types';
 import { foyerService } from '../../services/foyerService';
+import { aiQuotaService } from '../../services/aiQuotaService';
 
 // Player de messages vocaux interactif et esthétique
 const VoiceMessagePlayer: React.FC<{ content: string; isMe: boolean }> = ({ content, isMe }) => {
@@ -132,6 +133,8 @@ interface MessagerieProps {
   messages: ChatMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   initialGroupId?: string;
+  isPremium?: boolean;
+  onTriggerPaywall?: () => void;
 }
 
 export const Messagerie: React.FC<MessagerieProps> = ({ 
@@ -141,7 +144,9 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   setGroups,
   messages,
   setMessages,
-  initialGroupId
+  initialGroupId,
+  isPremium = false,
+  onTriggerPaywall
 }) => {
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   
@@ -260,24 +265,106 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeGroupId]);
 
-  const simulateAiResponse = (userText: string) => {
+  const simulateAiResponse = async (userText: string) => {
     setIsAiTyping(true);
+
+    // 1. Contrôle d'accès Premium obligatoire
+    if (!aiQuotaService.checkAIPremiumAccess(isPremium, onTriggerPaywall)) {
+      setIsAiTyping(false);
+      return;
+    }
+
+    const groqKey = import.meta.env.VITE_GROQ_API_KEY || '';
+    // Consomme le quota si Premium
+    const useRealAI = aiQuotaService.consumeAIQuota(isPremium) && !!groqKey;
+
+    if (useRealAI) {
+      try {
+        const prompt = `Tu es l'Assistant Familial IA chaleureux, intelligent et bienveillant de l'application MaFamille+.
+Aide la famille à s'organiser, cuisiner anti-gaspillage, résoudre des devoirs scolaires, ou conseille-les sur l'éducation positive.
+Réponds de manière claire, concise et joyeuse en français. Utilise des émojis et des listes si cela améliore la lisibilité.
+Demande de l'utilisateur : "${userText}"`;
+
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${groqKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'llama3-8b-8192',
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.6
+          })
+        });
+
+        if (!response.ok) throw new Error('Groq API call failed');
+        const data = await response.json();
+        let reply = data.choices?.[0]?.message?.content || '';
+
+        const remaining = aiQuotaService.getRemainingCalls(isPremium);
+        const limit = aiQuotaService.getDailyLimit();
+        reply += `\n\n✨ (Réponse en direct par Groq Llama 3 • Quota restant : ${remaining}/${limit})`;
+
+        setIsAiTyping(false);
+
+        const aiMsg: ChatMessage = {
+          id: `msg_ai_${Date.now()}`,
+          groupId: 'g_ai_assistant',
+          senderId: 'ai',
+          senderName: 'Assistant IA',
+          type: 'text',
+          content: reply,
+          timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          readBy: [activeMemberId]
+        };
+
+        setMessages(prev => [...prev, aiMsg]);
+        setGroups(prev => prev.map(g => g.id === 'g_ai_assistant' ? { ...g, lastMessage: aiMsg.content.substring(0, 30) + '...', lastMessageTime: aiMsg.timestamp } : g));
+        return;
+      } catch (err) {
+        console.warn("[Messagerie] Erreur lors de l'appel Groq en direct, repli sur l'IA locale :", err);
+      }
+    }
+
+    // Version locale de repli si quota dépassé ou clé manquante
     setTimeout(() => {
       setIsAiTyping(false);
       
       const query = userText.toLowerCase();
+      const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
+      const isQuotaFallback = isPremium && remainingCalls === 0;
+
       let reply = "Je suis votre Assistant Familial IA 🤖. Je peux vous aider à planifier les repas, organiser les corvées des enfants ou résoudre des questions scolaires. Que souhaitez-vous savoir ?";
       
-      if (query.includes('recette') || query.includes('manger') || query.includes('cuisine') || query.includes('dîner') || query.includes('repas')) {
-        reply = "Voici une idée de recette familiale saine et rapide : *Gratin de Pâtes aux Tomates & Mozzarella* 🍅🧀.\n\n• Préparation : 10 min\n• Cuisson : 15 min au four\n• Ingrédients : Pâtes penne, sauce tomate basilic, mozzarella fraîche, parmesan.\n\nBon appétit à toute la famille !";
-      } else if (query.includes('devoir') || query.includes('école') || query.includes('exercice') || query.includes('apprendre') || query.includes('math') || query.includes('histoire')) {
-        reply = "Besoin d'aide pour les devoirs ? 📚 Pas de panique ! L'agenda scolaire et le Tuteur IA sont là pour vous aider. Je vous conseille de diviser le travail en sessions de 25 minutes (méthode Pomodoro) suivies d'une passe active de 5 minutes.";
-      } else if (query.includes('organisation') || query.includes('tâche') || query.includes('corvée') || query.includes('ménage') || query.includes('ranger')) {
-        reply = "Pour optimiser les corvées de la maison 🧹, attribuez les tâches équitablement aux enfants dans le module *Tâches*. Les enfants gagnent des points échangeables contre de l'argent de poche !";
-      } else if (query.includes('budget') || query.includes('argent') || query.includes('épargne') || query.includes('tirelire')) {
-        reply = "Pour encourager l'épargne chez les enfants 🪙, fixez un objectif d'épargne précis (ex: pour un jeu vidéo ou un livre) dans leur espace argent de poche. La jauge de progression s'actualisera en direct !";
-      } else if (query.includes('bonjour') || query.includes('salut') || query.includes('hello')) {
+      if (query.includes('recette') || query.includes('manger') || query.includes('cuisine') || query.includes('dîner') || query.includes('repas') || query.includes('faim')) {
+        reply = "Voici une idée de recette familiale saine, économique et anti-gaspi : *Gratin de Pâtes aux Tomates & Mozzarella* 🍅🧀.\n\n• Préparation : 10 min\n• Cuisson : 15 min au four\n• Ingrédients : Pâtes penne, sauce tomate basilic, mozzarella fraîche, parmesan.\n\n• Conseil Anti-Gaspi : Vous pouvez y ajouter des restes de poulet rôti ou des légumes cuits de la veille ! Bon appétit !";
+      } else if (query.includes('devoir') || query.includes('école') || query.includes('exercice') || query.includes('apprendre') || query.includes('math') || query.includes('histoire') || query.includes('classe')) {
+        reply = "Besoin d'aide pour les devoirs ? 📚 Pas de panique ! L'agenda scolaire et le Tuteur IA sont vos meilleurs alliés. Pour une révision efficace :\n\n1. Divisez le travail en sessions de 25 minutes (méthode Pomodoro).\n2. Utilisez le *Générateur de Quiz IA ✨* dans l'École pour valider les acquis de manière ludique !";
+      } else if (query.includes('organisation') || query.includes('tâche') || query.includes('corvée') || query.includes('ménage') || query.includes('ranger') || query.includes('lit')) {
+        reply = "Pour motiver les enfants à accomplir les corvées de la maison 🧹, attribuez-leur des tâches équitablement dans le module *Tâches*. Les enfants accumulent des points de récompense qu'ils peuvent ensuite convertir dans leur tirelire !";
+      } else if (query.includes('argent') || query.includes('points') || query.includes('tirelire') || query.includes('sous') || query.includes('coffre')) {
+        reply = "Le module *Argent de Poche* 🪙 permet de responsabiliser les enfants. Vous pouvez y fixer des objectifs précis (ex: s'offrir un livre ou un jouet) et y ajouter des gains pour chaque tâche accomplie avec succès !";
+      } else if (query.includes('vacances') || query.includes('voyage') || query.includes('valise') || query.includes('bagage') || query.includes('départ')) {
+        reply = "Vous préparez un départ ? ✈️ Le module *Voyages & Valise IA* est conçu pour cela ! Renseignez la destination, la durée et la météo, et l'IA concevra instantanément la liste idéale de bagages pour chaque membre de la famille.";
+      } else if (query.includes('sport') || query.includes('foot') || query.includes('danse') || query.includes('activité') || query.includes('loisir')) {
+        reply = "Le sport et les activités artistiques ⚽🎨 sont essentiels pour le bien-être familial. N'hésitez pas à les planifier dans l'agenda commun de l'application afin que chacun soit au courant du planning de la semaine !";
+      } else if (query.includes('sommeil') || query.includes('coucher') || query.includes('dodo') || query.includes('histoire') || query.includes('conteur')) {
+        reply = "L'heure du coucher approche ? 🌙 C'est le moment idéal pour lancer le *Conteur d'Histoires IA* ! Choisissez ensemble le héros, le monde imaginaire et la morale, et laissez le Conteur Céleste concevoir un conte merveilleux et apaisant.";
+      } else if (query.includes('écran') || query.includes('téléphone') || query.includes('tablette') || query.includes('jeu') || query.includes('console')) {
+        reply = "La gestion des écrans 📱 est un enjeu pour toutes les familles. Le médiateur *PeaceMaker IA* propose d'excellents compromis en CNV en cas de désaccord. Nous recommandons de fixer des limites claires et de remplacer l'écran du soir par un conte audio.";
+      } else if (query.includes('météo') || query.includes('climat') || query.includes('pluie') || query.includes('soleil') || query.includes('température')) {
+        reply = "Pour planifier vos sorties familiales en fonction de la météo ☀️🌧️, vous pouvez utiliser le module *Voyages* qui intègre des recommandations intelligentes d'activités selon les conditions climatiques réelles !";
+      } else if (query.includes('qui es-tu') || query.includes('fonctionne') || query.includes('assistant') || query.includes('aide')) {
+        reply = "Je suis l'Assistant IA de MaFamille+ 🤖, un conseiller virtuel et compagnon d'organisation. Je réponds à toutes vos questions quotidiennes sur l'éducation, les recettes anti-gaspi et la gestion harmonieuse du foyer.";
+      } else if (query.includes('bonjour') || query.includes('salut') || query.includes('hello') || query.includes('coucou') || query.includes('ça va')) {
         reply = "Bonjour ! Comment se passe votre journée en famille ? Comment puis-je vous aider aujourd'hui ? 🌸";
+      }
+
+      if (isQuotaFallback) {
+        reply += "\n\n✨ (IA Locale simulée : votre quota quotidien d'IA réelle est épuisé !)";
+      } else {
+        reply += "\n\n✨ (IA Locale simulée : configurez VITE_GROQ_API_KEY dans votre fichier .env.local)";
       }
       
       const aiMsg: ChatMessage = {

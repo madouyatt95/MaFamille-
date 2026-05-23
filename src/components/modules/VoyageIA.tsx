@@ -7,25 +7,105 @@ import {
   Snowflake
 } from 'lucide-react';
 import type { Trip } from '../../types';
+import { aiQuotaService } from '../../services/aiQuotaService';
 
 interface VoyageIAProps {
   trips: Trip[];
   formatMoney: (amount: number) => string;
+  isPremium?: boolean;
+  onTriggerPaywall?: () => void;
 }
 
-export const VoyageIA: React.FC<VoyageIAProps> = ({ trips, formatMoney }) => {
+export const VoyageIA: React.FC<VoyageIAProps> = ({ 
+  trips, 
+  formatMoney, 
+  isPremium = false, 
+  onTriggerPaywall 
+}) => {
   const [destination, setDestination] = useState('Dakar, Sénégal 🇸🇳');
   const [days, setDays] = useState('7');
   const [weather, setWeather] = useState('sunny');
   const [generating, setGenerating] = useState(false);
   const [packingLists, setPackingLists] = useState<any | null>(null);
 
-  const generatePackingChecklist = (e: React.FormEvent) => {
+  const generatePackingChecklist = async (e: React.FormEvent) => {
     e.preventDefault();
-    setGenerating(true);
 
+    // 1. Contrôle d'accès Premium obligatoire
+    if (!aiQuotaService.checkAIPremiumAccess(isPremium, onTriggerPaywall)) {
+      return;
+    }
+
+    setGenerating(true);
+    setPackingLists(null);
+
+    const groqKey = import.meta.env.VITE_GROQ_API_KEY || '';
+    // Consomme le quota si Premium
+    const useRealAI = aiQuotaService.consumeAIQuota(isPremium) && !!groqKey;
+
+    if (useRealAI) {
+      try {
+        const prompt = `Tu es le planificateur de voyages IA de l'application MaFamille+.
+Génère des checklists de bagages extrêmement pertinentes et personnalisées pour 3 membres de la famille :
+1. Papa (affaires d'adulte responsable, papiers d'identité, chargeurs, pharmacie, etc.)
+2. Amadou (garçon de 12 ans autonome, jeux de voyage, livres, vêtements adaptés)
+3. Awa (fillette de 8 ans, doudou, cahier de coloriage, vêtements adaptés)
+
+Le voyage est prévu pour la destination : ${destination}, pour une durée de ${days} jours, sous une météo de type : ${weather === 'sunny' ? 'ensoleillée et chaude ☀️' : weather === 'rainy' ? 'pluvieuse et humide 🌧️' : 'hivernale et froide ❄️'}.
+
+Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\`\`json), sans texte explicatif avant ou après, contenant exactement cette structure :
+{
+  "papa": [
+    {"text": "Objet précis à emporter", "checked": false}
+  ],
+  "amadou": [
+    {"text": "Objet précis à emporter", "checked": false}
+  ],
+  "awa": [
+    {"text": "Objet précis à emporter", "checked": false}
+  ]
+}
+Génère EXACTEMENT 5 éléments ultra-pertinents par personne.`;
+
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${groqKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'llama3-8b-8192',
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.3
+          })
+        });
+
+        if (!response.ok) throw new Error('Groq API call failed');
+        const data = await response.json();
+        let textResult = data.choices?.[0]?.message?.content || '';
+        textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
+
+        const parsedLists = JSON.parse(textResult);
+        if (parsedLists.papa && parsedLists.amadou && parsedLists.awa) {
+          setPackingLists(parsedLists);
+          setGenerating(false);
+          const remaining = aiQuotaService.getRemainingCalls(isPremium);
+          const limit = aiQuotaService.getDailyLimit();
+          alert(`💼 Valises personnalisées générées en temps réel par l'IA Groq Llama 3 ! (Quota réel restant : ${remaining}/${limit} aujourd'hui)`);
+          return;
+        } else {
+          throw new Error('Structure JSON reçue incorrecte');
+        }
+      } catch (err) {
+        console.warn("[VoyageIA] Erreur de connexion avec l'IA réelle Groq, repli sur le planificateur local :", err);
+      }
+    }
+
+    // Version locale de repli
     setTimeout(() => {
-      // Generates tailored lists
+      const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
+      const isQuotaFallback = isPremium && remainingCalls === 0;
+
       const lists = {
         papa: [
           { text: 'Passeports & Billets d\'avion', checked: false },
@@ -50,7 +130,12 @@ export const VoyageIA: React.FC<VoyageIAProps> = ({ trips, formatMoney }) => {
 
       setPackingLists(lists);
       setGenerating(false);
-      alert("💼 Valises générées avec succès par l'IA ! Checklists personnalisées disponibles pour chaque membre.");
+
+      if (isQuotaFallback) {
+        alert("💼 (Quota d'IA réelle épuisé pour aujourd'hui ! Votre assistant de voyage local a pris le relais et a généré vos checklists de bagages standard.)");
+      } else {
+        alert("💼 (Configurez VITE_GROQ_API_KEY dans votre fichier .env.local pour activer la génération intelligente par l'IA Groq en direct. Le planificateur local a pris le relais.)");
+      }
     }, 1000);
   };
 
