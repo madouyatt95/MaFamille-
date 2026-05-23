@@ -800,23 +800,28 @@ ALTER TABLE public.foyer_members ADD COLUMN IF NOT EXISTS fcm_token TEXT;
 CREATE OR REPLACE FUNCTION public.trigger_send_push()
 RETURNS TRIGGER AS $$
 DECLARE
-  v_payload TEXT;
+  v_payload jsonb;
 BEGIN
-  -- Construire le payload de webhook au format Supabase
+  -- Construire le payload de webhook au format Supabase en JSONB
   v_payload := json_build_object(
     'type', TG_OP,
     'table', TG_TABLE_NAME,
     'record', row_to_json(NEW),
     'schema', TG_TABLE_SCHEMA
-  )::text;
+  )::jsonb;
 
-  -- Faire l'appel HTTP asynchrone vers l'Edge Function via pg_net
-  PERFORM net.http_post(
-    url := 'https://zjhxombzoilbchxftszb.supabase.co/functions/v1/send-push',
-    body := v_payload,
-    headers := '{"Content-Type": "application/json"}'::jsonb,
-    timeout_milliseconds := 5000
-  );
+  -- Faire l'appel HTTP de manière asynchrone sans bloquer la transaction principale
+  BEGIN
+    PERFORM net.http_post(
+      url := 'https://zjhxombzoilbchxftszb.supabase.co/functions/v1/send-push'::text,
+      body := v_payload,
+      headers := '{"Content-Type": "application/json"}'::jsonb,
+      timeout_milliseconds := 5000
+    );
+  EXCEPTION WHEN OTHERS THEN
+    -- Simplement lever un avertissement et ne pas faire échouer l'INSERT d'origine
+    RAISE WARNING 'Échec de l''envoi push FCM : %', SQLERRM;
+  END;
 
   RETURN NEW;
 END;
