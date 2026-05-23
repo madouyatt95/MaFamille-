@@ -135,5 +135,25 @@ export const notificationService = {
       console.error('[FCM] Erreur lors de l\'initialisation des notifications :', err);
       return null;
     }
+  },
+
+  /**
+   * Désactive les notifications en supprimant le token FCM de Supabase et du localStorage
+   */
+  async disableNotifications(memberId: string): Promise<void> {
+    localStorage.setItem('mf_fcm_active', 'false');
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      const { error } = await supabase
+        .from('foyer_members')
+        .update({ fcm_token: null })
+        .eq('id', memberId);
+
+      if (error) {
+        console.error('[FCM] Échec de la suppression du token FCM dans Supabase :', error.message);
+        throw error;
+      }
+      console.log('[FCM] Token FCM supprimé avec succès en base de données.');
+    }
   }
 };

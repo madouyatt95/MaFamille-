@@ -12,10 +12,13 @@ import {
   Camera,
   ImagePlus,
   Eye,
-  EyeOff
+  EyeOff,
+  Bell,
+  BellOff
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
+import { notificationService } from '../services/notificationService';
 import type { Foyer, FoyerMember, Member } from '../types';
 
 interface SettingsProps {
@@ -77,6 +80,35 @@ export const Settings: React.FC<SettingsProps> = ({
       }
     }
     alert("Code PIN parent enregistré avec succès !");
+  };
+
+  // État des notifications push FCM
+  const [pushEnabled, setPushEnabled] = useState(() => {
+    return localStorage.getItem('mf_fcm_active') === 'true';
+  });
+
+  const handleTogglePush = async () => {
+    if (!activeMemberId) return;
+
+    if (pushEnabled) {
+      try {
+        await notificationService.disableNotifications(activeMemberId);
+        setPushEnabled(false);
+      } catch (err) {
+        console.error("[Settings] Failed to disable push notifications:", err);
+      }
+    } else {
+      try {
+        const token = await notificationService.initializeFCM(activeMemberId);
+        if (token) {
+          setPushEnabled(true);
+        } else {
+          alert("L'activation a échoué. Veuillez autoriser les notifications dans les paramètres de votre navigateur.");
+        }
+      } catch (err) {
+        console.error("[Settings] Failed to enable push notifications:", err);
+      }
+    }
   };
 
   // Apparence thématique (Sombre / Clair / Sépia)
@@ -450,6 +482,44 @@ export const Settings: React.FC<SettingsProps> = ({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Notifications Push */}
+      <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+            {pushEnabled ? <Bell className="w-4 h-4 text-[#00D26A]" /> : <BellOff className="w-4 h-4 text-white/40" />}
+            <span>Notifications Push</span>
+          </h3>
+          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${pushEnabled ? 'bg-[#00D26A]/10 text-[#00D26A]' : 'bg-white/5 text-white/30'}`}>
+            {pushEnabled ? 'Activées' : 'Désactivées'}
+          </span>
+        </div>
+        <p className="text-xs text-white/50 leading-relaxed font-medium">
+          Recevez des alertes en temps réel (Urgences, Chat, Tâches, Argent de poche) directement sur l'écran d'accueil de votre appareil.
+        </p>
+
+        <button
+          type="button"
+          onClick={handleTogglePush}
+          className={`w-full py-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-2 active:scale-[0.98] ${
+            pushEnabled
+              ? 'bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20'
+              : 'bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white shadow-lg shadow-[#6C5CFF]/15 hover:opacity-95'
+          }`}
+        >
+          {pushEnabled ? (
+            <>
+              <BellOff className="w-4 h-4" />
+              <span>Désactiver les notifications</span>
+            </>
+          ) : (
+            <>
+              <Bell className="w-4 h-4 animate-bounce" style={{ animationDuration: '3s' }} />
+              <span>Activer les notifications</span>
+            </>
+          )}
+        </button>
       </div>
 
       {/* 1. Devise Section */}

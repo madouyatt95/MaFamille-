@@ -325,7 +325,8 @@ function App() {
 
   // Configuration des notifications push FCM au chargement du membre actif
   useEffect(() => {
-    if (activeMemberId) {
+    const isPushDisabled = localStorage.getItem('mf_fcm_active') === 'false';
+    if (activeMemberId && !isPushDisabled) {
       const setupPushNotifications = async () => {
         try {
           await notificationService.initializeFCM(activeMemberId, (payload) => {
