@@ -73,7 +73,7 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, isPremium = 
 
     const geminiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
     // Consomme le quota si Premium
-    const useRealAI = aiQuotaService.consumeAIQuota(isPremium) && !!geminiKey;
+    const useRealAI = !!geminiKey && aiQuotaService.consumeAIQuota(isPremium);
 
     if (useRealAI) {
       try {

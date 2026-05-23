@@ -581,8 +581,8 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
     setStoryImage('');
 
     const geminiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
-    // Consomme le quota si Premium
-    const useRealAI = aiQuotaService.consumeAIQuota(isPremium) && !!geminiKey;
+    // Vérifie la clé API d'abord, puis consomme le quota seulement si la clé existe
+    const useRealAI = !!geminiKey && aiQuotaService.consumeAIQuota(isPremium);
     const universe = UNIVERSES.find(u => u.id === selectedUniverse) || UNIVERSES[0];
     const moral = MORALS.find(m => m.id === selectedMoral) || MORALS[0];
 
@@ -705,11 +705,11 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           setGenStep(0);
 
           if (isQuotaFallback) {
-            alert("📖 (Votre quota quotidien d'IA réelle est épuisé ! Le Conteur Céleste local a pris le relais pour vous raconter une magnifique histoire pré-écrite.)");
+            console.info("[ConteurIA] Quota quotidien d'IA réelle épuisé. Basculement sur le Conteur local.");
           } else if (!geminiKey) {
-            alert("📖 (Configurez VITE_GEMINI_API_KEY dans votre fichier .env.local pour activer la génération d'histoires uniques par Gemini Flash. Le planificateur local a pris le relais.)");
+            console.info("[ConteurIA] Clé VITE_GEMINI_API_KEY absente. Basculement sur le Conteur local.");
           } else {
-            alert("📖 (Le Conteur Céleste local a pris le relais. Pour activer la génération d'histoires illimitées par Gemini, assurez-vous de passer sur un compte Premium !)");
+            console.info("[ConteurIA] Basculement sur le Conteur local (compte non-Premium).");
           }
 
           // Lancer le chargement de l'illustration d'IA céleste !

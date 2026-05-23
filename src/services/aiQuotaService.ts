@@ -67,6 +67,15 @@ export const aiQuotaService = {
   },
 
   /**
+   * Vérifie si l'utilisateur Premium a encore du quota sans le consommer.
+   */
+  hasQuotaAvailable(isPremium: boolean): boolean {
+    if (!isPremium) return false;
+    const usage = this.getUsage();
+    return usage.count < DAILY_LIMIT;
+  },
+
+  /**
    * Consomme une unité du quota d'IA réelle si l'utilisateur est Premium et a du quota disponible.
    * Renvoie `true` si le quota d'IA réelle est alloué avec succès (utilisation de la vraie IA).
    * Renvoie `false` si le quota est dépassé (ou si non Premium), forçant le basculement transparent vers la version locale simulée.
@@ -104,5 +113,13 @@ export const aiQuotaService = {
    */
   getDailyLimit(): number {
     return DAILY_LIMIT;
+  },
+
+  /**
+   * Réinitialise complètement le compteur de quota (utile pour le développement).
+   */
+  resetQuota(): void {
+    localStorage.removeItem('mf_daily_ai_usage');
+    console.log('[aiQuotaService] Quota réinitialisé avec succès.');
   }
 };

@@ -41,7 +41,7 @@ export const VoyageIA: React.FC<VoyageIAProps> = ({
 
     const groqKey = import.meta.env.VITE_GROQ_API_KEY || '';
     // Consomme le quota si Premium
-    const useRealAI = aiQuotaService.consumeAIQuota(isPremium) && !!groqKey;
+    const useRealAI = !!groqKey && aiQuotaService.consumeAIQuota(isPremium);
 
     if (useRealAI) {
       try {
@@ -132,9 +132,9 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par personne.`;
       setGenerating(false);
 
       if (isQuotaFallback) {
-        alert("💼 (Quota d'IA réelle épuisé pour aujourd'hui ! Votre assistant de voyage local a pris le relais et a généré vos checklists de bagages standard.)");
+        console.info("[VoyageIA] Quota quotidien d'IA réelle épuisé. Basculement sur le planificateur local.");
       } else {
-        alert("💼 (Configurez VITE_GROQ_API_KEY dans votre fichier .env.local pour activer la génération intelligente par l'IA Groq en direct. Le planificateur local a pris le relais.)");
+        console.info("[VoyageIA] Basculement sur le planificateur de voyage local.");
       }
     }, 1000);
   };

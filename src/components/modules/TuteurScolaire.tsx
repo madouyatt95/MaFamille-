@@ -232,7 +232,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     setLoadingSchema(true);
 
     const geminiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
-    const useRealAI = aiQuotaService.consumeAIQuota(isPremium) && !!geminiKey;
+    const useRealAI = !!geminiKey && aiQuotaService.consumeAIQuota(isPremium);
 
     if (useRealAI) {
       try {
@@ -400,11 +400,11 @@ Exemple de format valide :
       triggerEduSchemaGeneration(topic);
       
       if (isQuotaFallback) {
-        alert("✨ (Quota journalier d'IA réelle épuisé ! Le Tuteur IA local a pris le relais avec un quiz d'entraînement sur-mesure.)");
+        console.info("[TuteurScolaire] Quota quotidien d'IA réelle épuisé. Basculement sur le Tuteur local.");
       } else if (!geminiKey) {
-        alert("✨ (Configurez VITE_GEMINI_API_KEY dans votre fichier .env.local pour activer la génération de quiz intelligents par IA en direct. Le tuteur local a pris le relais.)");
+        console.info("[TuteurScolaire] Clé VITE_GEMINI_API_KEY absente. Basculement sur le Tuteur local.");
       } else {
-        alert("✨ (Le Tuteur IA local a pris le relais avec un quiz d'entraînement sur-mesure. Passez sur un compte Premium pour activer le Tuteur IA en direct !)");
+        console.info("[TuteurScolaire] Basculement sur le Tuteur local (compte non-Premium).");
       }
     }, 1000);
   };

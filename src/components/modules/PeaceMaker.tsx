@@ -43,7 +43,7 @@ export const PeaceMaker: React.FC<PeaceMakerProps> = ({ isPremium = false, onTri
 
     const groqKey = import.meta.env.VITE_GROQ_API_KEY || '';
     // Consomme le quota si Premium
-    const useRealAI = aiQuotaService.consumeAIQuota(isPremium) && !!groqKey;
+    const useRealAI = !!groqKey && aiQuotaService.consumeAIQuota(isPremium);
 
     if (useRealAI) {
       try {
@@ -153,9 +153,9 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
       
       const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
       if (isPremium && remainingCalls === 0) {
-        alert("🕊️ (Quota d'IA réelle épuisé ! Le PeaceMaker local d'entraînement a pris le relais et a formulé une résolution positive standard.)");
+        console.info("[PeaceMaker] Quota quotidien d'IA réelle épuisé. Basculement sur le médiateur local.");
       } else {
-        alert("🕊️ (Configurez VITE_GROQ_API_KEY dans votre fichier .env.local pour activer la médiation dynamique par l'IA Groq en direct. Le planificateur local a pris le relais.)");
+        console.info("[PeaceMaker] Basculement sur le médiateur local.");
       }
     }, 1200);
   };

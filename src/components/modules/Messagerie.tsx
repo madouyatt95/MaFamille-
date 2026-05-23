@@ -276,7 +276,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
     const groqKey = import.meta.env.VITE_GROQ_API_KEY || '';
     // Consomme le quota si Premium
-    const useRealAI = aiQuotaService.consumeAIQuota(isPremium) && !!groqKey;
+    const useRealAI = !!groqKey && aiQuotaService.consumeAIQuota(isPremium);
 
     if (useRealAI) {
       try {
