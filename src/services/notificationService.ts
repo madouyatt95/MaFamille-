@@ -3,13 +3,13 @@ import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { getSupabaseClient } from '../utils/supabase';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDZE7aW6Yv9XGadcRxwXWD75tI_KDhh84c",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "mafamilleplus.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "mafamilleplus",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "mafamilleplus.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "130861804234",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:130861804234:web:9b7c770589350d5f5f2233",
+  vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || "BOMKsvEXkMv7CN1TW_mGbsig0z7AZM9pXZTwxD_3WNiZleKhqaDXlWvAFdeCHLgZDn7-l9LVhRKS1YhLyKh37vY"
 };
 
 // Vérifier si Firebase est correctement configuré dans l'environnement
