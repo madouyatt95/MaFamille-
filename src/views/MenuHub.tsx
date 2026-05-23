@@ -271,6 +271,28 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newGroceryUnit, setNewGroceryUnit] = useState('pièces');
   const [grocerySubTab, setGrocerySubTab] = useState<'liste' | 'ecochef' | 'menus'>('liste');
   const [groceryFilter, setGroceryFilter] = useState<'all' | 'pending' | 'checked'>('all');
+  const [showGrocerySuggestions, setShowGrocerySuggestions] = useState(false);
+
+  // Suggestions d'articles de courses intelligentes
+  const grocerySuggestions = React.useMemo(() => {
+    if (!newGroceryName.trim()) return [];
+    const popularGroceries = [
+      "Lait", "Œufs", "Pain", "Beurre", "Farine", "Sucre", "Sel", "Poivre",
+      "Pâtes", "Riz", "Pommes de terre", "Oignons", "Ail", "Tomates", "Salade",
+      "Pommes", "Bananes", "Fraises", "Poulet", "Jambon", "Steak haché", "Saumon",
+      "Fromage", "Yaourt", "Crème fraîche", "Café", "Thé", "Jus d'orange", "Eau minérale",
+      "Sodas", "Dentifrice", "Gel douche", "Papier toilette", "Essuie-tout", "Lessive"
+    ];
+    const existingNames = groceries ? groceries.map(g => g.name) : [];
+    const allCandidates = Array.from(new Set([...existingNames, ...popularGroceries]));
+    const query = newGroceryName.toLowerCase().trim();
+    return allCandidates
+      .filter(item => {
+        const itemLower = item.toLowerCase();
+        return itemLower.includes(query) && itemLower !== query;
+      })
+      .slice(0, 5);
+  }, [newGroceryName, groceries]);
 
   // Form states for meals
   const [mealDay, setMealDay] = useState('Lun');
@@ -1732,6 +1754,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                           required
                           placeholder="Ex: Lait, Pommes, Pâtes..." 
                           value={newGroceryName}
+                          onFocus={() => setShowGrocerySuggestions(true)}
+                          onBlur={() => setTimeout(() => setShowGrocerySuggestions(false), 200)}
                           onChange={(e) => {
                             const val = e.target.value;
                             setNewGroceryName(val);
@@ -1753,6 +1777,31 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                         >
                           <Mic className="w-4 h-4" />
                         </button>
+
+                        {/* Suggestions d'articles */}
+                        {showGrocerySuggestions && grocerySuggestions.length > 0 && (
+                          <div className="absolute left-0 right-0 top-full mt-1.5 bg-[#0b1726] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 animate-fade-in divide-y divide-white/5">
+                            {grocerySuggestions.map((suggestion) => (
+                              <button
+                                key={suggestion}
+                                type="button"
+                                onMouseDown={() => {
+                                  // Use onMouseDown to trigger click BEFORE onBlur closes it
+                                  setNewGroceryName(suggestion);
+                                  const detected = detectGroceryCategory(suggestion);
+                                  if (detected) {
+                                    setNewGroceryCat(detected);
+                                  }
+                                  setShowGrocerySuggestions(false);
+                                }}
+                                className="w-full text-left px-4 py-3 text-xs text-white/80 hover:text-white hover:bg-white/5 active:bg-white/10 transition-all font-medium flex items-center space-x-2"
+                              >
+                                <span className="text-[#FFB020] text-xs">🛍️</span>
+                                <span>{suggestion}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
