@@ -277,9 +277,7 @@ function App() {
   });
 
   // Premium Freemium States
-  const [isPremium, setIsPremium] = useState<boolean>(() => {
-    return localStorage.getItem('mf_is_premium') === 'true';
-  });
+  const [isPremium, setIsPremium] = useState<boolean>(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
   
   const setActiveModule = (modName: string) => {
