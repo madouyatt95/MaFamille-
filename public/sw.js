@@ -39,16 +39,28 @@ messaging.onBackgroundMessage((payload) => {
 // Clic sur la notification
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = '/';
+  
+  const notificationData = event.notification.data || {};
+  const module = notificationData.module || '';
+  
+  let targetUrl = '/';
+  if (module === 'chat' || module === 'messagerie') {
+    targetUrl = '/?tab=menu&module=messagerie';
+  } else if (module) {
+    targetUrl = `/?tab=menu&module=${module}`;
+  }
   
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // Si une fenêtre de l'application est déjà ouverte, on la redirige et on la focalise
       for (let i = 0; i < windowClients.length; i++) {
         const client = windowClients[i];
-        if (client.url === targetUrl && 'focus' in client) {
+        if ('focus' in client && 'navigate' in client) {
+          client.navigate(targetUrl);
           return client.focus();
         }
       }
+      // Sinon, on ouvre une nouvelle fenêtre avec l'URL cible
       if (clients.openWindow) {
         return clients.openWindow(targetUrl);
       }

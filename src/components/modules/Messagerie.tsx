@@ -1,6 +1,118 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Phone, Video, Search, Palette, X, Pin, PinOff, Smile, Sparkles } from 'lucide-react';
+import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Phone, Video, Search, Palette, X, Pin, PinOff, Smile, Sparkles, Play, Pause } from 'lucide-react';
 import type { Member, ChatMessage, ChatGroup } from '../../types';
+
+// Player de messages vocaux interactif et esthétique
+const VoiceMessagePlayer: React.FC<{ content: string; isMe: boolean }> = ({ content, isMe }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [duration, setDuration] = useState<number | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  let audioSrc = content;
+  let displayDuration = duration;
+
+  // Rétrocompatibilité avec les anciens messages vocaux simulés
+  if (content.startsWith('Audio_')) {
+    const mockDur = parseInt(content.split('_')[1]?.split(':')[1]) || 12;
+    return (
+      <div className="flex items-center space-x-2.5 opacity-60 py-1">
+        <div className={`p-2 rounded-full ${isMe ? 'bg-black/10' : 'bg-[#6C5CFF]/20'}`}>
+          <Mic className="w-4 h-4 text-white/70" />
+        </div>
+        <span className="text-xs italic">(Simulé : {mockDur}s - Non lisible)</span>
+      </div>
+    );
+  }
+
+  // Si le format contient la durée "duration|base64"
+  if (content.includes('|')) {
+    const parts = content.split('|');
+    const durSec = parseFloat(parts[0]);
+    if (!isNaN(durSec)) {
+      displayDuration = durSec;
+    }
+    audioSrc = parts.slice(1).join('|');
+  }
+
+  useEffect(() => {
+    const audio = new Audio(audioSrc);
+    audioRef.current = audio;
+
+    const onLoadedMetadata = () => {
+      if (!displayDuration) {
+        setDuration(audio.duration);
+      }
+    };
+    const onTimeUpdate = () => {
+      setCurrentTime(audio.currentTime);
+    };
+    const onEnded = () => {
+      setIsPlaying(false);
+      setCurrentTime(0);
+    };
+
+    audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('timeupdate', onTimeUpdate);
+    audio.addEventListener('ended', onEnded);
+
+    return () => {
+      audio.pause();
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('timeupdate', onTimeUpdate);
+      audio.removeEventListener('ended', onEnded);
+    };
+  }, [audioSrc, displayDuration]);
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().catch(err => console.error("Play failed:", err));
+      setIsPlaying(true);
+    }
+  };
+
+  const formatTime = (time: number) => {
+    const mins = Math.floor(time / 60);
+    const secs = Math.floor(time % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  const progress = displayDuration ? (currentTime / displayDuration) * 100 : 0;
+
+  return (
+    <div className="flex items-center space-x-3 py-1">
+      <button 
+        type="button" 
+        onClick={togglePlay}
+        className={`p-2 rounded-full transition-all active:scale-90 flex items-center justify-center shrink-0 ${isMe ? 'bg-black/15 hover:bg-black/25 text-black' : 'bg-[#6C5CFF]/20 hover:bg-[#6C5CFF]/35 text-[#00D26A]'}`}
+      >
+        {isPlaying ? (
+          <Pause className="w-3.5 h-3.5 fill-current" />
+        ) : (
+          <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+        )}
+      </button>
+      <div className="flex flex-col min-w-[130px] justify-center">
+        <div className="w-full h-1 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden relative">
+          <div 
+            className={`h-full rounded-full ${isMe ? 'bg-black' : 'bg-[#00D26A]'}`} 
+            style={{ width: `${progress}%` }}
+          ></div>
+        </div>
+        <div className="flex justify-between items-center mt-1">
+          <span className={`text-[9px] font-mono ${isMe ? 'text-black/60' : 'text-white/60'}`}>{formatTime(currentTime)}</span>
+          <span className={`text-[9px] font-mono ${isMe ? 'text-black/60' : 'text-white/60'}`}>
+            {displayDuration ? formatTime(displayDuration) : '--:--'}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface MessagerieProps {
   members: Member[];
@@ -32,6 +144,11 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<number | null>(null);
 
   const activeUser = members.find(m => m.id === activeMemberId);
 
@@ -194,24 +311,89 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const simulateVoiceMessage = () => {
-    if (!activeGroupId || !activeUser) return;
-    setIsRecording(true);
-    setTimeout(() => {
-      setIsRecording(false);
-      const newMsg: ChatMessage = {
-        id: `msg_${Date.now()}`,
-        groupId: activeGroupId,
-        senderId: activeUser.id,
-        senderName: activeUser.name,
-        type: 'voice',
-        content: 'Audio_0:12', // Simulated audio component
-        timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-        readBy: [activeUser.id]
+  const startVoiceRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      let mediaRecorder;
+      try {
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      } catch (e) {
+        mediaRecorder = new MediaRecorder(stream);
+      }
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
       };
-      setMessages(prev => [...prev, newMsg]);
-      setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: '🎤 Message vocal', lastMessageTime: newMsg.timestamp } : g));
-    }, 2000);
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
+        stream.getTracks().forEach(track => track.stop());
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          if (event.target?.result && activeGroupId && activeUser) {
+            const base64Data = event.target.result as string;
+            const payload = `${recordingDuration}|${base64Data}`;
+
+            const newMsg: ChatMessage = {
+              id: `msg_${Date.now()}`,
+              groupId: activeGroupId,
+              senderId: activeUser.id,
+              senderName: activeUser.name,
+              type: 'voice',
+              content: payload,
+              timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+              readBy: [activeUser.id]
+            };
+            setMessages(prev => [...prev, newMsg]);
+            setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: '🎤 Message vocal', lastMessageTime: newMsg.timestamp } : g));
+          }
+        };
+        reader.readAsDataURL(audioBlob);
+      };
+
+      setRecordingDuration(0);
+      setIsRecording(true);
+      mediaRecorder.start();
+
+      recordingTimerRef.current = window.setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+
+    } catch (err) {
+      console.error("Error accessing microphone:", err);
+      alert("Impossible d'accéder au microphone. Veuillez vérifier les autorisations dans les réglages.");
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    }
+  };
+
+  const cancelVoiceRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.onstop = null;
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      if (mediaRecorderRef.current.stream) {
+        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      }
+    }
   };
 
   // --- Canvas Drawing Helpers ---
@@ -474,15 +656,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
                   {msg.type === 'text' && <p className="text-sm whitespace-pre-line">{msg.content}</p>}
                   {msg.type === 'image' && <img src={msg.content} alt="Media" className="rounded-xl max-h-48 object-cover" />}
                   {msg.type === 'voice' && (
-                    <div className="flex items-center space-x-2">
-                      <div className={`p-2 rounded-full ${isMe ? 'bg-black/10' : 'bg-[#6C5CFF]/20'}`}>
-                        <Mic className="w-4 h-4" />
-                      </div>
-                      <div className="w-24 h-1 bg-black/10 rounded-full overflow-hidden">
-                        <div className="w-1/3 h-full bg-current rounded-full"></div>
-                      </div>
-                      <span className="text-xs font-medium">0:12</span>
-                    </div>
+                    <VoiceMessagePlayer content={msg.content} isMe={isMe} />
                   )}
                   
                   <div className={`flex items-center justify-end space-x-1 mt-1 ${isMe ? 'text-black/50' : 'text-white/40'}`}>
@@ -634,56 +808,83 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
       {/* Input Area */}
       <div className="p-3 bg-[#112240] border-t border-white/10">
-        <form onSubmit={handleSendMessage} className="flex items-center space-x-2 bg-white/5 p-1.5 rounded-full border border-white/10">
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            className="hidden" 
-            accept="image/*"
-            capture="environment"
-            onChange={handleMediaUpload}
-          />
-          <button 
-            type="button" 
-            onClick={() => fileInputRef.current?.click()}
-            className="p-2 hover:bg-white/10 rounded-full text-white/60 transition-colors"
-          >
-            <Paperclip className="w-5 h-5" />
-          </button>
-          <button 
-            type="button" 
-            onClick={() => setShowCanvas(true)}
-            className="p-2 hover:bg-white/10 rounded-full text-white/60 transition-colors"
-            title="Dessiner"
-          >
-            <Palette className="w-5 h-5" />
-          </button>
-          
-          <input 
-            type="text" 
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Votre message..." 
-            className="flex-1 bg-transparent border-none text-sm text-white focus:outline-none focus:ring-0 placeholder-white/30"
-          />
-          
-          {newMessage.trim() ? (
-            <button 
-              type="submit" 
-              className="p-2.5 bg-[#00D26A] text-black rounded-full hover:scale-105 transition-transform"
-            >
-              <Send className="w-4 h-4 ml-0.5" />
-            </button>
-          ) : (
+        {isRecording ? (
+          <div className="flex items-center justify-between bg-red-500/10 border border-red-500/25 p-2 rounded-full w-full px-4 animate-pulse">
+            <div className="flex items-center space-x-2">
+              <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-ping"></span>
+              <span className="text-xs font-bold text-red-400">Enregistrement vocal : {recordingDuration}s</span>
+            </div>
+            <div className="flex space-x-2">
+              <button
+                type="button"
+                onClick={cancelVoiceRecording}
+                className="px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold transition cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={stopVoiceRecording}
+                className="px-3 py-1 rounded-full bg-red-500 hover:bg-red-600 text-white text-[11px] font-bold transition flex items-center space-x-1 cursor-pointer"
+              >
+                <Send className="w-3 h-3" />
+                <span>Envoyer</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSendMessage} className="flex items-center space-x-2 bg-white/5 p-1.5 rounded-full border border-white/10">
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept="image/*"
+              capture="environment"
+              onChange={handleMediaUpload}
+            />
             <button 
               type="button" 
-              onClick={simulateVoiceMessage}
-              className="p-2.5 bg-[#6C5CFF] text-white rounded-full hover:scale-105 transition-transform"
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2 hover:bg-white/10 rounded-full text-white/60 transition-colors"
             >
-              <Mic className="w-4 h-4" />
+              <Paperclip className="w-5 h-5" />
             </button>
-          )}
-        </form>
+            <button 
+              type="button" 
+              onClick={() => setShowCanvas(true)}
+              className="p-2 hover:bg-white/10 rounded-full text-white/60 transition-colors"
+              title="Dessiner"
+            >
+              <Palette className="w-5 h-5" />
+            </button>
+            
+            <input 
+              type="text" 
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Votre message..." 
+              className="flex-1 bg-transparent border-none text-sm text-white focus:outline-none focus:ring-0 placeholder-white/30"
+            />
+            
+            {newMessage.trim() ? (
+              <button 
+                type="submit" 
+                className="p-2.5 bg-[#00D26A] text-black rounded-full hover:scale-105 transition-transform"
+              >
+                <Send className="w-4 h-4 ml-0.5" />
+              </button>
+            ) : (
+              <button 
+                type="button" 
+                onClick={startVoiceRecording}
+                className="p-2.5 bg-[#6C5CFF] text-white rounded-full hover:scale-105 transition-transform"
+                title="Enregistrer un message vocal"
+              >
+                <Mic className="w-4 h-4" />
+              </button>
+            )}
+          </form>
+        )}
       </div>
     </div>
   );

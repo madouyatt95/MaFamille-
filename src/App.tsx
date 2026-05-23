@@ -311,7 +311,6 @@ function App() {
   useEffect(() => {
     localStorage.setItem('mf_is_premium', String(isPremium));
   }, [isPremium]);
-
   // Chargement et application du thème visuel au démarrage
   useEffect(() => {
     const savedTheme = localStorage.getItem('app_appearance_mode') || 'dark';
@@ -323,7 +322,24 @@ function App() {
     }
   }, []);
 
-  // Configuration des notifications push FCM au chargement du membre actif
+  // Gestion de la redirection depuis les notifications push (via paramètres URL)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    const moduleParam = params.get('module');
+    
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+    if (moduleParam) {
+      setActiveModule(moduleParam);
+    }
+    
+    if (tabParam || moduleParam) {
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+    }
+  }, []);  // Configuration des notifications push FCM au chargement du membre actif
   useEffect(() => {
     const isPushDisabled = localStorage.getItem('mf_fcm_active') === 'false';
     if (activeMemberId && !isPushDisabled) {

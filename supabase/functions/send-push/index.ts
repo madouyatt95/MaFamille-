@@ -107,7 +107,13 @@ serve(async (req) => {
     if (payload.table === "chat_messages") {
       senderId = record.sender_id;
       title = `${record.sender_name || "Un membre"} dans le Chat`;
-      body = record.text || (record.type === "image" ? "📷 Image partagée" : "Message vocal 🎙️");
+      if (record.type === "image") {
+        body = "📷 Image partagée";
+      } else if (record.type === "voice") {
+        body = "🎤 Message vocal";
+      } else {
+        body = record.content || "";
+      }
     } else if (payload.table === "alerts") {
       title = record.title || "Alerte de Famille";
       body = record.description || "";
