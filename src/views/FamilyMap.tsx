@@ -11,7 +11,8 @@ import {
   Home as HomeIcon, 
   Briefcase, 
   GraduationCap, 
-  Eye, 
+  Eye,
+  EyeOff, 
   Route 
 } from 'lucide-react';
 import type { Member } from '../types';
@@ -59,6 +60,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const [position, setPosition] = useState<[number, number]>([48.8566, 2.3522]);
   const [loadingLoc, setLoadingLoc] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string>('Actif maintenant');
+  const [isSharing, setIsSharing] = useState<boolean>(() => localStorage.getItem('mf_share_location') !== 'false');
   
   // Layer style: 'dark' | 'satellite'
   const [mapLayer, setMapLayer] = useState<'dark' | 'satellite'>('dark');
@@ -86,6 +88,17 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   }, [me]);
 
   useEffect(() => {
+    if (!isSharing) {
+      setLoadingLoc(false);
+      if (onUpdateMemberProfile) {
+        onUpdateMemberProfile(activeMemberId, {
+          locationStatus: 'Position masquée 🔒',
+          lastLocatedAt: new Date().toISOString()
+        });
+      }
+      return;
+    }
+
     // True HTML5 GPS Geolocalisation
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -99,6 +112,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
             onUpdateMemberProfile(activeMemberId, {
               latitude: lat,
               longitude: lng,
+              locationStatus: selectedStatus,
               lastLocatedAt: new Date().toISOString()
             });
           }
@@ -115,7 +129,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     } else {
       setLoadingLoc(false);
     }
-  }, [activeMemberId]);
+  }, [activeMemberId, isSharing]);
 
   // Leaflet custom circular avatar marker creator
   const createCustomIcon = (member: Member, isMe: boolean) => {
@@ -299,6 +313,23 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
       {/* FLOATING MAP LAYER STYLE SWITCHER */}
       <div className="absolute top-20 right-4 z-[999] flex flex-col space-y-2">
+        {/* Toggle Location Sharing */}
+        <button
+          onClick={() => {
+            const nextVal = !isSharing;
+            setIsSharing(nextVal);
+            localStorage.setItem('mf_share_location', nextVal ? 'true' : 'false');
+          }}
+          className={`p-3 backdrop-blur-md rounded-2xl border shadow-xl transition active:scale-95 flex items-center justify-center cursor-pointer ${
+            isSharing 
+              ? 'bg-[#00D26A]/20 border-[#00D26A]/40 text-[#00D26A] hover:bg-[#00D26A]/30' 
+              : 'bg-[#FF3B30]/20 border-[#FF3B30]/40 text-[#FF3B30] hover:bg-[#FF3B30]/30'
+          }`}
+          title={isSharing ? "Partage de position : Actif (Cliquer pour masquer)" : "Partage de position : Masqué (Cliquer pour activer)"}
+        >
+          {isSharing ? <Eye className="w-4.5 h-4.5" /> : <EyeOff className="w-4.5 h-4.5" />}
+        </button>
+
         <button
           onClick={() => setMapLayer(prev => prev === 'dark' ? 'satellite' : 'dark')}
           className="p-3 bg-[#0F1E36]/90 backdrop-blur-md rounded-2xl border border-white/10 shadow-xl hover:bg-[#162C4E] transition text-white active:scale-95 flex items-center justify-center cursor-pointer"
@@ -310,6 +341,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         {/* Manual Geolocate centering */}
         <button 
           onClick={() => {
+            if (!isSharing) {
+              alert("Veuillez activer le partage de position pour vous géolocaliser.");
+              return;
+            }
             if (navigator.geolocation) {
               setLoadingLoc(true);
               navigator.geolocation.getCurrentPosition(
@@ -446,9 +481,26 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                   <Navigation className="w-3.5 h-3.5 text-[#6C5CFF]" />
                   <span>Mon statut & Membres ({members.length})</span>
                 </span>
-                <span className="text-[9px] text-[#00D26A] font-bold bg-[#00D26A]/10 px-2 py-0.5 rounded-full border border-[#00D26A]/20">
-                  {sheetState === 'collapsed' ? 'Déplier 👆' : 'Replier 👇'}
-                </span>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation(); // Évite le dépliage automatique
+                      const nextVal = !isSharing;
+                      setIsSharing(nextVal);
+                      localStorage.setItem('mf_share_location', nextVal ? 'true' : 'false');
+                    }}
+                    className={`text-[9px] font-extrabold uppercase px-2.5 py-1 rounded-xl border transition-all cursor-pointer active:scale-95 ${
+                      isSharing
+                        ? 'bg-[#00D26A]/10 border-[#00D26A]/30 text-[#00D26A]'
+                        : 'bg-[#FF3B30]/10 border-[#FF3B30]/30 text-[#FF3B30]'
+                    }`}
+                  >
+                    {isSharing ? '📍 Actif' : '🔒 Masqué'}
+                  </button>
+                  <span className="text-[9px] text-white/70 font-bold bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
+                    {sheetState === 'collapsed' ? 'Déplier 👆' : 'Replier 👇'}
+                  </span>
+                </div>
               </div>
             </div>
 
