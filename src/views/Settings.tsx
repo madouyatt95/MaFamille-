@@ -499,15 +499,6 @@ export const Settings: React.FC<SettingsProps> = ({
           Recevez des alertes en temps réel (Urgences, Chat, Tâches, Argent de poche) directement sur l'écran d'accueil de votre appareil.
         </p>
 
-        {pushEnabled && (
-          <div className="space-y-1.5 bg-white/5 p-3 rounded-xl border border-white/5">
-            <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Token FCM de cet appareil</span>
-            <code className="text-[10px] text-[#00D26A] font-mono break-all select-all block max-h-[60px] overflow-y-auto cursor-pointer" title="Cliquez pour tout sélectionner">
-              {localStorage.getItem('mf_fcm_token') || 'Génération du token en cours...'}
-            </code>
-          </div>
-        )}
-
         <button
           type="button"
           onClick={handleTogglePush}
