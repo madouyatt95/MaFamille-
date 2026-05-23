@@ -37,7 +37,7 @@ export const notificationService = {
     if (!this.isSupported()) return null;
 
     try {
-      const swUrl = '/firebase-messaging-sw.js';
+      const swUrl = '/sw.js';
       const registration = await navigator.serviceWorker.register(swUrl, { scope: '/' });
       console.log('[FCM] Service Worker enregistré avec succès, scope:', registration.scope);
       return registration;
