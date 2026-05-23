@@ -2622,12 +2622,19 @@ function App() {
         activeMemberId={activeMemberId}
       />
 
-      {/* Premium Subscription Paywall Screen */}
       <Paywall 
         isOpen={paywallOpen}
         onClose={() => setPaywallOpen(false)}
-        onUnlockPremium={() => {
+        onUnlockPremium={async () => {
           setIsPremium(true);
+          if (foyer) {
+            try {
+              await foyerService.updateFoyerPremium(foyer.id, true);
+              setFoyer(prev => prev ? { ...prev, isPremium: true } : null);
+            } catch (err) {
+              console.error("[MaFamille+ Paywall] Failed to update premium status in database:", err);
+            }
+          }
         }}
       />
 

@@ -236,6 +236,21 @@ export const foyerService = {
   },
 
   /**
+   * Mettre à jour le statut Premium du foyer
+   */
+  async updateFoyerPremium(foyerId: string, isPremium: boolean): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Supabase n'est pas configuré");
+
+    const { error } = await supabase
+      .from('foyers')
+      .update({ is_premium: isPremium })
+      .eq('id', foyerId);
+
+    if (error) throw error;
+  },
+
+  /**
    * Mettre à jour les informations d'un membre (ex: profil santé, allergies...)
    */
   async updateMemberProfile(memberId: string, updates: Partial<FoyerMember>): Promise<void> {
