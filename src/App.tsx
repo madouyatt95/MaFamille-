@@ -277,7 +277,9 @@ function App() {
   });
 
   // Premium Freemium States
-  const [isPremium, setIsPremium] = useState<boolean>(false);
+  const [isPremium, setIsPremium] = useState<boolean>(() => {
+    return localStorage.getItem('mf_is_premium') === 'true';
+  });
   const [paywallOpen, setPaywallOpen] = useState(false);
   
   const setActiveModule = (modName: string) => {
@@ -439,7 +441,14 @@ function App() {
         setFoyer(myFoyer);
         setMyMemberProfile(myMember);
         setActiveMemberId(myMember.id);
-        setIsPremium(myFoyer.isPremium);
+        
+        // Respect le choix de test manuel stocké localement s'il existe
+        const localPremium = localStorage.getItem('mf_is_premium');
+        if (localPremium !== null) {
+          setIsPremium(localPremium === 'true');
+        } else {
+          setIsPremium(myFoyer.isPremium);
+        }
         setOnboardingActive(false);
         // Mark that a cloud foyer is active (persists across reloads)
         localStorage.setItem('mf_cloud_foyer_id', myFoyer.id);
@@ -472,7 +481,14 @@ function App() {
               setFoyer(newFoyer);
               setMyMemberProfile(newMember);
               setActiveMemberId(newMember.id);
-              setIsPremium(newFoyer.isPremium);
+              
+              // Respect le choix de test manuel stocké localement s'il existe
+              const localPremium = localStorage.getItem('mf_is_premium');
+              if (localPremium !== null) {
+                setIsPremium(localPremium === 'true');
+              } else {
+                setIsPremium(newFoyer.isPremium);
+              }
               setOnboardingActive(false);
               localStorage.setItem('mf_cloud_foyer_id', newFoyer.id);
               await loadFoyerData(newFoyer.id);
@@ -2784,6 +2800,7 @@ function App() {
           dishes={dishes}
           setDishes={setDishes}
           isPremium={isPremium}
+          setIsPremium={setIsPremium}
           onTriggerPaywall={() => setPaywallOpen(true)}
         />
       );

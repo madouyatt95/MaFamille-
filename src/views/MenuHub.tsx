@@ -217,6 +217,7 @@ interface MenuHubProps {
   onAddTransaction?: (newTrans: any) => void;
   onAddEventDirect?: (newEvent: any) => void;
   isPremium?: boolean;
+  setIsPremium?: (val: boolean) => void;
   onTriggerPaywall?: () => void;
   vaccines?: any[];
   setVaccines?: React.Dispatch<React.SetStateAction<any[]>>;
@@ -285,6 +286,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   onAddTransaction,
   onAddEventDirect,
   isPremium = false,
+  setIsPremium,
   onTriggerPaywall,
   vaccines = [],
   setVaccines,
@@ -998,14 +1000,35 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           <WidgetMeteo />
           
           {/* Dashboard Head */}
-          <div className="flex items-center space-x-3">
-            <div className="p-3 rounded-2xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF]">
-              <Layers className="w-6 h-6" />
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center space-x-3">
+              <div className="p-3 rounded-2xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF]">
+                <Layers className="w-6 h-6" />
+              </div>
+              <div>
+                <h1 className="text-xl font-extrabold text-white tracking-tight">OS Familial</h1>
+                <p className="text-xs text-white/50 font-medium font-sans">11 modules connectés</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-extrabold text-white tracking-tight">OS Familial</h1>
-              <p className="text-xs text-white/50 font-medium font-sans">11 modules connectés pour votre maison</p>
-            </div>
+
+            {/* Quick Demo Premium Toggle */}
+            <button
+              onClick={() => {
+                if (setIsPremium) {
+                  setIsPremium(!isPremium);
+                  // Sync locally immediately to bypass foyer caching for dev testing
+                  localStorage.setItem('mf_is_premium', String(!isPremium));
+                }
+              }}
+              className={`px-4 py-2 rounded-2xl border transition-all duration-300 flex items-center space-x-1.5 text-xs font-bold shadow-sm active:scale-95 cursor-pointer ${
+                isPremium 
+                  ? 'bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white border-transparent shadow-[#6C5CFF]/20' 
+                  : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-current animate-pulse"></span>
+              <span>{isPremium ? '✨ Premium Active' : '🆓 Passer Premium'}</span>
+            </button>
           </div>
 
           {/* Primary Cards Grid (Screen 4 pixel replica) */}
