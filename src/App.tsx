@@ -63,6 +63,7 @@ import { Paywall } from './components/Paywall';
 import { Onboarding } from './views/Onboarding';
 import { foyerService } from './services/foyerService';
 import { getSupabaseClient } from './utils/supabase';
+import { notificationService } from './services/notificationService';
 import type { Foyer, FoyerMember } from './types';
 
 // Lucide icon for inline notifications
@@ -321,6 +322,40 @@ function App() {
       document.body.classList.add('theme-sepia');
     }
   }, []);
+
+  // Configuration des notifications push FCM au chargement du membre actif
+  useEffect(() => {
+    if (activeMemberId) {
+      const setupPushNotifications = async () => {
+        try {
+          await notificationService.initializeFCM(activeMemberId, (payload) => {
+            console.log("[App] Notification push reçue au premier plan :", payload);
+            const newAlert = {
+              id: payload.data?.id || `alert-${Date.now()}`,
+              title: payload.notification?.title || 'Notification MaFamille+',
+              description: payload.notification?.body || '',
+              time: "À l'instant",
+              type: (payload.data?.type || 'info') as any,
+              read: false,
+              module: payload.data?.module || 'other'
+            };
+            setAlerts(prev => [newAlert, ...prev]);
+
+            // Afficher une notification système si autorisé
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification(newAlert.title, {
+                body: newAlert.description,
+                icon: '/pwa-192x192.png'
+              });
+            }
+          });
+        } catch (err) {
+          console.error("[App] Échec de l'initialisation des notifications push :", err);
+        }
+      };
+      setupPushNotifications();
+    }
+  }, [activeMemberId]);
 
   // Helper map function from FoyerMember to UI Member
   const mapFoyerMemberToMember = (fm: FoyerMember): Member => ({

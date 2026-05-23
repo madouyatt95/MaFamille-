@@ -792,3 +792,6 @@ DROP TRIGGER IF EXISTS trigger_notify_member_join ON public.foyer_members;
 CREATE TRIGGER trigger_notify_member_join
 AFTER INSERT OR UPDATE OR DELETE ON public.foyer_members
 FOR EACH ROW EXECUTE FUNCTION public.notify_member_join();
+
+-- Support pour les notifications push Firebase Cloud Messaging (FCM)
+ALTER TABLE public.foyer_members ADD COLUMN IF NOT EXISTS fcm_token TEXT;
