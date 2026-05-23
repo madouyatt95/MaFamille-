@@ -694,24 +694,38 @@ CREATE OR REPLACE FUNCTION public.update_member_profile(
 RETURNS JSON AS $$
 DECLARE
     v_foyer_id UUID;
+    v_caller_role TEXT;
+    v_target_user_id UUID;
 BEGIN
-    -- 1. Vérifier que le membre cible existe et récupérer son foyer
-    SELECT foyer_id INTO v_foyer_id
+    -- 1. Récupérer le foyer et l'user_id cible du membre à modifier
+    SELECT foyer_id, user_id INTO v_foyer_id, v_target_user_id
     FROM public.foyer_members WHERE id = p_member_id;
 
     IF v_foyer_id IS NULL THEN
         RAISE EXCEPTION 'Membre introuvable.';
     END IF;
 
-    -- 2. Vérifier que l'appelant est membre du même foyer
-    IF NOT EXISTS (
-        SELECT 1 FROM public.foyer_members
-        WHERE foyer_id = v_foyer_id AND user_id = auth.uid()
-    ) THEN
+    -- 2. Récupérer le rôle et valider l'appartenance de l'appelant
+    SELECT role INTO v_caller_role
+    FROM public.foyer_members
+    WHERE foyer_id = v_foyer_id AND user_id = auth.uid();
+
+    IF v_caller_role IS NULL THEN
         RAISE EXCEPTION 'Vous n''êtes pas membre de ce foyer.';
     END IF;
 
-    -- 3. Appliquer les mises à jour (seuls les champs non-NULL sont modifiés)
+    -- 3. Validation de sécurité stricte :
+    -- Un membre ne peut modifier le profil de quelqu'un d'autre que s'il est admin ou parent
+    IF v_target_user_id <> auth.uid() AND v_caller_role NOT IN ('admin', 'parent') THEN
+        RAISE EXCEPTION 'Action non autorisée. Seuls les parents et admins peuvent modifier le profil d''un autre membre.';
+    END IF;
+
+    -- Seuls les admins et parents peuvent modifier le rôle ou les dispenses
+    IF (p_role IS NOT NULL OR p_has_exemption IS NOT NULL) AND v_caller_role NOT IN ('admin', 'parent') THEN
+        RAISE EXCEPTION 'Action non autorisée. Seuls les parents et admins peuvent modifier les rôles ou les autorisations.';
+    END IF;
+
+    -- 4. Appliquer les mises à jour (seuls les champs non-NULL sont modifiés)
     UPDATE public.foyer_members SET
         display_name = COALESCE(p_display_name, display_name),
         photo_url = COALESCE(p_photo_url, photo_url),
