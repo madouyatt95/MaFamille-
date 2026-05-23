@@ -100,9 +100,7 @@ export const foyerService = {
       emergencyContactPhone: memberData.emergency_contact_phone,
       emergencyContactRelation: memberData.emergency_contact_relation,
       schoolOrEmployer: memberData.school_or_employer,
-      hasExemption: memberData.has_exemption !== undefined 
-        ? (!!memberData.has_exemption || localStorage.getItem('exemption_' + memberData.id) === 'true') 
-        : localStorage.getItem('exemption_' + memberData.id) === 'true',
+      hasExemption: !!memberData.has_exemption,
       joinedAt: memberData.joined_at,
       latitude: memberData.latitude,
       longitude: memberData.longitude,
@@ -147,9 +145,7 @@ export const foyerService = {
       emergencyContactPhone: m.emergency_contact_phone,
       emergencyContactRelation: m.emergency_contact_relation,
       schoolOrEmployer: m.school_or_employer,
-      hasExemption: m.has_exemption !== undefined 
-        ? (!!m.has_exemption || localStorage.getItem('exemption_' + m.id) === 'true') 
-        : localStorage.getItem('exemption_' + m.id) === 'true',
+      hasExemption: !!m.has_exemption,
       joinedAt: m.joined_at,
       latitude: m.latitude,
       longitude: m.longitude,
@@ -246,10 +242,6 @@ export const foyerService = {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
-    // 1. Sauvegarde en localStorage local en guise de fallback instantané
-    if (updates.hasExemption !== undefined) {
-      localStorage.setItem('exemption_' + memberId, updates.hasExemption ? 'true' : 'false');
-    }
 
     const runRpc = async (includeExemption: boolean) => {
       const rpcParams: any = { p_member_id: memberId };
@@ -471,9 +463,7 @@ export const foyerService = {
       emergencyContactPhone: data.emergency_contact_phone,
       emergencyContactRelation: data.emergency_contact_relation,
       schoolOrEmployer: data.school_or_employer,
-      hasExemption: data.has_exemption !== undefined 
-        ? (!!data.has_exemption || localStorage.getItem('exemption_' + data.id) === 'true') 
-        : localStorage.getItem('exemption_' + data.id) === 'true',
+      hasExemption: !!data.has_exemption,
       joinedAt: data.joined_at,
       latitude: data.latitude,
       longitude: data.longitude,
