@@ -306,9 +306,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   // Clean list modal state
   const [cleanModalOpen, setCleanModalOpen] = useState(false);
 
-  // Natural language typing input state
-  const [naturalInputText, setNaturalInputText] = useState('');
-  const [showNaturalInput, setShowNaturalInput] = useState(false);
+
 
   // Suggestions d'articles de courses intelligentes
   const grocerySuggestions = React.useMemo(() => {
@@ -1985,18 +1983,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
                   {/* Action buttons */}
                   <div className="flex space-x-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setShowNaturalInput(!showNaturalInput)}
-                      className={`py-1.5 px-3 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
-                        showNaturalInput 
-                          ? 'bg-[#6C5CFF]/20 border-[#6C5CFF] text-[#6C5CFF]' 
-                          : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
-                      }`}
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>Saisie Magique</span>
-                    </button>
 
                     <button
                       type="button"
@@ -2023,56 +2009,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   </div>
                 </div>
 
-                {/* Saisie Magique - Natural Input Box */}
-                {showNaturalInput && (
-                  <div className="glass-panel border-white/10 bg-white/5 rounded-2xl p-4 space-y-3 animate-slide-down">
-                    <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest block">Saisie Naturelle Ultra-Intelligente ✨</span>
-                    <p className="text-[9.5px] text-white/50 leading-normal">
-                      Saisissez une phrase naturelle en français, comme : <br />
-                      <span className="italic text-[#FFB020]">"Ajoute 2 kilos de tomates, 3 packs d'eau et du lait pour ce soir"</span>
-                    </p>
-                    <div className="flex space-x-2">
-                      <input
-                        type="text"
-                        value={naturalInputText}
-                        onChange={(e) => setNaturalInputText(e.target.value)}
-                        placeholder="Ex: 2 melons, du riz pour ce soir et des pâtes..."
-                        className="flex-1 bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-[#6C5CFF]"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            if (naturalInputText.trim()) {
-                              const activeMemberName = members.find(m => m.id === activeMemberId)?.name || 'Foyer';
-                              const items = parseSmartNaturalSentence(naturalInputText, activeMemberName);
-                              items.forEach(item => {
-                                onAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
-                              });
-                              setNaturalInputText('');
-                              setShowNaturalInput(false);
-                            }
-                          }
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (naturalInputText.trim()) {
-                            const activeMemberName = members.find(m => m.id === activeMemberId)?.name || 'Foyer';
-                            const items = parseSmartNaturalSentence(naturalInputText, activeMemberName);
-                            items.forEach(item => {
-                              onAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
-                            });
-                            setNaturalInputText('');
-                            setShowNaturalInput(false);
-                          }
-                        }}
-                        className="px-4 py-2 bg-[#6C5CFF] text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl hover:opacity-90 transition-all cursor-pointer"
-                      >
-                        Ajouter
-                      </button>
-                    </div>
-                  </div>
-                )}
 
                 <div className="flex items-center justify-between px-1">
                   <h3 className="text-xs font-bold text-white uppercase tracking-wider">
