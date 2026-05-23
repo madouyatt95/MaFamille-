@@ -795,3 +795,42 @@ FOR EACH ROW EXECUTE FUNCTION public.notify_member_join();
 
 -- Support pour les notifications push Firebase Cloud Messaging (FCM)
 ALTER TABLE public.foyer_members ADD COLUMN IF NOT EXISTS fcm_token TEXT;
+
+-- Fonction de déclenchement d'appel HTTP vers l'Edge Function pour envoyer des Pushs FCM
+CREATE OR REPLACE FUNCTION public.trigger_send_push()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_payload TEXT;
+BEGIN
+  -- Construire le payload de webhook au format Supabase
+  v_payload := json_build_object(
+    'type', TG_OP,
+    'table', TG_TABLE_NAME,
+    'record', row_to_json(NEW),
+    'schema', TG_TABLE_SCHEMA
+  )::text;
+
+  -- Faire l'appel HTTP asynchrone vers l'Edge Function via pg_net
+  PERFORM net.http_post(
+    url := 'https://zjhxombzoilbchxftszb.supabase.co/functions/v1/send-push',
+    body := v_payload,
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    timeout_milliseconds := 5000
+  );
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Créer le trigger pour les messages du chat
+DROP TRIGGER IF EXISTS tr_chat_messages_send_push ON public.chat_messages;
+CREATE TRIGGER tr_chat_messages_send_push
+AFTER INSERT ON public.chat_messages
+FOR EACH ROW EXECUTE FUNCTION public.trigger_send_push();
+
+-- Créer le trigger pour les alertes de famille
+DROP TRIGGER IF EXISTS tr_alerts_send_push ON public.alerts;
+CREATE TRIGGER tr_alerts_send_push
+AFTER INSERT ON public.alerts
+FOR EACH ROW EXECUTE FUNCTION public.trigger_send_push();
+
