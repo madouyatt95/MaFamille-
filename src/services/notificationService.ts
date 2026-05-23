@@ -105,8 +105,9 @@ export const notificationService = {
           }
         }
         
-        // Mémoriser localement que FCM est actif
+        // Mémoriser localement que FCM est actif et stocker le token
         localStorage.setItem('mf_fcm_active', 'true');
+        localStorage.setItem('mf_fcm_token', token);
 
         // 6. Écouter les messages reçus lorsque l'application est au premier plan (Foreground)
         onMessage(messaging, (payload) => {
@@ -132,6 +133,7 @@ export const notificationService = {
    */
   async disableNotifications(memberId: string): Promise<void> {
     localStorage.setItem('mf_fcm_active', 'false');
+    localStorage.removeItem('mf_fcm_token');
     const supabase = getSupabaseClient();
     if (supabase) {
       const { error } = await supabase
