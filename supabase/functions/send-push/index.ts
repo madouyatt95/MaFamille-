@@ -89,22 +89,27 @@ serve(async (req) => {
     const payload = await req.json();
     console.log("[Send-Push] Webhook reçu pour table :", payload.table, "| Type :", payload.type);
 
-    if (payload.type !== "INSERT") {
-      return new Response(JSON.stringify({ message: "Ignored non-INSERT events" }), { status: 200 });
+    if (payload.type !== "INSERT" && payload.type !== "UPDATE") {
+      return new Response(JSON.stringify({ message: "Ignored non-INSERT/UPDATE events" }), { status: 200 });
     }
 
     const record = payload.record;
+    const oldRecord = payload.old_record;
     const foyerId = record.foyer_id;
     if (!foyerId) {
       return new Response(JSON.stringify({ error: "No foyer_id found in record" }), { status: 400 });
     }
 
     // 1. Déterminer le titre et le corps de la notification
-    let title = "Nouveau message";
+    let title = "";
     let body = "";
     let senderId = "";
+    let targetModule = "other";
 
     if (payload.table === "chat_messages") {
+      if (payload.type !== "INSERT") {
+        return new Response(JSON.stringify({ message: "Ignored UPDATE for chat_messages" }), { status: 200 });
+      }
       senderId = record.sender_id;
       title = `${record.sender_name || "Un membre"} dans le Chat`;
       if (record.type === "image") {
@@ -114,9 +119,87 @@ serve(async (req) => {
       } else {
         body = record.content || "";
       }
+      targetModule = "messagerie";
     } else if (payload.table === "alerts") {
+      if (payload.type !== "INSERT") {
+        return new Response(JSON.stringify({ message: "Ignored UPDATE for alerts" }), { status: 200 });
+      }
       title = record.title || "Alerte de Famille";
       body = record.description || "";
+      targetModule = record.module || "other";
+    } else if (payload.table === "memories") {
+      if (payload.type !== "INSERT") {
+        return new Response(JSON.stringify({ message: "Ignored UPDATE for memories" }), { status: 200 });
+      }
+      title = `✨ Nouveau souvenir de ${record.author_name || "la famille"}`;
+      body = record.title || "";
+      targetModule = "capsule";
+    } else if (payload.table === "events") {
+      targetModule = "agenda";
+      if (payload.type === "INSERT") {
+        title = `📅 Nouvel événement : ${record.title}`;
+        body = `${record.date_time || ""} ${record.time || ""}`.trim();
+        if (record.location) body += ` @ ${record.location}`;
+      } else if (payload.type === "UPDATE") {
+        const titleChanged = oldRecord?.title !== record.title;
+        const dateTimeChanged = oldRecord?.date_time !== record.date_time || oldRecord?.time !== record.time;
+        const locationChanged = oldRecord?.location !== record.location;
+        const doneChanged = oldRecord?.done !== record.done;
+
+        if (doneChanged && record.done) {
+          title = `📅 Événement terminé`;
+          body = `"${record.title}" a été marqué comme fait.`;
+        } else if (titleChanged || dateTimeChanged || locationChanged) {
+          title = `📅 Événement mis à jour : ${record.title}`;
+          body = `${record.date_time || ""} ${record.time || ""}`.trim();
+          if (record.location) body += ` @ ${record.location}`;
+        } else {
+          return new Response(JSON.stringify({ message: "No significant changes on event" }), { status: 200 });
+        }
+      }
+    } else if (payload.table === "chore_tasks") {
+      targetModule = "taches";
+      if (payload.type === "INSERT") {
+        title = `🧹 Nouvelle tâche : ${record.title}`;
+        body = `Assignée à : ${record.assigned_member_name || "Tous"} (Récompense : ${record.reward_points || 0} pts)`;
+      } else if (payload.type === "UPDATE") {
+        const doneChanged = oldRecord?.done !== record.done;
+        const validationChanged = oldRecord?.validated_by_parent !== record.validated_by_parent;
+
+        if (doneChanged && record.done && !record.validated_by_parent) {
+          title = `🧹 Tâche terminée : ${record.title}`;
+          body = `Terminée par ${record.assigned_member_name || "un membre"}. En attente de validation parentale.`;
+        } else if (validationChanged && record.validated_by_parent) {
+          title = `🧹 Tâche validée ! 🎉`;
+          body = `La tâche "${record.title}" a été validée par un parent. Les points de récompense ont été attribués !`;
+        } else if (oldRecord?.title !== record.title || oldRecord?.assigned_member_id !== record.assigned_member_id) {
+          title = `🧹 Tâche mise à jour : ${record.title}`;
+          body = `Assignée à : ${record.assigned_member_name || "Tous"}`;
+        } else {
+          return new Response(JSON.stringify({ message: "No significant changes on chore task" }), { status: 200 });
+        }
+      }
+    } else if (payload.table === "votes") {
+      if (payload.type !== "INSERT") {
+        return new Response(JSON.stringify({ message: "Ignored UPDATE for votes" }), { status: 200 });
+      }
+      title = `🗳️ Conseil de famille : Nouveau Vote !`;
+      body = record.question || "";
+      targetModule = "conseil";
+    } else if (payload.table === "groceries") {
+      targetModule = "courses";
+      if (payload.type === "INSERT") {
+        title = `🛒 Liste de courses : Nouvel article`;
+        body = `"${record.name}" (${record.quantity || "1"}) a été ajouté par ${record.added_by || "un membre"}.`;
+      } else if (payload.type === "UPDATE") {
+        const checkedChanged = oldRecord?.checked !== record.checked;
+        if (checkedChanged && record.checked) {
+          title = `🛒 Courses en cours`;
+          body = `L'article "${record.name}" a été acheté !`;
+        } else {
+          return new Response(JSON.stringify({ message: "No significant changes on grocery item" }), { status: 200 });
+        }
+      }
     } else {
       return new Response(JSON.stringify({ message: "Table not supported for push" }), { status: 200 });
     }
@@ -169,8 +252,9 @@ serve(async (req) => {
             notification: { title, body },
             data: {
               click_action: "/",
-              module: payload.table === "chat_messages" ? "chat" : record.module || "other",
-              id: record.id
+              module: targetModule,
+              id: record.id,
+              groupId: record.group_id || ""
             }
           }
         })

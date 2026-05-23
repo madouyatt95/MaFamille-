@@ -50,6 +50,8 @@ self.addEventListener('notificationclick', (event) => {
   if (module === 'chat' || module === 'messagerie') {
     const groupId = notificationData.groupId || notificationData.chatGroupId || '';
     targetUrl = `/?tab=menu&module=messagerie&groupId=${groupId}`;
+  } else if (module === 'agenda' || module === 'calendar') {
+    targetUrl = `/?tab=agenda`;
   } else if (module) {
     targetUrl = `/?tab=menu&module=${module}`;
   }

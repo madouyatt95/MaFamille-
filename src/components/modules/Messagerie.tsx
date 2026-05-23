@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Search, Palette, X, Pin, PinOff, Smile, Sparkles, Play, Pause } from 'lucide-react';
 import type { Member, ChatMessage, ChatGroup } from '../../types';
+import { foyerService } from '../../services/foyerService';
 
 // Player de messages vocaux interactif et esthétique
 const VoiceMessagePlayer: React.FC<{ content: string; isMe: boolean }> = ({ content, isMe }) => {
@@ -161,11 +162,52 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
   const activeUser = members.find(m => m.id === activeMemberId);
 
+  const saveMessageToCloud = useCallback(async (msg: ChatMessage) => {
+    const foyerId = localStorage.getItem('mf_cloud_foyer_id');
+    if (!foyerId) return;
+    try {
+      await foyerService.upsertItem('chat_messages', foyerId, {
+        id: msg.id,
+        group_id: msg.groupId,
+        sender_id: msg.senderId,
+        sender_name: msg.senderName,
+        type: msg.type,
+        content: msg.content,
+        timestamp: msg.timestamp,
+        read_by: msg.readBy,
+        reactions: JSON.stringify(msg.reactions || [])
+      });
+    } catch (err) {
+      console.error("[Messagerie] Error persisting message:", err);
+    }
+  }, []);
+
+  const saveGroupToCloud = useCallback(async (g: ChatGroup) => {
+    const foyerId = localStorage.getItem('mf_cloud_foyer_id');
+    if (!foyerId) return;
+    try {
+      await foyerService.upsertItem('chat_groups', foyerId, {
+        id: g.id,
+        name: g.name,
+        is_private: g.isPrivate,
+        member_ids: g.memberIds,
+        last_message: g.lastMessage || null,
+        last_message_time: g.lastMessageTime || null,
+        pinned_message_id: g.pinnedMessageId || null
+      });
+    } catch (err) {
+      console.error("[Messagerie] Error persisting group:", err);
+    }
+  }, []);
+
+  const prevInitialGroupId = useRef<string | undefined>(undefined);
+
   // Initialization of groups is handled by App.tsx. 
   // We can just automatically select the first group if none is selected.
   useEffect(() => {
-    if (initialGroupId) {
+    if (initialGroupId && initialGroupId !== prevInitialGroupId.current) {
       setActiveGroupId(initialGroupId);
+      prevInitialGroupId.current = initialGroupId;
       return;
     }
     
@@ -195,16 +237,23 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   // Mark group messages as read by activeMemberId
   useEffect(() => {
     if (!activeGroupId || !activeMemberId) return;
-    const hasUnread = messages.some(m => m.groupId === activeGroupId && !m.readBy.includes(activeMemberId));
-    if (hasUnread) {
+    const unreadMessages = messages.filter(m => m.groupId === activeGroupId && !m.readBy.includes(activeMemberId));
+    if (unreadMessages.length > 0) {
       setMessages(prev => prev.map(m => {
         if (m.groupId === activeGroupId && !m.readBy.includes(activeMemberId)) {
           return { ...m, readBy: [...m.readBy, activeMemberId] };
         }
         return m;
       }));
+
+      unreadMessages.forEach(m => {
+        saveMessageToCloud({
+          ...m,
+          readBy: [...m.readBy, activeMemberId]
+        });
+      });
     }
-  }, [activeGroupId, activeMemberId, messages, setMessages]);
+  }, [activeGroupId, activeMemberId, messages, setMessages, saveMessageToCloud]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -268,6 +317,16 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: newMsg.content, lastMessageTime: newMsg.timestamp } : g));
     setNewMessage('');
 
+    saveMessageToCloud(newMsg);
+    const activeGroup = groups.find(g => g.id === activeGroupId);
+    if (activeGroup) {
+      saveGroupToCloud({
+        ...activeGroup,
+        lastMessage: newMsg.content,
+        lastMessageTime: newMsg.timestamp
+      });
+    }
+
     if (activeGroupId === 'g_ai_assistant') {
       simulateAiResponse(userText);
     }
@@ -285,7 +344,9 @@ export const Messagerie: React.FC<MessagerieProps> = ({
           const filtered = existing.filter(r => r.senderName !== activeUser?.name);
           updated = [...filtered, { emoji, senderName: activeUser?.name || 'Inconnu' }];
         }
-        return { ...m, reactions: updated };
+        const updatedMsg = { ...m, reactions: updated };
+        saveMessageToCloud(updatedMsg);
+        return updatedMsg;
       }
       return m;
     }));
@@ -297,7 +358,9 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     setGroups(prev => prev.map(g => {
       if (g.id === activeGroupId) {
         const isCurrentlyPinned = g.pinnedMessageId === msgId;
-        return { ...g, pinnedMessageId: isCurrentlyPinned ? undefined : msgId };
+        const updatedGroup = { ...g, pinnedMessageId: isCurrentlyPinned ? undefined : msgId };
+        saveGroupToCloud(updatedGroup);
+        return updatedGroup;
       }
       return g;
     }));
@@ -322,6 +385,16 @@ export const Messagerie: React.FC<MessagerieProps> = ({
         };
         setMessages(prev => [...prev, newMsg]);
         setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: '📷 Photo', lastMessageTime: newMsg.timestamp } : g));
+
+        saveMessageToCloud(newMsg);
+        const activeGroup = groups.find(g => g.id === activeGroupId);
+        if (activeGroup) {
+          saveGroupToCloud({
+            ...activeGroup,
+            lastMessage: '📷 Photo',
+            lastMessageTime: newMsg.timestamp
+          });
+        }
       }
     };
     reader.readAsDataURL(file);
@@ -390,6 +463,16 @@ export const Messagerie: React.FC<MessagerieProps> = ({
             };
             setMessages(prev => [...prev, newMsg]);
             setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: '🎤 Message vocal', lastMessageTime: newMsg.timestamp } : g));
+
+            saveMessageToCloud(newMsg);
+            const activeGroup = groups.find(g => g.id === activeGroupId);
+            if (activeGroup) {
+              saveGroupToCloud({
+                ...activeGroup,
+                lastMessage: '🎤 Message vocal',
+                lastMessageTime: newMsg.timestamp
+              });
+            }
           }
         };
         reader.readAsDataURL(audioBlob);
@@ -513,6 +596,16 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     setMessages(prev => [...prev, newMsg]);
     setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: '🎨 Dessin', lastMessageTime: newMsg.timestamp } : g));
     setShowCanvas(false);
+
+    saveMessageToCloud(newMsg);
+    const activeGroup = groups.find(g => g.id === activeGroupId);
+    if (activeGroup) {
+      saveGroupToCloud({
+        ...activeGroup,
+        lastMessage: '🎨 Dessin',
+        lastMessageTime: newMsg.timestamp
+      });
+    }
   };
 
   const handleOpenDirectMessage = (targetMember: Member) => {
@@ -535,6 +628,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
       };
       setGroups(prev => [...prev, newGroup]);
       setActiveGroupId(newGroupId);
+      saveGroupToCloud(newGroup);
     }
   };
 
