@@ -134,6 +134,7 @@ function App() {
   });
 
   const [archivedLists, setArchivedLists] = useState<ArchivedList[]>([]);
+  const [initialChatGroupId, setInitialChatGroupId] = useState<string | undefined>(undefined);
 
   const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
     if (hadCloudFoyer) return [];
@@ -330,6 +331,7 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
     const moduleParam = params.get('module');
+    const groupIdParam = params.get('groupId');
     
     if (tabParam) {
       setActiveTab(tabParam);
@@ -337,8 +339,11 @@ function App() {
     if (moduleParam) {
       setActiveModule(moduleParam);
     }
+    if (groupIdParam) {
+      setInitialChatGroupId(groupIdParam);
+    }
     
-    if (tabParam || moduleParam) {
+    if (tabParam || moduleParam || groupIdParam) {
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
     }
@@ -2699,6 +2704,7 @@ function App() {
       // Rendu du hub modulaire avec tous les modules demandés
       return (
         <MenuHub 
+          initialChatGroupId={initialChatGroupId}
           documents={documents}
           setDocuments={setDocuments}
           tasks={tasks}

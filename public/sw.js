@@ -23,17 +23,20 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[FCM SW] Message reçu en arrière-plan :', payload);
 
-  const title = payload.notification?.title || 'MaFamille+';
-  const options = {
-    body: payload.notification?.body || '',
-    icon: payload.notification?.icon || '/icon-192x192.png',
-    badge: '/favicon.svg',
-    data: payload.data || {},
-    tag: payload.data?.tag || 'mafamille-plus-alert',
-    renotify: true
-  };
-
-  self.registration.showNotification(title, options);
+  // Si le payload contient déjà un objet notification, le SDK FCM/navigateur l'affichera automatiquement.
+  // On ne l'affiche manuellement que pour les messages contenant uniquement des données pour éviter les doublons.
+  if (!payload.notification) {
+    const title = payload.data?.title || 'MaFamille+';
+    const options = {
+      body: payload.data?.body || '',
+      icon: payload.data?.icon || '/icon-192x192.png',
+      badge: '/favicon.svg',
+      data: payload.data || {},
+      tag: payload.data?.tag || 'mafamille-plus-alert',
+      renotify: true
+    };
+    self.registration.showNotification(title, options);
+  }
 });
 
 // Clic sur la notification
@@ -45,7 +48,8 @@ self.addEventListener('notificationclick', (event) => {
   
   let targetUrl = '/';
   if (module === 'chat' || module === 'messagerie') {
-    targetUrl = '/?tab=menu&module=messagerie';
+    const groupId = notificationData.groupId || notificationData.chatGroupId || '';
+    targetUrl = `/?tab=menu&module=messagerie&groupId=${groupId}`;
   } else if (module) {
     targetUrl = `/?tab=menu&module=${module}`;
   }

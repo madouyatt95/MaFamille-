@@ -224,6 +224,7 @@ interface MenuHubProps {
   artisans?: Artisan[];
   setArtisans?: React.Dispatch<React.SetStateAction<Artisan[]>>;
   onUpdateMemberProfile?: (memberId: string, updates: any) => Promise<void>;
+  initialChatGroupId?: string;
 }
 
 export const MenuHub: React.FC<MenuHubProps> = ({
@@ -287,7 +288,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   onTriggerPaywall,
   vaccines = [],
   setVaccines,
-  setMembers
+  setMembers,
+  initialChatGroupId
 }) => {
   const [newGroceryName, setNewGroceryName] = useState('');
   const [newGroceryCat, setNewGroceryCat] = useState('Épicerie');
@@ -1134,6 +1136,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           setGroups={setChatGroups}
           messages={chatMessages}
           setMessages={setChatMessages}
+          initialGroupId={initialChatGroupId}
         />
       )}
 

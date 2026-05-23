@@ -36,42 +36,51 @@ const VoiceMessagePlayer: React.FC<{ content: string; isMe: boolean }> = ({ cont
   }
 
   useEffect(() => {
-    const audio = new Audio(audioSrc);
-    audioRef.current = audio;
-
-    const onLoadedMetadata = () => {
-      if (!displayDuration) {
-        setDuration(audio.duration);
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
       }
     };
-    const onTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-    };
-    const onEnded = () => {
-      setIsPlaying(false);
-      setCurrentTime(0);
-    };
-
-    audio.addEventListener('loadedmetadata', onLoadedMetadata);
-    audio.addEventListener('timeupdate', onTimeUpdate);
-    audio.addEventListener('ended', onEnded);
-
-    return () => {
-      audio.pause();
-      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
-      audio.removeEventListener('timeupdate', onTimeUpdate);
-      audio.removeEventListener('ended', onEnded);
-    };
-  }, [audioSrc, displayDuration]);
+  }, []);
 
   const togglePlay = () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current) {
+      const audio = new Audio(audioSrc);
+      audio.preload = 'auto';
+      
+      audio.addEventListener('timeupdate', () => {
+        setCurrentTime(audio.currentTime);
+      });
+      
+      audio.addEventListener('ended', () => {
+        setIsPlaying(false);
+        setCurrentTime(0);
+      });
+      
+      audio.addEventListener('loadedmetadata', () => {
+        if (!displayDuration) {
+          setDuration(audio.duration);
+        }
+      });
+      
+      audioRef.current = audio;
+    }
+
+    const audio = audioRef.current;
     if (isPlaying) {
-      audioRef.current.pause();
+      audio.pause();
       setIsPlaying(false);
     } else {
-      audioRef.current.play().catch(err => console.error("Play failed:", err));
-      setIsPlaying(true);
+      audio.play()
+        .then(() => {
+          setIsPlaying(true);
+        })
+        .catch(err => {
+          console.error("Audio play failed:", err);
+          setIsPlaying(false);
+          alert("Erreur de lecture audio : Format ou codec non supporté par ce navigateur.");
+        });
     }
   };
 
@@ -121,6 +130,7 @@ interface MessagerieProps {
   setGroups: React.Dispatch<React.SetStateAction<ChatGroup[]>>;
   messages: ChatMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+  initialGroupId?: string;
 }
 
 export const Messagerie: React.FC<MessagerieProps> = ({ 
@@ -129,7 +139,8 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   groups,
   setGroups,
   messages,
-  setMessages
+  setMessages,
+  initialGroupId
 }) => {
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   
@@ -141,9 +152,36 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   const [showReactionsForId, setShowReactionsForId] = useState<string | null>(null);
   const [isAiTyping, setIsAiTyping] = useState(false);
   
+  // Call simulation states
+  const [activeCall, setActiveCall] = useState<{
+    type: 'voice' | 'video';
+    status: 'ringing' | 'connected' | 'ended';
+    duration: number;
+    name: string;
+    avatarUrl?: string;
+  } | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false);
+  
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const jitsiApiRef = useRef<any>(null);
+
+  const loadJitsiScript = (): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if ((window as any).JitsiMeetExternalAPI) {
+        resolve();
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://meet.jit.si/external_api.js';
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Impossible de charger le script de visioconférence.'));
+      document.body.appendChild(script);
+    });
+  };
   
   const [recordingDuration, setRecordingDuration] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -155,6 +193,11 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   // Initialization of groups is handled by App.tsx. 
   // We can just automatically select the first group if none is selected.
   useEffect(() => {
+    if (initialGroupId) {
+      setActiveGroupId(initialGroupId);
+      return;
+    }
+    
     if (groups.length > 0 && !activeGroupId) {
       // Find if there is any unread message in any visible group
       const unreadMessages = messages.filter(m => {
@@ -174,7 +217,163 @@ export const Messagerie: React.FC<MessagerieProps> = ({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialGroupId, groups]);
+
+  // Clean up Jitsi instance on component unmount
+  useEffect(() => {
+    return () => {
+      if (jitsiApiRef.current) {
+        try {
+          jitsiApiRef.current.dispose();
+        } catch (e) {}
+        jitsiApiRef.current = null;
+      }
+    };
   }, []);
+
+  // Call timer and real Jitsi Meet integration
+  useEffect(() => {
+    if (!activeCall) return;
+    
+    let simTimeout: number;
+    let timerInterval: number;
+    
+    if (activeCall.status === 'ringing') {
+      simTimeout = window.setTimeout(() => {
+        setActiveCall(prev => prev ? { ...prev, status: 'connected' } : null);
+      }, 3000);
+    } else if (activeCall.status === 'connected') {
+      // Connect to Jitsi Meet
+      loadJitsiScript().then(() => {
+        const parentNode = document.getElementById('jitsi-container');
+        if (!parentNode) return;
+        
+        if (jitsiApiRef.current) {
+          try {
+            jitsiApiRef.current.dispose();
+          } catch (e) {}
+        }
+        
+        const domain = 'meet.jit.si';
+        const options = {
+          roomName: `MaFamillePlus_${activeGroupId || 'general'}`,
+          width: '100%',
+          height: '100%',
+          parentNode: parentNode,
+          userInfo: {
+            displayName: activeUser?.name || 'Membre MaFamille+'
+          },
+          configOverwrite: {
+            startWithAudioMuted: isMuted,
+            startWithVideoMuted: activeCall.type === 'voice' || isVideoOff,
+            prejoinPageEnabled: false,
+            disableDeepLinking: true,
+            toolbarButtons: [
+              'microphone', 'camera', 'chat', 'hangup', 'tileview', 'settings'
+            ]
+          },
+          interfaceConfigOverwrite: {
+            SHOW_JITSI_WATERMARK: false,
+            SHOW_WATERMARK_FOR_GUEST: false
+          }
+        };
+        
+        try {
+          const api = new (window as any).JitsiMeetExternalAPI(domain, options);
+          jitsiApiRef.current = api;
+          
+          api.addEventListener('videoConferenceLeft', () => {
+            handleEndCall();
+          });
+        } catch (err) {
+          console.error("Failed to initialize Jitsi API:", err);
+        }
+      }).catch(err => {
+        console.error(err);
+        alert("Impossible de démarrer l'appel de visioconférence.");
+        handleEndCall();
+      });
+
+      timerInterval = window.setInterval(() => {
+        setActiveCall(prev => prev ? { ...prev, duration: prev.duration + 1 } : null);
+      }, 1000);
+    }
+    
+    return () => {
+      clearTimeout(simTimeout);
+      clearInterval(timerInterval);
+    };
+  }, [activeCall?.status]);
+
+  const handleInitiateCall = (type: 'voice' | 'video') => {
+    if (!activeGroup) return;
+    
+    let callName = activeGroup.name;
+    let callAvatar = '';
+    
+    if (activeGroup.isPrivate && activeGroup.memberIds.length === 2) {
+      const other = members.find(m => m.id !== activeMemberId && activeGroup.memberIds.includes(m.id));
+      if (other) {
+        callName = other.name;
+        callAvatar = other.photoUrl;
+      }
+    }
+    
+    setActiveCall({
+      type,
+      status: 'ringing',
+      duration: 0,
+      name: callName,
+      avatarUrl: callAvatar
+    });
+    
+    setIsMuted(false);
+    setIsVideoOff(false);
+  };
+
+  const handleEndCall = () => {
+    if (jitsiApiRef.current) {
+      try {
+        jitsiApiRef.current.executeCommand('hangup');
+      } catch (e) {}
+      setTimeout(() => {
+        try {
+          jitsiApiRef.current?.dispose();
+        } catch (e) {}
+        jitsiApiRef.current = null;
+      }, 300);
+    }
+    setActiveCall(prev => prev ? { ...prev, status: 'ended' } : null);
+    setTimeout(() => {
+      setActiveCall(null);
+    }, 1200);
+  };
+
+  const formatCallTime = (time: number) => {
+    const mins = Math.floor(time / 60);
+    const secs = Math.floor(time % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  const handleToggleMute = () => {
+    setIsMuted(prev => {
+      const next = !prev;
+      if (jitsiApiRef.current) {
+        jitsiApiRef.current.executeCommand('toggleAudio');
+      }
+      return next;
+    });
+  };
+
+  const handleToggleVideo = () => {
+    setIsVideoOff(prev => {
+      const next = !prev;
+      if (jitsiApiRef.current) {
+        jitsiApiRef.current.executeCommand('toggleVideo');
+      }
+      return next;
+    });
+  };
 
   // Mark group messages as read by activeMemberId
   useEffect(() => {
@@ -315,11 +514,34 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       let mediaRecorder;
+      let selectedMimeType = '';
+      
+      const mimeTypes = [
+        'audio/mp4',
+        'audio/aac',
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg',
+        'audio/wav'
+      ];
+      
+      for (const mime of mimeTypes) {
+        if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(mime)) {
+          selectedMimeType = mime;
+          break;
+        }
+      }
+      
       try {
-        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        if (selectedMimeType) {
+          mediaRecorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
+        } else {
+          mediaRecorder = new MediaRecorder(stream);
+        }
       } catch (e) {
         mediaRecorder = new MediaRecorder(stream);
       }
+      
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -595,8 +817,20 @@ export const Messagerie: React.FC<MessagerieProps> = ({
         <div className="flex space-x-1">
           {activeGroupId !== 'g_ai_assistant' && (
             <>
-              <button className="p-2 hover:bg-white/10 rounded-full"><Video className="w-5 h-5 text-[#00D26A]" /></button>
-              <button className="p-2 hover:bg-white/10 rounded-full"><Phone className="w-5 h-5 text-[#00D26A]" /></button>
+              <button 
+                onClick={() => handleInitiateCall('video')} 
+                className="p-2 hover:bg-white/10 rounded-full transition-all active:scale-95"
+                title="Appel Vidéo"
+              >
+                <Video className="w-5 h-5 text-[#00D26A]" />
+              </button>
+              <button 
+                onClick={() => handleInitiateCall('voice')} 
+                className="p-2 hover:bg-white/10 rounded-full transition-all active:scale-95"
+                title="Appel Audio"
+              >
+                <Phone className="w-5 h-5 text-[#00D26A]" />
+              </button>
             </>
           )}
         </div>
@@ -886,6 +1120,97 @@ export const Messagerie: React.FC<MessagerieProps> = ({
           </form>
         )}
       </div>
+
+      {activeCall && (
+        <div className="absolute inset-0 z-50 bg-[#07111F]/95 backdrop-blur-2xl flex flex-col items-center justify-between p-8 text-white rounded-3xl">
+          {/* Top details */}
+          <div className="text-center mt-12 space-y-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#00D26A] bg-[#00D26A]/10 border border-[#00D26A]/20 px-2.5 py-1 rounded-full">
+              {activeCall.type === 'video' ? 'Appel Vidéo' : 'Appel Audio'}
+            </span>
+            <h3 className="text-2xl font-black tracking-tight">{activeCall.name}</h3>
+            <p className="text-sm text-white/50">
+              {activeCall.status === 'ringing' ? 'Appel en cours...' : 
+               activeCall.status === 'connected' ? `Connecté • ${formatCallTime(activeCall.duration)}` : 
+               'Appel terminé'}
+            </p>
+          </div>
+
+          {/* Center Avatar or Video Area */}
+          <div className="flex-1 flex items-center justify-center w-full my-6 min-h-[300px]">
+            {activeCall.status === 'connected' ? (
+              <div id="jitsi-container" className="w-full h-full rounded-2xl overflow-hidden bg-black border border-white/10 shadow-2xl relative" />
+            ) : (
+              <div className="relative">
+                {/* Pulsing ring around avatar */}
+                {activeCall.status === 'ringing' && (
+                  <>
+                    <div className="absolute inset-0 rounded-full bg-[#00D26A]/20 animate-ping scale-125" style={{ animationDuration: '2s' }} />
+                    <div className="absolute inset-0 rounded-full bg-[#00D26A]/10 animate-ping scale-150" style={{ animationDuration: '3s' }} />
+                  </>
+                )}
+                
+                {activeCall.avatarUrl ? (
+                  <img 
+                    src={activeCall.avatarUrl} 
+                    alt={activeCall.name} 
+                    className="w-28 h-28 rounded-full object-cover border-4 border-white/10 shadow-2xl relative z-10 animate-pulse" 
+                  />
+                ) : (
+                  <div className="w-28 h-28 rounded-full bg-gradient-to-br from-[#6C5CFF] to-[#00D26A] flex items-center justify-center border-4 border-white/10 shadow-2xl relative z-10 animate-pulse">
+                    <Users className="w-12 h-12 text-white" />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Bottom control buttons */}
+          <div className="w-full max-w-xs space-y-8 mb-6">
+            <div className="flex justify-around items-center">
+              {/* Mic Mute Toggle */}
+              <button 
+                type="button"
+                onClick={handleToggleMute}
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                  isMuted 
+                    ? 'bg-red-500/25 border border-red-500 text-red-500 hover:bg-red-500/35' 
+                    : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/15'
+                }`}
+                title={isMuted ? "Activer le micro" : "Couper le micro"}
+              >
+                <Mic className={`w-5 h-5 ${isMuted ? 'opacity-50 line-through' : ''}`} />
+              </button>
+
+              {/* Video Camera Toggle */}
+              {activeCall.type === 'video' && (
+                <button 
+                  type="button"
+                  onClick={handleToggleVideo}
+                  className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                    isVideoOff 
+                      ? 'bg-red-500/25 border border-red-500 text-red-500 hover:bg-red-500/35' 
+                      : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/15'
+                  }`}
+                  title={isVideoOff ? "Activer la caméra" : "Désactiver la caméra"}
+                >
+                  <Video className={`w-5 h-5 ${isVideoOff ? 'opacity-50 line-through' : ''}`} />
+                </button>
+              )}
+
+              {/* Red Hangup button */}
+              <button 
+                type="button"
+                onClick={handleEndCall}
+                className="w-14 h-14 rounded-full bg-red-600 hover:bg-red-700 active:scale-95 flex items-center justify-center transition-all shadow-lg shadow-red-600/30 transform rotate-[135deg]"
+                title="Raccrocher"
+              >
+                <Phone className="w-6 h-6 text-white fill-current" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
