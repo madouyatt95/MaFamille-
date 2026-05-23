@@ -706,8 +706,10 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
 
           if (isQuotaFallback) {
             alert("📖 (Votre quota quotidien d'IA réelle est épuisé ! Le Conteur Céleste local a pris le relais pour vous raconter une magnifique histoire pré-écrite.)");
+          } else if (!geminiKey) {
+            alert("📖 (Configurez VITE_GEMINI_API_KEY dans votre fichier .env.local pour activer la génération d'histoires uniques par Gemini Flash. Le planificateur local a pris le relais.)");
           } else {
-            alert("📖 (Configurez VITE_GEMINI_API_KEY dans votre fichier .env.local pour activer la génération illimitée d'histoires uniques par Gemini Flash. Le planificateur local a pris le relais.)");
+            alert("📖 (Le Conteur Céleste local a pris le relais. Pour activer la génération d'histoires illimitées par Gemini, assurez-vous de passer sur un compte Premium !)");
           }
 
           // Lancer le chargement de l'illustration d'IA céleste !

@@ -401,8 +401,10 @@ Exemple de format valide :
       
       if (isQuotaFallback) {
         alert("✨ (Quota journalier d'IA réelle épuisé ! Le Tuteur IA local a pris le relais avec un quiz d'entraînement sur-mesure.)");
-      } else {
+      } else if (!geminiKey) {
         alert("✨ (Configurez VITE_GEMINI_API_KEY dans votre fichier .env.local pour activer la génération de quiz intelligents par IA en direct. Le tuteur local a pris le relais.)");
+      } else {
+        alert("✨ (Le Tuteur IA local a pris le relais avec un quiz d'entraînement sur-mesure. Passez sur un compte Premium pour activer le Tuteur IA en direct !)");
       }
     }, 1000);
   };
