@@ -143,6 +143,18 @@ export interface GroceryItem {
   checked: boolean;
   inStock: boolean;
   expiryDate?: string;
+  meal?: string;
+  addedBy?: string;
+  isFavorite?: boolean;
+}
+
+export interface ArchivedList {
+  id: string;
+  name: string;
+  date: string;
+  items: GroceryItem[];
+  store?: string;
+  createdBy: string;
 }
 
 export interface Dish {

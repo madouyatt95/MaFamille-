@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { parseGroceryNameAndQty, detectGroceryCategory } from '../utils/groceryParser';
+import { detectGroceryCategory, parseSmartNaturalSentence } from '../utils/groceryParser';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
 import { 
@@ -42,7 +42,11 @@ import {
   Mail,
   Star,
   Eye,
-  EyeOff
+  EyeOff,
+  Archive,
+  RotateCcw,
+  Filter,
+  AlertTriangle
 } from 'lucide-react';
 import type { 
   DocumentFile, 
@@ -64,7 +68,8 @@ import type {
   Demarche,
   JustificatifPack,
   Artisan,
-  PocketMoneyChild
+  PocketMoneyChild,
+  ArchivedList
 } from '../types';
 
 // Import newly built premium sub-modules
@@ -172,10 +177,23 @@ interface MenuHubProps {
   onToggleTask: (id: string) => void;
   onValidateTask: (id: string) => void;
   onToggleGrocery: (id: string) => void;
-  onAddGroceryItem: (name: string, category: string, qty: string) => void;
+  onAddGroceryItem: (
+    name: string, 
+    category: string, 
+    qty: string, 
+    meal?: string, 
+    addedBy?: string, 
+    isFavorite?: boolean
+  ) => void;
   onDeleteGroceryItem: (id: string) => void;
   onEditGroceryItem: (id: string, name: string, qty: string) => void;
   setActiveTab: (tab: string) => void;
+  archivedLists: ArchivedList[];
+  onArchiveCurrentList: (name: string, store?: string) => void;
+  onReuseArchivedList: (listId: string) => void;
+  onDeleteArchivedList: (listId: string) => void;
+  onCleanGroceryList: (option: 'checked' | 'all' | 'archive_first' | 'favorites_only') => void;
+  onToggleFavoriteGrocery: (id: string) => void;
   
   // Custom states
   activeMemberId?: string;
@@ -238,6 +256,12 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   onDeleteGroceryItem,
   onEditGroceryItem,
   setActiveTab,
+  archivedLists = [],
+  onArchiveCurrentList,
+  onReuseArchivedList,
+  onDeleteArchivedList,
+  onCleanGroceryList,
+  onToggleFavoriteGrocery,
   
   activeMemberId = '1',
   memories,
@@ -269,9 +293,22 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newGroceryCat, setNewGroceryCat] = useState('Épicerie');
   const [newGroceryQty, setNewGroceryQty] = useState(1);
   const [newGroceryUnit, setNewGroceryUnit] = useState('pièces');
-  const [grocerySubTab, setGrocerySubTab] = useState<'liste' | 'ecochef' | 'menus'>('liste');
+  const [grocerySubTab, setGrocerySubTab] = useState<'liste' | 'ecochef' | 'menus' | 'archives'>('liste');
   const [groceryFilter, setGroceryFilter] = useState<'all' | 'pending' | 'checked'>('all');
   const [showGrocerySuggestions, setShowGrocerySuggestions] = useState(false);
+  const [grocerySort, setGrocerySort] = useState<'custom' | 'alphabetical' | 'parcours'>('custom');
+  
+  // Archiving states
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+  const [archiveListName, setArchiveListName] = useState('');
+  const [archiveListStore, setArchiveListStore] = useState('');
+
+  // Clean list modal state
+  const [cleanModalOpen, setCleanModalOpen] = useState(false);
+
+  // Natural language typing input state
+  const [naturalInputText, setNaturalInputText] = useState('');
+  const [showNaturalInput, setShowNaturalInput] = useState(false);
 
   // Suggestions d'articles de courses intelligentes
   const grocerySuggestions = React.useMemo(() => {
@@ -487,13 +524,11 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript.trim();
         
-        // Analyse intelligente de la quantité et du produit
-        const parsed = parseGroceryNameAndQty(transcript);
-        // Détection automatique intelligente de la catégorie
-        const category = detectGroceryCategory(parsed.name);
-
-        // Soumission automatique avec la bonne catégorie détectée et la quantité propre !
-        onAddGroceryItem(parsed.name, category, parsed.qtyString);
+        const activeMemberName = members.find(m => m.id === activeMemberId)?.name || 'Foyer';
+        const parsedItems = parseSmartNaturalSentence(transcript, activeMemberName);
+        parsedItems.forEach(item => {
+          onAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
+        });
 
         // Force stop to release mic before any restart
         try {
@@ -1719,6 +1754,16 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             >
               Éco-Chef IA 🥦 👑
             </button>
+            <button
+              onClick={() => setGrocerySubTab('archives')}
+              className={`flex-1 py-2.5 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
+                grocerySubTab === 'archives' 
+                  ? 'bg-[#FFB020] text-black shadow-md' 
+                  : 'text-white/40 hover:text-white/60 hover:bg-white/5'
+              }`}
+            >
+              Archives 🗂️
+            </button>
           </div>
 
           {grocerySubTab === 'liste' ? (
@@ -1921,49 +1966,143 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   </div>
                 </div>
 
+                {/* Control Center Panel */}
+                <div className="grid grid-cols-1 md:flex md:items-center md:justify-between gap-3 bg-[#07111F]/30 p-3 rounded-2xl border border-white/5">
+                  {/* Sorting dropdown */}
+                  <div className="flex items-center space-x-2 flex-1 max-w-xs">
+                    <Filter className="w-3.5 h-3.5 text-[#FFB020] shrink-0" />
+                    <span className="text-[10px] font-bold text-white/50 uppercase shrink-0">Tri :</span>
+                    <select
+                      value={grocerySort}
+                      onChange={(e) => setGrocerySort(e.target.value as any)}
+                      className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FFB020] cursor-pointer"
+                    >
+                      <option value="custom">Tri par catégorie</option>
+                      <option value="parcours">Parcours magasin 🧭</option>
+                      <option value="alphabetical">Tri alphabétique 🔤</option>
+                    </select>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex space-x-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowNaturalInput(!showNaturalInput)}
+                      className={`py-1.5 px-3 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
+                        showNaturalInput 
+                          ? 'bg-[#6C5CFF]/20 border-[#6C5CFF] text-[#6C5CFF]' 
+                          : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Saisie Magique</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setArchiveListName(`Courses du ${new Date().toLocaleDateString('fr-FR')}`);
+                        setArchiveListStore('');
+                        setArchiveModalOpen(true);
+                      }}
+                      className="py-1.5 px-3 bg-[#FFB020]/15 border border-[#FFB020]/30 hover:bg-[#FFB020]/25 text-[#FFB020] rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                    >
+                      <Archive className="w-3.5 h-3.5" />
+                      <span>Archiver</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCleanModalOpen(true)}
+                      className="py-1.5 px-3 bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-400 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                      title="Nettoyer la liste"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Nettoyer</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Saisie Magique - Natural Input Box */}
+                {showNaturalInput && (
+                  <div className="glass-panel border-white/10 bg-white/5 rounded-2xl p-4 space-y-3 animate-slide-down">
+                    <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest block">Saisie Naturelle Ultra-Intelligente ✨</span>
+                    <p className="text-[9.5px] text-white/50 leading-normal">
+                      Saisissez une phrase naturelle en français, comme : <br />
+                      <span className="italic text-[#FFB020]">"Ajoute 2 kilos de tomates, 3 packs d'eau et du lait pour ce soir"</span>
+                    </p>
+                    <div className="flex space-x-2">
+                      <input
+                        type="text"
+                        value={naturalInputText}
+                        onChange={(e) => setNaturalInputText(e.target.value)}
+                        placeholder="Ex: 2 melons, du riz pour ce soir et des pâtes..."
+                        className="flex-1 bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-[#6C5CFF]"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (naturalInputText.trim()) {
+                              const activeMemberName = members.find(m => m.id === activeMemberId)?.name || 'Foyer';
+                              const items = parseSmartNaturalSentence(naturalInputText, activeMemberName);
+                              items.forEach(item => {
+                                onAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
+                              });
+                              setNaturalInputText('');
+                              setShowNaturalInput(false);
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (naturalInputText.trim()) {
+                            const activeMemberName = members.find(m => m.id === activeMemberId)?.name || 'Foyer';
+                            const items = parseSmartNaturalSentence(naturalInputText, activeMemberName);
+                            items.forEach(item => {
+                              onAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
+                            });
+                            setNaturalInputText('');
+                            setShowNaturalInput(false);
+                          }
+                        }}
+                        className="px-4 py-2 bg-[#6C5CFF] text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl hover:opacity-90 transition-all cursor-pointer"
+                      >
+                        Ajouter
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between px-1">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Liste commune par rayons</h3>
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                    {grocerySort === 'alphabetical' ? 'Liste alphabétique' : (grocerySort === 'parcours' ? 'Parcours magasin 🧭' : 'Liste par rayons')}
+                  </h3>
                   <span className="text-[9px] font-extrabold text-[#FFB020] bg-[#FFB020]/10 border border-[#FFB020]/20 px-2 py-0.5 rounded flex items-center space-x-1">
                     <span className="w-1.5 h-1.5 bg-[#FFB020] rounded-full animate-ping"></span>
-                    <span>Rayons ordonnés</span>
+                    <span>{grocerySort === 'parcours' ? 'Ordre optimal' : 'Rayons ordonnés'}</span>
                   </span>
                 </div>
 
                 {(() => {
-                  const categoryOrder = [
-                    'Fruits & Légumes',
-                    'Boucherie',
-                    'Produits Frais',
-                    'Épicerie',
-                    'Boissons',
-                    'Hygiène',
-                    'Entretien'
-                  ];
+                  const getParcoursCategoryIndex = (catName: string) => {
+                    const normalized = catName.trim().toLowerCase();
+                    if (normalized.includes('fruit') || normalized.includes('légume') || normalized.includes('legume')) return 1;
+                    if (normalized.includes('boulangerie') || normalized.includes('pain')) return 2;
+                    if (normalized.includes('frais') || normalized.includes('lait') || normalized.includes('yaourt') || normalized.includes('crème') || normalized.includes('creme')) return 3;
+                    if (normalized.includes('viande') || normalized.includes('poisson') || normalized.includes('boucherie') || normalized.includes('charcuterie')) return 4;
+                    if (normalized.includes('épicerie') || normalized.includes('epicerie')) return 5;
+                    if (normalized.includes('surgelé') || normalized.includes('surgele')) return 6;
+                    if (normalized.includes('boisson')) return 7;
+                    if (normalized.includes('hygiène') || normalized.includes('hygiene') || normalized.includes('soin')) return 8;
+                    if (normalized.includes('maison') || normalized.includes('entretien') || normalized.includes('nettoyage')) return 9;
+                    return 10;
+                  };
 
-                  // Apply global quick filter to groceries before grouping
                   const filteredGroceries = groceries.filter(item => {
                     if (groceryFilter === 'pending') return !item.checked;
                     if (groceryFilter === 'checked') return item.checked;
                     return true;
-                  });
-
-                  // Group items by category
-                  const grouped: Record<string, typeof groceries> = {};
-                  filteredGroceries.forEach(item => {
-                    const cat = item.category || 'Épicerie';
-                    if (!grouped[cat]) {
-                      grouped[cat] = [];
-                    }
-                    grouped[cat].push(item);
-                  });
-
-                  // Sort categories
-                  const sortedCats = Object.keys(grouped).sort((a, b) => {
-                    let indexA = categoryOrder.indexOf(a);
-                    let indexB = categoryOrder.indexOf(b);
-                    if (indexA === -1) indexA = 99;
-                    if (indexB === -1) indexB = 99;
-                    return indexA - indexB;
                   });
 
                   if (filteredGroceries.length === 0) {
@@ -1974,23 +2113,162 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     );
                   }
 
+                  if (grocerySort === 'alphabetical') {
+                    const sortedItems = [...filteredGroceries].sort((a, b) => {
+                      if (a.checked && !b.checked) return 1;
+                      if (!a.checked && b.checked) return -1;
+                      return a.name.localeCompare(b.name, 'fr');
+                    });
+
+                    return (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {sortedItems.map((item) => (
+                          <div key={item.id} className="relative group">
+                            <button
+                              onClick={() => {
+                                if (!isParent && !groceryDerogation) {
+                                  alert("🔒 Dérogation parentale requise pour cocher ou modifier les courses !");
+                                  return;
+                                }
+                                onToggleGrocery(item.id);
+                              }}
+                              className={`w-full glass-panel rounded-[24px] p-4 pr-24 border transition-all text-left flex items-center justify-between hover:bg-white/8 cursor-pointer ${
+                                item.checked ? 'border-[#00D26A]/30 bg-[#00D26A]/5 opacity-60' : 'border-white/8'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                                  item.checked ? 'bg-[#00D26A] border-[#00D26A] text-white' : 'border-white/30 text-transparent'
+                                }`}>
+                                  ✓
+                                </span>
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <h4 className={`text-xs sm:text-sm font-bold text-white ${item.checked ? 'line-through text-white/40' : ''}`}>
+                                      {item.name}
+                                    </h4>
+                                    <span className="text-[8px] font-extrabold px-1 rounded bg-white/5 text-white/40 uppercase">
+                                      {item.category}
+                                    </span>
+                                  </div>
+                                  <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider mt-0.5">
+                                    Qté: {item.quantity} • <span className={item.checked ? 'text-[#00D26A]' : (item.inStock ? 'text-[#00D26A]' : 'text-[#FF4D6D]')}>{item.checked ? 'Acheté' : (item.inStock ? 'En stock' : 'Rupture')}</span>
+                                  </p>
+                                  
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {item.addedBy && (
+                                      <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-white/50 tracking-wide uppercase">
+                                        👤 {item.addedBy}
+                                      </span>
+                                    )}
+                                    {item.meal && (
+                                      <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-[#FFB020]/15 border border-[#FFB020]/25 text-[#FFB020] tracking-wide uppercase">
+                                        🍽️ {item.meal}
+                                      </span>
+                                    )}
+                                    {item.isFavorite && (
+                                      <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-[#FF4D6D]/15 border border-[#FF4D6D]/25 text-[#FF4D6D] tracking-wide uppercase">
+                                        ★ Favori
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                            
+                            <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center space-x-1 bg-[#112240] p-1.5 rounded-xl shadow-lg border border-white/10 backdrop-blur-md z-20">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onToggleFavoriteGrocery(item.id);
+                                }}
+                                className={`p-1.5 hover:bg-white/10 rounded-lg transition-colors cursor-pointer ${
+                                  item.isFavorite ? 'text-[#FFB020]' : 'text-white/30 hover:text-white/60'
+                                }`}
+                                title={item.isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}
+                              >
+                                <Star className={`w-3.5 h-3.5 ${item.isFavorite ? 'fill-[#FFB020]' : ''}`} />
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!isParent && !groceryDerogation) {
+                                    alert("🔒 Dérogation parentale requise pour cocher ou modifier les courses !");
+                                    return;
+                                  }
+                                  const newName = prompt('Modifier le nom du produit:', item.name);
+                                  const newQty = prompt('Modifier la quantité:', item.quantity);
+                                  if (newName && newQty) onEditGroceryItem(item.id, newName, newQty);
+                                }}
+                                title="Modifier"
+                                className="p-1.5 hover:bg-white/10 rounded-lg text-white/70 hover:text-white transition-colors cursor-pointer"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!isParent && !groceryDerogation) {
+                                    alert("🔒 Dérogation parentale requise pour supprimer les courses !");
+                                    return;
+                                  }
+                                  if(window.confirm('Supprimer cet article ?')) onDeleteGroceryItem(item.id);
+                                }}
+                                title="Supprimer"
+                                className="p-1.5 hover:bg-[#FF4D6D]/20 rounded-lg text-[#FF4D6D] transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+
+                  const grouped: Record<string, typeof groceries> = {};
+                  filteredGroceries.forEach(item => {
+                    const cat = item.category || 'Épicerie';
+                    if (!grouped[cat]) {
+                      grouped[cat] = [];
+                    }
+                    grouped[cat].push(item);
+                  });
+
+                  const sortedCats = Object.keys(grouped).sort((a, b) => {
+                    if (grocerySort === 'parcours') {
+                      return getParcoursCategoryIndex(a) - getParcoursCategoryIndex(b);
+                    }
+                    const categoryOrder = [
+                      'Fruits & Légumes',
+                      'Boucherie',
+                      'Produits Frais',
+                      'Épicerie',
+                      'Boissons',
+                      'Hygiène',
+                      'Entretien'
+                    ];
+                    let indexA = categoryOrder.indexOf(a);
+                    let indexB = categoryOrder.indexOf(b);
+                    if (indexA === -1) indexA = 99;
+                    if (indexB === -1) indexB = 99;
+                    return indexA - indexB;
+                  });
+
                   return (
                     <div className="space-y-5">
                       {sortedCats.map((catName) => {
-                        // Sort items: non-checked first, then checked last, then alphabetically
                         const sortedItems = [...grouped[catName]].sort((a, b) => {
                           if (a.checked && !b.checked) return 1;
                           if (!a.checked && b.checked) return -1;
                           return a.name.localeCompare(b.name);
                         });
 
-                        // Compute progress for this shelf based on total initial groceries
                         const totalShelfItems = groceries.filter(g => g.category === catName);
                         const boughtShelfItems = totalShelfItems.filter(g => g.checked);
 
                         return (
                           <div key={catName} className="space-y-2">
-                            {/* Shelf / Aisle Header */}
                             <div className="flex items-center justify-between px-1 py-0.5">
                               <div className="flex items-center space-x-2">
                                 <span className="text-[10px] font-black text-[#FFB020] uppercase tracking-widest">
@@ -2008,7 +2286,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                               </div>
                             </div>
 
-                            {/* Shelf items list */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {sortedItems.map((item) => (
                                 <div key={item.id} className="relative group">
@@ -2037,12 +2314,41 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                                         <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider mt-0.5">
                                           Qté: {item.quantity} • <span className={item.checked ? 'text-[#00D26A]' : (item.inStock ? 'text-[#00D26A]' : 'text-[#FF4D6D]')}>{item.checked ? 'Acheté' : (item.inStock ? 'En stock' : 'Rupture')}</span>
                                         </p>
+                                        
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                          {item.addedBy && (
+                                            <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-white/50 tracking-wide uppercase">
+                                              👤 {item.addedBy}
+                                            </span>
+                                          )}
+                                          {item.meal && (
+                                            <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-[#FFB020]/15 border border-[#FFB020]/25 text-[#FFB020] tracking-wide uppercase">
+                                              🍽️ {item.meal}
+                                            </span>
+                                          )}
+                                          {item.isFavorite && (
+                                            <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-[#FF4D6D]/15 border border-[#FF4D6D]/25 text-[#FF4D6D] tracking-wide uppercase">
+                                              ★ Favori
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
                                   </button>
                                   
-                                  {/* Action buttons */}
                                   <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center space-x-1 bg-[#112240] p-1.5 rounded-xl shadow-lg border border-white/10 backdrop-blur-md z-20">
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onToggleFavoriteGrocery(item.id);
+                                      }}
+                                      className={`p-1.5 hover:bg-white/10 rounded-lg transition-colors cursor-pointer ${
+                                        item.isFavorite ? 'text-[#FFB020]' : 'text-white/30 hover:text-white/60'
+                                      }`}
+                                      title={item.isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}
+                                    >
+                                      <Star className={`w-3.5 h-3.5 ${item.isFavorite ? 'fill-[#FFB020]' : ''}`} />
+                                    </button>
                                     <button 
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -2085,6 +2391,91 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 })()}
               </div>
             </>
+          ) : grocerySubTab === 'archives' ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-[#07111F]/40 border border-white/5 space-y-2">
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Archives des Listes de Courses</h3>
+                <p className="text-[10px] text-white/50 leading-relaxed">
+                  Retrouvez et réutilisez en un clic les listes de courses que vous avez archivées.
+                </p>
+              </div>
+
+              {archivedLists.length === 0 ? (
+                <div className="p-8 text-center glass-panel rounded-3xl border border-dashed border-white/10">
+                  <span className="text-xs text-white/30 block mb-2">Aucune liste archivée pour le moment.</span>
+                  <p className="text-[10px] text-white/40 max-w-xs mx-auto">
+                    Pour archiver votre liste active, cliquez sur le bouton "Archiver" dans l'onglet de la liste principale.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {archivedLists.map((list) => (
+                    <div key={list.id} className="glass-panel border-white/8 rounded-[24px] p-5 space-y-3 relative animate-scale-up">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="text-xs sm:text-sm font-bold text-white">{list.name}</h4>
+                          <p className="text-[9px] text-[#FFB020] font-bold uppercase tracking-wider mt-0.5">
+                            Créée par {list.createdBy} le {list.date}
+                          </p>
+                          {list.store && (
+                            <span className="inline-block mt-1 text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-[#6C5CFF]/15 border border-[#6C5CFF]/20 text-[#6C5CFF] uppercase tracking-wide">
+                              Magasin: {list.store}
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="flex space-x-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm('Voulez-vous réinjecter les produits de cette liste dans votre liste de courses active ?')) {
+                                onReuseArchivedList(list.id);
+                                setGrocerySubTab('liste');
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-[#00D26A]/20 border border-[#00D26A]/30 text-[#00D26A] hover:bg-[#00D26A]/30 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Réutiliser</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm('Supprimer définitivement cette archive ?')) {
+                                onDeleteArchivedList(list.id);
+                              }
+                            }}
+                            className="p-1.5 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 rounded-xl transition-all cursor-pointer flex items-center"
+                            title="Supprimer l'archive"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Items list preview */}
+                      <div className="p-3 bg-black/25 rounded-2xl border border-white/5 max-h-36 overflow-y-auto no-scrollbar">
+                        <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest block mb-1.5">Aperçu ({list.items.length} articles) :</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {list.items.map((item, idx) => (
+                            <span 
+                              key={idx} 
+                              className={`text-[8.5px] font-bold px-2 py-0.5 rounded-lg border flex items-center space-x-1 ${
+                                item.isFavorite 
+                                  ? 'bg-[#FF4D6D]/15 border-[#FF4D6D]/30 text-[#FF4D6D]' 
+                                  : 'bg-white/5 border-white/5 text-white/60'
+                              }`}
+                            >
+                              {item.name} ({item.quantity})
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : grocerySubTab === 'menus' ? (
             <div className="space-y-6">
               
@@ -3911,6 +4302,161 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           </button>
           
           <ContactsImportants />
+        </div>
+      )}
+
+      {/* List Archiving Dialog Modal */}
+      {archiveModalOpen && (
+        <div className="fixed inset-0 bg-[#07111F]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-panel border-white/10 rounded-[28px] w-full max-w-sm p-6 space-y-4 shadow-2xl animate-scale-up">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+              <h3 className="text-xs font-black uppercase tracking-wider text-white">Archiver la liste</h3>
+              <button 
+                type="button"
+                onClick={() => setArchiveModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest block mb-1">Nom de l'archive</label>
+                <input
+                  type="text"
+                  value={archiveListName}
+                  onChange={(e) => setArchiveListName(e.target.value)}
+                  placeholder="Ex: Courses mensuelles"
+                  className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FFB020]"
+                />
+              </div>
+              <div>
+                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest block mb-1">Enseigne / Magasin (Optionnel)</label>
+                <input
+                  type="text"
+                  value={archiveListStore}
+                  onChange={(e) => setArchiveListStore(e.target.value)}
+                  placeholder="Ex: Carrefour, Lidl..."
+                  className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FFB020]"
+                />
+              </div>
+            </div>
+
+            <div className="flex space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setArchiveModalOpen(false)}
+                className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer border border-white/5"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (archiveListName.trim()) {
+                    onArchiveCurrentList(archiveListName.trim(), archiveListStore.trim() || undefined);
+                    setArchiveModalOpen(false);
+                    alert("✨ Votre liste active a été archivée avec succès !");
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-[#FFB020] text-black font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer hover:opacity-90"
+              >
+                Archiver
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clean List Dialog Modal */}
+      {cleanModalOpen && (
+        <div className="fixed inset-0 bg-[#07111F]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-panel border-white/10 rounded-[28px] w-full max-w-sm p-6 space-y-4 shadow-2xl animate-scale-up">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+              <div className="flex items-center space-x-2 text-red-400">
+                <AlertTriangle className="w-4 h-4" />
+                <h3 className="text-xs font-black uppercase tracking-wider text-white">Nettoyer la liste</h3>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setCleanModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <p className="text-[10px] text-white/60 leading-relaxed">
+              Choisissez l'option de nettoyage de votre liste de courses. Cette action supprimera les éléments sélectionnés.
+            </p>
+
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onCleanGroceryList('checked');
+                  setCleanModalOpen(false);
+                  alert("🧹 Articles achetés effacés !");
+                }}
+                className="w-full text-left p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all text-xs font-bold text-white flex items-center justify-between"
+              >
+                <span>Effacer les articles cochés (achetés)</span>
+                <span className="text-[9px] text-[#00D26A] font-extrabold uppercase bg-[#00D26A]/10 px-2 py-0.5 rounded">Cochés</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onCleanGroceryList('favorites_only');
+                  setCleanModalOpen(false);
+                  alert("🧹 Liste nettoyée, seuls vos favoris ont été conservés !");
+                }}
+                className="w-full text-left p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all text-xs font-bold text-white flex items-center justify-between"
+              >
+                <span>Garder uniquement les favoris ★</span>
+                <span className="text-[9px] text-[#FFB020] font-extrabold uppercase bg-[#FFB020]/10 px-2 py-0.5 rounded">Favoris</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const nameStr = `Archive auto - ${new Date().toLocaleDateString('fr-FR')}`;
+                  onArchiveCurrentList(nameStr);
+                  onCleanGroceryList('all');
+                  setCleanModalOpen(false);
+                  alert("🗂️ Liste active archivée sous '" + nameStr + "' puis entièrement vidée !");
+                }}
+                className="w-full text-left p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all text-xs font-bold text-white flex items-center justify-between"
+              >
+                <span>Archiver d'abord, puis tout vider</span>
+                <span className="text-[9px] text-[#6C5CFF] font-extrabold uppercase bg-[#6C5CFF]/10 px-2 py-0.5 rounded">Recommandé</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("⚠️ DANGER : Êtes-vous sûr de vouloir vider ENTIÈREMENT la liste sans l'archiver ?")) {
+                    onCleanGroceryList('all');
+                    setCleanModalOpen(false);
+                    alert("🧹 Liste entièrement vidée !");
+                  }
+                }}
+                className="w-full text-left p-3 rounded-xl bg-red-950/20 hover:bg-red-950/40 border border-red-500/10 transition-all text-xs font-bold text-red-400 flex items-center justify-between"
+              >
+                <span>Tout vider (sans archiver)</span>
+                <span className="text-[9px] text-red-500 font-extrabold uppercase bg-red-500/10 px-2 py-0.5 rounded">Tout</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCleanModalOpen(false)}
+              className="w-full py-2 bg-white/5 hover:bg-white/10 text-white/50 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer text-center"
+            >
+              Annuler
+            </button>
+          </div>
         </div>
       )}
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { parseGroceryNameAndQty, detectGroceryCategory } from './utils/groceryParser';
+import { parseSmartNaturalSentence } from './utils/groceryParser';
 import { 
   demoMembers, 
   demoEvents, 
@@ -42,7 +42,8 @@ import type {
   SchoolTask,
   Demarche,
   JustificatifPack,
-  Artisan
+  Artisan,
+  ArchivedList
 } from './types';
 
 // Component imports
@@ -131,6 +132,8 @@ function App() {
     if (hadCloudFoyer) return [];
     return safeGetLocalStorage('mf_groceries', demoGroceries);
   });
+
+  const [archivedLists, setArchivedLists] = useState<ArchivedList[]>([]);
 
   const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
     if (hadCloudFoyer) return [];
@@ -573,7 +576,21 @@ function App() {
       quantity: g.quantity,
       checked: g.checked,
       inStock: g.in_stock,
-      expiryDate: g.expiry_date
+      expiryDate: g.expiry_date,
+      meal: g.meal || undefined,
+      addedBy: g.added_by || undefined,
+      isFavorite: !!g.is_favorite
+    })) : []);
+
+    // Load Archived Lists
+    const { data: archivedListData } = await client.from('archived_lists').select('*').eq('foyer_id', foyerId);
+    setArchivedLists(archivedListData ? archivedListData.map(al => ({
+      id: al.id,
+      name: al.name,
+      date: al.date,
+      items: typeof al.items === 'string' ? JSON.parse(al.items) : al.items || [],
+      store: al.store || undefined,
+      createdBy: al.created_by
     })) : []);
 
     // Load Transactions
@@ -869,7 +886,10 @@ function App() {
           quantity: payload.new.quantity || '',
           checked: !!payload.new.checked,
           inStock: !!payload.new.in_stock,
-          expiryDate: payload.new.expiry_date || undefined
+          expiryDate: payload.new.expiry_date || undefined,
+          meal: payload.new.meal || undefined,
+          addedBy: payload.new.added_by || undefined,
+          isFavorite: !!payload.new.is_favorite
         };
         setGroceries(prev => {
           if (prev.some(g => g.id === newItem.id)) return prev;
@@ -888,10 +908,53 @@ function App() {
               quantity: payload.new.quantity || g.quantity,
               checked: !!payload.new.checked,
               inStock: !!payload.new.in_stock,
-              expiryDate: payload.new.expiry_date || g.expiryDate
+              expiryDate: payload.new.expiry_date || g.expiryDate,
+              meal: payload.new.meal || undefined,
+              addedBy: payload.new.added_by || undefined,
+              isFavorite: !!payload.new.is_favorite
             };
           }
           return g;
+        }));
+      }
+    });
+
+    const subArchivedLists = foyerService.subscribeToChanges('archived_lists', foyer.id, (payload: any) => {
+      if (!payload) return;
+      console.log("[ArchivedLists Realtime Change] Received payload:", payload.eventType);
+
+      if (payload.eventType === 'DELETE') {
+        const deletedId = payload.old.id;
+        setArchivedLists(prev => prev.filter(l => l.id !== deletedId));
+      }
+      else if (payload.eventType === 'INSERT') {
+        const newList: ArchivedList = {
+          id: payload.new.id,
+          name: payload.new.name,
+          date: payload.new.date,
+          items: typeof payload.new.items === 'string' ? JSON.parse(payload.new.items) : payload.new.items || [],
+          store: payload.new.store || undefined,
+          createdBy: payload.new.created_by
+        };
+        setArchivedLists(prev => {
+          if (prev.some(l => l.id === newList.id)) return prev;
+          return [newList, ...prev];
+        });
+      }
+      else if (payload.eventType === 'UPDATE') {
+        const updatedId = payload.new.id;
+        setArchivedLists(prev => prev.map(l => {
+          if (l.id === updatedId) {
+            return {
+              ...l,
+              name: payload.new.name,
+              date: payload.new.date,
+              items: typeof payload.new.items === 'string' ? JSON.parse(payload.new.items) : payload.new.items || [],
+              store: payload.new.store || undefined,
+              createdBy: payload.new.created_by
+            };
+          }
+          return l;
         }));
       }
     });
@@ -1127,6 +1190,7 @@ function App() {
     return () => {
       if (subEvents) subEvents.unsubscribe();
       if (subGroceries) subGroceries.unsubscribe();
+      if (subArchivedLists) subArchivedLists.unsubscribe();
       if (subTasks) subTasks.unsubscribe();
       if (subMessages) subMessages.unsubscribe();
       if (subMemories) subMemories.unsubscribe();
@@ -1493,27 +1557,31 @@ function App() {
     let feedback = "";
 
     // 1. Action commands (e.g. ajoute des bananes) - PRIORITÉ ABSOLUE
-    if (promptLower.includes('ajoute') || promptLower.includes('ajouter') || promptLower.includes('mets') || promptLower.includes('mettre') || promptLower.includes('rajoute') || promptLower.includes('rajouter')) {
-      // Nettoyage des verbes de début
-      let cleanText = promptLower
-        .replace(/^(ajoute|ajouter|mets|mettre|rajoute|rajouter)\s+/, '')
-        .replace(/^(des|de\s+la|du|un|une|le|la|de|d')\s+/, '')
-        .trim();
-      
-      // Nettoyage des suffixes de destination
-      cleanText = cleanText
-        .replace(/\s+(à\s+la|dans\s+la|dans\s+le|au|sur\s+la|de|à\s+ma|ma)?\s*(liste|courses|caddie|panier|commun[e]?)\s*(commune|partagée|de\s+courses)?$/, '')
-        .trim();
+    if (
+      promptLower.includes('ajoute') || 
+      promptLower.includes('ajouter') || 
+      promptLower.includes('mets') || 
+      promptLower.includes('mettre') || 
+      promptLower.includes('rajoute') || 
+      promptLower.includes('rajouter') ||
+      promptLower.includes('prépare') ||
+      promptLower.includes('prepare')
+    ) {
+      const activeMemberObj = members.find(m => m.id === activeMemberId);
+      const activeMemberName = activeMemberObj?.name || 'Foyer';
+      const parsedItems = parseSmartNaturalSentence(text, activeMemberName);
 
-      if (cleanText.length >= 2) {
-        // Analyse intelligente du nom, de la quantité et de l'unité
-        const parsed = parseGroceryNameAndQty(cleanText);
-        // Attribution automatique intelligente de la catégorie
-        const category = detectGroceryCategory(parsed.name);
+      if (parsedItems.length > 0) {
+        parsedItems.forEach(item => {
+          handleAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
+        });
 
-        handleAddGroceryItem(parsed.name, category, parsed.qtyString);
-        feedback = `🛒 Action : J'ai ajouté "${parsed.name}" (${parsed.qtyString}) dans la catégorie *${category}* à votre liste commune !`;
-        
+        if (parsedItems.length === 1) {
+          feedback = `🛒 Action : J'ai ajouté "${parsedItems[0].name}" (${parsedItems[0].quantity}) dans la catégorie *${parsedItems[0].category}* !`;
+        } else {
+          feedback = `🛒 Action : J'ai ajouté ${parsedItems.length} articles à vos courses (${parsedItems.map(i => i.name).join(', ')}) !`;
+        }
+
         // Open the grocery list interface instantly
         setActiveTab('menu');
         setActiveModule('courses');
@@ -1997,15 +2065,27 @@ function App() {
     }
   };
 
-  const handleAddGroceryItem = async (name: string, category: string, qty: string) => {
+  const handleAddGroceryItem = async (
+    name: string, 
+    category: string, 
+    qty: string, 
+    meal?: string, 
+    addedBy?: string, 
+    isFavorite: boolean = false
+  ) => {
     const id = `gr-${Date.now()}`;
+    const activeMember = members.find(m => m.id === activeMemberId);
+    const defaultAddedBy = addedBy || activeMember?.name || 'Foyer';
     const newItem: GroceryItem = {
       id,
       name,
       category,
       quantity: qty,
       checked: false,
-      inStock: false
+      inStock: false,
+      meal,
+      addedBy: defaultAddedBy,
+      isFavorite
     };
 
     setGroceries(prev => [newItem, ...prev]);
@@ -2021,11 +2101,163 @@ function App() {
             category,
             quantity: qty,
             checked: false,
-            in_stock: false
+            in_stock: false,
+            meal: meal || null,
+            added_by: defaultAddedBy,
+            is_favorite: isFavorite
           });
         } catch (err) {
           console.error("Erreur lors de l'ajout cloud de la course :", err);
         }
+      }
+    }
+  };
+
+  const handleToggleFavoriteGrocery = async (id: string) => {
+    const item = groceries.find(g => g.id === id);
+    if (!item) return;
+
+    const newFavVal = !item.isFavorite;
+
+    setGroceries(prev => prev.map(g => {
+      if (g.id === id) {
+        return { ...g, isFavorite: newFavVal };
+      }
+      return g;
+    }));
+
+    if (foyer) {
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          await client.from('groceries').update({ 
+            is_favorite: newFavVal
+          }).eq('foyer_id', foyer.id).eq('id', id);
+        } catch (err) {
+          console.error("Erreur lors de la modification favorite de la course :", err);
+        }
+      }
+    }
+  };
+
+  const handleArchiveCurrentList = async (name: string, store?: string) => {
+    if (!foyer) return;
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    const listId = `al-${Date.now()}`;
+    const dateStr = new Date().toLocaleDateString('fr-FR');
+    const activeMember = members.find(m => m.id === activeMemberId);
+    const currentMemberName = activeMember?.name || 'Foyer';
+
+    const newList: ArchivedList = {
+      id: listId,
+      name,
+      date: dateStr,
+      items: [...groceries],
+      store: store || undefined,
+      createdBy: currentMemberName
+    };
+
+    setArchivedLists(prev => [newList, ...prev]);
+
+    try {
+      await client.from('archived_lists').insert({
+        id: listId,
+        foyer_id: foyer.id,
+        name,
+        date: dateStr,
+        items: groceries,
+        store: store || null,
+        created_by: currentMemberName
+      });
+    } catch (err) {
+      console.error("Erreur lors de l'archivage cloud :", err);
+    }
+  };
+
+  const handleReuseArchivedList = async (listId: string) => {
+    if (!foyer) return;
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    const list = archivedLists.find(l => l.id === listId);
+    if (!list) return;
+
+    const newItemsToInsert: GroceryItem[] = list.items.map((item, idx) => ({
+      id: `gr-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 9)}`,
+      name: item.name,
+      category: item.category,
+      quantity: item.quantity,
+      checked: false,
+      inStock: false,
+      meal: item.meal,
+      addedBy: item.addedBy,
+      isFavorite: item.isFavorite
+    }));
+
+    setGroceries(prev => [...newItemsToInsert, ...prev]);
+
+    try {
+      const inserts = newItemsToInsert.map(item => ({
+        id: item.id,
+        foyer_id: foyer.id,
+        name: item.name,
+        category: item.category,
+        quantity: item.quantity,
+        checked: false,
+        in_stock: false,
+        meal: item.meal || null,
+        added_by: item.addedBy || null,
+        is_favorite: !!item.isFavorite
+      }));
+      await client.from('groceries').insert(inserts);
+    } catch (err) {
+      console.error("Erreur lors de la réutilisation de la liste :", err);
+    }
+  };
+
+  const handleDeleteArchivedList = async (listId: string) => {
+    setArchivedLists(prev => prev.filter(l => l.id !== listId));
+    if (foyer) {
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          await client.from('archived_lists').delete().eq('foyer_id', foyer.id).eq('id', listId);
+        } catch (err) {
+          console.error("Erreur lors de la suppression de la liste archivée :", err);
+        }
+      }
+    }
+  };
+
+  const handleCleanGroceryList = async (option: 'checked' | 'all' | 'archive_first' | 'favorites_only') => {
+    if (!foyer) return;
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    let itemsToDelete: GroceryItem[] = [];
+    let remainingItems: GroceryItem[] = [];
+
+    if (option === 'checked') {
+      itemsToDelete = groceries.filter(g => g.checked);
+      remainingItems = groceries.filter(g => !g.checked);
+    } else if (option === 'all') {
+      itemsToDelete = [...groceries];
+      remainingItems = [];
+    } else if (option === 'favorites_only') {
+      itemsToDelete = groceries.filter(g => !g.isFavorite);
+      remainingItems = groceries.filter(g => g.isFavorite);
+    }
+
+    setGroceries(remainingItems);
+
+    if (itemsToDelete.length > 0) {
+      try {
+        const ids = itemsToDelete.map(g => g.id);
+        await client.from('groceries').delete().eq('foyer_id', foyer.id).in('id', ids);
+      } catch (err) {
+        console.error("Erreur lors du nettoyage de la liste :", err);
       }
     }
   };
@@ -2504,6 +2736,12 @@ function App() {
           onEditGroceryItem={handleEditGroceryItem}
           setActiveTab={setActiveTab}
           activeMemberId={activeMemberId}
+          archivedLists={archivedLists}
+          onArchiveCurrentList={handleArchiveCurrentList}
+          onReuseArchivedList={handleReuseArchivedList}
+          onDeleteArchivedList={handleDeleteArchivedList}
+          onCleanGroceryList={handleCleanGroceryList}
+          onToggleFavoriteGrocery={handleToggleFavoriteGrocery}
           chatGroups={chatGroups}
           setChatGroups={setChatGroups}
           chatMessages={chatMessages}
