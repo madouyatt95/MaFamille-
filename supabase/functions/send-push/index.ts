@@ -1,13 +1,88 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { GoogleAuth } from "https://deno.land/x/google_deno_auth@v0.1.1/mod.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const firebaseProject = "mafamilleplus";
 
-// Initialisation du client admin de Supabase (pour bypasser les politiques RLS lors de la récupération des tokens)
+// Initialisation du client admin de Supabase (pour bypasser les politiques RLS)
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+// Encodage Base64URL conforme aux specs JWT
+function base64UrlEncode(str: string): string {
+  const binary = new TextEncoder().encode(str);
+  let base64 = "";
+  const bytes = new Uint8Array(binary);
+  for (let i = 0; i < bytes.byteLength; i++) {
+    base64 += String.fromCharCode(bytes[i]);
+  }
+  return btoa(base64).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64UrlEncodeArrayBuffer(buffer: ArrayBuffer): string {
+  let base64 = "";
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++) {
+    base64 += String.fromCharCode(bytes[i]);
+  }
+  return btoa(base64).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// Fonction d'authentification Google OAuth2 native en Web Crypto
+async function getGoogleAccessToken(clientEmail: string, privateKey: string): Promise<string> {
+  const cleanKey = privateKey
+    .replace(/\\n/g, '\n')
+    .replace('-----BEGIN PRIVATE KEY-----', '')
+    .replace('-----END PRIVATE KEY-----', '')
+    .replace(/\s/g, '');
+
+  const binaryKey = Uint8Array.from(atob(cleanKey), c => c.charCodeAt(0));
+
+  const cryptoKey = await crypto.subtle.importKey(
+    "pkcs8",
+    binaryKey,
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      hash: { name: "SHA-256" },
+    },
+    false,
+    ["sign"]
+  );
+
+  const header = base64UrlEncode(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const now = Math.floor(Date.now() / 1000);
+  const payload = base64UrlEncode(JSON.stringify({
+    iss: clientEmail,
+    scope: "https://www.googleapis.com/auth/firebase.messaging",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now
+  }));
+
+  const message = new TextEncoder().encode(`${header}.${payload}`);
+  const signatureBuffer = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    cryptoKey,
+    message
+  );
+  
+  const base64UrlSignature = base64UrlEncodeArrayBuffer(signatureBuffer);
+  const jwt = `${header}.${payload}.${base64UrlSignature}`;
+
+  // Échange du JWT contre le Token d'accès
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`
+  });
+
+  if (!response.ok) {
+    throw new Error(`Token exchange failed: ${await response.text()}`);
+  }
+
+  const data = await response.json();
+  return data.access_token;
+}
 
 serve(async (req) => {
   try {
@@ -70,12 +145,7 @@ serve(async (req) => {
     }
 
     const credentials = JSON.parse(serviceAccountJson);
-    const auth = new GoogleAuth({
-      scope: ["https://www.googleapis.com/auth/firebase.messaging"],
-      credentials
-    });
-    
-    const token = await auth.getAccessToken();
+    const token = await getGoogleAccessToken(credentials.client_email, credentials.private_key);
 
     // 4. Envoyer les requêtes HTTP vers FCM v1 pour chaque token
     const sendPromises = targetTokens.map(async (fcmToken) => {
