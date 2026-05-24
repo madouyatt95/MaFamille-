@@ -406,11 +406,11 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
     }
   };
 
-  // Start ambient sound using local WAV files (served from public/sounds/)
+  // Start ambient sound using local MP3 files (served from public/sounds/)
   const startAmbientSound = (type: 'rain' | 'crickets' | 'lullaby' | 'ocean' | 'wind' | 'stream') => {
     stopAmbientSound();
     try {
-      const audio = new Audio(`/sounds/${type}.wav`);
+      const audio = new Audio(`/sounds/${type}.mp3`);
       audio.loop = true;
       audio.volume = ambientVolume;
       audio.play().catch(err => console.warn('[ConteurIA] Audio play failed:', err));

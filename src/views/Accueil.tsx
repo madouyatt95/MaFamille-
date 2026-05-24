@@ -22,7 +22,10 @@ import {
   Heart,
   Smile,
   Plus,
-  Trash2
+  Trash2,
+  Download,
+  Share2,
+  X
 } from 'lucide-react';
 import type { Member, FamilyEvent, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog } from '../types';
 
@@ -164,6 +167,62 @@ export const Accueil: React.FC<AccueilProps> = ({
   const handleDeleteMoment = (id: string) => {
     if (confirm("Voulez-vous vraiment supprimer ce souvenir du Mur des Moments ?")) {
       onDeleteMemory(id);
+    }
+  };
+
+  const [selectedMemoryForModal, setSelectedMemoryForModal] = useState<MemoryLog | null>(null);
+  const [isSharing, setIsSharing] = useState<boolean>(false);
+
+  const handleDownloadImage = (moment: MemoryLog) => {
+    if (!moment.imageUrl) return;
+    try {
+      const link = document.createElement('a');
+      link.href = moment.imageUrl;
+      link.download = `souvenir-${moment.authorName}-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Erreur de téléchargement :", err);
+      alert("Impossible de télécharger le fichier directement.");
+    }
+  };
+
+  const handleShareImage = async (moment: MemoryLog) => {
+    if (!moment.imageUrl) return;
+    if (isSharing) return;
+    setIsSharing(true);
+    try {
+      if (navigator.share) {
+        let filesToShare: File[] = [];
+        if (moment.imageUrl.startsWith('data:')) {
+          try {
+            const res = await fetch(moment.imageUrl);
+            const blob = await res.blob();
+            const file = new File([blob], `souvenir-${moment.id}.png`, { type: blob.type });
+            filesToShare = [file];
+          } catch (e) {
+            console.warn("Could not convert base64 to file for sharing:", e);
+          }
+        }
+        
+        await navigator.share({
+          title: moment.title || "Souvenir MaFamille+",
+          text: `Regarde ce super souvenir de ${moment.authorName} : "${moment.title}"`,
+          files: filesToShare.length > 0 ? filesToShare : undefined,
+        });
+      } else {
+        await navigator.clipboard.writeText(`Regarde ce super souvenir de ${moment.authorName} : "${moment.title}"`);
+        alert("Description du souvenir copiée dans le presse-papiers ! Collez-la pour la partager.");
+      }
+    } catch (err) {
+      console.warn("Échec du partage natif :", err);
+      try {
+        await navigator.clipboard.writeText(`Regarde ce super souvenir de ${moment.authorName} : "${moment.title}"`);
+        alert("Description du souvenir copiée dans le presse-papiers ! Collez-la pour la partager.");
+      } catch (_) {}
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -361,7 +420,10 @@ export const Accueil: React.FC<AccueilProps> = ({
                   className="w-[240px] shrink-0 snap-start bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-[28px] p-3.5 shadow-lg flex flex-col space-y-3 transform transition-all duration-300 hover:scale-[1.02] hover:bg-white/[0.06]"
                   style={{ transform: `rotate(${rotation}deg)` }}
                 >
-                  <div className="relative aspect-[4/3] rounded-[20px] overflow-hidden border border-white/5 shadow-inner">
+                  <div 
+                    onClick={() => setSelectedMemoryForModal(moment)}
+                    className="relative aspect-[4/3] rounded-[20px] overflow-hidden border border-white/5 shadow-inner cursor-pointer hover:opacity-90 hover:scale-[1.01] active:scale-95 transition-all duration-200"
+                  >
                     <img src={moment.imageUrl} alt={moment.title} className="w-full h-full object-cover" />
                     <span className="absolute top-2 left-2 text-[9px] font-extrabold uppercase bg-black/60 backdrop-blur-sm text-white/90 px-2.5 py-1 rounded-full border border-white/5">
                       Par {moment.authorName}
@@ -640,6 +702,70 @@ export const Accueil: React.FC<AccueilProps> = ({
         </div>
 
       </div>
+
+      {/* Polaroid Full-screen Modal with Download and Share */}
+      {selectedMemoryForModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-[999] flex items-center justify-center p-4 animate-fadeIn">
+          {/* Backdrop close area */}
+          <div className="absolute inset-0 cursor-pointer" onClick={() => setSelectedMemoryForModal(null)}></div>
+          
+          {/* Polaroid container */}
+          <div className="relative w-full max-w-sm bg-white p-4 pb-6 rounded-[28px] shadow-2xl flex flex-col space-y-4 transform transition-all scale-100 animate-scaleUp z-10 text-black border-4 border-white">
+            
+            {/* Top Close Button */}
+            <button 
+              onClick={() => setSelectedMemoryForModal(null)}
+              className="absolute top-3 right-3 p-1.5 rounded-full bg-black/10 hover:bg-black/20 text-black/70 hover:text-black transition-all cursor-pointer z-20"
+              title="Fermer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Photo frame */}
+            <div className="relative aspect-[4/3] rounded-[18px] overflow-hidden bg-gray-100 border border-gray-200 shadow-inner">
+              <img 
+                src={selectedMemoryForModal.imageUrl} 
+                alt={selectedMemoryForModal.title} 
+                className="w-full h-full object-cover"
+              />
+              <span className="absolute top-2.5 left-2.5 text-[9px] font-extrabold uppercase bg-black/60 backdrop-blur-sm text-white px-2.5 py-1 rounded-full border border-white/5">
+                Par {selectedMemoryForModal.authorName}
+              </span>
+            </div>
+
+            {/* Description / Caption like a real Polaroid */}
+            <div className="space-y-2 px-1 text-center">
+              <p className="font-mono text-sm sm:text-base text-gray-800 italic leading-snug font-bold">
+                "{selectedMemoryForModal.title}"
+              </p>
+              <p className="text-[9px] text-gray-400 font-extrabold tracking-wider uppercase">
+                {selectedMemoryForModal.date}
+              </p>
+            </div>
+
+            {/* Premium Action Buttons */}
+            <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+              <button
+                onClick={() => handleDownloadImage(selectedMemoryForModal)}
+                className="flex-1 flex items-center justify-center gap-1.5 bg-[#6C5CFF] hover:bg-[#5b4eff] text-white text-xs font-black py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Télécharger</span>
+              </button>
+
+              <button
+                onClick={() => handleShareImage(selectedMemoryForModal)}
+                disabled={isSharing}
+                className="flex-1 flex items-center justify-center gap-1.5 bg-[#00D26A] hover:bg-[#00b95d] text-white text-xs font-black py-2.5 rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>{isSharing ? 'Partage...' : 'Partager'}</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );
