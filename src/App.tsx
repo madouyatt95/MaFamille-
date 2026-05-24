@@ -68,7 +68,7 @@ import { notificationService } from './services/notificationService';
 import type { Foyer, FoyerMember } from './types';
 
 // Lucide icon for inline notifications
-import { Bell, X, ChevronRight, Mic, MicOff, Volume2, Phone, Settings as SettingsIcon, Lock } from 'lucide-react';
+import { Bell, X, ChevronRight, Mic, MicOff, Volume2, Phone, Settings as SettingsIcon, Lock, AlertTriangle } from 'lucide-react';
 
 function App() {
   // Safe localStorage helper functions to prevent any corrupt cache startup crashes
@@ -259,6 +259,73 @@ function App() {
   const [pinError, setPinError] = useState(false);
   const [sharedPackId, setSharedPackId] = useState<string | null>(null);
   const [sosActive, setSosActive] = useState(false);
+  const [receivedSos, setReceivedSos] = useState<{ senderId: string; senderName: string; location: string; timestamp: number } | null>(null);
+
+  // Sync SOS state across household members
+  useEffect(() => {
+    const checkSos = () => {
+      try {
+        const rawSos = localStorage.getItem('mf_active_sos');
+        if (rawSos) {
+          const sos = JSON.parse(rawSos);
+          if (sos && sos.active) {
+            if (sos.senderId === activeMemberId) {
+              setSosActive(true);
+              setReceivedSos(null);
+            } else {
+              setSosActive(false);
+              setReceivedSos(sos);
+            }
+            return;
+          }
+        }
+        setSosActive(false);
+        setReceivedSos(null);
+      } catch (e) {
+        console.error("Error reading active SOS state:", e);
+      }
+    };
+
+    checkSos();
+    const interval = setInterval(checkSos, 1000);
+    return () => clearInterval(interval);
+  }, [activeMemberId]);
+
+  const triggerSosAlarm = () => {
+    setSosActive(true);
+    const activeMember = members.find(m => m.id === activeMemberId) || members[0];
+    const sosData = {
+      active: true,
+      senderId: activeMemberId,
+      senderName: activeMember?.name || 'Un membre de la famille',
+      timestamp: Date.now(),
+      location: 'Forêt de Chevreuse 🌲'
+    };
+    localStorage.setItem('mf_active_sos', JSON.stringify(sosData));
+
+    // Create a persistent notification alert
+    const newAlert: NotificationAlert = {
+      id: `alert-sos-${Date.now()}`,
+      title: `🚨 ALERTE SOS ACTIVÉE`,
+      description: `${activeMember?.name || 'Un membre'} a déclenché l'alerte d'urgence (SOS).`,
+      time: 'À l\'instant',
+      type: 'error',
+      read: false,
+      module: 'sos'
+    };
+    setAlerts(prev => [newAlert, ...prev]);
+    try {
+      const savedAlerts = localStorage.getItem('mf_alerts');
+      const parsedAlerts = savedAlerts ? JSON.parse(savedAlerts) : [];
+      localStorage.setItem('mf_alerts', JSON.stringify([newAlert, ...parsedAlerts]));
+    } catch (_) {}
+  };
+
+  const turnOffSosAlarm = () => {
+    setSosActive(false);
+    setReceivedSos(null);
+    localStorage.removeItem('mf_active_sos');
+  };
 
   // Voice Command Assistant State
   const [voiceActive, setVoiceActive] = useState(false);
@@ -1609,7 +1676,7 @@ function App() {
       }
     } 
     else if (promptLower.includes('alerte') || promptLower.includes('sos') || promptLower.includes('danger')) {
-      setSosActive(true);
+      triggerSosAlarm();
       feedback = "🚨 ACTION CRITIQUE : Alerte SOS activée ! Vos proches ont été notifiés.";
     }
     // 2. Navigation to tabs
@@ -2582,7 +2649,7 @@ function App() {
             events={events}
             setActiveTab={setActiveTab}
             setActiveModule={setActiveModule}
-            onTriggerSos={() => setSosActive(true)}
+            onTriggerSos={triggerSosAlarm}
           />
         );
       }
@@ -2601,7 +2668,7 @@ function App() {
           setActiveModule={setActiveModule}
           onMenuClick={() => setSidebarOpen(true)}
           onAlertsClick={() => setAlertsPanelOpen(true)}
-          onTriggerSos={() => setSosActive(true)}
+          onTriggerSos={triggerSosAlarm}
           chatGroups={chatGroups}
           chatMessages={chatMessages}
           onEventClick={(dateStr) => {
@@ -2802,7 +2869,7 @@ function App() {
           isPremium={isPremium}
           setIsPremium={setIsPremium}
           onTriggerPaywall={() => setPaywallOpen(true)}
-          onTriggerSos={() => setSosActive(true)}
+          onTriggerSos={triggerSosAlarm}
         />
       );
     }
@@ -2920,7 +2987,7 @@ function App() {
           setActiveModule('membres');
           setQuickActionsOpen(false);
         }}
-        onTriggerSos={() => setSosActive(true)}
+        onTriggerSos={triggerSosAlarm}
       />
 
       {/* Shared bottom iOS premium nav bar with quick actions central (+) trigger */}
@@ -3419,7 +3486,7 @@ function App() {
             </div>
 
             <button
-              onClick={() => setSosActive(false)}
+              onClick={turnOffSosAlarm}
               className="px-8 py-3.5 bg-white text-red-600 font-extrabold rounded-2xl shadow-xl hover:bg-red-50 active:scale-95 transition-all text-xs uppercase tracking-wider cursor-pointer shrink-0"
             >
               Désactiver l'Alerte
@@ -3427,6 +3494,65 @@ function App() {
           </div>
         );
       })()}
+
+      {/* RECEIVED SOS EMERGENCY FULLSCREEN OVERLAY (FOR OTHER MEMBERS) */}
+      {receivedSos && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-6 bg-red-950/95 backdrop-blur-lg animate-pulse overflow-y-auto no-scrollbar">
+          <style dangerouslySetInnerHTML={{__html: `
+            @keyframes flash-bg-received {
+              0%, 100% { background-color: rgba(90, 6, 6, 0.96); }
+              50% { background-color: rgba(180, 10, 10, 0.99); }
+            }
+            .animate-flash-received { animation: flash-bg-received 1.2s infinite; }
+          `}} />
+          <div className="absolute inset-0 animate-flash-received -z-10"></div>
+          
+          <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center border-4 border-red-600 shadow-[0_0_60px_rgba(239,68,68,1)] mb-6 animate-bounce shrink-0">
+            <AlertTriangle className="w-12 h-12 text-red-600 animate-pulse" />
+          </div>
+
+          <h1 className="text-3xl font-black text-white text-center tracking-tight mb-2 uppercase">
+            🚨 SOS EN COURS 🚨
+          </h1>
+          <p className="text-sm font-extrabold text-red-200 text-center uppercase tracking-widest mb-6">
+            {receivedSos.senderName} a besoin d'aide !
+          </p>
+          
+          <div className="glass-panel border-white/10 bg-white/5 rounded-3xl p-5 text-center max-w-sm space-y-4 mb-6 shrink-0 text-white">
+            <p className="text-xs text-white/90 leading-relaxed font-bold">
+              Une alerte d'urgence majeure a été émise à l'instant.
+            </p>
+            <div className="p-3 bg-black/30 rounded-2xl border border-white/5 flex items-center justify-center gap-2">
+              <span className="text-[10px] uppercase font-bold text-red-300">Dernière Position :</span>
+              <span className="text-xs font-semibold text-white">{receivedSos.location}</span>
+            </div>
+            <p className="text-[10px] text-white/50 leading-normal font-medium">
+              Prenez contact immédiatement pour prêter assistance.
+            </p>
+          </div>
+
+          {/* Quick Actions Panel */}
+          <div className="w-full max-w-sm space-y-3 mb-6 shrink-0">
+            <button
+              onClick={() => {
+                setActiveTab('menu');
+                setActiveModule('carte');
+                setReceivedSos(null); // locally dismiss to view map
+              }}
+              className="w-full p-4 bg-white text-red-700 hover:bg-red-50 border border-white font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98] cursor-pointer"
+            >
+              <span>🧭 Ouvrir la carte de géolocalisation</span>
+            </button>
+
+            <button
+              onClick={turnOffSosAlarm}
+              className="w-full p-4 bg-red-600 hover:bg-red-500 border border-red-500/30 text-white font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98] cursor-pointer"
+            >
+              <span>✅ Signaler résolu / Éteindre l'alarme</span>
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );
