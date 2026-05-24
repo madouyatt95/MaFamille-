@@ -143,7 +143,9 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
           throw new Error("Le format JSON reçu n'est pas un tableau valide.");
         }
       } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
         console.warn("[EcoChef] Erreur de génération IA en direct, basculement sur la simulation locale :", err);
+        alert("[EcoChef Gemini Error]: " + errMsg);
       }
     }
 

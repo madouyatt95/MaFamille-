@@ -684,7 +684,9 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           throw new Error('Structure JSON de histoire incorrecte');
         }
       } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
         console.warn("[ConteurIA] Erreur lors de la génération avec Gemini Flash, repli sur le conteur local :", err);
+        alert("[ConteurIA Gemini Error]: " + errMsg);
       }
     }
 
