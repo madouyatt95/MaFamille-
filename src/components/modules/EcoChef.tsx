@@ -91,7 +91,7 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
 - rating (avis fictif fun de la famille ex: 'Papa ⭐️5, Amadou ⭐️4.8')
 - promptKeywords (mots-clés très descriptifs en anglais séparés par des virgules pour générer la photo culinaire ex: 'creamy chicken soup with warm bread, hyper detailed food photography, Pixar style 3d')`;
 
-        const response = await fetch(`https://corsproxy.io/?https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

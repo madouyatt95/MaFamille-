@@ -67,7 +67,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
 }
 Génère EXACTEMENT 5 éléments ultra-pertinents par personne.`;
 
-        const response = await fetch('https://corsproxy.io/?https://api.groq.com/openai/v1/chat/completions', {
+        const response = await fetch('https://api.allorigins.win/raw?url=https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${groqKey}`,

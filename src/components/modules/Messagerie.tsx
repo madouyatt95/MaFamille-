@@ -285,7 +285,7 @@ Aide la famille à s'organiser, cuisiner anti-gaspillage, résoudre des devoirs 
 Réponds de manière claire, concise et joyeuse en français. Utilise des émojis et des listes si cela améliore la lisibilité.
 Demande de l'utilisateur : "${userText}"`;
 
-        const response = await fetch('https://corsproxy.io/?https://api.groq.com/openai/v1/chat/completions', {
+        const response = await fetch('https://api.allorigins.win/raw?url=https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${groqKey}`,
