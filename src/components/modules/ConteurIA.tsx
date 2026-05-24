@@ -398,14 +398,7 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
     }
   }, [ambientVolume]);
 
-  // Handle ambient sound activation
-  useEffect(() => {
-    if (ambientSound !== 'none') {
-      startAmbientSound(ambientSound);
-    } else {
-      stopAmbientSound();
-    }
-  }, [ambientSound]);
+
 
   // Stop background sounds
   const stopAmbientSound = () => {
@@ -1616,7 +1609,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                 {/* Mode Selector */}
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => setAmbientSound('none')}
+                    onClick={() => { setAmbientSound('none'); stopAmbientSound(); }}
                     className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                       ambientSound === 'none' 
                         ? 'bg-white/15 border-white/30 text-white' 
@@ -1626,7 +1619,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     🔇 Silence
                   </button>
                   <button
-                    onClick={() => setAmbientSound('rain')}
+                    onClick={() => { setAmbientSound('rain'); startAmbientSound('rain'); }}
                     className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                       ambientSound === 'rain' 
                         ? 'bg-sky-500/20 border-sky-500 text-sky-400 shadow-[0_0_10px_rgba(14,165,233,0.15)]' 
@@ -1636,7 +1629,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     🌧️ Douce Pluie
                   </button>
                   <button
-                    onClick={() => setAmbientSound('crickets')}
+                    onClick={() => { setAmbientSound('crickets'); startAmbientSound('crickets'); }}
                     className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                       ambientSound === 'crickets' 
                         ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.15)]' 
@@ -1646,7 +1639,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     🦗 Grillons d'Été
                   </button>
                   <button
-                    onClick={() => setAmbientSound('lullaby')}
+                    onClick={() => { setAmbientSound('lullaby'); startAmbientSound('lullaby'); }}
                     className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                       ambientSound === 'lullaby' 
                         ? 'bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_10px_rgba(236,72,153,0.15)]' 
@@ -1656,7 +1649,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     🎵 Berceuse Céleste
                   </button>
                   <button
-                    onClick={() => setAmbientSound('ocean')}
+                    onClick={() => { setAmbientSound('ocean'); startAmbientSound('ocean'); }}
                     className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                       ambientSound === 'ocean' 
                         ? 'bg-blue-500/20 border-blue-500 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.15)]' 
@@ -1666,7 +1659,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     🌊 Vagues Océan
                   </button>
                   <button
-                    onClick={() => setAmbientSound('wind')}
+                    onClick={() => { setAmbientSound('wind'); startAmbientSound('wind'); }}
                     className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                       ambientSound === 'wind' 
                         ? 'bg-teal-500/20 border-teal-500 text-teal-400 shadow-[0_0_10px_rgba(20,184,166,0.15)]' 
@@ -1676,7 +1669,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     🌲 Vent Forêt
                   </button>
                   <button
-                    onClick={() => setAmbientSound('stream')}
+                    onClick={() => { setAmbientSound('stream'); startAmbientSound('stream'); }}
                     className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                       ambientSound === 'stream' 
                         ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.15)]' 
