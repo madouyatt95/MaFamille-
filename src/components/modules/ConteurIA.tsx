@@ -330,11 +330,9 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
   const [showVoiceSettings, setShowVoiceSettings] = useState<boolean>(false);
   const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('lg');
 
-  // Soundscape (Web Audio API & Real MP3 Loops)
+  // Soundscape (local WAV files in public/sounds/)
   const [ambientSound, setAmbientSound] = useState<'none' | 'rain' | 'crickets' | 'lullaby' | 'ocean' | 'wind' | 'stream'>('none');
   const [ambientVolume, setAmbientVolume] = useState<number>(0.15);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const ambientNodesRef = useRef<{ source: AudioNode | null; gainNode: GainNode | null }>({ source: null, gainNode: null });
   const ambientAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // 3D Flip animation triggers
@@ -393,9 +391,6 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
     if (ambientAudioRef.current) {
       ambientAudioRef.current.volume = ambientVolume;
     }
-    if (ambientNodesRef.current.gainNode && audioContextRef.current) {
-      ambientNodesRef.current.gainNode.gain.setValueAtTime(ambientVolume, audioContextRef.current.currentTime);
-    }
   }, [ambientVolume]);
 
 
@@ -405,366 +400,25 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
     if (ambientAudioRef.current) {
       try {
         ambientAudioRef.current.pause();
+        ambientAudioRef.current.currentTime = 0;
       } catch (_) {}
       ambientAudioRef.current = null;
     }
-    if (ambientNodesRef.current.source) {
-      try {
-        (ambientNodesRef.current.source as any).stop();
-      } catch (e) {
-        try {
-          (ambientNodesRef.current.source as any).disconnect();
-        } catch (_) {}
-      }
-      ambientNodesRef.current.source = null;
-    }
   };
 
-  // Start Bedtime background generator using Web Audio API (pure synthesis, no external files)
+  // Start ambient sound using local WAV files (served from public/sounds/)
   const startAmbientSound = (type: 'rain' | 'crickets' | 'lullaby' | 'ocean' | 'wind' | 'stream') => {
     stopAmbientSound();
-
     try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
-      
-      const ctx = audioContextRef.current;
-      if (ctx.state === 'suspended') {
-        ctx.resume();
-      }
-
-      const gainNode = ctx.createGain();
-      gainNode.gain.setValueAtTime(ambientVolume, ctx.currentTime);
-      gainNode.connect(ctx.destination);
-      ambientNodesRef.current.gainNode = gainNode;
-
-      // Helper: create a looping noise buffer (brown/pink noise base for nature sounds)
-      const createNoiseBuffer = (seconds: number, brownCoeff: number = 0.02, boost: number = 3.5) => {
-        const bufferSize = seconds * ctx.sampleRate;
-        const buffer = ctx.createBuffer(2, bufferSize, ctx.sampleRate);
-        for (let ch = 0; ch < 2; ch++) {
-          const output = buffer.getChannelData(ch);
-          let lastOut = 0.0;
-          for (let i = 0; i < bufferSize; i++) {
-            const white = Math.random() * 2 - 1;
-            output[i] = (lastOut + (brownCoeff * white)) / (1 + brownCoeff);
-            lastOut = output[i];
-            output[i] *= boost;
-          }
-        }
-        return buffer;
-      };
-
-      // ─── 1. RAIN: Layered brown noise with low-pass + gentle droplet modulation ───
-      if (type === 'rain') {
-        const noiseBuffer = createNoiseBuffer(4, 0.02, 3.5);
-        const noiseNode = ctx.createBufferSource();
-        noiseNode.buffer = noiseBuffer;
-        noiseNode.loop = true;
-
-        // Main low-pass filter for warm rain body
-        const lpFilter = ctx.createBiquadFilter();
-        lpFilter.type = 'lowpass';
-        lpFilter.frequency.setValueAtTime(800, ctx.currentTime);
-        lpFilter.Q.setValueAtTime(0.7, ctx.currentTime);
-
-        // Subtle high-frequency layer for rain "sparkle" / droplets on a window
-        const hpBuffer = createNoiseBuffer(3, 0.5, 1.2);
-        const hpNode = ctx.createBufferSource();
-        hpNode.buffer = hpBuffer;
-        hpNode.loop = true;
-        const hpFilter = ctx.createBiquadFilter();
-        hpFilter.type = 'highpass';
-        hpFilter.frequency.setValueAtTime(4000, ctx.currentTime);
-        const hpGain = ctx.createGain();
-        hpGain.gain.setValueAtTime(0.08, ctx.currentTime);
-
-        noiseNode.connect(lpFilter);
-        lpFilter.connect(gainNode);
-        hpNode.connect(hpFilter);
-        hpFilter.connect(hpGain);
-        hpGain.connect(gainNode);
-
-        noiseNode.start(0);
-        hpNode.start(0);
-
-        const stopper = { stop: () => { noiseNode.stop(); hpNode.stop(); } };
-        ambientNodesRef.current.source = stopper as any;
-      }
-
-      // ─── 2. CRICKETS: Multi-layered chirps at different pitches with random timing ───
-      else if (type === 'crickets') {
-        const masterGain = ctx.createGain();
-        masterGain.connect(gainNode);
-        const intervals: ReturnType<typeof setInterval>[] = [];
-
-        // Create 3 cricket "voices" at different frequencies for realism
-        const cricketFreqs = [3200, 4100, 5500];
-        cricketFreqs.forEach((freq, idx) => {
-          const osc = ctx.createOscillator();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(freq, ctx.currentTime);
-          const modGain = ctx.createGain();
-          modGain.gain.setValueAtTime(0, ctx.currentTime);
-          osc.connect(modGain);
-          modGain.connect(masterGain);
-          osc.start(0);
-
-          const baseInterval = 120 + idx * 80;
-          let chirpOn = true;
-          const interval = setInterval(() => {
-            if (!ambientNodesRef.current.source) { clearInterval(interval); return; }
-            const now = ctx.currentTime;
-            if (chirpOn && Math.random() > 0.3) {
-              const amp = 0.12 + Math.random() * 0.15;
-              modGain.gain.setValueAtTime(0, now);
-              modGain.gain.linearRampToValueAtTime(amp, now + 0.02);
-              modGain.gain.setValueAtTime(amp, now + 0.05);
-              modGain.gain.linearRampToValueAtTime(0, now + 0.08);
-            }
-            chirpOn = !chirpOn;
-          }, baseInterval + Math.random() * 60);
-          intervals.push(interval);
-        });
-
-        // Soft background hiss (nighttime ambiance)
-        const hissBuffer = createNoiseBuffer(3, 0.01, 0.8);
-        const hissNode = ctx.createBufferSource();
-        hissNode.buffer = hissBuffer;
-        hissNode.loop = true;
-        const hissFilter = ctx.createBiquadFilter();
-        hissFilter.type = 'bandpass';
-        hissFilter.frequency.setValueAtTime(2000, ctx.currentTime);
-        hissFilter.Q.setValueAtTime(0.3, ctx.currentTime);
-        const hissGain = ctx.createGain();
-        hissGain.gain.setValueAtTime(0.06, ctx.currentTime);
-        hissNode.connect(hissFilter);
-        hissFilter.connect(hissGain);
-        hissGain.connect(gainNode);
-        hissNode.start(0);
-
-        const stopper = { stop: () => { intervals.forEach(i => clearInterval(i)); masterGain.disconnect(); hissNode.stop(); } };
-        ambientNodesRef.current.source = stopper as any;
-      }
-
-      // ─── 3. LULLABY: Gentle pentatonic melody with reverb-like delay ───
-      else if (type === 'lullaby') {
-        const pentatonic = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25];
-        const notesNode = ctx.createGain();
-        notesNode.gain.setValueAtTime(0.7, ctx.currentTime);
-        notesNode.connect(gainNode);
-
-        const delay = ctx.createDelay(1.0);
-        delay.delayTime.setValueAtTime(0.5, ctx.currentTime);
-        const delayGain = ctx.createGain();
-        delayGain.gain.setValueAtTime(0.35, ctx.currentTime);
-        notesNode.connect(delay);
-        delay.connect(delayGain);
-        delayGain.connect(notesNode);
-
-        let stepIdx = 0;
-        const playNote = () => {
-          if (!ambientNodesRef.current.source) return;
-          const now = ctx.currentTime;
-
-          // Alternate between triangle and sine for warmth
-          const noteOsc = ctx.createOscillator();
-          noteOsc.type = stepIdx % 3 === 0 ? 'sine' : 'triangle';
-          const noteFreq = pentatonic[Math.floor(Math.random() * pentatonic.length)];
-          noteOsc.frequency.setValueAtTime(noteFreq, now);
-
-          const noteEnvelope = ctx.createGain();
-          noteEnvelope.gain.setValueAtTime(0, now);
-          noteEnvelope.gain.linearRampToValueAtTime(0.3, now + 0.15);
-          noteEnvelope.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
-
-          noteOsc.connect(noteEnvelope);
-          noteEnvelope.connect(notesNode);
-          noteOsc.start(now);
-          noteOsc.stop(now + 2.8);
-
-          stepIdx++;
-          setTimeout(playNote, 2000 + Math.random() * 1500);
-        };
-        playNote();
-
-        const stopper = { stop: () => { notesNode.disconnect(); } };
-        ambientNodesRef.current.source = stopper as any;
-      }
-
-      // ─── 4. OCEAN WAVES: Slowly modulated brown noise with rhythmic volume swell ───
-      else if (type === 'ocean') {
-        const noiseBuffer = createNoiseBuffer(6, 0.015, 4.0);
-        const noiseNode = ctx.createBufferSource();
-        noiseNode.buffer = noiseBuffer;
-        noiseNode.loop = true;
-
-        const lpFilter = ctx.createBiquadFilter();
-        lpFilter.type = 'lowpass';
-        lpFilter.frequency.setValueAtTime(500, ctx.currentTime);
-        lpFilter.Q.setValueAtTime(1.0, ctx.currentTime);
-
-        // LFO to modulate volume (wave crashing rhythm ~0.1 Hz = ~10s cycle)
-        const lfo = ctx.createOscillator();
-        lfo.type = 'sine';
-        lfo.frequency.setValueAtTime(0.1, ctx.currentTime);
-        const lfoGain = ctx.createGain();
-        lfoGain.gain.setValueAtTime(0.4, ctx.currentTime);
-        const waveGain = ctx.createGain();
-        waveGain.gain.setValueAtTime(0.6, ctx.currentTime);
-
-        lfo.connect(lfoGain);
-        lfoGain.connect(waveGain.gain);
-        noiseNode.connect(lpFilter);
-        lpFilter.connect(waveGain);
-        waveGain.connect(gainNode);
-        lfo.start(0);
-        noiseNode.start(0);
-
-        // Gentle high-frequency foam/wash layer
-        const foamBuffer = createNoiseBuffer(4, 0.3, 1.0);
-        const foamNode = ctx.createBufferSource();
-        foamNode.buffer = foamBuffer;
-        foamNode.loop = true;
-        const foamFilter = ctx.createBiquadFilter();
-        foamFilter.type = 'highpass';
-        foamFilter.frequency.setValueAtTime(3000, ctx.currentTime);
-        const foamGain = ctx.createGain();
-        foamGain.gain.setValueAtTime(0.04, ctx.currentTime);
-        const foamLfoGain = ctx.createGain();
-        foamLfoGain.gain.setValueAtTime(0.03, ctx.currentTime);
-        lfo.connect(foamLfoGain);
-        foamLfoGain.connect(foamGain.gain);
-        foamNode.connect(foamFilter);
-        foamFilter.connect(foamGain);
-        foamGain.connect(gainNode);
-        foamNode.start(0);
-
-        const stopper = { stop: () => { noiseNode.stop(); lfo.stop(); foamNode.stop(); } };
-        ambientNodesRef.current.source = stopper as any;
-      }
-
-      // ─── 5. FOREST WIND: Slowly sweeping bandpass noise with gentle gusts ───
-      else if (type === 'wind') {
-        const noiseBuffer = createNoiseBuffer(5, 0.025, 3.0);
-        const noiseNode = ctx.createBufferSource();
-        noiseNode.buffer = noiseBuffer;
-        noiseNode.loop = true;
-
-        // Bandpass filter that sweeps slowly for a natural wind feel
-        const bpFilter = ctx.createBiquadFilter();
-        bpFilter.type = 'bandpass';
-        bpFilter.frequency.setValueAtTime(400, ctx.currentTime);
-        bpFilter.Q.setValueAtTime(0.5, ctx.currentTime);
-
-        // LFO to sweep the filter frequency (wind gusts ~0.07 Hz = ~14s cycle)
-        const sweepLfo = ctx.createOscillator();
-        sweepLfo.type = 'sine';
-        sweepLfo.frequency.setValueAtTime(0.07, ctx.currentTime);
-        const sweepGain = ctx.createGain();
-        sweepGain.gain.setValueAtTime(300, ctx.currentTime);
-        sweepLfo.connect(sweepGain);
-        sweepGain.connect(bpFilter.frequency);
-
-        // Volume modulation for gusts
-        const gustLfo = ctx.createOscillator();
-        gustLfo.type = 'sine';
-        gustLfo.frequency.setValueAtTime(0.12, ctx.currentTime);
-        const gustGain = ctx.createGain();
-        gustGain.gain.setValueAtTime(0.25, ctx.currentTime);
-        const windGain = ctx.createGain();
-        windGain.gain.setValueAtTime(0.7, ctx.currentTime);
-        gustLfo.connect(gustGain);
-        gustGain.connect(windGain.gain);
-
-        noiseNode.connect(bpFilter);
-        bpFilter.connect(windGain);
-        windGain.connect(gainNode);
-        sweepLfo.start(0);
-        gustLfo.start(0);
-        noiseNode.start(0);
-
-        // Soft high whistle layer (wind through leaves)
-        const whistleBuffer = createNoiseBuffer(3, 0.4, 0.6);
-        const whistleNode = ctx.createBufferSource();
-        whistleNode.buffer = whistleBuffer;
-        whistleNode.loop = true;
-        const whistleFilter = ctx.createBiquadFilter();
-        whistleFilter.type = 'bandpass';
-        whistleFilter.frequency.setValueAtTime(6000, ctx.currentTime);
-        whistleFilter.Q.setValueAtTime(2.0, ctx.currentTime);
-        const whistleGain = ctx.createGain();
-        whistleGain.gain.setValueAtTime(0.03, ctx.currentTime);
-        whistleNode.connect(whistleFilter);
-        whistleFilter.connect(whistleGain);
-        whistleGain.connect(gainNode);
-        whistleNode.start(0);
-
-        const stopper = { stop: () => { noiseNode.stop(); sweepLfo.stop(); gustLfo.stop(); whistleNode.stop(); } };
-        ambientNodesRef.current.source = stopper as any;
-      }
-
-      // ─── 6. CALM STREAM: Filtered noise with random water drip/bubble oscillators ───
-      else if (type === 'stream') {
-        // Base flowing water noise
-        const noiseBuffer = createNoiseBuffer(4, 0.03, 2.5);
-        const noiseNode = ctx.createBufferSource();
-        noiseNode.buffer = noiseBuffer;
-        noiseNode.loop = true;
-
-        const bpFilter = ctx.createBiquadFilter();
-        bpFilter.type = 'bandpass';
-        bpFilter.frequency.setValueAtTime(1200, ctx.currentTime);
-        bpFilter.Q.setValueAtTime(0.4, ctx.currentTime);
-
-        // Gentle volume modulation (water flow variation ~0.15 Hz)
-        const flowLfo = ctx.createOscillator();
-        flowLfo.type = 'sine';
-        flowLfo.frequency.setValueAtTime(0.15, ctx.currentTime);
-        const flowGain = ctx.createGain();
-        flowGain.gain.setValueAtTime(0.15, ctx.currentTime);
-        const streamGain = ctx.createGain();
-        streamGain.gain.setValueAtTime(0.8, ctx.currentTime);
-        flowLfo.connect(flowGain);
-        flowGain.connect(streamGain.gain);
-
-        noiseNode.connect(bpFilter);
-        bpFilter.connect(streamGain);
-        streamGain.connect(gainNode);
-        flowLfo.start(0);
-        noiseNode.start(0);
-
-        // Random bubbles/drips
-        const intervals: ReturnType<typeof setInterval>[] = [];
-        const bubbleInterval = setInterval(() => {
-          if (!ambientNodesRef.current.source) { clearInterval(bubbleInterval); return; }
-          const now = ctx.currentTime;
-          const bubbleOsc = ctx.createOscillator();
-          bubbleOsc.type = 'sine';
-          const baseFreq = 800 + Math.random() * 2500;
-          bubbleOsc.frequency.setValueAtTime(baseFreq, now);
-          bubbleOsc.frequency.exponentialRampToValueAtTime(baseFreq * 0.5, now + 0.15);
-          const bubbleEnv = ctx.createGain();
-          bubbleEnv.gain.setValueAtTime(0, now);
-          bubbleEnv.gain.linearRampToValueAtTime(0.06 + Math.random() * 0.04, now + 0.01);
-          bubbleEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-          bubbleOsc.connect(bubbleEnv);
-          bubbleEnv.connect(gainNode);
-          bubbleOsc.start(now);
-          bubbleOsc.stop(now + 0.2);
-        }, 300 + Math.random() * 500);
-        intervals.push(bubbleInterval);
-
-        const stopper = { stop: () => { noiseNode.stop(); flowLfo.stop(); intervals.forEach(i => clearInterval(i)); } };
-        ambientNodesRef.current.source = stopper as any;
-      }
-
+      const audio = new Audio(`/sounds/${type}.wav`);
+      audio.loop = true;
+      audio.volume = ambientVolume;
+      audio.play().catch(err => console.warn('[ConteurIA] Audio play failed:', err));
+      ambientAudioRef.current = audio;
     } catch (err) {
-      console.warn("Web Audio API not fully initialized yet:", err);
+      console.warn('[ConteurIA] Audio init failed:', err);
     }
   };
-
   const handleStartGeneration = async () => {
     const finalHeroName = isCustomHero ? customHeroName.trim() : selectedHero;
     if (!finalHeroName.trim()) return;
