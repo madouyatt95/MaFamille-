@@ -67,7 +67,8 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
 }
 Génère EXACTEMENT 5 éléments ultra-pertinents par personne.`;
 
-        const response = await fetch('https://api.allorigins.win/raw?url=https://api.groq.com/openai/v1/chat/completions', {
+        const groqEndpoint = import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/groq' : '/api/groq';
+        const response = await fetch(groqEndpoint, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${groqKey}`,

@@ -39,7 +39,11 @@ const CATEGORIES = [
   { id: 'other', label: '💡 Autres', icon: HelpCircle, color: 'text-slate-400' }
 ];
 
-export const ContactsImportants: React.FC = () => {
+interface ContactsImportantsProps {
+  onTriggerSos?: () => void;
+}
+
+export const ContactsImportants: React.FC<ContactsImportantsProps> = ({ onTriggerSos }) => {
   const [contacts, setContacts] = useState<ImportantContact[]>(() => {
     const saved = localStorage.getItem('mf_important_contacts');
     if (saved) return JSON.parse(saved);
@@ -197,6 +201,17 @@ export const ContactsImportants: React.FC = () => {
           <Plus className="w-5 h-5" />
         </button>
       </div>
+
+      {/* Grand Bouton SOS d'Urgence Clignotant */}
+      {onTriggerSos && (
+        <button
+          onClick={onTriggerSos}
+          className="w-full py-4.5 bg-gradient-to-r from-red-600 via-rose-500 to-red-600 hover:from-red-500 hover:to-rose-500 text-white rounded-[24px] text-xs font-black tracking-widest uppercase flex items-center justify-center space-x-2.5 shadow-[0_8px_30px_rgba(239,68,68,0.3)] active:scale-95 transition-all cursor-pointer animate-pulse border border-red-500/30"
+        >
+          <ShieldAlert className="w-5 h-5 text-white" />
+          <span>⚠️ Déclencher l'Alerte SOS d'Urgence Globale 🚨</span>
+        </button>
+      )}
 
       {/* Formulaire d'ajout rapide */}
       {showAddForm && (

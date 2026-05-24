@@ -330,11 +330,12 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
   const [showVoiceSettings, setShowVoiceSettings] = useState<boolean>(false);
   const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('lg');
 
-  // Soundscape (Web Audio API)
-  const [ambientSound, setAmbientSound] = useState<'none' | 'rain' | 'crickets' | 'lullaby'>('none');
+  // Soundscape (Web Audio API & Real MP3 Loops)
+  const [ambientSound, setAmbientSound] = useState<'none' | 'rain' | 'crickets' | 'lullaby' | 'ocean' | 'wind' | 'stream'>('none');
   const [ambientVolume, setAmbientVolume] = useState<number>(0.15);
   const audioContextRef = useRef<AudioContext | null>(null);
   const ambientNodesRef = useRef<{ source: AudioNode | null; gainNode: GainNode | null }>({ source: null, gainNode: null });
+  const ambientAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // 3D Flip animation triggers
   const [isFlipping, setIsFlipping] = useState<boolean>(false);
@@ -389,6 +390,9 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
 
   // Sync ambient sound volume
   useEffect(() => {
+    if (ambientAudioRef.current) {
+      ambientAudioRef.current.volume = ambientVolume;
+    }
     if (ambientNodesRef.current.gainNode && audioContextRef.current) {
       ambientNodesRef.current.gainNode.gain.setValueAtTime(ambientVolume, audioContextRef.current.currentTime);
     }
@@ -405,6 +409,12 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
 
   // Stop background sounds
   const stopAmbientSound = () => {
+    if (ambientAudioRef.current) {
+      try {
+        ambientAudioRef.current.pause();
+      } catch (_) {}
+      ambientAudioRef.current = null;
+    }
     if (ambientNodesRef.current.source) {
       try {
         (ambientNodesRef.current.source as any).stop();
@@ -417,9 +427,44 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
     }
   };
 
-  // Start Bedtime background generator using pure Web Audio API (soothing pink noise & synthesized frequencies)
-  const startAmbientSound = (type: 'rain' | 'crickets' | 'lullaby') => {
+  // Start Bedtime background generator using HTML5 Audio (or Web Audio API synthesizer fallback)
+  const startAmbientSound = (type: 'rain' | 'crickets' | 'lullaby' | 'ocean' | 'wind' | 'stream') => {
     stopAmbientSound();
+
+    // Mapping realistic loop sound assets (stored on highly reliable public sound library CDN)
+    const soundUrls: Record<string, string> = {
+      rain: 'https://www.soundjay.com/nature/sounds/rain-07.mp3',
+      crickets: 'https://www.soundjay.com/nature/sounds/crickets-01.mp3',
+      ocean: 'https://www.soundjay.com/nature/sounds/ocean-wave-1.mp3',
+      wind: 'https://www.soundjay.com/nature/sounds/wind-weather-01.mp3',
+      lullaby: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3',
+      stream: 'https://www.soundjay.com/nature/sounds/river-1.mp3'
+    };
+
+    const url = soundUrls[type];
+    if (url) {
+      try {
+        const audio = new Audio(url);
+        audio.loop = true;
+        audio.volume = ambientVolume;
+        
+        // Safety trigger: if autoplay gets blocked by user gesture, fall back gracefully to synthesizer
+        audio.play().then(() => {
+          ambientAudioRef.current = audio;
+        }).catch(err => {
+          console.warn("[ConteurIA] Failed playing MP3 loop (autoplay block), falling back to synthesized notes:", err);
+          startAmbientSoundSynthesized(type);
+        });
+      } catch (e) {
+        console.warn("[ConteurIA] Failed creating HTML5 Audio node, falling back to synthesized notes:", e);
+        startAmbientSoundSynthesized(type);
+      }
+    } else {
+      startAmbientSoundSynthesized(type);
+    }
+  };
+
+  const startAmbientSoundSynthesized = (type: 'rain' | 'crickets' | 'lullaby' | 'ocean' | 'wind' | 'stream') => {
 
     try {
       if (!audioContextRef.current) {
@@ -1609,6 +1654,36 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     }`}
                   >
                     🎵 Berceuse Céleste
+                  </button>
+                  <button
+                    onClick={() => setAmbientSound('ocean')}
+                    className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      ambientSound === 'ocean' 
+                        ? 'bg-blue-500/20 border-blue-500 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.15)]' 
+                        : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
+                    }`}
+                  >
+                    🌊 Vagues Océan
+                  </button>
+                  <button
+                    onClick={() => setAmbientSound('wind')}
+                    className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      ambientSound === 'wind' 
+                        ? 'bg-teal-500/20 border-teal-500 text-teal-400 shadow-[0_0_10px_rgba(20,184,166,0.15)]' 
+                        : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
+                    }`}
+                  >
+                    🌲 Vent Forêt
+                  </button>
+                  <button
+                    onClick={() => setAmbientSound('stream')}
+                    className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      ambientSound === 'stream' 
+                        ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.15)]' 
+                        : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
+                    }`}
+                  >
+                    💧 Ruisseau Calme
                   </button>
                 </div>
 

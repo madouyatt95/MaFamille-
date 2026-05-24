@@ -226,6 +226,7 @@ interface MenuHubProps {
   setArtisans?: React.Dispatch<React.SetStateAction<Artisan[]>>;
   onUpdateMemberProfile?: (memberId: string, updates: any) => Promise<void>;
   initialChatGroupId?: string;
+  onTriggerSos?: () => void;
 }
 
 export const MenuHub: React.FC<MenuHubProps> = ({
@@ -288,6 +289,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   isPremium = false,
   setIsPremium,
   onTriggerPaywall,
+  onTriggerSos,
   vaccines = [],
   setVaccines,
   setMembers,
@@ -4287,7 +4289,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             <span>Retour au Hub</span>
           </button>
           
-          <ContactsImportants />
+          <ContactsImportants onTriggerSos={onTriggerSos} />
         </div>
       )}
 

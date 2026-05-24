@@ -2802,6 +2802,7 @@ function App() {
           isPremium={isPremium}
           setIsPremium={setIsPremium}
           onTriggerPaywall={() => setPaywallOpen(true)}
+          onTriggerSos={() => setSosActive(true)}
         />
       );
     }
