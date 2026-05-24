@@ -965,6 +965,22 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
             {/* MAIN FULL-SCREEN CONFIGURATOR PANEL */}
             <div className="bg-white/4 border border-white/8 rounded-[36px] p-5 md:p-8 backdrop-blur-xl space-y-7 relative overflow-hidden">
               
+              {/* Dev Diagnostics */}
+              <div className="p-3 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between text-[10px] text-white/60 font-mono relative z-20">
+                <div>
+                  <span>Premium: {isPremium ? '✅' : '❌'} | Key: {import.meta.env.VITE_GEMINI_API_KEY ? '✅' : '❌'} | Usage: {aiQuotaService.getUsage().count}/{aiQuotaService.getDailyLimit()}</span>
+                </div>
+                <button 
+                  onClick={() => {
+                    aiQuotaService.resetQuota();
+                    window.location.reload();
+                  }}
+                  className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded-[10px] font-bold text-[9px] active:scale-95 transition-all cursor-pointer"
+                >
+                  Reset Quota 🔄
+                </button>
+              </div>
+              
               {/* Subtle ambient light shapes in the panel background */}
               <div className="absolute -top-24 -right-24 w-72 h-72 bg-[#7C3AED]/5 rounded-full filter blur-[60px] pointer-events-none"></div>
               <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-pink-500/5 rounded-full filter blur-[60px] pointer-events-none"></div>

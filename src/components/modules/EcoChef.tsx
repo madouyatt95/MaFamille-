@@ -242,6 +242,22 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
           <p className="text-xs text-white/50">Cuisinez vos restes et visualisez de délicieuses recettes par IA</p>
         </div>
       </div>
+      
+      {/* Dev Diagnostics */}
+      <div className="p-3 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between text-[10px] text-white/60 font-mono">
+        <div>
+          <span>Premium: {isPremium ? '✅' : '❌'} | Key: {import.meta.env.VITE_GEMINI_API_KEY ? '✅' : '❌'} | Usage: {aiQuotaService.getUsage().count}/{aiQuotaService.getDailyLimit()}</span>
+        </div>
+        <button 
+          onClick={() => {
+            aiQuotaService.resetQuota();
+            window.location.reload();
+          }}
+          className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded-[10px] font-bold text-[9px] active:scale-95 transition-all cursor-pointer"
+        >
+          Reset Quota 🔄
+        </button>
+      </div>
 
       {/* Fridge selector */}
       <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
