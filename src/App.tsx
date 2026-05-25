@@ -3336,6 +3336,55 @@ function App() {
               </button>
             </div>
 
+            {/* Pulsing Push Notification Permission Banner */}
+            {'Notification' in window && Notification.permission !== 'granted' && (
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#6C5CFF]/15 to-[#FF4D6D]/5 border border-[#6C5CFF]/20 flex flex-col space-y-2.5 text-left animate-pulse" style={{ animationDuration: '4s' }}>
+                <div className="flex items-start space-x-2.5">
+                  <span className="text-lg">🔔</span>
+                  <div className="space-y-0.5">
+                    <h4 className="text-[11px] font-black text-white uppercase tracking-wider">Activer les Notifications Push</h4>
+                    <p className="text-[9px] text-white/50 leading-relaxed font-sans font-medium">Restez informé en direct quand un membre publie une photo, envoie un SOS ou modifie l'agenda !</p>
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      const token = await notificationService.initializeFCM(activeMemberId, (payload) => {
+                        console.log("[App Gesture] FCM notification received:", payload);
+                        const newAlert = {
+                          id: payload.data?.id || `alert-${Date.now()}`,
+                          title: payload.notification?.title || 'Notification MaFamille+',
+                          description: payload.notification?.body || '',
+                          time: "À l'instant",
+                          type: (payload.data?.type || 'info') as any,
+                          read: false,
+                          module: payload.data?.module || 'other'
+                        };
+                        setAlerts(prev => [newAlert, ...prev]);
+                        if ('Notification' in window && Notification.permission === 'granted') {
+                          new Notification(newAlert.title, {
+                            body: newAlert.description,
+                            icon: '/favicon.svg'
+                          });
+                        }
+                      });
+                      if (token) {
+                        alert("🎉 Notifications push activées avec succès sur cet appareil !");
+                        setAlertsPanelOpen(false);
+                      } else {
+                        alert("⚠️ Impossible d'activer les notifications. Veuillez vérifier les permissions de votre navigateur.");
+                      }
+                    } catch (err) {
+                      console.error("Permission request error:", err);
+                    }
+                  }}
+                  className="w-full py-2 bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white rounded-xl text-[10px] font-extrabold uppercase tracking-widest hover:brightness-105 active:scale-98 transition-all cursor-pointer text-center shadow-md shadow-[#6C5CFF]/20"
+                >
+                  Autoriser les notifications
+                </button>
+              </div>
+            )}
+
             <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar">
               {alerts.map((al) => {
                 const targetModule = al.module || '';
