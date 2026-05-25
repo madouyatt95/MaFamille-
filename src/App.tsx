@@ -171,22 +171,18 @@ function App() {
   });
 
   const [chatGroups, setChatGroups] = useState(() => {
-    if (hadCloudFoyer) return [];
     return safeGetLocalStorage('mf_chat_groups', demoChatGroups);
   });
 
   const [chatMessages, setChatMessages] = useState(() => {
-    if (hadCloudFoyer) return [];
     return safeGetLocalStorage('mf_chat_messages', demoChatMessages);
   });
 
   const [demarches, setDemarches] = useState<Demarche[]>(() => {
-    if (hadCloudFoyer) return [];
     return safeGetLocalStorage('mf_demarches', demoDemarches);
   });
 
   const [artisans, setArtisans] = useState<Artisan[]>(() => {
-    if (hadCloudFoyer) return [];
     return safeGetLocalStorage('mf_artisans', demoArtisans);
   });
 
@@ -1132,6 +1128,26 @@ function App() {
           if (prev.some(m => m.id === newItem.id)) return prev;
           return [newItem, ...prev];
         });
+
+        // Trigger notification alert for other family members
+        const newAlert = {
+          id: `a-mem-${Date.now()}`,
+          title: `📸 Nouveau moment partagé par ${payload.new.author_name} !`,
+          description: `« ${payload.new.title} » a été ajouté au Mur des Moments.`,
+          time: 'À l\'instant',
+          type: 'info' as const,
+          read: false,
+          module: 'capsule'
+        };
+        setAlerts(prev => [newAlert, ...prev]);
+
+        // Push standard browser notification if permission is active
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(newAlert.title, {
+            body: newAlert.description,
+            icon: '/favicon.svg'
+          });
+        }
       }
       else if (payload.eventType === 'UPDATE') {
         const updatedItem: MemoryLog = {
@@ -2482,6 +2498,26 @@ function App() {
       if (prev.some(m => m.id === newMemory.id)) return prev;
       return [newMemory, ...prev];
     });
+
+    // Generate a beautiful persistent notification alert locally
+    const newAlert = {
+      id: `a-mem-${Date.now()}`,
+      title: `📸 Nouveau moment partagé par ${newMemory.authorName} !`,
+      description: `« ${newMemory.title} » a été ajouté au Mur des Moments.`,
+      time: 'À l\'instant',
+      type: 'info' as const,
+      read: false,
+      module: 'capsule'
+    };
+    setAlerts(prev => [newAlert, ...prev]);
+
+    // Push standard browser notification if permission is active
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(newAlert.title, {
+        body: newAlert.description,
+        icon: '/favicon.svg'
+      });
+    }
 
     if (foyer) {
       const client = getSupabaseClient();
