@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   X, 
   Calendar, 
@@ -8,7 +8,10 @@ import {
   UserPlus, 
   CheckCircle2,
   FileText,
-  ShieldAlert
+  ShieldAlert,
+  Camera,
+  Sparkles,
+  Loader
 } from 'lucide-react';
 import type { Member, EventType, TransactionType } from '../types';
 
@@ -39,6 +42,93 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<AddTab>('event');
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // Gemini AI OCR Receipt scanner state
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrError, setOcrError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleOcrFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setOcrLoading(true);
+    setOcrError('');
+
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        try {
+          const base64Data = (reader.result as string).split(',')[1];
+          const mimeType = file.type || 'image/jpeg';
+          
+          const geminiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || 'AIzaSyCv-tulEcZqwL-wrhpfghqs_2bcAfPUPR4';
+
+          const requestBody = {
+            contents: [
+              {
+                parts: [
+                  {
+                    text: "Analyse ce ticket de caisse et renvoie uniquement un objet JSON valide (SANS blocs de code markdown ```json, SANS texte autour) contenant exactement ces clés : 'merchant' (nom du magasin/titre de l'achat), 'amount' (montant total en nombre décimal, ex: 12.50), 'category' (parmi: 'Alimentation', 'Logement', 'Transport', 'Santé', 'Éducation', 'Loisirs', 'Divers')."
+                  },
+                  {
+                    inlineData: {
+                      mimeType: mimeType,
+                      data: base64Data
+                    }
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              responseMimeType: "application/json"
+            }
+          };
+
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+          });
+
+          if (!response.ok) {
+            throw new Error(`Erreur API Gemini: ${response.status}`);
+          }
+
+          const result = await response.json();
+          const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
+          
+          if (textResponse) {
+            const cleanJsonText = textResponse.replace(/```json/i, '').replace(/```/g, '').trim();
+            const parsedData = JSON.parse(cleanJsonText);
+            
+            if (parsedData.merchant) setTransTitle(parsedData.merchant);
+            if (parsedData.amount) setTransAmount(String(parsedData.amount));
+            if (parsedData.category) setTransCat(parsedData.category);
+          } else {
+            throw new Error("L'IA n'a pas pu extraire de texte du ticket.");
+          }
+        } catch (err: any) {
+          console.error("OCR Extraction error:", err);
+          setOcrError("L'IA n'a pas réussi à analyser ce ticket. Saisie manuelle disponible.");
+        } finally {
+          setOcrLoading(false);
+        }
+      };
+
+      reader.onerror = () => {
+        setOcrError("Impossible de lire le fichier de l'image.");
+        setOcrLoading(false);
+      };
+
+      reader.readAsDataURL(file);
+    } catch (err) {
+      setOcrError("Erreur lors de la préparation de l'image.");
+      setOcrLoading(false);
+    }
+  };
 
   // Form states
   // Event
@@ -356,6 +446,48 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
               {/* Transaction Form */}
               {activeTab === 'transaction' && (
                 <form onSubmit={handleTransactionSubmit} className="space-y-4">
+                  {/* AI Ticket Scan Section */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-[#6C5CFF]/10 to-[#4F8CFF]/10 border border-[#6C5CFF]/25 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Sparkles className="w-4 h-4 text-[#6C5CFF] animate-pulse" />
+                        <span className="text-xs font-black text-white uppercase tracking-wider">Scanner Intelligent IA</span>
+                      </div>
+                      <span className="text-[10px] text-white/40 font-semibold uppercase">Propulsé par Gemini</span>
+                    </div>
+                    
+                    <p className="text-[11px] text-white/60 leading-normal">
+                      Scannez ou importez une photo de votre ticket de caisse. Notre IA en extraira automatiquement le montant, le marchand et la catégorie !
+                    </p>
+
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      ref={fileInputRef}
+                      onChange={handleOcrFileChange}
+                      className="hidden"
+                    />
+
+                    {ocrLoading ? (
+                      <div className="py-3 flex items-center justify-center space-x-2 text-xs font-bold text-[#6C5CFF] bg-[#6C5CFF]/5 border border-[#6C5CFF]/20 rounded-xl">
+                        <Loader className="w-3.5 h-3.5 animate-spin" />
+                        <span>Analyse du ticket par Gemini...</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full py-2.5 bg-[#6C5CFF] hover:bg-[#6C5CFF]/90 text-white font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center space-x-2 transition-all active:scale-[0.98] cursor-pointer"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span>Prendre en photo / Importer le ticket</span>
+                      </button>
+                    )}
+
+                    {ocrError && (
+                      <p className="text-[10px] font-bold text-red-400 text-center">{ocrError}</p>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Description de la transaction</label>
                     <input 

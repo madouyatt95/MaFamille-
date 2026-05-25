@@ -8,6 +8,34 @@
   "theme_color": "#07111F",
   "orientation": "portrait-primary",
   "categories": ["utilities", "productivity", "finance"],
+  "shortcuts": [
+    {
+      "name": "Ajouter une Dépense",
+      "short_name": "+ Dépense",
+      "description": "Ajouter rapidement une dépense à votre foyer",
+      "url": "/?tab=finances&action=add-expense",
+      "icons": [
+        {
+          "src": "/favicon.svg",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/?action=share-receipt",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "receipt",
+          "accept": ["image/*"]
+        }
+      ]
+    }
+  },
   "icons": [
     {
       "src": "/favicon.svg",

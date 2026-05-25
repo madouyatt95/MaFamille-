@@ -399,6 +399,7 @@ function App() {
     const tabParam = params.get('tab');
     const moduleParam = params.get('module');
     const groupIdParam = params.get('groupId');
+    const actionParam = params.get('action');
     
     if (tabParam) {
       setActiveTab(tabParam);
@@ -410,7 +411,20 @@ function App() {
       setInitialChatGroupId(groupIdParam);
     }
     
-    if (tabParam || moduleParam || groupIdParam) {
+    if (actionParam === 'add-expense') {
+      setActiveTab('finances');
+      setActiveModule('');
+      setQuickActionsOpen(true);
+    } else if (actionParam === 'share-receipt') {
+      setActiveTab('finances');
+      setActiveModule('');
+      setQuickActionsOpen(true);
+      setTimeout(() => {
+        alert("📷 Ticket de caisse partagé reçu ! MaFamille+ l'analyse avec l'IA...");
+      }, 500);
+    }
+    
+    if (tabParam || moduleParam || groupIdParam || actionParam) {
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
     }
@@ -1642,6 +1656,67 @@ function App() {
     const promptLower = text.toLowerCase().trim();
     let feedback = "";
 
+    // Check if voice command is about a financial transaction/expense first (prioritize money terms)
+    const hasEuro = promptLower.includes('euro') || promptLower.includes('€');
+    const isFinancial = hasEuro || promptLower.includes('dépense') || promptLower.includes('depense') || promptLower.includes('revenu') || promptLower.includes('salaire');
+
+    if (isFinancial && (promptLower.includes('ajoute') || promptLower.includes('ajouter') || promptLower.includes('enregistre') || promptLower.includes('enregistrer') || promptLower.includes('noter') || promptLower.includes('note') || promptLower.includes('mets') || promptLower.includes('mettre') || promptLower.includes('payé') || promptLower.includes('paye'))) {
+      const amountRegex = /(\d+[\.,]?\d*)\s*(?:euros?|€)/i;
+      const amountMatch = promptLower.match(amountRegex);
+      
+      if (amountMatch) {
+        const amountVal = parseFloat(amountMatch[1].replace(',', '.'));
+        
+        let category = 'Divers';
+        if (promptLower.includes('course') || promptLower.includes('aliment') || promptLower.includes('supermarché') || promptLower.includes('manger') || promptLower.includes('carrefour') || promptLower.includes('auchan')) {
+          category = 'Alimentation';
+        } else if (promptLower.includes('essence') || promptLower.includes('carburant') || promptLower.includes('péage') || promptLower.includes('voiture') || promptLower.includes('transport') || promptLower.includes('total')) {
+          category = 'Transport';
+        } else if (promptLower.includes('loyer') || promptLower.includes('logement') || promptLower.includes('maison') || promptLower.includes('électricité') || promptLower.includes('eau')) {
+          category = 'Logement';
+        } else if (promptLower.includes('santé') || promptLower.includes('médecin') || promptLower.includes('pharmacie') || promptLower.includes('médicament')) {
+          category = 'Santé';
+        } else if (promptLower.includes('école') || promptLower.includes('cahier') || promptLower.includes('livre') || promptLower.includes('études')) {
+          category = 'Éducation';
+        } else if (promptLower.includes('cinéma') || promptLower.includes('restaurant') || promptLower.includes('jeu') || promptLower.includes('sport') || promptLower.includes('loisir')) {
+          category = 'Loisirs';
+        }
+
+        let type: 'expense' | 'income' | 'savings' = 'expense';
+        if (promptLower.includes('salaire') || promptLower.includes('revenu') || promptLower.includes('reçu') || promptLower.includes('gagné')) {
+          type = 'income';
+        } else if (promptLower.includes('épargne') || promptLower.includes('cagnotte')) {
+          type = 'savings';
+        }
+
+        let title = 'Achat rapide';
+        let cleanTitle = text.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre/gi, '').trim();
+        cleanTitle = cleanTitle.replace(amountRegex, '').trim();
+        cleanTitle = cleanTitle.replace(/en\s+\w+/gi, '').trim(); 
+        if (cleanTitle) {
+          title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
+        }
+
+        const activeMemberObj = members.find(m => m.id === activeMemberId);
+
+        handleAddTransaction({
+          amount: amountVal,
+          type,
+          category,
+          date: new Date().toISOString().split('T')[0],
+          title,
+          memberId: activeMemberId,
+          memberName: activeMemberObj?.name || 'Famille'
+        });
+
+        feedback = `💰 Finance : J'ai enregistré une dépense de ${amountVal}€ (${category}) pour "${title}" !`;
+        
+        setActiveTab('finances');
+        setActiveModule('');
+        return feedback;
+      }
+    }
+
     // 1. Action commands (e.g. ajoute des bananes) - PRIORITÉ ABSOLUE
     if (
       promptLower.includes('ajoute') || 
@@ -1950,7 +2025,7 @@ function App() {
     setEvents(prev => [{ ...newEvent, id }, ...prev]);
   };
 
-  const handleAddTransaction = (newTrans: any) => {
+  const handleAddTransaction = async (newTrans: any) => {
     const id = `tx-${Date.now()}`;
     setTransactions(prev => [{ ...newTrans, id }, ...prev]);
 
@@ -1965,6 +2040,30 @@ function App() {
         }
         return goal;
       }));
+    }
+
+    // Sauvegarde en ligne vers Supabase
+    try {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const activeFoyerId = foyer?.id || localStorage.getItem('mf_cloud_foyer_id') || 'foyer-simulated';
+          await supabase.from('transactions').insert({
+            family_id: activeFoyerId,
+            user_id: user.id,
+            amount: newTrans.amount,
+            type: newTrans.type,
+            category: newTrans.category,
+            date: newTrans.date || new Date().toISOString().split('T')[0],
+            title: newTrans.title,
+            note: newTrans.note || '',
+            image_url: newTrans.imageUrl || null
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("Dépense sauvegardée localement (Supabase hors ligne ou non configuré):", e);
     }
   };
 
