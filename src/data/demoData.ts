@@ -577,11 +577,129 @@ export const demarcheTemplates: DemarcheTemplate[] = [
       { title: 'Obtenir la confirmation d\'inscription' }
     ],
     defaultPieces: [
-      { name: 'Livret de famille' },
-      { name: 'Carnet de vaccination' },
-      { name: 'Justificatif de domicile' },
+      { name: 'Livret de famille', autoAttachTags: ['livret', 'famille', 'officiel'] },
+      { name: 'Carnet de vaccination', autoAttachTags: ['vaccin', 'sante', 'medical'] },
+      { name: 'Justificatif de domicile', autoAttachTags: ['domicile', 'edf', 'facture', 'quittance'] },
       { name: 'Certificat de radiation (si changement)' },
-      { name: 'Photo d\'identité enfant' }
+      { name: 'Photo d\'identité enfant', autoAttachTags: ['photo', 'portrait'] }
+    ]
+  },
+  {
+    id: 'tpl-inscription-creche',
+    name: 'Inscription Crèche / Nounou',
+    icon: '🍼',
+    description: 'Recherche et contractualisation avec une assistante maternelle ou crèche',
+    defaultSteps: [
+      { title: 'Déterminer les besoins d\'heures et de planning' },
+      { title: 'Rechercher les places disponibles sur MonEnfant.fr' },
+      { title: 'Prendre contact et organiser des entretiens d\'embauche' },
+      { title: 'Rédiger le contrat de travail Pajemploi' },
+      { title: 'Déclarer le contrat sur Pajemploi / URSSAF' }
+    ],
+    defaultPieces: [
+      { name: 'Pièce d\'identité des parents', autoAttachTags: ['cni', 'passeport', 'identité', 'id'] },
+      { name: 'RIB des parents', autoAttachTags: ['rib', 'banque', 'iban', 'bic'] },
+      { name: 'Avis d\'imposition N-1', autoAttachTags: ['impots', 'imposition', 'avis'] },
+      { name: 'Justificatif de domicile récent', autoAttachTags: ['domicile', 'edf', 'facture', 'quittance'] },
+      { name: 'Carnet de santé de l\'enfant', autoAttachTags: ['vaccin', 'sante', 'medical'] }
+    ]
+  },
+  {
+    id: 'tpl-mutuelle-sante',
+    name: 'Complémentaire Santé',
+    icon: '🩺',
+    description: 'Changement de complémentaire santé pour la famille',
+    defaultSteps: [
+      { title: 'Demander des devis comparatifs en ligne' },
+      { title: 'Vérifier les garanties essentielles (optique, dentaire)' },
+      { title: 'Envoyer la lettre de résiliation à l\'ancienne mutuelle' },
+      { title: 'Signer le nouveau contrat de complémentaire' },
+      { title: 'Télécharger la nouvelle carte de tiers payant' }
+    ],
+    defaultPieces: [
+      { name: 'Attestation de droits Sécurité Sociale (Ameli)', autoAttachTags: ['ameli', 'secu', 'attestation'] },
+      { name: 'Ancienne carte de tiers payant', autoAttachTags: ['mutuelle', 'carte', 'assurance'] },
+      { name: 'RIB pour les remboursements', autoAttachTags: ['rib', 'banque', 'iban', 'bic'] },
+      { name: 'Pièce d\'identité du souscripteur', autoAttachTags: ['cni', 'passeport', 'identité', 'id'] }
+    ]
+  },
+  {
+    id: 'tpl-demande-logement',
+    name: 'Demande de Logement',
+    icon: '🏢',
+    description: 'Dossier de demande de logement social ou de location privée',
+    defaultSteps: [
+      { title: 'Remplir le formulaire de demande unique en ligne' },
+      { title: 'Déterminer le budget de loyer maximum et les zones souhaitées' },
+      { title: 'Réunir toutes les pièces justificatives d\'éligibilité' },
+      { title: 'Déposer le dossier sur le portail régional ou au bailleur' },
+      { title: 'Suivre l\'avancement et renouveler la demande annuellement' }
+    ],
+    defaultPieces: [
+      { name: 'Pièces d\'identité de tous les occupants', autoAttachTags: ['cni', 'passeport', 'identité', 'id'] },
+      { name: '2 derniers avis d\'imposition', autoAttachTags: ['impots', 'imposition', 'avis'] },
+      { name: '3 derniers bulletins de salaire', autoAttachTags: ['bulletin', 'salaire', 'revenus'] },
+      { name: 'Justificatif de domicile actuel', autoAttachTags: ['domicile', 'edf', 'facture', 'quittance'] },
+      { name: 'Attestation de prestations CAF', autoAttachTags: ['caf', 'attestation', 'allocations'] }
+    ]
+  },
+  {
+    id: 'tpl-sports-loisirs',
+    name: 'Sports & Loisirs Annuels',
+    icon: '⚽',
+    description: 'Inscription annuelle des enfants au club de sport ou conservatoire',
+    defaultSteps: [
+      { title: 'Choisir l\'activité et le créneau horaire' },
+      { title: 'Participer à la séance d\'essai' },
+      { title: 'Faire remplir le certificat médical par le médecin' },
+      { title: 'Remplir le dossier d\'inscription officiel' },
+      { title: 'Régler la cotisation (Chèques vacances / CAF / Atoutsports)' }
+    ],
+    defaultPieces: [
+      { name: 'Certificat médical d\'aptitude', autoAttachTags: ['certificat', 'medical', 'sante'] },
+      { name: 'Photo d\'identité de l\'enfant', autoAttachTags: ['photo', 'portrait'] },
+      { name: 'Attestation d\'assurance responsabilité civile', autoAttachTags: ['assurance', 'civil', 'scolaire'] },
+      { name: 'Justificatif de domicile', autoAttachTags: ['domicile', 'edf', 'facture', 'quittance'] }
+    ]
+  },
+  {
+    id: 'tpl-mariage-pacs',
+    name: 'Mariage / PACS',
+    icon: '💍',
+    description: 'Constitution du dossier de mariage ou PACS en mairie',
+    defaultSteps: [
+      { title: 'Prendre contact avec le service État Civil de la mairie' },
+      { title: 'Choisir et réserver la date et l\'heure de la cérémonie' },
+      { title: 'Retirer le dossier officiel de mariage ou PACS' },
+      { title: 'Remplir le dossier et réunir toutes les pièces' },
+      { title: 'Déposer le dossier sur RDV (présence des deux obligatoire)' },
+      { title: 'Attendre la publication légale des bans' }
+    ],
+    defaultPieces: [
+      { name: 'Pièce d\'identité originale', autoAttachTags: ['cni', 'passeport', 'identité', 'id'] },
+      { name: 'Acte de naissance de moins de 3 mois', autoAttachTags: ['acte', 'naissance'] },
+      { name: 'Justificatif de domicile récent', autoAttachTags: ['domicile', 'edf', 'facture', 'quittance'] },
+      { name: 'Attestation sur l\'honneur de non-alliance', autoAttachTags: ['honneur', 'attestation'] },
+      { name: 'Pièces d\'identité des témoins', autoAttachTags: ['temoins', 'cni'] }
+    ]
+  },
+  {
+    id: 'tpl-declaration-naissance',
+    name: 'Déclaration de Naissance',
+    icon: '👶',
+    description: 'Démarches obligatoires suite à la naissance d\'un enfant',
+    defaultSteps: [
+      { title: 'Déclarer la naissance à l\'état civil de la mairie (sous 5 jours)' },
+      { title: 'Déclarer le nouveau-né à la CAF' },
+      { title: 'Déclarer le nouveau-né à la Sécurité Sociale (Ameli)' },
+      { title: 'Rattacher le bébé à la Mutuelle complémentaire' },
+      { title: 'Inscrire l\'enfant sur le Livret de Famille' }
+    ],
+    defaultPieces: [
+      { name: 'Certificat d\'accouchement de la maternité', autoAttachTags: ['maternite', 'naissance', 'certificat'] },
+      { name: 'Livret de famille ou Acte de reconnaissance', autoAttachTags: ['livret', 'famille', 'officiel'] },
+      { name: 'Pièces d\'identité des parents', autoAttachTags: ['cni', 'passeport', 'identité', 'id'] },
+      { name: 'Déclaration conjointe de choix de nom', autoAttachTags: ['choix', 'nom', 'declaration'] }
     ]
   }
 ];
