@@ -1844,7 +1844,6 @@ function App() {
         
         setActiveTab('finances');
         setActiveModule('');
-        return feedback;
       }
     }
 
@@ -1953,10 +1952,10 @@ function App() {
 
     setVoiceFeedback(feedback);
     
-    // Automatically close overlay after 3.5 seconds
+    // Automatically close overlay after 2.5 seconds
     setTimeout(() => {
       setVoiceActive(false);
-    }, 3500);
+    }, 2500);
   };
 
   useEffect(() => {
