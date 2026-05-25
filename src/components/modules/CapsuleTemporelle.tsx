@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import type { MemoryLog } from '../../types';
 
+import { compressImage } from '../../utils/imageCompressor';
+
 interface CapsuleTemporelleProps {
   memories: MemoryLog[];
   setMemories: React.Dispatch<React.SetStateAction<MemoryLog[]>>;
@@ -182,7 +184,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
   const [generatingGazette, setGeneratingGazette] = useState(false);
   const [gazetteStep, setGazetteStep] = useState(0);
  
-  // === BD ÉPIQUE STATES ===
+  // --- BD ÉPIQUE STATES ---
   const [selectedComicStyle, setSelectedComicStyle] = useState<'retro' | 'manga' | 'fantasy' | 'cyberpunk'>('retro');
   const [isGeneratingComic, setIsGeneratingComic] = useState(false);
   const [comicImage, setComicImage] = useState<string>('');
@@ -201,16 +203,23 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
     { label: '🏖️ Plage', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&auto=format&fit=crop&q=80' }
   ];
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setUploadedImages(prev => [...prev, reader.result as string]);
-        };
-        reader.readAsDataURL(file);
+      const compressPromises = Array.from(files).map(async (file) => {
+        try {
+          return await compressImage(file, 900, 900, 0.6);
+        } catch (err) {
+          console.error("Compression failed, fallback to original", err);
+          return new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
+        }
       });
+      const results = await Promise.all(compressPromises);
+      setUploadedImages(prev => [...prev, ...results.filter(r => !!r)]);
     }
   };
 

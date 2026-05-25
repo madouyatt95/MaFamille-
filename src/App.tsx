@@ -68,7 +68,7 @@ import { notificationService } from './services/notificationService';
 import type { Foyer, FoyerMember } from './types';
 
 // Lucide icon for inline notifications
-import { Bell, X, ChevronRight, Mic, MicOff, Volume2, Phone, Settings as SettingsIcon, Lock, AlertTriangle } from 'lucide-react';
+import { Bell, X, ChevronRight, Mic, MicOff, Volume2, Phone, Settings as SettingsIcon, Lock, AlertTriangle, Sparkles } from 'lucide-react';
 
 function App() {
   // Safe localStorage helper functions to prevent any corrupt cache startup crashes
@@ -257,6 +257,12 @@ function App() {
   const [sosActive, setSosActive] = useState(false);
   const [receivedSos, setReceivedSos] = useState<{ senderId: string; senderName: string; location: string; timestamp: number } | null>(null);
 
+  // PWA Install Prompt States
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [showIosGuide, setShowIosGuide] = useState(false);
+
   // Sync SOS state across household members
   useEffect(() => {
     const checkSos = () => {
@@ -321,6 +327,67 @@ function App() {
     setSosActive(false);
     setReceivedSos(null);
     localStorage.removeItem('mf_active_sos');
+  };
+
+  // Listen for PWA installation events
+  useEffect(() => {
+    // Detect if app is already run in standalone (PWA installed) mode
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+    if (isStandalone) {
+      return;
+    }
+
+    // Detect iOS
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
+    setIsIOS(isIosDevice);
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      // Check if user dismissed it in this browser session
+      if (!sessionStorage.getItem('mf_pwa_dismissed')) {
+        setShowInstallPrompt(true);
+      }
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // For iOS, show installation guidelines after 4 seconds if not dismissed
+    if (isIosDevice && !sessionStorage.getItem('mf_pwa_dismissed')) {
+      const timer = setTimeout(() => {
+        setShowInstallPrompt(true);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (isIOS) {
+      setShowIosGuide(true);
+      setShowInstallPrompt(false);
+      return;
+    }
+
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      try {
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          setDeferredPrompt(null);
+          setShowInstallPrompt(false);
+        }
+      } catch (err) {
+        console.error("Installation choice failed:", err);
+      }
+    } else {
+      // Fallback guide for other browsers
+      alert("Pour installer MaFamille+ sur votre écran d'accueil :\n1. Cliquez sur le bouton Menu de votre navigateur (3 points ou bouton de partage).\n2. Sélectionnez 'Installer l'application' ou 'Ajouter à l'écran d'accueil'.");
+    }
   };
 
   // Voice Command Assistant State
@@ -3685,6 +3752,83 @@ function App() {
             >
               <span>✅ Signaler résolu / Éteindre l'alarme</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Floating PWA Install Prompt Banner */}
+      {showInstallPrompt && (
+        <div className="fixed bottom-24 left-4 right-4 z-[45] glass-panel border border-[#6C5CFF]/30 p-4 rounded-[24px] shadow-[0_15px_35px_rgba(0,0,0,0.5)] flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-in bg-[#07111F]/90 backdrop-blur-md">
+          <div className="flex items-start space-x-3.5">
+            <div className="p-3 rounded-2xl bg-gradient-to-br from-[#6C5CFF]/20 to-[#FF4D6D]/10 border border-[#6C5CFF]/30 text-[#6C5CFF] shrink-0">
+              <Sparkles className="w-5 h-5 text-[#FFB020] animate-pulse" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Installer l'application MaFamille+</h4>
+              <p className="text-[10px] text-white/60 leading-relaxed mt-0.5">Profitez de l'affichage plein écran, d'une rapidité accrue, et des raccourcis "+ Dépense" d'appui long !</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 shrink-0 justify-end">
+            <button 
+              onClick={() => {
+                sessionStorage.setItem('mf_pwa_dismissed', 'true');
+                setShowInstallPrompt(false);
+              }}
+              className="px-3.5 py-2 rounded-xl text-[10px] font-black text-white/40 hover:text-white/80 transition-colors uppercase tracking-wider"
+            >
+              Plus tard
+            </button>
+            <button 
+              onClick={handleInstallApp}
+              className="px-4.5 py-2.5 rounded-xl bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white text-[10px] font-extrabold shadow-md shadow-[#6C5CFF]/20 hover:brightness-105 active:scale-95 transition-all uppercase tracking-widest flex items-center space-x-1"
+            >
+              <span>Installer</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* iOS Custom PWA Step-by-Step Install Guide Overlay */}
+      {showIosGuide && (
+        <div className="fixed inset-0 bg-[#07111F]/95 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-fade-in">
+          <div className="glass-panel border border-white/10 rounded-[32px] max-w-sm w-full p-6 space-y-5 shadow-[0_20px_50px_rgba(0,0,0,0.6)] text-center relative overflow-hidden">
+            <div className="absolute top-[-20%] left-[-20%] w-60 h-60 rounded-full bg-[#6C5CFF]/15 blur-[60px] pointer-events-none" />
+            
+            <div className="relative z-10 space-y-4">
+              <div className="w-16 h-16 mx-auto flex items-center justify-center rounded-2xl bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] text-white shadow-lg">
+                <Sparkles className="w-8 h-8 text-[#FFB020] animate-pulse" />
+              </div>
+              
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-white uppercase tracking-wider">Installer MaFamille+</h3>
+                <p className="text-xs text-white/60">Ajoutez le raccourci sur votre écran d'accueil en 3 étapes simples :</p>
+              </div>
+
+              <div className="space-y-3.5 text-left bg-white/5 p-4 rounded-2xl border border-white/5">
+                <div className="flex items-center space-x-3 text-xs text-white/80">
+                  <span className="w-5 h-5 rounded-full bg-[#6C5CFF] text-white font-extrabold flex items-center justify-center text-[10px] shrink-0 font-sans">1</span>
+                  <span>Appuyez sur le bouton <strong>Partager</strong> <span className="inline-block bg-white/10 p-1 rounded font-mono">📤</span> (en bas de votre écran Safari).</span>
+                </div>
+                <div className="flex items-center space-x-3 text-xs text-white/80">
+                  <span className="w-5 h-5 rounded-full bg-[#6C5CFF] text-white font-extrabold flex items-center justify-center text-[10px] shrink-0 font-sans">2</span>
+                  <span>Faites défiler et sélectionnez <strong>Sur l'écran d'accueil</strong> <span className="inline-block bg-white/10 p-0.5 px-1.5 rounded font-bold text-[#FFB020]">+</span>.</span>
+                </div>
+                <div className="flex items-center space-x-3 text-xs text-white/80">
+                  <span className="w-5 h-5 rounded-full bg-[#6C5CFF] text-white font-extrabold flex items-center justify-center text-[10px] shrink-0 font-sans">3</span>
+                  <span>Confirmez en haut à droite en cliquant sur <strong>Ajouter</strong>.</span>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => {
+                  setShowIosGuide(false);
+                  sessionStorage.setItem('mf_pwa_dismissed', 'true');
+                }}
+                className="w-full py-3.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white font-bold text-xs transition-all uppercase tracking-wider active:scale-[0.98]"
+              >
+                J'ai compris
+              </button>
+            </div>
           </div>
         </div>
       )}

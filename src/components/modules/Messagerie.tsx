@@ -3,6 +3,7 @@ import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Sear
 import type { Member, ChatMessage, ChatGroup } from '../../types';
 import { foyerService } from '../../services/foyerService';
 import { aiQuotaService } from '../../services/aiQuotaService';
+import { compressImage } from '../../utils/imageCompressor';
 
 // Player de messages vocaux interactif et esthétique
 const VoiceMessagePlayer: React.FC<{ content: string; isMe: boolean }> = ({ content, isMe }) => {
@@ -454,20 +455,20 @@ Demande de l'utilisateur : "${userText}"`;
     }));
   };
 
-  const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeGroupId || !activeUser) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
+    try {
+      const compressedData = await compressImage(file, 900, 900, 0.6);
+      if (compressedData) {
         const newMsg: ChatMessage = {
           id: `msg_${Date.now()}`,
           groupId: activeGroupId,
           senderId: activeUser.id,
           senderName: activeUser.name,
           type: 'image',
-          content: event.target.result as string,
+          content: compressedData,
           timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
           readBy: [activeUser.id]
         };
@@ -484,8 +485,29 @@ Demande de l'utilisateur : "${userText}"`;
           });
         }
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error("Failed to compress and upload image in chat:", err);
+      // Fallback
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          const newMsg: ChatMessage = {
+            id: `msg_${Date.now()}`,
+            groupId: activeGroupId,
+            senderId: activeUser.id,
+            senderName: activeUser.name,
+            type: 'image',
+            content: event.target.result as string,
+            timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+            readBy: [activeUser.id]
+          };
+          setMessages(prev => [...prev, newMsg]);
+          setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: '📷 Photo', lastMessageTime: newMsg.timestamp } : g));
+          saveMessageToCloud(newMsg);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const startVoiceRecording = async () => {
