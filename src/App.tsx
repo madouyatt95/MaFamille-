@@ -316,6 +316,7 @@ function App() {
       module: 'sos'
     };
     setAlerts(prev => [newAlert, ...prev]);
+    saveAlertToCloud(newAlert);
     try {
       const savedAlerts = localStorage.getItem('mf_alerts');
       const parsedAlerts = savedAlerts ? JSON.parse(savedAlerts) : [];
@@ -387,6 +388,51 @@ function App() {
     } else {
       // Fallback guide for other browsers
       alert("Pour installer MaFamille+ sur votre écran d'accueil :\n1. Cliquez sur le bouton Menu de votre navigateur (3 points ou bouton de partage).\n2. Sélectionnez 'Installer l'application' ou 'Ajouter à l'écran d'accueil'.");
+    }
+  };
+
+  const saveAlertToCloud = async (alert: NotificationAlert) => {
+    try {
+      const client = getSupabaseClient();
+      if (client && foyer) {
+        await client.from('alerts').upsert({
+          id: alert.id,
+          foyer_id: foyer.id,
+          title: alert.title,
+          description: alert.description,
+          time: alert.time,
+          type: alert.type,
+          read: alert.read,
+          module: alert.module
+        });
+        console.log(`[Supabase Alerts] Alert successfully synchronized to cloud: ${alert.title}`);
+      }
+    } catch (err) {
+      console.error("[Supabase Alerts] Failed to save alert to cloud:", err);
+    }
+  };
+
+  const updateAlertReadStatusInCloud = async (alertId: string, read: boolean) => {
+    try {
+      const client = getSupabaseClient();
+      if (client && foyer) {
+        await client.from('alerts').update({ read }).eq('foyer_id', foyer.id).eq('id', alertId);
+        console.log(`[Supabase Alerts] Alert read status updated to ${read} in cloud for ID: ${alertId}`);
+      }
+    } catch (err) {
+      console.error("[Supabase Alerts] Failed to update read status in cloud:", err);
+    }
+  };
+
+  const markAllAlertsAsReadInCloud = async () => {
+    try {
+      const client = getSupabaseClient();
+      if (client && foyer) {
+        await client.from('alerts').update({ read: true }).eq('foyer_id', foyer.id);
+        console.log(`[Supabase Alerts] All alerts marked as read in cloud`);
+      }
+    } catch (err) {
+      console.error("[Supabase Alerts] Failed to mark all alerts as read in cloud:", err);
     }
   };
 
@@ -509,6 +555,7 @@ function App() {
               module: payload.data?.module || 'other'
             };
             setAlerts(prev => [newAlert, ...prev]);
+            saveAlertToCloud(newAlert);
 
             // Afficher une notification système si autorisé
             if ('Notification' in window && Notification.permission === 'granted') {
@@ -1207,6 +1254,7 @@ function App() {
           module: 'capsule'
         };
         setAlerts(prev => [newAlert, ...prev]);
+        saveAlertToCloud(newAlert);
 
         // Push standard browser notification if permission is active
         if ('Notification' in window && Notification.permission === 'granted') {
@@ -2577,6 +2625,7 @@ function App() {
       module: 'capsule'
     };
     setAlerts(prev => [newAlert, ...prev]);
+    saveAlertToCloud(newAlert);
 
     // Push standard browser notification if permission is active
     if ('Notification' in window && Notification.permission === 'granted') {
@@ -3361,6 +3410,7 @@ function App() {
                           module: payload.data?.module || 'other'
                         };
                         setAlerts(prev => [newAlert, ...prev]);
+                        saveAlertToCloud(newAlert);
                         if ('Notification' in window && Notification.permission === 'granted') {
                           new Notification(newAlert.title, {
                             body: newAlert.description,
@@ -3393,10 +3443,11 @@ function App() {
                   <div 
                     key={al.id} 
                     onClick={() => {
+                      setAlerts(prev => prev.map(a => a.id === al.id ? { ...a, read: true } : a));
+                      updateAlertReadStatusInCloud(al.id, true);
                       if (targetModule) {
                         setActiveTab('menu');
                         setActiveModule(targetModule);
-                        setAlerts(prev => prev.map(a => a.id === al.id ? { ...a, read: true } : a));
                         setAlertsPanelOpen(false);
                       }
                     }}
@@ -3424,6 +3475,7 @@ function App() {
             <button 
               onClick={() => {
                 setAlerts(prev => prev.map(a => ({ ...a, read: true })));
+                markAllAlertsAsReadInCloud();
                 setAlertsPanelOpen(false);
               }}
               className="w-full py-3 rounded-[18px] bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xs transition-all cursor-pointer text-center"
@@ -3534,6 +3586,7 @@ function App() {
                               read: false
                             };
                             setAlerts(prev => [newAlert, ...prev]);
+                            saveAlertToCloud(newAlert);
                           }
                         }}
                         className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm cursor-pointer transition-all hover:scale-110 active:scale-95 ${
