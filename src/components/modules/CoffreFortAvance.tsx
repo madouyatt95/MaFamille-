@@ -28,6 +28,10 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
   const [docToUnlock, setDocToUnlock] = useState<DocumentFile | null>(null);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [rgpdAccepted, setRgpdAccepted] = useState<boolean>(() => {
+    return localStorage.getItem('mf_vault_rgpd_accepted') === 'true';
+  });
+  const [showRgpdCenter, setShowRgpdCenter] = useState(false);
 
   const handleDocumentClick = (doc: DocumentFile) => {
     if (doc.isSecure) {
@@ -242,27 +246,95 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
 
   return (
     <div className="flex flex-col h-full bg-[#07111F] text-white">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-white/10">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-[#6C5CFF]/20 rounded-xl">
-            <Shield className="w-6 h-6 text-[#6C5CFF]" />
+      {!rgpdAccepted ? (
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col justify-center items-center space-y-6">
+          <div className="w-16 h-16 rounded-[22px] bg-[#6C5CFF]/10 flex items-center justify-center border border-[#6C5CFF]/20 shadow-lg shadow-[#6C5CFF]/5 animate-pulse">
+            <Shield className="w-8 h-8 text-[#6C5CFF]" />
           </div>
-          <div>
-            <h2 className="text-xl font-bold">Coffre-Fort Avancé</h2>
-            <p className="text-xs text-white/50">{documents.length} docs • {demarches.length} démarches • {packs.length} packs</p>
+          
+          <div className="text-center space-y-2 max-w-sm">
+            <h2 className="text-xl font-extrabold tracking-tight">Activez votre Coffre-Fort Sécurisé</h2>
+            <p className="text-xs text-white/50 leading-relaxed">
+              Pour stocker vos pièces d'identité, attestations de santé et justificatifs en toute sérénité, nous garantissons un traitement strictement conforme au RGPD.
+            </p>
           </div>
-        </div>
-        {mainTab === 'docs' && (
-          <button 
-            onClick={() => setIsUploading(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-[#6C5CFF] rounded-full text-sm font-semibold hover:bg-[#5B4BE0] transition-colors cursor-pointer"
+
+          <div className="w-full max-w-sm bg-white/[0.02] border border-white/5 rounded-3xl p-5 space-y-4">
+            <h4 className="text-[10px] font-extrabold text-[#6C5CFF] uppercase tracking-wider mb-2 border-b border-white/5 pb-2">Charte de Confidentialité & RGPD</h4>
+            
+            <div className="space-y-3 text-xs">
+              <div className="flex items-start space-x-3">
+                <span className="text-lg mt-0.5">🇪🇺</span>
+                <div>
+                  <p className="font-bold text-white">Hébergement en Europe</p>
+                  <p className="text-[10px] text-white/40 leading-normal">Vos données sensibles sont stockées sur des serveurs sécurisés en Europe (EU-West), conformes aux normes ISO 27001.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3">
+                <span className="text-lg mt-0.5">🔒</span>
+                <div>
+                  <p className="font-bold text-white">Cryptage de Bout-en-Bout</p>
+                  <p className="text-[10px] text-white/40 leading-normal">Chiffrement AES-256 au repos et protocoles SSL/TLS en transit pour garantir que personne d'autre ne puisse intercepter vos fichiers.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3">
+                <span className="text-lg mt-0.5">🗑️</span>
+                <div>
+                  <p className="font-bold text-white">Droit à l'Oubli & Portabilité</p>
+                  <p className="text-[10px] text-white/40 leading-normal">Chaque fichier supprimé l'est de manière définitive et physique de nos bases de données instantanément.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              localStorage.setItem('mf_vault_rgpd_accepted', 'true');
+              setRgpdAccepted(true);
+            }}
+            className="w-full max-w-sm py-3.5 bg-[#6C5CFF] text-white text-xs font-extrabold rounded-2xl shadow-lg hover:shadow-[#6C5CFF]/20 active:scale-95 transition-all flex items-center justify-center space-x-2 cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span>Ajouter</span>
+            <CheckCircle2 className="w-4 h-4 text-white" />
+            <span>J'accepte et j'active mon Coffre-fort</span>
           </button>
-        )}
-      </div>
+          
+          <p className="text-[9px] text-white/30 text-center max-w-xs">
+            En activant ce coffre, vous acceptez nos CGU de stockage sécurisé. Vous pouvez révoquer ce consentement à tout moment en contactant notre DPO à dpo@mafamilleplus.fr.
+          </p>
+        </div>
+      ) : (
+        <>
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-[#6C5CFF]/20 rounded-xl">
+              <Shield className="w-6 h-6 text-[#6C5CFF]" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h2 className="text-xl font-bold">Coffre-Fort</h2>
+                <button
+                  onClick={() => setShowRgpdCenter(true)}
+                  className="px-2 py-0.5 rounded-full bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] text-[9px] font-bold hover:bg-[#00D26A]/20 transition flex items-center space-x-1"
+                >
+                  <span>🔒 RGPD</span>
+                </button>
+              </div>
+              <p className="text-xs text-white/50">{documents.length} docs • {demarches.length} démarches • {packs.length} packs</p>
+            </div>
+          </div>
+          {mainTab === 'docs' && (
+            <button 
+              onClick={() => setIsUploading(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-[#6C5CFF] rounded-full text-sm font-semibold hover:bg-[#5B4BE0] transition-colors cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Ajouter</span>
+            </button>
+          )}
+        </div>
 
       {/* Main Tab Navigation */}
       <div className="p-3 border-b border-white/5">
@@ -1176,6 +1248,48 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
               </div>
             </div>
           )}
+        </div>
+      )}
+      </>
+      )}
+
+      {/* RGPD Compliance Center Modal */}
+      {showRgpdCenter && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#07111F]/95 backdrop-blur-md">
+          <div className="bg-[#112240] w-full max-w-md rounded-[32px] border border-[#00D26A]/20 shadow-2xl overflow-hidden p-6 relative">
+            <button onClick={() => setShowRgpdCenter(false)} className="absolute top-4 right-4 p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors cursor-pointer">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex flex-col items-center text-center space-y-4 pt-4">
+              <div className="w-16 h-16 rounded-2xl bg-[#00D26A]/10 flex items-center justify-center border border-[#00D26A]/20 mb-2">
+                <Shield className="w-8 h-8 text-[#00D26A]" />
+              </div>
+              <h3 className="text-lg font-bold">Espace de Sécurité & RGPD</h3>
+              <p className="text-xs text-white/50 px-4">Vos documents sont protégés conformément au Règlement Général sur la Protection des Données (RGPD).</p>
+              
+              <div className="w-full text-left space-y-3 bg-white/[0.02] border border-white/5 rounded-2xl p-4 text-xs">
+                <div>
+                  <p className="font-bold text-white flex items-center"><span className="mr-1.5">🛡️</span> Droit à la suppression définitive</p>
+                  <p className="text-[10px] text-white/40 leading-normal mt-0.5">Toute suppression de document est définitive et immédiate sur nos serveurs de stockage cryptés en Union Européenne.</p>
+                </div>
+                <div>
+                  <p className="font-bold text-white flex items-center"><span className="mr-1.5">🔑</span> Chiffrement fort</p>
+                  <p className="text-[10px] text-white/40 leading-normal mt-0.5">Tous les transferts s'effectuent via des tunnels sécurisés SSL/TLS (HTTPS). Vos fichiers sont encryptés en AES-256.</p>
+                </div>
+                <div>
+                  <p className="font-bold text-white flex items-center"><span className="mr-1.5">📁</span> Droit à la portabilité</p>
+                  <p className="text-[10px] text-white/40 leading-normal mt-0.5">Vous conservez l'entière propriété de vos pièces. Contactez notre délégué à la protection à dpo@mafamilleplus.fr pour toute question.</p>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setShowRgpdCenter(false)}
+                className="w-full py-3 bg-[#00D26A] text-white font-bold rounded-xl shadow-lg hover:bg-[#00D26A]/90 active:scale-95 transition-all cursor-pointer text-xs"
+              >
+                Fermer l'espace sécurité
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
