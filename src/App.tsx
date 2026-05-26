@@ -2142,7 +2142,7 @@ function App() {
   // ----------------------------------------------------
   // Callbacks and Form Submissions
   // ----------------------------------------------------
-  const handleAddEvent = (newEvent: any) => {
+  const handleAddEvent = async (newEvent: any) => {
     if (!isPremium) {
       const currentMonth = new Date().toISOString().substring(0, 7); // "YYYY-MM"
       const monthlyEventsCount = events.filter(e => e.dateTime.startsWith(currentMonth)).length;
@@ -2153,6 +2153,60 @@ function App() {
     }
     const id = `ev-${Date.now()}`;
     setEvents(prev => [{ ...newEvent, id }, ...prev]);
+
+    if (foyer) {
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          // 1. Sauvegarder l'événement dans Supabase
+          const { error } = await client.from('events').insert({
+            id,
+            foyer_id: foyer.id,
+            title: newEvent.title,
+            type: newEvent.type || 'other',
+            date_time: newEvent.dateTime,
+            time: newEvent.time || '',
+            member_id: newEvent.memberId || '',
+            member_name: newEvent.memberName || '',
+            location: newEvent.location || '',
+            description: newEvent.description || '',
+            done: newEvent.done || false,
+            amount: newEvent.amount || null
+          });
+          if (error) {
+            console.error("Erreur lors de la création de l'événement cloud :", error);
+            return;
+          }
+
+          // 2. Générer une alerte cloud d'événement pour notifier toute la famille
+          const activeMemberObj = members.find(m => m.id === activeMemberId);
+          const activeMemberName = activeMemberObj ? activeMemberObj.name : 'Un parent';
+
+          const newAlert = {
+            id: `a-ev-${Date.now()}`,
+            title: `📅 Nouvel événement : ${newEvent.title}`,
+            description: `Ajouté pour le ${newEvent.dateTime.split('T')[0]} par ${activeMemberName}.`,
+            time: 'À l\'instant',
+            type: 'info' as const,
+            read: false,
+            module: 'agenda'
+          };
+
+          await client.from('alerts').insert({
+            id: newAlert.id,
+            foyer_id: foyer.id,
+            title: newAlert.title,
+            description: newAlert.description,
+            time: newAlert.time,
+            type: newAlert.type,
+            read: newAlert.read,
+            module: newAlert.module
+          });
+        } catch (err) {
+          console.error("Erreur lors de l'ajout cloud de l'événement :", err);
+        }
+      }
+    }
   };
 
   const handleAddTransaction = async (newTrans: any) => {
@@ -2244,8 +2298,29 @@ function App() {
     }
   };
 
-  const handleToggleEventDone = (id: string) => {
+  const handleToggleEventDone = async (id: string) => {
     setEvents(prev => prev.map(e => e.id === id ? { ...e, done: !e.done } : e));
+
+    if (foyer) {
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          const currentEvent = events.find(e => e.id === id);
+          if (currentEvent) {
+            const { error } = await client
+              .from('events')
+              .update({ done: !currentEvent.done })
+              .eq('foyer_id', foyer.id)
+              .eq('id', id);
+            if (error) {
+              console.error("Erreur lors de la mise à jour cloud du statut de l'événement :", error);
+            }
+          }
+        } catch (err) {
+          console.error("Erreur de modification de l'événement :", err);
+        }
+      }
+    }
   };
 
   const handleUpdateMemberProfile = async (memberId: string, updates: Partial<FoyerMember>) => {
@@ -2286,7 +2361,7 @@ function App() {
     }
   };
 
-  const handleMoveEvent = (id: string, newDate: string) => {
+  const handleMoveEvent = async (id: string, newDate: string) => {
     setEvents(prev => prev.map(e => {
       if (e.id === id) {
         const timePart = e.dateTime.split('T')[1];
@@ -2294,6 +2369,29 @@ function App() {
       }
       return e;
     }));
+
+    if (foyer) {
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          const currentEvent = events.find(e => e.id === id);
+          if (currentEvent) {
+            const timePart = currentEvent.dateTime.split('T')[1];
+            const newDateTime = timePart ? `${newDate}T${timePart}` : newDate;
+            const { error } = await client
+              .from('events')
+              .update({ date_time: newDateTime })
+              .eq('foyer_id', foyer.id)
+              .eq('id', id);
+            if (error) {
+              console.error("Erreur lors du déplacement cloud de l'événement :", error);
+            }
+          }
+        } catch (err) {
+          console.error("Erreur de déplacement de l'événement :", err);
+        }
+      }
+    }
   };
 
   const handleToggleTask = (id: string) => {

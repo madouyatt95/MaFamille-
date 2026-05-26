@@ -285,11 +285,15 @@ Aide la famille à s'organiser, cuisiner anti-gaspillage, résoudre des devoirs 
 Réponds de manière claire, concise et joyeuse en français. Utilise des émojis et des listes si cela améliore la lisibilité.
 Demande de l'utilisateur : "${userText}"`;
 
-        const groqEndpoint = import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/groq' : '/api/groq';
+        const useLocalKey = import.meta.env.DEV && import.meta.env.VITE_GROQ_API_KEY;
+        const groqEndpoint = useLocalKey 
+          ? 'https://api.groq.com/openai/v1/chat/completions' 
+          : (import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/groq' : '/api/groq');
+
         const headers: Record<string, string> = {
           'Content-Type': 'application/json'
         };
-        if (import.meta.env.VITE_GROQ_API_KEY) {
+        if (useLocalKey) {
           headers['Authorization'] = `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`;
         }
 

@@ -90,12 +90,13 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
 - rating (avis fictif fun de la famille ex: 'Papa ⭐️5, Amadou ⭐️4.8')
 - promptKeywords (mots-clés très descriptifs en anglais séparés par des virgules pour générer la photo culinaire ex: 'creamy chicken soup with warm bread, hyper detailed food photography, Pixar style 3d')`;
 
-        const geminiEndpoint = import.meta.env.VITE_GEMINI_API_KEY 
-          ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`
-          : (import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini');
+        const useProxy = !import.meta.env.DEV || !import.meta.env.VITE_GEMINI_API_KEY;
+        const geminiEndpoint = useProxy
+          ? (import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini')
+          : `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
 
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (import.meta.env.VITE_GEMINI_API_KEY) {
+        if (!useProxy && import.meta.env.VITE_GEMINI_API_KEY) {
           headers['Authorization'] = `Bearer ${import.meta.env.VITE_GEMINI_API_KEY}`;
         }
 
