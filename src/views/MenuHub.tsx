@@ -203,6 +203,10 @@ interface MenuHubProps {
   setVotes: React.Dispatch<React.SetStateAction<FamilyVote[]>>;
   schoolTasks: SchoolTask[];
   setSchoolTasks: React.Dispatch<React.SetStateAction<SchoolTask[]>>;
+  grades: any[];
+  setGrades: React.Dispatch<React.SetStateAction<any[]>>;
+  schedule: any[];
+  setSchedule: React.Dispatch<React.SetStateAction<any[]>>;
   dishes: Dish[];
   setDishes: React.Dispatch<React.SetStateAction<Dish[]>>;
   chatGroups: ChatGroup[];
@@ -273,6 +277,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   setVotes,
   schoolTasks,
   setSchoolTasks,
+  grades,
+  setGrades,
+  schedule,
+  setSchedule,
   dishes,
   setDishes,
   chatGroups,
@@ -2723,25 +2731,33 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
               <Calendar className="w-4 h-4 text-[#6C5CFF]" />
-              <span>Emploi du temps (Amadou - Collège)</span>
+              <span>Emploi du temps ({activeMember?.name || 'Famille'})</span>
             </h3>
             <div className="space-y-2">
-              {[
-                { time: '08h30 - 10h00', subject: 'Mathématiques', prof: 'M. Roche' },
-                { time: '10h15 - 12h00', subject: 'Histoire-Géographie', prof: 'Mme. Dupuis' },
-                { time: '13h30 - 15h00', subject: 'Sciences (SVT)', prof: 'M. Lemoine' },
-                { time: '15h15 - 17h00', subject: 'Anglais (LV1)', prof: 'Mrs. Smith' }
-              ].map((course, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 text-xs">
-                  <div>
-                    <h4 className="font-bold text-white">{course.subject}</h4>
-                    <p className="text-[10px] text-white/40 mt-0.5">Prof: {course.prof}</p>
-                  </div>
-                  <span className="text-[10px] font-extrabold text-white/70 bg-white/5 px-2.5 py-1 rounded-[10px] border border-white/5 shrink-0">
-                    {course.time}
-                  </span>
-                </div>
-              ))}
+              {schedule.filter(s => {
+                const isActiveParent = activeMember?.role === 'Chef de famille' || activeMember?.role === 'Gestionnaire';
+                return isActiveParent ? true : s.studentId === activeMemberId;
+              }).length > 0 ? (
+                schedule
+                  .filter(s => {
+                    const isActiveParent = activeMember?.role === 'Chef de famille' || activeMember?.role === 'Gestionnaire';
+                    return isActiveParent ? true : s.studentId === activeMemberId;
+                  })
+                  .slice(0, 4)
+                  .map((course, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 text-xs">
+                      <div>
+                        <h4 className="font-bold text-white">{course.subject}</h4>
+                        <p className="text-[10px] text-white/40 mt-0.5">Élève: {course.studentName} {course.room ? `• ${course.room}` : ''}</p>
+                      </div>
+                      <span className="text-[10px] font-extrabold text-white/70 bg-white/5 px-2.5 py-1 rounded-[10px] border border-white/5 shrink-0">
+                        {course.startTime} - {course.endTime}
+                      </span>
+                    </div>
+                  ))
+              ) : (
+                <p className="text-xs text-white/30 text-center py-6">Aucun cours planifié dans l'emploi du temps.</p>
+              )}
             </div>
           </div>
 
@@ -2749,22 +2765,41 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-3">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider">Dernières Notes</h3>
             <div className="space-y-2">
-              {[
-                { subject: 'Mathématiques - Algèbre', note: '16.5 / 20', member: 'Amadou', status: 'Très Bien' },
-                { subject: 'Français - Dictée', note: '18 / 20', member: 'Awa', status: 'Excellent' },
-                { subject: 'Histoire - Révolution', note: '14 / 20', member: 'Amadou', status: 'Satisfaisant' }
-              ].map((grade, idx) => (
-                <div key={idx} className="flex items-center justify-between py-2 border-b border-white/5 last:border-b-0 text-xs">
-                  <div>
-                    <h4 className="font-bold text-white">{grade.subject}</h4>
-                    <p className="text-[10px] text-white/40 mt-0.5">{grade.member}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-extrabold text-[#00D26A]">{grade.note}</span>
-                    <p className="text-[10px] text-white/40 mt-0.5">{grade.status}</p>
-                  </div>
-                </div>
-              ))}
+              {grades.filter(g => {
+                const isActiveParent = activeMember?.role === 'Chef de famille' || activeMember?.role === 'Gestionnaire';
+                return isActiveParent ? true : g.studentId === activeMemberId;
+              }).length > 0 ? (
+                grades
+                  .filter(g => {
+                    const isActiveParent = activeMember?.role === 'Chef de famille' || activeMember?.role === 'Gestionnaire';
+                    return isActiveParent ? true : g.studentId === activeMemberId;
+                  })
+                  .slice(0, 3)
+                  .map((grade, idx) => {
+                    const getStatus = (val: number, max: number) => {
+                      const ratio = val / max;
+                      if (ratio >= 0.8) return 'Excellent';
+                      if (ratio >= 0.7) return 'Très Bien';
+                      if (ratio >= 0.6) return 'Bien';
+                      if (ratio >= 0.5) return 'Moyen';
+                      return 'À travailler';
+                    };
+                    return (
+                      <div key={idx} className="flex items-center justify-between py-2 border-b border-white/5 last:border-b-0 text-xs">
+                        <div>
+                          <h4 className="font-bold text-white">{grade.subject} - {grade.examTitle}</h4>
+                          <p className="text-[10px] text-white/40 mt-0.5">{grade.studentName}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-extrabold text-[#00D26A]">{grade.value} / {grade.max}</span>
+                          <p className="text-[10px] text-white/40 mt-0.5">{getStatus(grade.value, grade.max)} • Coef {grade.coef}</p>
+                        </div>
+                      </div>
+                    );
+                  })
+              ) : (
+                <p className="text-xs text-white/30 text-center py-6">Aucune note enregistrée dans le bulletin.</p>
+              )}
             </div>
           </div>
 
@@ -2777,6 +2812,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               members={members}
               isPremium={isPremium}
               onTriggerPaywall={onTriggerPaywall}
+              grades={grades}
+              setGrades={setGrades}
+              schedule={schedule}
+              setSchedule={setSchedule}
             />
           </div>
         </div>

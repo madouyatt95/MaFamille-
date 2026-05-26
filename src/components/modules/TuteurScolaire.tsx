@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   GraduationCap, 
   CheckCircle, 
@@ -17,6 +17,29 @@ import {
 import type { SchoolTask } from '../../types';
 import { aiQuotaService } from '../../services/aiQuotaService';
 
+export interface GradeItem {
+  id: string;
+  studentId: string;
+  studentName: string;
+  subject: string;
+  value: number;
+  max: number;
+  coef: number;
+  examTitle: string;
+  date: string;
+}
+
+export interface ScheduleItem {
+  id: string;
+  studentId: string;
+  studentName: string;
+  day: string;
+  subject: string;
+  startTime: string;
+  endTime: string;
+  room?: string;
+}
+
 interface TuteurScolaireProps {
   schoolTasks: SchoolTask[];
   setSchoolTasks: React.Dispatch<React.SetStateAction<SchoolTask[]>>;
@@ -24,6 +47,10 @@ interface TuteurScolaireProps {
   members?: any[];
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
+  grades: GradeItem[];
+  setGrades: React.Dispatch<React.SetStateAction<GradeItem[]>>;
+  schedule: ScheduleItem[];
+  setSchedule: React.Dispatch<React.SetStateAction<ScheduleItem[]>>;
 }
 
 export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({ 
@@ -32,7 +59,11 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   activeMemberId,
   members,
   isPremium = false,
-  onTriggerPaywall
+  onTriggerPaywall,
+  grades,
+  setGrades,
+  schedule,
+  setSchedule
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'devoirs' | 'quizzes' | 'schedule' | 'grades'>('devoirs');
   const activeMember = members?.find(m => m.id === activeMemberId);
@@ -73,56 +104,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     return localStorage.getItem('school_sch_end') || '30/06/2026';
   });
 
-  // --- Notes State ---
-  interface GradeItem {
-    id: string;
-    studentId: string;
-    studentName: string;
-    subject: string;
-    value: number;
-    max: number;
-    coef: number;
-    examTitle: string;
-    date: string;
-  }
 
-  const [grades, setGrades] = useState<GradeItem[]>(() => {
-    const stored = localStorage.getItem('school_grades');
-    return stored ? JSON.parse(stored) : [
-      { id: 'g-1', studentId: '3', studentName: 'Amadou', subject: 'Mathématiques', value: 16, max: 20, coef: 2, examTitle: 'Contrôle Algèbre', date: '10/05/2026' },
-      { id: 'g-2', studentId: '3', studentName: 'Amadou', subject: 'Histoire-Géographie', value: 15, max: 20, coef: 1, examTitle: 'Examen Révolution', date: '12/05/2026' },
-      { id: 'g-3', studentId: '4', studentName: 'Awa', subject: 'Français', value: 18, max: 20, coef: 1, examTitle: 'Dictée de Printemps', date: '14/05/2026' }
-    ];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('school_grades', JSON.stringify(grades));
-  }, [grades]);
-
-  // --- Emploi du Temps State ---
-  interface ScheduleItem {
-    id: string;
-    studentId: string;
-    studentName: string;
-    day: string;
-    subject: string;
-    startTime: string;
-    endTime: string;
-    room?: string;
-  }
-
-  const [schedule, setSchedule] = useState<ScheduleItem[]>(() => {
-    const stored = localStorage.getItem('school_schedule');
-    return stored ? JSON.parse(stored) : [
-      { id: 's-1', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Mathématiques', startTime: '08:30', endTime: '09:30', room: 'Salle 102' },
-      { id: 's-2', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Histoire-Géographie', startTime: '09:30', endTime: '10:30', room: 'Salle 204' },
-      { id: 's-3', studentId: '4', studentName: 'Awa', day: 'Mardi', subject: 'Français', startTime: '10:45', endTime: '11:45', room: 'Classe A2' }
-    ];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('school_schedule', JSON.stringify(schedule));
-  }, [schedule]);
 
   // Form & UI States
   const [selectedDay, setSelectedDay] = useState<string>('Lundi');

@@ -229,6 +229,33 @@ function App() {
     return safeGetLocalStorage('mf_school_tasks', demoSchoolTasks);
   });
 
+  const [grades, setGrades] = useState<any[]>(() => {
+    const stored = localStorage.getItem('school_grades');
+    return stored ? JSON.parse(stored) : [
+      { id: 'g-1', studentId: '3', studentName: 'Amadou', subject: 'Mathématiques', value: 16, max: 20, coef: 2, examTitle: 'Contrôle Algèbre', date: '10/05/2026' },
+      { id: 'g-2', studentId: '3', studentName: 'Amadou', subject: 'Histoire-Géographie', value: 15, max: 20, coef: 1, examTitle: 'Examen Révolution', date: '12/05/2026' },
+      { id: 'g-3', studentId: '4', studentName: 'Awa', subject: 'Français', value: 18, max: 20, coef: 1, examTitle: 'Dictée de Printemps', date: '14/05/2026' }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('school_grades', JSON.stringify(grades));
+  }, [grades]);
+
+  const [schedule, setSchedule] = useState<any[]>(() => {
+    const stored = localStorage.getItem('school_schedule');
+    return stored ? JSON.parse(stored) : [
+      { id: 's-1', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Mathématiques', startTime: '08:30', endTime: '09:30', room: 'Salle 102' },
+      { id: 's-2', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Histoire-Géographie', startTime: '09:30', endTime: '10:30', room: 'Salle 204' },
+      { id: 's-3', studentId: '4', studentName: 'Awa', day: 'Mardi', subject: 'Français', startTime: '10:45', endTime: '11:45', room: 'Classe A2' }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('school_schedule', JSON.stringify(schedule));
+  }, [schedule]);
+
+
   const [vaccines, setVaccines] = useState<any[]>(() => {
     return safeGetLocalStorage('mf_vaccines', [
       { id: 'v1', memberId: '3', name: 'ROR (Rappel)', date: '2026-04-12', status: 'Fait', doctor: 'Dr. Martin' },
@@ -307,7 +334,7 @@ function App() {
 
     // Create a persistent notification alert
     const newAlert: NotificationAlert = {
-      id: `alert-sos-${Date.now()}`,
+      id: `alert-sos-${Date.now()}-by-${activeMemberId}`,
       title: `🚨 ALERTE SOS ACTIVÉE`,
       description: `${activeMember?.name || 'Un membre'} a déclenché l'alerte d'urgence (SOS).`,
       time: 'À l\'instant',
@@ -444,10 +471,31 @@ function App() {
   const [manualVoiceCommand, setManualVoiceCommand] = useState('');
   const voiceRecognitionRef = useRef<any>(null);
 
-  // Foyer System States
   const [foyer, setFoyer] = useState<Foyer | null>(null);
   const [myMemberProfile, setMyMemberProfile] = useState<FoyerMember | null>(null);
   const [onboardingActive, setOnboardingActive] = useState(false);
+
+  // Nettoyage automatique des notes/cours d'Amadou et d'Awa si un foyer personnalisé sans eux est chargé
+  useEffect(() => {
+    if (foyer && members.length > 0) {
+      setGrades(prev => {
+        const filtered = prev.filter(g => members.some(m => m.id === g.studentId));
+        if (filtered.length !== prev.length) {
+          localStorage.setItem('school_grades', JSON.stringify(filtered));
+          return filtered;
+        }
+        return prev;
+      });
+      setSchedule(prev => {
+        const filtered = prev.filter(s => members.some(m => m.id === s.studentId));
+        if (filtered.length !== prev.length) {
+          localStorage.setItem('school_schedule', JSON.stringify(filtered));
+          return filtered;
+        }
+        return prev;
+      });
+    }
+  }, [members, foyer]);
   const [discoverMode, setDiscoverMode] = useState<boolean>(() => {
     return localStorage.getItem('mf_discover_mode') === 'true';
   });
@@ -1243,25 +1291,15 @@ function App() {
           return [newItem, ...prev];
         });
 
-        // Trigger notification alert for other family members
-        const newAlert = {
-          id: `a-mem-${Date.now()}`,
-          title: `📸 Nouveau moment partagé par ${payload.new.author_name} !`,
-          description: `« ${payload.new.title} » a été ajouté au Mur des Moments.`,
-          time: 'À l\'instant',
-          type: 'info' as const,
-          read: false,
-          module: 'capsule'
-        };
-        setAlerts(prev => [newAlert, ...prev]);
-        saveAlertToCloud(newAlert);
-
-        // Push standard browser notification if permission is active
-        if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification(newAlert.title, {
-            body: newAlert.description,
-            icon: '/favicon.svg'
-          });
+        // Trigger browser notification for other family members
+        const activeMemberName = members.find(m => m.id === activeMemberId)?.name;
+        if (payload.new.author_name !== activeMemberName) {
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(`📸 Nouveau moment partagé par ${payload.new.author_name} !`, {
+              body: `« ${payload.new.title} » a été ajouté au Mur des Moments.`,
+              icon: '/favicon.svg'
+            });
+          }
         }
       }
       else if (payload.eventType === 'UPDATE') {
@@ -2183,7 +2221,7 @@ function App() {
           const activeMemberName = activeMemberObj ? activeMemberObj.name : 'Un parent';
 
           const newAlert = {
-            id: `a-ev-${Date.now()}`,
+            id: `a-ev-${Date.now()}-by-${activeMemberId}`,
             title: `📅 Nouvel événement : ${newEvent.title}`,
             description: `Ajouté pour le ${newEvent.dateTime.split('T')[0]} par ${activeMemberName}.`,
             time: 'À l\'instant',
@@ -2713,7 +2751,7 @@ function App() {
 
     // Generate a beautiful persistent notification alert locally
     const newAlert = {
-      id: `a-mem-${Date.now()}`,
+      id: `a-mem-${Date.now()}-by-${activeMemberId}`,
       title: `📸 Nouveau moment partagé par ${newMemory.authorName} !`,
       description: `« ${newMemory.title} » a été ajouté au Mur des Moments.`,
       time: 'À l\'instant',
@@ -2816,6 +2854,16 @@ function App() {
     setPets(demoPets);
     setArtisans(demoArtisans);
     setSchoolTasks(demoSchoolTasks);
+    setGrades([
+      { id: 'g-1', studentId: '3', studentName: 'Amadou', subject: 'Mathématiques', value: 16, max: 20, coef: 2, examTitle: 'Contrôle Algèbre', date: '10/05/2026' },
+      { id: 'g-2', studentId: '3', studentName: 'Amadou', subject: 'Histoire-Géographie', value: 15, max: 20, coef: 1, examTitle: 'Examen Révolution', date: '12/05/2026' },
+      { id: 'g-3', studentId: '4', studentName: 'Awa', subject: 'Français', value: 18, max: 20, coef: 1, examTitle: 'Dictée de Printemps', date: '14/05/2026' }
+    ]);
+    setSchedule([
+      { id: 's-1', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Mathématiques', startTime: '08:30', endTime: '09:30', room: 'Salle 102' },
+      { id: 's-2', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Histoire-Géographie', startTime: '09:30', endTime: '10:30', room: 'Salle 204' },
+      { id: 's-3', studentId: '4', studentName: 'Awa', day: 'Mardi', subject: 'Français', startTime: '10:45', endTime: '11:45', room: 'Classe A2' }
+    ]);
     setMemories(demoMemories);
     setPocketMoney([
       { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150' },
@@ -2841,6 +2889,8 @@ function App() {
       setDiscoverMode(false);
       localStorage.removeItem('mf_discover_mode');
       localStorage.removeItem('mf_cloud_foyer_id');
+      localStorage.removeItem('school_grades');
+      localStorage.removeItem('school_schedule');
       // Restore demo data for offline browsing
       setMembers(demoMembers);
       setEvents(demoEvents);
@@ -2855,6 +2905,16 @@ function App() {
       setPets(demoPets);
       setArtisans(demoArtisans);
       setSchoolTasks(demoSchoolTasks);
+      setGrades([
+        { id: 'g-1', studentId: '3', studentName: 'Amadou', subject: 'Mathématiques', value: 16, max: 20, coef: 2, examTitle: 'Contrôle Algèbre', date: '10/05/2026' },
+        { id: 'g-2', studentId: '3', studentName: 'Amadou', subject: 'Histoire-Géographie', value: 15, max: 20, coef: 1, examTitle: 'Examen Révolution', date: '12/05/2026' },
+        { id: 'g-3', studentId: '4', studentName: 'Awa', subject: 'Français', value: 18, max: 20, coef: 1, examTitle: 'Dictée de Printemps', date: '14/05/2026' }
+      ]);
+      setSchedule([
+        { id: 's-1', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Mathématiques', startTime: '08:30', endTime: '09:30', room: 'Salle 102' },
+        { id: 's-2', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Histoire-Géographie', startTime: '09:30', endTime: '10:30', room: 'Salle 204' },
+        { id: 's-3', studentId: '4', studentName: 'Awa', day: 'Mardi', subject: 'Français', startTime: '10:45', endTime: '11:45', room: 'Classe A2' }
+      ]);
       setMemories(demoMemories);
       setPocketMoney([
         { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150' },
@@ -2915,6 +2975,10 @@ function App() {
       }
 
       await loadFoyerData(foyer.id);
+      localStorage.removeItem('school_grades');
+      localStorage.removeItem('school_schedule');
+      setGrades([]);
+      setSchedule([]);
       alert("✨ Toutes les données d'exemples et de démonstration ont été purgées avec succès de votre compte en ligne !");
     } catch (err: any) {
       console.error(err);
@@ -2956,6 +3020,10 @@ function App() {
       }
 
       await loadFoyerData(foyer.id);
+      localStorage.removeItem('school_grades');
+      localStorage.removeItem('school_schedule');
+      setGrades([]);
+      setSchedule([]);
       alert("🗑️ Votre foyer en ligne a été entièrement vidé et réinitialisé avec succès !");
     } catch (err: any) {
       console.error(err);
@@ -3010,7 +3078,7 @@ function App() {
           onAvatarClick={() => setProfileSwitcherOpen(true)}
           events={events}
           dishes={dishes}
-          alerts={alerts}
+          alerts={alerts.filter(al => !al.id.includes(`-by-${activeMemberId}`))}
           formatMoney={formatMoney}
           setActiveTab={setActiveTab}
           setActiveModule={setActiveModule}
@@ -3154,7 +3222,7 @@ function App() {
           setArtisans={setArtisans}
           onUpdateMemberProfile={handleUpdateMemberProfile}
           goals={savingGoals}
-          alerts={alerts}
+          alerts={alerts.filter(al => !al.id.includes(`-by-${activeMemberId}`))}
           currencySymbol={getCurrencySymbol()}
           formatMoney={formatMoney}
           activeModule={activeModule}
@@ -3212,6 +3280,10 @@ function App() {
           setVotes={setVotes}
           schoolTasks={schoolTasks}
           setSchoolTasks={setSchoolTasks}
+          grades={grades}
+          setGrades={setGrades}
+          schedule={schedule}
+          setSchedule={setSchedule}
           dishes={dishes}
           setDishes={setDishes}
           isPremium={isPremium}
@@ -3533,7 +3605,9 @@ function App() {
             )}
 
             <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar">
-              {alerts.map((al) => {
+              {alerts
+                .filter(al => !al.id.includes(`-by-${activeMemberId}`))
+                .map((al) => {
                 const targetModule = al.module || '';
                 const iconColor = al.type === 'success' ? '#00D26A' : al.type === 'warning' ? '#FFB020' : al.type === 'error' ? '#FF4D6D' : '#6C5CFF';
                 return (
@@ -3675,7 +3749,7 @@ function App() {
                           if ((activeMemberId === '3' || activeMemberId === '4') && (mood === '⛈️' || mood === '☁️')) {
                             const kidName = members.find(m => m.id === activeMemberId)?.name;
                             const newAlert = {
-                              id: `a-mood-${Date.now()}`,
+                              id: `a-mood-${Date.now()}-by-${activeMemberId}`,
                               title: `Écho Émotionnel : ${kidName} a besoin de vous 🧡`,
                               description: `${kidName} a réglé sa météo mentale sur "${mood === '⛈️' ? 'Tempête ⛈️' : 'Nuageux ☁️'}". Conseil IA : passez 15 minutes en tête-à-tête avec lui aujourd'hui.`,
                               time: 'À l\'instant',
