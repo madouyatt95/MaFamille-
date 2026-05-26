@@ -145,7 +145,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     setSearching(true);
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&countrycodes=fr&addressdetails=1&email=madouyatt95@gmail.com`
       );
       const data = await response.json();
       setSearchResults(data);
@@ -270,7 +270,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     const delayDebounce = setTimeout(async () => {
       try {
         const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5`
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&countrycodes=fr&addressdetails=1&email=madouyatt95@gmail.com`
         );
         const data = await response.json();
         setSearchResults(data);
@@ -536,12 +536,48 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
             {/* Render dynamic route tracing from OSRM road points if active */}
             {routeTarget && routePoints.length > 0 && (
-              <Polyline 
-                positions={routePoints} 
-                color="#00D26A" 
-                weight={5}
-                className="animate-pulse"
-              />
+              <>
+                {/* 1. Deep black shadow line to anchor the road on streets */}
+                <Polyline 
+                  positions={routePoints} 
+                  color="#000000" 
+                  weight={10}
+                  opacity={0.3}
+                />
+                {/* 2. Soft outer glowing cyan/blue line */}
+                <Polyline 
+                  positions={routePoints} 
+                  color="#4F8CFF" 
+                  weight={7}
+                  opacity={0.65}
+                />
+                {/* 3. Bright neon green foreground GPS route line */}
+                <Polyline 
+                  positions={routePoints} 
+                  color="#00D26A" 
+                  weight={4}
+                  opacity={1}
+                />
+                {/* 4. Custom start & destination emoji markers */}
+                <Marker 
+                  position={routePoints[0]}
+                  icon={L.divIcon({
+                    className: 'start-route-marker',
+                    html: `<div style="font-size: 20px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">🏎️</div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                  })}
+                />
+                <Marker 
+                  position={routePoints[routePoints.length - 1]}
+                  icon={L.divIcon({
+                    className: 'end-route-marker',
+                    html: `<div style="font-size: 20px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); transform-origin: bottom center; animation: bounce 1s infinite alternate;">🏁</div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                  })}
+                />
+              </>
             )}
 
             {/* Search Marker placed temporarily on the map */}
@@ -560,36 +596,112 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                 })}
               >
                 <Popup closeButton={false}>
-                  <div className="text-center min-w-[140px] p-1 space-y-2">
-                    <span className="font-extrabold text-xs text-white block truncate max-w-[150px]">{searchMarker.name}</span>
-                    <div className="flex flex-col space-y-1">
-                      <button
-                        onClick={() => {
-                          setRouteTarget({ name: searchMarker.name, coords: searchMarker.coords });
-                        }}
-                        className="w-full py-1.5 rounded bg-[#00D26A] hover:bg-[#00B85C] text-white text-[9px] font-bold transition cursor-pointer"
-                      >
-                        🚘 Itinéraire vers ce lieu
-                      </button>
-                      <button
-                        onClick={() => {
-                          setAddingFavoriteCoords(searchMarker.coords);
-                          setAddingFavoriteName(searchMarker.name.split(',')[0]);
-                          setAddingFavoriteDetail(searchMarker.name.split(',').slice(1, 3).join(',').trim() || "Point d'intérêt");
-                          setAddingFavoriteType('other');
-                        }}
-                        className="w-full py-1.5 rounded bg-[#FFB020] hover:bg-[#E0981B] text-black text-[9px] font-bold transition cursor-pointer"
-                      >
-                        ⭐️ Ajouter aux favoris
-                      </button>
-                      <button
-                        onClick={() => setSearchMarker(null)}
-                        className="w-full py-1.5 rounded bg-white/5 hover:bg-white/10 text-white/70 text-[9px] font-bold transition cursor-pointer"
-                      >
-                        Fermer
-                      </button>
+                  {addingFavoriteCoords ? (
+                    <div className="text-left min-w-[170px] p-2 space-y-2 text-white">
+                      <span className="text-[10px] font-extrabold text-[#FFB020] uppercase tracking-wider block">⭐️ Ajouter aux Favoris</span>
+                      
+                      <div className="space-y-1.5">
+                        <div>
+                          <label className="text-[8px] font-extrabold text-white/50 block mb-0.5">NOM</label>
+                          <input 
+                            type="text"
+                            value={addingFavoriteName}
+                            onChange={(e) => setAddingFavoriteName(e.target.value)}
+                            className="w-full bg-[#07111F] border border-white/20 rounded px-2 py-0.5 text-[10px] text-white focus:outline-none focus:border-[#FFB020]"
+                            placeholder="Ex: Piscine"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[8px] font-extrabold text-white/50 block mb-0.5">CATÉGORIE</label>
+                          <select
+                            value={addingFavoriteType}
+                            onChange={(e) => setAddingFavoriteType(e.target.value as any)}
+                            className="w-full bg-[#07111F] border border-white/20 rounded px-1.5 py-0.5 text-[10px] text-white focus:outline-none"
+                          >
+                            <option value="home">Maison 🏠</option>
+                            <option value="work">Travail 💼</option>
+                            <option value="school">École 🏫</option>
+                            <option value="other">Autre 📍</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-[8px] font-extrabold text-white/50 block mb-0.5">DESCRIPTION</label>
+                          <input 
+                            type="text"
+                            value={addingFavoriteDetail}
+                            onChange={(e) => setAddingFavoriteDetail(e.target.value)}
+                            className="w-full bg-[#07111F] border border-white/20 rounded px-2 py-0.5 text-[10px] text-white focus:outline-none focus:border-[#FFB020]"
+                            placeholder="Ex: Entraînement"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex gap-1.5 pt-1.5 border-t border-white/10">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!addingFavoriteName.trim()) return alert("Veuillez saisir un nom.");
+                            const newFav: FavoritePlace = {
+                              id: `fav-${Date.now()}`,
+                              name: addingFavoriteName.trim(),
+                              type: addingFavoriteType,
+                              detail: addingFavoriteDetail.trim() || "Lieu favori",
+                              coords: addingFavoriteCoords
+                            };
+                            setFavorites(prev => [...prev, newFav]);
+                            setAddingFavoriteCoords(null);
+                            setSearchMarker(null);
+                            alert("Lieu ajouté aux favoris ! ⭐️");
+                          }}
+                          className="flex-1 py-1 rounded bg-[#FFB020] text-black text-[9px] font-extrabold hover:opacity-90 transition cursor-pointer shadow-md text-center"
+                        >
+                          Enregistrer
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAddingFavoriteCoords(null);
+                          }}
+                          className="flex-1 py-1 rounded bg-white/5 hover:bg-white/10 text-white text-[9px] font-bold transition cursor-pointer text-center"
+                        >
+                          Annuler
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="text-center min-w-[140px] p-1 space-y-2">
+                      <span className="font-extrabold text-xs text-white block truncate max-w-[150px]">{searchMarker.name}</span>
+                      <div className="flex flex-col space-y-1">
+                        <button
+                          onClick={() => {
+                            setRouteTarget({ name: searchMarker.name, coords: searchMarker.coords });
+                          }}
+                          className="w-full py-1.5 rounded bg-[#00D26A] hover:bg-[#00B85C] text-white text-[9px] font-bold transition cursor-pointer"
+                        >
+                          🚘 Itinéraire vers ce lieu
+                        </button>
+                        <button
+                          onClick={() => {
+                            setAddingFavoriteCoords(searchMarker.coords);
+                            setAddingFavoriteName(searchMarker.name.split(',')[0]);
+                            setAddingFavoriteDetail(searchMarker.name.split(',').slice(1, 3).join(',').trim() || "Point d'intérêt");
+                            setAddingFavoriteType('other');
+                          }}
+                          className="w-full py-1.5 rounded bg-[#FFB020] hover:bg-[#E0981B] text-black text-[9px] font-bold transition cursor-pointer"
+                        >
+                          ⭐️ Ajouter aux favoris
+                        </button>
+                        <button
+                          onClick={() => setSearchMarker(null)}
+                          className="w-full py-1.5 rounded bg-white/5 hover:bg-white/10 text-white/70 text-[9px] font-bold transition cursor-pointer"
+                        >
+                          Fermer
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </Popup>
               </Marker>
             )}

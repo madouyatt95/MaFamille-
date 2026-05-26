@@ -43,7 +43,8 @@ import type {
   Demarche,
   JustificatifPack,
   Artisan,
-  ArchivedList
+  ArchivedList,
+  ChatMessage
 } from './types';
 
 // Component imports
@@ -283,6 +284,18 @@ function App() {
   const [sharedPackId, setSharedPackId] = useState<string | null>(null);
   const [sosActive, setSosActive] = useState(false);
   const [receivedSos, setReceivedSos] = useState<{ senderId: string; senderName: string; location: string; timestamp: number } | null>(null);
+
+  // React Refs to keep subscriptions updated and prevent stale closures
+  const activeMemberIdRef = useRef(activeMemberId);
+  const membersRef = useRef(members);
+
+  useEffect(() => {
+    activeMemberIdRef.current = activeMemberId;
+  }, [activeMemberId]);
+
+  useEffect(() => {
+    membersRef.current = members;
+  }, [members]);
 
   // PWA Install Prompt States
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -1241,28 +1254,78 @@ function App() {
       });
     });
 
-    const subMessages = foyerService.subscribeToChanges('chat_messages', foyer.id, () => {
-      foyerService.fetchTableData('chat_messages', foyer.id).then(chatMessagesData => {
-        if (chatMessagesData) {
-          const mapped = chatMessagesData.map(c => ({
-            id: c.id,
-            groupId: c.group_id,
-            senderId: c.sender_id,
-            senderName: c.sender_name,
-            type: c.type,
-            content: c.content,
-            timestamp: c.timestamp,
-            readBy: c.read_by || [],
-            reactions: typeof c.reactions === 'string' ? JSON.parse(c.reactions) : c.reactions || []
-          }));
-          setChatMessages(prev => {
-            const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
-            const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
-            if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
-            return mapped;
-          });
+    const subMessages = foyerService.subscribeToChanges('chat_messages', foyer.id, (payload: any) => {
+      if (!payload) return;
+
+      if (payload.eventType === 'DELETE') {
+        const deletedId = payload.old.id;
+        setChatMessages(prev => prev.filter(m => m.id !== deletedId));
+      } 
+      else if (payload.eventType === 'INSERT') {
+        const reactionsVal = payload.new.reactions;
+        const reactionsParsed = typeof reactionsVal === 'string' 
+          ? JSON.parse(reactionsVal) 
+          : reactionsVal || [];
+
+        const newMsg: ChatMessage = {
+          id: payload.new.id,
+          groupId: payload.new.group_id,
+          senderId: payload.new.sender_id,
+          senderName: payload.new.sender_name,
+          type: payload.new.type,
+          content: payload.new.content,
+          timestamp: payload.new.timestamp,
+          readBy: payload.new.read_by || [],
+          reactions: reactionsParsed
+        };
+
+        setChatMessages(prev => {
+          if (prev.some(m => m.id === newMsg.id)) return prev;
+          return [...prev, newMsg];
+        });
+
+        // Update the last message preview of the group locally
+        setChatGroups(prev => prev.map(g => g.id === newMsg.groupId ? { 
+          ...g, 
+          lastMessage: newMsg.type === 'voice' 
+            ? '🎤 Message vocal' 
+            : newMsg.content.startsWith('data:') 
+              ? '📷 Photo' 
+              : newMsg.content,
+          lastMessageTime: newMsg.timestamp 
+        } : g));
+
+        // Trigger browser notification for other family members
+        const currentActiveMemberId = activeMemberIdRef.current;
+        if (payload.new.sender_id !== currentActiveMemberId) {
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(`💬 Nouveau message de ${payload.new.sender_name}`, {
+              body: payload.new.content.startsWith('data:') ? '📷 [Image]' : payload.new.content,
+              icon: '/favicon.svg'
+            });
+          }
         }
-      });
+      }
+      else if (payload.eventType === 'UPDATE') {
+        const reactionsVal = payload.new.reactions;
+        const reactionsParsed = typeof reactionsVal === 'string' 
+          ? JSON.parse(reactionsVal) 
+          : reactionsVal || [];
+
+        const updatedMsg: ChatMessage = {
+          id: payload.new.id,
+          groupId: payload.new.group_id,
+          senderId: payload.new.sender_id,
+          senderName: payload.new.sender_name,
+          type: payload.new.type,
+          content: payload.new.content,
+          timestamp: payload.new.timestamp,
+          readBy: payload.new.read_by || [],
+          reactions: reactionsParsed
+        };
+
+        setChatMessages(prev => prev.map(m => m.id === updatedMsg.id ? updatedMsg : m));
+      }
     });
 
     const subMemories = foyerService.subscribeToChanges('memories', foyer.id, (payload: any) => {
@@ -1292,8 +1355,9 @@ function App() {
         });
 
         // Trigger browser notification for other family members
-        const activeMemberName = members.find(m => m.id === activeMemberId)?.name;
-        if (payload.new.author_name !== activeMemberName) {
+        const currentActiveMember = membersRef.current.find(m => m.id === activeMemberIdRef.current);
+        const currentActiveMemberName = currentActiveMember?.name;
+        if (payload.new.author_name !== currentActiveMemberName) {
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification(`📸 Nouveau moment partagé par ${payload.new.author_name} !`, {
               body: `« ${payload.new.title} » a été ajouté au Mur des Moments.`,
@@ -1438,7 +1502,7 @@ function App() {
       });
     });
 
-    const subAlerts = foyerService.subscribeToChanges('alerts', foyer.id, () => {
+    const subAlerts = foyerService.subscribeToChanges('alerts', foyer.id, (payload: any) => {
       const client = getSupabaseClient();
       if (!client) return;
       client.from('alerts').select('*').eq('foyer_id', foyer.id).then(({ data: alertsData }) => {
@@ -1454,6 +1518,18 @@ function App() {
           })));
         }
       });
+
+      if (payload && payload.eventType === 'INSERT') {
+        const isCreatedByMe = payload.new.id.includes(`-by-${activeMemberIdRef.current}`);
+        if (!isCreatedByMe) {
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(payload.new.title, {
+              body: payload.new.description,
+              icon: '/favicon.svg'
+            });
+          }
+        }
+      }
     });
 
     return () => {
@@ -2778,14 +2854,6 @@ function App() {
     };
     setAlerts(prev => [newAlert, ...prev]);
     saveAlertToCloud(newAlert);
-
-    // Push standard browser notification if permission is active
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(newAlert.title, {
-        body: newAlert.description,
-        icon: '/favicon.svg'
-      });
-    }
 
     if (foyer) {
       const client = getSupabaseClient();
