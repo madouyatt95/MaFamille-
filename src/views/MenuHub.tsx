@@ -173,6 +173,8 @@ interface MenuHubProps {
   activeModule: string;
   setActiveModule: (moduleName: string) => void;
   onAddTask: (task: any) => void;
+  onDeleteTask: (id: string) => void;
+  onEditTask: (id: string, title: string, points: number, rotation: 'daily' | 'weekly' | 'none', assigneeId: string, assigneeName: string) => void;
   onAddGrocery: (item: any) => void;
   onToggleTask: (id: string) => void;
   onValidateTask: (id: string) => void;
@@ -257,6 +259,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   activeModule,
   setActiveModule,
   onToggleTask,
+  onDeleteTask,
+  onEditTask,
   onValidateTask,
   onToggleGrocery,
   onAddGroceryItem,
@@ -318,6 +322,13 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
   // Clean list modal state
   const [cleanModalOpen, setCleanModalOpen] = useState(false);
+  
+  // ChoreTask inline edit states
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTaskTitle, setEditTaskTitle] = useState('');
+  const [editTaskPoints, setEditTaskPoints] = useState(10);
+  const [editTaskRotation, setEditTaskRotation] = useState<'daily' | 'weekly' | 'none'>('daily');
+  const [editTaskAssigneeId, setEditTaskAssigneeId] = useState('');
 
 
 
@@ -2672,48 +2683,165 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           <div className="space-y-3">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider px-1">Tableau de répartition</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {tasks.map((task) => (
-                <div 
-                  key={task.id}
-                  className={`glass-panel rounded-[28px] p-4 border flex flex-col justify-between h-[130px] transition-all ${
-                    task.done 
-                      ? task.validatedByParent 
-                        ? 'border-[#00D26A]/30 bg-[#00D26A]/5 opacity-60' 
-                        : 'border-[#FFB020]/30 bg-[#FFB020]/5' 
-                      : 'border-white/8'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="text-[8px] font-extrabold text-[#6C5CFF] uppercase tracking-widest bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 px-2 py-0.5 rounded-lg">
-                        {task.rotation === 'daily' ? 'Quotidienne' : task.rotation === 'weekly' ? 'Hebdo' : 'Ponctuel'}
-                      </span>
-                      <h4 className={`text-xs sm:text-sm font-bold text-white mt-2 ${task.done ? 'line-through text-white/40' : ''}`}>
-                        {task.title}
-                      </h4>
-                    </div>
-                    <span className="text-[10px] font-extrabold text-[#6C5CFF] bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 px-2 py-0.5 rounded-lg shrink-0">
-                      +{task.rewardPoints} Pts
-                    </span>
-                  </div>
+              {tasks.map((task) => {
+                if (editingTaskId === task.id) {
+                  return (
+                    <div 
+                      key={task.id}
+                      className="glass-panel rounded-[28px] p-4 border border-[#6C5CFF]/30 bg-[#6C5CFF]/5 flex flex-col justify-between space-y-3"
+                    >
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block">Titre de la tâche</label>
+                        <input
+                          type="text"
+                          value={editTaskTitle}
+                          onChange={(e) => setEditTaskTitle(e.target.value)}
+                          className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                          placeholder="Faire la vaisselle..."
+                        />
+                      </div>
 
-                  <div className="flex items-center justify-between pt-3 border-t border-white/5 mt-2">
-                    <span className="text-[10px] text-white/50">Assigné : <strong className="text-white">{task.assignedMemberName}</strong></span>
-                    {!task.done ? (
-                      <button 
-                        onClick={() => onToggleTask(task.id)}
-                        className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:text-white text-[10px] font-bold cursor-pointer"
-                      >
-                        Marquer fait
-                      </button>
-                    ) : (
-                      <span className={`text-[10px] font-bold ${task.validatedByParent ? 'text-[#00D26A]' : 'text-[#FFB020]'}`}>
-                        {task.validatedByParent ? 'Validé' : 'En attente'}
-                      </span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block mb-1">Points</label>
+                          <input
+                            type="number"
+                            value={editTaskPoints}
+                            onChange={(e) => setEditTaskPoints(parseInt(e.target.value) || 0)}
+                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1 text-xs text-white focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block mb-1">Périodicité</label>
+                          <select
+                            value={editTaskRotation}
+                            onChange={(e) => setEditTaskRotation(e.target.value as any)}
+                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                          >
+                            <option value="daily">Quotidienne</option>
+                            <option value="weekly">Hebdomadaire</option>
+                            <option value="none">Ponctuelle</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block mb-1">Assigné à</label>
+                        <select
+                          value={editTaskAssigneeId}
+                          onChange={(e) => setEditTaskAssigneeId(e.target.value)}
+                          className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                        >
+                          {members.map(m => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex items-center justify-end space-x-2 pt-2 border-t border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => setEditingTaskId(null)}
+                          className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 hover:text-white text-[10px] font-bold transition-all cursor-pointer"
+                        >
+                          Annuler
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const assignee = members.find(m => m.id === editTaskAssigneeId);
+                            onEditTask(
+                              task.id,
+                              editTaskTitle,
+                              editTaskPoints,
+                              editTaskRotation,
+                              editTaskAssigneeId,
+                              assignee ? assignee.name : 'Général'
+                            );
+                            setEditingTaskId(null);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-[#6C5CFF] text-white text-[10px] font-bold hover:bg-[#5849E0] transition-all cursor-pointer shadow-md"
+                        >
+                          Sauver
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div 
+                    key={task.id}
+                    className={`glass-panel rounded-[28px] p-4 border flex flex-col justify-between h-[130px] transition-all relative group ${
+                      task.done 
+                        ? task.validatedByParent 
+                          ? 'border-[#00D26A]/30 bg-[#00D26A]/5 opacity-60' 
+                          : 'border-[#FFB020]/30 bg-[#FFB020]/5' 
+                        : 'border-white/8'
+                    }`}
+                  >
+                    {/* Parent Hover/Group Quick Edit/Delete Actions */}
+                    {isParent && (
+                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1 z-20">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingTaskId(task.id);
+                            setEditTaskTitle(task.title);
+                            setEditTaskPoints(task.rewardPoints);
+                            setEditTaskRotation(task.rotation);
+                            setEditTaskAssigneeId(task.assignedMemberId);
+                          }}
+                          className="p-1.5 bg-white/5 hover:bg-[#6C5CFF]/20 border border-white/10 hover:border-[#6C5CFF]/30 text-white hover:text-[#9E94FF] rounded-lg transition active:scale-95 cursor-pointer"
+                          title="Modifier la tâche"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteTask(task.id);
+                          }}
+                          className="p-1.5 bg-white/5 hover:bg-[#FF3B30]/25 border border-white/10 hover:border-[#FF3B30]/40 text-white hover:text-[#FF3B30] rounded-lg transition active:scale-95 cursor-pointer"
+                          title="Supprimer la tâche"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     )}
+
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="text-[8px] font-extrabold text-[#6C5CFF] uppercase tracking-widest bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 px-2 py-0.5 rounded-lg">
+                          {task.rotation === 'daily' ? 'Quotidienne' : task.rotation === 'weekly' ? 'Hebdo' : 'Ponctuel'}
+                        </span>
+                        <h4 className={`text-xs sm:text-sm font-bold text-white mt-2 ${task.done ? 'line-through text-white/40' : ''}`}>
+                          {task.title}
+                        </h4>
+                      </div>
+                      <span className="text-[10px] font-extrabold text-[#6C5CFF] bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 px-2 py-0.5 rounded-lg shrink-0 mr-8">
+                        +{task.rewardPoints} Pts
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-white/5 mt-2">
+                      <span className="text-[10px] text-white/50">Assigné : <strong className="text-white">{task.assignedMemberName}</strong></span>
+                      {!task.done ? (
+                        <button 
+                          onClick={() => onToggleTask(task.id)}
+                          className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:text-white text-[10px] font-bold cursor-pointer"
+                        >
+                          Marquer fait
+                        </button>
+                      ) : (
+                        <span className={`text-[10px] font-bold ${task.validatedByParent ? 'text-[#00D26A]' : 'text-[#FFB020]'}`}>
+                          {task.validatedByParent ? 'Validé' : 'En attente'}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

@@ -12,7 +12,8 @@ import {
   Calendar,
   TrendingUp,
   Trash2,
-  Sparkles
+  Sparkles,
+  Edit3
 } from 'lucide-react';
 import type { SchoolTask } from '../../types';
 import { aiQuotaService } from '../../services/aiQuotaService';
@@ -70,6 +71,38 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   const isParent = activeMember 
     ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent'].includes(activeMember.role)
     : (activeMemberId === '1' || activeMemberId === '2');
+
+  // Devoir inline edit states
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTaskTitle, setEditTaskTitle] = useState('');
+  const [editTaskSubject, setEditTaskSubject] = useState('');
+  const [editTaskDueDate, setEditTaskDueDate] = useState('');
+  const [editTaskDifficulty, setEditTaskDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
+  const [editTaskAssigneeId, setEditTaskAssigneeId] = useState('');
+
+  const handleDeleteHomework = (id: string) => {
+    if (window.confirm("Voulez-vous vraiment supprimer ce devoir ?")) {
+      setSchoolTasks(prev => prev.filter(t => t.id !== id));
+      alert("Devoir supprimé avec succès.");
+    }
+  };
+
+  const handleSaveHomeworkEdit = (id: string) => {
+    if (!editTaskTitle.trim()) {
+      alert("Le titre du devoir ne peut pas être vide.");
+      return;
+    }
+    setSchoolTasks(prev => prev.map(t => t.id === id ? {
+      ...t,
+      title: editTaskTitle.trim(),
+      subject: editTaskSubject,
+      dueDate: editTaskDueDate || new Date().toISOString().split('T')[0],
+      difficulty: editTaskDifficulty,
+      assignedMemberId: editTaskAssigneeId
+    } : t));
+    setEditingTaskId(null);
+    alert("Devoir modifié avec succès !");
+  };
 
   // --- Subjects List ---
   const [subjectsList, setSubjectsList] = useState<string[]>(() => {
@@ -704,18 +737,145 @@ Exemple de format valide :
                 const isCompletedTask = isCompleted(task);
                 const isNewTask = isNew(task);
 
+                if (editingTaskId === task.id) {
+                  return (
+                    <div 
+                      key={task.id}
+                      className="glass-panel border border-[#6C5CFF]/30 bg-[#6C5CFF]/5 rounded-[28px] p-5 space-y-4 text-left"
+                    >
+                      <div className="space-y-1.5 font-medium">
+                        <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Titre du Devoir</label>
+                        <input 
+                          type="text" 
+                          value={editTaskTitle}
+                          onChange={(e) => setEditTaskTitle(e.target.value)}
+                          className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                          placeholder="Ex: Exercices 1 à 5 p. 42"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5 font-medium">
+                          <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Matière</label>
+                          <select 
+                            value={editTaskSubject}
+                            onChange={(e) => handleSubjectChange(e.target.value, setEditTaskSubject)}
+                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none"
+                          >
+                            {subjectsList.map((sub, sidx) => (
+                              <option key={sidx} value={sub}>{sub}</option>
+                            ))}
+                            <option value="AUTRE_MANUEL">+ Autre matière...</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1.5 font-medium">
+                          <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Date Limite</label>
+                          <input 
+                            type="date" 
+                            value={editTaskDueDate}
+                            onChange={(e) => setEditTaskDueDate(e.target.value)}
+                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5 font-medium">
+                          <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Difficulté (Points)</label>
+                          <select 
+                            value={editTaskDifficulty}
+                            onChange={(e) => setEditTaskDifficulty(e.target.value as any)}
+                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none"
+                          >
+                            <option value="easy">Facile (20 Pts)</option>
+                            <option value="medium">Moyen (50 Pts)</option>
+                            <option value="hard">Difficile (100 Pts)</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1.5 font-medium">
+                          <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Attribuer à</label>
+                          <select 
+                            value={editTaskAssigneeId}
+                            onChange={(e) => setEditTaskAssigneeId(e.target.value)}
+                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none"
+                          >
+                            {members?.map(m => (
+                              <option key={m.id} value={m.id}>{m.name}</option>
+                            )) || (
+                              <>
+                                <option value="3">Amadou</option>
+                                <option value="4">Awa</option>
+                              </>
+                            )}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end space-x-2 pt-3.5 border-t border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => setEditingTaskId(null)}
+                          className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 hover:text-white text-[10px] font-bold transition-all cursor-pointer"
+                        >
+                          Annuler
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSaveHomeworkEdit(task.id)}
+                          className="px-3.5 py-2 rounded-xl bg-[#6C5CFF] text-white font-bold text-[10px] hover:bg-[#5849E0] transition-all cursor-pointer shadow-md"
+                        >
+                          Enregistrer
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
-                  <div key={task.id} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3.5 relative overflow-hidden transition-all hover:bg-white/8">
+                  <div key={task.id} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3.5 relative overflow-hidden transition-all hover:bg-white/8 group">
+                    {/* Parent Action Buttons (Edit / Delete) */}
+                    {isParent && (
+                      <div className="absolute top-4 right-4 flex items-center space-x-1.5 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingTaskId(task.id);
+                            setEditTaskTitle(task.title);
+                            setEditTaskSubject(task.subject);
+                            setEditTaskDueDate(task.dueDate);
+                            setEditTaskDifficulty(task.difficulty);
+                            setEditTaskAssigneeId(task.assignedMemberId);
+                          }}
+                          className="p-1.5 bg-white/5 hover:bg-[#6C5CFF]/20 border border-white/10 hover:border-[#6C5CFF]/30 text-white hover:text-[#9E94FF] rounded-lg transition active:scale-95 cursor-pointer"
+                          title="Modifier le devoir"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteHomework(task.id);
+                          }}
+                          className="p-1.5 bg-white/5 hover:bg-[#FF3B30]/25 border border-white/10 hover:border-[#FF3B30]/40 text-white hover:text-[#FF3B30] rounded-lg transition active:scale-95 cursor-pointer"
+                          title="Supprimer le devoir"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
                     <div className="flex justify-between items-start">
                       <div>
                         <span className="text-[9px] font-extrabold text-[#6C5CFF] bg-[#6C5CFF]/15 px-2.5 py-0.5 rounded-full border border-[#6C5CFF]/20 uppercase tracking-wider">
                           {task.subject}
                         </span>
-                        <h3 className="text-sm font-extrabold text-white mt-2 leading-relaxed">{task.title}</h3>
+                        <h3 className="text-sm font-extrabold text-white mt-2 leading-relaxed mr-14">{task.title}</h3>
                         <p className="text-[10px] text-white/40 mt-1">Par: {getChildName(task.assignedMemberId)} • Limite: {task.dueDate}</p>
                       </div>
                       
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         <span className="text-[10px] font-extrabold text-[#FFB020] bg-[#FFB020]/10 px-2 py-1 rounded-lg block">
                           +{getPoints(task.difficulty)} Pts
                         </span>

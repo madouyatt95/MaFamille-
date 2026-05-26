@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { 
@@ -13,7 +13,9 @@ import {
   GraduationCap, 
   Eye,
   EyeOff, 
-  Route 
+  Route,
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import type { Member } from '../types';
 
@@ -55,9 +57,36 @@ const CenterMap: React.FC<{ center: [number, number] }> = ({ center }) => {
   return null;
 };
 
+const MapClickHandler: React.FC<{ onClick: (coords: [number, number]) => void }> = ({ onClick }) => {
+  useMapEvents({
+    click(e) {
+      onClick([e.latlng.lat, e.latlng.lng]);
+    }
+  });
+  return null;
+};
+
+export interface FavoritePlace {
+  id: string;
+  name: string;
+  type: 'home' | 'work' | 'school' | 'other';
+  detail: string;
+  coords: [number, number];
+}
+
+const getFavoriteIcon = (type: 'home' | 'work' | 'school' | 'other') => {
+  switch (type) {
+    case 'home': return HomeIcon;
+    case 'work': return Briefcase;
+    case 'school': return GraduationCap;
+    default: return Map;
+  }
+};
+
 export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, onUpdateMemberProfile }) => {
-  // Default coordinates (Paris center)
-  const [position, setPosition] = useState<[number, number]>([48.8566, 2.3522]);
+  // Decoupled Viewport Center & User GPS Location to prevent mass teleportation
+  const [userLocation, setUserLocation] = useState<[number, number]>([48.8566, 2.3522]);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([48.8566, 2.3522]);
   const [loadingLoc, setLoadingLoc] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string>('Actif maintenant');
   const [isSharing, setIsSharing] = useState<boolean>(() => localStorage.getItem('mf_share_location') !== 'false');
@@ -70,11 +99,62 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   
-  // Dynamic route tracing states
+  // Real OSRM route tracing states
   const [routeTarget, setRouteTarget] = useState<{
     name: string;
     coords: [number, number];
   } | null>(null);
+  const [routePoints, setRoutePoints] = useState<[number, number][]>([]);
+  const [routeDistance, setRouteDistance] = useState<number | null>(null);
+  const [routeDuration, setRouteDuration] = useState<number | null>(null);
+
+  // Dynamic Favorites saved in LocalStorage
+  const [favorites, setFavorites] = useState<FavoritePlace[]>(() => {
+    const stored = localStorage.getItem('mf_map_favorites');
+    if (stored) return JSON.parse(stored);
+    return [
+      { id: 'fav-1', name: "Maison principale 🏠", type: 'home', coords: [48.8566, 2.3522], detail: "Résidence Familiale" },
+      { id: 'fav-2', name: "Bureau de Papa 💼", type: 'work', coords: [48.8924, 2.2356], detail: "La Défense Paris" },
+      { id: 'fav-3', name: "École des Enfants 🏫", type: 'school', coords: [48.8606, 2.3376], detail: "Lycée international" }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('mf_map_favorites', JSON.stringify(favorites));
+  }, [favorites]);
+
+  // Favorites editing state
+  const [isEditingFavorites, setIsEditingFavorites] = useState(false);
+  const [editingFavoriteId, setEditingFavoriteId] = useState<string | null>(null);
+  const [editFavName, setEditFavName] = useState('');
+  const [editFavDetail, setEditFavDetail] = useState('');
+  const [editFavType, setEditFavType] = useState<'home' | 'work' | 'school' | 'other'>('other');
+
+  // Adding favorite from search or map click
+  const [addingFavoriteCoords, setAddingFavoriteCoords] = useState<[number, number] | null>(null);
+  const [addingFavoriteName, setAddingFavoriteName] = useState('');
+  const [addingFavoriteDetail, setAddingFavoriteDetail] = useState('');
+  const [addingFavoriteType, setAddingFavoriteType] = useState<'home' | 'work' | 'school' | 'other'>('other');
+
+  // Search Marker placed temporarily on the map
+  const [searchMarker, setSearchMarker] = useState<{ name: string; coords: [number, number] } | null>(null);
+
+  const handleAddressSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5`
+      );
+      const data = await response.json();
+      setSearchResults(data);
+    } catch (err) {
+      console.error("Nominatim search error:", err);
+    } finally {
+      setSearching(false);
+    }
+  };
 
   // iOS-style bottom sheet state: 'collapsed' | 'half' | 'full'
   const [sheetState, setSheetState] = useState<'collapsed' | 'half'>('collapsed');
@@ -105,7 +185,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         (pos) => {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
-          setPosition([lat, lng]);
+          setUserLocation([lat, lng]);
+          setMapCenter([lat, lng]);
           setLoadingLoc(false);
 
           if (onUpdateMemberProfile) {
@@ -121,7 +202,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
           console.error("GPS Access Error:", err);
           setLoadingLoc(false);
           if (me && me.latitude && me.longitude) {
-            setPosition([Number(me.latitude), Number(me.longitude)]);
+            const lat = Number(me.latitude);
+            const lng = Number(me.longitude);
+            setUserLocation([lat, lng]);
+            setMapCenter([lat, lng]);
           }
         },
         { enableHighAccuracy: true }
@@ -170,64 +254,126 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     setSelectedStatus(status);
     if (onUpdateMemberProfile) {
       await onUpdateMemberProfile(activeMemberId, {
-        latitude: position[0],
-        longitude: position[1],
+        latitude: userLocation[0],
+        longitude: userLocation[1],
         locationStatus: status,
         lastLocatedAt: new Date().toISOString()
       });
     }
   };
 
-  // Real Address Search with Nominatim OpenStreetMap API
-  const handleAddressSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    setSearching(true);
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=4`
-      );
-      const data = await response.json();
-      setSearchResults(data);
-    } catch (err) {
-      console.error("Nominatim address lookup failed:", err);
-    } finally {
-      setSearching(false);
+  // Real-time Nominatim Address Suggestions Autocomplete with Debounce
+  useEffect(() => {
+    if (searchQuery.trim().length < 3) {
+      return;
     }
+    const delayDebounce = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5`
+        );
+        const data = await response.json();
+        setSearchResults(data);
+      } catch (err) {
+        console.error("Nominatim autocompletion error:", err);
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchQuery]);
+
+  // Real OSRM Routing calculation
+  useEffect(() => {
+    if (!routeTarget) {
+      setRoutePoints([]);
+      setRouteDistance(null);
+      setRouteDuration(null);
+      return;
+    }
+
+    const fetchRoute = async () => {
+      try {
+        const start = userLocation;
+        const end = routeTarget.coords;
+        const url = `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          const coords = route.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]] as [number, number]);
+          setRoutePoints(coords);
+          setRouteDistance(route.distance / 1000); // km
+          setRouteDuration(route.duration); // seconds
+        } else {
+          // Fallback to straight line
+          setRoutePoints([start, end]);
+          const d = getHaversineDistance(start[0], start[1], end[0], end[1]);
+          setRouteDistance(d);
+          setRouteDuration(null);
+        }
+      } catch (err) {
+        console.error("OSRM Route calculation error:", err);
+        // Fallback to straight line
+        const start = userLocation;
+        const end = routeTarget.coords;
+        setRoutePoints([start, end]);
+        const d = getHaversineDistance(start[0], start[1], end[0], end[1]);
+        setRouteDistance(d);
+        setRouteDuration(null);
+      }
+    };
+
+    fetchRoute();
+  }, [userLocation, routeTarget]);
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.round(seconds / 60);
+    if (mins < 60) return `${mins} min`;
+    const hrs = Math.floor(mins / 60);
+    const rem = mins % 60;
+    return `${hrs}h${rem > 0 ? rem : ''}`;
   };
 
-  // Relocate map to searched address location
+  // Relocate map to searched address location and place searchMarker
   const handleSelectSearchResult = (result: any) => {
     const lat = parseFloat(result.lat);
     const lon = parseFloat(result.lon);
-    setPosition([lat, lon]);
+    setMapCenter([lat, lon]);
+    setSearchMarker({
+      name: result.display_name,
+      coords: [lat, lon]
+    });
     setSearchResults([]);
     setSearchQuery('');
   };
 
-  // Mapped members with dynamically computed offsets and distances
+  // Mapped members with dynamically computed offsets and distances (stable around homeCoords)
   const mappedMembers = members.map((m, idx) => {
     const isMe = m.id === activeMemberId;
     const hasCoords = m.latitude !== undefined && m.latitude !== null && 
                       m.longitude !== undefined && m.longitude !== null;
     
-    let lat = position[0];
-    let lng = position[1];
+    // Stable home base coordinates to prevent teleportation when mapCenter/userLocation changes
+    const homeCoords: [number, number] = [48.8566, 2.3522];
+    
+    let lat = userLocation[0];
+    let lng = userLocation[1];
 
     if (!isMe) {
       if (hasCoords) {
         lat = Number(m.latitude);
         lng = Number(m.longitude);
       } else {
-        // Safe relative offsets
+        // Safe relative offsets around stable home coordinates
         const offsetLat = (idx % 2 === 0 ? 0.0025 : -0.0018) * (idx + 1);
         const offsetLng = (idx % 3 === 0 ? -0.0022 : 0.0035) * (idx + 1);
-        lat = position[0] + offsetLat;
-        lng = position[1] + offsetLng;
+        lat = homeCoords[0] + offsetLat;
+        lng = homeCoords[1] + offsetLng;
       }
     }
 
-    const distance = getHaversineDistance(position[0], position[1], lat, lng);
+    const distance = getHaversineDistance(userLocation[0], userLocation[1], lat, lng);
     const eta = getEstimatedTime(distance);
 
     const status = isMe ? selectedStatus : m.locationStatus || (idx === 1 ? '🏫 À l\'école' : idx === 2 ? '💼 Au bureau' : '🚗 En déplacement');
@@ -243,13 +389,6 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       eta
     };
   });
-
-  // Geographical Favorites markers & data
-  const favorites = [
-    { name: "Maison principale 🏠", icon: HomeIcon, coords: [position[0] - 0.001, position[1] + 0.002] as [number, number], detail: "Résidence Familiale" },
-    { name: "Bureau de Papa 💼", icon: Briefcase, coords: [position[0] + 0.008, position[1] - 0.006] as [number, number], detail: "La Défense Paris" },
-    { name: "École des Enfants 🏫", icon: GraduationCap, coords: [position[0] - 0.005, position[1] - 0.004] as [number, number], detail: "Lycée international" }
-  ];
 
   const statuses = [
     { label: '🏠 Maison', value: '🏠 À la maison' },
@@ -349,7 +488,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
               setLoadingLoc(true);
               navigator.geolocation.getCurrentPosition(
                 (pos) => {
-                  setPosition([pos.coords.latitude, pos.coords.longitude]);
+                  const lat = pos.coords.latitude;
+                  const lng = pos.coords.longitude;
+                  setUserLocation([lat, lng]);
+                  setMapCenter([lat, lng]);
                   setLoadingLoc(false);
                 },
                 (err) => {
@@ -369,7 +511,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       <div className="flex-1 w-full relative z-10 rounded-t-[32px] overflow-hidden border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] flex flex-col justify-end">
         <div className="absolute inset-0 z-0">
           <MapContainer 
-            center={position} 
+            center={mapCenter} 
             zoom={14} 
             style={{ width: '100%', height: '100%' }}
             zoomControl={false}
@@ -382,17 +524,74 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
               }
             />
             
-            <CenterMap center={position} />
+            <CenterMap center={mapCenter} />
 
-            {/* Render vector routing polyline if active */}
-            {routeTarget && (
+            <MapClickHandler onClick={(coords) => {
+              setSearchMarker({
+                name: "Point d'intérêt sélectionné 📍",
+                coords
+              });
+              setMapCenter(coords);
+            }} />
+
+            {/* Render dynamic route tracing from OSRM road points if active */}
+            {routeTarget && routePoints.length > 0 && (
               <Polyline 
-                positions={[position, routeTarget.coords]} 
+                positions={routePoints} 
                 color="#00D26A" 
-                weight={4}
-                dashArray="8, 8"
+                weight={5}
                 className="animate-pulse"
               />
+            )}
+
+            {/* Search Marker placed temporarily on the map */}
+            {searchMarker && (
+              <Marker 
+                position={searchMarker.coords}
+                icon={L.divIcon({
+                  className: 'search-marker',
+                  html: `
+                    <div style="width: 36px; height: 36px; background: rgba(108, 92, 255, 0.2); border: 2px solid #6C5CFF; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.4); animation: pulse 2s infinite;">
+                      <span style="font-size: 16px;">🔍</span>
+                    </div>
+                  `,
+                  iconSize: [36, 36],
+                  iconAnchor: [18, 18]
+                })}
+              >
+                <Popup closeButton={false}>
+                  <div className="text-center min-w-[140px] p-1 space-y-2">
+                    <span className="font-extrabold text-xs text-white block truncate max-w-[150px]">{searchMarker.name}</span>
+                    <div className="flex flex-col space-y-1">
+                      <button
+                        onClick={() => {
+                          setRouteTarget({ name: searchMarker.name, coords: searchMarker.coords });
+                        }}
+                        className="w-full py-1.5 rounded bg-[#00D26A] hover:bg-[#00B85C] text-white text-[9px] font-bold transition cursor-pointer"
+                      >
+                        🚘 Itinéraire vers ce lieu
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAddingFavoriteCoords(searchMarker.coords);
+                          setAddingFavoriteName(searchMarker.name.split(',')[0]);
+                          setAddingFavoriteDetail(searchMarker.name.split(',').slice(1, 3).join(',').trim() || "Point d'intérêt");
+                          setAddingFavoriteType('other');
+                        }}
+                        className="w-full py-1.5 rounded bg-[#FFB020] hover:bg-[#E0981B] text-black text-[9px] font-bold transition cursor-pointer"
+                      >
+                        ⭐️ Ajouter aux favoris
+                      </button>
+                      <button
+                        onClick={() => setSearchMarker(null)}
+                        className="w-full py-1.5 rounded bg-white/5 hover:bg-white/10 text-white/70 text-[9px] font-bold transition cursor-pointer"
+                      >
+                        Fermer
+                      </button>
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
             )}
 
             {/* Mapped Family Members Markers */}
@@ -422,10 +621,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
             ))}
 
             {/* Favorites markers */}
-            {favorites.map((fav, idx) => {
+            {favorites.map((fav) => {
               return (
                 <Marker 
-                  key={idx} 
+                  key={fav.id} 
                   position={fav.coords} 
                   icon={L.divIcon({
                     className: 'fav-marker',
@@ -455,7 +654,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
           <div className="absolute top-28 left-4 right-4 z-[999] bg-[#00D26A] text-black font-extrabold text-xs uppercase px-4 py-3 rounded-2xl flex items-center justify-between shadow-2xl animate-bounce">
             <div className="flex items-center space-x-2">
               <Route className="w-4 h-4 animate-spin" />
-              <span>Itinéraire vers {routeTarget.name}</span>
+              <span>Itinéraire vers {routeTarget.name} {routeDistance ? `(${routeDistance.toFixed(1)} km${routeDuration ? ` • ${formatDuration(routeDuration)}` : ''})` : ''}</span>
             </div>
             <button 
               onClick={() => setRouteTarget(null)}
@@ -533,33 +732,220 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
             {/* EXPANDED CONTENT: Favorites addresses & Family Members Cards */}
             {sheetState === 'half' && (
-              <div className="pt-3 border-t border-white/5 space-y-4 max-h-[220px] overflow-y-auto no-scrollbar animate-fade-in">
+              <div className="pt-3 border-t border-white/5 space-y-4 max-h-[260px] overflow-y-auto no-scrollbar animate-fade-in">
                 
                 {/* 1. Address Favorites Panel */}
                 <div className="space-y-2">
-                  <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest block">Lieux favoris</span>
-                  <div className="grid grid-cols-3 gap-2">
-                    {favorites.map((fav, idx) => {
-                      const FavIcon = fav.icon;
-                      const dist = getHaversineDistance(position[0], position[1], fav.coords[0], fav.coords[1]);
-                      return (
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest block">Lieux favoris</span>
+                    <button
+                      onClick={() => {
+                        setIsEditingFavorites(prev => !prev);
+                        setEditingFavoriteId(null);
+                      }}
+                      className="text-[9px] text-[#FFB020] font-extrabold hover:underline cursor-pointer flex items-center space-x-1"
+                    >
+                      <span>{isEditingFavorites ? "Terminer ✓" : "Gérer ⚙️"}</span>
+                    </button>
+                  </div>
+
+                  {/* Add Favorite Inline Form */}
+                  {addingFavoriteCoords && (
+                    <div className="p-3 bg-[#0F1E36]/90 backdrop-blur-xl border border-[#FFB020]/30 rounded-2xl space-y-2.5 shadow-2xl text-left animate-slide-up">
+                      <span className="text-[9px] font-extrabold text-[#FFB020] uppercase tracking-wider block">⭐️ Nouveau favori</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Nom</label>
+                          <input
+                            type="text"
+                            value={addingFavoriteName}
+                            onChange={(e) => setAddingFavoriteName(e.target.value)}
+                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-[#FFB020]"
+                            placeholder="Ex: Piscine"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Catégorie</label>
+                          <select
+                            value={addingFavoriteType}
+                            onChange={(e) => setAddingFavoriteType(e.target.value as any)}
+                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none"
+                          >
+                            <option value="home">Maison 🏠</option>
+                            <option value="work">Travail 💼</option>
+                            <option value="school">École 🏫</option>
+                            <option value="other">Autre 📍</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Description</label>
+                        <input
+                          type="text"
+                          value={addingFavoriteDetail}
+                          onChange={(e) => setAddingFavoriteDetail(e.target.value)}
+                          className="w-full bg-[#07111F]/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none"
+                          placeholder="Ex: Entraînement"
+                        />
+                      </div>
+                      <div className="flex items-center justify-end space-x-1.5 pt-1.5 border-t border-white/5">
                         <button
-                          key={idx}
-                          onClick={() => {
-                            setPosition(fav.coords);
-                            setRouteTarget({ name: fav.name, coords: fav.coords });
-                          }}
-                          className="p-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-left space-y-1 transition active:scale-95 cursor-pointer block"
+                          type="button"
+                          onClick={() => setAddingFavoriteCoords(null)}
+                          className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 text-[9px] font-bold cursor-pointer"
                         >
-                          <div className="flex items-center space-x-1">
-                            <FavIcon className="w-3.5 h-3.5 text-[#FFB020]" />
-                            <span className="text-[9px] font-bold text-white truncate">{fav.name.split(' ')[0]}</span>
-                          </div>
-                          <span className="text-[8px] text-white/40 block truncate">{fav.detail}</span>
-                          <span className="text-[8px] text-[#00D26A] font-extrabold block">
-                            {dist.toFixed(1)} km
-                          </span>
+                          Annuler
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!addingFavoriteName.trim()) return alert("Veuillez saisir un nom.");
+                            const newFav: FavoritePlace = {
+                              id: `fav-${Date.now()}`,
+                              name: addingFavoriteName.trim(),
+                              type: addingFavoriteType,
+                              detail: addingFavoriteDetail.trim() || "Lieu favori",
+                              coords: addingFavoriteCoords
+                            };
+                            setFavorites(prev => [...prev, newFav]);
+                            setAddingFavoriteCoords(null);
+                            setSearchMarker(null);
+                            alert("Lieu ajouté aux favoris ! ⭐️");
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-[#FFB020] text-black text-[9px] font-bold hover:opacity-90 cursor-pointer shadow-md"
+                        >
+                          Sauver
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Edit Favorite Inline Form */}
+                  {editingFavoriteId && (
+                    <div className="p-3 bg-[#0F1E36]/90 backdrop-blur-xl border border-[#6C5CFF]/30 rounded-2xl space-y-2.5 shadow-2xl text-left animate-slide-up">
+                      <span className="text-[9px] font-extrabold text-[#6C5CFF] uppercase tracking-wider block">📝 Modifier le favori</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Nom</label>
+                          <input
+                            type="text"
+                            value={editFavName}
+                            onChange={(e) => setEditFavName(e.target.value)}
+                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-[#6C5CFF]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Catégorie</label>
+                          <select
+                            value={editFavType}
+                            onChange={(e) => setEditFavType(e.target.value as any)}
+                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none"
+                          >
+                            <option value="home">Maison 🏠</option>
+                            <option value="work">Travail 💼</option>
+                            <option value="school">École 🏫</option>
+                            <option value="other">Autre 📍</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Description</label>
+                        <input
+                          type="text"
+                          value={editFavDetail}
+                          onChange={(e) => setEditFavDetail(e.target.value)}
+                          className="w-full bg-[#07111F]/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none"
+                        />
+                      </div>
+                      <div className="flex items-center justify-end space-x-1.5 pt-1.5 border-t border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => setEditingFavoriteId(null)}
+                          className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 text-[9px] font-bold cursor-pointer"
+                        >
+                          Annuler
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!editFavName.trim()) return alert("Veuillez saisir un nom.");
+                            setFavorites(prev => prev.map(f => f.id === editingFavoriteId ? {
+                              ...f,
+                              name: editFavName.trim(),
+                              type: editFavType,
+                              detail: editFavDetail.trim()
+                            } : f));
+                            setEditingFavoriteId(null);
+                            alert("Lieu modifié avec succès ! ⭐️");
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-[#6C5CFF] text-white text-[9px] font-bold hover:opacity-90 cursor-pointer shadow-md"
+                        >
+                          Sauver
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {favorites.map((fav) => {
+                      const FavIcon = getFavoriteIcon(fav.type);
+                      const dist = getHaversineDistance(userLocation[0], userLocation[1], fav.coords[0], fav.coords[1]);
+                      
+                      return (
+                        <div
+                          key={fav.id}
+                          className="relative p-2 bg-white/5 border border-white/5 rounded-xl text-left space-y-1 block group"
+                        >
+                          {/* Favorite Edit / Delete Actions */}
+                          {isEditingFavorites && (
+                            <div className="absolute top-1 right-1 flex items-center space-x-0.5 z-20 bg-[#07111F]/80 rounded p-0.5 border border-white/10">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingFavoriteId(fav.id);
+                                  setEditFavName(fav.name);
+                                  setEditFavDetail(fav.detail);
+                                  setEditFavType(fav.type);
+                                }}
+                                className="p-0.5 text-white hover:text-[#9E94FF] transition active:scale-95 cursor-pointer"
+                                title="Modifier"
+                              >
+                                <Edit3 className="w-2.5 h-2.5" />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (window.confirm(`Supprimer ${fav.name} des favoris ?`)) {
+                                    setFavorites(prev => prev.filter(f => f.id !== fav.id));
+                                  }
+                                }}
+                                className="p-0.5 text-white hover:text-[#FF3B30] transition active:scale-95 cursor-pointer"
+                                title="Supprimer"
+                              >
+                                <Trash2 className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+                          )}
+
+                          <button
+                            onClick={() => {
+                              if (isEditingFavorites) return;
+                              setMapCenter(fav.coords);
+                              setRouteTarget({ name: fav.name, coords: fav.coords });
+                            }}
+                            className="w-full text-left space-y-1 transition active:scale-95 cursor-pointer block focus:outline-none"
+                            disabled={isEditingFavorites}
+                          >
+                            <div className="flex items-center space-x-1 pr-6">
+                              <FavIcon className="w-3.5 h-3.5 text-[#FFB020] shrink-0" />
+                              <span className="text-[9px] font-bold text-white truncate">{fav.name.split(' ')[0]}</span>
+                            </div>
+                            <span className="text-[8px] text-white/40 block truncate">{fav.detail}</span>
+                            <span className="text-[8px] text-[#00D26A] font-extrabold block">
+                              {dist.toFixed(1)} km
+                            </span>
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -598,7 +984,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                           
                           <button
                             onClick={() => {
-                              setPosition(m.pos);
+                              setMapCenter(m.pos);
                               if (!m.isMe) {
                                 setRouteTarget({ name: m.name, coords: m.pos });
                               }

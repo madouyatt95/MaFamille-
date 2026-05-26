@@ -2436,6 +2436,23 @@ function App() {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
   };
 
+  const handleDeleteTask = (id: string) => {
+    if (window.confirm("Voulez-vous vraiment supprimer cette tâche ?")) {
+      setTasks(prev => prev.filter(t => t.id !== id));
+    }
+  };
+
+  const handleEditTask = (id: string, title: string, points: number, rotation: 'daily' | 'weekly' | 'none', assigneeId: string, assigneeName: string) => {
+    setTasks(prev => prev.map(t => t.id === id ? {
+      ...t,
+      title,
+      rewardPoints: points,
+      rotation,
+      assignedMemberId: assigneeId,
+      assignedMemberName: assigneeName
+    } : t));
+  };
+
   const handleValidateTask = (id: string) => {
     setTasks(prev => prev.map(t => {
       if (t.id === id) {
@@ -3230,6 +3247,8 @@ function App() {
           vaccines={vaccines}
           setVaccines={setVaccines}
           onAddTask={handleAddTask}
+          onDeleteTask={handleDeleteTask}
+          onEditTask={handleEditTask}
           onAddGrocery={handleToggleGrocery}
           onToggleTask={handleToggleTask}
           onValidateTask={handleValidateTask}
