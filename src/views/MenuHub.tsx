@@ -457,11 +457,24 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newArtisanNotes, setNewArtisanNotes] = useState('');
   const [artisanSearchQuery, setArtisanSearchQuery] = useState('');
 
-  // Dynamically calculate unread messages from other members
-  const unreadMessagesCount = chatMessages.filter(m => activeMemberId && m.senderId !== activeMemberId && !m.readBy.includes(activeMemberId)).length;
+  // Dynamically calculate unread messages from other members where the active member is in the group
+  const unreadMessagesCount = chatMessages.filter(m => {
+    if (!activeMemberId) return false;
+    if (m.senderId === activeMemberId) return false;
+    
+    // Find the chat group
+    const group = chatGroups?.find(g => g.id === m.groupId);
+    if (!group) return false;
+    
+    // Check if active member is in this group
+    if (!group.memberIds.includes(activeMemberId)) return false;
+    
+    // Check if not read yet by active member
+    return !m.readBy.includes(activeMemberId);
+  }).length;
   
-  // Dynamically calculate pending vaccines
-  const pendingVaccines = (vaccines || []).filter((v: any) => v.status === 'À faire').length;
+  // Dynamically calculate pending vaccines for the active member only
+  const pendingVaccines = (vaccines || []).filter((v: any) => v.memberId === activeMemberId && v.status === 'À faire').length;
 
   const modules = [
     { id: 'carte', title: 'Carte Familiale', desc: 'Localisation sécurisée en temps réel', badge: 'En direct', icon: MapIcon, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },

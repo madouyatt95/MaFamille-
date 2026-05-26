@@ -72,6 +72,17 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent'].includes(activeMember.role)
     : (activeMemberId === '1' || activeMemberId === '2');
 
+  // Dynamically calculate the list of children/students from the foyer members
+  const studentList = members && members.length > 0
+    ? members.filter(m => {
+        const r = (m.role || '').toLowerCase();
+        return r.includes('enfant') || r.includes('collège') || r.includes('primaire') || r.includes('ans') || m.id === '3' || m.id === '4';
+      })
+    : [
+        { id: '3', name: 'Amadou' },
+        { id: '4', name: 'Awa' }
+      ];
+
   // Devoir inline edit states
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editTaskTitle, setEditTaskTitle] = useState('');
@@ -144,7 +155,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   const [scheduleViewMode, setScheduleViewMode] = useState<'list' | 'calendar'>('list');
   
   // Form States Grade
-  const [formGradeStudentId, setFormGradeStudentId] = useState('3');
+  const [formGradeStudentId, setFormGradeStudentId] = useState(() => studentList[0]?.id || '3');
   const [formGradeSubject, setFormGradeSubject] = useState('Mathématiques');
   const [formGradeValue, setFormGradeValue] = useState(15);
   const [formGradeMax, setFormGradeMax] = useState(20);
@@ -152,12 +163,21 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   const [formGradeExamTitle, setFormGradeExamTitle] = useState('');
   
   // Form States Schedule
-  const [formSchStudentId, setFormSchStudentId] = useState('3');
+  const [formSchStudentId, setFormSchStudentId] = useState(() => studentList[0]?.id || '3');
   const [formSchDay, setFormSchDay] = useState('Lundi');
   const [formSchSubject, setFormSchSubject] = useState('Mathématiques');
   const [formSchStartTime, setFormSchStartTime] = useState('08:30');
   const [formSchEndTime, setFormSchEndTime] = useState('09:30');
   const [formSchRoom, setFormSchRoom] = useState('');
+
+  // Keep student form IDs in sync when members are dynamically loaded or updated
+  React.useEffect(() => {
+    if (studentList && studentList.length > 0) {
+      const firstId = studentList[0].id;
+      setFormGradeStudentId(firstId);
+      setFormSchStudentId(firstId);
+    }
+  }, [members]);
 
   const handleAddGrade = (e: React.FormEvent) => {
     e.preventDefault();
@@ -801,14 +821,9 @@ Exemple de format valide :
                             onChange={(e) => setEditTaskAssigneeId(e.target.value)}
                             className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none"
                           >
-                            {members?.map(m => (
-                              <option key={m.id} value={m.id}>{m.name}</option>
-                            )) || (
-                              <>
-                                <option value="3">Amadou</option>
-                                <option value="4">Awa</option>
-                              </>
-                            )}
+                            {studentList.map(s => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
                           </select>
                         </div>
                       </div>
@@ -992,16 +1007,9 @@ Exemple de format valide :
                       onChange={(e) => setNewHomeworkAssignee(e.target.value)}
                       className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
                     >
-                      {members && members.length > 0 ? (
-                        members.filter(m => m.role === 'Enfant' || m.id === '3' || m.id === '4').map(m => (
-                          <option key={m.id} value={m.id}>{m.name} ({m.id === '3' ? '12 ans' : m.id === '4' ? '8 ans' : m.role})</option>
-                        ))
-                      ) : (
-                        <>
-                          <option value="3">Amadou (12 ans)</option>
-                          <option value="4">Awa (8 ans)</option>
-                        </>
-                      )}
+                      {studentList.map(s => (
+                        <option key={s.id} value={s.id}>{s.name} ({s.role || 'Élève'})</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -1439,8 +1447,9 @@ Exemple de format valide :
                         onChange={(e) => setFormSchStudentId(e.target.value)}
                         className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
                       >
-                        <option value="3">Amadou</option>
-                        <option value="4">Awa</option>
+                        {studentList.map(student => (
+                          <option key={student.id} value={student.id}>{student.name}</option>
+                        ))}
                       </select>
                     </div>
                     <div className="space-y-1.5 font-medium text-left">
@@ -1604,8 +1613,9 @@ Exemple de format valide :
                         onChange={(e) => setFormGradeStudentId(e.target.value)}
                         className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
                       >
-                        <option value="3">Amadou</option>
-                        <option value="4">Awa</option>
+                        {studentList.map(student => (
+                          <option key={student.id} value={student.id}>{student.name}</option>
+                        ))}
                       </select>
                     </div>
                     <div className="space-y-1.5 font-medium text-left">
