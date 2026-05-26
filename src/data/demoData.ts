@@ -337,28 +337,7 @@ export const demoAlerts: NotificationAlert[] = [
   { id: 'a4', title: 'Tâche validée', description: 'Maman a validé la tâche d\'Awa : vider le lave-vaisselle (+15 points d\'argent de poche).', time: 'Hier', type: 'success', read: true, module: 'taches' }
 ];
 
-export const demoMemories: MemoryLog[] = [
-  {
-    id: 'mem-1',
-    date: '10/05/2026',
-    title: 'Sortie vélo en forêt de Chevreuse 🌲',
-    description: 'Une superbe après-midi en famille ! Amadou a battu son record de vitesse en montée et Awa a cueilli un magnifique bouquet de fleurs pour Maman.',
-    authorName: 'Papa',
-    authorPhoto: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-    imageUrl: 'https://images.unsplash.com/photo-1541614101331-1a5a3a194e92?w=600&auto=format&fit=crop&q=80',
-    likesCount: 4
-  },
-  {
-    id: 'mem-2',
-    date: '02/05/2026',
-    title: 'Les 8 ans d\'Awa ! 🎂🎉',
-    description: 'Awa a soufflé ses bougies et a adoré son nouveau kit de dessin. Son gâteau au chocolat géant a été dévoré en moins de 10 minutes !',
-    authorName: 'Maman',
-    authorPhoto: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=150&auto=format&fit=crop&q=80',
-    imageUrl: 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&auto=format&fit=crop&q=80',
-    likesCount: 3
-  }
-];
+export const demoMemories: MemoryLog[] = [];
 
 export const demoFamilyVotes: FamilyVote[] = [
   {

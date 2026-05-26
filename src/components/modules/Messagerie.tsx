@@ -726,15 +726,14 @@ Demande de l'utilisateur : "${userText}"`;
   };
 
   const handleOpenDirectMessage = (targetMember: Member) => {
-    const existingGroup = groups.find(g => 
-      g.isPrivate && g.memberIds.length === 2 && 
-      g.memberIds.includes(activeMemberId) && g.memberIds.includes(targetMember.id)
-    );
+    const sortedIds = [activeMemberId, targetMember.id].sort();
+    const newGroupId = `dm_${sortedIds[0]}_${sortedIds[1]}`;
+
+    const existingGroup = groups.find(g => g.id === newGroupId);
     
     if (existingGroup) {
       setActiveGroupId(existingGroup.id);
     } else {
-      const newGroupId = `dm_${activeMemberId}_${targetMember.id}`;
       const newGroup: ChatGroup = {
         id: newGroupId,
         name: targetMember.name,

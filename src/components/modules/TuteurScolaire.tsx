@@ -833,11 +833,43 @@ Exemple de format valide :
                   );
                 }
 
+                // Beautiful dynamic colors for subjects
+                let subjectBadgeClass = "bg-purple-500/15 text-purple-300 border-purple-500/30";
+                if (task.subject.toLowerCase().includes('math')) {
+                  subjectBadgeClass = "bg-indigo-500/15 text-indigo-300 border-indigo-500/30";
+                } else if (task.subject.toLowerCase().includes('hist') || task.subject.toLowerCase().includes('géo')) {
+                  subjectBadgeClass = "bg-amber-500/15 text-amber-300 border-amber-500/30";
+                } else if (task.subject.toLowerCase().includes('scien') || task.subject.toLowerCase().includes('svt')) {
+                  subjectBadgeClass = "bg-emerald-500/15 text-emerald-300 border-emerald-500/30";
+                } else if (task.subject.toLowerCase().includes('fran') || task.subject.toLowerCase().includes('dictée')) {
+                  subjectBadgeClass = "bg-pink-500/15 text-pink-300 border-pink-500/30";
+                } else if (task.subject.toLowerCase().includes('angl')) {
+                  subjectBadgeClass = "bg-cyan-500/15 text-cyan-300 border-cyan-500/30";
+                }
+
+                // Beautiful difficulty indicators
+                let diffLabel = "🟢 Facile";
+                let diffClass = "text-emerald-400 bg-emerald-500/10 border border-emerald-500/25";
+                if (task.difficulty === 'medium') {
+                  diffLabel = "🟡 Moyen";
+                  diffClass = "text-amber-400 bg-amber-500/10 border border-amber-500/25";
+                } else if (task.difficulty === 'hard') {
+                  diffLabel = "🔴 Difficile";
+                  diffClass = "text-rose-400 bg-rose-500/10 border border-rose-500/25";
+                }
+
                 return (
-                  <div key={task.id} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3.5 relative overflow-hidden transition-all hover:bg-white/8 group">
-                    {/* Parent Action Buttons (Edit / Delete) */}
+                  <div key={task.id} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3.5 relative overflow-hidden transition-all hover:bg-white/8 group pl-7">
+                    {/* Left border indicator based on difficulty */}
+                    <div className={`absolute left-0 top-0 bottom-0 w-2 ${
+                      task.difficulty === 'hard' ? 'bg-gradient-to-b from-rose-500 to-pink-500' :
+                      task.difficulty === 'medium' ? 'bg-gradient-to-b from-amber-500 to-yellow-500' :
+                      'bg-gradient-to-b from-emerald-500 to-green-500'
+                    }`} />
+
+                    {/* Parent Action Buttons (Edit / Delete) - Always visible for touch screen support */}
                     {isParent && (
-                      <div className="absolute top-4 right-4 flex items-center space-x-1.5 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute top-4 right-4 flex items-center space-x-1.5 z-20">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -848,7 +880,7 @@ Exemple de format valide :
                             setEditTaskDifficulty(task.difficulty);
                             setEditTaskAssigneeId(task.assignedMemberId);
                           }}
-                          className="p-1.5 bg-white/5 hover:bg-[#6C5CFF]/20 border border-white/10 hover:border-[#6C5CFF]/30 text-white hover:text-[#9E94FF] rounded-lg transition active:scale-95 cursor-pointer"
+                          className="p-2 bg-white/5 hover:bg-[#6C5CFF]/20 border border-white/10 hover:border-[#6C5CFF]/30 text-white hover:text-[#9E94FF] rounded-xl transition duration-200 active:scale-95 cursor-pointer flex items-center justify-center shadow-sm"
                           title="Modifier le devoir"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -858,7 +890,7 @@ Exemple de format valide :
                             e.stopPropagation();
                             handleDeleteHomework(task.id);
                           }}
-                          className="p-1.5 bg-white/5 hover:bg-[#FF3B30]/25 border border-white/10 hover:border-[#FF3B30]/40 text-white hover:text-[#FF3B30] rounded-lg transition active:scale-95 cursor-pointer"
+                          className="p-2 bg-[#FF3B30]/10 hover:bg-[#FF3B30]/20 border border-[#FF3B30]/20 text-[#FF3B30] rounded-xl transition duration-200 active:scale-95 cursor-pointer flex items-center justify-center shadow-sm"
                           title="Supprimer le devoir"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -868,15 +900,20 @@ Exemple de format valide :
 
                     <div className="flex justify-between items-start">
                       <div>
-                        <span className="text-[9px] font-extrabold text-[#6C5CFF] bg-[#6C5CFF]/15 px-2.5 py-0.5 rounded-full border border-[#6C5CFF]/20 uppercase tracking-wider">
-                          {task.subject}
-                        </span>
-                        <h3 className="text-sm font-extrabold text-white mt-2 leading-relaxed mr-14">{task.title}</h3>
-                        <p className="text-[10px] text-white/40 mt-1">Par: {getChildName(task.assignedMemberId)} • Limite: {task.dueDate}</p>
+                        <div className="flex items-center space-x-2">
+                          <span className={`text-[9px] font-extrabold px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${subjectBadgeClass}`}>
+                            {task.subject}
+                          </span>
+                          <span className={`text-[9px] font-extrabold px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${diffClass}`}>
+                            {diffLabel}
+                          </span>
+                        </div>
+                        <h3 className="text-sm font-extrabold text-white mt-3.5 leading-relaxed mr-20">{task.title}</h3>
+                        <p className="text-[10px] text-white/40 mt-1">Par: <span className="font-bold text-[#6C5CFF]">{getChildName(task.assignedMemberId)}</span> • Limite: <span className="text-[#FFB020] font-bold">{task.dueDate}</span></p>
                       </div>
                       
                       <div className="text-right shrink-0">
-                        <span className="text-[10px] font-extrabold text-[#FFB020] bg-[#FFB020]/10 px-2 py-1 rounded-lg block">
+                        <span className="text-[10px] font-extrabold text-[#FFB020] bg-[#FFB020]/10 px-3 py-1.5 rounded-xl block border border-[#FFB020]/20 shadow-inner">
                           +{getPoints(task.difficulty)} Pts
                         </span>
                       </div>

@@ -764,6 +764,11 @@ function App() {
 
   // Monitor Supabase Auth changes
   useEffect(() => {
+    // Request notification permission on startup
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
     const client = getSupabaseClient();
     if (!client) {
       setUser(null);

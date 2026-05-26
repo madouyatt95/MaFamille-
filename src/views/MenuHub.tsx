@@ -457,11 +457,17 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newArtisanNotes, setNewArtisanNotes] = useState('');
   const [artisanSearchQuery, setArtisanSearchQuery] = useState('');
 
+  // Dynamically calculate unread messages from other members
+  const unreadMessagesCount = chatMessages.filter(m => activeMemberId && m.senderId !== activeMemberId && !m.readBy.includes(activeMemberId)).length;
+  
+  // Dynamically calculate pending vaccines
+  const pendingVaccines = (vaccines || []).filter((v: any) => v.status === 'À faire').length;
+
   const modules = [
     { id: 'carte', title: 'Carte Familiale', desc: 'Localisation sécurisée en temps réel', badge: 'En direct', icon: MapIcon, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
-    { id: 'messagerie', title: 'Messagerie', desc: 'Discussions & Groupes Familiaux', badge: '1 non lu', icon: MessageCircle, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
+    { id: 'messagerie', title: 'Messagerie', desc: 'Discussions & Groupes Familiaux', badge: unreadMessagesCount > 0 ? `${unreadMessagesCount} non lu${unreadMessagesCount > 1 ? 's' : ''}` : 'À jour ✓', icon: MessageCircle, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
     { id: 'documents', title: 'Documents', desc: 'Coffre-fort sécurisé pour vos documents', badge: `${documents.length} fichiers`, icon: FolderLock, color: 'text-[#4F8CFF] bg-[#4F8CFF]/10 hover:border-[#4F8CFF]/30' },
-    { id: 'sante', title: 'Santé', desc: 'Carnet médical et rendez-vous', badge: '5 rendez-vous', icon: HeartPulse, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
+    { id: 'sante', title: 'Santé', desc: 'Carnet médical et rendez-vous', badge: pendingVaccines > 0 ? `${pendingVaccines} rdv vaccin${pendingVaccines > 1 ? 's' : ''}` : 'À jour ✓', icon: HeartPulse, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
     { id: 'courses', title: 'Courses & Éco-Chef', desc: 'Liste de courses & Éco-Chef Anti-Gaspi', badge: `${groceries.filter(g => !g.checked).length} produits`, icon: ShoppingCart, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
     { id: 'taches', title: 'Tâches', desc: 'Répartition des tâches et suivi', badge: `${tasks.filter(t => !t.done).length} tâches`, icon: Brush, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
     { id: 'ecole', title: 'École & Devoirs', desc: 'Tuteur IA, devoirs & quizzes', badge: `${schoolTasks.filter(t => !t.done).length} devoirs`, icon: GraduationCap, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
