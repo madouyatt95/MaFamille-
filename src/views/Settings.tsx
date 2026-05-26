@@ -756,6 +756,70 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
       )}
 
+      {/* 5. Charte RGPD & Mentions Légales */}
+      <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+            <Lock className="w-4 h-4 text-[#00D26A]" />
+            <span>Mentions Légales & RGPD</span>
+          </h3>
+          <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-[#00D26A]/20 text-[#00D26A]">100% Conforme</span>
+        </div>
+        
+        <p className="text-xs text-white/50 leading-relaxed font-medium">
+          MaFamille+ est conçue pour respecter rigoureusement votre vie privée. Consultez nos politiques et vos droits légaux.
+        </p>
+
+        <div className="space-y-2 pt-2">
+          {/* Accordion 1: Mentions Légales */}
+          <details className="group bg-white/3 border border-white/5 rounded-2xl overflow-hidden transition-all">
+            <summary className="p-4 text-xs font-bold text-white flex items-center justify-between cursor-pointer list-none select-none">
+              <span>⚖️ Mentions Légales</span>
+              <span className="text-white/30 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div className="p-4 pt-0 text-[10px] text-white/40 leading-relaxed space-y-2 border-t border-white/5">
+              <p><strong>Éditeur de l'application :</strong> Famille Connect SAS, au capital de 10 000 €, domicilié à Paris, France.</p>
+              <p><strong>Hébergement :</strong> Serveurs Supabase & Vercel localisés au sein de l'Union Européenne (Allemagne/Irlande), hautement sécurisés.</p>
+              <p><strong>Contact :</strong> legal@mafamilleplus.fr</p>
+            </div>
+          </details>
+
+          {/* Accordion 2: Politique de Confidentialité */}
+          <details className="group bg-white/3 border border-white/5 rounded-2xl overflow-hidden transition-all">
+            <summary className="p-4 text-xs font-bold text-white flex items-center justify-between cursor-pointer list-none select-none">
+              <span>🔒 Charte de Confidentialité</span>
+              <span className="text-white/30 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div className="p-4 pt-0 text-[10px] text-white/40 leading-relaxed space-y-3 border-t border-white/5">
+              <div>
+                <p className="font-bold text-white mb-0.5">1. Collecte Minimale des Données</p>
+                <p>Nous collectons uniquement les informations nécessaires au bon fonctionnement de l'application (prénoms, soldes financiers, photos partagées).</p>
+              </div>
+              <div>
+                <p className="font-bold text-white mb-0.5">2. Géolocalisation Contrôlée</p>
+                <p>La géolocalisation n'est partagée qu'avec votre consentement explicite. À tout moment, vous pouvez activer le "Mode Masqué" pour stopper tout partage.</p>
+              </div>
+              <div>
+                <p className="font-bold text-white mb-0.5">3. Droits des Enfants (Mineurs)</p>
+                <p>Conformément à l'Article 8 du RGPD, la gestion des profils mineurs est intégralement gérée par le représentant légal (parent) titulaire du compte.</p>
+              </div>
+            </div>
+          </details>
+
+          {/* Accordion 3: Cookies & Traceurs */}
+          <details className="group bg-white/3 border border-white/5 rounded-2xl overflow-hidden transition-all">
+            <summary className="p-4 text-xs font-bold text-white flex items-center justify-between cursor-pointer list-none select-none">
+              <span>🍪 Gestion des Cookies & Traceurs</span>
+              <span className="text-white/30 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div className="p-4 pt-0 text-[10px] text-white/40 leading-relaxed space-y-2 border-t border-white/5">
+              <p>🌱 <strong>Aucun traceur publicitaire :</strong> L'application MaFamille+ n'utilise aucun cookie tiers, traceur analytique invasif ou pixel publicitaire.</p>
+              <p>💾 <strong>Stockage technique uniquement :</strong> Seul le stockage local technique (localStorage / jetons sécurisés) est utilisé pour maintenir votre session ouverte et mémoriser votre mode d'affichage.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+
     </div>
   );
 };
