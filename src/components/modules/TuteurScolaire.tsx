@@ -231,8 +231,8 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     setSelectedSubject('ia-generated');
     setLoadingSchema(true);
 
-    const geminiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
-    const useRealAI = !!geminiKey && aiQuotaService.consumeAIQuota(isPremium);
+    // Tente d'utiliser l'IA réelle si le quota est disponible (soit via clé locale VITE_, soit via le proxy serveurless)
+    const useRealAI = aiQuotaService.consumeAIQuota(isPremium);
 
     if (useRealAI) {
       try {
@@ -249,11 +249,18 @@ Exemple de format valide :
   {"q": "Quelle est la capitale de la France ?", "options": ["Marseille", "Paris", "Lyon", "Nice"], "correct": 1}
 ]`;
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+        const geminiEndpoint = import.meta.env.VITE_GEMINI_API_KEY 
+          ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`
+          : (import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini');
+
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (import.meta.env.VITE_GEMINI_API_KEY) {
+          headers['Authorization'] = `Bearer ${import.meta.env.VITE_GEMINI_API_KEY}`;
+        }
+
+        const response = await fetch(geminiEndpoint, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers,
           body: JSON.stringify({
             contents: [{
               parts: [{
@@ -401,7 +408,7 @@ Exemple de format valide :
       
       if (isQuotaFallback) {
         console.info("[TuteurScolaire] Quota quotidien d'IA réelle épuisé. Basculement sur le Tuteur local.");
-      } else if (!geminiKey) {
+      } else if (!import.meta.env.VITE_GEMINI_API_KEY) {
         console.info("[TuteurScolaire] Clé VITE_GEMINI_API_KEY absente. Basculement sur le Tuteur local.");
       } else {
         console.info("[TuteurScolaire] Basculement sur le Tuteur local (compte non-Premium).");

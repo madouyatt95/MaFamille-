@@ -62,7 +62,9 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
           const base64Data = (reader.result as string).split(',')[1];
           const mimeType = file.type || 'image/jpeg';
           
-          const geminiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || 'AIzaSyCv-tulEcZqwL-wrhpfghqs_2bcAfPUPR4';
+          const geminiEndpoint = import.meta.env.VITE_GEMINI_API_KEY 
+            ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`
+            : (import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini');
 
           const requestBody = {
             contents: [
@@ -85,11 +87,16 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
             }
           };
 
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json'
+          };
+          if (import.meta.env.VITE_GEMINI_API_KEY) {
+            headers['Authorization'] = `Bearer ${import.meta.env.VITE_GEMINI_API_KEY}`;
+          }
+
+          const response = await fetch(geminiEndpoint, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
+            headers,
             body: JSON.stringify(requestBody)
           });
 

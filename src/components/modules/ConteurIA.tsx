@@ -434,9 +434,8 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
     setIsReadingAloud(false);
     setStoryImage('');
 
-    const geminiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
-    // Vérifie la clé API d'abord, puis consomme le quota seulement si la clé existe
-    const useRealAI = !!geminiKey && aiQuotaService.consumeAIQuota(isPremium);
+    // Tente d'utiliser l'IA réelle si le quota est disponible (soit via clé locale VITE_, soit via le proxy serveurless)
+    const useRealAI = aiQuotaService.consumeAIQuota(isPremium);
     const universe = UNIVERSES.find(u => u.id === selectedUniverse) || UNIVERSES[0];
     const moral = MORALS.find(m => m.id === selectedMoral) || MORALS[0];
 
@@ -479,9 +478,18 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
   ]
 }`;
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+        const geminiEndpoint = import.meta.env.VITE_GEMINI_API_KEY 
+          ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`
+          : (import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini');
+
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (import.meta.env.VITE_GEMINI_API_KEY) {
+          headers['Authorization'] = `Bearer ${import.meta.env.VITE_GEMINI_API_KEY}`;
+        }
+
+        const response = await fetch(geminiEndpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: { temperature: 0.7 }
@@ -562,7 +570,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
 
           if (isQuotaFallback) {
             console.info("[ConteurIA] Quota quotidien d'IA réelle épuisé. Basculement sur le Conteur local.");
-          } else if (!geminiKey) {
+          } else if (!import.meta.env.VITE_GEMINI_API_KEY) {
             console.info("[ConteurIA] Clé VITE_GEMINI_API_KEY absente. Basculement sur le Conteur local.");
           } else {
             console.info("[ConteurIA] Basculement sur le Conteur local (compte non-Premium).");
@@ -821,21 +829,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
             {/* MAIN FULL-SCREEN CONFIGURATOR PANEL */}
             <div className="bg-white/4 border border-white/8 rounded-[36px] p-5 md:p-8 backdrop-blur-xl space-y-7 relative overflow-hidden">
               
-              {/* Dev Diagnostics */}
-              <div className="p-3 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between text-[10px] text-white/60 font-mono relative z-20">
-                <div>
-                  <span>Premium: {isPremium ? '✅' : '❌'} | Key: {import.meta.env.VITE_GEMINI_API_KEY ? '✅' : '❌'} | Usage: {aiQuotaService.getUsage().count}/{aiQuotaService.getDailyLimit()}</span>
-                </div>
-                <button 
-                  onClick={() => {
-                    aiQuotaService.resetQuota();
-                    window.location.reload();
-                  }}
-                  className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded-[10px] font-bold text-[9px] active:scale-95 transition-all cursor-pointer"
-                >
-                  Reset Quota 🔄
-                </button>
-              </div>
+
               
               {/* Subtle ambient light shapes in the panel background */}
               <div className="absolute -top-24 -right-24 w-72 h-72 bg-[#7C3AED]/5 rounded-full filter blur-[60px] pointer-events-none"></div>

@@ -41,9 +41,8 @@ export const PeaceMaker: React.FC<PeaceMakerProps> = ({ isPremium = false, onTri
     setMediating(true);
     setCompromise(null);
 
-    const groqKey = import.meta.env.VITE_GROQ_API_KEY || '';
-    // Consomme le quota si Premium
-    const useRealAI = !!groqKey && aiQuotaService.consumeAIQuota(isPremium);
+    // Tente d'utiliser l'IA réelle si le quota est disponible (soit via clé locale VITE_, soit via le proxy serveurless)
+    const useRealAI = aiQuotaService.consumeAIQuota(isPremium);
 
     if (useRealAI) {
       try {
@@ -62,12 +61,16 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
 }`;
 
         const groqEndpoint = import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/groq' : '/api/groq';
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json'
+        };
+        if (import.meta.env.VITE_GROQ_API_KEY) {
+          headers['Authorization'] = `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`;
+        }
+
         const response = await fetch(groqEndpoint, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${groqKey}`,
-            'Content-Type': 'application/json'
-          },
+          headers,
           body: JSON.stringify({
             model: 'llama-3.1-8b-instant',
             messages: [{ role: 'user', content: prompt }],

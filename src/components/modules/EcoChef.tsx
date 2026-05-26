@@ -71,9 +71,8 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, isPremium = 
     setGenerating(true);
     setRecipes([]);
 
-    const geminiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
-    // Consomme le quota si Premium
-    const useRealAI = !!geminiKey && aiQuotaService.consumeAIQuota(isPremium);
+    // Tente d'utiliser l'IA réelle si le quota est disponible (soit via clé locale VITE_, soit via le proxy serveurless)
+    const useRealAI = aiQuotaService.consumeAIQuota(isPremium);
 
     if (useRealAI) {
       try {
@@ -91,11 +90,18 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
 - rating (avis fictif fun de la famille ex: 'Papa ⭐️5, Amadou ⭐️4.8')
 - promptKeywords (mots-clés très descriptifs en anglais séparés par des virgules pour générer la photo culinaire ex: 'creamy chicken soup with warm bread, hyper detailed food photography, Pixar style 3d')`;
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+        const geminiEndpoint = import.meta.env.VITE_GEMINI_API_KEY 
+          ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`
+          : (import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini');
+
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (import.meta.env.VITE_GEMINI_API_KEY) {
+          headers['Authorization'] = `Bearer ${import.meta.env.VITE_GEMINI_API_KEY}`;
+        }
+
+        const response = await fetch(geminiEndpoint, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers,
           body: JSON.stringify({
             contents: [{
               parts: [{
@@ -245,21 +251,6 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
         </div>
       </div>
       
-      {/* Dev Diagnostics */}
-      <div className="p-3 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between text-[10px] text-white/60 font-mono">
-        <div>
-          <span>Premium: {isPremium ? '✅' : '❌'} | Key: {import.meta.env.VITE_GEMINI_API_KEY ? '✅' : '❌'} | Usage: {aiQuotaService.getUsage().count}/{aiQuotaService.getDailyLimit()}</span>
-        </div>
-        <button 
-          onClick={() => {
-            aiQuotaService.resetQuota();
-            window.location.reload();
-          }}
-          className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded-[10px] font-bold text-[9px] active:scale-95 transition-all cursor-pointer"
-        >
-          Reset Quota 🔄
-        </button>
-      </div>
 
       {/* Fridge selector */}
       <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">

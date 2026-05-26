@@ -13,36 +13,30 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { messages, model, temperature } = req.body;
-    
-    // 1. Déterminer la clé API Groq
-    let groqKey = '';
+    // 1. Déterminer la clé API
+    // D'abord on vérifie l'en-tête Authorization du client (pour compatibilité locale / dev)
+    let geminiKey = '';
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      groqKey = authHeader.substring(7).trim();
+      geminiKey = authHeader.substring(7);
     }
-
+    
     // Si aucune clé client n'est passée, on utilise la clé privée stockée côté serveur
-    if (!groqKey) {
-      groqKey = process.env.GROQ_API_KEY || '';
+    if (!geminiKey) {
+      geminiKey = process.env.GEMINI_API_KEY || '';
     }
 
-    if (!groqKey) {
-      return res.status(400).json({ error: 'Missing Groq API Key. Configure GROQ_API_KEY on Vercel or pass it via Authorization header.' });
+    if (!geminiKey) {
+      return res.status(400).json({ error: 'Missing Gemini API Key. Configure GEMINI_API_KEY on Vercel or pass it via Authorization header.' });
     }
 
-    // 2. Transmettre l'appel à Groq
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    // 2. Transmettre l'appel à l'API Google Gemini officielle
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${groqKey}`
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        model: model || 'llama-3.1-8b-instant',
-        messages,
-        temperature: temperature !== undefined ? temperature : 0.7
-      })
+      body: JSON.stringify(req.body)
     });
 
     const data = await response.json();

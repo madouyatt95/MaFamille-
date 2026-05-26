@@ -287,7 +287,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   onAddTransaction,
   onAddEventDirect,
   isPremium = false,
-  setIsPremium,
   onTriggerPaywall,
   onTriggerSos,
   vaccines = [],
@@ -1013,29 +1012,14 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               </div>
             </div>
 
-            {/* Quick Demo Premium Toggle with Environment Diagnostics */}
-            <div className="text-right">
-              <button
-                onClick={() => {
-                  if (setIsPremium) {
-                    setIsPremium(!isPremium);
-                    // Sync locally immediately to bypass foyer caching for dev testing
-                    localStorage.setItem('mf_is_premium', String(!isPremium));
-                  }
-                }}
-                className={`px-4 py-2 rounded-2xl border transition-all duration-300 flex items-center space-x-1.5 text-xs font-bold shadow-sm active:scale-95 cursor-pointer ${
-                  isPremium 
-                    ? 'bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white border-transparent shadow-[#6C5CFF]/20' 
-                    : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-current animate-pulse"></span>
-                <span>{isPremium ? '✨ Premium Active' : '🆓 Passer Premium'}</span>
-              </button>
-              <span className="text-[9px] text-white/30 block mt-1 pr-1 font-mono">
-                Gemini: {import.meta.env.VITE_GEMINI_API_KEY ? '✅' : '❌'} | Groq: {import.meta.env.VITE_GROQ_API_KEY ? '✅' : '❌'}
-              </span>
-            </div>
+            {/* Elegant Static Premium Badge (No bypass buttons) */}
+            {isPremium && (
+              <div className="text-right">
+                <span className="px-3.5 py-1.8 rounded-full bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white text-[9.5px] font-black uppercase tracking-wider shadow-md shadow-[#6C5CFF]/15 animate-fade-in">
+                  ✨ PREMIUM
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Primary Cards Grid (Screen 4 pixel replica) */}
