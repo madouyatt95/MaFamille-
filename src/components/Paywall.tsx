@@ -34,7 +34,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
     setTimeout(() => {
       setSimulating(false);
       onUnlockPremium();
-      alert('🎉 Félicitations ! Votre abonnement MaFamille+ Premium est maintenant activé ! Toutes les fonctionnalités et la synchronisation cloud en temps réel sont déverrouillées.');
+      alert('🎉 Félicitations ! Votre abonnement MyFamily+ Premium est maintenant activé ! Toutes les fonctionnalités et la synchronisation cloud en temps réel sont déverrouillées.');
       onClose();
     }, 1800);
   };
@@ -94,7 +94,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
             <Crown className="w-8 h-8" />
           </div>
           <h2 className="text-xl font-extrabold text-white tracking-tight flex items-center justify-center gap-1.5">
-            <span>MaFamille+</span>
+            <span>MyFamily+</span>
             <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-[9px] font-extrabold text-white tracking-wider uppercase">Premium</span>
           </h2>
           <p className="text-xs text-white/50 max-w-xs mx-auto">

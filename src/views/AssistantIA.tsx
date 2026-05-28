@@ -47,7 +47,7 @@ export const AssistantIA: React.FC<AssistantIAProps> = ({
       {
         id: 'm-init',
         sender: 'ia',
-        text: `Bonjour ${name} ! Je suis votre Assistant IA MaFamille+. Je peux analyser vos finances, préparer votre liste de courses, générer vos repas ou surveiller vos documents administratifs. Comment puis-je vous aider aujourd'hui ?`,
+        text: `Bonjour ${name} ! Je suis votre Assistant IA MyFamily+. Je peux analyser vos finances, préparer votre liste de courses, générer vos repas ou surveiller vos documents administratifs. Comment puis-je vous aider aujourd'hui ?`,
         timestamp: 'À l\'instant'
       }
     ];
@@ -208,7 +208,7 @@ export const AssistantIA: React.FC<AssistantIAProps> = ({
         </div>
         <div>
           <h1 className="text-lg font-extrabold text-white tracking-tight flex items-center gap-1.5">
-            Assistant IA MaFamille+
+            Assistant IA MyFamily+
             <Sparkles className="w-4 h-4 text-[#FFB020]" />
           </h1>
           <p className="text-xs text-white/50 font-medium">Analyse et suggestions familiales intelligentes</p>

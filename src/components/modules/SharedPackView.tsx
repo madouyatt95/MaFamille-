@@ -43,7 +43,7 @@ export const SharedPackView: React.FC<SharedPackViewProps> = ({ pack, documents 
         <div className="bg-[#00D26A]/10 border border-[#00D26A]/20 rounded-2xl p-4 flex items-center space-x-3">
           <ShieldCheck className="w-6 h-6 text-[#00D26A]" />
           <div>
-            <h3 className="text-xs font-bold text-[#00D26A]">Partage Sécurisé MaFamille+</h3>
+            <h3 className="text-xs font-bold text-[#00D26A]">Partage Sécurisé MyFamily+</h3>
             <p className="text-[10px] text-[#00D26A]/70">Les documents sont chiffrés et vérifiés.</p>
           </div>
         </div>
@@ -105,7 +105,7 @@ export const SharedPackView: React.FC<SharedPackViewProps> = ({ pack, documents 
           </button>
         </div>
 
-        <p className="text-center text-[10px] text-white/30 pt-8">Propulsé par MaFamille+</p>
+        <p className="text-center text-[10px] text-white/30 pt-8">Propulsé par MyFamily+</p>
       </div>
     </div>
   );

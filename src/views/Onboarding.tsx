@@ -171,7 +171,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
             <Home className="w-8 h-8" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-white/90 to-white/60 bg-clip-text text-transparent">
-            MaFamille+
+            MyFamily+
           </h1>
           <p className="text-xs sm:text-sm text-white/50 max-w-xs mx-auto">
             {isInitiallyAuthenticated 

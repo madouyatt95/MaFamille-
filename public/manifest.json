@@ -1,6 +1,6 @@
 {
-  "name": "MaFamille+",
-  "short_name": "MaFamille+",
+  "name": "MyFamily+",
+  "short_name": "MyFamily+",
   "description": "Système d'exploitation complet de la famille (Finances, Agenda, Santé, École, IA).",
   "start_url": "/",
   "display": "standalone",
