@@ -12,7 +12,8 @@ import {
   Edit,
   Lock,
   Copy,
-  Check
+  Check,
+  Camera
 } from 'lucide-react';
 import { foyerService } from '../services/foyerService';
 import type { Member, Foyer, FoyerMember, MemberRole } from '../types';
@@ -251,6 +252,35 @@ export const Membres: React.FC<MembresProps> = ({
     } finally {
       setSavingProfile(false);
     }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedMember) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64String = event.target?.result as string;
+      if (!base64String) return;
+
+      try {
+        if (foyer) {
+          await foyerService.updateMemberProfile(selectedMember.id, {
+            photoUrl: base64String
+          });
+        }
+        if (onUpdateMemberProfile) {
+          onUpdateMemberProfile(selectedMember.id, { photoUrl: base64String });
+        }
+        setMembers(prev => prev.map(m => m.id === selectedMember.id ? { ...m, photoUrl: base64String } : m));
+        setSelectedMember(prev => prev ? { ...prev, photoUrl: base64String } : null);
+        alert("📷 Photo de profil mise à jour avec succès !");
+      } catch (err: any) {
+        console.error("Erreur lors de la sauvegarde de la photo :", err);
+        alert(`Impossible de sauvegarder la photo : ${err.message || err}`);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const pendingMembers = members.filter(m => m.approved === false);
@@ -588,7 +618,20 @@ export const Membres: React.FC<MembresProps> = ({
                         alt={selectedMember.name} 
                         className="w-24 h-24 rounded-full object-cover border-4 border-[#6C5CFF]/20"
                       />
+                      <label
+                        className="absolute -bottom-1.5 -left-1.5 p-2 rounded-full bg-[#00D26A] text-white hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer flex items-center justify-center"
+                        title="Téléverser une photo"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handlePhotoUpload}
+                        />
+                      </label>
                       <button
+                        type="button"
                         onClick={() => {
                           setGeneratedAvatar('');
                           setAvatarDesc('');

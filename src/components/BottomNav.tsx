@@ -59,7 +59,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
         {/* Floating Add (+) Button */}
         {!isChild && (
-          <div className="relative -top-6 flex justify-center">
+          <div className="relative -top-4 flex justify-center">
             <div className="absolute w-16 h-16 rounded-full bg-[#6C5CFF]/20 blur-xl animate-pulse-slow"></div>
             <button 
               onClick={onAddClick}

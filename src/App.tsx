@@ -715,9 +715,9 @@ function App() {
         await loadFoyerData(myFoyer.id);
       } else {
         // Check for automatic onboarding inputs from signup
-        const pendingInviteCode = localStorage.getItem('pending_invite_code');
-        const pendingDisplayName = localStorage.getItem('pending_display_name');
-        const pendingRole = localStorage.getItem('pending_role') || 'child';
+        const pendingInviteCode = currentUser?.user_metadata?.invite_code || localStorage.getItem('pending_invite_code');
+        const pendingDisplayName = currentUser?.user_metadata?.display_name || localStorage.getItem('pending_display_name');
+        const pendingRole = currentUser?.user_metadata?.role || localStorage.getItem('pending_role') || 'child';
         
         if (pendingDisplayName) {
           try {
@@ -788,6 +788,7 @@ function App() {
       if (currentUser) {
         setDiscoverMode(false);
         localStorage.removeItem('mf_discover_mode');
+        localStorage.removeItem('mf_is_premium');
       }
       checkUserFoyerSession(currentUser);
     });
@@ -798,6 +799,7 @@ function App() {
       if (currentUser) {
         setDiscoverMode(false);
         localStorage.removeItem('mf_discover_mode');
+        localStorage.removeItem('mf_is_premium');
       }
       checkUserFoyerSession(currentUser);
     });
@@ -3537,10 +3539,10 @@ function App() {
         }}
       />
 
-      {/* Floating Global Voice Assistant Button (fixed bottom-28 right-6, just above the Menu tab on the right) */}
+      {/* Floating Global Voice Assistant Button (fixed bottom-25 right-6, just above the Menu tab on the right) */}
       <button 
         onClick={startVoiceAssistant}
-        className={`fixed bottom-28 right-6 z-[45] w-14 h-14 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] text-white flex items-center justify-center shadow-lg shadow-[#6C5CFF]/30 hover:scale-110 active:scale-95 transition-all cursor-pointer group ${voiceActive ? 'scale-110' : ''}`}
+        className={`fixed bottom-25 right-6 z-[45] w-14 h-14 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] text-white flex items-center justify-center shadow-lg shadow-[#6C5CFF]/30 hover:scale-110 active:scale-95 transition-all cursor-pointer group ${voiceActive ? 'scale-110' : ''}`}
       >
         <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] blur-md opacity-40 group-hover:opacity-70 transition-opacity animate-pulse"></div>
         {voiceActive ? (

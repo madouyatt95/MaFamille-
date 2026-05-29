@@ -124,7 +124,14 @@ export const Onboarding: React.FC<OnboardingProps> = ({
 
         const { error } = await supabase.auth.signUp({
           email: email.trim(),
-          password
+          password,
+          options: {
+            data: {
+              display_name: displayName.trim(),
+              invite_code: activeMode === 'join' ? inviteCode.trim().toUpperCase() : null,
+              role: activeMode === 'join' ? role : 'admin'
+            }
+          }
         });
 
         if (error) throw error;
