@@ -246,6 +246,10 @@ CREATE TABLE IF NOT EXISTS public.alerts (
     type TEXT DEFAULT 'info',
     read BOOLEAN DEFAULT FALSE,
     module TEXT,
+    sender_user_id UUID,
+    sender_member_id TEXT,
+    sender_name TEXT,
+    sender_avatar TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (id, foyer_id)
 );
@@ -449,9 +453,37 @@ CREATE POLICY "members_select" ON public.foyer_members FOR SELECT
 CREATE POLICY "members_insert" ON public.foyer_members FOR INSERT
     WITH CHECK (user_id = auth.uid() OR public.is_foyer_admin_or_parent(foyer_id));
 CREATE POLICY "members_delete" ON public.foyer_members FOR DELETE
-    USING (user_id = auth.uid() OR public.is_foyer_admin_or_parent(foyer_id));
+    USING (
+        user_id = auth.uid() 
+        OR (
+            public.is_foyer_admin(foyer_id)
+        )
+        OR (
+            public.is_foyer_admin_or_parent(foyer_id)
+            AND role != 'admin'
+        )
+    );
 CREATE POLICY "members_update" ON public.foyer_members FOR UPDATE
-    USING (user_id = auth.uid() OR public.is_foyer_admin_or_parent(foyer_id));
+    USING (
+        user_id = auth.uid() 
+        OR (
+            public.is_foyer_admin(foyer_id)
+        )
+        OR (
+            public.is_foyer_admin_or_parent(foyer_id)
+            AND role != 'admin'
+        )
+    )
+    WITH CHECK (
+        (user_id = auth.uid() AND (role != 'admin' OR public.is_foyer_admin(foyer_id)))
+        OR (
+            public.is_foyer_admin(foyer_id)
+        )
+        OR (
+            public.is_foyer_admin_or_parent(foyer_id)
+            AND role != 'admin'
+        )
+    );
 
 -- INVITATIONS : visible par les membres admin/parent du foyer
 CREATE POLICY "invitations_select" ON public.foyer_invitations FOR SELECT
@@ -578,15 +610,21 @@ DECLARE
     v_foyer_name TEXT;
     v_member_count INT;
     v_max INT;
+    v_is_premium BOOLEAN;
     v_already BOOLEAN;
 BEGIN
     -- Trouver le foyer
-    SELECT id, name, max_members INTO v_foyer_id, v_foyer_name, v_max
+    SELECT id, name, max_members, is_premium INTO v_foyer_id, v_foyer_name, v_max, v_is_premium
     FROM public.foyers
     WHERE invite_code = UPPER(TRIM(p_invite_code));
 
     IF v_foyer_id IS NULL THEN
         RAISE EXCEPTION 'Code d''invitation invalide. Vérifiez le code et réessayez.';
+    END IF;
+
+    -- Si le foyer est Premium, on ignore la limite standard de 3 membres
+    IF v_is_premium = TRUE THEN
+        v_max := 999;
     END IF;
 
     -- Vérifier si déjà membre
@@ -770,7 +808,7 @@ BEGIN
     IF (TG_OP = 'INSERT' AND NEW.approved = FALSE) THEN
         INSERT INTO public.alerts (id, foyer_id, title, description, time, type, read, module)
         VALUES (
-            NEW.id,
+            NEW.id::text,
             NEW.foyer_id,
             'Demande d''adhésion',
             NEW.display_name || ' souhaite rejoindre votre foyer.',
@@ -780,9 +818,9 @@ BEGIN
             'members'
         );
     ELSIF (TG_OP = 'UPDATE' AND OLD.approved = FALSE AND NEW.approved = TRUE) THEN
-        DELETE FROM public.alerts WHERE id = NEW.id;
+        DELETE FROM public.alerts WHERE id = NEW.id::text;
     ELSIF (TG_OP = 'DELETE') THEN
-        DELETE FROM public.alerts WHERE id = OLD.id;
+        DELETE FROM public.alerts WHERE id = OLD.id::text;
         RETURN OLD;
     END IF;
     RETURN NEW;

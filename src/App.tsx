@@ -461,7 +461,11 @@ function App() {
           time: alert.time,
           type: alert.type,
           read: alert.read,
-          module: alert.module
+          module: alert.module,
+          sender_user_id: alert.senderUserId || user?.id,
+          sender_member_id: alert.senderMemberId || myMemberProfile?.id,
+          sender_name: alert.senderName || myMemberProfile?.displayName,
+          sender_avatar: alert.senderAvatar || myMemberProfile?.photoUrl
         });
         console.log(`[Supabase Alerts] Alert successfully synchronized to cloud: ${alert.title}`);
       }
@@ -655,6 +659,7 @@ function App() {
   // Helper map function from FoyerMember to UI Member
   const mapFoyerMemberToMember = (fm: FoyerMember): Member => ({
     id: fm.id,
+    userId: fm.userId,
     name: fm.displayName,
     role: fm.role === 'admin' ? 'Chef de famille' : fm.role === 'parent' ? 'Gestionnaire' : fm.role === 'child' ? 'Enfant' : 'Invité',
     age: fm.age || '30 ans',
@@ -966,7 +971,11 @@ function App() {
       time: a.time,
       type: a.type,
       read: a.read,
-      module: a.module
+      module: a.module,
+      senderUserId: a.sender_user_id,
+      senderMemberId: a.sender_member_id,
+      senderName: a.sender_name,
+      senderAvatar: a.sender_avatar
     })) : []);
 
     // Load Memories
@@ -1022,7 +1031,7 @@ function App() {
     })) : []);
 
     // Load Chat Messages
-    const { data: chatMessagesData } = await client.from('chat_messages').select('*').eq('foyer_id', foyerId);
+    const { data: chatMessagesData } = await client.from('chat_messages').select('*').eq('foyer_id', foyerId).order('created_at', { ascending: true });
     setChatMessages(chatMessagesData ? chatMessagesData.map(c => ({
       id: c.id,
       groupId: c.group_id,
@@ -1539,7 +1548,11 @@ function App() {
             time: a.time,
             type: a.type,
             read: a.read,
-            module: a.module
+            module: a.module,
+            senderUserId: a.sender_user_id,
+            senderMemberId: a.sender_member_id,
+            senderName: a.sender_name,
+            senderAvatar: a.sender_avatar
           })));
         }
       });
@@ -2343,7 +2356,11 @@ function App() {
             time: newAlert.time,
             type: newAlert.type,
             read: newAlert.read,
-            module: newAlert.module
+            module: newAlert.module,
+            sender_user_id: user?.id,
+            sender_member_id: myMemberProfile?.id,
+            sender_name: myMemberProfile?.displayName || activeMemberName,
+            sender_avatar: myMemberProfile?.photoUrl || activeMemberObj?.photoUrl
           });
         } catch (err) {
           console.error("Erreur lors de l'ajout cloud de l'événement :", err);
@@ -3775,9 +3792,17 @@ function App() {
                     }}
                     className={`p-3.5 rounded-2xl bg-white/5 border border-white/5 flex items-start space-x-3 transition-all ${targetModule ? 'cursor-pointer hover:bg-white/10 hover:border-white/15 active:scale-[0.98]' : ''}`}
                   >
-                    <div className="p-2.5 rounded-xl border shrink-0 mt-0.5" style={{ backgroundColor: `${iconColor}15`, borderColor: `${iconColor}30`, color: iconColor }}>
-                      <Bell className="w-4 h-4" />
-                    </div>
+                    {al.senderAvatar ? (
+                      <img 
+                        src={al.senderAvatar} 
+                        alt={al.senderName || 'Auteur'} 
+                        className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0 mt-0.5"
+                      />
+                    ) : (
+                      <div className="p-2.5 rounded-xl border shrink-0 mt-0.5" style={{ backgroundColor: `${iconColor}15`, borderColor: `${iconColor}30`, color: iconColor }}>
+                        <Bell className="w-4 h-4" />
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <h4 className="text-xs font-bold text-white flex items-center gap-2">
                         {al.title}

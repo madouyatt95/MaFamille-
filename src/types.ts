@@ -61,6 +61,7 @@ export interface MedicalLog {
 
 export interface Member {
   id: string;
+  userId?: string;
   name: string;
   role: string;
   age: string;
@@ -237,6 +238,10 @@ export interface NotificationAlert {
   type: 'info' | 'warning' | 'error' | 'success';
   read: boolean;
   module?: string;
+  senderUserId?: string;
+  senderMemberId?: string;
+  senderName?: string;
+  senderAvatar?: string;
 }
 
 export interface MemoryLog {

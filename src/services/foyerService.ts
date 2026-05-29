@@ -244,7 +244,10 @@ export const foyerService = {
 
     const { error } = await supabase
       .from('foyers')
-      .update({ is_premium: isPremium })
+      .update({ 
+        is_premium: isPremium,
+        max_members: isPremium ? 999 : 3
+      })
       .eq('id', foyerId);
 
     if (error) throw error;

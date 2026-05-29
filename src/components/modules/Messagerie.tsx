@@ -157,6 +157,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   const [drawColor, setDrawColor] = useState('#FF4D6D');
   const [isDrawing, setIsDrawing] = useState(false);
   const [showReactionsForId, setShowReactionsForId] = useState<string | null>(null);
+  const [activeReactionTooltip, setActiveReactionTooltip] = useState<{ msgId: string, emoji: string } | null>(null);
   const [isAiTyping, setIsAiTyping] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -214,29 +215,8 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     if (initialGroupId && initialGroupId !== prevInitialGroupId.current) {
       setActiveGroupId(initialGroupId);
       prevInitialGroupId.current = initialGroupId;
-      return;
     }
-    
-    if (groups.length > 0 && !activeGroupId) {
-      // Find if there is any unread message in any visible group
-      const unreadMessages = messages.filter(m => {
-        const g = groups.find(group => group.id === m.groupId);
-        if (!g) return false;
-        const isParticipant = !g.isPrivate || g.memberIds.includes(activeMemberId);
-        return isParticipant && !m.readBy.includes(activeMemberId);
-      });
-
-      if (unreadMessages.length > 0) {
-        // Open the group with the latest unread message
-        const latestUnread = unreadMessages[unreadMessages.length - 1];
-        setActiveGroupId(latestUnread.groupId);
-      } else {
-        // Default to the first group (Famille)
-        setActiveGroupId(groups[0].id);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialGroupId, groups]);
+  }, [initialGroupId]);
 
 
 
@@ -961,17 +941,44 @@ Demande de l'utilisateur : "${userText}"`;
 
               {/* Display reactions */}
               {msg.reactions && msg.reactions.length > 0 && (
-                <div className={`flex items-center space-x-0.5 mt-1 bg-white/5 px-2 py-0.5 rounded-full border border-white/5 ${isMe ? 'self-end' : 'self-start ml-8'}`}>
+                <div className={`flex flex-wrap items-center gap-1.5 mt-1 relative ${isMe ? 'self-end justify-end' : 'self-start justify-start ml-8'}`}>
                   {Object.entries(msg.reactions.reduce((acc: Record<string, string[]>, r) => {
                     acc[r.emoji] = acc[r.emoji] || [];
-                    acc[r.emoji].push(r.senderName);
+                    const firstName = r.senderName.split(' ')[0];
+                    if (!acc[r.emoji].includes(firstName)) {
+                      acc[r.emoji].push(firstName);
+                    }
                     return acc;
-                  }, {})).map(([emoji, names]) => (
-                    <span key={emoji} title={(names as string[]).join(', ')} className="text-xs cursor-help flex items-center space-x-0.5">
-                      <span>{emoji}</span>
-                      {(names as string[]).length > 1 && <span className="text-[9px] text-white/50 font-bold">{(names as string[]).length}</span>}
-                    </span>
-                  ))}
+                  }, {})).map(([emoji, names]) => {
+                    const isTooltipActive = activeReactionTooltip?.msgId === msg.id && activeReactionTooltip?.emoji === emoji;
+                    return (
+                      <div key={emoji} className="relative">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveReactionTooltip(prev => (prev?.msgId === msg.id && prev?.emoji === emoji) ? null : { msgId: msg.id, emoji });
+                          }}
+                          className="flex items-center space-x-1.5 bg-white/10 hover:bg-white/15 px-2 py-0.5 rounded-full border border-white/5 transition-all text-xs cursor-pointer active:scale-95"
+                        >
+                          <span>{emoji}</span>
+                          <span className="text-[10px] text-white/70 font-black">{(names as string[]).length}</span>
+                        </button>
+                        
+                        {isTooltipActive && (
+                          <div 
+                            className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-[#0F1A30]/95 backdrop-blur-md border border-[#6C5CFF]/30 text-white text-[9px] px-2.5 py-1.5 rounded-xl shadow-xl z-50 whitespace-nowrap animate-fade-in flex flex-col items-center gap-0.5"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <span className="font-bold text-white/50 block uppercase tracking-wider text-[7.5px]">Réagi par</span>
+                            <span className="font-semibold text-white/95">{(names as string[]).join(', ')}</span>
+                            {/* Little arrow indicator */}
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#0F1A30]/95"></div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

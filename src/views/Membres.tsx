@@ -17,6 +17,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { foyerService } from '../services/foyerService';
+import { getSupabaseClient } from '../utils/supabase';
 import type { Member, Foyer, FoyerMember, MemberRole } from '../types';
 
 interface MembresProps {
@@ -229,13 +230,45 @@ export const Membres: React.FC<MembresProps> = ({
         hasExemption: dbRole === 'child' ? editHasExemption : false
       };
 
-      if (foyer) {
-        // Persist to Supabase Cloud Foyer
-        await foyerService.updateMemberProfile(selectedMember.id, updates);
+      // Transfer of ownership flow
+      let isTransferringOwnership = false;
+      if (dbRole === 'admin' && selectedMember.role !== 'Chef de famille' && selectedMember.role !== 'admin') {
+        const confirmTransfer = window.confirm(
+          `👑 TRANSFERT DE PROPRIÉTÉ\n\nÊtes-vous ABSOLUMENT sûr de vouloir transférer la propriété du foyer à ${editName.trim()} ?\n\nVous serez immédiatement rétrogradé au rôle de 'Gestionnaire / Parent' et perdrez le contrôle exclusif de l'administration du foyer.`
+        );
+        if (!confirmTransfer) {
+          setSavingProfile(false);
+          return;
+        }
+        isTransferringOwnership = true;
       }
 
-      if (onUpdateMemberProfile) {
-        onUpdateMemberProfile(selectedMember.id, updates);
+      if (isTransferringOwnership) {
+        const client = getSupabaseClient();
+        if (client && foyer) {
+          // 1. Promouvoir le membre sélectionné en admin
+          await client.from('foyer_members').update(updates).eq('id', selectedMember.id);
+          // 2. Rétrograder l'admin actuel en parent
+          await client.from('foyer_members').update({ role: 'parent' }).eq('id', activeMemberId);
+          // 3. Mettre à jour created_by sur le foyer
+          if (selectedMember.userId) {
+            await client.from('foyers').update({ created_by: selectedMember.userId }).eq('id', foyer.id);
+          }
+        }
+
+        if (onUpdateMemberProfile) {
+          onUpdateMemberProfile(selectedMember.id, updates);
+          onUpdateMemberProfile(activeMemberId, { role: 'parent' });
+        }
+      } else {
+        if (foyer) {
+          // Persist to Supabase Cloud Foyer
+          await foyerService.updateMemberProfile(selectedMember.id, updates);
+        }
+
+        if (onUpdateMemberProfile) {
+          onUpdateMemberProfile(selectedMember.id, updates);
+        }
       }
 
       setMembers(prev => prev.map(m => {
@@ -252,6 +285,12 @@ export const Membres: React.FC<MembresProps> = ({
           };
           setSelectedMember(updated);
           return updated;
+        }
+        if (isTransferringOwnership && m.id === activeMemberId) {
+          return {
+            ...m,
+            role: 'Gestionnaire'
+          };
         }
         return m;
       }));
@@ -653,7 +692,7 @@ export const Membres: React.FC<MembresProps> = ({
             <>
               {/* Close Button (mobile utility) */}
               <div className="absolute right-4 top-4 flex space-x-2">
-                {!isChild && (
+                {!isChild && (selectedMember.role !== 'Chef de famille' || myMemberProfile?.role === 'admin') && (
                   <button 
                     onClick={() => handleEditClick(selectedMember)}
                     className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors cursor-pointer border border-white/5"
@@ -698,7 +737,9 @@ export const Membres: React.FC<MembresProps> = ({
                       disabled={savingProfile}
                       className="w-full px-4 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-sm focus:outline-none focus:border-[#6C5CFF] disabled:opacity-50"
                     >
-                      <option value="admin">Chef de famille (Admin) 👑</option>
+                      {myMemberProfile?.role === 'admin' && (
+                        <option value="admin">Chef de famille (Admin) 👑</option>
+                      )}
                       <option value="parent">Gestionnaire / Parent (Écriture complète) 👨‍👩‍👧</option>
                       <option value="child">Enfant (Droits d'écriture restreints) 🧒</option>
                       <option value="guest">Invité (Lecture seule) 👥</option>
@@ -791,7 +832,7 @@ export const Membres: React.FC<MembresProps> = ({
                   </div>
 
                   {/* Profile Deletion (Only for parents, preventing self-deletion) */}
-                  {!isChild && selectedMember.id !== activeMemberId && (
+                  {!isChild && selectedMember.id !== activeMemberId && (selectedMember.role !== 'Chef de famille' || myMemberProfile?.role === 'admin') && (
                     <button 
                       type="button" 
                       onClick={async () => {
