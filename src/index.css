@@ -305,3 +305,18 @@ body {
 .ios-safe-bottom-nav {
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
 }
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-down {
+  animation: slideDown 0.3s ease-out forwards;
+}

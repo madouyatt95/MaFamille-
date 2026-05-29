@@ -172,6 +172,17 @@ function App() {
     return safeGetLocalStorage('mf_alerts', demoAlerts);
   });
 
+  const [activeToast, setActiveToast] = useState<{ title: string; description: string } | null>(null);
+
+  useEffect(() => {
+    if (activeToast) {
+      const timer = setTimeout(() => {
+        setActiveToast(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeToast]);
+
   const [chatGroups, setChatGroups] = useState(() => {
     return safeGetLocalStorage('mf_chat_groups', demoChatGroups);
   });
@@ -1534,8 +1545,12 @@ function App() {
       });
 
       if (payload && payload.eventType === 'INSERT') {
-        const isCreatedByMe = payload.new.id.includes(`-by-${activeMemberIdRef.current}`);
+        const isCreatedByMe = payload.new.id && payload.new.id.includes(`-by-${activeMemberIdRef.current}`);
         if (!isCreatedByMe) {
+          setActiveToast({
+            title: payload.new.title || 'Nouvelle notification',
+            description: payload.new.description || ''
+          });
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification(payload.new.title, {
               body: payload.new.description,
@@ -2977,6 +2992,23 @@ function App() {
     alert('Système réinitialisé avec succès !');
   };
 
+  const handleLeaveFoyer = async () => {
+    if (!foyer) return;
+    if (confirm("⚠️ Attention : Êtes-vous sûr de vouloir quitter ce foyer ? Vous n'aurez plus accès aux données partagées de cette famille.")) {
+      try {
+        await foyerService.leaveFoyer(foyer.id);
+        setFoyer(null);
+        setMyMemberProfile(null);
+        setActiveMemberId('');
+        setOnboardingActive(true);
+        localStorage.removeItem('mf_cloud_foyer_id');
+        alert("🎉 Vous avez quitté le foyer avec succès. Vous pouvez maintenant en créer un autre ou en rejoindre un existant !");
+      } catch (err: any) {
+        alert(`Erreur lors du départ du foyer : ${err.message || err}`);
+      }
+    }
+  };
+
   const handleLogout = async () => {
     const client = getSupabaseClient();
     if (!client) return;
@@ -3274,6 +3306,7 @@ function App() {
             onOpenPaywall={() => setPaywallOpen(true)}
             user={user}
             onLogout={handleLogout}
+            onLeaveFoyer={handleLeaveFoyer}
             foyer={foyer}
             myMemberProfile={myMemberProfile}
             onRefreshFoyer={async () => {
@@ -4220,6 +4253,25 @@ function App() {
               </button>
             </div>
           </div>
+        </div>
+       )}
+
+      {/* Real-time In-App Notification Toast */}
+      {activeToast && (
+        <div className="fixed top-6 left-4 right-4 md:left-auto md:right-6 md:w-96 z-[9999] p-4 rounded-2xl bg-slate-950/95 border border-[#6C5CFF]/30 shadow-2xl animate-slide-down flex items-start space-x-3 pointer-events-auto">
+          <div className="p-2 rounded-xl bg-[#6C5CFF]/20 text-[#6C5CFF]">
+            <span className="text-xl">🔔</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h4 className="text-xs font-black text-white uppercase tracking-wider">{activeToast.title}</h4>
+            <p className="text-[11px] text-white/70 mt-0.5 leading-relaxed">{activeToast.description}</p>
+          </div>
+          <button 
+            onClick={() => setActiveToast(null)}
+            className="text-white/40 hover:text-white text-xs cursor-pointer p-1"
+          >
+            ✕
+          </button>
         </div>
       )}
 

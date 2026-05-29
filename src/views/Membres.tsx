@@ -348,13 +348,24 @@ export const Membres: React.FC<MembresProps> = ({
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
-                              if (confirm(`Approuver l'adhésion de ${member.name} ?`)) {
-                                try {
-                                  await foyerService.approveMember(member.id);
-                                  setMembers(prev => prev.map(m => m.id === member.id ? { ...m, approved: true } : m));
-                                } catch (err: any) {
-                                  alert(`Erreur d'approbation : ${err.message}`);
-                                }
+                              const roleInput = prompt(
+                                `Approuver la demande de ${member.name}.\n\nQuel rôle souhaitez-vous lui attribuer ?\n- parent : Droits d'écriture complets\n- child : Enfant (droits restreints)\n- guest : Invité (lecture seule)\n- admin : Co-administrateur`,
+                                member.role || 'child'
+                              );
+                              if (roleInput === null) return; // Annulé
+                              
+                              const finalRole = roleInput.trim().toLowerCase() as any;
+                              if (!['admin', 'parent', 'child', 'guest'].includes(finalRole)) {
+                                alert("Rôle invalide. Les rôles valides sont : admin, parent, child, guest");
+                                return;
+                              }
+
+                              try {
+                                await foyerService.approveMember(member.id, finalRole);
+                                setMembers(prev => prev.map(m => m.id === member.id ? { ...m, approved: true, role: finalRole } : m));
+                                alert(`🎉 L'adhésion de ${member.name} a été approuvée avec le rôle : ${finalRole} !`);
+                              } catch (err: any) {
+                                alert(`Erreur d'approbation : ${err.message}`);
                               }
                             }}
                             className="p-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 transition-all cursor-pointer flex items-center justify-center"

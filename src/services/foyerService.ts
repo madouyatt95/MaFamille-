@@ -509,14 +509,19 @@ export const foyerService = {
   /**
    * Approuver la demande d'adhésion d'un membre
    */
-  async approveMember(memberId: string): Promise<void> {
+  async approveMember(memberId: string, role?: 'admin' | 'parent' | 'child' | 'guest'): Promise<void> {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
-    console.log('[MaFamille+ DB] approveMember -> memberId:', memberId);
+    console.log('[MaFamille+ DB] approveMember -> memberId:', memberId, 'role:', role);
+    const updates: any = { approved: true };
+    if (role) {
+      updates.role = role;
+    }
+
     const { error } = await supabase
       .from('foyer_members')
-      .update({ approved: true })
+      .update(updates)
       .eq('id', memberId);
 
     if (error) {
