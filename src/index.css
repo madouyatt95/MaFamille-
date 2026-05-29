@@ -298,3 +298,10 @@ body {
   background-color: var(--family-bg) !important;
 }
 
+/* iOS Safe Area Utilities */
+.ios-safe-container {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.ios-safe-bottom-nav {
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+}

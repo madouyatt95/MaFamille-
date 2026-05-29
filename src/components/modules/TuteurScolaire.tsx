@@ -882,37 +882,6 @@ Exemple de format valide :
                       'bg-gradient-to-b from-emerald-500 to-green-500'
                     }`} />
 
-                    {/* Parent Action Buttons (Edit / Delete) - Always visible for touch screen support */}
-                    {isParent && (
-                      <div className="absolute top-4 right-4 flex items-center space-x-1.5 z-20">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingTaskId(task.id);
-                            setEditTaskTitle(task.title);
-                            setEditTaskSubject(task.subject);
-                            setEditTaskDueDate(task.dueDate);
-                            setEditTaskDifficulty(task.difficulty);
-                            setEditTaskAssigneeId(task.assignedMemberId);
-                          }}
-                          className="p-2 bg-white/5 hover:bg-[#6C5CFF]/20 border border-white/10 hover:border-[#6C5CFF]/30 text-white hover:text-[#9E94FF] rounded-xl transition duration-200 active:scale-95 cursor-pointer flex items-center justify-center shadow-sm"
-                          title="Modifier le devoir"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteHomework(task.id);
-                          }}
-                          className="p-2 bg-[#FF3B30]/10 hover:bg-[#FF3B30]/20 border border-[#FF3B30]/20 text-[#FF3B30] rounded-xl transition duration-200 active:scale-95 cursor-pointer flex items-center justify-center shadow-sm"
-                          title="Supprimer le devoir"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="flex items-center space-x-2">
@@ -923,7 +892,7 @@ Exemple de format valide :
                             {diffLabel}
                           </span>
                         </div>
-                        <h3 className="text-sm font-extrabold text-white mt-3.5 leading-relaxed mr-20">{task.title}</h3>
+                        <h3 className="text-sm font-extrabold text-white mt-3.5 leading-relaxed mr-2">{task.title}</h3>
                         <p className="text-[10px] text-white/40 mt-1">Par: <span className="font-bold text-[#6C5CFF]">{getChildName(task.assignedMemberId)}</span> • Limite: <span className="text-[#FFB020] font-bold">{task.dueDate}</span></p>
                       </div>
                       
@@ -944,6 +913,36 @@ Exemple de format valide :
                           {isCompletedTask ? 'Validé' : isPending ? 'En validation' : 'À faire'}
                         </span>
                       </div>
+
+                      {isParent && (
+                        <div className="flex items-center space-x-1.5 z-20">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingTaskId(task.id);
+                              setEditTaskTitle(task.title);
+                              setEditTaskSubject(task.subject);
+                              setEditTaskDueDate(task.dueDate);
+                              setEditTaskDifficulty(task.difficulty);
+                              setEditTaskAssigneeId(task.assignedMemberId);
+                            }}
+                            className="p-1.5 bg-white/5 hover:bg-[#6C5CFF]/20 border border-white/10 hover:border-[#6C5CFF]/30 text-white hover:text-[#9E94FF] rounded-lg transition duration-200 active:scale-95 cursor-pointer flex items-center justify-center shadow-sm"
+                            title="Modifier le devoir"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteHomework(task.id);
+                            }}
+                            className="p-1.5 bg-[#FF3B30]/10 hover:bg-[#FF3B30]/20 border border-[#FF3B30]/20 text-[#FF3B30] rounded-lg transition duration-200 active:scale-95 cursor-pointer flex items-center justify-center shadow-sm"
+                            title="Supprimer le devoir"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
 
                       {!isParent && isNewTask && (
                         <button

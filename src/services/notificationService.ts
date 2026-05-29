@@ -1,6 +1,8 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { getSupabaseClient } from '../utils/supabase';
+import { Capacitor } from '@capacitor/core';
+import { PushNotifications } from '@capacitor/push-notifications';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDZE7aW6Yv9XGadcRxwXWD75tI_KDhh84c",
@@ -22,9 +24,12 @@ const isFirebaseConfigured = !!(
 
 export const notificationService = {
   /**
-   * Vérifie si le navigateur supporte les notifications et FCM
+   * Vérifie si le navigateur supporte les notifications et FCM, ou si on tourne sous Capacitor natif
    */
   isSupported(): boolean {
+    if (Capacitor.isNativePlatform()) {
+      return true; // Capacitor gère nativement le push
+    }
     return (
       typeof window !== 'undefined' &&
       'serviceWorker' in navigator &&
@@ -34,6 +39,7 @@ export const notificationService = {
   },
 
   async registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+    if (Capacitor.isNativePlatform()) return null; // Pas de service worker nécessaire sur le natif
     if (!this.isSupported()) return null;
 
     try {
@@ -48,21 +54,97 @@ export const notificationService = {
   },
 
   /**
-   * Demander la permission et enregistrer le token FCM pour le membre connecté
+   * Demander la permission et enregistrer le token FCM/APNs pour le membre connecté
    */
   async initializeFCM(memberId: string, onMessageReceived?: (payload: any) => void): Promise<string | null> {
+    if (!this.isSupported()) {
+      console.warn('[FCM] Les notifications push ne sont pas supportées sur cette plateforme/navigateur.');
+      return null;
+    }
+
+    // --- SUPPORT NATION NATIVE CAPACITOR (iOS / Android) ---
+    if (Capacitor.isNativePlatform()) {
+      return new Promise<string | null>(async (resolve) => {
+        try {
+          // Supprimer les anciens écouteurs pour éviter les doublons
+          try {
+            await PushNotifications.removeAllListeners();
+          } catch (e) {
+            console.warn('[FCM Native] Impossible de supprimer les écouteurs précédents:', e);
+          }
+
+          // Écouteur de succès d'enregistrement du Token
+          await PushNotifications.addListener('registration', async (token) => {
+            console.log('[FCM Native] Token d\'enregistrement natif obtenu:', token.value);
+            
+            // Enregistrer le token en base de données Supabase
+            const supabase = getSupabaseClient();
+            if (supabase) {
+              const { error } = await supabase
+                .from('foyer_members')
+                .update({ fcm_token: token.value })
+                .eq('id', memberId);
+
+              if (error) {
+                console.error('[FCM Native] Impossible de sauvegarder le token FCM dans Supabase :', error.message);
+              } else {
+                console.log('[FCM Native] Token synchronisé dans Supabase pour le membre :', memberId);
+              }
+            }
+            
+            localStorage.setItem('mf_fcm_active', 'true');
+            localStorage.setItem('mf_fcm_token', token.value);
+            resolve(token.value);
+          });
+
+          // Écouteur d'erreur d'enregistrement
+          await PushNotifications.addListener('registrationError', (err) => {
+            console.error('[FCM Native] Erreur lors de l\'enregistrement push natif:', err);
+            resolve(null);
+          });
+
+          // Écouteur de réception d'une notification push en premier plan (Foreground)
+          await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+            console.log('[FCM Native] Notification reçue au premier plan:', notification);
+            if (onMessageReceived) {
+              onMessageReceived({
+                notification: {
+                  title: notification.title,
+                  body: notification.body
+                },
+                data: notification.data
+              });
+            }
+          });
+
+          // Demande de permission
+          let permStatus = await PushNotifications.checkPermissions();
+          if (permStatus.receive === 'prompt') {
+            permStatus = await PushNotifications.requestPermissions();
+          }
+          if (permStatus.receive !== 'granted') {
+            console.warn('[FCM Native] Permission de notifications refusée par l\'utilisateur.');
+            resolve(null);
+            return;
+          }
+
+          // Déclencher l'enregistrement auprès d'APNs/FCM
+          await PushNotifications.register();
+        } catch (err) {
+          console.error('[FCM Native] Erreur lors de l\'initialisation native:', err);
+          resolve(null);
+        }
+      });
+    }
+
+    // --- SUPPORT WEB PWA STANDARD (FCM Web SDK) ---
     if (!isFirebaseConfigured) {
       console.warn('[FCM] Firebase n\'est pas configuré dans les variables d\'environnement.');
       return null;
     }
 
-    if (!this.isSupported()) {
-      console.warn('[FCM] Les notifications push ne sont pas supportées par ce navigateur.');
-      return null;
-    }
-
     try {
-      // 1. Demander la permission système si nécessaire
+      // 1. Demander la permission système
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
         console.warn('[FCM] Permission de notifications refusée par l\'utilisateur.');
@@ -81,7 +163,6 @@ export const notificationService = {
       }
 
       // 4. Récupérer le token de notification de l'appareil
-      // Si la clé VAPID publique n'est pas renseignée dans le .env, FCM utilisera la configuration par défaut
       const token = await getToken(messaging, {
         vapidKey: firebaseConfig.vapidKey || undefined,
         serviceWorkerRegistration: swRegistration
@@ -105,7 +186,6 @@ export const notificationService = {
           }
         }
         
-        // Mémoriser localement que FCM est actif et stocker le token
         localStorage.setItem('mf_fcm_active', 'true');
         localStorage.setItem('mf_fcm_token', token);
 
@@ -134,6 +214,15 @@ export const notificationService = {
   async disableNotifications(memberId: string): Promise<void> {
     localStorage.setItem('mf_fcm_active', 'false');
     localStorage.removeItem('mf_fcm_token');
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await PushNotifications.removeAllListeners();
+      } catch (e) {
+        console.warn('[FCM Native] Erreur lors du nettoyage des écouteurs native:', e);
+      }
+    }
+
     const supabase = getSupabaseClient();
     if (supabase) {
       const { error } = await supabase

@@ -22,7 +22,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     : (activeMemberId === '3' || activeMemberId === '4');
   
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 pt-2 md:px-8 max-w-7xl mx-auto pointer-events-none">
+    <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 pt-2 md:px-8 max-w-7xl mx-auto pointer-events-none ios-safe-bottom-nav">
       <div className="glass-panel rounded-t-[32px] rounded-b-[24px] pointer-events-auto shadow-[0_-10px_30px_rgba(0,0,0,0.5)] border-t border-white/10 px-6 py-2 flex items-center justify-between">
         
         {/* Accueil */}

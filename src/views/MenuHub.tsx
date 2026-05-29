@@ -233,9 +233,11 @@ interface MenuHubProps {
   onUpdateMemberProfile?: (memberId: string, updates: any) => Promise<void>;
   initialChatGroupId?: string;
   onTriggerSos?: () => void;
+  foyer?: any;
 }
 
 export const MenuHub: React.FC<MenuHubProps> = ({
+  foyer,
   documents,
   setDocuments,
   members,
@@ -625,7 +627,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
   const handleVerifyPin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === '0000' || pinInput === '1234') {
+    const savedPin = foyer?.parentPin || localStorage.getItem('mf_parent_pin') || '0000';
+    if (pinInput === savedPin || pinInput === '0000' || pinInput === '1234') {
       setAuthorizedModules(prev => [...prev, activeModule]);
       setPinInput('');
       setPinError(false);

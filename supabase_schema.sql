@@ -449,7 +449,7 @@ CREATE POLICY "members_select" ON public.foyer_members FOR SELECT
 CREATE POLICY "members_insert" ON public.foyer_members FOR INSERT
     WITH CHECK (user_id = auth.uid() OR public.is_foyer_admin_or_parent(foyer_id));
 CREATE POLICY "members_delete" ON public.foyer_members FOR DELETE
-    USING (user_id = auth.uid() OR public.is_foyer_admin(foyer_id));
+    USING (user_id = auth.uid() OR public.is_foyer_admin_or_parent(foyer_id));
 CREATE POLICY "members_update" ON public.foyer_members FOR UPDATE
     USING (user_id = auth.uid() OR public.is_foyer_admin_or_parent(foyer_id));
 
@@ -783,6 +783,7 @@ BEGIN
         DELETE FROM public.alerts WHERE id = NEW.id;
     ELSIF (TG_OP = 'DELETE') THEN
         DELETE FROM public.alerts WHERE id = OLD.id;
+        RETURN OLD;
     END IF;
     RETURN NEW;
 END;
