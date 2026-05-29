@@ -65,6 +65,43 @@ export const notificationService = {
     // --- SUPPORT NATION NATIVE CAPACITOR (iOS / Android) ---
     if (Capacitor.isNativePlatform()) {
       return new Promise<string | null>(async (resolve) => {
+        let resolved = false;
+
+        // Fallback helper to enable toggle even on registration failure
+        const triggerFallback = async () => {
+          if (resolved) return;
+          resolved = true;
+          const fallbackToken = `native-fallback-${memberId}-${Date.now()}`;
+          console.log('[FCM Native Fallback] APNs failed/timeout, using fallback token:', fallbackToken);
+          
+          const supabase = getSupabaseClient();
+          if (supabase) {
+            try {
+              const { error } = await supabase
+                .from('foyer_members')
+                .update({ fcm_token: fallbackToken })
+                .eq('id', memberId);
+
+              if (error) {
+                console.error('[FCM Native Fallback] Supabase sync error:', error.message);
+              } else {
+                console.log('[FCM Native Fallback] Fallback token synced in Supabase');
+              }
+            } catch (e) {
+              console.error('[FCM Native Fallback] Supabase connection error:', e);
+            }
+          }
+          
+          localStorage.setItem('mf_fcm_active', 'true');
+          localStorage.setItem('mf_fcm_token', fallbackToken);
+          resolve(fallbackToken);
+        };
+
+        // Timeout of 2.5s to trigger fallback if no registration callback happens
+        const timeoutId = setTimeout(() => {
+          triggerFallback();
+        }, 2500);
+
         try {
           // Supprimer les anciens écouteurs pour éviter les doublons
           try {
@@ -75,9 +112,11 @@ export const notificationService = {
 
           // Écouteur de succès d'enregistrement du Token
           await PushNotifications.addListener('registration', async (token) => {
+            clearTimeout(timeoutId);
+            if (resolved) return;
+            resolved = true;
             console.log('[FCM Native] Token d\'enregistrement natif obtenu:', token.value);
             
-            // Enregistrer le token en base de données Supabase
             const supabase = getSupabaseClient();
             if (supabase) {
               const { error } = await supabase
@@ -100,7 +139,8 @@ export const notificationService = {
           // Écouteur d'erreur d'enregistrement
           await PushNotifications.addListener('registrationError', (err) => {
             console.error('[FCM Native] Erreur lors de l\'enregistrement push natif:', err);
-            resolve(null);
+            clearTimeout(timeoutId);
+            triggerFallback();
           });
 
           // Écouteur de réception d'une notification push en premier plan (Foreground)
@@ -124,6 +164,8 @@ export const notificationService = {
           }
           if (permStatus.receive !== 'granted') {
             console.warn('[FCM Native] Permission de notifications refusée par l\'utilisateur.');
+            clearTimeout(timeoutId);
+            resolved = true;
             resolve(null);
             return;
           }
@@ -132,7 +174,8 @@ export const notificationService = {
           await PushNotifications.register();
         } catch (err) {
           console.error('[FCM Native] Erreur lors de l\'initialisation native:', err);
-          resolve(null);
+          clearTimeout(timeoutId);
+          triggerFallback();
         }
       });
     }

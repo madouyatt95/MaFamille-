@@ -13,7 +13,8 @@ import {
   Lock,
   Copy,
   Check,
-  Camera
+  Camera,
+  LogOut
 } from 'lucide-react';
 import { foyerService } from '../services/foyerService';
 import type { Member, Foyer, FoyerMember, MemberRole } from '../types';
@@ -29,6 +30,8 @@ interface MembresProps {
   myMemberProfile?: FoyerMember | null;
   setActiveTab?: (tab: string) => void;
   setActiveModule?: (module: string) => void;
+  onLogout?: () => void;
+  onLeaveFoyer?: () => Promise<void> | void;
 }
 
 export const Membres: React.FC<MembresProps> = ({ 
@@ -41,11 +44,20 @@ export const Membres: React.FC<MembresProps> = ({
   foyer,
   myMemberProfile,
   setActiveTab,
-  setActiveModule
+  setActiveModule,
+  onLogout,
+  onLeaveFoyer
 }) => {
   // Invitation réelle & Ajout unifié
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [addingTab, setAddingTab] = useState<'create' | 'invite'>('create');
+
+  // No-foyer state variables
+  const [noFoyerAction, setNoFoyerAction] = useState<'join' | 'create'>('join');
+  const [foyerNameInput, setFoyerNameInput] = useState('');
+  const [displayNameInput, setDisplayNameInput] = useState(myMemberProfile?.displayName || '');
+  const [inviteCodeInput, setInviteCodeInput] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
   
   // Create form states
   const [addName, setAddName] = useState('');
@@ -283,6 +295,42 @@ export const Membres: React.FC<MembresProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const handleJoinFoyerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteCodeInput.trim() || !displayNameInput.trim()) {
+      alert("Veuillez remplir tous les champs.");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const data = await foyerService.joinFoyer(inviteCodeInput.trim(), displayNameInput.trim(), 'child');
+      alert(`🎉 Demande envoyée ! Le Chef de famille du foyer "${data.foyer_name}" doit maintenant valider votre demande.`);
+      window.location.reload();
+    } catch (err: any) {
+      alert(`Erreur : ${err.message || err}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCreateFoyerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!foyerNameInput.trim() || !displayNameInput.trim()) {
+      alert("Veuillez remplir tous les champs.");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await foyerService.createFoyer(foyerNameInput.trim(), displayNameInput.trim(), false);
+      alert("🎉 Foyer créé avec succès !");
+      window.location.reload();
+    } catch (err: any) {
+      alert(`Erreur : ${err.message || err}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const pendingMembers = members.filter(m => m.approved === false);
   const approvedMembers = members.filter(m => m.approved !== false);
 
@@ -311,8 +359,131 @@ export const Membres: React.FC<MembresProps> = ({
         )}
       </div>
 
-      {/* Grid view containing List and Dossier side-by-side on larger screens */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+      {!foyer ? (
+        <div className="max-w-md mx-auto glass-panel rounded-[32px] border border-white/10 p-6 space-y-6 animate-scale-up">
+          <div className="text-center space-y-2">
+            <span className="text-3xl">🏡</span>
+            <h2 className="text-lg font-extrabold text-white">Rejoindre ou Créer une Famille</h2>
+            <p className="text-xs text-white/50">Vous n'êtes actuellement associé à aucun foyer.</p>
+          </div>
+
+          {/* Tab Switcher */}
+          <div className="flex p-1 rounded-2xl bg-black/20 border border-white/5">
+            <button
+              onClick={() => setNoFoyerAction('join')}
+              className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                noFoyerAction === 'join'
+                  ? 'bg-[#6C5CFF] text-white shadow-md'
+                  : 'text-white/40 hover:text-white/60'
+              }`}
+            >
+              Rejoindre un foyer ✉️
+            </button>
+            <button
+              onClick={() => setNoFoyerAction('create')}
+              className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                noFoyerAction === 'create'
+                  ? 'bg-[#6C5CFF] text-white shadow-md'
+                  : 'text-white/40 hover:text-white/60'
+              }`}
+            >
+              Créer un foyer 🏡
+            </button>
+          </div>
+
+          {noFoyerAction === 'join' ? (
+            <form onSubmit={handleJoinFoyerSubmit} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                  Code d'invitation (6 caractères)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: ABCDEF"
+                  value={inviteCodeInput}
+                  onChange={(e) => setInviteCodeInput(e.target.value.toUpperCase())}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF] font-mono text-center uppercase"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                  Votre nom d'affichage dans la famille
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Papa, Marie..."
+                  value={displayNameInput}
+                  onChange={(e) => setDisplayNameInput(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={actionLoading}
+                className="w-full py-3.5 rounded-xl bg-[#6C5CFF] text-white text-xs font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-md shadow-[#6C5CFF]/15"
+              >
+                {actionLoading ? 'Envoi...' : 'Envoyer la demande d\'adhésion ➔'}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleCreateFoyerSubmit} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                  Nom de votre famille / foyer
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Famille Martin"
+                  value={foyerNameInput}
+                  onChange={(e) => setFoyerNameInput(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                  Votre nom d'affichage (Chef de famille)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Papa, Jean..."
+                  value={displayNameInput}
+                  onChange={(e) => setDisplayNameInput(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={actionLoading}
+                className="w-full py-3.5 rounded-xl bg-[#00D26A] text-white text-xs font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-md shadow-[#00D26A]/15"
+              >
+                {actionLoading ? 'Création...' : 'Créer le foyer et devenir Chef ➔'}
+              </button>
+            </form>
+          )}
+
+          {/* Standard Log Out Button when No Foyer */}
+          {onLogout && (
+            <div className="pt-4 border-t border-white/5">
+              <button
+                onClick={onLogout}
+                className="w-full py-3 px-4 rounded-[22px] bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/15 border border-[#FF4D6D]/20 text-[#FF4D6D] text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-2"
+              >
+                <LogOut className="w-4 h-4 text-[#FF4D6D]" />
+                <span>Se déconnecter de mon compte</span>
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
         
         {/* Members List */}
         <div className="space-y-3">
@@ -447,6 +618,33 @@ export const Membres: React.FC<MembresProps> = ({
               <ChevronRight className="w-5 h-5 text-white/30" />
             </button>
           )}
+
+          {/* Foyer Settings Actions */}
+          <div className="pt-6 border-t border-white/5 space-y-3">
+            <h4 className="text-[10px] font-bold text-white/30 uppercase tracking-widest block font-sans">
+              Gestion du Foyer & Connexion
+            </h4>
+            
+            {onLeaveFoyer && (
+              <button
+                onClick={onLeaveFoyer}
+                className="w-full py-3.5 px-4 rounded-[22px] bg-yellow-500/10 hover:bg-yellow-500/15 border border-yellow-500/20 text-yellow-500 text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-2"
+              >
+                <LogOut className="w-4 h-4 text-yellow-500" />
+                <span>Quitter ce Foyer / Rejoindre une autre famille</span>
+              </button>
+            )}
+
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="w-full py-3.5 px-4 rounded-[22px] bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/15 border border-[#FF4D6D]/20 text-[#FF4D6D] text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-2"
+              >
+                <LogOut className="w-4 h-4 text-[#FF4D6D]" />
+                <span>Se déconnecter de mon compte</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Member Dossier Details Sheet */}
@@ -1236,9 +1434,9 @@ export const Membres: React.FC<MembresProps> = ({
             </div>
           )}
         </div>
+      </div>
+      )}
 
-    </div>
-      {/* Old modal removed */}
     </div>
   );
 };

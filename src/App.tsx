@@ -2992,6 +2992,22 @@ function App() {
     alert('Système réinitialisé avec succès !');
   };
 
+  const handleCancelJoinRequest = async () => {
+    if (!foyer) {
+      await handleLogout();
+      return;
+    }
+    if (confirm("Voulez-vous annuler votre demande d'adhésion en attente et vous déconnecter ?")) {
+      try {
+        await foyerService.leaveFoyer(foyer.id);
+        alert("Demande d'adhésion annulée.");
+      } catch (err) {
+        console.error("Error leaving foyer:", err);
+      }
+      await handleLogout();
+    }
+  };
+
   const handleLeaveFoyer = async () => {
     if (!foyer) return;
     if (confirm("⚠️ Attention : Êtes-vous sûr de vouloir quitter ce foyer ? Vous n'aurez plus accès aux données partagées de cette famille.")) {
@@ -3290,6 +3306,8 @@ function App() {
             myMemberProfile={myMemberProfile}
             setActiveTab={setActiveTab}
             setActiveModule={setActiveModule}
+            onLogout={handleLogout}
+            onLeaveFoyer={handleLeaveFoyer}
           />
         );
       }
@@ -3305,8 +3323,6 @@ function App() {
             onClearAllFoyerData={handleClearAllFoyerData}
             onOpenPaywall={() => setPaywallOpen(true)}
             user={user}
-            onLogout={handleLogout}
-            onLeaveFoyer={handleLeaveFoyer}
             foyer={foyer}
             myMemberProfile={myMemberProfile}
             onRefreshFoyer={async () => {
@@ -3483,7 +3499,7 @@ function App() {
           </div>
 
           <button
-            onClick={handleLogout}
+            onClick={handleCancelJoinRequest}
             className="w-full py-3 rounded-xl bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 border border-[#FF4D6D]/20 text-[#FF4D6D] text-xs font-bold transition-all cursor-pointer"
           >
             Se déconnecter / Annuler la demande

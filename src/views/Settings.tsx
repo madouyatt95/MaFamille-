@@ -6,7 +6,6 @@ import {
   Trash2, 
   RefreshCw, 
   Lock,
-  LogOut,
   Sparkles,
   Users,
   Camera,
@@ -29,7 +28,6 @@ interface SettingsProps {
   onClearAllFoyerData?: () => Promise<void> | void;
   onOpenPaywall: () => void;
   user: any;
-  onLogout: () => void;
   foyer?: Foyer | null;
   myMemberProfile?: FoyerMember | null;
   onRefreshFoyer?: () => void;
@@ -40,7 +38,6 @@ interface SettingsProps {
   setActiveTab?: (tab: string) => void;
   setActiveModule?: (moduleName: string) => void;
   onOpenOnboarding?: () => void;
-  onLeaveFoyer?: () => Promise<void> | void;
 }
 
 export const Settings: React.FC<SettingsProps> = ({
@@ -51,7 +48,6 @@ export const Settings: React.FC<SettingsProps> = ({
   onClearAllFoyerData,
   onOpenPaywall: _onOpenPaywall,
   user,
-  onLogout,
   foyer,
   myMemberProfile,
   onRefreshFoyer,
@@ -61,8 +57,7 @@ export const Settings: React.FC<SettingsProps> = ({
   activeMemberId,
   setActiveTab,
   setActiveModule,
-  onOpenOnboarding,
-  onLeaveFoyer
+  onOpenOnboarding
 }) => {
   const [savingBackup, setSavingBackup] = useState(false);
 
@@ -678,26 +673,7 @@ export const Settings: React.FC<SettingsProps> = ({
             </div>
           </div>
 
-          <div className="pt-2"></div>
 
-          {/* Leave household button */}
-          {onLeaveFoyer && (
-            <button
-              onClick={onLeaveFoyer}
-              className="w-full py-3 rounded-xl bg-yellow-600/10 hover:bg-yellow-600/20 border border-yellow-600/20 text-yellow-400 font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer mb-2"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Quitter ce Foyer / Rejoindre une autre famille</span>
-            </button>
-          )}
-
-          <button
-            onClick={onLogout}
-            className="w-full py-3 rounded-xl bg-white/5 hover:bg-[#FF4D6D]/15 border border-white/10 hover:border-[#FF4D6D]/20 text-white/70 hover:text-[#FF4D6D] font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Déconnecter mon Foyer</span>
-          </button>
 
         </div>
       ) : (
