@@ -635,7 +635,11 @@ function App() {
               time: "À l'instant",
               type: (payload.data?.type || 'info') as any,
               read: false,
-              module: payload.data?.module || 'other'
+              module: payload.data?.module || 'other',
+              senderUserId: payload.data?.senderUserId || payload.data?.sender_user_id,
+              senderMemberId: payload.data?.senderMemberId || payload.data?.sender_member_id,
+              senderName: payload.data?.senderName || payload.data?.sender_name,
+              senderAvatar: payload.data?.senderAvatar || payload.data?.sender_avatar
             };
             setAlerts(prev => [newAlert, ...prev]);
             saveAlertToCloud(newAlert);
@@ -3744,7 +3748,11 @@ function App() {
                           time: "À l'instant",
                           type: (payload.data?.type || 'info') as any,
                           read: false,
-                          module: payload.data?.module || 'other'
+                          module: payload.data?.module || 'other',
+                          senderUserId: payload.data?.senderUserId || payload.data?.sender_user_id,
+                          senderMemberId: payload.data?.senderMemberId || payload.data?.sender_member_id,
+                          senderName: payload.data?.senderName || payload.data?.sender_name,
+                          senderAvatar: payload.data?.senderAvatar || payload.data?.sender_avatar
                         };
                         setAlerts(prev => [newAlert, ...prev]);
                         saveAlertToCloud(newAlert);
