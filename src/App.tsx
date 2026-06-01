@@ -149,7 +149,7 @@ function App() {
   const hadCloudFoyer = !!localStorage.getItem('mf_cloud_foyer_id');
 
   const [members, setMembers] = useState<Member[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_members', []);
     return safeGetLocalStorage('mf_members', demoMembers);
   });
 
@@ -158,32 +158,32 @@ function App() {
   });
 
   const [events, setEvents] = useState<FamilyEvent[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_events', []);
     return safeGetLocalStorage('mf_events', demoEvents);
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_transactions', []);
     return safeGetLocalStorage('mf_transactions', demoTransactions);
   });
 
   const [dishes, setDishes] = useState<Dish[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_dishes', []);
     return safeGetLocalStorage('mf_dishes', demoDishes);
   });
 
   const [documents, setDocuments] = useState<DocumentFile[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_documents', []);
     return safeGetLocalStorage('mf_documents', demoDocuments);
   });
 
   const [tasks, setTasks] = useState<ChoreTask[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_tasks', []);
     return safeGetLocalStorage('mf_tasks', demoTasks);
   });
 
   const [groceries, setGroceries] = useState<GroceryItem[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_groceries', []);
     return safeGetLocalStorage('mf_groceries', demoGroceries);
   });
 
@@ -191,23 +191,23 @@ function App() {
   const [initialChatGroupId, setInitialChatGroupId] = useState<string | undefined>(undefined);
 
   const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_vehicles', []);
     return safeGetLocalStorage('mf_vehicles', demoVehicles);
   });
   const [maintenance, setMaintenance] = useState<HomeMaintenance[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_maintenance', []);
     return safeGetLocalStorage('mf_maintenance', demoMaintenance);
   });
   const [trips, setTrips] = useState<Trip[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_trips', []);
     return safeGetLocalStorage('mf_trips', demoTrips);
   });
   const [pets, setPets] = useState<PetRecord[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_pets', []);
     return safeGetLocalStorage('mf_pets', demoPets);
   });
   const [pocketMoney, setPocketMoney] = useState<{ id: string; name: string; balance: number; points: number; avatar: string; }[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_pocket_money', []);
     return safeGetLocalStorage('mf_pocket_money', [
       { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150' },
       { id: '4', name: 'Awa', balance: 22.50, points: 225, avatar: 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150' }
@@ -215,12 +215,12 @@ function App() {
   });
 
   const [savingGoals, setSavingGoals] = useState<SavingGoal[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_saving_goals', []);
     return safeGetLocalStorage('mf_saving_goals', demoSavingGoals);
   });
 
   const [alerts, setAlerts] = useState<NotificationAlert[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_alerts', []);
     return safeGetLocalStorage('mf_alerts', demoAlerts);
   });
 
@@ -252,7 +252,7 @@ function App() {
   });
 
   const [justificatifPacks, setJustificatifPacks] = useState<JustificatifPack[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_packs', []);
     return safeGetLocalStorage('mf_packs', demoPacks);
   });
 
@@ -281,17 +281,17 @@ function App() {
 
   // New modules states
   const [memories, setMemories] = useState<MemoryLog[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_memories', []);
     return safeGetLocalStorage('mf_memories', demoMemories);
   });
 
   const [votes, setVotes] = useState<FamilyVote[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_votes', []);
     return safeGetLocalStorage('mf_votes', demoFamilyVotes);
   });
 
   const [schoolTasks, setSchoolTasks] = useState<SchoolTask[]>(() => {
-    if (hadCloudFoyer) return [];
+    if (hadCloudFoyer) return safeGetLocalStorage('mf_school_tasks', []);
     return safeGetLocalStorage('mf_school_tasks', demoSchoolTasks);
   });
 
@@ -955,9 +955,13 @@ function App() {
       }
       if (event === 'PASSWORD_RECOVERY') {
         setIsRecoveringPassword(true);
-      }
-      if (event !== 'TOKEN_REFRESHED' && event !== 'PASSWORD_RECOVERY') {
-        checkUserFoyerSession(currentUser);
+      } else {
+        const hasLoadedFoyer = !!foyerRef.current;
+        if (currentUser && (!hasLoadedFoyer || event !== 'TOKEN_REFRESHED')) {
+          checkUserFoyerSession(currentUser);
+        } else if (!currentUser) {
+          checkUserFoyerSession(null);
+        }
       }
     });
 
