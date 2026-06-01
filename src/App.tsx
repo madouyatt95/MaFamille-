@@ -1949,25 +1949,39 @@ function App() {
 
     // Check if voice command is about a financial transaction/expense first (prioritize money terms)
     const hasEuro = promptLower.includes('euro') || promptLower.includes('€');
-    const isFinancial = hasEuro || promptLower.includes('dépense') || promptLower.includes('depense') || promptLower.includes('revenu') || promptLower.includes('salaire');
+    const financialKeywords = [
+      'dépense', 'depense', 'revenu', 'salaire', 'budget', 'payé', 'paye', 'coûte', 'coute', 'facture', 'loyer',
+      'essence', 'carburant', 'péage', 'peage', 'hébergement', 'hebergement', 'remboursement'
+    ];
+    const categoryKeywords = [
+      'transport', 'alimentation', 'logement', 'santé', 'sante', 'éducation', 'education', 'loisir', 'loisirs'
+    ];
+    const hasNumber = /(\d+[\.,]?\d*)/.test(promptLower);
+    const isFinancial = hasEuro || (hasNumber && (
+      financialKeywords.some(kw => promptLower.includes(kw)) ||
+      categoryKeywords.some(kw => promptLower.includes(kw))
+    ));
 
     if (isFinancial && (promptLower.includes('ajoute') || promptLower.includes('ajouter') || promptLower.includes('enregistre') || promptLower.includes('enregistrer') || promptLower.includes('noter') || promptLower.includes('note') || promptLower.includes('mets') || promptLower.includes('mettre') || promptLower.includes('payé') || promptLower.includes('paye'))) {
-      const amountRegex = /(\d+[\.,]?\d*)\s*(?:euros?|€)/i;
-      const amountMatch = promptLower.match(amountRegex);
+      const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€)/i;
+      let amountMatch = promptLower.match(amountRegexWithEuro);
+      if (!amountMatch) {
+        amountMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+      }
       
       if (amountMatch) {
         const amountVal = parseFloat(amountMatch[1].replace(',', '.'));
         
         let category = 'Divers';
-        if (promptLower.includes('course') || promptLower.includes('aliment') || promptLower.includes('supermarché') || promptLower.includes('manger') || promptLower.includes('carrefour') || promptLower.includes('auchan')) {
+        if (promptLower.includes('course') || promptLower.includes('aliment') || promptLower.includes('supermarché') || promptLower.includes('manger') || promptLower.includes('carrefour') || promptLower.includes('auchan') || promptLower.includes('alimentation')) {
           category = 'Alimentation';
         } else if (promptLower.includes('essence') || promptLower.includes('carburant') || promptLower.includes('péage') || promptLower.includes('voiture') || promptLower.includes('transport') || promptLower.includes('total')) {
           category = 'Transport';
         } else if (promptLower.includes('loyer') || promptLower.includes('logement') || promptLower.includes('maison') || promptLower.includes('électricité') || promptLower.includes('eau')) {
           category = 'Logement';
-        } else if (promptLower.includes('santé') || promptLower.includes('médecin') || promptLower.includes('pharmacie') || promptLower.includes('médicament')) {
+        } else if (promptLower.includes('santé') || promptLower.includes('sante') || promptLower.includes('médecin') || promptLower.includes('pharmacie') || promptLower.includes('médicament')) {
           category = 'Santé';
-        } else if (promptLower.includes('école') || promptLower.includes('cahier') || promptLower.includes('livre') || promptLower.includes('études')) {
+        } else if (promptLower.includes('école') || promptLower.includes('cahier') || promptLower.includes('livre') || promptLower.includes('études') || promptLower.includes('éducation') || promptLower.includes('education')) {
           category = 'Éducation';
         } else if (promptLower.includes('cinéma') || promptLower.includes('restaurant') || promptLower.includes('jeu') || promptLower.includes('sport') || promptLower.includes('loisir')) {
           category = 'Loisirs';
@@ -1982,10 +1996,19 @@ function App() {
 
         let title = 'Achat rapide';
         let cleanTitle = text.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre/gi, '').trim();
-        cleanTitle = cleanTitle.replace(amountRegex, '').trim();
-        cleanTitle = cleanTitle.replace(/en\s+\w+/gi, '').trim(); 
+        cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[\.,]?\d*)/, '').trim();
+        cleanTitle = cleanTitle.replace(/\b(?:dans|pour|en|le|la|les|de|du)\b/gi, '').trim();
+        
+        // Remove category keywords if they are at the beginning/end to make the title cleaner
+        categoryKeywords.forEach(kw => {
+          const regex = new RegExp('\\b' + kw + '\\b', 'gi');
+          cleanTitle = cleanTitle.replace(regex, '').trim();
+        });
+        
         if (cleanTitle) {
           title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
+        } else {
+          title = type === 'expense' ? `Dépense ${category}` : type === 'income' ? `Revenu ${category}` : `Épargne ${category}`;
         }
 
         const activeMemberObj = members.find(m => m.id === activeMemberId);
@@ -2004,6 +2027,12 @@ function App() {
         
         setActiveTab('finances');
         setActiveModule('');
+        setVoiceFeedback(feedback);
+        
+        setTimeout(() => {
+          setVoiceActive(false);
+        }, 2500);
+        return;
       }
     }
 

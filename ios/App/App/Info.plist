@@ -49,5 +49,9 @@
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Cette application utilise le microphone pour enregistrer des messages vocaux et pour l'assistant vocal de la famille.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Cette application utilise la reconnaissance vocale pour vous permettre de dicter des commandes à l'assistant vocal.</string>
 </dict>
 </plist>
