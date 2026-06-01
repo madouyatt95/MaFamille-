@@ -844,8 +844,82 @@ function App() {
     const client = getSupabaseClient();
     if (!client) return;
 
-    // Load members — always replace local data with cloud data (even if empty)
-    const membersList = await foyerService.getFoyerMembers(foyerId);
+    // Load all data tables in parallel to prevent network waterfall and boost startup performance
+    const [
+      membersList,
+      eventsRes,
+      groceriesRes,
+      archivedListsRes,
+      transactionsRes,
+      documentsRes,
+      dishesRes,
+      tasksRes,
+      savingGoalsRes,
+      alertsRes,
+      memoriesRes,
+      votesRes,
+      schoolTasksRes,
+      chatGroupsRes,
+      chatMessagesRes,
+      demarchesRes,
+      packsRes,
+      vehiclesRes,
+      maintRes,
+      tripsRes,
+      petsRes,
+      pmRes,
+      artisansRes
+    ] = await Promise.all([
+      foyerService.getFoyerMembers(foyerId),
+      client.from('events').select('*').eq('foyer_id', foyerId),
+      client.from('groceries').select('*').eq('foyer_id', foyerId),
+      client.from('archived_lists').select('*').eq('foyer_id', foyerId),
+      client.from('transactions').select('*').eq('foyer_id', foyerId),
+      client.from('documents').select('*').eq('foyer_id', foyerId),
+      client.from('dishes').select('*').eq('foyer_id', foyerId),
+      client.from('chore_tasks').select('*').eq('foyer_id', foyerId),
+      client.from('saving_goals').select('*').eq('foyer_id', foyerId),
+      client.from('alerts').select('*').eq('foyer_id', foyerId),
+      client.from('memories').select('*').eq('foyer_id', foyerId),
+      client.from('votes').select('*').eq('foyer_id', foyerId),
+      client.from('school_tasks').select('*').eq('foyer_id', foyerId),
+      client.from('chat_groups').select('*').eq('foyer_id', foyerId),
+      client.from('chat_messages').select('*').eq('foyer_id', foyerId).order('created_at', { ascending: true }),
+      client.from('demarches').select('*').eq('foyer_id', foyerId),
+      client.from('justificatif_packs').select('*').eq('foyer_id', foyerId),
+      client.from('vehicles').select('*').eq('foyer_id', foyerId),
+      client.from('maintenance').select('*').eq('foyer_id', foyerId),
+      client.from('trips').select('*').eq('foyer_id', foyerId),
+      client.from('pets').select('*').eq('foyer_id', foyerId),
+      client.from('pocket_money').select('*').eq('foyer_id', foyerId),
+      client.from('artisans').select('*').eq('foyer_id', foyerId)
+    ]);
+
+    // Extract data from responses
+    const eventsData = eventsRes.data;
+    const groceriesData = groceriesRes.data;
+    const archivedListData = archivedListsRes.data;
+    const transactionsData = transactionsRes.data;
+    const documentsData = documentsRes.data;
+    const dishesData = dishesRes.data;
+    const tasksData = tasksRes.data;
+    const savingGoalsData = savingGoalsRes.data;
+    const alertsData = alertsRes.data;
+    const memoriesData = memoriesRes.data;
+    const votesData = votesRes.data;
+    const schoolTasksData = schoolTasksRes.data;
+    const chatGroupsData = chatGroupsRes.data;
+    const chatMessagesData = chatMessagesRes.data;
+    const demarchesData = demarchesRes.data;
+    const packsData = packsRes.data;
+    const vehiclesData = vehiclesRes.data;
+    const maintData = maintRes.data;
+    const tripsData = tripsRes.data;
+    const petsData = petsRes.data;
+    const pmData = pmRes.data;
+    const artisansData = artisansRes.data;
+
+    // Set states
     setMembers(membersList.length > 0 ? membersList.map(mapFoyerMemberToMember) : []);
     
     // Dynamically refresh active user's own profile to match role changes instantly
@@ -856,8 +930,6 @@ function App() {
       }
     }
 
-    // Load Events
-    const { data: eventsData } = await client.from('events').select('*').eq('foyer_id', foyerId);
     setEvents(eventsData ? eventsData.map(e => ({
       id: e.id,
       title: e.title,
@@ -872,8 +944,6 @@ function App() {
       amount: e.amount ? Number(e.amount) : undefined
     })) : []);
 
-    // Load Groceries
-    const { data: groceriesData } = await client.from('groceries').select('*').eq('foyer_id', foyerId);
     setGroceries(groceriesData ? groceriesData.map(g => ({
       id: g.id,
       name: g.name,
@@ -887,8 +957,6 @@ function App() {
       isFavorite: !!g.is_favorite
     })) : []);
 
-    // Load Archived Lists
-    const { data: archivedListData } = await client.from('archived_lists').select('*').eq('foyer_id', foyerId);
     setArchivedLists(archivedListData ? archivedListData.map(al => ({
       id: al.id,
       name: al.name,
@@ -898,8 +966,6 @@ function App() {
       createdBy: al.created_by
     })) : []);
 
-    // Load Transactions
-    const { data: transactionsData } = await client.from('transactions').select('*').eq('foyer_id', foyerId);
     setTransactions(transactionsData ? transactionsData.map(t => ({
       id: t.id,
       amount: Number(t.amount),
@@ -911,8 +977,6 @@ function App() {
       memberName: t.member_name
     })) : []);
 
-    // Load Documents
-    const { data: documentsData } = await client.from('documents').select('*').eq('foyer_id', foyerId);
     setDocuments(documentsData ? documentsData.map(d => ({
       id: d.id,
       name: d.name,
@@ -930,8 +994,6 @@ function App() {
       isSecure: d.is_secure
     })) : []);
 
-    // Load Dishes
-    const { data: dishesData } = await client.from('dishes').select('*').eq('foyer_id', foyerId);
     setDishes(dishesData ? dishesData.map(d => ({
       id: d.id,
       day: d.day,
@@ -941,8 +1003,6 @@ function App() {
       ingredients: d.ingredients || []
     })) : []);
 
-    // Load Tasks
-    const { data: tasksData } = await client.from('chore_tasks').select('*').eq('foyer_id', foyerId);
     setTasks(tasksData ? tasksData.map(t => ({
       id: t.id,
       title: t.title,
@@ -955,8 +1015,6 @@ function App() {
       dueDate: t.due_date
     })) : []);
 
-    // Load Saving Goals
-    const { data: savingGoalsData } = await client.from('saving_goals').select('*').eq('foyer_id', foyerId);
     setSavingGoals(savingGoalsData ? savingGoalsData.map(s => ({
       id: s.id,
       title: s.title,
@@ -966,8 +1024,6 @@ function App() {
       category: s.category
     })) : []);
 
-    // Load Alerts
-    const { data: alertsData } = await client.from('alerts').select('*').eq('foyer_id', foyerId);
     setAlerts(alertsData ? alertsData.map(a => ({
       id: a.id,
       title: a.title,
@@ -982,8 +1038,6 @@ function App() {
       senderAvatar: a.sender_avatar
     })) : []);
 
-    // Load Memories
-    const { data: memoriesData } = await client.from('memories').select('*').eq('foyer_id', foyerId);
     setMemories(memoriesData ? memoriesData.map(m => ({
       id: m.id,
       date: m.date,
@@ -998,8 +1052,6 @@ function App() {
       theme: m.theme
     })) : []);
 
-    // Load Votes
-    const { data: votesData } = await client.from('votes').select('*').eq('foyer_id', foyerId);
     setVotes(votesData ? votesData.map(v => ({
       id: v.id,
       question: v.question,
@@ -1009,8 +1061,6 @@ function App() {
       dueDate: v.due_date
     })) : []);
 
-    // Load School Tasks
-    const { data: schoolTasksData } = await client.from('school_tasks').select('*').eq('foyer_id', foyerId);
     setSchoolTasks(schoolTasksData ? schoolTasksData.map(s => ({
       id: s.id,
       subject: s.subject,
@@ -1022,8 +1072,6 @@ function App() {
       grade: s.grade
     })) : []);
 
-    // Load Chat Groups
-    const { data: chatGroupsData } = await client.from('chat_groups').select('*').eq('foyer_id', foyerId);
     setChatGroups(chatGroupsData ? chatGroupsData.map(c => ({
       id: c.id,
       name: c.name,
@@ -1034,8 +1082,6 @@ function App() {
       unreadCount: c.unread_count
     })) : []);
 
-    // Load Chat Messages
-    const { data: chatMessagesData } = await client.from('chat_messages').select('*').eq('foyer_id', foyerId).order('created_at', { ascending: true });
     setChatMessages(chatMessagesData ? chatMessagesData.map(c => ({
       id: c.id,
       groupId: c.group_id,
@@ -1048,8 +1094,6 @@ function App() {
       reactions: typeof c.reactions === 'string' ? JSON.parse(c.reactions) : c.reactions || []
     })) : []);
 
-    // Load Demarches
-    const { data: demarchesData } = await client.from('demarches').select('*').eq('foyer_id', foyerId);
     setDemarches(demarchesData ? demarchesData.map(d => ({
       id: d.id,
       templateId: d.template_id,
@@ -1064,8 +1108,6 @@ function App() {
       notes: d.notes
     })) : []);
 
-    // Load Packs
-    const { data: packsData } = await client.from('justificatif_packs').select('*').eq('foyer_id', foyerId);
     setJustificatifPacks(packsData ? packsData.map(p => ({
       id: p.id,
       name: p.name,
@@ -1074,8 +1116,6 @@ function App() {
       createdAt: p.created_at_text
     })) : []);
 
-    // Load Vehicles
-    const { data: vehiclesData } = await client.from('vehicles').select('*').eq('foyer_id', foyerId);
     setVehicles(vehiclesData ? vehiclesData.map(v => ({
       id: v.id,
       name: v.name,
@@ -1087,8 +1127,6 @@ function App() {
       mileage: v.mileage ? Number(v.mileage) : 0
     })) : []);
 
-    // Load Maintenance
-    const { data: maintData } = await client.from('maintenance').select('*').eq('foyer_id', foyerId);
     setMaintenance(maintData ? maintData.map(m => ({
       id: m.id,
       title: m.title,
@@ -1098,8 +1136,6 @@ function App() {
       status: (m.status as any) || 'scheduled'
     })) : []);
 
-    // Load Trips
-    const { data: tripsData } = await client.from('trips').select('*').eq('foyer_id', foyerId);
     setTrips(tripsData ? tripsData.map(t => ({
       id: t.id,
       destination: t.destination,
@@ -1110,8 +1146,6 @@ function App() {
       bookingRefs: t.booking_refs || []
     })) : []);
 
-    // Load Pets
-    const { data: petsData } = await client.from('pets').select('*').eq('foyer_id', foyerId);
     setPets(petsData ? petsData.map(p => ({
       id: p.id,
       name: p.name,
@@ -1124,8 +1158,6 @@ function App() {
       documentIds: p.document_ids || []
     })) : []);
 
-    // Load Pocket Money
-    const { data: pmData } = await client.from('pocket_money').select('*').eq('foyer_id', foyerId);
     setPocketMoney(pmData ? pmData.map(p => ({
       id: p.id,
       name: p.name,
@@ -1136,8 +1168,6 @@ function App() {
       goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined
     })) : []);
 
-    // Load Artisans
-    const { data: artisansData } = await client.from('artisans').select('*').eq('foyer_id', foyerId);
     setArtisans(artisansData ? artisansData.map(a => ({
       id: a.id,
       name: a.name,

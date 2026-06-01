@@ -53,5 +53,11 @@
 	<string>Cette application utilise le microphone pour enregistrer des messages vocaux et pour l'assistant vocal de la famille.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Cette application utilise la reconnaissance vocale pour vous permettre de dicter des commandes à l'assistant vocal.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Cette application utilise l'appareil photo pour vous permettre de prendre des photos de souvenirs de famille, de justificatifs et d'avatars.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Cette application accède à votre bibliothèque de photos pour vous permettre de sélectionner des photos de souvenirs, de justificatifs et d'avatars.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Cette application requiert l'accès pour enregistrer des photos dans votre bibliothèque.</string>
 </dict>
 </plist>
