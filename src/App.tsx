@@ -48,6 +48,30 @@ import type {
   ChatMessage
 } from './types';
 
+const formatRelativeTime = (dateInput: string | Date | undefined, fallback: string): string => {
+  if (!dateInput) return fallback;
+  const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(date.getTime())) return fallback;
+  
+  const diffMs = Date.now() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+
+  if (diffSec < 60) {
+    return "À l'instant";
+  } else if (diffMin < 60) {
+    return `Il y a ${diffMin} min`;
+  } else if (diffHr < 24) {
+    return `Il y a ${diffHr} h`;
+  } else if (diffDay === 1) {
+    return "Hier";
+  } else {
+    return `Il y a ${diffDay} j`;
+  }
+};
+
 // Component imports
 import { BottomNav } from './components/BottomNav';
 import { Sidebar } from './components/Sidebar';
@@ -639,7 +663,8 @@ function App() {
               senderUserId: payload.data?.senderUserId || payload.data?.sender_user_id,
               senderMemberId: payload.data?.senderMemberId || payload.data?.sender_member_id,
               senderName: payload.data?.senderName || payload.data?.sender_name,
-              senderAvatar: payload.data?.senderAvatar || payload.data?.sender_avatar
+              senderAvatar: payload.data?.senderAvatar || payload.data?.sender_avatar,
+              createdAt: new Date().toISOString()
             };
             setAlerts(prev => [newAlert, ...prev]);
             saveAlertToCloud(newAlert);
@@ -844,339 +869,331 @@ function App() {
     const client = getSupabaseClient();
     if (!client) return;
 
-    // Load all data tables in parallel to prevent network waterfall and boost startup performance
-    const [
-      membersList,
-      eventsRes,
-      groceriesRes,
-      archivedListsRes,
-      transactionsRes,
-      documentsRes,
-      dishesRes,
-      tasksRes,
-      savingGoalsRes,
-      alertsRes,
-      memoriesRes,
-      votesRes,
-      schoolTasksRes,
-      chatGroupsRes,
-      chatMessagesRes,
-      demarchesRes,
-      packsRes,
-      vehiclesRes,
-      maintRes,
-      tripsRes,
-      petsRes,
-      pmRes,
-      artisansRes
-    ] = await Promise.all([
-      foyerService.getFoyerMembers(foyerId),
-      client.from('events').select('*').eq('foyer_id', foyerId),
-      client.from('groceries').select('*').eq('foyer_id', foyerId),
-      client.from('archived_lists').select('*').eq('foyer_id', foyerId),
-      client.from('transactions').select('*').eq('foyer_id', foyerId),
-      client.from('documents').select('*').eq('foyer_id', foyerId),
-      client.from('dishes').select('*').eq('foyer_id', foyerId),
-      client.from('chore_tasks').select('*').eq('foyer_id', foyerId),
-      client.from('saving_goals').select('*').eq('foyer_id', foyerId),
-      client.from('alerts').select('*').eq('foyer_id', foyerId),
-      client.from('memories').select('*').eq('foyer_id', foyerId),
-      client.from('votes').select('*').eq('foyer_id', foyerId),
-      client.from('school_tasks').select('*').eq('foyer_id', foyerId),
-      client.from('chat_groups').select('*').eq('foyer_id', foyerId),
-      client.from('chat_messages').select('*').eq('foyer_id', foyerId).order('created_at', { ascending: true }),
-      client.from('demarches').select('*').eq('foyer_id', foyerId),
-      client.from('justificatif_packs').select('*').eq('foyer_id', foyerId),
-      client.from('vehicles').select('*').eq('foyer_id', foyerId),
-      client.from('maintenance').select('*').eq('foyer_id', foyerId),
-      client.from('trips').select('*').eq('foyer_id', foyerId),
-      client.from('pets').select('*').eq('foyer_id', foyerId),
-      client.from('pocket_money').select('*').eq('foyer_id', foyerId),
-      client.from('artisans').select('*').eq('foyer_id', foyerId)
-    ]);
-
-    // Extract data from responses
-    const eventsData = eventsRes.data;
-    const groceriesData = groceriesRes.data;
-    const archivedListData = archivedListsRes.data;
-    const transactionsData = transactionsRes.data;
-    const documentsData = documentsRes.data;
-    const dishesData = dishesRes.data;
-    const tasksData = tasksRes.data;
-    const savingGoalsData = savingGoalsRes.data;
-    const alertsData = alertsRes.data;
-    const memoriesData = memoriesRes.data;
-    const votesData = votesRes.data;
-    const schoolTasksData = schoolTasksRes.data;
-    const chatGroupsData = chatGroupsRes.data;
-    const chatMessagesData = chatMessagesRes.data;
-    const demarchesData = demarchesRes.data;
-    const packsData = packsRes.data;
-    const vehiclesData = vehiclesRes.data;
-    const maintData = maintRes.data;
-    const tripsData = tripsRes.data;
-    const petsData = petsRes.data;
-    const pmData = pmRes.data;
-    const artisansData = artisansRes.data;
-
-    // Set states
-    setMembers(membersList.length > 0 ? membersList.map(mapFoyerMemberToMember) : []);
-    
-    // Dynamically refresh active user's own profile to match role changes instantly
-    if (myMemberProfile) {
-      const updatedSelf = membersList.find(m => m.id === myMemberProfile.id);
-      if (updatedSelf) {
-        setMyMemberProfile(updatedSelf);
+    // 1. Load members immediately to unblock UI and prevent loading screen hang
+    foyerService.getFoyerMembers(foyerId).then(membersList => {
+      setMembers(membersList.length > 0 ? membersList.map(mapFoyerMemberToMember) : []);
+      if (myMemberProfile) {
+        const updatedSelf = membersList.find(m => m.id === myMemberProfile.id);
+        if (updatedSelf) {
+          setMyMemberProfile(updatedSelf);
+        }
       }
-    }
+    }).catch(err => console.error("Error loading members:", err));
 
-    setEvents(eventsData ? eventsData.map(e => ({
-      id: e.id,
-      title: e.title,
-      type: e.type,
-      dateTime: e.date_time,
-      time: e.time,
-      memberId: e.member_id,
-      memberName: e.member_name,
-      location: e.location,
-      description: e.description,
-      done: e.done,
-      amount: e.amount ? Number(e.amount) : undefined
-    })) : []);
+    // 2. Load Events
+    client.from('events').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setEvents(data ? data.map(e => ({
+        id: e.id,
+        title: e.title,
+        type: e.type,
+        dateTime: e.date_time,
+        time: e.time,
+        memberId: e.member_id,
+        memberName: e.member_name,
+        location: e.location,
+        description: e.description,
+        done: e.done,
+        amount: e.amount ? Number(e.amount) : undefined
+      })) : []);
+    }).catch(err => console.error("Error loading events:", err));
 
-    setGroceries(groceriesData ? groceriesData.map(g => ({
-      id: g.id,
-      name: g.name,
-      category: g.category,
-      quantity: g.quantity,
-      checked: g.checked,
-      inStock: g.in_stock,
-      expiryDate: g.expiry_date,
-      meal: g.meal || undefined,
-      addedBy: g.added_by || undefined,
-      isFavorite: !!g.is_favorite
-    })) : []);
+    // 3. Load Groceries
+    client.from('groceries').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setGroceries(data ? data.map(g => ({
+        id: g.id,
+        name: g.name,
+        category: g.category,
+        quantity: g.quantity,
+        checked: g.checked,
+        inStock: g.in_stock,
+        expiryDate: g.expiry_date,
+        meal: g.meal || undefined,
+        addedBy: g.added_by || undefined,
+        isFavorite: !!g.is_favorite
+      })) : []);
+    }).catch(err => console.error("Error loading groceries:", err));
 
-    setArchivedLists(archivedListData ? archivedListData.map(al => ({
-      id: al.id,
-      name: al.name,
-      date: al.date,
-      items: typeof al.items === 'string' ? JSON.parse(al.items) : al.items || [],
-      store: al.store || undefined,
-      createdBy: al.created_by
-    })) : []);
+    // 4. Load Archived Lists
+    client.from('archived_lists').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setArchivedLists(data ? data.map(al => ({
+        id: al.id,
+        name: al.name,
+        date: al.date,
+        items: typeof al.items === 'string' ? JSON.parse(al.items) : al.items || [],
+        store: al.store || undefined,
+        createdBy: al.created_by
+      })) : []);
+    }).catch(err => console.error("Error loading archived lists:", err));
 
-    setTransactions(transactionsData ? transactionsData.map(t => ({
-      id: t.id,
-      amount: Number(t.amount),
-      type: t.type,
-      category: t.category,
-      date: t.date,
-      title: t.title,
-      memberId: t.member_id,
-      memberName: t.member_name
-    })) : []);
+    // 5. Load Transactions
+    client.from('transactions').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setTransactions(data ? data.map(t => ({
+        id: t.id,
+        amount: Number(t.amount),
+        type: t.type,
+        category: t.category,
+        date: t.date,
+        title: t.title,
+        memberId: t.member_id,
+        memberName: t.member_name
+      })) : []);
+    }).catch(err => console.error("Error loading transactions:", err));
 
-    setDocuments(documentsData ? documentsData.map(d => ({
-      id: d.id,
-      name: d.name,
-      category: d.category,
-      subCategory: d.sub_category,
-      memberId: d.member_id,
-      memberName: d.member_name,
-      tags: d.tags || [],
-      uploadDate: d.upload_date,
-      expiryDate: d.expiry_date,
-      fileSize: d.file_size,
-      isExpired: d.is_expired,
-      description: d.description,
-      fileBase64: d.file_base64,
-      isSecure: d.is_secure
-    })) : []);
+    // 6. Load Documents
+    client.from('documents').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setDocuments(data ? data.map(d => ({
+        id: d.id,
+        name: d.name,
+        category: d.category,
+        subCategory: d.sub_category,
+        memberId: d.member_id,
+        memberName: d.member_name,
+        tags: d.tags || [],
+        uploadDate: d.upload_date,
+        expiryDate: d.expiry_date,
+        fileSize: d.file_size,
+        isExpired: d.is_expired,
+        description: d.description,
+        fileBase64: d.file_base64,
+        isSecure: d.is_secure
+      })) : []);
+    }).catch(err => console.error("Error loading documents:", err));
 
-    setDishes(dishesData ? dishesData.map(d => ({
-      id: d.id,
-      day: d.day,
-      mealType: d.meal_type,
-      name: d.name,
-      image: d.image,
-      ingredients: d.ingredients || []
-    })) : []);
+    // 7. Load Dishes
+    client.from('dishes').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setDishes(data ? data.map(d => ({
+        id: d.id,
+        day: d.day,
+        mealType: d.meal_type,
+        name: d.name,
+        image: d.image,
+        ingredients: d.ingredients || []
+      })) : []);
+    }).catch(err => console.error("Error loading dishes:", err));
 
-    setTasks(tasksData ? tasksData.map(t => ({
-      id: t.id,
-      title: t.title,
-      rewardPoints: t.reward_points,
-      assignedMemberId: t.assigned_member_id,
-      assignedMemberName: t.assigned_member_name,
-      done: t.done,
-      rotation: t.rotation,
-      validatedByParent: t.validated_by_parent,
-      dueDate: t.due_date
-    })) : []);
+    // 8. Load Tasks
+    client.from('chore_tasks').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setTasks(data ? data.map(t => ({
+        id: t.id,
+        title: t.title,
+        rewardPoints: t.reward_points,
+        assignedMemberId: t.assigned_member_id,
+        assignedMemberName: t.assigned_member_name,
+        done: t.done,
+        rotation: t.rotation,
+        validatedByParent: t.validated_by_parent,
+        dueDate: t.due_date
+      })) : []);
+    }).catch(err => console.error("Error loading tasks:", err));
 
-    setSavingGoals(savingGoalsData ? savingGoalsData.map(s => ({
-      id: s.id,
-      title: s.title,
-      targetAmount: Number(s.target_amount),
-      currentAmount: Number(s.current_amount),
-      targetDate: s.target_date,
-      category: s.category
-    })) : []);
+    // 9. Load Saving Goals
+    client.from('saving_goals').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setSavingGoals(data ? data.map(s => ({
+        id: s.id,
+        title: s.title,
+        targetAmount: Number(s.target_amount),
+        currentAmount: Number(s.current_amount),
+        targetDate: s.target_date,
+        category: s.category
+      })) : []);
+    }).catch(err => console.error("Error loading saving goals:", err));
 
-    setAlerts(alertsData ? alertsData.map(a => ({
-      id: a.id,
-      title: a.title,
-      description: a.description,
-      time: a.time,
-      type: a.type,
-      read: a.read,
-      module: a.module,
-      senderUserId: a.sender_user_id,
-      senderMemberId: a.sender_member_id,
-      senderName: a.sender_name,
-      senderAvatar: a.sender_avatar
-    })) : []);
+    // 10. Load Alerts (incorporating created_at timestamp for relative calculations)
+    client.from('alerts').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setAlerts(data ? data.map(a => ({
+        id: a.id,
+        title: a.title,
+        description: a.description,
+        time: a.time,
+        type: a.type,
+        read: a.read,
+        module: a.module,
+        senderUserId: a.sender_user_id,
+        senderMemberId: a.sender_member_id,
+        senderName: a.sender_name,
+        senderAvatar: a.sender_avatar,
+        createdAt: a.created_at
+      })) : []);
+    }).catch(err => console.error("Error loading alerts:", err));
 
-    setMemories(memoriesData ? memoriesData.map(m => ({
-      id: m.id,
-      date: m.date,
-      title: m.title,
-      description: m.description,
-      authorName: m.author_name,
-      authorPhoto: m.author_photo,
-      imageUrl: m.image_url,
-      imageUrls: m.image_urls || [],
-      likesCount: m.likes_count,
-      isPrivate: m.is_private,
-      theme: m.theme
-    })) : []);
+    // 11. Load Memories
+    client.from('memories').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setMemories(data ? data.map(m => ({
+        id: m.id,
+        date: m.date,
+        title: m.title,
+        description: m.description,
+        authorName: m.author_name,
+        authorPhoto: m.author_photo,
+        imageUrl: m.image_url,
+        imageUrls: m.image_urls || [],
+        likesCount: m.likes_count,
+        isPrivate: m.is_private,
+        theme: m.theme
+      })) : []);
+    }).catch(err => console.error("Error loading memories:", err));
 
-    setVotes(votesData ? votesData.map(v => ({
-      id: v.id,
-      question: v.question,
-      options: typeof v.options === 'string' ? JSON.parse(v.options) : v.options || [],
-      authorName: v.author_name,
-      active: v.active,
-      dueDate: v.due_date
-    })) : []);
+    // 12. Load Votes
+    client.from('votes').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setVotes(data ? data.map(v => ({
+        id: v.id,
+        question: v.question,
+        options: typeof v.options === 'string' ? JSON.parse(v.options) : v.options || [],
+        authorName: v.author_name,
+        active: v.active,
+        dueDate: v.due_date
+      })) : []);
+    }).catch(err => console.error("Error loading votes:", err));
 
-    setSchoolTasks(schoolTasksData ? schoolTasksData.map(s => ({
-      id: s.id,
-      subject: s.subject,
-      title: s.title,
-      dueDate: s.due_date,
-      done: s.done,
-      assignedMemberId: s.assigned_member_id,
-      difficulty: s.difficulty,
-      grade: s.grade
-    })) : []);
+    // 13. Load School Tasks
+    client.from('school_tasks').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setSchoolTasks(data ? data.map(s => ({
+        id: s.id,
+        subject: s.subject,
+        title: s.title,
+        dueDate: s.due_date,
+        done: s.done,
+        assignedMemberId: s.assigned_member_id,
+        difficulty: s.difficulty,
+        grade: s.grade
+      })) : []);
+    }).catch(err => console.error("Error loading school tasks:", err));
 
-    setChatGroups(chatGroupsData ? chatGroupsData.map(c => ({
-      id: c.id,
-      name: c.name,
-      isPrivate: c.is_private,
-      memberIds: c.member_ids || [],
-      lastMessage: c.last_message,
-      lastMessageTime: c.last_message_time,
-      unreadCount: c.unread_count
-    })) : []);
+    // 14. Load Chat Groups
+    client.from('chat_groups').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setChatGroups(data ? data.map(c => ({
+        id: c.id,
+        name: c.name,
+        isPrivate: c.is_private,
+        memberIds: c.member_ids || [],
+        lastMessage: c.last_message,
+        lastMessageTime: c.last_message_time,
+        unreadCount: c.unread_count
+      })) : []);
+    }).catch(err => console.error("Error loading chat groups:", err));
 
-    setChatMessages(chatMessagesData ? chatMessagesData.map(c => ({
-      id: c.id,
-      groupId: c.group_id,
-      senderId: c.sender_id,
-      senderName: c.sender_name,
-      type: c.type,
-      content: c.content,
-      timestamp: c.timestamp,
-      readBy: c.read_by || [],
-      reactions: typeof c.reactions === 'string' ? JSON.parse(c.reactions) : c.reactions || []
-    })) : []);
+    // 15. Load Chat Messages
+    client.from('chat_messages').select('*').eq('foyer_id', foyerId).order('created_at', { ascending: true }).then(({ data }) => {
+      setChatMessages(data ? data.map(c => ({
+        id: c.id,
+        groupId: c.group_id,
+        senderId: c.sender_id,
+        senderName: c.sender_name,
+        type: c.type,
+        content: c.content,
+        timestamp: c.timestamp,
+        readBy: c.read_by || [],
+        reactions: typeof c.reactions === 'string' ? JSON.parse(c.reactions) : c.reactions || []
+      })) : []);
+    }).catch(err => console.error("Error loading chat messages:", err));
 
-    setDemarches(demarchesData ? demarchesData.map(d => ({
-      id: d.id,
-      templateId: d.template_id,
-      title: d.title,
-      icon: d.icon,
-      status: d.status,
-      assignedMemberId: d.assigned_member_id,
-      assignedMemberName: d.assigned_member_name,
-      steps: typeof d.steps === 'string' ? JSON.parse(d.steps) : d.steps || [],
-      pieces: typeof d.pieces === 'string' ? JSON.parse(d.pieces) : d.pieces || [],
-      createdAt: d.created_at_text,
-      notes: d.notes
-    })) : []);
+    // 16. Load Demarches
+    client.from('demarches').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setDemarches(data ? data.map(d => ({
+        id: d.id,
+        templateId: d.template_id,
+        title: d.title,
+        icon: d.icon,
+        status: d.status,
+        assignedMemberId: d.assigned_member_id,
+        assignedMemberName: d.assigned_member_name,
+        steps: typeof d.steps === 'string' ? JSON.parse(d.steps) : d.steps || [],
+        pieces: typeof d.pieces === 'string' ? JSON.parse(d.pieces) : d.pieces || [],
+        createdAt: d.created_at_text,
+        notes: d.notes
+      })) : []);
+    }).catch(err => console.error("Error loading demarches:", err));
 
-    setJustificatifPacks(packsData ? packsData.map(p => ({
-      id: p.id,
-      name: p.name,
-      templateType: p.template_type,
-      documentIds: p.document_ids || [],
-      createdAt: p.created_at_text
-    })) : []);
+    // 17. Load Packs
+    client.from('justificatif_packs').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setJustificatifPacks(data ? data.map(p => ({
+        id: p.id,
+        name: p.name,
+        templateType: p.template_type,
+        documentIds: p.document_ids || [],
+        createdAt: p.created_at_text
+      })) : []);
+    }).catch(err => console.error("Error loading packs:", err));
 
-    setVehicles(vehiclesData ? vehiclesData.map(v => ({
-      id: v.id,
-      name: v.name,
-      plate: v.plate || '',
-      insuranceExpiry: v.insurance_expiry || '',
-      technicalControl: v.technical_control || '',
-      lastService: v.last_service || '',
-      nextService: v.next_service || '',
-      mileage: v.mileage ? Number(v.mileage) : 0
-    })) : []);
+    // 18. Load Vehicles
+    client.from('vehicles').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setVehicles(data ? data.map(v => ({
+        id: v.id,
+        name: v.name,
+        plate: v.plate || '',
+        insuranceExpiry: v.insurance_expiry || '',
+        technicalControl: v.technical_control || '',
+        lastService: v.last_service || '',
+        nextService: v.next_service || '',
+        mileage: v.mileage ? Number(v.mileage) : 0
+      })) : []);
+    }).catch(err => console.error("Error loading vehicles:", err));
 
-    setMaintenance(maintData ? maintData.map(m => ({
-      id: m.id,
-      title: m.title,
-      provider: m.provider || '',
-      date: m.date || '',
-      cost: Number(m.cost || 0),
-      status: (m.status as any) || 'scheduled'
-    })) : []);
+    // 19. Load Maintenance
+    client.from('maintenance').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setMaintenance(data ? data.map(m => ({
+        id: m.id,
+        title: m.title,
+        provider: m.provider || '',
+        date: m.date || '',
+        cost: Number(m.cost || 0),
+        status: (m.status as any) || 'scheduled'
+      })) : []);
+    }).catch(err => console.error("Error loading maintenance:", err));
 
-    setTrips(tripsData ? tripsData.map(t => ({
-      id: t.id,
-      destination: t.destination,
-      startDate: t.start_date || '',
-      endDate: t.end_date || '',
-      budget: Number(t.budget || 0),
-      checklist: typeof t.checklist === 'string' ? JSON.parse(t.checklist) : t.checklist || [],
-      bookingRefs: t.booking_refs || []
-    })) : []);
+    // 20. Load Trips
+    client.from('trips').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setTrips(data ? data.map(t => ({
+        id: t.id,
+        destination: t.destination,
+        startDate: t.start_date || '',
+        endDate: t.end_date || '',
+        budget: Number(t.budget || 0),
+        checklist: typeof t.checklist === 'string' ? JSON.parse(t.checklist) : t.checklist || [],
+        bookingRefs: t.booking_refs || []
+      })) : []);
+    }).catch(err => console.error("Error loading trips:", err));
 
-    setPets(petsData ? petsData.map(p => ({
-      id: p.id,
-      name: p.name,
-      species: p.species || '',
-      lastVaccine: p.last_vaccine || '',
-      nextVaccine: p.next_vaccine || '',
-      vetAppointment: p.vet_appointment || undefined,
-      notes: p.notes || undefined,
-      weightHistory: typeof p.weight_history === 'string' ? JSON.parse(p.weight_history) : p.weight_history || [],
-      documentIds: p.document_ids || []
-    })) : []);
+    // 21. Load Pets
+    client.from('pets').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setPets(data ? data.map(p => ({
+        id: p.id,
+        name: p.name,
+        species: p.species || '',
+        lastVaccine: p.last_vaccine || '',
+        nextVaccine: p.next_vaccine || '',
+        vetAppointment: p.vet_appointment || undefined,
+        notes: p.notes || undefined,
+        weightHistory: typeof p.weight_history === 'string' ? JSON.parse(p.weight_history) : p.weight_history || [],
+        documentIds: p.document_ids || []
+      })) : []);
+    }).catch(err => console.error("Error loading pets:", err));
 
-    setPocketMoney(pmData ? pmData.map(p => ({
-      id: p.id,
-      name: p.name,
-      balance: Number(p.balance || 0),
-      points: Number(p.points || 0),
-      avatar: p.avatar || '',
-      goalTitle: p.goal_title || undefined,
-      goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined
-    })) : []);
+    // 22. Load Pocket Money
+    client.from('pocket_money').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setPocketMoney(data ? data.map(p => ({
+        id: p.id,
+        name: p.name,
+        balance: Number(p.balance || 0),
+        points: Number(p.points || 0),
+        avatar: p.avatar || '',
+        goalTitle: p.goal_title || undefined,
+        goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined
+      })) : []);
+    }).catch(err => console.error("Error loading pocket money:", err));
 
-    setArtisans(artisansData ? artisansData.map(a => ({
-      id: a.id,
-      name: a.name,
-      specialty: a.specialty,
-      phone: a.phone || '',
-      email: a.email || '',
-      rating: a.rating || 5,
-      notes: a.notes || ''
-    })) : []);
+    // 23. Load Artisans
+    client.from('artisans').select('*').eq('foyer_id', foyerId).then(({ data }) => {
+      setArtisans(data ? data.map(a => ({
+        id: a.id,
+        name: a.name,
+        specialty: a.specialty,
+        phone: a.phone || '',
+        email: a.email || '',
+        rating: a.rating || 5,
+        notes: a.notes || ''
+      })) : []);
+    }).catch(err => console.error("Error loading artisans:", err));
   };
 
   // 2. Realtime collaborative subscriptions
@@ -1586,7 +1603,8 @@ function App() {
             senderUserId: a.sender_user_id,
             senderMemberId: a.sender_member_id,
             senderName: a.sender_name,
-            senderAvatar: a.sender_avatar
+            senderAvatar: a.sender_avatar,
+            createdAt: a.created_at
           })));
         }
       });
@@ -3811,7 +3829,8 @@ function App() {
                           senderUserId: payload.data?.senderUserId || payload.data?.sender_user_id,
                           senderMemberId: payload.data?.senderMemberId || payload.data?.sender_member_id,
                           senderName: payload.data?.senderName || payload.data?.sender_name,
-                          senderAvatar: payload.data?.senderAvatar || payload.data?.sender_avatar
+                          senderAvatar: payload.data?.senderAvatar || payload.data?.sender_avatar,
+                          createdAt: new Date().toISOString()
                         };
                         setAlerts(prev => [newAlert, ...prev]);
                         saveAlertToCloud(newAlert);
@@ -3876,7 +3895,9 @@ function App() {
                         {!al.read && <span className="w-2 h-2 rounded-full bg-[#FFB020] animate-pulse"></span>}
                       </h4>
                       <p className="text-[10px] text-white/50 leading-relaxed mt-1">{al.description}</p>
-                      <span className="text-[9px] text-white/30 block mt-2 font-bold tracking-wider">{al.time}</span>
+                      <span className="text-[9px] text-white/30 block mt-2 font-bold tracking-wider">
+                        {formatRelativeTime(al.createdAt, al.time)}
+                      </span>
                     </div>
                     {targetModule && (
                       <ChevronRight className="w-4 h-4 text-white/20 shrink-0 mt-2" />

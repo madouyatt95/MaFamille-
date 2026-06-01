@@ -242,6 +242,7 @@ export interface NotificationAlert {
   senderMemberId?: string;
   senderName?: string;
   senderAvatar?: string;
+  createdAt?: string;
 }
 
 export interface MemoryLog {
