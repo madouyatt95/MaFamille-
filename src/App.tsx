@@ -115,6 +115,7 @@ import { SharedPackView } from './components/modules/SharedPackView';
 import { KidsDashboard } from './views/KidsDashboard';
 import { Paywall } from './components/Paywall';
 import { Onboarding } from './views/Onboarding';
+import { PasswordRecoveryView } from './components/PasswordRecoveryView';
 import { foyerService } from './services/foyerService';
 import { getSupabaseClient } from './utils/supabase';
 import { notificationService } from './services/notificationService';
@@ -255,6 +256,7 @@ function App() {
     return safeGetLocalStorage('mf_packs', demoPacks);
   });
 
+  const [isSyncReady, setIsSyncReady] = useState(false);
   const [agendaSelectedDate, setAgendaSelectedDate] = useState<string>('');
 
   // Settings State
@@ -563,6 +565,10 @@ function App() {
     foyerRef.current = foyer;
   }, [foyer]);
   const [myMemberProfile, setMyMemberProfile] = useState<FoyerMember | null>(null);
+  const myMemberProfileRef = useRef<FoyerMember | null>(null);
+  useEffect(() => {
+    myMemberProfileRef.current = myMemberProfile;
+  }, [myMemberProfile]);
   const [onboardingActive, setOnboardingActive] = useState(false);
 
   // Nettoyage automatique des notes/cours d'Amadou et d'Awa si un foyer personnalisé sans eux est chargé
@@ -589,6 +595,14 @@ function App() {
   const [discoverMode, setDiscoverMode] = useState<boolean>(() => {
     return localStorage.getItem('mf_discover_mode') === 'true';
   });
+
+  const [isRecoveringPassword, setIsRecoveringPassword] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (window.location.hash.includes('type=recovery')) {
+      setIsRecoveringPassword(true);
+    }
+  }, []);
 
   // Premium Freemium States
   const [isPremium, setIsPremium] = useState<boolean>(() => {
@@ -742,6 +756,7 @@ function App() {
   // Check foyer session on startup or login
   const checkUserFoyerSession = async (currentUser: any) => {
     if (!currentUser) {
+      setIsSyncReady(false);
       setFoyer(null);
       setMyMemberProfile(null);
       setOnboardingActive(false);
@@ -751,6 +766,7 @@ function App() {
     try {
       const { foyer: myFoyer, member: myMember } = await foyerService.getMyFoyer();
       if (myFoyer && myMember) {
+        setIsSyncReady(false);
         // Clear all local states to avoid syncAllData pushing offline demo data to cloud
         setEvents([]);
         setGroceries([]);
@@ -885,7 +901,10 @@ function App() {
         localStorage.removeItem('mf_discover_mode');
         localStorage.removeItem('mf_is_premium');
       }
-      if (event !== 'TOKEN_REFRESHED') {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecoveringPassword(true);
+      }
+      if (event !== 'TOKEN_REFRESHED' && event !== 'PASSWORD_RECOVERY') {
         checkUserFoyerSession(currentUser);
       }
     });
@@ -911,9 +930,18 @@ function App() {
     if (!client) return;
 
     // Load members first to unblock UI and prevent loading screen hang
+    let joinedAtDate: string | null = null;
     try {
       const membersList = await foyerService.getFoyerMembers(foyerId);
       setMembers(membersList.length > 0 ? membersList.map(mapFoyerMemberToMember) : []);
+      
+      const { data: { user } } = await client.auth.getUser();
+      const currentActiveId = activeMemberIdRef.current || activeMemberId;
+      const selfMember = membersList.find(m => (user && m.userId === user.id) || m.id === currentActiveId);
+      if (selfMember) {
+        joinedAtDate = selfMember.joinedAt;
+      }
+
       if (myMemberProfile) {
         const updatedSelf = membersList.find(m => m.id === myMemberProfile.id);
         if (updatedSelf) {
@@ -931,6 +959,11 @@ function App() {
       });
     };
 
+    let alertsPromise = client.from('alerts').select('*').eq('foyer_id', foyerId);
+    if (joinedAtDate) {
+      alertsPromise = alertsPromise.gte('created_at', joinedAtDate);
+    }
+
     // Load everything else in the background (parallelized using Promise.all)
     Promise.all([
       wrapQuery(client.from('events').select('*').eq('foyer_id', foyerId)),
@@ -941,7 +974,7 @@ function App() {
       wrapQuery(client.from('dishes').select('*').eq('foyer_id', foyerId)),
       wrapQuery(client.from('chore_tasks').select('*').eq('foyer_id', foyerId)),
       wrapQuery(client.from('saving_goals').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('alerts').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(alertsPromise),
       wrapQuery(client.from('memories').select('*').eq('foyer_id', foyerId)),
       wrapQuery(client.from('votes').select('*').eq('foyer_id', foyerId)),
       wrapQuery(client.from('school_tasks').select('*').eq('foyer_id', foyerId)),
@@ -1249,6 +1282,8 @@ function App() {
         rating: a.rating || 5,
         notes: a.notes || ''
       })) : []);
+
+      setIsSyncReady(true);
     }).catch((err: any) => {
       console.error("Error loading foyer tables background data:", err);
     });
@@ -1648,7 +1683,14 @@ function App() {
     const subAlerts = foyerService.subscribeToChanges('alerts', foyer.id, (payload: any) => {
       const client = getSupabaseClient();
       if (!client) return;
-      client.from('alerts').select('*').eq('foyer_id', foyer.id).then(({ data: alertsData }) => {
+      
+      let query = client.from('alerts').select('*').eq('foyer_id', foyer.id);
+      const joinedAtVal = myMemberProfileRef.current?.joinedAt || myMemberProfile?.joinedAt;
+      if (joinedAtVal) {
+        query = query.gte('created_at', joinedAtVal);
+      }
+
+      query.then(({ data: alertsData }) => {
         if (alertsData) {
           setAlerts(alertsData.map(a => ({
             id: a.id,
@@ -1669,7 +1711,9 @@ function App() {
 
       if (payload && payload.eventType === 'INSERT') {
         const isCreatedByMe = payload.new.id && payload.new.id.includes(`-by-${activeMemberIdRef.current}`);
-        if (!isCreatedByMe) {
+        const joinedAtVal = myMemberProfileRef.current?.joinedAt || myMemberProfile?.joinedAt;
+        const isNewerThanJoined = !joinedAtVal || (payload.new.created_at && new Date(payload.new.created_at) >= new Date(joinedAtVal));
+        if (!isCreatedByMe && isNewerThanJoined) {
           setActiveToast({
             title: payload.new.title || 'Nouvelle notification',
             description: payload.new.description || ''
@@ -1682,6 +1726,104 @@ function App() {
           }
         }
       }
+    });
+
+    const subTransactions = foyerService.subscribeToChanges('transactions', foyer.id, () => {
+      foyerService.fetchTableData('transactions', foyer.id).then(transData => {
+        if (transData) {
+          setTransactions(transData.map(t => ({
+            id: t.id,
+            amount: Number(t.amount || 0),
+            type: t.type,
+            category: t.category,
+            date: t.date,
+            title: t.title,
+            memberId: t.member_id,
+            memberName: t.member_name
+          })));
+        }
+      });
+    });
+
+    const subSavingGoals = foyerService.subscribeToChanges('saving_goals', foyer.id, () => {
+      foyerService.fetchTableData('saving_goals', foyer.id).then(goalsData => {
+        if (goalsData) {
+          setSavingGoals(goalsData.map(g => ({
+            id: g.id,
+            title: g.title,
+            targetAmount: Number(g.target_amount || 0),
+            currentAmount: Number(g.current_amount || 0),
+            targetDate: g.target_date || '',
+            category: g.category || 'General'
+          })));
+        }
+      });
+    });
+
+    const subVotes = foyerService.subscribeToChanges('votes', foyer.id, () => {
+      foyerService.fetchTableData('votes', foyer.id).then(votesData => {
+        if (votesData) {
+          setVotes(votesData.map(v => ({
+            id: v.id,
+            question: v.question || v.title || '',
+            options: typeof v.options === 'string' ? JSON.parse(v.options) : v.options || [],
+            authorName: v.author_name || v.created_by_name || 'Parent',
+            active: !!v.active,
+            dueDate: v.due_date || v.deadline || ''
+          })));
+        }
+      });
+    });
+
+    const subSchoolTasks = foyerService.subscribeToChanges('school_tasks', foyer.id, () => {
+      foyerService.fetchTableData('school_tasks', foyer.id).then(tasksData => {
+        if (tasksData) {
+          setSchoolTasks(tasksData.map(t => ({
+            id: t.id,
+            subject: t.subject,
+            title: t.title,
+            dueDate: t.due_date || '',
+            done: !!t.done,
+            assignedMemberId: t.assigned_member_id || '',
+            difficulty: t.difficulty || 'easy',
+            grade: t.grade
+          })));
+        }
+      });
+    });
+
+    const subDemarches = foyerService.subscribeToChanges('demarches', foyer.id, () => {
+      foyerService.fetchTableData('demarches', foyer.id).then(demarchesData => {
+        if (demarchesData) {
+          setDemarches(demarchesData.map(d => ({
+            id: d.id,
+            templateId: d.template_id,
+            title: d.title,
+            icon: d.icon || 'FileText',
+            status: d.status || 'à faire',
+            assignedMemberId: d.assigned_member_id,
+            assignedMemberName: d.assigned_member_name,
+            steps: typeof d.steps === 'string' ? JSON.parse(d.steps) : d.steps || [],
+            pieces: typeof d.pieces === 'string' ? JSON.parse(d.pieces) : d.pieces || [],
+            createdAt: d.created_at_text || '',
+            notes: d.notes || ''
+          })));
+        }
+      });
+    });
+
+    const subJustificatifPacks = foyerService.subscribeToChanges('justificatif_packs', foyer.id, () => {
+      foyerService.fetchTableData('justificatif_packs', foyer.id).then(packsData => {
+        if (packsData) {
+          setJustificatifPacks(packsData.map(p => ({
+            id: p.id,
+            name: p.name || p.title || '',
+            templateType: p.template_type || '',
+            documentIds: p.document_ids || [],
+            createdAt: p.created_at_text || ''
+          })));
+        }
+      });
     });
 
     return () => {
@@ -1699,6 +1841,12 @@ function App() {
       if (subPocketMoney) subPocketMoney.unsubscribe();
       if (subArtisans) subArtisans.unsubscribe();
       if (subAlerts) subAlerts.unsubscribe();
+      if (subTransactions) subTransactions.unsubscribe();
+      if (subSavingGoals) subSavingGoals.unsubscribe();
+      if (subVotes) subVotes.unsubscribe();
+      if (subSchoolTasks) subSchoolTasks.unsubscribe();
+      if (subDemarches) subDemarches.unsubscribe();
+      if (subJustificatifPacks) subJustificatifPacks.unsubscribe();
     };
   }, [foyer]);
 
@@ -1707,6 +1855,7 @@ function App() {
     if (!foyer) return;
 
     const syncAllData = async () => {
+      if (!isSyncReady) return;
       const client = getSupabaseClient();
       if (!client) return;
 
@@ -1989,7 +2138,7 @@ function App() {
 
     return () => clearTimeout(timer);
   }, [
-    foyer,
+    foyer, isSyncReady,
     events, transactions, documents, dishes, tasks, savingGoals,
     alerts, votes, schoolTasks, chatGroups, chatMessages, demarches,
     justificatifPacks, vehicles, maintenance, trips, pets, pocketMoney, artisans
@@ -2109,20 +2258,7 @@ function App() {
       categoryKeywords.some(kw => promptLower.includes(kw))
     ));
 
-    if (isFinancial && (
-      promptLower.includes('ajoute') || 
-      promptLower.includes('ajouter') || 
-      promptLower.includes('enregistre') || 
-      promptLower.includes('enregistrer') || 
-      promptLower.includes('noter') || 
-      promptLower.includes('note') || 
-      promptLower.includes('mets') || 
-      promptLower.includes('mettre') || 
-      promptLower.includes('payé') || 
-      promptLower.includes('paye') || 
-      promptLower.includes('dépense') || 
-      promptLower.includes('depense')
-    )) {
+    if (isFinancial && hasNumber) {
       const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€)/i;
       let amountMatch = promptLower.match(amountRegexWithEuro);
       if (!amountMatch) {
@@ -3662,6 +3798,21 @@ function App() {
 
     return null;
   };
+
+  if (isRecoveringPassword) {
+    return (
+      <PasswordRecoveryView
+        onClose={() => {
+          setIsRecoveringPassword(false);
+          if (window.history && window.history.replaceState) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          } else {
+            window.location.hash = '';
+          }
+        }}
+      />
+    );
+  }
 
   const shouldShowOnboarding = !discoverMode && (!user || onboardingActive);
 

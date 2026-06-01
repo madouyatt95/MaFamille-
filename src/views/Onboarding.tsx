@@ -29,7 +29,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
   onEnterDiscoverMode 
 }) => {
   const isInitiallyAuthenticated = !!userEmail;
-  const [activeMode, setActiveMode] = useState<'login' | 'join' | 'create'>(
+  const [activeMode, setActiveMode] = useState<'login' | 'join' | 'create' | 'forgot'>(
     isInitiallyAuthenticated ? 'create' : 'login'
   );
   
@@ -59,6 +59,27 @@ export const Onboarding: React.FC<OnboardingProps> = ({
     setSuccessMessage(null);
     
     const supabase = getSupabaseClient();
+
+    if (activeMode === 'forgot') {
+      if (!email.trim()) {
+        setErrorMessage("Veuillez saisir votre adresse e-mail.");
+        return;
+      }
+      setLoading(true);
+      try {
+        if (!supabase) throw new Error("Supabase n'est pas disponible.");
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+          redirectTo: window.location.origin
+        });
+        if (error) throw error;
+        setSuccessMessage("Un e-mail de récupération a été envoyé !");
+      } catch (err: any) {
+        setErrorMessage(err.message || "Erreur lors de l'envoi");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     // Field Validations
     if (activeMode !== 'login' && !displayName.trim()) {
@@ -264,7 +285,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
           <form onSubmit={handleSubmit} className="space-y-4">
             
             {/* Input Prénom (Only if joining or creating) */}
-            {activeMode !== 'login' && (
+            {activeMode !== 'login' && activeMode !== 'forgot' && (
               <div className="space-y-1.5 animate-fade-in">
                 <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
                   Votre Prénom
@@ -385,36 +406,69 @@ export const Onboarding: React.FC<OnboardingProps> = ({
                   </div>
                 </div>
 
-                {/* Password */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
-                    Mot de passe
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-3 text-white/30">
-                      <Lock className="w-4 h-4" />
-                    </span>
-                    <input 
-                      type={showPassword ? "text" : "password"} 
-                      required
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF] focus:bg-white/8 transition-all"
-                    />
+                {/* Password (only if not in forgot mode) */}
+                {activeMode !== 'forgot' && (
+                  <div className="space-y-1.5 animate-fade-in">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                        Mot de passe
+                      </label>
+                      {activeMode === 'login' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveMode('forgot');
+                            setErrorMessage(null);
+                            setSuccessMessage(null);
+                          }}
+                          className="text-[10px] font-semibold text-[#6C5CFF] hover:text-[#5b4eff] hover:underline cursor-pointer focus:outline-none"
+                        >
+                          Mot de passe oublié ?
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-3 text-white/30">
+                        <Lock className="w-4 h-4" />
+                      </span>
+                      <input 
+                        type={showPassword ? "text" : "password"} 
+                        required
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF] focus:bg-white/8 transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3.5 top-3 text-white/30 hover:text-white/60 focus:outline-none cursor-pointer"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {activeMode === 'forgot' && (
+                  <div className="flex justify-end mt-1 animate-fade-in">
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-3 text-white/30 hover:text-white/60 focus:outline-none cursor-pointer"
+                      onClick={() => {
+                        setActiveMode('login');
+                        setErrorMessage(null);
+                        setSuccessMessage(null);
+                      }}
+                      className="text-[10px] font-semibold text-[#6C5CFF] hover:text-[#5b4eff] hover:underline cursor-pointer focus:outline-none"
                     >
-                      {showPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
+                      Retour à la connexion
                     </button>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -448,9 +502,11 @@ export const Onboarding: React.FC<OnboardingProps> = ({
                   <span>
                     {activeMode === 'login' 
                       ? "Se Connecter" 
-                      : activeMode === 'create' 
-                        ? (isInitiallyAuthenticated ? "Créer le Foyer" : "S'inscrire et Créer un Foyer")
-                        : (isInitiallyAuthenticated ? "Envoyer la demande d'adhésion" : "S'inscrire et Rejoindre le Foyer")}
+                      : activeMode === 'forgot'
+                        ? "Envoyer le mail de récupération"
+                        : activeMode === 'create' 
+                          ? (isInitiallyAuthenticated ? "Créer le Foyer" : "S'inscrire et Créer un Foyer")
+                          : (isInitiallyAuthenticated ? "Envoyer la demande d'adhésion" : "S'inscrire et Rejoindre le Foyer")}
                   </span>
                 </>
               )}

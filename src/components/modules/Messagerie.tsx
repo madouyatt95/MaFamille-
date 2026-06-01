@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Search, Palette, X, Pin, PinOff, Smile, Sparkles, Play, Pause } from 'lucide-react';
+import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Search, Palette, X, Pin, PinOff, Smile, Sparkles, Play, Pause, Archive, Download, FileText, Reply, Trash2 } from 'lucide-react';
 import type { Member, ChatMessage, ChatGroup } from '../../types';
 import { foyerService } from '../../services/foyerService';
+import { getSupabaseClient } from '../../utils/supabase';
 import { aiQuotaService } from '../../services/aiQuotaService';
 import { compressImage } from '../../utils/imageCompressor';
 
@@ -166,6 +167,90 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<number | null>(null);
+
+  const [pinnedGroupIds, setPinnedGroupIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(`pinned_groups_${activeMemberId}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [archivedGroupIds, setArchivedGroupIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(`archived_groups_${activeMemberId}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [deletedMessageIds, setDeletedMessageIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(`deleted_messages_${activeMemberId}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
+  const [showMsgSearch, setShowMsgSearch] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+
+  const [replyingToMessage, setReplyingToMessage] = useState<ChatMessage | null>(null);
+  const [typingMembers, setTypingMembers] = useState<{ [memberId: string]: string }>({});
+
+  const lastTypingSentRef = useRef<number>(0);
+
+  const togglePinGroup = (groupId: string) => {
+    setPinnedGroupIds(prev => {
+      const next = prev.includes(groupId) ? prev.filter(id => id !== groupId) : [...prev, groupId];
+      localStorage.setItem(`pinned_groups_${activeMemberId}`, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const toggleArchiveGroup = (groupId: string) => {
+    setArchivedGroupIds(prev => {
+      const next = prev.includes(groupId) ? prev.filter(id => id !== groupId) : [...prev, groupId];
+      localStorage.setItem(`archived_groups_${activeMemberId}`, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // Realtime Typing Indicator setup
+  useEffect(() => {
+    const client = getSupabaseClient();
+    const foyerId = localStorage.getItem('mf_cloud_foyer_id');
+    if (!client || !foyerId || !activeGroupId) return;
+
+    const channel = client.channel(`typing:${foyerId}:${activeGroupId}`);
+    
+    channel
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        const { memberId, name, isTyping } = payload;
+        if (memberId !== activeMemberId) {
+          setTypingMembers(prev => {
+            const next = { ...prev };
+            if (isTyping) {
+              next[memberId] = name;
+            } else {
+              delete next[memberId];
+            }
+            return next;
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [activeGroupId, activeMemberId]);
 
   const activeUser = members.find(m => m.id === activeMemberId);
 
@@ -377,6 +462,13 @@ Demande de l'utilisateur : "${userText}"`;
     if (!newMessage.trim() || !activeGroupId || !activeUser) return;
 
     const userText = newMessage.trim();
+    let contentValue = userText;
+    if (replyingToMessage) {
+      contentValue = JSON.stringify({
+        replyToId: replyingToMessage.id,
+        text: userText
+      });
+    }
 
     const newMsg: ChatMessage = {
       id: `msg_${Date.now()}`,
@@ -384,22 +476,35 @@ Demande de l'utilisateur : "${userText}"`;
       senderId: activeUser.id,
       senderName: activeUser.name,
       type: 'text',
-      content: userText,
+      content: contentValue,
       timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
       readBy: [activeUser.id]
     };
 
     setMessages(prev => [...prev, newMsg]);
-    setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: newMsg.content, lastMessageTime: newMsg.timestamp } : g));
+    setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: userText, lastMessageTime: newMsg.timestamp } : g));
     setNewMessage('');
+    setReplyingToMessage(null);
 
     saveMessageToCloud(newMsg);
     const activeGroup = groups.find(g => g.id === activeGroupId);
     if (activeGroup) {
       saveGroupToCloud({
         ...activeGroup,
-        lastMessage: newMsg.content,
+        lastMessage: userText,
         lastMessageTime: newMsg.timestamp
+      });
+    }
+
+    // Clear typing indicator
+    const client = getSupabaseClient();
+    const foyerId = localStorage.getItem('mf_cloud_foyer_id');
+    if (client && foyerId) {
+      const channel = client.channel(`typing:${foyerId}:${activeGroupId}`);
+      channel.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { memberId: activeMemberId, name: activeUser.name, isTyping: false }
       });
     }
 
@@ -445,6 +550,39 @@ Demande de l'utilisateur : "${userText}"`;
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeGroupId || !activeUser) return;
+
+    if (!file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          const contentValue = `${event.target.result as string}|${file.name}`;
+          const newMsg: ChatMessage = {
+            id: `msg_${Date.now()}`,
+            groupId: activeGroupId,
+            senderId: activeUser.id,
+            senderName: activeUser.name,
+            type: 'document',
+            content: contentValue,
+            timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+            readBy: [activeUser.id]
+          };
+          setMessages(prev => [...prev, newMsg]);
+          setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: `📄 ${file.name}`, lastMessageTime: newMsg.timestamp } : g));
+          saveMessageToCloud(newMsg);
+          
+          const activeGroup = groups.find(g => g.id === activeGroupId);
+          if (activeGroup) {
+            saveGroupToCloud({
+              ...activeGroup,
+              lastMessage: `📄 ${file.name}`,
+              lastMessageTime: newMsg.timestamp
+            });
+          }
+        }
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
 
     try {
       const compressedData = await compressImage(file, 900, 900, 0.6);
@@ -728,8 +866,35 @@ Demande de l'utilisateur : "${userText}"`;
     }
   };
 
+  const handleDeleteForMe = (msgId: string) => {
+    setDeletedMessageIds(prev => {
+      const next = [...prev, msgId];
+      localStorage.setItem(`deleted_messages_${activeMemberId}`, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleDeleteForAll = async (msgId: string) => {
+    setMessages(prev => prev.filter(m => m.id !== msgId));
+    const client = getSupabaseClient();
+    if (client) {
+      const foyerId = localStorage.getItem('mf_cloud_foyer_id');
+      if (foyerId) {
+        await client.from('chat_messages').delete().eq('id', msgId);
+      }
+    }
+  };
+
   const activeGroup = groups.find(g => g.id === activeGroupId);
-  const activeMessages = messages.filter(m => m.groupId === activeGroupId);
+  const activeMessages = messages.filter(m => m.groupId === activeGroupId && !deletedMessageIds.includes(m.id));
+  const filteredActiveMessages = activeMessages.filter(msg => {
+    if (!messageSearchQuery) return true;
+    let text = msg.content;
+    if (msg.content.startsWith('{"replyToId":')) {
+      try { text = JSON.parse(msg.content).text; } catch {}
+    }
+    return text.toLowerCase().includes(messageSearchQuery.toLowerCase());
+  });
 
   const visibleGroups = groups.filter(g => {
     if (!g.isPrivate) return true;
@@ -738,70 +903,185 @@ Demande de l'utilisateur : "${userText}"`;
 
   // LIST VIEW
   if (!activeGroupId) {
+    // Filter by search query
+    const filteredGroups = visibleGroups.filter(g => 
+      g.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    const filteredMembers = members.filter(m => 
+      m.id !== activeMemberId && m.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Sort groups: pinned first
+    const sortedGroups = [...filteredGroups].sort((a, b) => {
+      const aPinned = pinnedGroupIds.includes(a.id);
+      const bPinned = pinnedGroupIds.includes(b.id);
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+      return 0;
+    });
+
+    const unarchivedGroups = sortedGroups.filter(g => !archivedGroupIds.includes(g.id));
+    const archivedGroups = sortedGroups.filter(g => archivedGroupIds.includes(g.id));
+
     return (
       <div className="flex flex-col h-full bg-gradient-to-b from-[#090D1A] to-[#04060C] text-white">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5 backdrop-blur-md">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-gradient-to-br from-[#00D26A]/20 to-[#00D26A]/5 rounded-2xl border border-[#00D26A]/30 shadow-lg shadow-[#00D26A]/5">
-              <MessageCircle className="w-5 h-5 text-[#00D26A]" />
+        <div className="flex flex-col border-b border-white/10 bg-white/5 backdrop-blur-md">
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center space-x-3">
+              <div className="p-2.5 bg-gradient-to-br from-[#00D26A]/20 to-[#00D26A]/5 rounded-2xl border border-[#00D26A]/30 shadow-lg shadow-[#00D26A]/5">
+                <MessageCircle className="w-5 h-5 text-[#00D26A]" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black tracking-tight bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">Messages</h2>
+                <p className="text-[10px] font-medium text-white/40">Connecté : {activeUser?.name}</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-black tracking-tight bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">Messages</h2>
-              <p className="text-[10px] font-medium text-white/40">Connecté : {activeUser?.name}</p>
-            </div>
+            <button 
+              onClick={() => setShowSearch(!showSearch)} 
+              className={`p-2 rounded-full transition-all active:scale-95 border border-white/5 ${showSearch ? 'bg-white/15 text-white' : 'hover:bg-white/10 text-white/70 hover:text-white'}`}
+            >
+              <Search className="w-4 h-4" />
+            </button>
           </div>
-          <button className="p-2 hover:bg-white/10 rounded-full transition-all active:scale-95 text-white/70 hover:text-white border border-white/5">
-            <Search className="w-4 h-4" />
-          </button>
+
+          {showSearch && (
+            <div className="px-4 pb-3 flex items-center space-x-2 animate-fade-in">
+              <div className="flex-1 flex items-center bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 focus-within:border-white/20">
+                <Search className="w-3.5 h-3.5 text-white/30 mr-2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Rechercher une discussion..."
+                  className="flex-1 bg-transparent border-none text-xs text-white focus:outline-none focus:ring-0 placeholder-white/30"
+                />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="p-0.5 hover:bg-white/10 rounded-full text-white/40">
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Groups List */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
-          <h4 className="text-[10px] font-black text-white/35 uppercase tracking-widest pl-2 mb-1">Discussions de groupe</h4>
-          {visibleGroups.map(group => (
-            <div 
-              key={group.id} 
-              onClick={() => setActiveGroupId(group.id)}
-              className="flex items-center p-3.5 rounded-2xl border border-white/0 hover:border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98] group"
-            >
-              <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 mr-4 shadow-lg transition-transform group-hover:scale-105 ${
-                group.id === 'g_ai_assistant' 
-                  ? 'bg-gradient-to-br from-[#FFB020] to-[#FF4D6D] shadow-[#FFB020]/20' 
-                  : 'bg-gradient-to-br from-[#6C5CFF] to-[#00D26A] shadow-[#6C5CFF]/20'
-              }`}>
-                {group.id === 'g_ai_assistant' ? <Sparkles className="w-5 h-5 text-white" /> : group.isPrivate ? <Users className="w-5 h-5 text-white" /> : <MessageCircle className="w-5 h-5 text-white" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-center mb-0.5">
-                  <h3 className="font-bold text-sm text-white/95 group-hover:text-white truncate">{group.name}</h3>
-                  <span className="text-[10px] font-mono text-white/40">{group.lastMessageTime}</span>
-                </div>
-                <p className="text-xs text-white/50 group-hover:text-white/70 truncate">{group.lastMessage}</p>
-              </div>
-            </div>
-          ))}
+          {unarchivedGroups.length > 0 && (
+            <>
+              <h4 className="text-[10px] font-black text-white/35 uppercase tracking-widest pl-2 mb-1">Discussions</h4>
+              {unarchivedGroups.map(group => {
+                const isPinned = pinnedGroupIds.includes(group.id);
+                return (
+                  <div 
+                    key={group.id} 
+                    onClick={() => setActiveGroupId(group.id)}
+                    className="flex items-center p-3.5 rounded-2xl border border-white/0 hover:border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98] group relative"
+                  >
+                    <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 mr-4 shadow-lg transition-transform group-hover:scale-105 ${
+                      group.id === 'g_ai_assistant' 
+                        ? 'bg-gradient-to-br from-[#FFB020] to-[#FF4D6D] shadow-[#FFB020]/20' 
+                        : 'bg-gradient-to-br from-[#6C5CFF] to-[#00D26A] shadow-[#6C5CFF]/20'
+                    }`}>
+                      {group.id === 'g_ai_assistant' ? <Sparkles className="w-5 h-5 text-white" /> : group.isPrivate ? <Users className="w-5 h-5 text-white" /> : <MessageCircle className="w-5 h-5 text-white" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-center mb-0.5">
+                        <div className="flex items-center space-x-1.5 min-w-0">
+                          <h3 className="font-bold text-sm text-white/95 group-hover:text-white truncate">{group.name}</h3>
+                          {isPinned && <Pin className="w-3 h-3 text-[#FFB020] fill-[#FFB020] shrink-0" />}
+                        </div>
+                        <span className="text-[10px] font-mono text-white/40">{group.lastMessageTime}</span>
+                      </div>
+                      <p className="text-xs text-white/50 group-hover:text-white/70 truncate">{group.lastMessage}</p>
+                    </div>
+
+                    {/* Pin/Archive actions */}
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity bg-[#090D1A] pl-2 rounded-l-full py-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); togglePinGroup(group.id); }}
+                        className="p-1 hover:bg-white/10 rounded-full text-white/50 hover:text-[#FFB020] transition-colors"
+                        title={isPinned ? "Désépingler" : "Épingler"}
+                      >
+                        <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-[#FFB020] text-[#FFB020]' : ''}`} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleArchiveGroup(group.id); }}
+                        className="p-1 hover:bg-white/10 rounded-full text-white/50 hover:text-[#6C5CFF] transition-colors"
+                        title="Archiver"
+                      >
+                        <Archive className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
           
           {/* Members Direct Messages (Mocked) */}
-          <div className="pt-4 space-y-2">
-            <h4 className="text-[10px] font-black text-white/35 uppercase tracking-widest pl-2 mb-1">Messages Privés</h4>
-            {members.filter(m => m.id !== activeMemberId).map(member => (
-              <div 
-                key={member.id} 
-                onClick={() => handleOpenDirectMessage(member)}
-                className="flex items-center p-3 rounded-2xl border border-white/0 hover:border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98] group"
+          {filteredMembers.length > 0 && (
+            <div className="pt-4 space-y-2">
+              <h4 className="text-[10px] font-black text-white/35 uppercase tracking-widest pl-2 mb-1">Messages Privés</h4>
+              {filteredMembers.map(member => (
+                <div 
+                  key={member.id} 
+                  onClick={() => handleOpenDirectMessage(member)}
+                  className="flex items-center p-3 rounded-2xl border border-white/0 hover:border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98] group"
+                >
+                  <div className="relative mr-4 shrink-0">
+                    <img src={member.photoUrl} alt={member.name} className="w-10 h-10 rounded-full object-cover border border-white/10 group-hover:scale-105 transition-transform" />
+                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#00D26A] border-2 border-[#090D1A] rounded-full" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-sm text-white/95 group-hover:text-white truncate">{member.name}</h3>
+                    <p className="text-[11px] text-white/40 group-hover:text-white/60">Appuyez pour envoyer un message</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Archived groups list toggle */}
+          {archivedGroups.length > 0 && (
+            <div className="pt-4">
+              <button 
+                onClick={() => setShowArchived(!showArchived)}
+                className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-xs font-bold text-white/70 transition-colors flex items-center justify-center space-x-2"
               >
-                <div className="relative mr-4 shrink-0">
-                  <img src={member.photoUrl} alt={member.name} className="w-10 h-10 rounded-full object-cover border border-white/10 group-hover:scale-105 transition-transform" />
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#00D26A] border-2 border-[#090D1A] rounded-full" />
+                <Archive className="w-4 h-4 text-white/50" />
+                <span>{showArchived ? "Masquer les archives" : `Voir les archives (${archivedGroups.length})`}</span>
+              </button>
+
+              {showArchived && (
+                <div className="mt-2 space-y-2 p-2 bg-white/5 rounded-2xl border border-white/5 animate-fade-in">
+                  {archivedGroups.map(group => (
+                    <div 
+                      key={group.id} 
+                      onClick={() => setActiveGroupId(group.id)}
+                      className="flex items-center p-2.5 rounded-xl hover:bg-white/5 cursor-pointer transition-all group relative"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center shrink-0 mr-3">
+                        {group.isPrivate ? <Users className="w-4 h-4 text-white/75" /> : <MessageCircle className="w-4 h-4 text-white/75" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-xs text-white/90 truncate">{group.name}</h3>
+                        <p className="text-[11px] text-white/40 truncate">{group.lastMessage}</p>
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleArchiveGroup(group.id); }}
+                        className="p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#090D1A]"
+                        title="Désarchiver"
+                      >
+                        <Archive className="w-3.5 h-3.5 text-[#00D26A]" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-sm text-white/95 group-hover:text-white truncate">{member.name}</h3>
-                  <p className="text-[11px] text-white/40 group-hover:text-white/60">Appuyez pour envoyer un message</p>
-                </div>
-              </div>
-            ))}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -812,9 +1092,9 @@ Demande de l'utilisateur : "${userText}"`;
     <div className="flex flex-col h-[75vh] bg-[#0A0D18] text-white rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative z-10">
       {/* Chat Header */}
       <div className="flex items-center justify-between p-3 border-b border-white/10 bg-[#112240]/90 backdrop-blur-md">
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3 min-w-0">
           <button 
-            onClick={() => setActiveGroupId(null)}
+            onClick={() => { setActiveGroupId(null); setReplyingToMessage(null); }}
             className="p-2 hover:bg-white/10 rounded-full transition-colors mr-1"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -824,18 +1104,50 @@ Demande de l'utilisateur : "${userText}"`;
               <img src={members.find(m => m.id !== activeMemberId && activeGroup.memberIds.includes(m.id))?.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
             ) : activeGroup?.isPrivate ? <Users className="w-5 h-5 text-white" /> : <MessageCircle className="w-5 h-5 text-white" />}
           </div>
-          <div>
-            <h2 className="text-base font-bold">{activeGroup?.name}</h2>
+          <div className="min-w-0">
+            <h2 className="text-base font-bold truncate">{activeGroup?.name}</h2>
             <p className="text-[10px] text-white/50">{activeGroupId === 'g_ai_assistant' ? 'IA locale • Hors ligne' : `${activeGroup?.memberIds.length} membres`}</p>
           </div>
         </div>
 
+        <button
+          onClick={() => { setShowMsgSearch(!showMsgSearch); if (showMsgSearch) setMessageSearchQuery(''); }}
+          className={`p-2 hover:bg-white/10 rounded-full transition-colors ${showMsgSearch ? 'text-[#00D26A]' : 'text-white/60'}`}
+          title="Rechercher"
+        >
+          <Search className="w-5 h-5" />
+        </button>
       </div>
+
+      {/* Message Search Bar */}
+      {showMsgSearch && (
+        <div className="p-2 border-b border-white/10 bg-[#112240]/80 flex items-center space-x-2 animate-fade-in">
+          <Search className="w-4 h-4 text-white/40 ml-1 shrink-0" />
+          <input
+            type="text"
+            value={messageSearchQuery}
+            onChange={(e) => setMessageSearchQuery(e.target.value)}
+            placeholder="Rechercher un message..."
+            className="flex-1 bg-transparent border-none text-xs text-white focus:outline-none focus:ring-0 placeholder-white/30"
+          />
+          {messageSearchQuery && (
+            <button onClick={() => setMessageSearchQuery('')} className="p-1 hover:bg-white/10 rounded-full text-white/40">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Pinned Message Banner */}
       {(() => {
         const pinnedMsg = activeMessages.find(m => m.id === activeGroup?.pinnedMessageId);
         if (!pinnedMsg) return null;
+        
+        let displayPinnedContent = pinnedMsg.content;
+        if (pinnedMsg.content.startsWith('{"replyToId":')) {
+          try { displayPinnedContent = JSON.parse(pinnedMsg.content).text; } catch {}
+        }
+        
         return (
           <div 
             onClick={() => {
@@ -847,7 +1159,7 @@ Demande de l'utilisateur : "${userText}"`;
             <div className="flex items-center space-x-2 truncate min-w-0">
               <Pin className="w-3.5 h-3.5 text-[#FFB020] shrink-0" />
               <span className="text-[10px] font-extrabold text-[#FFB020] uppercase tracking-wider shrink-0">Épinglé</span>
-              <span className="text-[11px] text-white/70 truncate italic">{pinnedMsg.content.substring(0, 60)}{pinnedMsg.content.length > 60 ? '...' : ''}</span>
+              <span className="text-[11px] text-white/70 truncate italic">{displayPinnedContent.substring(0, 60)}{displayPinnedContent.length > 60 ? '...' : ''}</span>
             </div>
             <button
               type="button"
@@ -863,11 +1175,22 @@ Demande de l'utilisateur : "${userText}"`;
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-[#0A0D18] to-[#121829]">
-        {activeMessages.map(msg => {
+        {filteredActiveMessages.map(msg => {
           const isMe = msg.senderId === activeUser?.id;
           const isAiMsg = msg.senderId === 'ai';
           const sender = members.find(m => m.id === msg.senderId);
           const isPinned = activeGroup?.pinnedMessageId === msg.id;
+
+          // Parse reply context
+          let replyToId: string | undefined = undefined;
+          let actualContent = msg.content;
+          if (msg.content.startsWith('{"replyToId":')) {
+            try {
+              const parsed = JSON.parse(msg.content);
+              replyToId = parsed.replyToId;
+              actualContent = parsed.text;
+            } catch {}
+          }
           
           return (
             <div key={msg.id} id={`msg-${msg.id}`} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group/msg relative`}>
@@ -889,11 +1212,51 @@ Demande de l'utilisateur : "${userText}"`;
                       ? 'bg-gradient-to-br from-[#00D26A] to-[#00B050] text-black font-medium rounded-2xl rounded-tr-sm shadow-lg shadow-[#00D26A]/10' 
                       : 'bg-white/5 border border-white/10 text-white rounded-2xl rounded-tl-sm backdrop-blur-sm shadow-sm'
                 }`}>
-                  {msg.type === 'text' && <p className="text-sm whitespace-pre-line leading-relaxed">{msg.content}</p>}
+                  {/* Replied message preview box */}
+                  {replyToId && (() => {
+                    const repliedMsg = messages.find(m => m.id === replyToId);
+                    if (!repliedMsg) return null;
+                    
+                    let repliedCleanContent = repliedMsg.content;
+                    if (repliedMsg.content.startsWith('{"replyToId":')) {
+                      try { repliedCleanContent = JSON.parse(repliedMsg.content).text; } catch {}
+                    }
+                    return (
+                      <div className="bg-black/20 border-l-4 border-[#6C5CFF] p-1.5 rounded-md mb-2 text-xs opacity-75 max-w-full truncate">
+                        <span className="font-extrabold text-[9px] text-[#6C5CFF] block mb-0.5">{repliedMsg.senderName}</span>
+                        <span className="text-[10px] text-white/70 italic truncate block">
+                          {repliedMsg.type === 'text' ? repliedCleanContent : repliedMsg.type === 'image' ? '📷 Image' : repliedMsg.type === 'voice' ? '🎤 Audio' : '📄 Document'}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
+                  {msg.type === 'text' && <p className="text-sm whitespace-pre-line leading-relaxed">{actualContent}</p>}
                   {msg.type === 'image' && <img src={msg.content} alt="Media" className="rounded-xl max-h-48 object-cover shadow-md" />}
                   {msg.type === 'voice' && (
                     <VoiceMessagePlayer content={msg.content} isMe={isMe} />
                   )}
+                  {msg.type === 'document' && (() => {
+                    const parts = actualContent.split('|');
+                    const filename = parts[parts.length - 1] || 'Document';
+                    const dataUrl = parts.slice(0, -1).join('|');
+                    return (
+                      <div className="flex items-center space-x-3 p-2 bg-black/10 rounded-xl border border-white/10 max-w-xs">
+                        <FileText className="w-8 h-8 text-[#00D26A]" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold truncate text-white">{filename}</p>
+                          <a
+                            href={dataUrl}
+                            download={filename}
+                            className="text-[10px] text-[#00D26A] hover:underline flex items-center space-x-1 mt-0.5"
+                          >
+                            <Download className="w-3 h-3 mr-0.5" />
+                            <span>Télécharger</span>
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   
                   <div className={`flex items-center justify-end space-x-1 mt-1.5 ${isMe ? 'text-black/60' : 'text-white/40'}`}>
                     <span className="text-[9px] font-mono">{msg.timestamp}</span>
@@ -902,23 +1265,50 @@ Demande de l'utilisateur : "${userText}"`;
                   </div>
                 </div>
 
-                {/* Action buttons (reaction + pin) */}
+                {/* Action buttons (reply + reaction + pin + delete) */}
                 <div className="flex flex-col space-y-1 opacity-70 md:opacity-0 md:group-hover/msg:opacity-100 transition-opacity shrink-0 mb-1">
                   <button
                     type="button"
+                    onClick={() => setReplyingToMessage(msg)}
+                    className="p-1 hover:bg-white/10 rounded-full transition text-white/40 hover:text-white"
+                    title="Répondre"
+                  >
+                    <Reply className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setShowReactionsForId(showReactionsForId === msg.id ? null : msg.id)}
-                    className="p-1 hover:bg-white/10 rounded-full transition"
+                    className="p-1 hover:bg-white/10 rounded-full transition text-white/40 hover:text-white"
                     title="Réagir"
                   >
-                    <Smile className="w-3.5 h-3.5 text-white/40" />
+                    <Smile className="w-3.5 h-3.5" />
                   </button>
                   <button
                     type="button"
                     onClick={() => handleTogglePinMessage(msg.id)}
-                    className="p-1 hover:bg-white/10 rounded-full transition"
+                    className="p-1 hover:bg-white/10 rounded-full transition text-white/40 hover:text-white"
                     title={isPinned ? 'Désépingler' : 'Épingler'}
                   >
-                    {isPinned ? <PinOff className="w-3.5 h-3.5 text-[#FFB020]" /> : <Pin className="w-3.5 h-3.5 text-white/40" />}
+                    {isPinned ? <PinOff className="w-3.5 h-3.5 text-[#FFB020]" /> : <Pin className="w-3.5 h-3.5" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isMe) {
+                        const all = window.confirm("Voulez-vous supprimer ce message pour tout le monde ? Sinon, il sera supprimé uniquement pour vous.");
+                        if (all) {
+                          handleDeleteForAll(msg.id);
+                        } else {
+                          handleDeleteForMe(msg.id);
+                        }
+                      } else {
+                        handleDeleteForMe(msg.id);
+                      }
+                    }}
+                    className="p-1 hover:bg-white/10 rounded-full transition text-white/40 hover:text-red-400"
+                    title="Supprimer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -1007,6 +1397,16 @@ Demande de l'utilisateur : "${userText}"`;
             </div>
           </div>
         )}
+
+        {/* Real-time family member typing indicator display */}
+        {Object.keys(typingMembers).length > 0 && (
+          <div className="flex items-center space-x-1.5 ml-8 text-[11px] text-[#00D26A] italic py-1 animate-pulse">
+            <span className="w-1.5 h-1.5 bg-[#00D26A] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+            <span className="w-1.5 h-1.5 bg-[#00D26A] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+            <span className="w-1.5 h-1.5 bg-[#00D26A] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+            <span>{Object.values(typingMembers).join(', ')} {Object.keys(typingMembers).length > 1 ? "sont en train d'écrire..." : "est en train d'écrire..."}</span>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
@@ -1069,6 +1469,31 @@ Demande de l'utilisateur : "${userText}"`;
         </div>
       )}
 
+      {/* Replying Preview Banner */}
+      {replyingToMessage && (
+        <div className="flex items-center justify-between px-4 py-2 bg-[#6C5CFF]/20 border-t border-[#6C5CFF]/30 backdrop-blur-md animate-fade-in">
+          <div className="flex-1 min-w-0 border-l-2 border-[#00D26A] pl-2 py-0.5">
+            <span className="text-[10px] font-black text-[#00D26A] block mb-0.5">Répondre à {replyingToMessage.senderName}</span>
+            <span className="text-[11px] text-white/70 truncate block italic">
+              {(() => {
+                let text = replyingToMessage.content;
+                if (replyingToMessage.content.startsWith('{"replyToId":')) {
+                  try { text = JSON.parse(replyingToMessage.content).text; } catch {}
+                }
+                return replyingToMessage.type === 'text' ? text : replyingToMessage.type === 'image' ? '📷 Image' : replyingToMessage.type === 'voice' ? '🎤 Audio' : '📄 Document';
+              })()}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setReplyingToMessage(null)}
+            className="p-1 hover:bg-white/10 rounded-full transition shrink-0 ml-2"
+          >
+            <X className="w-4 h-4 text-white/40" />
+          </button>
+        </div>
+      )}
+
       {/* Input Area */}
       <div className="p-3 bg-white/5 border-t border-white/10 backdrop-blur-xl">
         {isRecording ? (
@@ -1101,14 +1526,14 @@ Demande de l'utilisateur : "${userText}"`;
               type="file" 
               ref={fileInputRef} 
               className="hidden" 
-              accept="image/*"
-              capture="environment"
+              accept="image/*,application/pdf,text/plain"
               onChange={handleMediaUpload}
             />
             <button 
               type="button" 
               onClick={() => fileInputRef.current?.click()}
               className="p-2 hover:bg-white/10 rounded-full text-white/60 transition-colors"
+              title="Ajouter un fichier (Image, PDF, Texte)"
             >
               <Paperclip className="w-5 h-5" />
             </button>
@@ -1124,7 +1549,30 @@ Demande de l'utilisateur : "${userText}"`;
             <input 
               type="text" 
               value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
+              onChange={(e) => {
+                setNewMessage(e.target.value);
+                const client = getSupabaseClient();
+                const foyerId = localStorage.getItem('mf_cloud_foyer_id');
+                if (client && foyerId && activeGroupId && activeUser) {
+                  const now = Date.now();
+                  if (now - lastTypingSentRef.current > 2000) {
+                    lastTypingSentRef.current = now;
+                    const channel = client.channel(`typing:${foyerId}:${activeGroupId}`);
+                    channel.send({
+                      type: 'broadcast',
+                      event: 'typing',
+                      payload: { memberId: activeMemberId, name: activeUser.name, isTyping: true }
+                    });
+                    setTimeout(() => {
+                      channel.send({
+                        type: 'broadcast',
+                        event: 'typing',
+                        payload: { memberId: activeMemberId, name: activeUser.name, isTyping: false }
+                      });
+                    }, 3000);
+                  }
+                }
+              }}
               placeholder="Votre message..." 
               className="flex-1 bg-transparent border-none text-sm text-white focus:outline-none focus:ring-0 placeholder-white/30"
             />
@@ -1149,8 +1597,6 @@ Demande de l'utilisateur : "${userText}"`;
           </form>
         )}
       </div>
-
-
     </div>
   );
 };
