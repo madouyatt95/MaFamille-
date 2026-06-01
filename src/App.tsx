@@ -1341,6 +1341,341 @@ function App() {
     });
   };
 
+  // 1.5. Silent Collaborative Background Rehydration (guarantees profile sync across all features)
+  const syncDataFromCloud = async (foyerId: string) => {
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    try {
+      const membersList = await foyerService.getFoyerMembers(foyerId);
+      const mappedMembers = membersList.length > 0 ? membersList.map(mapFoyerMemberToMember) : [];
+      setMembers(prev => {
+        const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+        const sortedNew = [...mappedMembers].sort((a, b) => a.id.localeCompare(b.id));
+        if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+        return mappedMembers;
+      });
+
+      const { data: { user } } = await client.auth.getUser();
+      const currentActiveId = activeMemberIdRef.current || activeMemberId;
+      const selfMember = membersList.find(m => (user && m.userId === user.id) || m.id === currentActiveId);
+      if (myMemberProfile && selfMember) {
+        setMyMemberProfile(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(selfMember)) return prev;
+          return selfMember;
+        });
+      }
+
+      // Parallelize queries to Supabase
+      const [
+        eventsRes,
+        groceriesRes,
+        transactionsRes,
+        documentsRes,
+        dishesRes,
+        tasksRes,
+        savingGoalsRes,
+        memoriesRes,
+        votesRes,
+        schoolTasksRes,
+        chatGroupsRes,
+        demarchesRes,
+        packsRes,
+        vehiclesRes,
+        maintenanceRes,
+        tripsRes,
+        petsRes,
+        pocketMoneyRes,
+        artisansRes
+      ] = await Promise.all([
+        client.from('events').select('*').eq('foyer_id', foyerId),
+        client.from('groceries').select('*').eq('foyer_id', foyerId),
+        client.from('transactions').select('*').eq('foyer_id', foyerId),
+        client.from('documents').select('*').eq('foyer_id', foyerId),
+        client.from('dishes').select('*').eq('foyer_id', foyerId),
+        client.from('chore_tasks').select('*').eq('foyer_id', foyerId),
+        client.from('saving_goals').select('*').eq('foyer_id', foyerId),
+        client.from('memories').select('*').eq('foyer_id', foyerId),
+        client.from('votes').select('*').eq('foyer_id', foyerId),
+        client.from('school_tasks').select('*').eq('foyer_id', foyerId),
+        client.from('chat_groups').select('*').eq('foyer_id', foyerId),
+        client.from('demarches').select('*').eq('foyer_id', foyerId),
+        client.from('justificatif_packs').select('*').eq('foyer_id', foyerId),
+        client.from('vehicles').select('*').eq('foyer_id', foyerId),
+        client.from('maintenance').select('*').eq('foyer_id', foyerId),
+        client.from('trips').select('*').eq('foyer_id', foyerId),
+        client.from('pets').select('*').eq('foyer_id', foyerId),
+        client.from('pocket_money').select('*').eq('foyer_id', foyerId),
+        client.from('artisans').select('*').eq('foyer_id', foyerId)
+      ]);
+
+      // Map and set states conditionally to avoid unnecessary component renders and loops
+      if (eventsRes.data) {
+        const mapped = eventsRes.data.map(e => ({
+          id: e.id, title: e.title, type: e.type, dateTime: e.date_time, time: e.time,
+          memberId: e.member_id, memberName: e.member_name, location: e.location,
+          description: e.description, done: e.done, amount: e.amount ? Number(e.amount) : undefined
+        }));
+        setEvents(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (groceriesRes.data) {
+        const mapped = groceriesRes.data.map(g => ({
+          id: g.id, name: g.name, category: g.category, quantity: g.quantity,
+          checked: g.checked, inStock: g.in_stock, expiryDate: g.expiry_date,
+          meal: g.meal || undefined, addedBy: g.added_by || undefined, isFavorite: !!g.is_favorite
+        }));
+        setGroceries(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (transactionsRes.data) {
+        const mapped = transactionsRes.data.map(t => ({
+          id: t.id, amount: Number(t.amount), type: t.type, category: t.category,
+          date: t.date, title: t.title, memberId: t.member_id, memberName: t.member_name
+        }));
+        setTransactions(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (documentsRes.data) {
+        const mapped = documentsRes.data.map(d => ({
+          id: d.id, name: d.name, category: d.category, subCategory: d.sub_category,
+          memberId: d.member_id, memberName: d.member_name, tags: d.tags || [],
+          uploadDate: d.upload_date, expiryDate: d.expiry_date, fileSize: d.file_size,
+          isExpired: d.is_expired, description: d.description, fileBase64: d.file_base64, isSecure: d.is_secure
+        }));
+        setDocuments(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (dishesRes.data) {
+        const mapped = dishesRes.data.map(d => ({
+          id: d.id, day: d.day, mealType: d.meal_type, name: d.name, image: d.image, ingredients: d.ingredients || []
+        }));
+        setDishes(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (tasksRes.data) {
+        const mapped = tasksRes.data.map(t => ({
+          id: t.id, title: t.title, rewardPoints: t.reward_points, assignedMemberId: t.assigned_member_id,
+          assignedMemberName: t.assigned_member_name, done: t.done, rotation: t.rotation,
+          validatedByParent: t.validated_by_parent, dueDate: t.due_date
+        }));
+        setTasks(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (savingGoalsRes.data) {
+        const mapped = savingGoalsRes.data.map(s => ({
+          id: s.id, title: s.title, targetAmount: Number(s.target_amount),
+          currentAmount: Number(s.current_amount), targetDate: s.target_date, category: s.category
+        }));
+        setSavingGoals(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (memoriesRes.data) {
+        const mapped = memoriesRes.data.map(m => ({
+          id: m.id, date: m.date, title: m.title, description: m.description,
+          authorName: m.author_name, authorPhoto: m.author_photo, imageUrl: m.image_url,
+          imageUrls: m.image_urls || [], likesCount: m.likes_count, isPrivate: m.is_private, theme: m.theme
+        }));
+        setMemories(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (votesRes.data) {
+        const mapped = votesRes.data.map(v => ({
+          id: v.id, question: v.question, authorName: v.author_name, active: v.active,
+          dueDate: v.due_date, options: v.options
+        }));
+        setVotes(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (schoolTasksRes.data) {
+        const mapped = schoolTasksRes.data.map(s => ({
+          id: s.id, subject: s.subject, title: s.title, dueDate: s.due_date, done: s.done,
+          assignedMemberId: s.assigned_member_id, difficulty: s.difficulty, grade: s.grade || undefined
+        }));
+        setSchoolTasks(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (chatGroupsRes.data) {
+        const mapped = chatGroupsRes.data.map(c => ({
+          id: c.id, name: c.name, isPrivate: c.is_private, memberIds: c.member_ids || [],
+          lastMessage: c.last_message || undefined, lastMessageTime: c.last_message_time || undefined, unreadCount: c.unread_count || 0
+        }));
+        setChatGroups(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (demarchesRes.data) {
+        const mapped = demarchesRes.data.map(d => ({
+          id: d.id, templateId: d.template_id || undefined, title: d.title, icon: d.icon, status: d.status,
+          assignedMemberId: d.assigned_member_id || undefined, assignedMemberName: d.assigned_member_name || undefined,
+          steps: d.steps || [], pieces: d.pieces || [], createdAt: d.created_at_text, notes: d.notes || undefined
+        }));
+        setDemarches(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (packsRes.data) {
+        const mapped = packsRes.data.map(p => ({
+          id: p.id, name: p.name, templateType: p.template_type, documentIds: p.document_ids || [], createdAt: p.created_at_text
+        }));
+        setJustificatifPacks(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (vehiclesRes.data) {
+        const mapped = vehiclesRes.data.map(v => ({
+          id: v.id, name: v.name, plate: v.plate || '', insuranceExpiry: v.insurance_expiry || '',
+          technicalControl: v.technical_control || '', lastService: v.last_service || '', nextService: v.next_service || '', mileage: v.mileage || 0
+        }));
+        setVehicles(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (maintenanceRes.data) {
+        const mapped = maintenanceRes.data.map(m => ({
+          id: m.id, title: m.title, date: m.date || '', cost: m.cost || 0, status: m.status || 'scheduled', provider: m.provider || ''
+        }));
+        setMaintenance(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (tripsRes.data) {
+        const mapped = tripsRes.data.map(t => ({
+          id: t.id, destination: t.destination, startDate: t.start_date || '', endDate: t.end_date || '',
+          budget: t.budget || 0, checklist: t.checklist || [], bookingRefs: t.booking_refs || []
+        }));
+        setTrips(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (petsRes.data) {
+        const mapped = petsRes.data.map(p => ({
+          id: p.id, name: p.name, species: p.species || '', lastVaccine: p.last_vaccine || '', nextVaccine: p.next_vaccine || '',
+          vetAppointment: p.vet_appointment || undefined, notes: p.notes || undefined,
+          weightHistory: typeof p.weight_history === 'string' ? JSON.parse(p.weight_history) : p.weight_history || [], documentIds: p.document_ids || []
+        }));
+        setPets(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (pocketMoneyRes.data) {
+        const mapped = pocketMoneyRes.data.map(p => ({
+          id: p.id, name: p.name, balance: Number(p.balance || 0), points: Number(p.points || 0), avatar: p.avatar || '',
+          goalTitle: p.goal_title || undefined, goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined
+        }));
+        setPocketMoney(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (artisansRes.data) {
+        const mapped = artisansRes.data.map(a => ({
+          id: a.id, name: a.name, specialty: a.specialty, phone: a.phone || '', email: a.email || '', rating: a.rating || 5, notes: a.notes || ''
+        }));
+        setArtisans(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+    } catch (silentErr: any) {
+      console.warn("[MaFamille+ Background Sync] Silent poll failure:", silentErr.message);
+    }
+  };
+
+  // Timer loop for silent collaborative rehydration (runs every 20 seconds)
+  useEffect(() => {
+    if (!foyer || !isSyncReady) return;
+
+    const syncTimer = setInterval(() => {
+      syncDataFromCloud(foyer.id);
+    }, 20000);
+
+    return () => clearInterval(syncTimer);
+  }, [foyer, isSyncReady]);
+
   // 2. Realtime collaborative subscriptions
   useEffect(() => {
     if (!foyer) return;
