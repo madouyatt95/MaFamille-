@@ -558,6 +558,10 @@ function App() {
   const voiceRecognitionRef = useRef<any>(null);
 
   const [foyer, setFoyer] = useState<Foyer | null>(null);
+  const foyerRef = useRef<Foyer | null>(null);
+  useEffect(() => {
+    foyerRef.current = foyer;
+  }, [foyer]);
   const [myMemberProfile, setMyMemberProfile] = useState<FoyerMember | null>(null);
   const [onboardingActive, setOnboardingActive] = useState(false);
 
@@ -833,11 +837,19 @@ function App() {
           }
         }
         
-        setOnboardingActive(true);
+        if (!foyerRef.current) {
+          setOnboardingActive(true);
+        } else {
+          console.warn("[MaFamille+ Session] getMyFoyer returned null but user already has a foyer loaded in state. Ignoring to prevent glitch onboarding redirect.");
+        }
       }
     } catch (err) {
       console.error("Erreur lors de la vérification de session foyer :", err);
-      setOnboardingActive(true);
+      if (!foyerRef.current) {
+        setOnboardingActive(true);
+      } else {
+        console.warn("[MaFamille+ Session] checkUserFoyerSession error caught but user already has a foyer loaded. Maintaining active session.");
+      }
     }
   };
 
@@ -865,7 +877,7 @@ function App() {
       checkUserFoyerSession(currentUser);
     });
 
-    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
       const currentUser = session?.user || null;
       setUser(currentUser);
       if (currentUser) {
@@ -873,7 +885,9 @@ function App() {
         localStorage.removeItem('mf_discover_mode');
         localStorage.removeItem('mf_is_premium');
       }
-      checkUserFoyerSession(currentUser);
+      if (event !== 'TOKEN_REFRESHED') {
+        checkUserFoyerSession(currentUser);
+      }
     });
 
     return () => subscription.unsubscribe();
