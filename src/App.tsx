@@ -2001,8 +2001,49 @@ function App() {
     recognition.start();
   };
 
+  const convertFrenchNumbersToDigits = (txt: string): string => {
+    let res = txt.toLowerCase();
+    const replacements: [RegExp, string][] = [
+      [/\bquatre[- ]vingt[- ]dix\b/g, '90'],
+      [/\bquatre[- ]vingts\b/g, '80'],
+      [/\bquatre[- ]vingt\b/g, '80'],
+      [/\bsoixante[- ]dix\b/g, '70'],
+      [/\bsoixante\b/g, '60'],
+      [/\bcinquante\b/g, '50'],
+      [/\bquarante\b/g, '40'],
+      [/\btrente\b/g, '30'],
+      [/\bvingt\b/g, '20'],
+      [/\bdix[- ]neuf\b/g, '19'],
+      [/\bdix[- ]huit\b/g, '18'],
+      [/\bdix[- ]sept\b/g, '17'],
+      [/\bseize\b/g, '16'],
+      [/\bquinze\b/g, '15'],
+      [/\bquatorze\b/g, '14'],
+      [/\btreize\b/g, '13'],
+      [/\bdouze\b/g, '12'],
+      [/\bonze\b/g, '11'],
+      [/\bdix\b/g, '10'],
+      [/\bneuf\b/g, '9'],
+      [/\bhuit\b/g, '8'],
+      [/\bsept\b/g, '7'],
+      [/\bsix\b/g, '6'],
+      [/\bcinq\b/g, '5'],
+      [/\bquatre\b/g, '4'],
+      [/\btrois\b/g, '3'],
+      [/\bdeux\b/g, '2'],
+      [/\bune\b/g, '1'],
+      [/\bun\b/g, '1'],
+      [/\bcent\b/g, '100']
+    ];
+    for (const [regex, replacement] of replacements) {
+      res = res.replace(regex, replacement);
+    }
+    return res;
+  };
+
   const parseVoiceCommand = (text: string) => {
-    const promptLower = text.toLowerCase().trim();
+    const textWithDigits = convertFrenchNumbersToDigits(text);
+    const promptLower = textWithDigits.toLowerCase().trim();
     let feedback = "";
 
     // Check if voice command is about a financial transaction/expense first (prioritize money terms)
@@ -2020,7 +2061,20 @@ function App() {
       categoryKeywords.some(kw => promptLower.includes(kw))
     ));
 
-    if (isFinancial && (promptLower.includes('ajoute') || promptLower.includes('ajouter') || promptLower.includes('enregistre') || promptLower.includes('enregistrer') || promptLower.includes('noter') || promptLower.includes('note') || promptLower.includes('mets') || promptLower.includes('mettre') || promptLower.includes('payé') || promptLower.includes('paye'))) {
+    if (isFinancial && (
+      promptLower.includes('ajoute') || 
+      promptLower.includes('ajouter') || 
+      promptLower.includes('enregistre') || 
+      promptLower.includes('enregistrer') || 
+      promptLower.includes('noter') || 
+      promptLower.includes('note') || 
+      promptLower.includes('mets') || 
+      promptLower.includes('mettre') || 
+      promptLower.includes('payé') || 
+      promptLower.includes('paye') || 
+      promptLower.includes('dépense') || 
+      promptLower.includes('depense')
+    )) {
       const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€)/i;
       let amountMatch = promptLower.match(amountRegexWithEuro);
       if (!amountMatch) {
@@ -2053,7 +2107,7 @@ function App() {
         }
 
         let title = 'Achat rapide';
-        let cleanTitle = text.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre/gi, '').trim();
+        let cleanTitle = textWithDigits.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|dépense|depense/gi, '').trim();
         cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[\.,]?\d*)/, '').trim();
         cleanTitle = cleanTitle.replace(/\b(?:dans|pour|en|le|la|les|de|du)\b/gi, '').trim();
         
