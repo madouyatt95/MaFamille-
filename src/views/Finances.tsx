@@ -14,6 +14,7 @@ import {
   TrendingUp as TrendingUpIcon
 } from 'lucide-react';
 import type { Transaction, SavingGoal, Member } from '../types';
+import { getSupabaseClient } from '../utils/supabase';
 
 interface FinancesProps {
   transactions: Transaction[];
@@ -247,6 +248,15 @@ export const Finances: React.FC<FinancesProps> = ({
     .filter(t => t.type === 'savings')
     .reduce((acc, t) => acc + t.amount, 0);
 
+  const isTransactionInCategory = (t: Transaction, catName: string) => {
+    if (t.type !== 'expense') return false;
+    const mainCategories = ['Alimentation', 'Logement', 'Transport', 'Santé', 'Éducation'];
+    if (catName === 'Autres') {
+      return !mainCategories.includes(t.category);
+    }
+    return t.category === catName;
+  };
+
   // Catégories statiques / dynamiques de dépenses
   const categoriesDef = [
     { name: 'Alimentation', icon: ShoppingCart, color: 'bg-[#00D26A]', textCol: 'text-[#00D26A]' },
@@ -260,7 +270,7 @@ export const Finances: React.FC<FinancesProps> = ({
   // Calculer les pourcentages réels de chaque catégorie de dépenses
   const categoriesBreakdown = categoriesDef.map(cat => {
     const realAmount = monthlyTransactions
-      .filter(t => t.type === 'expense' && t.category === cat.name)
+      .filter(t => isTransactionInCategory(t, cat.name))
       .reduce((acc, t) => acc + t.amount, 0);
     const percentage = totalDepenses > 0 ? Math.round((realAmount / totalDepenses) * 100) : 0;
     
@@ -778,8 +788,8 @@ export const Finances: React.FC<FinancesProps> = ({
 
             {/* List category transactions */}
             <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 no-scrollbar">
-              {transactions.filter(t => t.category === selectedCategory && t.type === 'expense').length > 0 ? (
-                transactions.filter(t => t.category === selectedCategory && t.type === 'expense').map(t => (
+              {transactions.filter(t => selectedCategory && isTransactionInCategory(t, selectedCategory)).length > 0 ? (
+                transactions.filter(t => selectedCategory && isTransactionInCategory(t, selectedCategory)).map(t => (
                   <div key={t.id} className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between">
                     <div>
                       <h4 className="text-xs font-bold text-white">{t.title}</h4>
@@ -801,9 +811,17 @@ export const Finances: React.FC<FinancesProps> = ({
                         ✏️
                       </button>
                       <button 
-                        onClick={() => {
+                        onClick={async () => {
                           if (window.confirm("Supprimer cette transaction ?")) {
                             setTransactions(prev => prev.filter(item => item.id !== t.id));
+                            try {
+                              const supabase = getSupabaseClient();
+                              if (supabase) {
+                                await supabase.from('transactions').delete().eq('id', t.id);
+                              }
+                            } catch (err) {
+                              console.error("Error deleting transaction:", err);
+                            }
                           }
                         }}
                         className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded text-[10px] cursor-pointer"
@@ -905,9 +923,17 @@ export const Finances: React.FC<FinancesProps> = ({
                             ✏️
                           </button>
                           <button 
-                            onClick={() => {
+                            onClick={async () => {
                               if (window.confirm("Supprimer cet objectif d'épargne ?")) {
-                                setSavingGoals(prev => prev.filter(item => item.title !== g.title));
+                                setSavingGoals(prev => prev.filter(item => item.id !== g.id));
+                                try {
+                                  const supabase = getSupabaseClient();
+                                  if (supabase) {
+                                    await supabase.from('saving_goals').delete().eq('id', g.id);
+                                  }
+                                } catch (err) {
+                                  console.error("Error deleting saving goal:", err);
+                                }
                               }
                             }}
                             className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded text-[10px] cursor-pointer"

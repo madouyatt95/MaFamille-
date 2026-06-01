@@ -640,6 +640,46 @@ function App() {
 
   const [user, setUser] = useState<any>(null);
 
+  // Notification module preferences
+  const [notificationPrefs, setNotificationPrefs] = useState(() => {
+    const key = `mf_notif_prefs_${foyer?.id || 'simulated'}_${user?.id || 'guest'}`;
+    const cached = localStorage.getItem(key);
+    if (cached) {
+      try { return JSON.parse(cached); } catch(_) {}
+    }
+    return {
+      groceries: true,
+      tasks: true,
+      agenda: true,
+      finances: true,
+      chat: true,
+      health: true,
+      vault: true,
+      sos: true
+    };
+  });
+
+  useEffect(() => {
+    const key = `mf_notif_prefs_${foyer?.id || 'simulated'}_${user?.id || 'guest'}`;
+    const cached = localStorage.getItem(key);
+    if (cached) {
+      try {
+        setNotificationPrefs(JSON.parse(cached));
+      } catch (_) {}
+    } else {
+      setNotificationPrefs({
+        groceries: true,
+        tasks: true,
+        agenda: true,
+        finances: true,
+        chat: true,
+        health: true,
+        vault: true,
+        sos: true
+      });
+    }
+  }, [foyer?.id, user?.id]);
+
   useEffect(() => {
     localStorage.setItem('mf_is_premium', String(isPremium));
   }, [isPremium]);
@@ -938,7 +978,7 @@ function App() {
       const { data: { user } } = await client.auth.getUser();
       const currentActiveId = activeMemberIdRef.current || activeMemberId;
       const selfMember = membersList.find(m => (user && m.userId === user.id) || m.id === currentActiveId);
-      if (selfMember) {
+      if (selfMember && selfMember.role !== 'admin' && selfMember.role !== 'parent') {
         joinedAtDate = selfMember.joinedAt;
       }
 
@@ -1685,7 +1725,8 @@ function App() {
       if (!client) return;
       
       let query = client.from('alerts').select('*').eq('foyer_id', foyer.id);
-      const joinedAtVal = myMemberProfileRef.current?.joinedAt || myMemberProfile?.joinedAt;
+      const selfMember = myMemberProfileRef.current || myMemberProfile;
+      const joinedAtVal = selfMember && selfMember.role !== 'admin' && selfMember.role !== 'parent' ? selfMember.joinedAt : null;
       if (joinedAtVal) {
         query = query.gte('created_at', joinedAtVal);
       }
@@ -1860,7 +1901,7 @@ function App() {
       if (!client) return;
 
       // Helper function to sync a table cleanly
-      const syncTable = async (tableName: string, localItems: any[], mapToDb: (item: any) => any, allowDelete: boolean = true) => {
+      const syncTable = async (tableName: string, localItems: any[], mapToDb: (item: any) => any, allowDelete: boolean = false) => {
         try {
           const { data: cloudItems } = await client.from(tableName).select('id').eq('foyer_id', foyer.id);
           const cloudIds = (cloudItems || []).map(item => item.id);
@@ -2268,7 +2309,7 @@ function App() {
       if (amountMatch) {
         const amountVal = parseFloat(amountMatch[1].replace(',', '.'));
         
-        let category = 'Divers';
+        let category = 'Autres';
         if (promptLower.includes('course') || promptLower.includes('aliment') || promptLower.includes('supermarché') || promptLower.includes('manger') || promptLower.includes('carrefour') || promptLower.includes('auchan') || promptLower.includes('alimentation')) {
           category = 'Alimentation';
         } else if (promptLower.includes('essence') || promptLower.includes('carburant') || promptLower.includes('péage') || promptLower.includes('voiture') || promptLower.includes('transport') || promptLower.includes('total')) {
@@ -2279,8 +2320,6 @@ function App() {
           category = 'Santé';
         } else if (promptLower.includes('école') || promptLower.includes('cahier') || promptLower.includes('livre') || promptLower.includes('études') || promptLower.includes('éducation') || promptLower.includes('education')) {
           category = 'Éducation';
-        } else if (promptLower.includes('cinéma') || promptLower.includes('restaurant') || promptLower.includes('jeu') || promptLower.includes('sport') || promptLower.includes('loisir')) {
-          category = 'Loisirs';
         }
 
         let type: 'expense' | 'income' | 'savings' = 'expense';
@@ -2622,6 +2661,23 @@ function App() {
     }).format(converted) + ' ' + symbol;
   };
 
+  const filteredAlerts = alerts.filter(al => {
+    // 1. Filter out alerts created by the active member
+    if (al.id.includes(`-by-${activeMemberId}`)) return false;
+    
+    // 2. Filter by user preference toggles
+    const mod = al.module || '';
+    if (mod === 'groceries' || mod === 'courses') return notificationPrefs.groceries;
+    if (mod === 'tasks' || mod === 'chore_tasks') return notificationPrefs.tasks;
+    if (mod === 'events' || mod === 'agenda' || mod === 'calendar') return notificationPrefs.agenda;
+    if (mod === 'finances' || mod === 'transactions' || mod === 'saving_goals') return notificationPrefs.finances;
+    if (mod === 'chat' || mod === 'messages') return notificationPrefs.chat;
+    if (mod === 'health' || mod === 'sante') return notificationPrefs.health;
+    if (mod === 'vault' || mod === 'documents' || mod === 'demarches' || mod === 'justificatif_packs') return notificationPrefs.vault;
+    if (mod === 'sos' || mod === 'urgences') return notificationPrefs.sos;
+    return true;
+  });
+
 
 
   // ----------------------------------------------------
@@ -2892,9 +2948,17 @@ function App() {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
   };
 
-  const handleDeleteTask = (id: string) => {
+  const handleDeleteTask = async (id: string) => {
     if (window.confirm("Voulez-vous vraiment supprimer cette tâche ?")) {
       setTasks(prev => prev.filter(t => t.id !== id));
+      try {
+        const supabase = getSupabaseClient();
+        if (supabase && foyer) {
+          await supabase.from('chore_tasks').delete().eq('foyer_id', foyer.id).eq('id', id);
+        }
+      } catch (err) {
+        console.error("Error deleting task:", err);
+      }
     }
   };
 
@@ -3576,7 +3640,7 @@ function App() {
           onAvatarClick={() => setProfileSwitcherOpen(true)}
           events={events}
           dishes={dishes}
-          alerts={alerts.filter(al => !al.id.includes(`-by-${activeMemberId}`))}
+          alerts={filteredAlerts}
           formatMoney={formatMoney}
           setActiveTab={setActiveTab}
           setActiveModule={setActiveModule}
@@ -3693,6 +3757,7 @@ function App() {
               setOnboardingActive(true);
               setDiscoverMode(false);
             }}
+            onNotificationPrefsChange={(updatedPrefs) => setNotificationPrefs(updatedPrefs)}
           />
         );
       }
@@ -3722,7 +3787,7 @@ function App() {
           setArtisans={setArtisans}
           onUpdateMemberProfile={handleUpdateMemberProfile}
           goals={savingGoals}
-          alerts={alerts.filter(al => !al.id.includes(`-by-${activeMemberId}`))}
+          alerts={filteredAlerts}
           currencySymbol={getCurrencySymbol()}
           formatMoney={formatMoney}
           activeModule={activeModule}
@@ -4127,8 +4192,7 @@ function App() {
             )}
 
             <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar">
-              {alerts
-                .filter(al => !al.id.includes(`-by-${activeMemberId}`))
+              {filteredAlerts
                 .map((al) => {
                 const targetModule = al.module || '';
                 const iconColor = al.type === 'success' ? '#00D26A' : al.type === 'warning' ? '#FFB020' : al.type === 'error' ? '#FF4D6D' : '#6C5CFF';

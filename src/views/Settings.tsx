@@ -38,6 +38,7 @@ interface SettingsProps {
   setActiveTab?: (tab: string) => void;
   setActiveModule?: (moduleName: string) => void;
   onOpenOnboarding?: () => void;
+  onNotificationPrefsChange?: (prefs: any) => void;
 }
 
 export const Settings: React.FC<SettingsProps> = ({
@@ -57,7 +58,8 @@ export const Settings: React.FC<SettingsProps> = ({
   activeMemberId,
   setActiveTab,
   setActiveModule,
-  onOpenOnboarding
+  onOpenOnboarding,
+  onNotificationPrefsChange
 }) => {
   const [savingBackup, setSavingBackup] = useState(false);
 
@@ -122,6 +124,46 @@ export const Settings: React.FC<SettingsProps> = ({
     }
     localStorage.setItem('app_appearance_mode', theme);
   }, [theme]);
+
+  // Notification module preferences (groceries, tasks, agenda, finances, chat, health, vault, sos)
+  const [localPrefs, setLocalPrefs] = useState<any>(() => {
+    const key = `mf_notif_prefs_${foyer?.id || 'simulated'}_${user?.id || 'guest'}`;
+    const cached = localStorage.getItem(key);
+    if (cached) {
+      try { return JSON.parse(cached); } catch(_) {}
+    }
+    return {
+      groceries: true,
+      tasks: true,
+      agenda: true,
+      finances: true,
+      chat: true,
+      health: true,
+      vault: true,
+      sos: true
+    };
+  });
+
+  useEffect(() => {
+    const key = `mf_notif_prefs_${foyer?.id || 'simulated'}_${user?.id || 'guest'}`;
+    const cached = localStorage.getItem(key);
+    if (cached) {
+      try { setLocalPrefs(JSON.parse(cached)); } catch(_) {}
+    }
+  }, [foyer?.id, user?.id]);
+
+  const handleTogglePref = (prefKey: string) => {
+    const updated = {
+      ...localPrefs,
+      [prefKey]: !localPrefs[prefKey]
+    };
+    setLocalPrefs(updated);
+    const storageKey = `mf_notif_prefs_${foyer?.id || 'simulated'}_${user?.id || 'guest'}`;
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+    if (onNotificationPrefsChange) {
+      onNotificationPrefsChange(updated);
+    }
+  };
 
   // Profil et avatars
   const [profileName, setProfileName] = useState(() => {
@@ -517,6 +559,52 @@ export const Settings: React.FC<SettingsProps> = ({
             </>
           )}
         </button>
+      </div>
+
+      {/* Toggles de personnalisation par module */}
+      <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+            <Bell className="w-4 h-4 text-[#6C5CFF]" />
+            <span>Personnalisation des alertes</span>
+          </h3>
+        </div>
+        <p className="text-xs text-white/50 leading-relaxed font-medium">
+          Personnalisez la visibilité des notifications et des badges pour chaque module de la famille.
+        </p>
+
+        <div className="space-y-3 pt-2">
+          {[
+            { key: 'groceries', label: '🛒 Courses & Liste d\'achats' },
+            { key: 'tasks', label: '🧹 Tâches ménagères' },
+            { key: 'agenda', label: '📅 Agenda & Événements' },
+            { key: 'finances', label: '💰 Finances, Budgets & Épargne' },
+            { key: 'chat', label: '💬 Messages & Chat' },
+            { key: 'health', label: '🏥 Santé & Vaccins' },
+            { key: 'vault', label: '📂 Coffre-fort & Documents' },
+            { key: 'sos', label: '🚨 SOS & Alertes d\'urgence' }
+          ].map((item) => {
+            const isEnabled = localPrefs[item.key] !== false;
+            return (
+              <div key={item.key} className="flex items-center justify-between p-3 rounded-2xl bg-white/3 border border-white/5">
+                <span className="text-xs font-bold text-white">{item.label}</span>
+                <button
+                  type="button"
+                  onClick={() => handleTogglePref(item.key)}
+                  className={`w-12 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none cursor-pointer ${
+                    isEnabled ? 'bg-[#00D26A]' : 'bg-white/10'
+                  }`}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full bg-white shadow-md transform duration-200 ${
+                      isEnabled ? 'translate-x-6' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* 1. Devise Section */}
