@@ -607,15 +607,29 @@ function App() {
   const [manualVoiceCommand, setManualVoiceCommand] = useState('');
   const voiceRecognitionRef = useRef<any>(null);
 
-  const [foyer, setFoyer] = useState<Foyer | null>(null);
-  const foyerRef = useRef<Foyer | null>(null);
+  const [foyer, setFoyer] = useState<Foyer | null>(() => {
+    return safeGetLocalStorage<Foyer | null>('mf_cached_foyer', null);
+  });
+  const foyerRef = useRef<Foyer | null>(foyer);
   useEffect(() => {
     foyerRef.current = foyer;
+    if (foyer) {
+      safeSetLocalStorage('mf_cached_foyer', JSON.stringify(foyer));
+    } else {
+      localStorage.removeItem('mf_cached_foyer');
+    }
   }, [foyer]);
-  const [myMemberProfile, setMyMemberProfile] = useState<FoyerMember | null>(null);
-  const myMemberProfileRef = useRef<FoyerMember | null>(null);
+  const [myMemberProfile, setMyMemberProfile] = useState<FoyerMember | null>(() => {
+    return safeGetLocalStorage<FoyerMember | null>('mf_cached_member_profile', null);
+  });
+  const myMemberProfileRef = useRef<FoyerMember | null>(myMemberProfile);
   useEffect(() => {
     myMemberProfileRef.current = myMemberProfile;
+    if (myMemberProfile) {
+      safeSetLocalStorage('mf_cached_member_profile', JSON.stringify(myMemberProfile));
+    } else {
+      localStorage.removeItem('mf_cached_member_profile');
+    }
   }, [myMemberProfile]);
   const [onboardingActive, setOnboardingActive] = useState(false);
   const isSessionCheckingRef = useRef(false);
@@ -641,9 +655,8 @@ function App() {
       });
     }
   }, [members, foyer]);
-  const [discoverMode, setDiscoverMode] = useState<boolean>(() => {
-    return localStorage.getItem('mf_discover_mode') === 'true';
-  });
+  const discoverMode = false;
+  const setDiscoverMode = (_val: boolean) => {};
 
   const [isRecoveringPassword, setIsRecoveringPassword] = useState<boolean>(false);
 
@@ -865,27 +878,6 @@ function App() {
       const { foyer: myFoyer, member: myMember } = await foyerService.getMyFoyer();
       if (myFoyer && myMember) {
         setIsSyncReady(false);
-        // Clear all local states to avoid syncAllData pushing offline demo data to cloud
-        setEvents([]);
-        setGroceries([]);
-        setTransactions([]);
-        setDocuments([]);
-        setDishes([]);
-        setTasks([]);
-        setSavingGoals([]);
-        setAlerts([]);
-        setMemories([]);
-        setVotes([]);
-        setSchoolTasks([]);
-        setChatGroups([]);
-        setChatMessages([]);
-        setDemarches([]);
-        setJustificatifPacks([]);
-        setVehicles([]);
-        setMaintenance([]);
-        setTrips([]);
-        setPets([]);
-        setPocketMoney([]);
 
         setFoyer(myFoyer);
         setMyMemberProfile(myMember);
@@ -1056,10 +1048,13 @@ function App() {
       console.error("Error loading members:", err);
     }
 
-    const wrapQuery = <T,>(promise: PromiseLike<T> | Promise<T>): Promise<T> => {
-      return (promise as any).catch((err: any) => {
-        console.error("[loadFoyerData] Error fetching table data:", err);
-        return { data: [] } as any;
+    const wrapQuery = <T,>(tableName: string, promise: PromiseLike<T> | Promise<T>): Promise<{ success: boolean; data: any }> => {
+      return (promise as any).then((res: any) => {
+        if (res.error) throw res.error;
+        return { success: true, data: res.data };
+      }).catch((err: any) => {
+        console.error(`[loadFoyerData] Error fetching table data for ${tableName}:`, err);
+        return { success: false, data: [] };
       });
     };
 
@@ -1070,28 +1065,28 @@ function App() {
 
     // Load everything else in the background (parallelized using Promise.all)
     Promise.all([
-      wrapQuery(client.from('events').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('groceries').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('archived_lists').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('transactions').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('documents').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('dishes').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('chore_tasks').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('saving_goals').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(alertsPromise),
-      wrapQuery(client.from('memories').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('votes').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('school_tasks').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('chat_groups').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('chat_messages').select('*').eq('foyer_id', foyerId).order('created_at', { ascending: true })),
-      wrapQuery(client.from('demarches').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('justificatif_packs').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('vehicles').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('maintenance').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('trips').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('pets').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('pocket_money').select('*').eq('foyer_id', foyerId)),
-      wrapQuery(client.from('artisans').select('*').eq('foyer_id', foyerId))
+      wrapQuery('events', client.from('events').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('groceries', client.from('groceries').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('archived_lists', client.from('archived_lists').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('transactions', client.from('transactions').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('documents', client.from('documents').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('dishes', client.from('dishes').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('chore_tasks', client.from('chore_tasks').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('saving_goals', client.from('saving_goals').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('alerts', alertsPromise),
+      wrapQuery('memories', client.from('memories').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('votes', client.from('votes').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('school_tasks', client.from('school_tasks').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('chat_groups', client.from('chat_groups').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('chat_messages', client.from('chat_messages').select('*').eq('foyer_id', foyerId).order('created_at', { ascending: true })),
+      wrapQuery('demarches', client.from('demarches').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('justificatif_packs', client.from('justificatif_packs').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('vehicles', client.from('vehicles').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('maintenance', client.from('maintenance').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('trips', client.from('trips').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('pets', client.from('pets').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('pocket_money', client.from('pocket_money').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('artisans', client.from('artisans').select('*').eq('foyer_id', foyerId))
     ]).then(([
       eventsRes,
       groceriesRes,
@@ -1117,275 +1112,319 @@ function App() {
       artisansRes
     ]) => {
       // Set events
-      setEvents(eventsRes.data ? eventsRes.data.map(e => ({
-        id: e.id,
-        title: e.title,
-        type: e.type,
-        dateTime: e.date_time,
-        time: e.time,
-        memberId: e.member_id,
-        memberName: e.member_name,
-        location: e.location,
-        description: e.description,
-        done: e.done,
-        amount: e.amount ? Number(e.amount) : undefined
-      })) : []);
+      if (eventsRes.success && eventsRes.data) {
+        setEvents(eventsRes.data.map((e: any) => ({
+          id: e.id,
+          title: e.title,
+          type: e.type,
+          dateTime: e.date_time,
+          time: e.time,
+          memberId: e.member_id,
+          memberName: e.member_name,
+          location: e.location,
+          description: e.description,
+          done: e.done,
+          amount: e.amount ? Number(e.amount) : undefined
+        })));
+      }
 
       // Set groceries
-      setGroceries(groceriesRes.data ? groceriesRes.data.map(g => ({
-        id: g.id,
-        name: g.name,
-        category: g.category,
-        quantity: g.quantity,
-        checked: g.checked,
-        inStock: g.in_stock,
-        expiryDate: g.expiry_date,
-        meal: g.meal || undefined,
-        addedBy: g.added_by || undefined,
-        isFavorite: !!g.is_favorite
-      })) : []);
+      if (groceriesRes.success && groceriesRes.data) {
+        setGroceries(groceriesRes.data.map((g: any) => ({
+          id: g.id,
+          name: g.name,
+          category: g.category,
+          quantity: g.quantity,
+          checked: g.checked,
+          inStock: g.in_stock,
+          expiryDate: g.expiry_date,
+          meal: g.meal || undefined,
+          addedBy: g.added_by || undefined,
+          isFavorite: !!g.is_favorite
+        })));
+      }
 
       // Set archivedLists
-      setArchivedLists(archivedListsRes.data ? archivedListsRes.data.map(al => ({
-        id: al.id,
-        name: al.name,
-        date: al.date,
-        items: typeof al.items === 'string' ? JSON.parse(al.items) : al.items || [],
-        store: al.store || undefined,
-        createdBy: al.created_by
-      })) : []);
+      if (archivedListsRes.success && archivedListsRes.data) {
+        setArchivedLists(archivedListsRes.data.map((al: any) => ({
+          id: al.id,
+          name: al.name,
+          date: al.date,
+          items: typeof al.items === 'string' ? JSON.parse(al.items) : al.items || [],
+          store: al.store || undefined,
+          createdBy: al.created_by
+        })));
+      }
 
       // Set transactions
-      setTransactions(transactionsRes.data ? transactionsRes.data.map(t => ({
-        id: t.id,
-        amount: Number(t.amount),
-        type: t.type,
-        category: t.category,
-        date: t.date,
-        title: t.title,
-        memberId: t.member_id,
-        memberName: t.member_name
-      })) : []);
+      if (transactionsRes.success && transactionsRes.data) {
+        setTransactions(transactionsRes.data.map((t: any) => ({
+          id: t.id,
+          amount: Number(t.amount),
+          type: t.type,
+          category: t.category,
+          date: t.date,
+          title: t.title,
+          memberId: t.member_id,
+          memberName: t.member_name
+        })));
+      }
 
       // Set documents
-      setDocuments(documentsRes.data ? documentsRes.data.map(d => ({
-        id: d.id,
-        name: d.name,
-        category: d.category,
-        subCategory: d.sub_category,
-        memberId: d.member_id,
-        memberName: d.member_name,
-        tags: d.tags || [],
-        uploadDate: d.upload_date,
-        expiryDate: d.expiry_date,
-        fileSize: d.file_size,
-        isExpired: d.is_expired,
-        description: d.description,
-        fileBase64: d.file_base64,
-        isSecure: d.is_secure
-      })) : []);
+      if (documentsRes.success && documentsRes.data) {
+        setDocuments(documentsRes.data.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          category: d.category,
+          subCategory: d.sub_category,
+          memberId: d.member_id,
+          memberName: d.member_name,
+          tags: d.tags || [],
+          uploadDate: d.upload_date,
+          expiryDate: d.expiry_date,
+          fileSize: d.file_size,
+          isExpired: d.is_expired,
+          description: d.description,
+          fileBase64: d.file_base64,
+          isSecure: d.is_secure
+        })));
+      }
 
       // Set dishes
-      setDishes(dishesRes.data ? dishesRes.data.map(d => ({
-        id: d.id,
-        day: d.day,
-        mealType: d.meal_type,
-        name: d.name,
-        image: d.image,
-        ingredients: d.ingredients || []
-      })) : []);
+      if (dishesRes.success && dishesRes.data) {
+        setDishes(dishesRes.data.map((d: any) => ({
+          id: d.id,
+          day: d.day,
+          mealType: d.meal_type,
+          name: d.name,
+          image: d.image,
+          ingredients: d.ingredients || []
+        })));
+      }
 
       // Set tasks
-      setTasks(tasksRes.data ? tasksRes.data.map(t => ({
-        id: t.id,
-        title: t.title,
-        rewardPoints: t.reward_points,
-        assignedMemberId: t.assigned_member_id,
-        assignedMemberName: t.assigned_member_name,
-        done: t.done,
-        rotation: t.rotation,
-        validatedByParent: t.validated_by_parent,
-        dueDate: t.due_date
-      })) : []);
+      if (tasksRes.success && tasksRes.data) {
+        setTasks(tasksRes.data.map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          rewardPoints: t.reward_points,
+          assignedMemberId: t.assigned_member_id,
+          assignedMemberName: t.assigned_member_name,
+          done: t.done,
+          rotation: t.rotation,
+          validatedByParent: t.validated_by_parent,
+          dueDate: t.due_date
+        })));
+      }
 
       // Set savingGoals
-      setSavingGoals(savingGoalsRes.data ? savingGoalsRes.data.map(s => ({
-        id: s.id,
-        title: s.title,
-        targetAmount: Number(s.target_amount),
-        currentAmount: Number(s.current_amount),
-        targetDate: s.target_date,
-        category: s.category
-      })) : []);
+      if (savingGoalsRes.success && savingGoalsRes.data) {
+        setSavingGoals(savingGoalsRes.data.map((s: any) => ({
+          id: s.id,
+          title: s.title,
+          targetAmount: Number(s.target_amount),
+          currentAmount: Number(s.current_amount),
+          targetDate: s.target_date,
+          category: s.category
+        })));
+      }
 
       // Set alerts
-      setAlerts(alertsRes.data ? alertsRes.data.map(a => ({
-        id: a.id,
-        title: a.title,
-        description: a.description,
-        time: a.time,
-        type: a.type,
-        read: a.read,
-        module: a.module,
-        senderUserId: a.sender_user_id,
-        senderMemberId: a.sender_member_id,
-        senderName: a.sender_name,
-        senderAvatar: a.sender_avatar,
-        createdAt: a.created_at
-      })) : []);
+      if (alertsRes.success && alertsRes.data) {
+        setAlerts(alertsRes.data.map((a: any) => ({
+          id: a.id,
+          title: a.title,
+          description: a.description,
+          time: a.time,
+          type: a.type,
+          read: a.read,
+          module: a.module,
+          senderUserId: a.sender_user_id,
+          senderMemberId: a.sender_member_id,
+          senderName: a.sender_name,
+          senderAvatar: a.sender_avatar,
+          createdAt: a.created_at
+        })));
+      }
 
       // Set memories
-      setMemories(memoriesRes.data ? memoriesRes.data.map(m => ({
-        id: m.id,
-        date: m.date,
-        title: m.title,
-        description: m.description,
-        authorName: m.author_name,
-        authorPhoto: m.author_photo,
-        imageUrl: m.image_url,
-        imageUrls: m.image_urls || [],
-        likesCount: m.likes_count,
-        isPrivate: m.is_private,
-        theme: m.theme
-      })) : []);
+      if (memoriesRes.success && memoriesRes.data) {
+        setMemories(memoriesRes.data.map((m: any) => ({
+          id: m.id,
+          date: m.date,
+          title: m.title,
+          description: m.description,
+          authorName: m.author_name,
+          authorPhoto: m.author_photo,
+          imageUrl: m.image_url,
+          imageUrls: m.image_urls || [],
+          likesCount: m.likes_count,
+          isPrivate: m.is_private,
+          theme: m.theme
+        })));
+      }
 
       // Set votes
-      setVotes(votesRes.data ? votesRes.data.map(v => ({
-        id: v.id,
-        question: v.question,
-        options: typeof v.options === 'string' ? JSON.parse(v.options) : v.options || [],
-        authorName: v.author_name,
-        active: v.active,
-        dueDate: v.due_date
-      })) : []);
+      if (votesRes.success && votesRes.data) {
+        setVotes(votesRes.data.map((v: any) => ({
+          id: v.id,
+          question: v.question,
+          options: typeof v.options === 'string' ? JSON.parse(v.options) : v.options || [],
+          authorName: v.author_name,
+          active: v.active,
+          dueDate: v.due_date
+        })));
+      }
 
       // Set schoolTasks
-      setSchoolTasks(schoolTasksRes.data ? schoolTasksRes.data.map(s => ({
-        id: s.id,
-        subject: s.subject,
-        title: s.title,
-        dueDate: s.due_date,
-        done: s.done,
-        assignedMemberId: s.assigned_member_id,
-        difficulty: s.difficulty,
-        grade: s.grade
-      })) : []);
+      if (schoolTasksRes.success && schoolTasksRes.data) {
+        setSchoolTasks(schoolTasksRes.data.map((s: any) => ({
+          id: s.id,
+          subject: s.subject,
+          title: s.title,
+          dueDate: s.due_date,
+          done: s.done,
+          assignedMemberId: s.assigned_member_id,
+          difficulty: s.difficulty,
+          grade: s.grade
+        })));
+      }
 
       // Set chatGroups
-      setChatGroups(chatGroupsRes.data ? chatGroupsRes.data.map(c => ({
-        id: c.id,
-        name: c.name,
-        isPrivate: c.is_private,
-        memberIds: c.member_ids || [],
-        lastMessage: c.last_message,
-        lastMessageTime: c.last_message_time,
-        unreadCount: c.unread_count
-      })) : []);
+      if (chatGroupsRes.success && chatGroupsRes.data) {
+        setChatGroups(chatGroupsRes.data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          isPrivate: c.is_private,
+          memberIds: c.member_ids || [],
+          lastMessage: c.last_message,
+          lastMessageTime: c.last_message_time,
+          unreadCount: c.unread_count
+        })));
+      }
 
       // Set chatMessages
-      setChatMessages(chatMessagesRes.data ? chatMessagesRes.data.map(c => ({
-        id: c.id,
-        groupId: c.group_id,
-        senderId: c.sender_id,
-        senderName: c.sender_name,
-        type: c.type,
-        content: c.content,
-        timestamp: c.timestamp,
-        readBy: c.read_by || [],
-        reactions: typeof c.reactions === 'string' ? JSON.parse(c.reactions) : c.reactions || []
-      })) : []);
+      if (chatMessagesRes.success && chatMessagesRes.data) {
+        setChatMessages(chatMessagesRes.data.map((c: any) => ({
+          id: c.id,
+          groupId: c.group_id,
+          senderId: c.sender_id,
+          senderName: c.sender_name,
+          type: c.type,
+          content: c.content,
+          timestamp: c.timestamp,
+          readBy: c.read_by || [],
+          reactions: typeof c.reactions === 'string' ? JSON.parse(c.reactions) : c.reactions || []
+        })));
+      }
 
       // Set demarches
-      setDemarches(demarchesRes.data ? demarchesRes.data.map(d => ({
-        id: d.id,
-        templateId: d.template_id,
-        title: d.title,
-        icon: d.icon,
-        status: d.status,
-        assignedMemberId: d.assigned_member_id,
-        assignedMemberName: d.assigned_member_name,
-        steps: typeof d.steps === 'string' ? JSON.parse(d.steps) : d.steps || [],
-        pieces: typeof d.pieces === 'string' ? JSON.parse(d.pieces) : d.pieces || [],
-        createdAt: d.created_at_text,
-        notes: d.notes
-      })) : []);
+      if (demarchesRes.success && demarchesRes.data) {
+        setDemarches(demarchesRes.data.map((d: any) => ({
+          id: d.id,
+          templateId: d.template_id,
+          title: d.title,
+          icon: d.icon,
+          status: d.status,
+          assignedMemberId: d.assigned_member_id,
+          assignedMemberName: d.assigned_member_name,
+          steps: typeof d.steps === 'string' ? JSON.parse(d.steps) : d.steps || [],
+          pieces: typeof d.pieces === 'string' ? JSON.parse(d.pieces) : d.pieces || [],
+          createdAt: d.created_at_text,
+          notes: d.notes
+        })));
+      }
 
       // Set packs
-      setJustificatifPacks(packsRes.data ? packsRes.data.map(p => ({
-        id: p.id,
-        name: p.name,
-        templateType: p.template_type,
-        documentIds: p.document_ids || [],
-        createdAt: p.created_at_text
-      })) : []);
+      if (packsRes.success && packsRes.data) {
+        setJustificatifPacks(packsRes.data.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          templateType: p.template_type,
+          documentIds: p.document_ids || [],
+          createdAt: p.created_at_text
+        })));
+      }
 
       // Set vehicles
-      setVehicles(vehiclesRes.data ? vehiclesRes.data.map(v => ({
-        id: v.id,
-        name: v.name,
-        plate: v.plate || '',
-        insuranceExpiry: v.insurance_expiry || '',
-        technicalControl: v.technical_control || '',
-        lastService: v.last_service || '',
-        nextService: v.next_service || '',
-        mileage: v.mileage ? Number(v.mileage) : 0
-      })) : []);
+      if (vehiclesRes.success && vehiclesRes.data) {
+        setVehicles(vehiclesRes.data.map((v: any) => ({
+          id: v.id,
+          name: v.name,
+          plate: v.plate || '',
+          insuranceExpiry: v.insurance_expiry || '',
+          technicalControl: v.technical_control || '',
+          lastService: v.last_service || '',
+          nextService: v.next_service || '',
+          mileage: v.mileage ? Number(v.mileage) : 0
+        })));
+      }
 
       // Set maintenance
-      setMaintenance(maintenanceRes.data ? maintenanceRes.data.map(m => ({
-        id: m.id,
-        title: m.title,
-        provider: m.provider || '',
-        date: m.date || '',
-        cost: Number(m.cost || 0),
-        status: (m.status as any) || 'scheduled'
-      })) : []);
+      if (maintenanceRes.success && maintenanceRes.data) {
+        setMaintenance(maintenanceRes.data.map((m: any) => ({
+          id: m.id,
+          title: m.title,
+          provider: m.provider || '',
+          date: m.date || '',
+          cost: Number(m.cost || 0),
+          status: (m.status as any) || 'scheduled'
+        })));
+      }
 
       // Set trips
-      setTrips(tripsRes.data ? tripsRes.data.map(t => ({
-        id: t.id,
-        destination: t.destination,
-        startDate: t.start_date || '',
-        endDate: t.end_date || '',
-        budget: Number(t.budget || 0),
-        checklist: typeof t.checklist === 'string' ? JSON.parse(t.checklist) : t.checklist || [],
-        bookingRefs: t.booking_refs || []
-      })) : []);
+      if (tripsRes.success && tripsRes.data) {
+        setTrips(tripsRes.data.map((t: any) => ({
+          id: t.id,
+          destination: t.destination,
+          startDate: t.start_date || '',
+          endDate: t.end_date || '',
+          budget: Number(t.budget || 0),
+          checklist: typeof t.checklist === 'string' ? JSON.parse(t.checklist) : t.checklist || [],
+          bookingRefs: t.booking_refs || []
+        })));
+      }
 
       // Set pets
-      setPets(petsRes.data ? petsRes.data.map(p => ({
-        id: p.id,
-        name: p.name,
-        species: p.species || '',
-        lastVaccine: p.last_vaccine || '',
-        nextVaccine: p.next_vaccine || '',
-        vetAppointment: p.vet_appointment || undefined,
-        notes: p.notes || undefined,
-        weightHistory: typeof p.weight_history === 'string' ? JSON.parse(p.weight_history) : p.weight_history || [],
-        documentIds: p.document_ids || []
-      })) : []);
+      if (petsRes.success && petsRes.data) {
+        setPets(petsRes.data.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          species: p.species || '',
+          lastVaccine: p.last_vaccine || '',
+          nextVaccine: p.next_vaccine || '',
+          vetAppointment: p.vet_appointment || undefined,
+          notes: p.notes || undefined,
+          weightHistory: typeof p.weight_history === 'string' ? JSON.parse(p.weight_history) : p.weight_history || [],
+          documentIds: p.document_ids || []
+        })));
+      }
 
       // Set pocketMoney
-      setPocketMoney(pocketMoneyRes.data ? pocketMoneyRes.data.map(p => ({
-        id: p.id,
-        name: p.name,
-        balance: Number(p.balance || 0),
-        points: Number(p.points || 0),
-        avatar: p.avatar || '',
-        goalTitle: p.goal_title || undefined,
-        goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined
-      })) : []);
+      if (pocketMoneyRes.success && pocketMoneyRes.data) {
+        setPocketMoney(pocketMoneyRes.data.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          balance: Number(p.balance || 0),
+          points: Number(p.points || 0),
+          avatar: p.avatar || '',
+          goalTitle: p.goal_title || undefined,
+          goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined
+        })));
+      }
 
       // Set artisans
-      setArtisans(artisansRes.data ? artisansRes.data.map(a => ({
-        id: a.id,
-        name: a.name,
-        specialty: a.specialty,
-        phone: a.phone || '',
-        email: a.email || '',
-        rating: a.rating || 5,
-        notes: a.notes || ''
-      })) : []);
+      if (artisansRes.success && artisansRes.data) {
+        setArtisans(artisansRes.data.map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          specialty: a.specialty,
+          phone: a.phone || '',
+          email: a.email || '',
+          rating: a.rating || 5,
+          notes: a.notes || ''
+        })));
+      }
 
       setIsSyncReady(true);
     }).catch((err: any) => {
@@ -4339,10 +4378,6 @@ function App() {
         onSuccess={handleOnboardingSuccess} 
         onLogout={handleLogout} 
         userEmail={user?.email || ''} 
-        onEnterDiscoverMode={() => {
-          localStorage.setItem('mf_discover_mode', 'true');
-          setDiscoverMode(true);
-        }}
       />
     );
   }
