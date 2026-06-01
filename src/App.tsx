@@ -570,6 +570,7 @@ function App() {
     myMemberProfileRef.current = myMemberProfile;
   }, [myMemberProfile]);
   const [onboardingActive, setOnboardingActive] = useState(false);
+  const isSessionCheckingRef = useRef(false);
 
   // Nettoyage automatique des notes/cours d'Amadou et d'Awa si un foyer personnalisé sans eux est chargé
   useEffect(() => {
@@ -751,8 +752,10 @@ function App() {
               senderAvatar: payload.data?.senderAvatar || payload.data?.sender_avatar,
               createdAt: new Date().toISOString()
             };
-            setAlerts(prev => [newAlert, ...prev]);
-            saveAlertToCloud(newAlert);
+            setAlerts(prev => {
+              if (prev.some(a => a.id === newAlert.id)) return prev;
+              return [newAlert, ...prev];
+            });
 
             // Afficher une notification système si autorisé
             if ('Notification' in window && Notification.permission === 'granted') {
@@ -795,11 +798,18 @@ function App() {
 
   // Check foyer session on startup or login
   const checkUserFoyerSession = async (currentUser: any) => {
+    if (isSessionCheckingRef.current) {
+      console.log("[MaFamille+ Session] checkUserFoyerSession lock active, ignoring parallel check.");
+      return;
+    }
+    isSessionCheckingRef.current = true;
+
     if (!currentUser) {
       setIsSyncReady(false);
       setFoyer(null);
       setMyMemberProfile(null);
       setOnboardingActive(false);
+      isSessionCheckingRef.current = false;
       return;
     }
 
@@ -883,6 +893,7 @@ function App() {
               setOnboardingActive(false);
               localStorage.setItem('mf_cloud_foyer_id', newFoyer.id);
               await loadFoyerData(newFoyer.id);
+              isSessionCheckingRef.current = false;
               return;
             }
           } catch (autoErr: any) {
@@ -906,6 +917,8 @@ function App() {
       } else {
         console.warn("[MaFamille+ Session] checkUserFoyerSession error caught but user already has a foyer loaded. Maintaining active session.");
       }
+    } finally {
+      isSessionCheckingRef.current = false;
     }
   };
 
@@ -930,7 +943,6 @@ function App() {
         localStorage.removeItem('mf_discover_mode');
         localStorage.removeItem('mf_is_premium');
       }
-      checkUserFoyerSession(currentUser);
     });
 
     const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
@@ -1940,6 +1952,20 @@ function App() {
         amount: e.amount || null
       }));
 
+      // Groceries
+      await syncTable('groceries', groceries, g => ({
+        id: g.id,
+        foyer_id: foyer.id,
+        name: g.name,
+        category: g.category,
+        quantity: g.quantity,
+        checked: g.checked,
+        in_stock: g.inStock,
+        meal: g.meal || null,
+        added_by: g.addedBy || 'Foyer',
+        is_favorite: g.isFavorite
+      }));
+
 
       // Transactions
       await syncTable('transactions', transactions, t => ({
@@ -2310,16 +2336,55 @@ function App() {
         const amountVal = parseFloat(amountMatch[1].replace(',', '.'));
         
         let category = 'Autres';
-        if (promptLower.includes('course') || promptLower.includes('aliment') || promptLower.includes('supermarché') || promptLower.includes('manger') || promptLower.includes('carrefour') || promptLower.includes('auchan') || promptLower.includes('alimentation')) {
+        // Alimentation : Enseignes, produits alimentaires, types de repas, boulangerie, etc.
+        const alimentTerms = [
+          'course', 'aliment', 'supermarché', 'supermarche', 'manger', 'carrefour', 'auchan', 'alimentation', 
+          'leclerc', 'lidl', 'intermarché', 'intermarche', 'monoprix', 'restaurant', 'resto', 'dîner', 'diner', 
+          'déjeuner', 'dejeuner', 'petit-déjeuner', 'petit-dejeuner', 'boulangerie', 'pain', 'fruits', 'légumes', 
+          'legumes', 'viande', 'poisson', 'épicerie', 'epicerie', 'courses', 'kebab', 'pizza', 'mcdo', 'burger'
+        ];
+        // Transport : Véhicules, carburants, transports en commun, péages, parking, voyages.
+        const transportTerms = [
+          'essence', 'carburant', 'péage', 'peage', 'voiture', 'transport', 'total', 'bus', 'train', 'tram', 
+          'metro', 'métro', 'sncf', 'billet', 'ticket', 'parking', 'garage', 'diesel', 'sans-plomb', 'sp95', 
+          'sp98', 'vol', 'avion', 'uber', 'taxi', 'trottinette', 'vélo', 'velo'
+        ];
+        // Logement : Charges, loyer, ameublement, bricolage, travaux.
+        const logementTerms = [
+          'loyer', 'logement', 'maison', 'électricité', 'electricite', 'eau', 'edf', 'engie', 'facture', 'gaz',
+          'internet', 'box', 'téléphone', 'telephone', 'assurance', 'brico', 'bricolage', 'ikea', 'leroy', 
+          'castorama', 'meuble', 'déco', 'deco', 'travaux', 'chauffage', 'copropriété', 'copropriete'
+        ];
+        // Santé : Soins, consultations, pharmacie, mutuelle.
+        const santeTerms = [
+          'santé', 'sante', 'médecin', 'medecin', 'pharmacie', 'médicament', 'medicament', 'dentiste', 'ophtalmo',
+          'doctolib', 'mutuelle', 'ordonnance', 'soin', 'hôpital', 'hopital', 'clinique', 'visite', 'lunettes'
+        ];
+        // Éducation : Scolarité, fournitures, activités extra-scolaires.
+        const educationTerms = [
+          'école', 'ecole', 'cahier', 'livre', 'études', 'etudes', 'éducation', 'education', 'cantine', 'crèche', 
+          'creche', 'fournitures', 'cartable', 'cours', 'devoirs', 'inscription', 'collège', 'college', 'lycée', 
+          'lycee', 'université', 'universite'
+        ];
+        // Loisirs : Sorties, abonnements divertissement, cadeaux, culture.
+        const loisirsTerms = [
+          'loisir', 'loisirs', 'cinéma', 'cinema', 'netflix', 'spotify', 'jeu', 'jeux', 'jouet', 'jouets', 
+          'cadeau', 'cadeaux', 'concert', 'théâtre', 'theatre', 'vacances', 'voyage', 'sport', 'abonnement', 
+          'piscine', 'musée', 'musee', 'parc', 'disney', 'bar', 'café', 'cafe', 'bière', 'biere'
+        ];
+
+        if (alimentTerms.some(term => promptLower.includes(term))) {
           category = 'Alimentation';
-        } else if (promptLower.includes('essence') || promptLower.includes('carburant') || promptLower.includes('péage') || promptLower.includes('voiture') || promptLower.includes('transport') || promptLower.includes('total')) {
+        } else if (transportTerms.some(term => promptLower.includes(term))) {
           category = 'Transport';
-        } else if (promptLower.includes('loyer') || promptLower.includes('logement') || promptLower.includes('maison') || promptLower.includes('électricité') || promptLower.includes('eau')) {
+        } else if (logementTerms.some(term => promptLower.includes(term))) {
           category = 'Logement';
-        } else if (promptLower.includes('santé') || promptLower.includes('sante') || promptLower.includes('médecin') || promptLower.includes('pharmacie') || promptLower.includes('médicament')) {
+        } else if (santeTerms.some(term => promptLower.includes(term))) {
           category = 'Santé';
-        } else if (promptLower.includes('école') || promptLower.includes('cahier') || promptLower.includes('livre') || promptLower.includes('études') || promptLower.includes('éducation') || promptLower.includes('education')) {
+        } else if (educationTerms.some(term => promptLower.includes(term))) {
           category = 'Éducation';
+        } else if (loisirsTerms.some(term => promptLower.includes(term))) {
+          category = 'Autres'; // Loisirs sont regroupés dans 'Autres' ou 'Loisirs' selon le design, comme on a pas de catégorie Loisirs pour les transactions par défaut on met 'Autres' ou 'Loisirs'
         }
 
         let type: 'expense' | 'income' | 'savings' = 'expense';

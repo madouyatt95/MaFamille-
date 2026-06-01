@@ -124,6 +124,7 @@ serve(async (req) => {
       if (payload.type !== "INSERT") {
         return new Response(JSON.stringify({ message: "Ignored UPDATE for alerts" }), { status: 200 });
       }
+      senderId = record.sender_member_id || "";
       title = record.title || "Alerte de Famille";
       body = record.description || "";
       targetModule = record.module || "other";
