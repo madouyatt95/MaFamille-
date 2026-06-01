@@ -153,6 +153,54 @@ function App() {
     return safeGetLocalStorage('mf_members', demoMembers);
   });
 
+  // Auto-clean legacy Papa/Maman mock profiles cache if cloud is active
+  useEffect(() => {
+    const hasDemoData = () => {
+      try {
+        const mems = localStorage.getItem('mf_members');
+        if (mems) {
+          const parsed = JSON.parse(mems);
+          return Array.isArray(parsed) && parsed.some(m => m.id === '1' && m.name === 'Papa');
+        }
+      } catch (e) {}
+      return false;
+    };
+
+    if (hadCloudFoyer && hasDemoData()) {
+      console.log("[MaFamille+] Legacy demo cache detected. Purging cache...");
+      const keysToPurge = [
+        'mf_members', 'mf_events', 'mf_transactions', 'mf_dishes', 'mf_documents', 
+        'mf_tasks', 'mf_groceries', 'mf_vehicles', 'mf_maintenance', 'mf_trips', 
+        'mf_pets', 'mf_saving_goals', 'mf_alerts', 'mf_memories', 'mf_votes', 
+        'mf_school_tasks', 'mf_chat_groups', 'mf_chat_messages', 'mf_demarches', 
+        'mf_packs', 'mf_artisans'
+      ];
+      keysToPurge.forEach(k => localStorage.removeItem(k));
+      setMembers([]);
+      setEvents([]);
+      setTransactions([]);
+      setDishes([]);
+      setDocuments([]);
+      setTasks([]);
+      setGroceries([]);
+      setVehicles([]);
+      setMaintenance([]);
+      setTrips([]);
+      setPets([]);
+      setPocketMoney([]);
+      setSavingGoals([]);
+      setAlerts([]);
+      setMemories([]);
+      setVotes([]);
+      setSchoolTasks([]);
+      setChatGroups([]);
+      setChatMessages([]);
+      setDemarches([]);
+      setJustificatifPacks([]);
+      setArtisans([]);
+    }
+  }, [hadCloudFoyer]);
+
   const [activeMemberId, setActiveMemberId] = useState<string>(() => {
     return localStorage.getItem('mf_active_member_id') || '1';
   });
