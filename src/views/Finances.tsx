@@ -29,6 +29,20 @@ interface FinancesProps {
 
 type FinanceTab = 'apercu' | 'depenses' | 'revenus' | 'budget';
 
+const getMonthOptions = () => {
+  const months = [
+    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+  ];
+  const options: string[] = [];
+  const now = new Date();
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    options.push(`${months[d.getMonth()]} ${d.getFullYear()}`);
+  }
+  return options;
+};
+
 export const Finances: React.FC<FinancesProps> = ({
   transactions,
   setTransactions,
@@ -39,8 +53,9 @@ export const Finances: React.FC<FinancesProps> = ({
   onAddTransactionClick,
   activeMemberId = '1'
 }) => {
+  const monthOptions = getMonthOptions();
   const [activeSubTab, setActiveSubTab] = useState<FinanceTab>('apercu');
-  const [selectedMonth, setSelectedMonth] = useState('Mai 2026');
+  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isSavingGoalsModalOpen, setIsSavingGoalsModalOpen] = useState(false);
 
@@ -315,9 +330,11 @@ export const Finances: React.FC<FinancesProps> = ({
           onChange={(e) => setSelectedMonth(e.target.value)}
           className="bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white font-semibold focus:outline-none focus:border-[#6C5CFF] cursor-pointer"
         >
-          <option value="Mai 2026" className="bg-[#07111F]">Mai 2026</option>
-          <option value="Avril 2026" className="bg-[#07111F]">Avril 2026</option>
-          <option value="Mars 2026" className="bg-[#07111F]">Mars 2026</option>
+          {monthOptions.map((opt) => (
+            <option key={opt} value={opt} className="bg-[#07111F]">
+              {opt}
+            </option>
+          ))}
         </select>
       </div>
 

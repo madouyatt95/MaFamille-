@@ -29,10 +29,11 @@ import {
 } from 'lucide-react';
 import type { Member, FamilyEvent, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog } from '../types';
 
-const compressImage = (base64Str: string, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
+const compressImage = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
   return new Promise((resolve) => {
+    const objectUrl = URL.createObjectURL(file);
     const img = new Image();
-    img.src = base64Str;
+    img.src = objectUrl;
     img.onload = () => {
       let width = img.width;
       let height = img.height;
@@ -56,13 +57,16 @@ const compressImage = (base64Str: string, maxWidth = 800, maxHeight = 800, quali
       if (ctx) {
         ctx.drawImage(img, 0, 0, width, height);
         const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        URL.revokeObjectURL(objectUrl);
         resolve(compressedBase64);
       } else {
-        resolve(base64Str);
+        URL.revokeObjectURL(objectUrl);
+        resolve('');
       }
     };
     img.onerror = () => {
-      resolve(base64Str);
+      URL.revokeObjectURL(objectUrl);
+      resolve('');
     };
   });
 };
@@ -379,17 +383,15 @@ export const Accueil: React.FC<AccueilProps> = ({
               type="file" 
               accept="image/*" 
               className="hidden" 
-              onChange={(e) => {
+              onChange={async (e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
 
-                const reader = new FileReader();
-                reader.onload = async (event) => {
-                  const rawBase64 = event.target?.result as string;
-                  const base64Url = await compressImage(rawBase64, 800, 800, 0.7);
+                const base64Url = await compressImage(file, 800, 800, 0.7);
+                if (!base64Url) return;
 
-                  const caption = prompt("Quel souvenir ou moment marquant voulez-vous associer à cette photo ?");
-                  if (!caption) return;
+                const caption = prompt("Quel souvenir ou moment marquant voulez-vous associer à cette photo ?");
+                if (!caption) return;
 
                   const delayPrompt = prompt(
                     "Dans combien de temps cette photo doit-elle disparaître automatiquement ?\n" +
@@ -427,8 +429,6 @@ export const Accueil: React.FC<AccueilProps> = ({
                     theme: themeStr
                   };
                   onAddMemory(newMemory);
-                };
-                reader.readAsDataURL(file);
               }}
             />
             <button 

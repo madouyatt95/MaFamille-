@@ -50,11 +50,38 @@ import type {
 
 const formatRelativeTime = (dateInput: string | Date | undefined, fallback: string): string => {
   if (!dateInput) return fallback;
-  const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-  if (isNaN(date.getTime())) return fallback;
   
-  const diffMs = Date.now() - date.getTime();
-  const diffSec = Math.floor(diffMs / 1000);
+  let parsedDate: Date;
+  if (typeof dateInput === 'string') {
+    let cleanStr = dateInput.trim();
+    // Replace space between date and time with 'T' for Safari compatibility
+    if (cleanStr.includes(' ') && !cleanStr.includes('T')) {
+      cleanStr = cleanStr.replace(' ', 'T');
+    }
+    // Truncate microsecond fractions to millisecond precision for Safari Date parser compatibility
+    const dotIdx = cleanStr.indexOf('.');
+    if (dotIdx !== -1) {
+      const tzMatch = cleanStr.substring(dotIdx).match(/[Z+-]/);
+      if (tzMatch && tzMatch.index !== undefined) {
+        const tzIdx = dotIdx + tzMatch.index;
+        const fraction = cleanStr.substring(dotIdx + 1, tzIdx);
+        const tz = cleanStr.substring(tzIdx);
+        cleanStr = cleanStr.substring(0, dotIdx + 1) + fraction.substring(0, 3) + tz;
+      } else {
+        const afterDot = cleanStr.substring(dotIdx + 1);
+        cleanStr = cleanStr.substring(0, dotIdx + 1) + afterDot.substring(0, 3);
+      }
+    }
+    parsedDate = new Date(cleanStr);
+  } else {
+    parsedDate = dateInput;
+  }
+
+  if (isNaN(parsedDate.getTime())) return fallback;
+  
+  const diffMs = Date.now() - parsedDate.getTime();
+  // Safe clock skew handling: treat future-skewed timestamps as current
+  const diffSec = diffMs < 0 ? 0 : Math.floor(diffMs / 1000);
   const diffMin = Math.floor(diffSec / 60);
   const diffHr = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHr / 24);
@@ -883,30 +910,37 @@ function App() {
       console.error("Error loading members:", err);
     }
 
+    const wrapQuery = <T,>(promise: PromiseLike<T> | Promise<T>): Promise<T> => {
+      return (promise as any).catch((err: any) => {
+        console.error("[loadFoyerData] Error fetching table data:", err);
+        return { data: [] } as any;
+      });
+    };
+
     // Load everything else in the background (parallelized using Promise.all)
     Promise.all([
-      client.from('events').select('*').eq('foyer_id', foyerId),
-      client.from('groceries').select('*').eq('foyer_id', foyerId),
-      client.from('archived_lists').select('*').eq('foyer_id', foyerId),
-      client.from('transactions').select('*').eq('foyer_id', foyerId),
-      client.from('documents').select('*').eq('foyer_id', foyerId),
-      client.from('dishes').select('*').eq('foyer_id', foyerId),
-      client.from('chore_tasks').select('*').eq('foyer_id', foyerId),
-      client.from('saving_goals').select('*').eq('foyer_id', foyerId),
-      client.from('alerts').select('*').eq('foyer_id', foyerId),
-      client.from('memories').select('*').eq('foyer_id', foyerId),
-      client.from('votes').select('*').eq('foyer_id', foyerId),
-      client.from('school_tasks').select('*').eq('foyer_id', foyerId),
-      client.from('chat_groups').select('*').eq('foyer_id', foyerId),
-      client.from('chat_messages').select('*').eq('foyer_id', foyerId).order('created_at', { ascending: true }),
-      client.from('demarches').select('*').eq('foyer_id', foyerId),
-      client.from('justificatif_packs').select('*').eq('foyer_id', foyerId),
-      client.from('vehicles').select('*').eq('foyer_id', foyerId),
-      client.from('maintenance').select('*').eq('foyer_id', foyerId),
-      client.from('trips').select('*').eq('foyer_id', foyerId),
-      client.from('pets').select('*').eq('foyer_id', foyerId),
-      client.from('pocket_money').select('*').eq('foyer_id', foyerId),
-      client.from('artisans').select('*').eq('foyer_id', foyerId)
+      wrapQuery(client.from('events').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('groceries').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('archived_lists').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('transactions').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('documents').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('dishes').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('chore_tasks').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('saving_goals').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('alerts').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('memories').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('votes').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('school_tasks').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('chat_groups').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('chat_messages').select('*').eq('foyer_id', foyerId).order('created_at', { ascending: true })),
+      wrapQuery(client.from('demarches').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('justificatif_packs').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('vehicles').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('maintenance').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('trips').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('pets').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('pocket_money').select('*').eq('foyer_id', foyerId)),
+      wrapQuery(client.from('artisans').select('*').eq('foyer_id', foyerId))
     ]).then(([
       eventsRes,
       groceriesRes,
@@ -2537,18 +2571,23 @@ function App() {
       if (supabase) {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const activeFoyerId = foyer?.id || localStorage.getItem('mf_cloud_foyer_id') || 'foyer-simulated';
-          await supabase.from('transactions').insert({
-            family_id: activeFoyerId,
-            user_id: user.id,
-            amount: newTrans.amount,
-            type: newTrans.type,
-            category: newTrans.category,
-            date: newTrans.date || new Date().toISOString().split('T')[0],
-            title: newTrans.title,
-            note: newTrans.note || '',
-            image_url: newTrans.imageUrl || null
-          });
+          const activeFoyerId = foyer?.id || localStorage.getItem('mf_cloud_foyer_id');
+          if (activeFoyerId && activeFoyerId !== 'foyer-simulated') {
+            const { error } = await supabase.from('transactions').insert({
+              id,
+              foyer_id: activeFoyerId,
+              amount: newTrans.amount,
+              type: newTrans.type,
+              category: newTrans.category,
+              date: newTrans.date || new Date().toISOString().split('T')[0],
+              title: newTrans.title,
+              member_id: newTrans.memberId || null,
+              member_name: newTrans.memberName || 'Famille'
+            });
+            if (error) {
+              console.error("Error inserting transaction to Supabase:", error);
+            }
+          }
         }
       }
     } catch (e) {

@@ -9,51 +9,47 @@ export const compressImage = (
   quality = 0.6
 ): Promise<string> => {
   return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target?.result as string;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.src = objectUrl;
 
-        // Maintain aspect ratio
-        if (width > height) {
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width = Math.round((width * maxHeight) / height);
-            height = maxHeight;
-          }
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      // Maintain aspect ratio
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
         }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          // Fallback to original Base64 if canvas context is not supported
-          resolve(event.target?.result as string);
-          return;
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
         }
+      }
 
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        // Output as JPEG with specified quality (0.0 to 1.0)
-        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-        resolve(compressedBase64);
-      };
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        URL.revokeObjectURL(objectUrl);
+        resolve('');
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
       
-      img.onerror = () => {
-        resolve(event.target?.result as string);
-      };
+      // Output as JPEG with specified quality (0.0 to 1.0)
+      const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+      URL.revokeObjectURL(objectUrl);
+      resolve(compressedBase64);
     };
     
-    reader.onerror = () => {
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
       resolve('');
     };
   });
