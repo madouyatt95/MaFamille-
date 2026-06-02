@@ -3090,7 +3090,8 @@ function App() {
   };
 
   const parseVoiceCommand = async (text: string) => {
-    const textWithDigits = convertFrenchNumbersToDigits(text);
+    try {
+      const textWithDigits = convertFrenchNumbersToDigits(text);
     const promptLower = textWithDigits.toLowerCase().trim();
     let feedback = "";
     let intent = "unknown";
@@ -3594,12 +3595,19 @@ function App() {
       feedback = `🔍 Recherche : Commande "${text}" non reconnue. Essayez : "Ouvre l'agenda", "Affiche la carte" ou "Ajoute du lait".`;
     }
 
-    setVoiceFeedback(feedback);
-    
-    // Automatically close overlay after 2.5 seconds
-    setTimeout(() => {
-      setVoiceActive(false);
-    }, 2500);
+      setVoiceFeedback(feedback);
+      
+      // Automatically close overlay after 2.5 seconds
+      setTimeout(() => {
+        setVoiceActive(false);
+      }, 2500);
+    } catch (err: any) {
+      console.error("Critical error in parseVoiceCommand:", err);
+      setVoiceFeedback("❌ Erreur lors du traitement de la commande vocale.");
+      setTimeout(() => {
+        setVoiceActive(false);
+      }, 2500);
+    }
   };
 
   useEffect(() => {
@@ -3942,6 +3950,7 @@ function App() {
             };
             if (!isCategory(category, t.category)) return false;
 
+            if (!t.date) return false;
             let tMonth = '';
             let tYear = '';
             if (t.date.includes('/')) {

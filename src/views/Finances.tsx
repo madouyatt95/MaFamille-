@@ -73,9 +73,9 @@ const DEFAULT_CATEGORIES = [
 
 export const Finances: React.FC<FinancesProps> = ({
   transactions,
-  setTransactions: _setTransactions,
+  setTransactions,
   savingGoals,
-  setSavingGoals: _setSavingGoals,
+  setSavingGoals,
   members,
   currencySymbol: _currencySymbol = '€',
   formatMoney,
@@ -85,16 +85,38 @@ export const Finances: React.FC<FinancesProps> = ({
   foyerId,
   myMemberProfile,
   customCategories,
-  setCustomCategories: _setCustomCategories,
+  setCustomCategories,
   accounts,
-  setAccounts: _setAccounts,
+  setAccounts,
   abonnements,
-  setAbonnements: _setAbonnements,
+  setAbonnements,
   debts,
-  setDebts: _setDebts
+  setDebts
 }) => {
   const [activeTab, setActiveTab] = useState<FinanceTab>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const mapDbTxToTransaction = (t: any): Transaction => ({
+    id: t.id,
+    amount: Number(t.amount || 0),
+    type: t.type,
+    category: t.category,
+    date: t.date,
+    title: t.title,
+    memberId: t.member_id || t.memberId,
+    memberName: t.member_name || t.memberName,
+    subCategory: t.sub_category || t.subCategory,
+    accountId: t.account_id || t.accountId,
+    receiptBase64: t.receipt_base64 || t.receiptBase64,
+    attachmentBase64: t.attachment_base64 || t.attachmentBase64,
+    comment: t.comment,
+    modificationHistory: typeof t.modification_history === 'string' 
+      ? JSON.parse(t.modification_history) 
+      : (t.modification_history || t.modificationHistory || []),
+    isArchived: !!(t.is_archived || t.isArchived),
+    recurrence: t.recurrence || 'none',
+    subscriptionId: t.subscription_id || t.subscriptionId
+  });
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [accountFilter, setAccountFilter] = useState('all');
@@ -399,6 +421,7 @@ export const Finances: React.FC<FinancesProps> = ({
 
         const { error } = await supabase.from('transactions').upsert(dbItem);
         if (error) throw error;
+        setTransactions(prev => prev.map(t => t.id === dbItem.id ? mapDbTxToTransaction(dbItem) : t));
       } else {
         // Create new
         const dbItem = {
@@ -426,6 +449,7 @@ export const Finances: React.FC<FinancesProps> = ({
 
         const { error } = await supabase.from('transactions').insert(dbItem);
         if (error) throw error;
+        setTransactions(prev => [mapDbTxToTransaction(dbItem), ...prev]);
       }
 
       setIsTxModalOpen(false);
@@ -445,6 +469,7 @@ export const Finances: React.FC<FinancesProps> = ({
     try {
       const { error } = await supabase.from('transactions').delete().eq('foyer_id', foyerId).eq('id', txId);
       if (error) throw error;
+      setTransactions(prev => prev.filter(t => t.id !== txId));
     } catch (err: any) {
       console.error('Error deleting transaction:', err);
       alert('Erreur lors de la suppression : ' + err.message);
@@ -483,6 +508,7 @@ export const Finances: React.FC<FinancesProps> = ({
 
       const { error } = await supabase.from('transactions').insert(dbItem);
       if (error) throw error;
+      setTransactions(prev => [mapDbTxToTransaction(dbItem), ...prev]);
     } catch (err: any) {
       console.error('Error duplicating transaction:', err);
       alert('Erreur lors de la duplication : ' + err.message);
@@ -501,8 +527,10 @@ export const Finances: React.FC<FinancesProps> = ({
         .eq('foyer_id', foyerId)
         .eq('id', tx.id);
       if (error) throw error;
+      setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, isArchived: !t.isArchived } : t));
     } catch (err: any) {
       console.error('Error archiving transaction:', err);
+      alert('Erreur lors de l\'archivage : ' + err.message);
     }
   };
 
@@ -528,6 +556,16 @@ export const Finances: React.FC<FinancesProps> = ({
       const { error } = await supabase.from('custom_categories').insert(dbItem);
       if (error) throw error;
 
+      const newItem: CustomCategory = {
+        id: dbItem.id,
+        name: dbItem.name,
+        icon: dbItem.icon,
+        color: dbItem.color,
+        budget: dbItem.budget,
+        displayOrder: dbItem.display_order
+      };
+      setCustomCategories(prev => [...prev, newItem]);
+
       setIsCatModalOpen(false);
       setCatForm({ name: '', icon: 'Mosquée', color: '#EF4444', budget: '', displayOrder: '0' });
     } catch (err: any) {
@@ -544,8 +582,10 @@ export const Finances: React.FC<FinancesProps> = ({
     try {
       const { error } = await supabase.from('custom_categories').delete().eq('foyer_id', foyerId).eq('id', catId);
       if (error) throw error;
+      setCustomCategories(prev => prev.filter(c => c.id !== catId));
     } catch (err: any) {
       console.error('Error deleting custom category:', err);
+      alert('Erreur lors de la suppression de la catégorie : ' + err.message);
     }
   };
 
@@ -570,10 +610,13 @@ export const Finances: React.FC<FinancesProps> = ({
 
       if (txErr) throw txErr;
 
+      setTransactions(prev => prev.map(t => t.category === mergeSource ? { ...t, category: mergeTarget } : t));
+
       // 2. Delete source custom category if it is a custom category
       const sourceCc = customCategories.find(c => c.name === mergeSource);
       if (sourceCc) {
         await supabase.from('custom_categories').delete().eq('foyer_id', foyerId).eq('id', sourceCc.id);
+        setCustomCategories(prev => prev.filter(c => c.id !== sourceCc.id));
       }
 
       setIsMergeModalOpen(false);
@@ -608,6 +651,14 @@ export const Finances: React.FC<FinancesProps> = ({
           .eq('foyer_id', foyerId)
           .eq('id', editingGoal.id);
         if (error) throw error;
+
+        setSavingGoals(prev => prev.map(g => g.id === editingGoal.id ? {
+          ...g,
+          title: goalForm.title,
+          targetAmount: target,
+          targetDate: goalForm.targetDate,
+          category: goalForm.category
+        } : g));
       } else {
         const dbItem = {
           id: crypto.randomUUID(),
@@ -621,6 +672,17 @@ export const Finances: React.FC<FinancesProps> = ({
         };
         const { error } = await supabase.from('saving_goals').insert(dbItem);
         if (error) throw error;
+
+        const newItem: SavingGoal = {
+          id: dbItem.id,
+          title: dbItem.title,
+          targetAmount: dbItem.target_amount,
+          currentAmount: dbItem.current_amount,
+          targetDate: dbItem.target_date,
+          category: dbItem.category,
+          contributions: []
+        };
+        setSavingGoals(prev => [...prev, newItem]);
       }
 
       setIsGoalModalOpen(false);
@@ -628,6 +690,7 @@ export const Finances: React.FC<FinancesProps> = ({
       setGoalForm({ title: '', targetAmount: '', currentAmount: '0', targetDate: '', category: 'Général' });
     } catch (err: any) {
       console.error('Error saving goal:', err);
+      alert('Erreur lors de l\'enregistrement de la cagnotte : ' + err.message);
     }
   };
 
@@ -651,8 +714,10 @@ export const Finances: React.FC<FinancesProps> = ({
     try {
       const { error } = await supabase.from('saving_goals').delete().eq('foyer_id', foyerId).eq('id', goalId);
       if (error) throw error;
+      setSavingGoals(prev => prev.filter(g => g.id !== goalId));
     } catch (err: any) {
       console.error('Error deleting goal:', err);
+      alert('Erreur lors de la suppression de la cagnotte : ' + err.message);
     }
   };
 
@@ -716,10 +781,19 @@ export const Finances: React.FC<FinancesProps> = ({
 
       await supabase.from('transactions').insert(txItem);
 
+      // Update local state
+      setSavingGoals(prev => prev.map(g => g.id === contribGoal.id ? {
+        ...g,
+        currentAmount: newCurrent,
+        contributions: updatedContributions
+      } : g));
+      setTransactions(prev => [mapDbTxToTransaction(txItem), ...prev]);
+
       setContribGoal(null);
       alert('Contribution enregistrée !');
     } catch (err: any) {
       console.error('Error saving contribution:', err);
+      alert('Erreur lors de la contribution : ' + err.message);
     }
   };
 
@@ -748,6 +822,15 @@ export const Finances: React.FC<FinancesProps> = ({
           .eq('foyer_id', foyerId)
           .eq('id', editingAbo.id);
         if (error) throw error;
+
+        setAbonnements(prev => prev.map(a => a.id === editingAbo.id ? {
+          ...a,
+          name: aboForm.name,
+          amount: amt,
+          period: aboForm.period as any,
+          nextBillingDate: aboForm.nextBillingDate,
+          category: aboForm.category
+        } : a));
       } else {
         const dbItem = {
           id: crypto.randomUUID(),
@@ -760,6 +843,16 @@ export const Finances: React.FC<FinancesProps> = ({
         };
         const { error } = await supabase.from('abonnements').insert(dbItem);
         if (error) throw error;
+
+        const newItem: Abonnement = {
+          id: dbItem.id,
+          name: dbItem.name,
+          amount: dbItem.amount,
+          period: dbItem.period as any,
+          nextBillingDate: dbItem.next_billing_date,
+          category: dbItem.category
+        };
+        setAbonnements(prev => [...prev, newItem]);
       }
 
       setIsAboModalOpen(false);
@@ -767,6 +860,7 @@ export const Finances: React.FC<FinancesProps> = ({
       setAboForm({ name: '', amount: '', period: 'monthly', nextBillingDate: new Date().toISOString().split('T')[0], category: 'Loisirs' });
     } catch (err: any) {
       console.error('Error saving subscription:', err);
+      alert('Erreur lors de l\'enregistrement de l\'abonnement : ' + err.message);
     }
   };
 
@@ -790,8 +884,10 @@ export const Finances: React.FC<FinancesProps> = ({
     try {
       const { error } = await supabase.from('abonnements').delete().eq('foyer_id', foyerId).eq('id', aboId);
       if (error) throw error;
+      setAbonnements(prev => prev.filter(a => a.id !== aboId));
     } catch (err: any) {
       console.error('Error deleting subscription:', err);
+      alert('Erreur lors de la suppression de l\'abonnement : ' + err.message);
     }
   };
 
@@ -830,10 +926,23 @@ export const Finances: React.FC<FinancesProps> = ({
       const { error } = await supabase.from('debts').insert(dbItem);
       if (error) throw error;
 
+      const newItem: Debt = {
+        id: dbItem.id,
+        title: dbItem.title,
+        amount: dbItem.amount,
+        payerId: dbItem.payer_id,
+        payerName: dbItem.payer_name,
+        debtorId: dbItem.debtor_id,
+        debtorName: dbItem.debtor_name,
+        isRepaid: dbItem.is_repaid
+      };
+      setDebts(prev => [...prev, newItem]);
+
       setIsDebtModalOpen(false);
       setDebtForm({ title: '', amount: '', payerId: '', debtorId: '' });
     } catch (err: any) {
       console.error('Error saving debt:', err);
+      alert('Erreur lors de l\'enregistrement de la dette : ' + err.message);
     }
   };
 
@@ -866,9 +975,15 @@ export const Finances: React.FC<FinancesProps> = ({
       };
 
       await supabase.from('transactions').insert(tx);
+
+      // Local state update
+      setDebts(prev => prev.map(d => d.id === debt.id ? { ...d, isRepaid: true } : d));
+      setTransactions(prev => [mapDbTxToTransaction(tx), ...prev]);
+
       alert('Dette marquée comme remboursée !');
     } catch (err: any) {
       console.error('Error settling debt:', err);
+      alert('Erreur lors du remboursement de la dette : ' + err.message);
     }
   };
 
@@ -935,6 +1050,18 @@ export const Finances: React.FC<FinancesProps> = ({
       // 3. Update balances in Supabase
       await supabase.from('accounts').update({ balance: Math.max(0, srcAcc.balance - amt) }).eq('id', srcAcc.id);
       await supabase.from('accounts').update({ balance: destAcc.balance + amt }).eq('id', destAcc.id);
+
+      // Local state update
+      setTransactions(prev => [mapDbTxToTransaction(transOut), mapDbTxToTransaction(transIn), ...prev]);
+      setAccounts(prev => prev.map(a => {
+        if (a.id === srcAcc.id) {
+          return { ...a, balance: Math.max(0, a.balance - amt) };
+        }
+        if (a.id === destAcc.id) {
+          return { ...a, balance: a.balance + amt };
+        }
+        return a;
+      }));
 
       setIsTransferModalOpen(false);
       setTransferForm({ sourceAccountId: '', targetAccountId: '', amount: '' });
@@ -1017,6 +1144,7 @@ export const Finances: React.FC<FinancesProps> = ({
 
       let insertedCount = 0;
       let duplicateCount = 0;
+      const importedTxs: Transaction[] = [];
 
       for (let i = 1; i < rows.length; i++) {
         // Handle basic CSV commas & quotes
@@ -1066,9 +1194,14 @@ export const Finances: React.FC<FinancesProps> = ({
         try {
           await supabase.from('transactions').insert(newTx);
           insertedCount++;
+          importedTxs.push(mapDbTxToTransaction(newTx));
         } catch (err) {
           console.error('Import row failure:', err);
         }
+      }
+
+      if (importedTxs.length > 0) {
+        setTransactions(prev => [...importedTxs, ...prev]);
       }
 
       setImportStatus(`${insertedCount} importés, ${duplicateCount} doublons ignorés`);
@@ -1078,72 +1211,72 @@ export const Finances: React.FC<FinancesProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-purple-600 selection:text-white pb-24">
-      {/* Premium Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-indigo-950 via-slate-950 to-purple-950 border-b border-white/10 px-6 py-8">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-800/10 via-transparent to-transparent pointer-events-none"></div>
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-6 relative z-10">
+    <div className="pb-32 pt-6 px-4 md:px-8 space-y-6 max-w-5xl mx-auto premium-glow-purple">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="p-3 rounded-2xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF]">
+            <PiggyBank className="w-6 h-6" />
+          </div>
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="bg-gradient-to-r from-purple-500 to-indigo-500 text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded-full shadow-lg shadow-purple-500/20">
+            <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-1.5">
+              <span>Finances de la Famille</span>
+              <span className="bg-gradient-to-r from-purple-500 to-indigo-500 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow-md shadow-purple-500/20">
                 Premium
               </span>
-              <span className="text-white/50 text-xs">Module de Gestion Financière Collaboratif</span>
-            </div>
-            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-purple-400 bg-clip-text text-transparent">
-              Finances de la Famille
             </h1>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={handleImportCSVClick}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-900/60 hover:bg-slate-800/80 border border-white/10 rounded-xl transition duration-200"
-            >
-              <Upload className="w-4 h-4 text-purple-400" />
-              <span>Importer</span>
-            </button>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleImportCSVFile} 
-              accept=".csv" 
-              className="hidden" 
-            />
-
-            <button
-              onClick={handleExportCSV}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-900/60 hover:bg-slate-800/80 border border-white/10 rounded-xl transition duration-200"
-            >
-              <Download className="w-4 h-4 text-indigo-400" />
-              <span>Exporter</span>
-            </button>
-
-            <button
-              onClick={handleOpenAddTx}
-              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 rounded-xl font-medium shadow-lg shadow-purple-600/30 hover:scale-[1.02] active:scale-[0.98] transition duration-200"
-            >
-              <Plus className="w-5 h-5" />
-              <span>Nouvelle Opération</span>
-            </button>
+            <p className="text-xs text-white/50 font-medium">Module de Gestion Financière Collaboratif</p>
           </div>
         </div>
 
-        {importStatus && (
-          <div className="max-w-6xl mx-auto mt-4 px-4 py-2 bg-purple-900/40 border border-purple-500/30 rounded-xl text-center text-sm relative z-10 flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <Info className="w-4 h-4 text-purple-400" />
-              {importStatus}
-            </span>
-            <button onClick={() => setImportStatus(null)} className="text-white/60 hover:text-white">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleImportCSVClick}
+            className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/8 rounded-xl transition duration-200"
+          >
+            <Upload className="w-4 h-4 text-purple-400" />
+            <span className="text-xs font-bold text-white/80">Importer</span>
+          </button>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleImportCSVFile} 
+            accept=".csv" 
+            className="hidden" 
+          />
+
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/8 rounded-xl transition duration-200"
+          >
+            <Download className="w-4 h-4 text-indigo-400" />
+            <span className="text-xs font-bold text-white/80">Exporter</span>
+          </button>
+
+          <button
+            onClick={handleOpenAddTx}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#6C5CFF] hover:bg-[#6C5CFF]/90 text-white rounded-xl text-xs font-bold shadow-md shadow-[#6C5CFF]/20 hover:scale-[1.02] active:scale-[0.98] transition duration-200"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nouvelle Opération</span>
+          </button>
+        </div>
       </div>
 
+      {importStatus && (
+        <div className="mt-4 px-4 py-2 bg-purple-900/40 border border-purple-500/30 rounded-xl text-center text-sm flex items-center justify-between">
+          <span className="flex items-center gap-2 text-white/90">
+            <Info className="w-4 h-4 text-purple-400" />
+            {importStatus}
+          </span>
+          <button onClick={() => setImportStatus(null)} className="text-white/60 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Tabs Subheader */}
-      <div className="max-w-6xl mx-auto px-4 mt-8">
+      <div className="mt-8">
         <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-none border-b border-white/5">
           {[
             { id: 'dashboard', label: 'Tableau de bord', icon: TrendingUp },
@@ -1175,7 +1308,7 @@ export const Finances: React.FC<FinancesProps> = ({
       </div>
 
       {/* Main Section */}
-      <main className="max-w-6xl mx-auto px-4 mt-8">
+      <main className="mt-8">
         
         {/* ========================================================================= */}
         {/* TAB: DASHBOARD */}
