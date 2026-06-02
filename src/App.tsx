@@ -25,7 +25,11 @@ import type {
   ChatMessage,
   ChatGroup,
   Artisan,
-  ArchivedList
+  ArchivedList,
+  CustomCategory,
+  Account,
+  Abonnement,
+  Debt
 } from './types';
 
 const formatRelativeTime = (dateInput: string | Date | undefined, fallback: string): string => {
@@ -296,6 +300,19 @@ function App() {
 
   const [justificatifPacks, setJustificatifPacks] = useState<JustificatifPack[]>(() => {
     return safeGetLocalStorage('mf_packs', []);
+  });
+
+  const [customCategories, setCustomCategories] = useState<CustomCategory[]>(() => {
+    return safeGetLocalStorage('mf_custom_categories', []);
+  });
+  const [accounts, setAccounts] = useState<Account[]>(() => {
+    return safeGetLocalStorage('mf_accounts', []);
+  });
+  const [abonnements, setAbonnements] = useState<Abonnement[]>(() => {
+    return safeGetLocalStorage('mf_abonnements', []);
+  });
+  const [debts, setDebts] = useState<Debt[]>(() => {
+    return safeGetLocalStorage('mf_debts', []);
   });
 
   const [isSyncReady, setIsSyncReady] = useState(false);
@@ -1114,7 +1131,11 @@ function App() {
       wrapQuery('trips', client.from('trips').select('*').eq('foyer_id', foyerId)),
       wrapQuery('pets', client.from('pets').select('*').eq('foyer_id', foyerId)),
       wrapQuery('pocket_money', client.from('pocket_money').select('*').eq('foyer_id', foyerId)),
-      wrapQuery('artisans', client.from('artisans').select('*').eq('foyer_id', foyerId))
+      wrapQuery('artisans', client.from('artisans').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('custom_categories', client.from('custom_categories').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('accounts', client.from('accounts').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('abonnements', client.from('abonnements').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('debts', client.from('debts').select('*').eq('foyer_id', foyerId))
     ]).then(([
       membersList,
       userRes,
@@ -1139,7 +1160,11 @@ function App() {
       tripsRes,
       petsRes,
       pocketMoneyRes,
-      artisansRes
+      artisansRes,
+      customCategoriesRes,
+      accountsRes,
+      abonnementsRes,
+      debtsRes
     ]) => {
       // Set members
       setMembers(membersList.length > 0 ? membersList.map(mapFoyerMemberToMember) : []);
@@ -1213,7 +1238,16 @@ function App() {
           date: t.date,
           title: t.title,
           memberId: t.member_id,
-          memberName: t.member_name
+          memberName: t.member_name,
+          subCategory: t.sub_category,
+          accountId: t.account_id,
+          receiptBase64: t.receipt_base64,
+          attachmentBase64: t.attachment_base64,
+          comment: t.comment,
+          modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
+          isArchived: !!t.is_archived,
+          recurrence: t.recurrence || 'none',
+          subscriptionId: t.subscription_id
         })));
       }
 
@@ -1272,7 +1306,56 @@ function App() {
           targetAmount: Number(s.target_amount),
           currentAmount: Number(s.current_amount),
           targetDate: s.target_date,
-          category: s.category
+          category: s.category,
+          contributions: typeof s.contributions === 'string' ? JSON.parse(s.contributions) : s.contributions || []
+        })));
+      }
+
+      // Set customCategories
+      if (customCategoriesRes.success && customCategoriesRes.data) {
+        setCustomCategories(customCategoriesRes.data.map((cc: any) => ({
+          id: cc.id,
+          name: cc.name,
+          icon: cc.icon,
+          color: cc.color,
+          budget: Number(cc.budget || 0),
+          displayOrder: Number(cc.display_order || 0)
+        })));
+      }
+
+      // Set accounts
+      if (accountsRes.success && accountsRes.data) {
+        setAccounts(accountsRes.data.map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          type: a.type || 'bank',
+          balance: Number(a.balance || 0)
+        })));
+      }
+
+      // Set abonnements
+      if (abonnementsRes.success && abonnementsRes.data) {
+        setAbonnements(abonnementsRes.data.map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          amount: Number(a.amount || 0),
+          period: a.period || 'monthly',
+          nextBillingDate: a.next_billing_date || '',
+          category: a.category
+        })));
+      }
+
+      // Set debts
+      if (debtsRes.success && debtsRes.data) {
+        setDebts(debtsRes.data.map((d: any) => ({
+          id: d.id,
+          title: d.title,
+          amount: Number(d.amount || 0),
+          payerId: d.payer_id,
+          payerName: d.payer_name,
+          debtorId: d.debtor_id,
+          debtorName: d.debtor_name,
+          isRepaid: !!d.is_repaid
         })));
       }
 
@@ -1478,9 +1561,80 @@ function App() {
       }
 
       setIsSyncReady(true);
+      if (abonnementsRes.success && abonnementsRes.data) {
+        const abos = abonnementsRes.data.map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          amount: Number(a.amount || 0),
+          period: a.period || 'monthly',
+          nextBillingDate: a.next_billing_date || '',
+          category: a.category
+        }));
+        checkAndProcessRecurringTransactions(foyerId, abos);
+      }
     }).catch((err: any) => {
       console.error("Error loading foyer tables background data:", err);
     });
+  };
+
+  const checkAndProcessRecurringTransactions = async (foyerId: string, currentAbonnements: Abonnement[]) => {
+    if (!foyerId || currentAbonnements.length === 0) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    for (const abonnement of currentAbonnements) {
+      let nextDateStr = abonnement.nextBillingDate;
+      if (!nextDateStr) continue;
+
+      let updated = false;
+      const transactionsToAdd: any[] = [];
+
+      let iterations = 0;
+      while (nextDateStr && nextDateStr <= todayStr && iterations < 12) {
+        iterations++;
+        const newTrans = {
+          id: crypto.randomUUID(),
+          foyer_id: foyerId,
+          amount: abonnement.amount,
+          type: abonnement.category === 'Salaire' || abonnement.category === 'Revenus' ? 'income' : 'expense',
+          category: abonnement.category || 'Abonnements',
+          date: nextDateStr,
+          title: `Récurrence : ${abonnement.name}`,
+          member_id: activeMemberIdRef.current || activeMemberId || null,
+          member_name: members.find(m => m.id === (activeMemberIdRef.current || activeMemberId))?.name || 'Système',
+          recurrence: abonnement.period,
+          subscription_id: abonnement.id,
+          comment: 'Généré automatiquement par le système'
+        };
+        transactionsToAdd.push(newTrans);
+
+        const nextDate = new Date(nextDateStr);
+        if (abonnement.period === 'weekly') {
+          nextDate.setDate(nextDate.getDate() + 7);
+        } else if (abonnement.period === 'yearly') {
+          nextDate.setFullYear(nextDate.getFullYear() + 1);
+        } else if (abonnement.period === 'daily') {
+          nextDate.setDate(nextDate.getDate() + 1);
+        } else {
+          nextDate.setMonth(nextDate.getMonth() + 1);
+        }
+        nextDateStr = nextDate.toISOString().split('T')[0];
+        updated = true;
+      }
+
+      if (updated) {
+        try {
+          for (const trans of transactionsToAdd) {
+            await client.from('transactions').insert(trans);
+          }
+          await client.from('abonnements').update({ next_billing_date: nextDateStr }).eq('id', abonnement.id);
+        } catch (err) {
+          console.error("Error processing recurring abonnement:", err);
+        }
+      }
+    }
   };
 
   // 1.5. Silent Collaborative Background Rehydration (guarantees profile sync across all features)
@@ -1528,7 +1682,11 @@ function App() {
         tripsRes,
         petsRes,
         pocketMoneyRes,
-        artisansRes
+        artisansRes,
+        customCategoriesRes,
+        accountsRes,
+        abonnementsRes,
+        debtsRes
       ] = await Promise.all([
         client.from('events').select('*').eq('foyer_id', foyerId),
         client.from('groceries').select('*').eq('foyer_id', foyerId),
@@ -1548,7 +1706,11 @@ function App() {
         client.from('trips').select('*').eq('foyer_id', foyerId),
         client.from('pets').select('*').eq('foyer_id', foyerId),
         client.from('pocket_money').select('*').eq('foyer_id', foyerId),
-        client.from('artisans').select('*').eq('foyer_id', foyerId)
+        client.from('artisans').select('*').eq('foyer_id', foyerId),
+        client.from('custom_categories').select('*').eq('foyer_id', foyerId),
+        client.from('accounts').select('*').eq('foyer_id', foyerId),
+        client.from('abonnements').select('*').eq('foyer_id', foyerId),
+        client.from('debts').select('*').eq('foyer_id', foyerId)
       ]);
 
       // Map and set states conditionally to avoid unnecessary component renders and loops
@@ -1583,7 +1745,11 @@ function App() {
       if (transactionsRes.data) {
         const mapped = transactionsRes.data.map(t => ({
           id: t.id, amount: Number(t.amount), type: t.type, category: t.category,
-          date: t.date, title: t.title, memberId: t.member_id, memberName: t.member_name
+          date: t.date, title: t.title, memberId: t.member_id, memberName: t.member_name,
+          subCategory: t.sub_category, accountId: t.account_id,
+          receiptBase64: t.receipt_base64, attachmentBase64: t.attachment_base64, comment: t.comment,
+          modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
+          isArchived: !!t.is_archived, recurrence: t.recurrence || 'none', subscriptionId: t.subscription_id
         }));
         setTransactions(prev => {
           const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
@@ -1637,7 +1803,8 @@ function App() {
       if (savingGoalsRes.data) {
         const mapped = savingGoalsRes.data.map(s => ({
           id: s.id, title: s.title, targetAmount: Number(s.target_amount),
-          currentAmount: Number(s.current_amount), targetDate: s.target_date, category: s.category
+          currentAmount: Number(s.current_amount), targetDate: s.target_date, category: s.category,
+          contributions: typeof s.contributions === 'string' ? JSON.parse(s.contributions) : s.contributions || []
         }));
         setSavingGoals(prev => {
           const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
@@ -1796,6 +1963,54 @@ function App() {
           id: a.id, name: a.name, specialty: a.specialty, phone: a.phone || '', email: a.email || '', rating: a.rating || 5, notes: a.notes || ''
         }));
         setArtisans(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (customCategoriesRes && customCategoriesRes.data) {
+        const mapped = customCategoriesRes.data.map(cc => ({
+          id: cc.id, name: cc.name, icon: cc.icon, color: cc.color, budget: Number(cc.budget || 0), displayOrder: Number(cc.display_order || 0)
+        }));
+        setCustomCategories(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (accountsRes && accountsRes.data) {
+        const mapped = accountsRes.data.map(a => ({
+          id: a.id, name: a.name, type: a.type || 'bank', balance: Number(a.balance || 0)
+        }));
+        setAccounts(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (abonnementsRes && abonnementsRes.data) {
+        const mapped = abonnementsRes.data.map(a => ({
+          id: a.id, name: a.name, amount: Number(a.amount || 0), period: a.period || 'monthly', nextBillingDate: a.next_billing_date || '', category: a.category
+        }));
+        setAbonnements(prev => {
+          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
+          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
+          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
+          return mapped;
+        });
+      }
+
+      if (debtsRes && debtsRes.data) {
+        const mapped = debtsRes.data.map(d => ({
+          id: d.id, title: d.title, amount: Number(d.amount || 0), payerId: d.payer_id, payerName: d.payer_name, debtorId: d.debtor_id, debtorName: d.debtor_name, isRepaid: !!d.is_repaid
+        }));
+        setDebts(prev => {
           const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
           const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
           if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
@@ -2269,7 +2484,16 @@ function App() {
             date: t.date,
             title: t.title,
             memberId: t.member_id,
-            memberName: t.member_name
+            memberName: t.member_name,
+            subCategory: t.sub_category,
+            accountId: t.account_id,
+            receiptBase64: t.receipt_base64,
+            attachmentBase64: t.attachment_base64,
+            comment: t.comment,
+            modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
+            isArchived: !!t.is_archived,
+            recurrence: t.recurrence || 'none',
+            subscriptionId: t.subscription_id
           })));
         }
       });
@@ -2284,7 +2508,68 @@ function App() {
             targetAmount: Number(g.target_amount || 0),
             currentAmount: Number(g.current_amount || 0),
             targetDate: g.target_date || '',
-            category: g.category || 'General'
+            category: g.category || 'General',
+            contributions: typeof g.contributions === 'string' ? JSON.parse(g.contributions) : g.contributions || []
+          })));
+        }
+      });
+    });
+
+    const subCustomCategories = foyerService.subscribeToChanges('custom_categories', foyer.id, () => {
+      foyerService.fetchTableData('custom_categories', foyer.id).then(data => {
+        if (data) {
+          setCustomCategories(data.map(cc => ({
+            id: cc.id,
+            name: cc.name,
+            icon: cc.icon,
+            color: cc.color,
+            budget: Number(cc.budget || 0),
+            displayOrder: Number(cc.display_order || 0)
+          })));
+        }
+      });
+    });
+
+    const subAccounts = foyerService.subscribeToChanges('accounts', foyer.id, () => {
+      foyerService.fetchTableData('accounts', foyer.id).then(data => {
+        if (data) {
+          setAccounts(data.map(a => ({
+            id: a.id,
+            name: a.name,
+            type: a.type || 'bank',
+            balance: Number(a.balance || 0)
+          })));
+        }
+      });
+    });
+
+    const subAbonnements = foyerService.subscribeToChanges('abonnements', foyer.id, () => {
+      foyerService.fetchTableData('abonnements', foyer.id).then(data => {
+        if (data) {
+          setAbonnements(data.map(a => ({
+            id: a.id,
+            name: a.name,
+            amount: Number(a.amount || 0),
+            period: a.period || 'monthly',
+            nextBillingDate: a.next_billing_date || '',
+            category: a.category
+          })));
+        }
+      });
+    });
+
+    const subDebts = foyerService.subscribeToChanges('debts', foyer.id, () => {
+      foyerService.fetchTableData('debts', foyer.id).then(data => {
+        if (data) {
+          setDebts(data.map(d => ({
+            id: d.id,
+            title: d.title,
+            amount: Number(d.amount || 0),
+            payerId: d.payer_id,
+            payerName: d.payer_name,
+            debtorId: d.debtor_id,
+            debtorName: d.debtor_name,
+            isRepaid: !!d.is_repaid
           })));
         }
       });
@@ -2377,6 +2662,10 @@ function App() {
       if (subSchoolTasks) subSchoolTasks.unsubscribe();
       if (subDemarches) subDemarches.unsubscribe();
       if (subJustificatifPacks) subJustificatifPacks.unsubscribe();
+      if (subCustomCategories) subCustomCategories.unsubscribe();
+      if (subAccounts) subAccounts.unsubscribe();
+      if (subAbonnements) subAbonnements.unsubscribe();
+      if (subDebts) subDebts.unsubscribe();
     };
   }, [foyer]);
 
@@ -2800,12 +3089,292 @@ function App() {
     return res;
   };
 
-  const parseVoiceCommand = (text: string) => {
+  const parseVoiceCommand = async (text: string) => {
     const textWithDigits = convertFrenchNumbersToDigits(text);
     const promptLower = textWithDigits.toLowerCase().trim();
     let feedback = "";
+    let intent = "unknown";
+    let isSuccess = false;
 
-    // Check if voice command is about a financial transaction/expense first (prioritize money terms)
+    const logVoiceCommandToSupabase = async (cmdIntent: string, success: boolean) => {
+      const client = getSupabaseClient();
+      if (client && foyer?.id) {
+        try {
+          await client.from('voice_commands').insert({
+            id: crypto.randomUUID(),
+            foyer_id: foyer.id,
+            raw_text: text,
+            parsed_intent: cmdIntent,
+            is_success: success
+          });
+        } catch (err) {
+          console.warn("Log command warning:", err);
+        }
+      }
+    };
+
+    const hasNumber = /(\d+[\.,]?\d*)/.test(promptLower);
+    const amountMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+    const amountVal = amountMatch ? parseFloat(amountMatch[1].replace(',', '.')) : 0;
+
+    const defaultCategories = ['Alimentation', 'Transport', 'Logement', 'Santé', 'Éducation', 'Autres', 'Transfert', 'Épargne'];
+    const allCategories = [...defaultCategories, ...customCategories.map(c => c.name)];
+
+    // 1. Account Transfer Intent
+    // e.g. "transférer 50 euros de principal à épargne"
+    if ((promptLower.includes('transférer') || promptLower.includes('transferer') || promptLower.includes('virement') || promptLower.includes('transfert')) && hasNumber) {
+      intent = "account_transfer";
+      const srcMatch = accounts.find(a => promptLower.includes(a.name.toLowerCase()));
+      const destMatch = accounts.find(a => promptLower.includes(a.name.toLowerCase()) && a.id !== srcMatch?.id);
+      
+      if (srcMatch && destMatch && amountVal > 0) {
+        const client = getSupabaseClient();
+        if (client && foyer?.id) {
+          try {
+            await client.from('transactions').insert({
+              id: crypto.randomUUID(),
+              foyer_id: foyer.id,
+              amount: amountVal,
+              type: 'expense',
+              category: 'Transfert',
+              account_id: srcMatch.id,
+              date: new Date().toISOString().split('T')[0],
+              title: `Virement vers ${destMatch.name} (Vocal)`,
+              member_id: activeMemberId,
+              member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
+              comment: 'Généré par commande vocale'
+            });
+
+            await client.from('transactions').insert({
+              id: crypto.randomUUID(),
+              foyer_id: foyer.id,
+              amount: amountVal,
+              type: 'income',
+              category: 'Transfert',
+              account_id: destMatch.id,
+              date: new Date().toISOString().split('T')[0],
+              title: `Virement reçu de ${srcMatch.name} (Vocal)`,
+              member_id: activeMemberId,
+              member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
+              comment: 'Généré par commande vocale'
+            });
+
+            await client.from('accounts').update({ balance: Math.max(0, srcMatch.balance - amountVal) }).eq('id', srcMatch.id);
+            await client.from('accounts').update({ balance: destMatch.balance + amountVal }).eq('id', destMatch.id);
+
+            feedback = `💸 Virement de ${amountVal}€ effectué de ${srcMatch.name} vers ${destMatch.name} !`;
+            isSuccess = true;
+          } catch (e: any) {
+            feedback = `❌ Échec du virement : ${e.message}`;
+          }
+        }
+      } else {
+        feedback = "🤔 Comptes non identifiés pour le virement.";
+      }
+      
+      setActiveTab('finances');
+      setVoiceFeedback(feedback);
+      await logVoiceCommandToSupabase(intent, isSuccess);
+      setTimeout(() => setVoiceActive(false), 2500);
+      return;
+    }
+
+    // 2. Abonnement/Subscription Create Intent
+    // e.g. "ajouter un abonnement netflix de 15 euros"
+    if ((promptLower.includes('abonnement') || promptLower.includes('netflix') || promptLower.includes('spotify') || promptLower.includes('mensuel')) && (promptLower.includes('ajouter') || promptLower.includes('créer') || promptLower.includes('creer')) && hasNumber) {
+      intent = "abonnement_create";
+      const client = getSupabaseClient();
+      if (client && foyer?.id && amountVal > 0) {
+        try {
+          let name = 'Abonnement vocal';
+          if (promptLower.includes('netflix')) name = 'Netflix';
+          else if (promptLower.includes('spotify')) name = 'Spotify';
+          else if (promptLower.includes('disney')) name = 'Disney+';
+          else if (promptLower.includes('amazon')) name = 'Amazon Prime';
+          else if (promptLower.includes('canal')) name = 'Canal+';
+
+          await client.from('abonnements').insert({
+            id: crypto.randomUUID(),
+            foyer_id: foyer.id,
+            name,
+            amount: amountVal,
+            period: 'monthly',
+            next_billing_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
+            category: 'Loisirs'
+          });
+          feedback = `🍿 Abonnement ${name} de ${amountVal}€/mois enregistré !`;
+          isSuccess = true;
+        } catch (e: any) {
+          feedback = `❌ Échec : ${e.message}`;
+        }
+      }
+      
+      setActiveTab('finances');
+      setVoiceFeedback(feedback);
+      await logVoiceCommandToSupabase(intent, isSuccess);
+      setTimeout(() => setVoiceActive(false), 2500);
+      return;
+    }
+
+    // 3. Saving Goal Contribution Intent
+    // e.g. "contribuer 30 euros pour voyage" or "retirer 20 euros de vacances"
+    if ((promptLower.includes('cagnotte') || promptLower.includes('épargner') || promptLower.includes('contribuer') || promptLower.includes('retirer')) && hasNumber) {
+      intent = "saving_contribution";
+      const isAdd = !promptLower.includes('retirer');
+      const goalMatch = savingGoals.find(g => promptLower.includes(g.title.toLowerCase()) || (g.category && promptLower.includes(g.category.toLowerCase())));
+      
+      if (goalMatch && amountVal > 0) {
+        const client = getSupabaseClient();
+        if (client && foyer?.id) {
+          try {
+            const change = isAdd ? amountVal : -amountVal;
+            const newCurrent = Math.max(0, goalMatch.currentAmount + change);
+            const contribLog = {
+              id: crypto.randomUUID(),
+              date: new Date().toISOString(),
+              memberId: activeMemberId,
+              memberName: members.find(m => m.id === activeMemberId)?.name || 'Parent',
+              amount: change
+            };
+            const updatedContribs = [...(goalMatch.contributions || []), contribLog];
+
+            await client.from('saving_goals').update({
+              current_amount: newCurrent,
+              contributions: JSON.stringify(updatedContribs)
+            }).eq('id', goalMatch.id);
+
+            await client.from('transactions').insert({
+              id: crypto.randomUUID(),
+              foyer_id: foyer.id,
+              title: isAdd ? `Versement : ${goalMatch.title}` : `Retrait : ${goalMatch.title}`,
+              amount: amountVal,
+              type: isAdd ? 'expense' : 'income',
+              category: 'Épargne',
+              date: new Date().toISOString().split('T')[0],
+              member_id: activeMemberId,
+              member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
+              comment: 'Généré par commande vocale'
+            });
+
+            feedback = `🎯 Cagnotte "${goalMatch.title}" : ${isAdd ? 'Ajout' : 'Retrait'} de ${amountVal}€ effectué !`;
+            isSuccess = true;
+          } catch (e: any) {
+            feedback = `❌ Échec : ${e.message}`;
+          }
+        }
+      } else {
+        feedback = "🤔 Cagnotte non identifiée. Spécifiez le titre (ex: voyage).";
+      }
+
+      setActiveTab('finances');
+      setVoiceFeedback(feedback);
+      await logVoiceCommandToSupabase(intent, isSuccess);
+      setTimeout(() => setVoiceActive(false), 2500);
+      return;
+    }
+
+    // 4. Custom Category Create Intent
+    // e.g. "créer la catégorie mosquée"
+    if (promptLower.includes('catégorie') && (promptLower.includes('créer') || promptLower.includes('ajouter') || promptLower.includes('nouvelle'))) {
+      intent = "category_create";
+      const cleanName = promptLower.replace(/créer|creer|ajouter|nouvelle|catégorie|categorie/g, '').trim();
+      if (cleanName) {
+        const client = getSupabaseClient();
+        if (client && foyer?.id) {
+          try {
+            await client.from('custom_categories').insert({
+              id: crypto.randomUUID(),
+              foyer_id: foyer.id,
+              name: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
+              icon: '🕌 Mosquée',
+              color: '#8B5CF6',
+              budget: 0,
+              display_order: 0
+            });
+            feedback = `🏷️ Catégorie "${cleanName}" créée avec succès !`;
+            isSuccess = true;
+          } catch (e: any) {
+            feedback = `❌ Échec : ${e.message}`;
+          }
+        }
+      } else {
+        feedback = "🤔 Quel est le nom de la catégorie ?";
+      }
+
+      setActiveTab('finances');
+      setVoiceFeedback(feedback);
+      await logVoiceCommandToSupabase(intent, isSuccess);
+      setTimeout(() => setVoiceActive(false), 2500);
+      return;
+    }
+
+    // 5. Budget Limits Set Intent
+    // e.g. "fixer le budget alimentation à 500 euros"
+    if ((promptLower.includes('budget') || promptLower.includes('limite')) && promptLower.includes('fixer') && hasNumber) {
+      intent = "budget_limit";
+      const matchedCat = allCategories.find(c => promptLower.includes(c.toLowerCase()));
+      if (matchedCat && amountVal > 0) {
+        const ccObj = customCategories.find(cc => cc.name.toLowerCase() === matchedCat.toLowerCase());
+        const client = getSupabaseClient();
+        if (client && foyer?.id && ccObj) {
+          try {
+            await client.from('custom_categories').update({ budget: amountVal }).eq('id', ccObj.id);
+            feedback = `✍️ Budget de la catégorie ${matchedCat} fixé à ${amountVal}€ !`;
+            isSuccess = true;
+          } catch (e: any) {
+            feedback = `❌ Échec : ${e.message}`;
+          }
+        } else {
+          const budgetsSaved = localStorage.getItem('mf_category_budgets');
+          const budgetsObj = budgetsSaved ? JSON.parse(budgetsSaved) : {};
+          budgetsObj[matchedCat] = amountVal;
+          localStorage.setItem('mf_category_budgets', JSON.stringify(budgetsObj));
+          feedback = `✍️ Budget de la catégorie ${matchedCat} fixé à ${amountVal}€ !`;
+          isSuccess = true;
+        }
+      } else {
+        feedback = "🤔 Catégorie non trouvée.";
+      }
+
+      setActiveTab('finances');
+      setVoiceFeedback(feedback);
+      await logVoiceCommandToSupabase(intent, isSuccess);
+      setTimeout(() => setVoiceActive(false), 2500);
+      return;
+    }
+
+    // 6. Export Finances Intent
+    // e.g. "exporter les finances"
+    if (promptLower.includes('exporter') || promptLower.includes('télécharger le csv') || promptLower.includes('telecharger le csv')) {
+      intent = "export_finances";
+      try {
+        let csvContent = 'data:text/csv;charset=utf-8,';
+        csvContent += 'Date,Titre,Montant,Type,Categorie\n';
+        transactions.forEach(t => {
+          csvContent += `${t.date},"${t.title}",${t.amount},${t.type},"${t.category}"\n`;
+        });
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', 'Famille_Finances_Export.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        feedback = "📊 Export CSV téléchargé avec succès !";
+        isSuccess = true;
+      } catch (e: any) {
+        feedback = `❌ Échec : ${e.message}`;
+      }
+
+      setActiveTab('finances');
+      setVoiceFeedback(feedback);
+      await logVoiceCommandToSupabase(intent, isSuccess);
+      setTimeout(() => setVoiceActive(false), 2500);
+      return;
+    }
+
+    // 7. General Transactions parser (fallback expense / income)
     const hasEuro = promptLower.includes('euro') || promptLower.includes('€');
     const financialKeywords = [
       'dépense', 'depense', 'revenu', 'salaire', 'budget', 'payé', 'paye', 'coûte', 'coute', 'facture', 'loyer',
@@ -2814,13 +3383,13 @@ function App() {
     const categoryKeywords = [
       'transport', 'alimentation', 'logement', 'santé', 'sante', 'éducation', 'education', 'loisir', 'loisirs'
     ];
-    const hasNumber = /(\d+[\.,]?\d*)/.test(promptLower);
     const isFinancial = hasEuro || (hasNumber && (
       financialKeywords.some(kw => promptLower.includes(kw)) ||
       categoryKeywords.some(kw => promptLower.includes(kw))
     ));
 
     if (isFinancial && hasNumber) {
+      intent = promptLower.includes('salaire') || promptLower.includes('revenu') ? 'transaction_income' : 'transaction_expense';
       const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€)/i;
       let amountMatch = promptLower.match(amountRegexWithEuro);
       if (!amountMatch) {
@@ -2831,37 +3400,31 @@ function App() {
         const amountVal = parseFloat(amountMatch[1].replace(',', '.'));
         
         let category = 'Autres';
-        // Alimentation : Enseignes, produits alimentaires, types de repas, boulangerie, etc.
         const alimentTerms = [
           'course', 'aliment', 'supermarché', 'supermarche', 'manger', 'carrefour', 'auchan', 'alimentation', 
           'leclerc', 'lidl', 'intermarché', 'intermarche', 'monoprix', 'restaurant', 'resto', 'dîner', 'diner', 
           'déjeuner', 'dejeuner', 'petit-déjeuner', 'petit-dejeuner', 'boulangerie', 'pain', 'fruits', 'légumes', 
           'legumes', 'viande', 'poisson', 'épicerie', 'epicerie', 'courses', 'kebab', 'pizza', 'mcdo', 'burger'
         ];
-        // Transport : Véhicules, carburants, transports en commun, péages, parking, voyages.
         const transportTerms = [
           'essence', 'carburant', 'péage', 'peage', 'voiture', 'transport', 'total', 'bus', 'train', 'tram', 
           'metro', 'métro', 'sncf', 'billet', 'ticket', 'parking', 'garage', 'diesel', 'sans-plomb', 'sp95', 
           'sp98', 'vol', 'avion', 'uber', 'taxi', 'trottinette', 'vélo', 'velo'
         ];
-        // Logement : Charges, loyer, ameublement, bricolage, travaux.
         const logementTerms = [
           'loyer', 'logement', 'maison', 'électricité', 'electricite', 'eau', 'edf', 'engie', 'facture', 'gaz',
           'internet', 'box', 'téléphone', 'telephone', 'assurance', 'brico', 'bricolage', 'ikea', 'leroy', 
           'castorama', 'meuble', 'déco', 'deco', 'travaux', 'chauffage', 'copropriété', 'copropriete'
         ];
-        // Santé : Soins, consultations, pharmacie, mutuelle.
         const santeTerms = [
           'santé', 'sante', 'médecin', 'medecin', 'pharmacie', 'médicament', 'medicament', 'dentiste', 'ophtalmo',
           'doctolib', 'mutuelle', 'ordonnance', 'soin', 'hôpital', 'hopital', 'clinique', 'visite', 'lunettes'
         ];
-        // Éducation : Scolarité, fournitures, activités extra-scolaires.
         const educationTerms = [
           'école', 'ecole', 'cahier', 'livre', 'études', 'etudes', 'éducation', 'education', 'cantine', 'crèche', 
           'creche', 'fournitures', 'cartable', 'cours', 'devoirs', 'inscription', 'collège', 'college', 'lycée', 
           'lycee', 'université', 'universite'
         ];
-        // Loisirs : Sorties, abonnements divertissement, cadeaux, culture.
         const loisirsTerms = [
           'loisir', 'loisirs', 'cinéma', 'cinema', 'netflix', 'spotify', 'jeu', 'jeux', 'jouet', 'jouets', 
           'cadeau', 'cadeaux', 'concert', 'théâtre', 'theatre', 'vacances', 'voyage', 'sport', 'abonnement', 
@@ -2879,14 +3442,12 @@ function App() {
         } else if (educationTerms.some(term => promptLower.includes(term))) {
           category = 'Éducation';
         } else if (loisirsTerms.some(term => promptLower.includes(term))) {
-          category = 'Autres'; // Loisirs sont regroupés dans 'Autres' ou 'Loisirs' selon le design, comme on a pas de catégorie Loisirs pour les transactions par défaut on met 'Autres' ou 'Loisirs'
+          category = 'Autres';
         }
 
-        let type: 'expense' | 'income' | 'savings' = 'expense';
+        let type: 'expense' | 'income' = 'expense';
         if (promptLower.includes('salaire') || promptLower.includes('revenu') || promptLower.includes('reçu') || promptLower.includes('gagné')) {
           type = 'income';
-        } else if (promptLower.includes('épargne') || promptLower.includes('cagnotte')) {
-          type = 'savings';
         }
 
         let title = 'Achat rapide';
@@ -2894,7 +3455,6 @@ function App() {
         cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[\.,]?\d*)/, '').trim();
         cleanTitle = cleanTitle.replace(/\b(?:dans|pour|en|le|la|les|de|du)\b/gi, '').trim();
         
-        // Remove category keywords if they are at the beginning/end to make the title cleaner
         categoryKeywords.forEach(kw => {
           const regex = new RegExp('\\b' + kw + '\\b', 'gi');
           cleanTitle = cleanTitle.replace(regex, '').trim();
@@ -2903,7 +3463,7 @@ function App() {
         if (cleanTitle) {
           title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
         } else {
-          title = type === 'expense' ? `Dépense ${category}` : type === 'income' ? `Revenu ${category}` : `Épargne ${category}`;
+          title = type === 'expense' ? `Dépense ${category}` : `Revenu ${category}`;
         }
 
         const activeMemberObj = members.find(m => m.id === activeMemberId);
@@ -2919,19 +3479,19 @@ function App() {
         });
 
         feedback = `💰 Finance : J'ai enregistré une dépense de ${amountVal}€ (${category}) pour "${title}" !`;
-        
+        isSuccess = true;
+
         setActiveTab('finances');
         setActiveModule('');
         setVoiceFeedback(feedback);
         
-        setTimeout(() => {
-          setVoiceActive(false);
-        }, 2500);
+        await logVoiceCommandToSupabase(intent, isSuccess);
+        setTimeout(() => setVoiceActive(false), 2500);
         return;
       }
     }
 
-    // 1. Action commands (e.g. ajoute des bananes) - PRIORITÉ ABSOLUE
+    // 8. Groceries action commands (e.g. ajoute des bananes) - PRIORITÉ ABSOLUE
     if (
       promptLower.includes('ajoute') || 
       promptLower.includes('ajouter') || 
@@ -4078,6 +4638,10 @@ function App() {
     setArtisans([]);
     setGrades([]);
     setSchedule([]);
+    setCustomCategories([]);
+    setAccounts([]);
+    setAbonnements([]);
+    setDebts([]);
     setSyncActive(false);
   };
 
@@ -4337,6 +4901,16 @@ function App() {
             setQuickActionsOpen(true);
           }}
           onAddTransaction={handleAddTransaction}
+          foyerId={foyer?.id || ''}
+          myMemberProfile={myMemberProfile}
+          customCategories={customCategories}
+          setCustomCategories={setCustomCategories}
+          accounts={accounts}
+          setAccounts={setAccounts}
+          abonnements={abonnements}
+          setAbonnements={setAbonnements}
+          debts={debts}
+          setDebts={setDebts}
         />
       );
     }

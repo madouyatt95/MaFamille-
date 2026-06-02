@@ -91,6 +91,15 @@ CREATE TABLE IF NOT EXISTS public.transactions (
     title TEXT,
     member_id TEXT,
     member_name TEXT,
+    sub_category TEXT,
+    account_id TEXT,
+    receipt_base64 TEXT,
+    attachment_base64 TEXT,
+    comment TEXT,
+    modification_history JSONB DEFAULT '[]'::jsonb,
+    is_archived BOOLEAN DEFAULT FALSE,
+    recurrence TEXT DEFAULT 'none',
+    subscription_id TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (id, foyer_id)
 );
@@ -235,6 +244,72 @@ CREATE TABLE IF NOT EXISTS public.saving_goals (
     current_amount NUMERIC DEFAULT 0,
     target_date TEXT,
     category TEXT,
+    contributions JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, foyer_id)
+);
+
+-- CATÉGORIES PERSONNALISÉES
+CREATE TABLE IF NOT EXISTS public.custom_categories (
+    id TEXT NOT NULL,
+    foyer_id UUID REFERENCES public.foyers(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    icon TEXT,
+    color TEXT,
+    budget NUMERIC DEFAULT 0,
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, foyer_id)
+);
+
+-- COMPTES MULTIPLES
+CREATE TABLE IF NOT EXISTS public.accounts (
+    id TEXT NOT NULL,
+    foyer_id UUID REFERENCES public.foyers(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    type TEXT DEFAULT 'bank',
+    balance NUMERIC DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, foyer_id)
+);
+
+-- ABONNEMENTS
+CREATE TABLE IF NOT EXISTS public.abonnements (
+    id TEXT NOT NULL,
+    foyer_id UUID REFERENCES public.foyers(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    amount NUMERIC NOT NULL,
+    period TEXT DEFAULT 'monthly',
+    next_billing_date TEXT,
+    category TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, foyer_id)
+);
+
+-- REMBOURSEMENTS FAMILIAUX (DETTES INTERNES)
+CREATE TABLE IF NOT EXISTS public.debts (
+    id TEXT NOT NULL,
+    foyer_id UUID REFERENCES public.foyers(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    amount NUMERIC NOT NULL,
+    payer_id TEXT NOT NULL,
+    payer_name TEXT NOT NULL,
+    debtor_id TEXT NOT NULL,
+    debtor_name TEXT NOT NULL,
+    is_repaid BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, foyer_id)
+);
+
+-- COMMANDES VOCALES
+CREATE TABLE IF NOT EXISTS public.voice_commands (
+    id TEXT NOT NULL,
+    foyer_id UUID REFERENCES public.foyers(id) ON DELETE CASCADE,
+    user_id UUID,
+    member_id TEXT,
+    member_name TEXT,
+    command TEXT NOT NULL,
+    success BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (id, foyer_id)
 );
@@ -506,7 +581,8 @@ BEGIN
         'events', 'groceries', 'dishes', 'chore_tasks', 'vehicles', 
         'maintenance', 'trips', 'pets', 'pocket_money', 'saving_goals', 
         'alerts', 'memories', 'votes', 'school_tasks', 'chat_groups', 
-        'chat_messages', 'demarches', 'justificatif_packs'
+        'chat_messages', 'demarches', 'justificatif_packs',
+        'custom_categories', 'accounts', 'abonnements', 'debts', 'voice_commands'
     ])
     LOOP
         EXECUTE format('

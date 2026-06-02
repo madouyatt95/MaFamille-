@@ -115,6 +115,15 @@ export interface Transaction {
   title: string;
   memberId?: string;
   memberName?: string;
+  subCategory?: string;
+  accountId?: string;
+  receiptBase64?: string;
+  attachmentBase64?: string;
+  comment?: string;
+  modificationHistory?: { author: string; date: string; action: string }[];
+  isArchived?: boolean;
+  recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+  subscriptionId?: string;
 }
 
 export type DocumentCategory = 'identity' | 'health' | 'school' | 'insurance' | 'bank' | 'contract' | 'vehicle' | 'home' | 'travel' | 'other';
@@ -221,6 +230,12 @@ export interface PetRecord {
   documentIds?: string[];
 }
 
+export interface SavingGoalContribution {
+  memberName: string;
+  amount: number;
+  date: string;
+}
+
 export interface SavingGoal {
   id: string;
   title: string;
@@ -228,6 +243,53 @@ export interface SavingGoal {
   currentAmount: number;
   targetDate: string;
   category: string;
+  contributions?: SavingGoalContribution[];
+}
+
+export interface CustomCategory {
+  id: string;
+  name: string;
+  icon?: string;
+  color?: string;
+  budget?: number;
+  displayOrder?: number;
+}
+
+export interface Account {
+  id: string;
+  name: string;
+  type: 'bank' | 'cash' | 'savings' | 'wallet';
+  balance: number;
+}
+
+export interface Abonnement {
+  id: string;
+  name: string;
+  amount: number;
+  period: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  nextBillingDate: string;
+  category?: string;
+}
+
+export interface Debt {
+  id: string;
+  title: string;
+  amount: number;
+  payerId: string;
+  payerName: string;
+  debtorId: string;
+  debtorName: string;
+  isRepaid: boolean;
+}
+
+export interface VoiceCommandLog {
+  id: string;
+  userId?: string;
+  memberId?: string;
+  memberName?: string;
+  command: string;
+  success: boolean;
+  createdAt?: string;
 }
 
 export interface NotificationAlert {
