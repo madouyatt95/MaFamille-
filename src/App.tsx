@@ -906,6 +906,7 @@ function App() {
       setMyMemberProfile(null);
       setOnboardingActive(false);
       isSessionCheckingRef.current = false;
+      setIsSessionChecking(false);
       return;
     }
 
