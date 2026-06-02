@@ -120,7 +120,7 @@ BEGIN
                 USING (foyer_id IN (SELECT public.user_foyer_ids()));
             CREATE POLICY "%s_delete" ON public.%I FOR DELETE
                 USING (foyer_id IN (SELECT public.user_foyer_ids()));
-        ', tbl || '_sel', tbl, tbl || '_ins', tbl, tbl || '_upd', tbl, tbl || '_del', 
+        ', tbl || '_sel', tbl, tbl || '_ins', tbl, tbl || '_upd', tbl, tbl || '_del', tbl, 
            tbl || '_sel', tbl, tbl || '_ins', tbl, tbl || '_upd', tbl, tbl || '_del', tbl);
     END LOOP;
 END $$;
