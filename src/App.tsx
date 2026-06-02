@@ -4027,34 +4027,30 @@ function App() {
     }
   };
 
-  const clearAllStatesAndCache = () => {
+  const clearAllStatesAndCache = async () => {
     setFoyer(null);
     setMyMemberProfile(null);
     setOnboardingActive(false);
     
-    // Clear cache
-    const keysToPurge = [
-      'mf_sb_url', 
-      'mf_sb_key', 
-      'mf_cloud_foyer_id', 
-      'mf_cached_foyer', 
-      'mf_cached_member_profile',
-      'mf_members',
-      'mf_active_member_id',
-      'school_grades',
-      'school_schedule',
-      'mf_events', 'mf_groceries', 'mf_archived_lists', 'mf_transactions', 
-      'mf_documents', 'mf_dishes', 'mf_tasks', 'mf_saving_goals', 
-      'mf_alerts', 'mf_memories', 'mf_votes', 'mf_school_tasks', 
-      'mf_chat_groups', 'mf_chat_messages', 'mf_demarches', 
-      'mf_justificatif_packs', 'mf_vehicles', 'mf_maintenance', 
-      'mf_trips', 'mf_pets', 'mf_pocket_money', 'mf_artisans'
-    ];
-    
-    keysToPurge.forEach(k => {
-      localStorage.removeItem(k);
-      Preferences.remove({ key: k }).catch(() => {});
-    });
+    // Backup custom Supabase settings if they exist to prevent user having to re-enter them
+    const sbUrl = localStorage.getItem('mf_sb_url');
+    const sbKey = localStorage.getItem('mf_sb_key');
+
+    // Clear localStorage synchronously
+    localStorage.clear();
+
+    if (sbUrl) localStorage.setItem('mf_sb_url', sbUrl);
+    if (sbKey) localStorage.setItem('mf_sb_key', sbKey);
+
+    try {
+      // Clear all Capacitor Preferences in a single native operation
+      await Preferences.clear();
+      // Restore custom Supabase settings to Preferences if they existed
+      if (sbUrl) await Preferences.set({ key: 'mf_sb_url', value: sbUrl });
+      if (sbKey) await Preferences.set({ key: 'mf_sb_key', value: sbKey });
+    } catch (e) {
+      console.warn("Preferences clear error:", e);
+    }
 
     // Reset states to empty arrays or defaults
     setMembers([]);
@@ -4090,8 +4086,9 @@ function App() {
     if (client) {
       client.auth.signOut().catch(err => console.warn("SignOut during reset warning:", err));
     }
-    clearAllStatesAndCache();
-    alert('Système réinitialisé avec succès !');
+    clearAllStatesAndCache().then(() => {
+      alert('Système réinitialisé avec succès !');
+    });
   };
 
   const handleCancelJoinRequest = async () => {
@@ -4115,7 +4112,7 @@ function App() {
     if (confirm("⚠️ Attention : Êtes-vous sûr de vouloir quitter ce foyer ? Vous n'aurez plus accès aux données partagées de cette famille.")) {
       try {
         await foyerService.leaveFoyer(foyer.id);
-        clearAllStatesAndCache();
+        await clearAllStatesAndCache();
         alert("🎉 Vous avez quitté le foyer avec succès. Vous pouvez maintenant en créer un autre ou en rejoindre un existant !");
       } catch (err: any) {
         alert(`Erreur lors du départ du foyer : ${err.message || err}`);
@@ -4130,7 +4127,7 @@ function App() {
         console.warn("Supabase signOut error (proceeding with local cleanup):", err);
       });
     }
-    clearAllStatesAndCache();
+    await clearAllStatesAndCache();
     alert("Déconnexion réussie.");
   };
 
