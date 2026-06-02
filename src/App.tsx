@@ -2703,10 +2703,12 @@ function App() {
       const syncTable = async (tableName: string, localItems: any[], mapToDb: (item: any) => any, allowDelete: boolean = false) => {
         if (currentSessionId !== syncSessionIdRef.current) return;
         try {
-          const { data: cloudItems } = await client.from(tableName).select('id').eq('foyer_id', foyer.id);
+          const { data: cloudItems } = await client.from(tableName).select('*').eq('foyer_id', foyer.id);
           if (currentSessionId !== syncSessionIdRef.current) return;
+          
+          const localMapped = localItems.map(mapToDb);
           const cloudIds = (cloudItems || []).map(item => item.id);
-          const localIds = localItems.map(item => item.id);
+          const localIds = localMapped.map(item => item.id);
 
           // Delete missing
           if (allowDelete) {
@@ -2717,9 +2719,51 @@ function App() {
             }
           }
 
-          // Upsert current
-          if (localItems.length > 0) {
-            await client.from(tableName).upsert(localItems.map(mapToDb));
+          // Filter local items that are actually different from the cloud items
+          const itemsToUpsert = localMapped.filter(localItem => {
+            const cloudItem = (cloudItems || []).find(c => c.id === localItem.id);
+            if (!cloudItem) return true; // New item
+
+            // Check if any value is different
+            for (const key of Object.keys(localItem)) {
+              const valLocal = localItem[key];
+              const valCloud = cloudItem[key];
+
+              if (valLocal === null && valCloud === undefined) continue;
+              if (valLocal === undefined && valCloud === null) continue;
+
+              // If it's an object/array (like modification_history or contributions)
+              if (typeof valLocal === 'object' && valLocal !== null) {
+                if (JSON.stringify(valLocal) !== JSON.stringify(valCloud)) {
+                  return true;
+                }
+              } else if (valLocal !== valCloud) {
+                // If it is a string representation of an object (like JSON columns)
+                if (typeof valLocal === 'string' && typeof valCloud === 'object' && valCloud !== null) {
+                  try {
+                    if (JSON.stringify(JSON.parse(valLocal)) !== JSON.stringify(valCloud)) {
+                      return true;
+                    }
+                    continue; // They are equivalent JSON
+                  } catch (e) {}
+                }
+                if (typeof valCloud === 'string' && typeof valLocal === 'object' && valLocal !== null) {
+                  try {
+                    if (JSON.stringify(valLocal) !== JSON.stringify(JSON.parse(valCloud))) {
+                      return true;
+                    }
+                    continue; // They are equivalent JSON
+                  } catch (e) {}
+                }
+                return true;
+              }
+            }
+            return false;
+          });
+
+          // Upsert current only if different
+          if (itemsToUpsert.length > 0) {
+            await client.from(tableName).upsert(itemsToUpsert);
           }
         } catch (err) {
           console.warn(`Sync error for table ${tableName}:`, err);
@@ -2767,7 +2811,16 @@ function App() {
         date: t.date,
         title: t.title,
         member_id: t.memberId || null,
-        member_name: t.memberName || null
+        member_name: t.memberName || null,
+        sub_category: t.subCategory || null,
+        account_id: t.accountId || null,
+        receipt_base64: t.receiptBase64 || null,
+        attachment_base64: t.attachmentBase64 || null,
+        comment: t.comment || null,
+        modification_history: t.modificationHistory ? JSON.stringify(t.modificationHistory) : null,
+        is_archived: !!t.isArchived,
+        recurrence: t.recurrence || 'none',
+        subscription_id: t.subscriptionId || null
       }));
 
       // Documents
@@ -2822,7 +2875,8 @@ function App() {
         target_amount: s.targetAmount,
         current_amount: s.currentAmount,
         target_date: s.targetDate,
-        category: s.category
+        category: s.category,
+        contributions: s.contributions ? JSON.stringify(s.contributions) : null
       }));
 
       // Alerts
