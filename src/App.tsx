@@ -3265,22 +3265,34 @@ function App() {
     }).format(converted) + ' ' + symbol;
   };
 
-  const filteredAlerts = alerts.filter(al => {
-    // 1. Filter out alerts created by the active member
-    if (al.id.includes(`-by-${activeMemberId}`)) return false;
-    
-    // 2. Filter by user preference toggles
-    const mod = al.module || '';
-    if (mod === 'groceries' || mod === 'courses') return notificationPrefs.groceries;
-    if (mod === 'tasks' || mod === 'chore_tasks') return notificationPrefs.tasks;
-    if (mod === 'events' || mod === 'agenda' || mod === 'calendar') return notificationPrefs.agenda;
-    if (mod === 'finances' || mod === 'transactions' || mod === 'saving_goals') return notificationPrefs.finances;
-    if (mod === 'chat' || mod === 'messages') return notificationPrefs.chat;
-    if (mod === 'health' || mod === 'sante') return notificationPrefs.health;
-    if (mod === 'vault' || mod === 'documents' || mod === 'demarches' || mod === 'justificatif_packs') return notificationPrefs.vault;
-    if (mod === 'sos' || mod === 'urgences') return notificationPrefs.sos;
-    return true;
-  });
+  const filteredAlerts = alerts
+    .filter(al => {
+      // 1. Filter out alerts created by the active member
+      if (al.id.includes(`-by-${activeMemberId}`)) return false;
+      
+      // 2. Filter by user preference toggles
+      const mod = al.module || '';
+      if (mod === 'groceries' || mod === 'courses') return notificationPrefs.groceries;
+      if (mod === 'tasks' || mod === 'chore_tasks') return notificationPrefs.tasks;
+      if (mod === 'events' || mod === 'agenda' || mod === 'calendar') return notificationPrefs.agenda;
+      if (mod === 'finances' || mod === 'transactions' || mod === 'saving_goals') return notificationPrefs.finances;
+      if (mod === 'chat' || mod === 'messages') return notificationPrefs.chat;
+      if (mod === 'health' || mod === 'sante') return notificationPrefs.health;
+      if (mod === 'vault' || mod === 'documents' || mod === 'demarches' || mod === 'justificatif_packs') return notificationPrefs.vault;
+      if (mod === 'sos' || mod === 'urgences') return notificationPrefs.sos;
+      return true;
+    })
+    .sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (timeA && timeB) return timeB - timeA;
+      // Fallback extract timestamp from ID
+      const extractTime = (id: string) => {
+        const match = id.match(/\d{10,}/);
+        return match ? parseInt(match[0], 10) : 0;
+      };
+      return extractTime(b.id) - extractTime(a.id);
+    });
 
 
 
@@ -4914,8 +4926,14 @@ function App() {
                       setAlerts(prev => prev.map(a => a.id === al.id ? { ...a, read: true } : a));
                       updateAlertReadStatusInCloud(al.id, true);
                       if (targetModule) {
-                        setActiveTab('menu');
-                        setActiveModule(targetModule);
+                        const mainTabs = ['accueil', 'agenda', 'finances'];
+                        if (mainTabs.includes(targetModule)) {
+                          setActiveTab(targetModule as any);
+                          setActiveModule('');
+                        } else {
+                          setActiveTab('menu');
+                          setActiveModule(targetModule);
+                        }
                         setAlertsPanelOpen(false);
                       }
                     }}
