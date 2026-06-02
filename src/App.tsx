@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { Preferences } from '@capacitor/preferences';
 import { parseSmartNaturalSentence } from './utils/groceryParser';
 import { 
   demoMembers, 
@@ -140,8 +141,40 @@ function App() {
   const safeSetLocalStorage = (key: string, value: string) => {
     try {
       localStorage.setItem(key, value);
+      const backupKeys = [
+        'mf_sb_url', 
+        'mf_sb_key', 
+        'mf_cloud_foyer_id', 
+        'mf_cached_foyer', 
+        'mf_cached_member_profile',
+        'mf_members',
+        'mf_active_member_id'
+      ];
+      if (backupKeys.includes(key)) {
+        Preferences.set({ key, value }).catch(err => console.warn(`Native backup error for ${key}:`, err));
+      }
     } catch (e) {
       console.warn(`Storage quota exceeded or error saving key "${key}":`, e);
+    }
+  };
+
+  const safeRemoveLocalStorage = (key: string) => {
+    try {
+      localStorage.removeItem(key);
+      const backupKeys = [
+        'mf_sb_url', 
+        'mf_sb_key', 
+        'mf_cloud_foyer_id', 
+        'mf_cached_foyer', 
+        'mf_cached_member_profile',
+        'mf_members',
+        'mf_active_member_id'
+      ];
+      if (backupKeys.includes(key)) {
+        Preferences.remove({ key }).catch(err => console.warn(`Native removal error for ${key}:`, err));
+      }
+    } catch (e) {
+      console.warn(`Error removing key "${key}":`, e);
     }
   };
 
@@ -311,11 +344,11 @@ function App() {
   const [currency, setCurrency] = useState(() => {
     return localStorage.getItem('mf_currency') || 'EUR (€)';
   });
-  const [supabaseUrl, setSupabaseUrl] = useState(() => {
+  const [supabaseUrl] = useState(() => {
     const raw = (import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('mf_sb_url') || '').trim();
     return raw.replace(/^['"]|['"]$/g, '');
   });
-  const [supabaseKey, setSupabaseKey] = useState(() => {
+  const [supabaseKey] = useState(() => {
     const raw = (import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('mf_sb_key') || '').trim();
     return raw.replace(/^['"]|['"]$/g, '');
   });
@@ -616,7 +649,7 @@ function App() {
     if (foyer) {
       safeSetLocalStorage('mf_cached_foyer', JSON.stringify(foyer));
     } else {
-      localStorage.removeItem('mf_cached_foyer');
+      safeRemoveLocalStorage('mf_cached_foyer');
     }
   }, [foyer]);
   const [myMemberProfile, setMyMemberProfile] = useState<FoyerMember | null>(() => {
@@ -628,7 +661,7 @@ function App() {
     if (myMemberProfile) {
       safeSetLocalStorage('mf_cached_member_profile', JSON.stringify(myMemberProfile));
     } else {
-      localStorage.removeItem('mf_cached_member_profile');
+      safeRemoveLocalStorage('mf_cached_member_profile');
     }
   }, [myMemberProfile]);
   const [onboardingActive, setOnboardingActive] = useState(false);
@@ -962,8 +995,63 @@ function App() {
     }
   };
 
+  const [isInitializingAuth, setIsInitializingAuth] = useState(true);
+
+  // Restore session from native preferences on mount
+  useEffect(() => {
+    const initSession = async () => {
+      try {
+        const keys = [
+          'mf_sb_url', 
+          'mf_sb_key', 
+          'mf_cloud_foyer_id', 
+          'mf_cached_foyer', 
+          'mf_cached_member_profile',
+          'mf_members',
+          'mf_active_member_id'
+        ];
+        
+        const restoredData: Record<string, string | null> = {};
+        for (const key of keys) {
+          const { value } = await Preferences.get({ key });
+          restoredData[key] = value;
+          if (value) {
+            localStorage.setItem(key, value);
+          }
+        }
+
+        // Hydrate React states from restored native data
+        if (restoredData['mf_cached_foyer']) {
+          try {
+            setFoyer(JSON.parse(restoredData['mf_cached_foyer']!));
+          } catch(e){}
+        }
+        if (restoredData['mf_cached_member_profile']) {
+          try {
+            setMyMemberProfile(JSON.parse(restoredData['mf_cached_member_profile']!));
+          } catch(e){}
+        }
+        if (restoredData['mf_active_member_id']) {
+          setActiveMemberId(restoredData['mf_active_member_id']!);
+        }
+        if (restoredData['mf_members']) {
+          try {
+            setMembers(JSON.parse(restoredData['mf_members']!));
+          } catch(e){}
+        }
+      } catch (e) {
+        console.warn("Failed to restore native session keys:", e);
+      } finally {
+        setIsInitializingAuth(false);
+      }
+    };
+    initSession();
+  }, []);
+
   // Monitor Supabase Auth changes
   useEffect(() => {
+    if (isInitializingAuth) return;
+
     // Request notification permission on startup
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
@@ -1006,7 +1094,7 @@ function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [isInitializingAuth]);
 
   // Onboarding success handler
   const handleOnboardingSuccess = async (_foyerId: string, _memberRole: string) => {
@@ -2328,6 +2416,24 @@ function App() {
       if (subJustificatifPacks) subJustificatifPacks.unsubscribe();
     };
   }, [foyer]);
+
+  // Trigger full foyer data load when approval status changes to true
+  const prevApprovedRef = useRef<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (myMemberProfile) {
+      const wasApproved = prevApprovedRef.current;
+      const isApproved = myMemberProfile.approved !== false;
+      prevApprovedRef.current = isApproved;
+
+      if (foyer && isApproved && wasApproved === false) {
+        console.log("[MaFamille+ Sync] User was approved! Fetching all foyer data...");
+        setIsSyncReady(false);
+        loadFoyerData(foyer.id).then(() => {
+          setIsSyncReady(true);
+        });
+      }
+    }
+  }, [foyer, myMemberProfile]);
 
   // 3. Granular database background sync on mutations
   useEffect(() => {
@@ -3845,56 +3951,70 @@ function App() {
     }
   };
 
+  const clearAllStatesAndCache = () => {
+    setFoyer(null);
+    setMyMemberProfile(null);
+    setOnboardingActive(false);
+    
+    // Clear cache
+    const keysToPurge = [
+      'mf_sb_url', 
+      'mf_sb_key', 
+      'mf_cloud_foyer_id', 
+      'mf_cached_foyer', 
+      'mf_cached_member_profile',
+      'mf_members',
+      'mf_active_member_id',
+      'school_grades',
+      'school_schedule',
+      'mf_events', 'mf_groceries', 'mf_archived_lists', 'mf_transactions', 
+      'mf_documents', 'mf_dishes', 'mf_tasks', 'mf_saving_goals', 
+      'mf_alerts', 'mf_memories', 'mf_votes', 'mf_school_tasks', 
+      'mf_chat_groups', 'mf_chat_messages', 'mf_demarches', 
+      'mf_justificatif_packs', 'mf_vehicles', 'mf_maintenance', 
+      'mf_trips', 'mf_pets', 'mf_pocket_money', 'mf_artisans'
+    ];
+    
+    keysToPurge.forEach(k => {
+      localStorage.removeItem(k);
+      Preferences.remove({ key: k }).catch(() => {});
+    });
+
+    // Reset states to empty arrays or defaults
+    setMembers([]);
+    setEvents([]);
+    setGroceries([]);
+    setArchivedLists([]);
+    setTransactions([]);
+    setDocuments([]);
+    setDishes([]);
+    setTasks([]);
+    setSavingGoals([]);
+    setAlerts([]);
+    setMemories([]);
+    setVotes([]);
+    setSchoolTasks([]);
+    setChatGroups([]);
+    setChatMessages([]);
+    setDemarches([]);
+    setJustificatifPacks([]);
+    setVehicles([]);
+    setMaintenance([]);
+    setTrips([]);
+    setPets([]);
+    setPocketMoney([]);
+    setArtisans([]);
+    setGrades([]);
+    setSchedule([]);
+    setSyncActive(false);
+  };
+
   const handleResetData = () => {
     const client = getSupabaseClient();
     if (client) {
       client.auth.signOut().catch(err => console.warn("SignOut during reset warning:", err));
     }
-
-    localStorage.clear();
-    setFoyer(null);
-    setMyMemberProfile(null);
-    setOnboardingActive(false);
-
-    setMembers(demoMembers);
-    setEvents(demoEvents);
-    setTransactions(demoTransactions);
-    setDocuments(demoDocuments);
-    setTasks(demoTasks);
-    setGroceries(demoGroceries);
-    setSavingGoals(demoSavingGoals);
-    setAlerts(demoAlerts);
-    setChatGroups(demoChatGroups);
-    setChatMessages(demoChatMessages);
-    setDemarches(demoDemarches);
-    setJustificatifPacks(demoPacks);
-    setVehicles(demoVehicles);
-    setMaintenance(demoMaintenance);
-    setTrips(demoTrips);
-    setPets(demoPets);
-    setArtisans(demoArtisans);
-    setSchoolTasks(demoSchoolTasks);
-    setGrades([
-      { id: 'g-1', studentId: '3', studentName: 'Amadou', subject: 'Mathématiques', value: 16, max: 20, coef: 2, examTitle: 'Contrôle Algèbre', date: '10/05/2026' },
-      { id: 'g-2', studentId: '3', studentName: 'Amadou', subject: 'Histoire-Géographie', value: 15, max: 20, coef: 1, examTitle: 'Examen Révolution', date: '12/05/2026' },
-      { id: 'g-3', studentId: '4', studentName: 'Awa', subject: 'Français', value: 18, max: 20, coef: 1, examTitle: 'Dictée de Printemps', date: '14/05/2026' }
-    ]);
-    setSchedule([
-      { id: 's-1', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Mathématiques', startTime: '08:30', endTime: '09:30', room: 'Salle 102' },
-      { id: 's-2', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Histoire-Géographie', startTime: '09:30', endTime: '10:30', room: 'Salle 204' },
-      { id: 's-3', studentId: '4', studentName: 'Awa', day: 'Mardi', subject: 'Français', startTime: '10:45', endTime: '11:45', room: 'Classe A2' }
-    ]);
-    setMemories(demoMemories);
-    setPocketMoney([
-      { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150' },
-      { id: '4', name: 'Awa', balance: 22.50, points: 225, avatar: 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150' }
-    ]);
-    setCurrency('EUR (€)');
-    setSyncActive(false);
-    setSupabaseUrl('');
-    setSupabaseKey('');
-    setActiveTab('accueil');
-    setActiveModule('');
+    clearAllStatesAndCache();
     alert('Système réinitialisé avec succès !');
   };
 
@@ -3919,11 +4039,7 @@ function App() {
     if (confirm("⚠️ Attention : Êtes-vous sûr de vouloir quitter ce foyer ? Vous n'aurez plus accès aux données partagées de cette famille.")) {
       try {
         await foyerService.leaveFoyer(foyer.id);
-        setFoyer(null);
-        setMyMemberProfile(null);
-        setActiveMemberId('');
-        setOnboardingActive(true);
-        localStorage.removeItem('mf_cloud_foyer_id');
+        clearAllStatesAndCache();
         alert("🎉 Vous avez quitté le foyer avec succès. Vous pouvez maintenant en créer un autre ou en rejoindre un existant !");
       } catch (err: any) {
         alert(`Erreur lors du départ du foyer : ${err.message || err}`);
@@ -3933,50 +4049,15 @@ function App() {
 
   const handleLogout = async () => {
     const client = getSupabaseClient();
-    if (!client) return;
-    try {
-      await client.auth.signOut();
-      setFoyer(null);
-      setMyMemberProfile(null);
-      setOnboardingActive(false);
-      setDiscoverMode(false);
-      localStorage.removeItem('mf_discover_mode');
-      localStorage.removeItem('mf_cloud_foyer_id');
-      localStorage.removeItem('school_grades');
-      localStorage.removeItem('school_schedule');
-      // Restore demo data for offline browsing
-      setMembers(demoMembers);
-      setEvents(demoEvents);
-      setTransactions(demoTransactions);
-      setTasks(demoTasks);
-      setGroceries(demoGroceries);
-      setDocuments(demoDocuments);
-      setDishes(demoDishes);
-      setVehicles(demoVehicles);
-      setMaintenance(demoMaintenance);
-      setTrips(demoTrips);
-      setPets(demoPets);
-      setArtisans(demoArtisans);
-      setSchoolTasks(demoSchoolTasks);
-      setGrades([
-        { id: 'g-1', studentId: '3', studentName: 'Amadou', subject: 'Mathématiques', value: 16, max: 20, coef: 2, examTitle: 'Contrôle Algèbre', date: '10/05/2026' },
-        { id: 'g-2', studentId: '3', studentName: 'Amadou', subject: 'Histoire-Géographie', value: 15, max: 20, coef: 1, examTitle: 'Examen Révolution', date: '12/05/2026' },
-        { id: 'g-3', studentId: '4', studentName: 'Awa', subject: 'Français', value: 18, max: 20, coef: 1, examTitle: 'Dictée de Printemps', date: '14/05/2026' }
-      ]);
-      setSchedule([
-        { id: 's-1', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Mathématiques', startTime: '08:30', endTime: '09:30', room: 'Salle 102' },
-        { id: 's-2', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Histoire-Géographie', startTime: '09:30', endTime: '10:30', room: 'Salle 204' },
-        { id: 's-3', studentId: '4', studentName: 'Awa', day: 'Mardi', subject: 'Français', startTime: '10:45', endTime: '11:45', room: 'Classe A2' }
-      ]);
-      setMemories(demoMemories);
-      setPocketMoney([
-        { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150' },
-        { id: '4', name: 'Awa', balance: 22.50, points: 225, avatar: 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150' }
-      ]);
-      alert("Foyer déconnecté. Les données de démonstration ont été restaurées.");
-    } catch (err: any) {
-      console.error("Erreur lors de la déconnexion :", err);
+    if (client) {
+      try {
+        await client.auth.signOut();
+      } catch (err: any) {
+        console.warn("Supabase signOut error (proceeding with local cleanup):", err);
+      }
     }
+    clearAllStatesAndCache();
+    alert("Déconnexion réussie.");
   };
 
   const handlePurgeDemoData = async () => {

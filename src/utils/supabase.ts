@@ -1,4 +1,30 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { Preferences } from '@capacitor/preferences';
+
+const capacitorPreferencesStorage = {
+  getItem: async (key: string): Promise<string | null> => {
+    try {
+      const { value } = await Preferences.get({ key });
+      return value;
+    } catch (e) {
+      return localStorage.getItem(key);
+    }
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    try {
+      await Preferences.set({ key, value });
+    } catch (e) {
+      localStorage.setItem(key, value);
+    }
+  },
+  removeItem: async (key: string): Promise<void> => {
+    try {
+      await Preferences.remove({ key });
+    } catch (e) {
+      localStorage.removeItem(key);
+    }
+  }
+};
 
 let supabaseInstance: SupabaseClient | null = null;
 let currentActiveUrl = '';
@@ -48,7 +74,8 @@ export const getSupabaseClient = (customUrl?: string, customKey?: string): Supab
       supabaseInstance = createClient(url, key, {
         auth: {
           persistSession: true,
-          autoRefreshToken: true
+          autoRefreshToken: true,
+          storage: capacitorPreferencesStorage
         },
         realtime: {
           params: { eventsPerSecond: 10 }
