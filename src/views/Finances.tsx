@@ -467,8 +467,11 @@ export const Finances: React.FC<FinancesProps> = ({
     if (!supabase || !foyerId) return;
 
     try {
-      const { error } = await supabase.from('transactions').delete().eq('foyer_id', foyerId).eq('id', txId);
+      const { data, error } = await supabase.from('transactions').delete().eq('foyer_id', foyerId).eq('id', txId).select();
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Vous n'avez pas l'autorisation de supprimer cette transaction (droits Parent/Admin requis).");
+      }
       setTransactions(prev => prev.filter(t => t.id !== txId));
     } catch (err: any) {
       console.error('Error deleting transaction:', err);
@@ -580,8 +583,11 @@ export const Finances: React.FC<FinancesProps> = ({
     if (!supabase || !foyerId) return;
 
     try {
-      const { error } = await supabase.from('custom_categories').delete().eq('foyer_id', foyerId).eq('id', catId);
+      const { data, error } = await supabase.from('custom_categories').delete().eq('foyer_id', foyerId).eq('id', catId).select();
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Vous n'avez pas l'autorisation de supprimer cette catégorie ou elle n'existe pas.");
+      }
       setCustomCategories(prev => prev.filter(c => c.id !== catId));
     } catch (err: any) {
       console.error('Error deleting custom category:', err);
@@ -712,8 +718,11 @@ export const Finances: React.FC<FinancesProps> = ({
     if (!supabase || !foyerId) return;
 
     try {
-      const { error } = await supabase.from('saving_goals').delete().eq('foyer_id', foyerId).eq('id', goalId);
+      const { data, error } = await supabase.from('saving_goals').delete().eq('foyer_id', foyerId).eq('id', goalId).select();
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Vous n'avez pas l'autorisation de supprimer cette cagnotte ou elle n'existe pas.");
+      }
       setSavingGoals(prev => prev.filter(g => g.id !== goalId));
     } catch (err: any) {
       console.error('Error deleting goal:', err);
@@ -882,8 +891,11 @@ export const Finances: React.FC<FinancesProps> = ({
     if (!supabase || !foyerId) return;
 
     try {
-      const { error } = await supabase.from('abonnements').delete().eq('foyer_id', foyerId).eq('id', aboId);
+      const { data, error } = await supabase.from('abonnements').delete().eq('foyer_id', foyerId).eq('id', aboId).select();
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Vous n'avez pas l'autorisation de supprimer cet abonnement ou il n'existe pas.");
+      }
       setAbonnements(prev => prev.filter(a => a.id !== aboId));
     } catch (err: any) {
       console.error('Error deleting subscription:', err);
@@ -1077,8 +1089,7 @@ export const Finances: React.FC<FinancesProps> = ({
   // ----------------------------------------------------
   const handleExportCSV = () => {
     // Generate CSV Header
-    let csvContent = 'data:text/csv;charset=utf-8,';
-    csvContent += 'Date,Titre,Montant,Type,Categorie,Sous-categorie,Commentaire,Membre\n';
+    let csvContent = 'Date,Titre,Montant,Type,Categorie,Sous-categorie,Commentaire,Membre\n';
 
     filteredTransactions.forEach(t => {
       const row = [
@@ -1094,13 +1105,16 @@ export const Finances: React.FC<FinancesProps> = ({
       csvContent += row + '\n';
     });
 
-    const encodedUri = encodeURI(csvContent);
+    const csvContentWithBOM = '\uFEFF' + csvContent;
+    const blob = new Blob([csvContentWithBOM], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', url);
     link.setAttribute('download', `Famille_Finances_Export_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleImportCSVClick = () => {
@@ -1821,7 +1835,16 @@ export const Finances: React.FC<FinancesProps> = ({
                                 if (!confirm('Voulez-vous supprimer ce compte ?')) return;
                                 const supabase = getSupabaseClient();
                                 if (supabase && foyerId) {
-                                  await supabase.from('accounts').delete().eq('foyer_id', foyerId).eq('id', acc.id);
+                                  try {
+                                    const { data, error } = await supabase.from('accounts').delete().eq('foyer_id', foyerId).eq('id', acc.id).select();
+                                    if (error) throw error;
+                                    if (!data || data.length === 0) {
+                                      throw new Error("Vous n'avez pas l'autorisation de supprimer ce compte.");
+                                    }
+                                    setAccounts(prev => prev.filter(a => a.id !== acc.id));
+                                  } catch (err: any) {
+                                    alert("Erreur lors de la suppression du compte : " + err.message);
+                                  }
                                 }
                               }}
                               className="text-xs text-red-400 hover:text-red-300"

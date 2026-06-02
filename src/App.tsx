@@ -3175,7 +3175,7 @@ function App() {
       
       setActiveTab('finances');
       setVoiceFeedback(feedback);
-      await logVoiceCommandToSupabase(intent, isSuccess);
+      logVoiceCommandToSupabase(intent, isSuccess);
       setTimeout(() => setVoiceActive(false), 2500);
       return;
     }
@@ -3212,7 +3212,7 @@ function App() {
       
       setActiveTab('finances');
       setVoiceFeedback(feedback);
-      await logVoiceCommandToSupabase(intent, isSuccess);
+      logVoiceCommandToSupabase(intent, isSuccess);
       setTimeout(() => setVoiceActive(false), 2500);
       return;
     }
@@ -3269,7 +3269,7 @@ function App() {
 
       setActiveTab('finances');
       setVoiceFeedback(feedback);
-      await logVoiceCommandToSupabase(intent, isSuccess);
+      logVoiceCommandToSupabase(intent, isSuccess);
       setTimeout(() => setVoiceActive(false), 2500);
       return;
     }
@@ -3304,7 +3304,7 @@ function App() {
 
       setActiveTab('finances');
       setVoiceFeedback(feedback);
-      await logVoiceCommandToSupabase(intent, isSuccess);
+      logVoiceCommandToSupabase(intent, isSuccess);
       setTimeout(() => setVoiceActive(false), 2500);
       return;
     }
@@ -3339,7 +3339,7 @@ function App() {
 
       setActiveTab('finances');
       setVoiceFeedback(feedback);
-      await logVoiceCommandToSupabase(intent, isSuccess);
+      logVoiceCommandToSupabase(intent, isSuccess);
       setTimeout(() => setVoiceActive(false), 2500);
       return;
     }
@@ -3370,7 +3370,7 @@ function App() {
 
       setActiveTab('finances');
       setVoiceFeedback(feedback);
-      await logVoiceCommandToSupabase(intent, isSuccess);
+      logVoiceCommandToSupabase(intent, isSuccess);
       setTimeout(() => setVoiceActive(false), 2500);
       return;
     }
@@ -3486,7 +3486,7 @@ function App() {
         setActiveModule('');
         setVoiceFeedback(feedback);
         
-        await logVoiceCommandToSupabase(intent, isSuccess);
+        logVoiceCommandToSupabase(intent, isSuccess);
         setTimeout(() => setVoiceActive(false), 2500);
         return;
       }
