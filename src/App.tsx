@@ -980,11 +980,13 @@ function App() {
           }
         }
         
-        if (!foyerRef.current) {
-          setOnboardingActive(true);
-        } else {
-          console.warn("[MaFamille+ Session] getMyFoyer returned null but user already has a foyer loaded in state. Ignoring to prevent glitch onboarding redirect.");
-        }
+        console.log("[MaFamille+ Session] No foyer found in DB. Clearing stale cache and triggering onboarding.");
+        setFoyer(null);
+        setMyMemberProfile(null);
+        localStorage.removeItem('mf_cached_foyer');
+        localStorage.removeItem('mf_cached_member_profile');
+        localStorage.removeItem('mf_cloud_foyer_id');
+        setOnboardingActive(true);
       }
     } catch (err) {
       console.error("Erreur lors de la vérification de session foyer :", err);
