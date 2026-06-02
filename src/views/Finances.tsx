@@ -1087,7 +1087,7 @@ export const Finances: React.FC<FinancesProps> = ({
   // ----------------------------------------------------
   // Export & Statement Import (CSV)
   // ----------------------------------------------------
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     // Generate CSV Header
     let csvContent = 'Date,Titre,Montant,Type,Categorie,Sous-categorie,Commentaire,Membre\n';
 
@@ -1106,11 +1106,30 @@ export const Finances: React.FC<FinancesProps> = ({
     });
 
     const csvContentWithBOM = '\uFEFF' + csvContent;
+    const fileName = `Famille_Finances_Export_${new Date().toISOString().split('T')[0]}.csv`;
+
+    // Support Web Share API (native share sheet on iOS/Android WebViews)
+    if (navigator.share) {
+      try {
+        const file = new File([csvContentWithBOM], fileName, { type: 'text/csv;charset=utf-8' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'Export Finances',
+            text: 'Export des finances de la famille'
+          });
+          return;
+        }
+      } catch (shareErr) {
+        console.warn('Web Share failed, falling back to download:', shareErr);
+      }
+    }
+
     const blob = new Blob([csvContentWithBOM], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `Famille_Finances_Export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', fileName);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

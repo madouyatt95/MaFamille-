@@ -406,6 +406,7 @@ function App() {
   // React Refs to keep subscriptions updated and prevent stale closures
   const activeMemberIdRef = useRef(activeMemberId);
   const membersRef = useRef(members);
+  const syncSessionIdRef = useRef(0);
 
   useEffect(() => {
     activeMemberIdRef.current = activeMemberId;
@@ -2696,10 +2697,14 @@ function App() {
       const client = getSupabaseClient();
       if (!client) return;
 
+      const currentSessionId = ++syncSessionIdRef.current;
+
       // Helper function to sync a table cleanly
       const syncTable = async (tableName: string, localItems: any[], mapToDb: (item: any) => any, allowDelete: boolean = false) => {
+        if (currentSessionId !== syncSessionIdRef.current) return;
         try {
           const { data: cloudItems } = await client.from(tableName).select('id').eq('foyer_id', foyer.id);
+          if (currentSessionId !== syncSessionIdRef.current) return;
           const cloudIds = (cloudItems || []).map(item => item.id);
           const localIds = localItems.map(item => item.id);
 
@@ -2708,6 +2713,7 @@ function App() {
             const deletedIds = cloudIds.filter(id => !localIds.includes(id));
             if (deletedIds.length > 0) {
               await client.from(tableName).delete().eq('foyer_id', foyer.id).in('id', deletedIds);
+              if (currentSessionId !== syncSessionIdRef.current) return;
             }
           }
 
@@ -3349,18 +3355,43 @@ function App() {
     if (promptLower.includes('exporter') || promptLower.includes('télécharger le csv') || promptLower.includes('telecharger le csv')) {
       intent = "export_finances";
       try {
-        let csvContent = 'data:text/csv;charset=utf-8,';
-        csvContent += 'Date,Titre,Montant,Type,Categorie\n';
+        let csvContent = 'Date,Titre,Montant,Type,Categorie\n';
         transactions.forEach(t => {
-          csvContent += `${t.date},"${t.title}",${t.amount},${t.type},"${t.category}"\n`;
+          csvContent += `${t.date},"${t.title.replace(/"/g, '""')}",${t.amount},${t.type},"${t.category}"\n`;
         });
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement('a');
-        link.setAttribute('href', encodedUri);
-        link.setAttribute('download', 'Famille_Finances_Export.csv');
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        
+        const csvContentWithBOM = '\uFEFF' + csvContent;
+        const fileName = 'Famille_Finances_Export.csv';
+
+        // Support Web Share API (native share sheet on iOS/Android WebViews)
+        let shared = false;
+        if (navigator.share) {
+          try {
+            const file = new File([csvContentWithBOM], fileName, { type: 'text/csv;charset=utf-8' });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                files: [file],
+                title: 'Export Finances',
+                text: 'Export des finances de la famille'
+              });
+              shared = true;
+            }
+          } catch (shareErr) {
+            console.warn('Web Share failed, falling back to download:', shareErr);
+          }
+        }
+
+        if (!shared) {
+          const blob = new Blob([csvContentWithBOM], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.setAttribute('href', url);
+          link.setAttribute('download', fileName);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }
 
         feedback = "📊 Export CSV téléchargé avec succès !";
         isSuccess = true;
