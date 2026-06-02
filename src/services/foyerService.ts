@@ -47,13 +47,14 @@ export const foyerService = {
     const supabase = getSupabaseClient();
     if (!supabase) return { foyer: null, member: null };
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return { foyer: null, member: null };
 
-    // 1. Trouver le lien membre
+    // 1. Fetch both member and foyer details in one query using relation join select
     const { data: memberData, error: memberError } = await supabase
       .from('foyer_members')
-      .select('*')
+      .select('*, foyers(*)')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -61,14 +62,8 @@ export const foyerService = {
       return { foyer: null, member: null };
     }
 
-    // 2. Trouver le foyer
-    const { data: foyerData, error: foyerError } = await supabase
-      .from('foyers')
-      .select('*')
-      .eq('id', memberData.foyer_id)
-      .maybeSingle();
-
-    if (foyerError || !foyerData) {
+    const foyerData = (memberData as any).foyers;
+    if (!foyerData) {
       return { foyer: null, member: memberData as any };
     }
 

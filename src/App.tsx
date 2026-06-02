@@ -338,6 +338,7 @@ function App() {
   });
 
   const [isSyncReady, setIsSyncReady] = useState(false);
+  const [isSessionChecking, setIsSessionChecking] = useState(false);
   const [agendaSelectedDate, setAgendaSelectedDate] = useState<string>('');
 
   // Settings State
@@ -897,6 +898,7 @@ function App() {
       return;
     }
     isSessionCheckingRef.current = true;
+    setIsSessionChecking(true);
 
     if (!currentUser) {
       setIsSyncReady(false);
@@ -992,6 +994,7 @@ function App() {
       }
     } finally {
       isSessionCheckingRef.current = false;
+      setIsSessionChecking(false);
     }
   };
 
@@ -1113,29 +1116,6 @@ function App() {
     const client = getSupabaseClient();
     if (!client) return;
 
-    // Load members first to unblock UI and prevent loading screen hang
-    let joinedAtDate: string | null = null;
-    try {
-      const membersList = await foyerService.getFoyerMembers(foyerId);
-      setMembers(membersList.length > 0 ? membersList.map(mapFoyerMemberToMember) : []);
-      
-      const { data: { user } } = await client.auth.getUser();
-      const currentActiveId = activeMemberIdRef.current || activeMemberId;
-      const selfMember = membersList.find(m => (user && m.userId === user.id) || m.id === currentActiveId);
-      if (selfMember && selfMember.role !== 'admin' && selfMember.role !== 'parent') {
-        joinedAtDate = selfMember.joinedAt;
-      }
-
-      if (myMemberProfile) {
-        const updatedSelf = membersList.find(m => m.id === myMemberProfile.id);
-        if (updatedSelf) {
-          setMyMemberProfile(updatedSelf);
-        }
-      }
-    } catch (err: any) {
-      console.error("Error loading members:", err);
-    }
-
     const wrapQuery = <T,>(tableName: string, promise: PromiseLike<T> | Promise<T>): Promise<{ success: boolean; data: any }> => {
       return (promise as any).then((res: any) => {
         if (res.error) throw res.error;
@@ -1146,13 +1126,16 @@ function App() {
       });
     };
 
-    let alertsPromise = client.from('alerts').select('*').eq('foyer_id', foyerId);
-    if (joinedAtDate) {
-      alertsPromise = alertsPromise.gte('created_at', joinedAtDate);
-    }
-
-    // Load everything else in the background (parallelized using Promise.all)
+    // Load everything in parallel to minimize load times
     Promise.all([
+      foyerService.getFoyerMembers(foyerId).catch(err => {
+        console.error("Error loading members:", err);
+        return [];
+      }),
+      client.auth.getUser().catch(err => {
+        console.error("Error getting user:", err);
+        return { data: { user: null } };
+      }),
       wrapQuery('events', client.from('events').select('*').eq('foyer_id', foyerId)),
       wrapQuery('groceries', client.from('groceries').select('*').eq('foyer_id', foyerId)),
       wrapQuery('archived_lists', client.from('archived_lists').select('*').eq('foyer_id', foyerId)),
@@ -1161,7 +1144,7 @@ function App() {
       wrapQuery('dishes', client.from('dishes').select('*').eq('foyer_id', foyerId)),
       wrapQuery('chore_tasks', client.from('chore_tasks').select('*').eq('foyer_id', foyerId)),
       wrapQuery('saving_goals', client.from('saving_goals').select('*').eq('foyer_id', foyerId)),
-      wrapQuery('alerts', alertsPromise),
+      wrapQuery('alerts', client.from('alerts').select('*').eq('foyer_id', foyerId)),
       wrapQuery('memories', client.from('memories').select('*').eq('foyer_id', foyerId)),
       wrapQuery('votes', client.from('votes').select('*').eq('foyer_id', foyerId)),
       wrapQuery('school_tasks', client.from('school_tasks').select('*').eq('foyer_id', foyerId)),
@@ -1176,6 +1159,8 @@ function App() {
       wrapQuery('pocket_money', client.from('pocket_money').select('*').eq('foyer_id', foyerId)),
       wrapQuery('artisans', client.from('artisans').select('*').eq('foyer_id', foyerId))
     ]).then(([
+      membersList,
+      userRes,
       eventsRes,
       groceriesRes,
       archivedListsRes,
@@ -1199,6 +1184,23 @@ function App() {
       pocketMoneyRes,
       artisansRes
     ]) => {
+      // Set members
+      setMembers(membersList.length > 0 ? membersList.map(mapFoyerMemberToMember) : []);
+      
+      const user = userRes?.data?.user;
+      const currentActiveId = activeMemberIdRef.current || activeMemberId;
+      const selfMember = membersList.find((m: any) => (user && m.userId === user.id) || m.id === currentActiveId);
+      let joinedAtDate: string | null = null;
+      if (selfMember && selfMember.role !== 'admin' && selfMember.role !== 'parent') {
+        joinedAtDate = selfMember.joinedAt;
+      }
+
+      if (myMemberProfile) {
+        const updatedSelf = membersList.find((m: any) => m.id === myMemberProfile.id);
+        if (updatedSelf) {
+          setMyMemberProfile(updatedSelf);
+        }
+      }
       // Set events
       if (eventsRes.success && eventsRes.data) {
         setEvents(eventsRes.data.map((e: any) => ({
@@ -1319,7 +1321,11 @@ function App() {
 
       // Set alerts
       if (alertsRes.success && alertsRes.data) {
-        setAlerts(alertsRes.data.map((a: any) => ({
+        let list = alertsRes.data;
+        if (joinedAtDate) {
+          list = list.filter((a: any) => a.created_at >= joinedAtDate);
+        }
+        setAlerts(list.map((a: any) => ({
           id: a.id,
           title: a.title,
           description: a.description,
@@ -4050,11 +4056,9 @@ function App() {
   const handleLogout = async () => {
     const client = getSupabaseClient();
     if (client) {
-      try {
-        await client.auth.signOut();
-      } catch (err: any) {
+      client.auth.signOut().catch((err: any) => {
         console.warn("Supabase signOut error (proceeding with local cleanup):", err);
-      }
+      });
     }
     clearAllStatesAndCache();
     alert("Déconnexion réussie.");
@@ -4448,6 +4452,37 @@ function App() {
           }
         }}
       />
+    );
+  }
+
+  const showGlobalLoader = isInitializingAuth || (isSessionChecking && !foyer);
+
+  if (showGlobalLoader) {
+    return (
+      <div className="min-h-screen bg-[#07111F] text-white flex flex-col justify-center items-center px-4 relative overflow-hidden font-sans">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#6C5CFF]/15 blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#FF4D6D]/15 blur-[120px] pointer-events-none" />
+        
+        <div className="text-center space-y-6 relative z-10 animate-fade-in">
+          {/* Pulsing premium logo ring */}
+          <div className="inline-flex p-5 rounded-full bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF] animate-pulse">
+            <span className="text-4xl">👨‍👩‍👧‍👦</span>
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/70">
+              MaFamille+
+            </h1>
+            <p className="text-xs text-white/50 tracking-widest uppercase">
+              Connexion en cours...
+            </p>
+          </div>
+          <div className="flex justify-center space-x-1.5 pt-4">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#6C5CFF] animate-bounce [animation-delay:-0.3s]" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#FF4D6D] animate-bounce [animation-delay:-0.15s]" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#6C5CFF] animate-bounce" />
+          </div>
+        </div>
+      </div>
     );
   }
 
