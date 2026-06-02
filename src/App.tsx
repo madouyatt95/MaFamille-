@@ -2,29 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { parseSmartNaturalSentence } from './utils/groceryParser';
-import { 
-  demoMembers, 
-  demoEvents, 
-  demoTransactions, 
-  demoDishes, 
-  demoDocuments, 
-  demoTasks, 
-  demoGroceries, 
-  demoVehicles, 
-  demoMaintenance, 
-  demoTrips, 
-  demoPets, 
-  demoSavingGoals,
-  demoAlerts,
-  demoMemories,
-  demoFamilyVotes,
-  demoSchoolTasks,
-  demoChatGroups,
-  demoChatMessages,
-  demoDemarches,
-  demoPacks,
-  demoArtisans
-} from './data/demoData';
+
 import type { 
   Member, 
   FamilyEvent, 
@@ -44,9 +22,10 @@ import type {
   SchoolTask,
   Demarche,
   JustificatifPack,
+  ChatMessage,
+  ChatGroup,
   Artisan,
-  ArchivedList,
-  ChatMessage
+  ArchivedList
 } from './types';
 
 const formatRelativeTime = (dateInput: string | Date | undefined, fallback: string): string => {
@@ -182,8 +161,7 @@ function App() {
   const hadCloudFoyer = !!localStorage.getItem('mf_cloud_foyer_id');
 
   const [members, setMembers] = useState<Member[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_members', []);
-    return safeGetLocalStorage('mf_members', demoMembers);
+    return safeGetLocalStorage('mf_members', []);
   });
 
   // Auto-clean legacy Papa/Maman mock profiles cache if cloud is active
@@ -239,70 +217,54 @@ function App() {
   });
 
   const [events, setEvents] = useState<FamilyEvent[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_events', []);
-    return safeGetLocalStorage('mf_events', demoEvents);
+    return safeGetLocalStorage('mf_events', []);
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_transactions', []);
-    return safeGetLocalStorage('mf_transactions', demoTransactions);
+    return safeGetLocalStorage('mf_transactions', []);
   });
 
   const [dishes, setDishes] = useState<Dish[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_dishes', []);
-    return safeGetLocalStorage('mf_dishes', demoDishes);
+    return safeGetLocalStorage('mf_dishes', []);
   });
 
   const [documents, setDocuments] = useState<DocumentFile[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_documents', []);
-    return safeGetLocalStorage('mf_documents', demoDocuments);
+    return safeGetLocalStorage('mf_documents', []);
   });
 
   const [tasks, setTasks] = useState<ChoreTask[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_tasks', []);
-    return safeGetLocalStorage('mf_tasks', demoTasks);
+    return safeGetLocalStorage('mf_tasks', []);
   });
 
   const [groceries, setGroceries] = useState<GroceryItem[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_groceries', []);
-    return safeGetLocalStorage('mf_groceries', demoGroceries);
+    return safeGetLocalStorage('mf_groceries', []);
   });
 
   const [archivedLists, setArchivedLists] = useState<ArchivedList[]>([]);
   const [initialChatGroupId, setInitialChatGroupId] = useState<string | undefined>(undefined);
 
   const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_vehicles', []);
-    return safeGetLocalStorage('mf_vehicles', demoVehicles);
+    return safeGetLocalStorage('mf_vehicles', []);
   });
   const [maintenance, setMaintenance] = useState<HomeMaintenance[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_maintenance', []);
-    return safeGetLocalStorage('mf_maintenance', demoMaintenance);
+    return safeGetLocalStorage('mf_maintenance', []);
   });
   const [trips, setTrips] = useState<Trip[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_trips', []);
-    return safeGetLocalStorage('mf_trips', demoTrips);
+    return safeGetLocalStorage('mf_trips', []);
   });
   const [pets, setPets] = useState<PetRecord[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_pets', []);
-    return safeGetLocalStorage('mf_pets', demoPets);
+    return safeGetLocalStorage('mf_pets', []);
   });
   const [pocketMoney, setPocketMoney] = useState<{ id: string; name: string; balance: number; points: number; avatar: string; }[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_pocket_money', []);
-    return safeGetLocalStorage('mf_pocket_money', [
-      { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150' },
-      { id: '4', name: 'Awa', balance: 22.50, points: 225, avatar: 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150' }
-    ]);
+    return safeGetLocalStorage('mf_pocket_money', []);
   });
 
   const [savingGoals, setSavingGoals] = useState<SavingGoal[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_saving_goals', []);
-    return safeGetLocalStorage('mf_saving_goals', demoSavingGoals);
+    return safeGetLocalStorage('mf_saving_goals', []);
   });
 
   const [alerts, setAlerts] = useState<NotificationAlert[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_alerts', []);
-    return safeGetLocalStorage('mf_alerts', demoAlerts);
+    return safeGetLocalStorage('mf_alerts', []);
   });
 
   const [activeToast, setActiveToast] = useState<{ title: string; description: string } | null>(null);
@@ -316,25 +278,24 @@ function App() {
     }
   }, [activeToast]);
 
-  const [chatGroups, setChatGroups] = useState(() => {
-    return safeGetLocalStorage('mf_chat_groups', demoChatGroups);
+  const [chatGroups, setChatGroups] = useState<ChatGroup[]>(() => {
+    return safeGetLocalStorage('mf_chat_groups', []);
   });
 
-  const [chatMessages, setChatMessages] = useState(() => {
-    return safeGetLocalStorage('mf_chat_messages', demoChatMessages);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
+    return safeGetLocalStorage('mf_chat_messages', []);
   });
 
   const [demarches, setDemarches] = useState<Demarche[]>(() => {
-    return safeGetLocalStorage('mf_demarches', demoDemarches);
+    return safeGetLocalStorage('mf_demarches', []);
   });
 
   const [artisans, setArtisans] = useState<Artisan[]>(() => {
-    return safeGetLocalStorage('mf_artisans', demoArtisans);
+    return safeGetLocalStorage('mf_artisans', []);
   });
 
   const [justificatifPacks, setJustificatifPacks] = useState<JustificatifPack[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_packs', []);
-    return safeGetLocalStorage('mf_packs', demoPacks);
+    return safeGetLocalStorage('mf_packs', []);
   });
 
   const [isSyncReady, setIsSyncReady] = useState(false);
@@ -363,27 +324,20 @@ function App() {
 
   // New modules states
   const [memories, setMemories] = useState<MemoryLog[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_memories', []);
-    return safeGetLocalStorage('mf_memories', demoMemories);
+    return safeGetLocalStorage('mf_memories', []);
   });
 
   const [votes, setVotes] = useState<FamilyVote[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_votes', []);
-    return safeGetLocalStorage('mf_votes', demoFamilyVotes);
+    return safeGetLocalStorage('mf_votes', []);
   });
 
   const [schoolTasks, setSchoolTasks] = useState<SchoolTask[]>(() => {
-    if (hadCloudFoyer) return safeGetLocalStorage('mf_school_tasks', []);
-    return safeGetLocalStorage('mf_school_tasks', demoSchoolTasks);
+    return safeGetLocalStorage('mf_school_tasks', []);
   });
 
   const [grades, setGrades] = useState<any[]>(() => {
     const stored = localStorage.getItem('school_grades');
-    return stored ? JSON.parse(stored) : [
-      { id: 'g-1', studentId: '3', studentName: 'Amadou', subject: 'Mathématiques', value: 16, max: 20, coef: 2, examTitle: 'Contrôle Algèbre', date: '10/05/2026' },
-      { id: 'g-2', studentId: '3', studentName: 'Amadou', subject: 'Histoire-Géographie', value: 15, max: 20, coef: 1, examTitle: 'Examen Révolution', date: '12/05/2026' },
-      { id: 'g-3', studentId: '4', studentName: 'Awa', subject: 'Français', value: 18, max: 20, coef: 1, examTitle: 'Dictée de Printemps', date: '14/05/2026' }
-    ];
+    return stored ? JSON.parse(stored) : [];
   });
 
   useEffect(() => {
@@ -3109,20 +3063,15 @@ function App() {
 
     const appVersion = localStorage.getItem('mf_app_version');
     if (appVersion !== '1.2') {
-      // 1. Purge corrupted avatars
-      localStorage.setItem('mf_members', JSON.stringify(demoMembers));
-      setMembers(demoMembers);
+      localStorage.setItem('mf_members', JSON.stringify([]));
+      setMembers([]);
       
-      const resetPocketMoney = [
-        { id: '3', name: 'Amadou', balance: 15.00, points: 150, avatar: '/avatars/amadou.png' },
-        { id: '4', name: 'Awa', balance: 22.50, points: 225, avatar: '/avatars/awa.png' }
-      ];
+      const resetPocketMoney: any[] = [];
       localStorage.setItem('mf_pocket_money', JSON.stringify(resetPocketMoney));
       setPocketMoney(resetPocketMoney);
 
-      // 2. Purge old dishes
-      localStorage.setItem('mf_dishes', JSON.stringify(demoDishes));
-      setDishes(demoDishes);
+      localStorage.setItem('mf_dishes', JSON.stringify([]));
+      setDishes([]);
 
       // 3. Mark version as upgraded
       localStorage.setItem('mf_app_version', '1.2');
