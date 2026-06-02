@@ -26,6 +26,7 @@ interface FinancesProps {
   formatMoney: (amount: number) => string;
   onAddTransactionClick: () => void;
   activeMemberId?: string;
+  onAddTransaction?: (newTrans: any) => void;
 }
 
 type FinanceTab = 'apercu' | 'depenses' | 'revenus' | 'budget';
@@ -52,7 +53,8 @@ export const Finances: React.FC<FinancesProps> = ({
   members,
   formatMoney,
   onAddTransactionClick,
-  activeMemberId = '1'
+  activeMemberId = '1',
+  onAddTransaction
 }) => {
   const monthOptions = getMonthOptions();
   const [activeSubTab, setActiveSubTab] = useState<FinanceTab>('apercu');
@@ -844,16 +846,19 @@ export const Finances: React.FC<FinancesProps> = ({
                   if (!title) return;
                   const amountStr = window.prompt("Montant (€) :");
                   if (!amountStr || isNaN(Number(amountStr))) return;
-                  const newT: Transaction = {
-                    id: `t-${Date.now()}`,
+                  const newT = {
                     title,
                     amount: Number(amountStr),
-                    type: 'expense',
-                    category: selectedCategory,
-                    date: new Date().toLocaleDateString('fr-FR'),
+                    type: 'expense' as const,
+                    category: selectedCategory || 'Autres',
+                    date: new Date().toISOString().split('T')[0],
                     memberName: activeMemberId === '1' ? 'Papa' : 'Maman'
                   };
-                  setTransactions(prev => [newT, ...prev]);
+                  if (onAddTransaction) {
+                    onAddTransaction(newT);
+                  } else {
+                    setTransactions(prev => [{ ...newT, id: `t-${Date.now()}` }, ...prev]);
+                  }
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-[#6C5CFF] text-white text-xs font-bold transition hover:opacity-90 cursor-pointer"
               >

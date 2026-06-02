@@ -3374,6 +3374,112 @@ function App() {
       }));
     }
 
+    // Vérification du plafond budgétaire et génération d'une alerte si nécessaire
+    if (newTrans.type === 'expense') {
+      try {
+        const budgetsSaved = localStorage.getItem('mf_category_budgets');
+        const budgets = budgetsSaved ? JSON.parse(budgetsSaved) : {
+          'Alimentation': 600,
+          'Logement': 800,
+          'Transport': 250,
+          'Santé': 150,
+          'Éducation': 200,
+          'Autres': 150
+        };
+
+        const category = newTrans.category;
+        const limit = budgets[category] || 0;
+        if (limit > 0) {
+          const transDate = newTrans.date || new Date().toISOString().split('T')[0];
+          
+          let transMonth = '';
+          let transYear = '';
+          if (transDate.includes('/')) {
+            const parts = transDate.split('/');
+            transMonth = parts[1];
+            transYear = parts[2];
+          } else if (transDate.includes('-')) {
+            const parts = transDate.split('-');
+            transMonth = parts[1];
+            transYear = parts[0];
+          }
+
+          // Filtrer les dépenses de la même catégorie pour le même mois
+          const categoryTransactions = transactions.filter(t => {
+            if (t.type !== 'expense') return false;
+            
+            // Logique d'appartenance à la catégorie
+            const isCategory = (catName: string, tCat: string) => {
+              const mainCategories = ['Alimentation', 'Logement', 'Transport', 'Santé', 'Éducation'];
+              if (catName === 'Autres') {
+                return !mainCategories.includes(tCat);
+              }
+              return tCat === catName;
+            };
+            if (!isCategory(category, t.category)) return false;
+
+            let tMonth = '';
+            let tYear = '';
+            if (t.date.includes('/')) {
+              const parts = t.date.split('/');
+              tMonth = parts[1];
+              tYear = parts[2];
+            } else if (t.date.includes('-')) {
+              const parts = t.date.split('-');
+              tMonth = parts[1];
+              tYear = parts[0];
+            }
+            return tMonth === transMonth && tYear === transYear;
+          });
+
+          const previousExpenses = categoryTransactions.reduce((sum, t) => sum + t.amount, 0);
+          const currentExpenses = previousExpenses + newTrans.amount;
+
+          const prevRatio = (previousExpenses / limit) * 100;
+          const currentRatio = (currentExpenses / limit) * 100;
+
+          let triggered = false;
+          let alertTitle = '';
+          let alertDesc = '';
+          let alertType: 'warning' | 'error' = 'warning';
+
+          if (currentRatio >= 100 && prevRatio < 100) {
+            triggered = true;
+            alertTitle = `🚨 Dépassement Budget : ${category}`;
+            alertDesc = `Le plafond mensuel de ${limit}€ pour ${category} a été dépassé. Total : ${currentExpenses.toFixed(2)}€.`;
+            alertType = 'error';
+          } else if (currentRatio >= 75 && prevRatio < 75) {
+            triggered = true;
+            alertTitle = `⚠️ Alerte Budget 75% : ${category}`;
+            alertDesc = `Les dépenses pour la catégorie ${category} ont atteint ${currentRatio.toFixed(0)}% du budget de ${limit}€ (Total : ${currentExpenses.toFixed(2)}€).`;
+            alertType = 'warning';
+          }
+
+          if (triggered) {
+            const newAlert: NotificationAlert = {
+              id: `alert-budget-${Date.now()}-${category}`,
+              title: alertTitle,
+              description: alertDesc,
+              time: 'À l\'instant',
+              type: alertType,
+              read: false,
+              module: 'finances'
+            };
+            setAlerts(prev => [newAlert, ...prev]);
+            saveAlertToCloud(newAlert);
+            
+            try {
+              const savedAlerts = localStorage.getItem('mf_alerts');
+              const parsedAlerts = savedAlerts ? JSON.parse(savedAlerts) : [];
+              localStorage.setItem('mf_alerts', JSON.stringify([newAlert, ...parsedAlerts]));
+            } catch (_) {}
+          }
+        }
+      } catch (err) {
+        console.error("Error checking budget limit:", err);
+      }
+    }
+
     // Sauvegarde en ligne vers Supabase
     try {
       const supabase = getSupabaseClient();
@@ -4269,6 +4375,7 @@ function App() {
             setActiveModule('');
             setQuickActionsOpen(true);
           }}
+          onAddTransaction={handleAddTransaction}
         />
       );
     }
