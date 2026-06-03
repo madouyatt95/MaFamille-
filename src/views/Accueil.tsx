@@ -77,6 +77,27 @@ const compressImage = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.
   });
 };
 
+export const DishImage: React.FC<{ src: string | undefined; alt: string; className?: string }> = ({ src, alt, className = "w-16 h-16 rounded-[18px]" }) => {
+  const [hasError, setHasError] = React.useState(false);
+  
+  if (!src || hasError) {
+    return (
+      <div className={`${className} shrink-0 bg-gradient-to-tr from-[#FFB020] to-[#FF4D6D] flex items-center justify-center text-white border border-white/10 shadow-sm`}>
+        <UtensilsCrossed className="w-5 h-5 text-black" />
+      </div>
+    );
+  }
+  
+  return (
+    <img 
+      src={src} 
+      alt={alt} 
+      onError={() => setHasError(true)}
+      className={`${className} object-cover border border-white/10 shadow-lg shrink-0`}
+    />
+  );
+};
+
 interface AccueilProps {
   members: Member[];
   events: FamilyEvent[];
@@ -516,8 +537,47 @@ export const Accueil: React.FC<AccueilProps> = ({
     })
     .filter((b): b is any => b !== null);
 
+  // Deduplication: filter out agenda events that are already represented
+  // by their module-specific cards (trips, vehicles, maintenance)
+  const deduplicatedAgenda = agendaUnified.filter(ae => {
+    // Check if the event description contains JSON metadata with sourceModule
+    let sourceMeta: { sourceModule?: string; sourceId?: string } | null = null;
+    try {
+      if (ae.description && ae.description.trim().startsWith('{')) {
+        sourceMeta = JSON.parse(ae.description);
+      }
+    } catch { /* not JSON metadata */ }
+
+    // If metadata says it comes from a module, check if that module's card exists
+    if (sourceMeta?.sourceModule) {
+      const mod = sourceMeta.sourceModule;
+      if (mod === 'voyages' && tripsUnified.length > 0) return false;
+      if (mod === 'vehicules' && vehiclesUnified.length > 0) return false;
+      if (mod === 'logement' && maintenanceUnified.length > 0) return false;
+    }
+
+    // Title-based heuristic deduplication for events created by MenuHub
+    const titleLower = ae.title.toLowerCase();
+    // Trip events: "✈️ Départ : X" or "🛬 Retour : X"
+    if (titleLower.includes('départ :') || titleLower.includes('retour :')) {
+      const dest = ae.title.split(':').slice(1).join(':').trim();
+      if (dest && tripsUnified.some(t => t.title.toLowerCase().includes(dest.toLowerCase()))) {
+        return false;
+      }
+    }
+    // Maintenance events: "🔧 Maintenance : X"
+    if (titleLower.includes('maintenance :')) {
+      const maintTitle = ae.title.split(':').slice(1).join(':').trim();
+      if (maintTitle && maintenanceUnified.some(m => m.title.toLowerCase().includes(maintTitle.toLowerCase()))) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
   const allUnifiedEvents = [
-    ...agendaUnified,
+    ...deduplicatedAgenda,
     ...tripsUnified,
     ...demarchesUnified,
     ...schoolTasksUnified,
@@ -1061,17 +1121,7 @@ export const Accueil: React.FC<AccueilProps> = ({
             {activeDishes.length > 0 ? (
               activeDishes.map((dish) => (
                 <div key={dish.id} className="flex items-center space-x-4 border-b border-white/5 last:border-b-0 pb-3.5 last:pb-0 pt-1">
-                  {dish.image && dish.image.startsWith('http') ? (
-                    <img 
-                      src={dish.image} 
-                      alt={dish.name} 
-                      className="w-16 h-16 rounded-[18px] object-cover border border-white/10 shadow-lg shrink-0"
-                    />
-                  ) : (
-                    <div className="p-3.5 rounded-[18px] bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF] shrink-0">
-                      <UtensilsCrossed className="w-5 h-5" />
-                    </div>
-                  )}
+                  <DishImage src={dish.image} alt={dish.name} />
                   <div className="flex-1 min-w-0">
                     <span className={`text-[9px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-md border ${
                       dish.mealType === 'lunch' 

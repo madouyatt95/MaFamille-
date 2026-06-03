@@ -89,3 +89,82 @@ export const getSupabaseClient = (customUrl?: string, customKey?: string): Supab
 
   return supabaseInstance;
 };
+
+export function serializeCategoryIcon(icon: string | undefined, subcategories?: string[], isArchived?: boolean): string {
+  const data = {
+    icon: icon || '✨',
+    subcategories: subcategories || [],
+    isArchived: !!isArchived
+  };
+  return JSON.stringify(data);
+}
+
+export function deserializeCategoryIcon(serialized: string | undefined): { icon: string; subcategories: string[]; isArchived: boolean } {
+  if (!serialized) {
+    return { icon: '✨', subcategories: [], isArchived: false };
+  }
+  const trimmed = serialized.trim();
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return {
+        icon: parsed.icon || '✨',
+        subcategories: Array.isArray(parsed.subcategories) ? parsed.subcategories : [],
+        isArchived: !!parsed.isArchived
+      };
+    } catch (e) {
+      // Fallback
+    }
+  }
+  return { icon: serialized, subcategories: [], isArchived: false };
+}
+
+export interface TransactionMetadata {
+  moduleSource?: string;
+  entryTime?: string;
+  entryDate?: string;
+  travelId?: string;
+  recurrenceInterval?: number;
+  startDate?: string;
+  endDate?: string;
+  nextOccurrence?: string;
+  createdBy?: string;
+  categoryId?: string;
+  subCategoryId?: string;
+  [key: string]: any;
+}
+
+export function serializeTransactionComment(comment: string | null | undefined, metadata: TransactionMetadata): string {
+  const cleanComment = comment || '';
+  // filter out undefined/null properties from metadata to keep JSON small
+  const cleanMeta: TransactionMetadata = {};
+  for (const k in metadata) {
+    if (metadata[k] !== undefined && metadata[k] !== null) {
+      cleanMeta[k] = metadata[k];
+    }
+  }
+  if (Object.keys(cleanMeta).length === 0) {
+    return cleanComment;
+  }
+  return `__METADATA__:${JSON.stringify(cleanMeta)}__COMMENT__:${cleanComment}`;
+}
+
+export function deserializeTransactionComment(serialized: string | null | undefined): { comment: string; metadata: TransactionMetadata } {
+  if (!serialized) {
+    return { comment: '', metadata: {} };
+  }
+  const str = serialized.trim();
+  if (str.startsWith('__METADATA__:') && str.includes('__COMMENT__:')) {
+    const idx = str.indexOf('__COMMENT__:');
+    const metaStr = str.substring('__METADATA__:'.length, idx);
+    const comment = str.substring(idx + '__COMMENT__:'.length);
+    try {
+      const metadata = JSON.parse(metaStr);
+      return { comment, metadata };
+    } catch {
+      // ignore
+    }
+  }
+  return { comment: serialized, metadata: {} };
+}
+

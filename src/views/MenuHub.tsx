@@ -249,6 +249,69 @@ const getTripDuration = (start: string, end: string) => {
   return diffDays > 0 ? `${diffDays} jour${diffDays > 1 ? 's' : ''}` : null;
 };
 
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 400;
+        const MAX_HEIGHT = 300;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          resolve(dataUrl);
+        } else {
+          resolve(event.target?.result as string);
+        }
+      };
+      img.onerror = () => reject(new Error("Erreur de chargement de l'image"));
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error("Erreur de lecture du fichier"));
+    reader.readAsDataURL(file);
+  });
+};
+
+const DishImage: React.FC<{ src: string | undefined; alt: string; className?: string }> = ({ src, alt, className = "w-12 h-12 rounded-xl" }) => {
+  const [hasError, setHasError] = React.useState(false);
+  
+  if (!src || hasError) {
+    return (
+      <div className={`${className} shrink-0 bg-gradient-to-tr from-[#FFB020] to-[#FF4D6D] flex items-center justify-center text-white border border-white/10 shadow-sm`}>
+        <UtensilsCrossed className="w-5 h-5 text-black" />
+      </div>
+    );
+  }
+  
+  return (
+    <img 
+      src={src} 
+      alt={alt} 
+      onError={() => setHasError(true)}
+      className={`${className} object-cover shrink-0 border border-white/10`}
+    />
+  );
+};
+
 export const MenuHub: React.FC<MenuHubProps> = ({
   foyer,
   documents,
@@ -549,7 +612,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     { id: 'courses', title: 'Courses & Éco-Chef', desc: 'Liste de courses & Éco-Chef Anti-Gaspi', badge: `${groceries.filter(g => !g.checked).length} produits`, icon: ShoppingCart, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
     { id: 'taches', title: 'Tâches', desc: 'Répartition des tâches et suivi', badge: `${tasks.filter(t => !t.done).length} tâches`, icon: Brush, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
     { id: 'ecole', title: 'École & Devoirs', desc: 'Tuteur IA, devoirs & quizzes', badge: `${schoolTasks.filter(t => !t.done).length} devoirs`, icon: GraduationCap, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
-    { id: 'finances_hub', title: 'Finances', desc: 'Budget, comptes et objectifs', badge: `${goals.length} objectifs`, icon: Wallet, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' }
+    { id: 'finances_hub', title: 'Budget', desc: 'Budget, comptes et objectifs', badge: `${goals.length} objectifs`, icon: Wallet, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' }
   ];
 
   const activeMember = members.find(m => m.id === activeMemberId);
@@ -803,7 +866,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
         dateTime: dateISO,
         time: '08:00',
         done: false,
-        location: newMaintProvider
+        location: newMaintProvider,
+        description: JSON.stringify({ sourceModule: 'logement', sourceId: newM.id, eventType: 'maintenance' })
       });
     }
 
@@ -888,14 +952,16 @@ export const MenuHub: React.FC<MenuHubProps> = ({
         type: 'leisure',
         dateTime: startISO,
         time: '09:00',
-        done: false
+        done: false,
+        description: JSON.stringify({ sourceModule: 'voyages', sourceId: newT.id, eventType: 'departure' })
       });
       onAddEventDirect({
         title: `🛬 Retour : ${newTripDest}`,
         type: 'leisure',
         dateTime: endISO,
         time: '18:00',
-        done: false
+        done: false,
+        description: JSON.stringify({ sourceModule: 'voyages', sourceId: newT.id, eventType: 'return' })
       });
     }
 
@@ -1148,7 +1214,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     if (mod.id === 'finances_hub' && !isParent && !authorizedModules.includes('finances_hub')) {
                       setActiveModule('finances_hub');
                     } else if (mod.id === 'finances_hub') {
-                      setActiveTab('finances');
+                      setActiveTab('budget');
                     } else {
                       setActiveModule(mod.id);
                     }
@@ -1237,11 +1303,11 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             type="button"
             onClick={() => {
               setActiveModule('');
-              setActiveTab('finances');
+              setActiveTab('budget');
             }}
             className="w-full py-3.5 rounded-[18px] bg-gradient-to-r from-[#00D26A] to-[#6C5CFF] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:scale-105 transition-all shadow-md"
           >
-            Accéder au module Finances maintenant
+            Accéder au module Budget maintenant
           </button>
         </div>
       )}
@@ -2750,15 +2816,54 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
                     <div className="space-y-1">
                       <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Image Vignette Culinaire</label>
-                      <select 
-                        value={mealImagePreset}
-                        onChange={(e) => setMealImagePreset(e.target.value)}
-                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FFB020]"
-                      >
-                        {MEAL_IMAGE_PRESETS.map(pr => (
-                          <option key={pr.url} value={pr.url}>{pr.name}</option>
-                        ))}
-                      </select>
+                      <div className="flex gap-2">
+                        <select 
+                          value={MEAL_IMAGE_PRESETS.some(p => p.url === mealImagePreset) ? mealImagePreset : 'custom'}
+                          onChange={(e) => {
+                            if (e.target.value !== 'custom') {
+                              setMealImagePreset(e.target.value);
+                            }
+                          }}
+                          className="flex-1 bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FFB020]"
+                        >
+                          {MEAL_IMAGE_PRESETS.map(pr => (
+                            <option key={pr.url} value={pr.url}>{pr.name}</option>
+                          ))}
+                          {!MEAL_IMAGE_PRESETS.some(p => p.url === mealImagePreset) && mealImagePreset && (
+                            <option value="custom">📷 Image personnalisée</option>
+                          )}
+                        </select>
+                        <input
+                          type="file"
+                          id="meal-image-upload"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              try {
+                                const compressed = await compressImage(file);
+                                setMealImagePreset(compressed);
+                              } catch (err: any) {
+                                alert(err.message);
+                              }
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => document.getElementById('meal-image-upload')?.click()}
+                          className="px-3 py-2 bg-white/5 border border-white/8 hover:bg-white/10 text-white rounded-xl text-xs transition cursor-pointer shrink-0"
+                        >
+                          Téléverser
+                        </button>
+                      </div>
+                      {mealImagePreset && (
+                        <div className="mt-2 flex items-center space-x-2 bg-white/5 p-1.5 rounded-xl border border-white/5 max-w-max">
+                          <span className="text-[9px] text-white/40 font-bold uppercase tracking-wider pl-1">Aperçu :</span>
+                          <DishImage src={mealImagePreset} alt="Aperçu du plat" className="w-8 h-8 rounded-lg" />
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -2806,17 +2911,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                           <div className="space-y-3">
                             {dayDishes.map(dish => (
                               <div key={dish.id} className="flex items-center space-x-3 bg-white/5 p-2.5 rounded-2xl border border-white/5">
-                                {dish.image ? (
-                                  <img 
-                                    src={dish.image} 
-                                    alt={dish.name} 
-                                    className="w-12 h-12 rounded-xl object-cover shrink-0 border border-white/10"
-                                  />
-                                ) : (
-                                  <div className="p-2.5 rounded-xl bg-white/10 border border-white/5 text-white/60 shrink-0">
-                                    <UtensilsCrossed className="w-4 h-4" />
-                                  </div>
-                                )}
+                                <DishImage src={dish.image} alt={dish.name} />
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center space-x-1.5">
                                     <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-md uppercase border ${

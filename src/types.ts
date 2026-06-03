@@ -139,6 +139,7 @@ export interface Transaction {
   source_module?: string;
   travel_id?: string;
   travelId?: string;
+  nextOccurrence?: string;
 }
 
 export type DocumentCategory = 'identity' | 'health' | 'school' | 'insurance' | 'bank' | 'contract' | 'vehicle' | 'home' | 'travel' | 'other';
@@ -270,6 +271,7 @@ export interface CustomCategory {
   budget?: number;
   displayOrder?: number;
   subcategories?: string[];
+  isArchived?: boolean;
 }
 
 export interface Account {

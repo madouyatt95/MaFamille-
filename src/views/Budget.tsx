@@ -23,7 +23,7 @@ import type {
   Debt,
   FoyerMember
 } from '../types';
-import { getSupabaseClient } from '../utils/supabase';
+import { getSupabaseClient, serializeCategoryIcon, serializeTransactionComment } from '../utils/supabase';
 import { BudgetExport } from './BudgetExport';
 import { BudgetImport } from './BudgetImport';
 
@@ -55,7 +55,7 @@ interface BudgetProps {
 type FinanceTab = 'dashboard' | 'transactions' | 'revenus' | 'depenses' | 'categories' | 'goals' | 'accounts' | 'abonnements' | 'budgets_modules' | 'imports' | 'exports' | 'reports';
 
 // Default categories and subcategories mapping
-const DEFAULT_CATEGORIES = [
+export const DEFAULT_CATEGORIES = [
   { name: 'Alimentation', icon: '🛒', color: '#10B981', budget: 600, sub: ['Supermarché', 'Restaurant', 'Boulangerie', 'Épicerie', 'Café'] },
   { name: 'Transport', icon: '🚗', color: '#F59E0B', budget: 200, sub: ['Taxi', 'Uber', 'Essence', 'Péage', 'Transport public'] },
   { name: 'Santé', icon: '🩺', color: '#EF4444', budget: 150, sub: ['Médecin', 'Pharmacie', 'Dentiste', 'Vaccin', 'Analyse', 'Mutuelle'] },
@@ -186,12 +186,26 @@ export const Budget: React.FC<BudgetProps> = ({
     }
   }, []);
 
-  const toggleArchiveCategory = (catName: string) => {
-    setArchivedCategories(prev => {
-      const next = prev.includes(catName) ? prev.filter(n => n !== catName) : [...prev, catName];
-      localStorage.setItem(`mf_archived_categories_${foyerId}`, JSON.stringify(next));
-      return next;
-    });
+  const toggleArchiveCategory = async (catName: string) => {
+    const isCurrentlyArchived = archivedCategories.includes(catName);
+    const nextArchived = isCurrentlyArchived
+      ? archivedCategories.filter(n => n !== catName)
+      : [...archivedCategories, catName];
+    setArchivedCategories(nextArchived);
+    localStorage.setItem(`mf_archived_categories_${foyerId}`, JSON.stringify(nextArchived));
+
+    // Also persist to Supabase via isArchived flag in the icon column
+    const cc = customCategories.find(c => c.name === catName);
+    if (cc) {
+      const client = getSupabaseClient();
+      if (client && foyerId) {
+        const updatedCat = { ...cc, isArchived: !isCurrentlyArchived };
+        await client.from('custom_categories').update({
+          icon: serializeCategoryIcon(updatedCat.icon, updatedCat.subcategories, updatedCat.isArchived)
+        }).eq('id', cc.id);
+        setCustomCategories(prev => prev.map(c => c.id === cc.id ? updatedCat : c));
+      }
+    }
   };
 
   const toggleArchiveSubcategory = (catName: string, subName: string) => {
@@ -692,9 +706,17 @@ export const Budget: React.FC<BudgetProps> = ({
           member_name: newTxData.memberName,
           date: newTxData.date,
           title: newTxData.title,
-          comment: newTxData.comment,
+          comment: serializeTransactionComment(newTxData.comment, {
+            moduleSource: newTxData.moduleSource,
+            entryTime: editingTx.entryTime,
+            entryDate: editingTx.entryDate,
+            travelId: editingTx.travelId || editingTx.travel_id,
+            recurrenceInterval: editingTx.recurrenceInterval,
+            startDate: editingTx.startDate,
+            endDate: editingTx.endDate,
+            nextOccurrence: editingTx.nextOccurrence
+          }),
           recurrence: newTxData.recurrence,
-          module_source: newTxData.moduleSource,
           receipt_base64: newTxData.receiptBase64,
           modification_history: JSON.stringify(newTxData.modificationHistory)
         }).eq('id', editingTx.id);
@@ -704,6 +726,10 @@ export const Budget: React.FC<BudgetProps> = ({
     } else {
       newTxData.id = `tx-${Date.now()}`;
       newTxData.modificationHistory = [{ author: myMemberProfile?.displayName || 'Système', date: new Date().toISOString(), action: 'Création manuelle' }];
+      
+      const now = new Date();
+      newTxData.entryTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      newTxData.entryDate = newTxData.date;
 
       const client = getSupabaseClient();
       if (client && foyerId) {
@@ -719,9 +745,12 @@ export const Budget: React.FC<BudgetProps> = ({
           member_name: newTxData.memberName,
           date: newTxData.date,
           title: newTxData.title,
-          comment: newTxData.comment,
+          comment: serializeTransactionComment(newTxData.comment, {
+            moduleSource: newTxData.moduleSource,
+            entryTime: newTxData.entryTime,
+            entryDate: newTxData.entryDate
+          }),
           recurrence: newTxData.recurrence,
-          module_source: newTxData.moduleSource,
           receipt_base64: newTxData.receiptBase64,
           modification_history: JSON.stringify(newTxData.modificationHistory)
         });
@@ -750,11 +779,14 @@ export const Budget: React.FC<BudgetProps> = ({
   };
 
   const handleDuplicateTx = async (tx: Transaction) => {
-    const dup = {
+    const now = new Date();
+    const dup: any = {
       ...tx,
       id: `tx-dup-${Date.now()}`,
       title: `${tx.title} (Copie)`,
-      date: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0],
+      entryTime: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+      entryDate: new Date().toISOString().split('T')[0]
     };
     const client = getSupabaseClient();
     if (client && foyerId) {
@@ -770,9 +802,12 @@ export const Budget: React.FC<BudgetProps> = ({
         member_name: dup.memberName,
         date: dup.date,
         title: dup.title,
-        comment: dup.comment,
+        comment: serializeTransactionComment(dup.comment, {
+          moduleSource: dup.moduleSource,
+          entryTime: dup.entryTime,
+          entryDate: dup.entryDate
+        }),
         recurrence: dup.recurrence,
-        module_source: dup.moduleSource,
         receipt_base64: dup.receiptBase64,
         modification_history: JSON.stringify([{ author: myMemberProfile?.displayName || 'Système', date: new Date().toISOString(), action: 'Duplication' }])
       });
@@ -811,11 +846,10 @@ export const Budget: React.FC<BudgetProps> = ({
         id: newCat.id,
         foyer_id: foyerId,
         name: newCat.name,
-        icon: newCat.icon,
+        icon: serializeCategoryIcon(newCat.icon, newCat.subcategories, newCat.isArchived),
         color: newCat.color,
         budget: newCat.budget,
-        display_order: newCat.displayOrder,
-        subcategories: JSON.stringify(newCat.subcategories)
+        display_order: newCat.displayOrder
       });
     }
 
@@ -1628,6 +1662,7 @@ export const Budget: React.FC<BudgetProps> = ({
                               await client.from('saving_goals').update({ current_amount: newAmount }).eq('id', goal.id);
                               
                               // Log contribution as transaction too
+                              const now = new Date();
                               await client.from('transactions').insert({
                                 id: `tx-pot-${Date.now()}`,
                                 foyer_id: foyerId,
@@ -1635,9 +1670,13 @@ export const Budget: React.FC<BudgetProps> = ({
                                 type: 'savings',
                                 category: 'Épargne',
                                 sub_category: 'Cagnotte',
-                                date: new Date().toISOString().split('T')[0],
+                                date: now.toISOString().split('T')[0],
                                 title: `Épargne : ${goal.title}`,
-                                comment: `Contribution manuelle à la cagnotte`
+                                comment: serializeTransactionComment(`Contribution manuelle à la cagnotte`, {
+                                  moduleSource: 'budget',
+                                  entryTime: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+                                  entryDate: now.toISOString().split('T')[0]
+                                })
                               });
                             }
 
@@ -2891,6 +2930,10 @@ export const Budget: React.FC<BudgetProps> = ({
                 await client.from('bank_accounts').update({ balance: tarAcc.balance + amt }).eq('id', tarAcc.id);
 
                 // Add double transactions
+                const now = new Date();
+                const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                const dateStr = now.toISOString().split('T')[0];
+
                 await client.from('transactions').insert([
                   {
                     id: `tx-tf-src-${Date.now()}`,
@@ -2899,10 +2942,14 @@ export const Budget: React.FC<BudgetProps> = ({
                     type: 'expense',
                     category: 'Autres',
                     sub_category: 'Virement',
-                    date: new Date().toISOString().split('T')[0],
+                    date: dateStr,
                     title: `Virement sortant: ${transferForm.title}`,
                     account_id: srcAcc.id,
-                    comment: `Vers ${tarAcc.name}`
+                    comment: serializeTransactionComment(`Vers ${tarAcc.name}`, {
+                      moduleSource: 'budget',
+                      entryTime: timeStr,
+                      entryDate: dateStr
+                    })
                   },
                   {
                     id: `tx-tf-tar-${Date.now()}`,
@@ -2911,10 +2958,14 @@ export const Budget: React.FC<BudgetProps> = ({
                     type: 'income',
                     category: 'Autres',
                     sub_category: 'Virement',
-                    date: new Date().toISOString().split('T')[0],
+                    date: dateStr,
                     title: `Virement entrant: ${transferForm.title}`,
                     account_id: tarAcc.id,
-                    comment: `Depuis ${srcAcc.name}`
+                    comment: serializeTransactionComment(`Depuis ${srcAcc.name}`, {
+                      moduleSource: 'budget',
+                      entryTime: timeStr,
+                      entryDate: dateStr
+                    })
                   }
                 ]);
               }

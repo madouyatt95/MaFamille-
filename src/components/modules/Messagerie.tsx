@@ -1010,7 +1010,7 @@ Demande de l'utilisateur : "${userText}"`;
                     </div>
 
                     {/* Pin/Archive actions */}
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity bg-[#090D1A] pl-2 rounded-l-full py-1">
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity bg-[#090D1A] pl-2 rounded-l-full py-1">
                       <button
                         onClick={(e) => { e.stopPropagation(); togglePinGroup(group.id); }}
                         className="p-1 hover:bg-white/10 rounded-full text-white/50 hover:text-[#FFB020] transition-colors"
@@ -1019,7 +1019,7 @@ Demande de l'utilisateur : "${userText}"`;
                         <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-[#FFB020] text-[#FFB020]' : ''}`} />
                       </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); toggleArchiveGroup(group.id); }}
+                        onClick={(e) => { e.stopPropagation(); if (window.confirm('Archiver cette conversation ?')) toggleArchiveGroup(group.id); }}
                         className="p-1 hover:bg-white/10 rounded-full text-white/50 hover:text-[#6C5CFF] transition-colors"
                         title="Archiver"
                       >
@@ -1083,7 +1083,7 @@ Demande de l'utilisateur : "${userText}"`;
                       </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleArchiveGroup(group.id); }}
-                        className="p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#090D1A]"
+                        className="p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity bg-[#090D1A]"
                         title="Désarchiver"
                       >
                         <Archive className="w-3.5 h-3.5 text-[#00D26A]" />
@@ -1197,31 +1197,39 @@ Demande de l'utilisateur : "${userText}"`;
                   </button>
                 )}
 
-                {activeGroupId !== 'g_ai_assistant' && activeGroup && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setShowGroupMenu(false);
-                      if (window.confirm("Supprimer COMPLÈTEMENT ce groupe et tous ses messages pour TOUTE la famille ? Cette action est irréversible.")) {
-                        const client = getSupabaseClient();
-                        const foyerId = localStorage.getItem('mf_cloud_foyer_id');
-                        if (client && foyerId) {
-                          try {
-                            await client.from('chat_groups').delete().eq('id', activeGroup.id);
-                            await client.from('chat_messages').delete().eq('group_id', activeGroup.id);
-                          } catch (err) {
-                            console.error("Error deleting group from Supabase:", err);
+                {activeGroupId !== 'g_ai_assistant' && activeGroup && !activeGroup.id.startsWith('g_ai') && (() => {
+                  const activeMemberRole = members.find(m => m.id === activeMemberId)?.role;
+                  const canDelete = activeMemberRole && ['Chef de famille', 'Gestionnaire', 'admin', 'parent'].includes(activeMemberRole);
+                  if (!canDelete) return null;
+                  // Protect the default family group (first non-private, non-AI group)
+                  const isSystemGroup = groups.findIndex(g => !g.isPrivate && !g.id.startsWith('g_ai')) === groups.indexOf(activeGroup) && activeGroup.id === groups.find(g => !g.isPrivate && !g.id.startsWith('g_ai'))?.id;
+                  if (isSystemGroup) return null;
+                  return (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setShowGroupMenu(false);
+                        if (window.confirm("Supprimer COMPLÈTEMENT ce groupe et tous ses messages pour TOUTE la famille ? Cette action est irréversible.")) {
+                          const client = getSupabaseClient();
+                          const foyerId = localStorage.getItem('mf_cloud_foyer_id');
+                          if (client && foyerId) {
+                            try {
+                              await client.from('chat_groups').delete().eq('id', activeGroup.id);
+                              await client.from('chat_messages').delete().eq('group_id', activeGroup.id);
+                            } catch (err) {
+                              console.error("Error deleting group from Supabase:", err);
+                            }
                           }
+                          setGroups(prev => prev.filter(g => g.id !== activeGroup.id));
+                          setActiveGroupId(null);
                         }
-                        setGroups(prev => prev.filter(g => g.id !== activeGroup.id));
-                        setActiveGroupId(null);
-                      }
-                    }}
-                    className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-red-500 font-bold border-t border-white/5 transition cursor-pointer"
-                  >
-                    Supprimer le groupe
-                  </button>
-                )}
+                      }}
+                      className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-red-500 font-bold border-t border-white/5 transition cursor-pointer"
+                    >
+                      Supprimer le groupe
+                    </button>
+                  );
+                })()}
               </div>
             )}
           </div>

@@ -102,7 +102,7 @@ import { Paywall } from './components/Paywall';
 import { Onboarding } from './views/Onboarding';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
 import { foyerService } from './services/foyerService';
-import { getSupabaseClient } from './utils/supabase';
+import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment } from './utils/supabase';
 import { notificationService } from './services/notificationService';
 import type { Foyer, FoyerMember } from './types';
 
@@ -377,12 +377,7 @@ function App() {
 
 
   const [vaccines, setVaccines] = useState<any[]>(() => {
-    return safeGetLocalStorage('mf_vaccines', [
-      { id: 'v1', memberId: '3', name: 'ROR (Rappel)', date: '2026-04-12', status: 'Fait', doctor: 'Dr. Martin' },
-      { id: 'v2', memberId: '3', name: 'Hépatite B', date: '2026-10-18', status: 'À faire', doctor: 'Dr. Martin' },
-      { id: 'v3', memberId: '4', name: 'DTC (Rappel 12 ans)', date: '2026-01-05', status: 'Fait', doctor: 'Dr. Martin' },
-      { id: 'v4', memberId: '1', name: 'Grippe Annuelle', date: '2026-11-15', status: 'À faire', doctor: 'Pharmacie' },
-    ]);
+    return safeGetLocalStorage('mf_vaccines', []);
   });
 
   const [memberMoods, setMemberMoods] = useState<Record<string, string>>(() => {
@@ -397,6 +392,12 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
+  const [deletedAlertIds, setDeletedAlertIds] = useState<string[]>(() => {
+    try {
+      const key = `mf_deleted_alerts_${activeMemberId}`;
+      return JSON.parse(localStorage.getItem(key) || '[]');
+    } catch { return []; }
+  });
   const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
   const [pinVerificationOpen, setPinVerificationOpen] = useState(false);
   const [pinTargetMemberId, setPinTargetMemberId] = useState<string | null>(null);
@@ -1188,33 +1189,47 @@ function App() {
 
       // Set transactions
       if (transactionsRes.success && transactionsRes.data) {
-        setTransactions(transactionsRes.data.map((t: any) => ({
-          id: t.id,
-          amount: Number(t.amount),
-          type: t.type,
-          category: t.category,
-          date: t.date,
-          title: t.title,
-          memberId: t.member_id,
-          memberName: t.member_name,
-          subCategory: t.sub_category,
-          accountId: t.account_id,
-          receiptBase64: t.receipt_base64,
-          attachmentBase64: t.attachment_base64,
-          comment: t.comment,
-          modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
-          isArchived: !!t.is_archived,
-          recurrence: t.recurrence || 'none',
-          subscriptionId: t.subscription_id,
-          moduleSource: t.module_source || undefined,
-          categoryId: t.category_id || undefined,
-          subCategoryId: t.subcategory_id || undefined,
-          currency: t.currency || undefined,
-          recurrenceInterval: t.recurrence_interval ? Number(t.recurrence_interval) : undefined,
-          startDate: t.start_date || undefined,
-          endDate: t.end_date || undefined,
-          nextOccurrence: t.next_occurrence || undefined
-        })));
+        setTransactions(transactionsRes.data.map((t: any) => {
+          const { comment, metadata } = deserializeTransactionComment(t.comment);
+          return {
+            id: t.id,
+            amount: Number(t.amount),
+            type: t.type,
+            category: t.category,
+            date: t.date,
+            title: t.title,
+            memberId: t.member_id,
+            memberName: t.member_name,
+            subCategory: t.sub_category,
+            accountId: t.account_id,
+            receiptBase64: t.receipt_base64,
+            attachmentBase64: t.attachment_base64,
+            comment: comment,
+            modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
+            isArchived: !!t.is_archived,
+            recurrence: t.recurrence || 'none',
+            subscriptionId: t.subscription_id,
+            moduleSource: metadata.moduleSource || undefined,
+            categoryId: metadata.moduleSource || undefined,
+            subCategoryId: t.sub_category || undefined,
+            currency: 'EUR',
+            recurrenceInterval: metadata.recurrenceInterval ? Number(metadata.recurrenceInterval) : undefined,
+            startDate: metadata.startDate || undefined,
+            endDate: metadata.endDate || undefined,
+            nextOccurrence: metadata.nextOccurrence || undefined,
+            entryTime: (() => {
+              if (metadata.entryTime) return metadata.entryTime;
+              if (t.created_at) {
+                const d = new Date(t.created_at.replace(' ', 'T'));
+                if (!isNaN(d.getTime())) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+              }
+              return undefined;
+            })(),
+            entryDate: metadata.entryDate || t.date || undefined,
+            createdAt: t.created_at || undefined,
+            updatedAt: t.created_at || undefined
+          };
+        }));
       }
 
       // Set documents
@@ -1280,14 +1295,19 @@ function App() {
 
       // Set customCategories
       if (customCategoriesRes.success && customCategoriesRes.data) {
-        setCustomCategories(customCategoriesRes.data.map((cc: any) => ({
-          id: cc.id,
-          name: cc.name,
-          icon: cc.icon,
-          color: cc.color,
-          budget: Number(cc.budget || 0),
-          displayOrder: Number(cc.display_order || 0)
-        })));
+        setCustomCategories(customCategoriesRes.data.map((cc: any) => {
+          const meta = deserializeCategoryIcon(cc.icon);
+          return {
+            id: cc.id,
+            name: cc.name,
+            icon: meta.icon,
+            color: cc.color,
+            budget: Number(cc.budget || 0),
+            displayOrder: Number(cc.display_order || 0),
+            subcategories: meta.subcategories.length > 0 ? meta.subcategories : undefined,
+            isArchived: meta.isArchived || undefined
+          };
+        }));
       }
 
       // Set accounts
@@ -1585,9 +1605,11 @@ function App() {
           title: `Récurrence : ${abonnement.name}`,
           member_id: activeMemberIdRef.current || activeMemberId || null,
           member_name: members.find(m => m.id === (activeMemberIdRef.current || activeMemberId))?.name || 'Système',
-          recurrence_type: 'none',
+          recurrence: 'none',
           subscription_id: abonnement.id,
-          comment: 'Généré automatiquement par le système'
+          comment: serializeTransactionComment('Généré automatiquement par le système', {
+            moduleSource: 'budget'
+          })
         };
         transactionsToAdd.push(newTrans);
 
@@ -1641,13 +1663,13 @@ function App() {
           title: `Récurrence : ${t.title}`,
           member_id: t.member_id,
           member_name: t.member_name,
-          recurrence_type: 'none',
+          recurrence: 'none',
           account_id: t.account_id,
-          module_source: t.module_source,
-          category_id: t.category_id,
-          subcategory_id: t.subcategory_id,
-          currency: t.currency || 'EUR',
-          comment: 'Généré automatiquement par le planificateur récurrent'
+          comment: serializeTransactionComment('Généré automatiquement par le planificateur récurrent', {
+            moduleSource: t.module_source,
+            categoryId: t.category_id,
+            subCategoryId: t.subcategory_id
+          })
         };
         transactionsToAdd.push(newTrans);
         
@@ -1717,8 +1739,12 @@ function App() {
             await client.from('alerts').insert(alertObj);
           }
           
-          // Update the template transaction's next billing date
-          await client.from('transactions').update({ next_occurrence: nextDateStr }).eq('id', t.id);
+          // Update the template transaction's next billing date in comment metadata
+          const { comment: cleanComment, metadata: currentMeta } = deserializeTransactionComment(t.comment);
+          const updatedMeta = { ...currentMeta, nextOccurrence: nextDateStr };
+          await client.from('transactions').update({
+            comment: serializeTransactionComment(cleanComment, updatedMeta)
+          }).eq('id', t.id);
         } catch (err) {
           console.error("Error processing recurring transaction template:", err);
         }
@@ -1873,22 +1899,36 @@ function App() {
       }
 
       if (transactionsRes.data) {
-        const mapped = transactionsRes.data.map(t => ({
-          id: t.id, amount: Number(t.amount), type: t.type, category: t.category,
-          date: t.date, title: t.title, memberId: t.member_id, memberName: t.member_name,
-          subCategory: t.sub_category, accountId: t.account_id,
-          receiptBase64: t.receipt_base64, attachmentBase64: t.attachment_base64, comment: t.comment,
-          modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
-          isArchived: !!t.is_archived, recurrence: t.recurrence || 'none', subscriptionId: t.subscription_id,
-          moduleSource: t.module_source || undefined,
-          categoryId: t.category_id || undefined,
-          subCategoryId: t.subcategory_id || undefined,
-          currency: t.currency || undefined,
-          recurrenceInterval: t.recurrence_interval ? Number(t.recurrence_interval) : undefined,
-          startDate: t.start_date || undefined,
-          endDate: t.end_date || undefined,
-          nextOccurrence: t.next_occurrence || undefined
-        }));
+        const mapped = transactionsRes.data.map(t => {
+          const { comment, metadata } = deserializeTransactionComment(t.comment);
+          return {
+            id: t.id, amount: Number(t.amount), type: t.type, category: t.category,
+            date: t.date, title: t.title, memberId: t.member_id, memberName: t.member_name,
+            subCategory: t.sub_category, accountId: t.account_id,
+            receiptBase64: t.receipt_base64, attachmentBase64: t.attachment_base64, comment: comment,
+            modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
+            isArchived: !!t.is_archived, recurrence: t.recurrence || 'none', subscriptionId: t.subscription_id,
+            moduleSource: metadata.moduleSource || undefined,
+            categoryId: metadata.moduleSource || undefined,
+            subCategoryId: t.sub_category || undefined,
+            currency: 'EUR',
+            recurrenceInterval: metadata.recurrenceInterval ? Number(metadata.recurrenceInterval) : undefined,
+            startDate: metadata.startDate || undefined,
+            endDate: metadata.endDate || undefined,
+            nextOccurrence: metadata.nextOccurrence || undefined,
+            entryTime: (() => {
+              if (metadata.entryTime) return metadata.entryTime;
+              if (t.created_at) {
+                const d = new Date(t.created_at.replace(' ', 'T'));
+                if (!isNaN(d.getTime())) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+              }
+              return undefined;
+            })(),
+            entryDate: metadata.entryDate || t.date || undefined,
+            createdAt: t.created_at || undefined,
+            updatedAt: t.created_at || undefined
+          };
+        });
         setTransactions(prev => {
           const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
           const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
@@ -2110,9 +2150,14 @@ function App() {
       }
 
       if (customCategoriesRes && customCategoriesRes.data) {
-        const mapped = customCategoriesRes.data.map(cc => ({
-          id: cc.id, name: cc.name, icon: cc.icon, color: cc.color, budget: Number(cc.budget || 0), displayOrder: Number(cc.display_order || 0)
-        }));
+        const mapped = customCategoriesRes.data.map(cc => {
+          const meta = deserializeCategoryIcon(cc.icon);
+          return {
+            id: cc.id, name: cc.name, icon: meta.icon, color: cc.color, budget: Number(cc.budget || 0), displayOrder: Number(cc.display_order || 0),
+            subcategories: meta.subcategories.length > 0 ? meta.subcategories : undefined,
+            isArchived: meta.isArchived || undefined
+          };
+        });
         setCustomCategories(prev => {
           const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
           const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
@@ -2627,33 +2672,47 @@ function App() {
     const subTransactions = foyerService.subscribeToChanges('transactions', foyer.id, () => {
       foyerService.fetchTableData('transactions', foyer.id).then(transData => {
         if (transData) {
-          setTransactions(transData.map(t => ({
-            id: t.id,
-            amount: Number(t.amount || 0),
-            type: t.type,
-            category: t.category,
-            date: t.date,
-            title: t.title,
-            memberId: t.member_id,
-            memberName: t.member_name,
-            subCategory: t.sub_category,
-            accountId: t.account_id,
-            receiptBase64: t.receipt_base64,
-            attachmentBase64: t.attachment_base64,
-            comment: t.comment,
-            modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
-            isArchived: !!t.is_archived,
-            recurrence: t.recurrence || 'none',
-            subscriptionId: t.subscription_id,
-            moduleSource: t.module_source || undefined,
-            categoryId: t.category_id || undefined,
-            subCategoryId: t.subcategory_id || undefined,
-            currency: t.currency || undefined,
-            recurrenceInterval: t.recurrence_interval ? Number(t.recurrence_interval) : undefined,
-            startDate: t.start_date || undefined,
-            endDate: t.end_date || undefined,
-            nextOccurrence: t.next_occurrence || undefined
-          })));
+          setTransactions(transData.map(t => {
+            const { comment, metadata } = deserializeTransactionComment(t.comment);
+            return {
+              id: t.id,
+              amount: Number(t.amount || 0),
+              type: t.type,
+              category: t.category,
+              date: t.date,
+              title: t.title,
+              memberId: t.member_id,
+              memberName: t.member_name,
+              subCategory: t.sub_category,
+              accountId: t.account_id,
+              receiptBase64: t.receipt_base64,
+              attachmentBase64: t.attachment_base64,
+              comment: comment,
+              modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
+              isArchived: !!t.is_archived,
+              recurrence: t.recurrence || 'none',
+              subscriptionId: t.subscription_id,
+              moduleSource: metadata.moduleSource || undefined,
+              categoryId: metadata.moduleSource || undefined,
+              subCategoryId: t.sub_category || undefined,
+              currency: 'EUR',
+              recurrenceInterval: metadata.recurrenceInterval ? Number(metadata.recurrenceInterval) : undefined,
+              startDate: metadata.startDate || undefined,
+              endDate: metadata.endDate || undefined,
+              nextOccurrence: metadata.nextOccurrence || undefined,
+              entryTime: (() => {
+                if (metadata.entryTime) return metadata.entryTime;
+                if (t.created_at) {
+                  const d = new Date(t.created_at.replace(' ', 'T'));
+                  if (!isNaN(d.getTime())) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                }
+                return undefined;
+              })(),
+              entryDate: metadata.entryDate || t.date || undefined,
+              createdAt: t.created_at || undefined,
+              updatedAt: t.created_at || undefined
+            };
+          }));
         }
       });
     });
@@ -2677,14 +2736,19 @@ function App() {
     const subCustomCategories = foyerService.subscribeToChanges('custom_categories', foyer.id, () => {
       foyerService.fetchTableData('custom_categories', foyer.id).then(data => {
         if (data) {
-          setCustomCategories(data.map(cc => ({
-            id: cc.id,
-            name: cc.name,
-            icon: cc.icon,
-            color: cc.color,
-            budget: Number(cc.budget || 0),
-            displayOrder: Number(cc.display_order || 0)
-          })));
+          setCustomCategories(data.map(cc => {
+            const meta = deserializeCategoryIcon(cc.icon);
+            return {
+              id: cc.id,
+              name: cc.name,
+              icon: meta.icon,
+              color: cc.color,
+              budget: Number(cc.budget || 0),
+              displayOrder: Number(cc.display_order || 0),
+              subcategories: meta.subcategories.length > 0 ? meta.subcategories : undefined,
+              isArchived: meta.isArchived || undefined
+            };
+          }));
         }
       });
     });
@@ -3362,6 +3426,10 @@ function App() {
             const client = getSupabaseClient();
             if (client && foyer?.id) {
               try {
+                const now = new Date();
+                const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                const dateStr = now.toISOString().split('T')[0];
+
                 await client.from('transactions').insert({
                   id: crypto.randomUUID(),
                   foyer_id: foyer.id,
@@ -3369,11 +3437,15 @@ function App() {
                   type: 'expense',
                   category: 'Transfert',
                   account_id: srcMatch.id,
-                  date: new Date().toISOString().split('T')[0],
+                  date: dateStr,
                   title: `Virement vers ${destMatch.name} (Vocal)`,
                   member_id: activeMemberId,
                   member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
-                  comment: 'Généré par commande vocale'
+                  comment: serializeTransactionComment('Généré par commande vocale', {
+                    moduleSource: 'budget',
+                    entryTime: timeStr,
+                    entryDate: dateStr
+                  })
                 });
 
                 await client.from('transactions').insert({
@@ -3383,11 +3455,15 @@ function App() {
                   type: 'income',
                   category: 'Transfert',
                   account_id: destMatch.id,
-                  date: new Date().toISOString().split('T')[0],
+                  date: dateStr,
                   title: `Virement reçu de ${srcMatch.name} (Vocal)`,
                   member_id: activeMemberId,
                   member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
-                  comment: 'Généré par commande vocale'
+                  comment: serializeTransactionComment('Généré par commande vocale', {
+                    moduleSource: 'budget',
+                    entryTime: timeStr,
+                    entryDate: dateStr
+                  })
                 });
 
                 await client.from('accounts').update({ balance: Math.max(0, srcMatch.balance - amountVal) }).eq('id', srcMatch.id);
@@ -3472,6 +3548,10 @@ function App() {
                   contributions: JSON.stringify(updatedContribs)
                 }).eq('id', goalMatch.id);
 
+                const now = new Date();
+                const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                const dateStr = now.toISOString().split('T')[0];
+
                 await client.from('transactions').insert({
                   id: crypto.randomUUID(),
                   foyer_id: foyer.id,
@@ -3479,10 +3559,14 @@ function App() {
                   amount: amountVal,
                   type: isAdd ? 'expense' : 'income',
                   category: 'Épargne',
-                  date: new Date().toISOString().split('T')[0],
+                  date: dateStr,
                   member_id: activeMemberId,
                   member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
-                  comment: 'Généré par commande vocale'
+                  comment: serializeTransactionComment('Généré par commande vocale', {
+                    moduleSource: 'budget',
+                    entryTime: timeStr,
+                    entryDate: dateStr
+                  })
                 });
 
                 feedback = `🎯 Cagnotte "${goalMatch.title}" : ${isAdd ? 'Ajout' : 'Retrait'} de ${amountVal}€ effectué !`;
@@ -4068,6 +4152,7 @@ function App() {
   };
 
   const filteredAlerts = alerts
+    .filter(al => !deletedAlertIds.includes(al.id))
     .filter(al => {
       // 1. Filter out alerts created by the active member
       if (al.id.includes(`-by-${activeMemberId}`)) return false;
@@ -4399,22 +4484,21 @@ function App() {
               title: finalTx.title,
               member_id: finalTx.memberId || null,
               member_name: finalTx.memberName || 'Famille',
-              module_source: finalTx.source_module || null,
-              category_id: finalTx.categoryId || null,
-              subcategory_id: finalTx.subCategoryId || null,
-              currency: finalTx.currency || 'EUR',
-              recurrence_type: finalTx.recurrence || 'none',
-              recurrence_interval: finalTx.recurrenceInterval || 1,
-              start_date: finalTx.startDate || null,
-              end_date: finalTx.endDate || null,
-              next_occurrence: finalTx.nextOccurrence || null,
+              sub_category: finalTx.subCategory || null,
               account_id: finalTx.accountId || null,
-              entry_date: finalTx.entryDate || null,
-              entry_time: finalTx.entryTime || null,
-              created_by: finalTx.createdBy || null,
-              source_module: finalTx.source_module || null,
-              travel_id: finalTx.travelId || finalTx.travel_id || null,
-              modification_history: JSON.stringify(finalTx.modificationHistory)
+              comment: serializeTransactionComment(finalTx.comment, {
+                moduleSource: finalTx.moduleSource || finalTx.source_module,
+                entryTime: finalTx.entryTime,
+                entryDate: finalTx.entryDate,
+                travelId: finalTx.travelId || finalTx.travel_id,
+                recurrenceInterval: finalTx.recurrenceInterval,
+                startDate: finalTx.startDate,
+                endDate: finalTx.endDate,
+                nextOccurrence: finalTx.nextOccurrence
+              }),
+              modification_history: JSON.stringify(finalTx.modificationHistory),
+              recurrence: finalTx.recurrence || 'none',
+              subscription_id: finalTx.subscriptionId || null
             });
             if (error) {
               console.error("Error inserting transaction to Supabase:", error);
@@ -5522,6 +5606,7 @@ function App() {
           isPremium={isPremium}
           setIsPremium={setIsPremium}
           onTriggerPaywall={() => setPaywallOpen(true)}
+          accounts={accounts}
 
         />
       );
@@ -5645,7 +5730,7 @@ function App() {
     <div className={`min-h-screen ${syncActive ? 'bg-[#1a2b4c]' : 'bg-[var(--family-bg)]'} text-[var(--family-text)] font-sans transition-colors duration-1000 relative ios-safe-container`}>
       
       {/* Dynamic render active layout page views */}
-      <main className="w-full">
+      <main className="w-full pb-28 md:pb-32">
         {renderContent()}
       </main>
 
@@ -5920,6 +6005,19 @@ function App() {
                 <Bell className="w-5 h-5 text-[#6C5CFF]" />
                 <h3 className="text-sm font-bold uppercase tracking-wider">Centre de Notifications</h3>
               </div>
+              <button
+                onClick={() => {
+                  if (window.confirm('Supprimer toutes les notifications affichées ?')) {
+                    const currentIds = filteredAlerts.map(a => a.id);
+                    const newDeleted = [...deletedAlertIds, ...currentIds];
+                    setDeletedAlertIds(newDeleted);
+                    localStorage.setItem(`mf_deleted_alerts_${activeMemberId}`, JSON.stringify(newDeleted));
+                  }
+                }}
+                className="text-xs text-red-400 hover:text-red-300 ml-auto"
+              >
+                🗑️ Tout supprimer
+              </button>
               <button 
                 onClick={() => setAlertsPanelOpen(false)}
                 className="p-1.5 rounded-lg hover:bg-white/5 text-white/40 hover:text-white"
@@ -5995,7 +6093,7 @@ function App() {
                       setAlerts(prev => prev.map(a => a.id === al.id ? { ...a, read: true } : a));
                       updateAlertReadStatusInCloud(al.id, true);
                       if (targetModule) {
-                        const mainTabs = ['accueil', 'agenda', 'finances'];
+                        const mainTabs = ['accueil', 'agenda', 'budget'];
                         if (mainTabs.includes(targetModule)) {
                           setActiveTab(targetModule as any);
                           setActiveModule('');

@@ -13,7 +13,7 @@ import {
   Clipboard,
   History
 } from 'lucide-react';
-import { getSupabaseClient } from '../utils/supabase';
+import { getSupabaseClient, serializeTransactionComment } from '../utils/supabase';
 import type { Transaction, CustomCategory, Account } from '../types';
 import * as XLSX from 'xlsx';
 import { createWorker } from 'tesseract.js';
@@ -530,6 +530,9 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
         const txId = crypto.randomUUID();
         const nowUser = myMemberProfile?.displayName || 'Parent';
 
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
         const dbTx = {
           id: txId,
           foyer_id: foyerId,
@@ -541,7 +544,11 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
           member_id: activeMemberId,
           member_name: activeMemberObj?.name || 'Système',
           account_id: row.accountId || null,
-          comment: row.comment || '',
+          comment: serializeTransactionComment(row.comment || '', {
+            moduleSource: 'import',
+            entryTime: timeStr,
+            entryDate: row.date
+          }),
           modification_history: JSON.stringify([{
             date: new Date().toISOString(),
             author: nowUser,

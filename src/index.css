@@ -303,7 +303,7 @@ body {
   padding-top: env(safe-area-inset-top, 0px);
 }
 .ios-safe-bottom-nav {
-  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
 }
 
 @keyframes slideDown {
