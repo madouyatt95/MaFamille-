@@ -16,7 +16,7 @@ import { getSupabaseClient } from '../utils/supabase';
 import type { Transaction, Member, SavingGoal, CustomCategory, Account, Abonnement } from '../types';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 interface FinancesExportProps {
   isOpen: boolean;
@@ -494,7 +494,7 @@ export const FinancesExport: React.FC<FinancesExportProps> = ({
           doc.setFont('helvetica', 'bold');
           doc.text("2. Liste des Revenus", 15, 25);
 
-          (doc as any).autoTable({
+          autoTable(doc, {
             startY: 32,
             head: [['Date', 'Description', 'Montant', 'Catégorie', 'Auteur']],
             body: incomeTxs.map(t => [t.date, t.title, `+${t.amount.toFixed(2)} ${currencySymbol}`, t.category, t.memberName || '']),
@@ -509,7 +509,7 @@ export const FinancesExport: React.FC<FinancesExportProps> = ({
           doc.setFont('helvetica', 'bold');
           doc.text("3. Liste des Dépenses", 15, 25);
 
-          (doc as any).autoTable({
+          autoTable(doc, {
             startY: 32,
             head: [['Date', 'Description', 'Montant', 'Catégorie', 'Auteur']],
             body: expenseTxs.map(t => [t.date, t.title, `-${t.amount.toFixed(2)} ${currencySymbol}`, t.category, t.memberName || '']),
@@ -524,7 +524,7 @@ export const FinancesExport: React.FC<FinancesExportProps> = ({
           doc.setFont('helvetica', 'bold');
           doc.text("4. Liste des Abonnements Récurrents", 15, 25);
 
-          (doc as any).autoTable({
+          autoTable(doc, {
             startY: 32,
             head: [['Abonnement', 'Montant', 'Périodicité', 'Catégorie', 'Prochain Prélèvement']],
             body: abonnements.map(a => [a.name, `${a.amount.toFixed(2)} ${currencySymbol}`, a.period === 'monthly' ? 'Mensuel' : 'Annuel', a.category || '', a.nextBillingDate || '']),
