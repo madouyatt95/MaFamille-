@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   TrendingUp, 
   PiggyBank, 
@@ -34,6 +34,8 @@ import type {
   FoyerMember
 } from '../types';
 import { getSupabaseClient } from '../utils/supabase';
+import { FinancesExport } from './FinancesExport';
+import { FinancesImport } from './FinancesImport';
 
 interface FinancesProps {
   transactions: Transaction[];
@@ -57,6 +59,8 @@ interface FinancesProps {
   setAbonnements: React.Dispatch<React.SetStateAction<Abonnement[]>>;
   debts: Debt[];
   setDebts: React.Dispatch<React.SetStateAction<Debt[]>>;
+  activeSubView?: { type: 'export' | 'import', options?: any } | null;
+  onClearActiveSubView?: () => void;
 }
 
 type FinanceTab = 'dashboard' | 'transactions' | 'accounts' | 'categories' | 'goals' | 'abonnements' | 'debts';
@@ -91,10 +95,29 @@ export const Finances: React.FC<FinancesProps> = ({
   abonnements,
   setAbonnements,
   debts,
-  setDebts
+  setDebts,
+  activeSubView,
+  onClearActiveSubView
 }) => {
   const [activeTab, setActiveTab] = useState<FinanceTab>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Modals for Export and Import
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+  // Trigger modals based on voice search or deep link options
+  React.useEffect(() => {
+    if (activeSubView) {
+      if (activeSubView.type === 'export') {
+        setIsExportModalOpen(true);
+      } else if (activeSubView.type === 'import') {
+        setIsImportModalOpen(true);
+      }
+    }
+  }, [activeSubView]);
+
+  const isAuthorized = myMemberProfile?.role === 'admin' || myMemberProfile?.role === 'parent';
 
   const mapDbTxToTransaction = (t: any): Transaction => ({
     id: t.id,
@@ -197,10 +220,6 @@ export const Finances: React.FC<FinancesProps> = ({
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
   const [mergeSource, setMergeSource] = useState('');
   const [mergeTarget, setMergeTarget] = useState('');
-
-  // CSV Statement import states
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importStatus, setImportStatus] = useState<string | null>(null);
 
   // ----------------------------------------------------
   // Computations & Selectors
@@ -1085,163 +1104,8 @@ export const Finances: React.FC<FinancesProps> = ({
   };
 
   // ----------------------------------------------------
-  // Export & Statement Import (CSV)
+  // Export & Statement Import (Advanced Modules integrated)
   // ----------------------------------------------------
-  const handleExportCSV = async () => {
-    // Generate CSV Header
-    let csvContent = 'Date,Titre,Montant,Type,Categorie,Sous-categorie,Commentaire,Membre\n';
-
-    filteredTransactions.forEach(t => {
-      const row = [
-        t.date,
-        `"${t.title.replace(/"/g, '""')}"`,
-        t.amount,
-        t.type,
-        `"${t.category}"`,
-        `"${t.subCategory || ''}"`,
-        `"${(t.comment || '').replace(/"/g, '""')}"`,
-        `"${t.memberName || ''}"`
-      ].join(',');
-      csvContent += row + '\n';
-    });
-
-    const csvContentWithBOM = '\uFEFF' + csvContent;
-    const fileName = `Famille_Finances_Export_${new Date().toISOString().split('T')[0]}.csv`;
-
-    // Support Web Share API (native share sheet on iOS/Android WebViews)
-    if (navigator.share) {
-      try {
-        const file = new File([csvContentWithBOM], fileName, { type: 'text/csv;charset=utf-8' });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: 'Export Finances',
-            text: 'Export des finances de la famille'
-          });
-          return;
-        }
-      } catch (shareErr) {
-        console.warn('Web Share failed, falling back to download:', shareErr);
-      }
-    }
-
-    const blob = new Blob([csvContentWithBOM], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', fileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImportCSVClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleImportCSVFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setImportStatus('Traitement...');
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const text = event.target?.result;
-      if (typeof text !== 'string') return;
-
-      const supabase = getSupabaseClient();
-      if (!supabase || !foyerId) {
-        setImportStatus('Supabase non disponible');
-        return;
-      }
-
-      const rows = text.split('\n').map(row => row.trim()).filter(row => row.length > 0);
-      if (rows.length <= 1) {
-        setImportStatus('Fichier CSV vide ou invalide');
-        return;
-      }
-
-      // Detect headers
-      const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
-      const dateIdx = headers.indexOf('date');
-      const titleIdx = headers.indexOf('titre') !== -1 ? headers.indexOf('titre') : headers.indexOf('libellé');
-      const amountIdx = headers.indexOf('montant');
-      const typeIdx = headers.indexOf('type');
-      const categoryIdx = headers.indexOf('categorie') !== -1 ? headers.indexOf('categorie') : headers.indexOf('catégorie');
-
-      if (dateIdx === -1 || titleIdx === -1 || amountIdx === -1) {
-        setImportStatus('Entêtes requis manquants (Date, Titre, Montant)');
-        return;
-      }
-
-      let insertedCount = 0;
-      let duplicateCount = 0;
-      const importedTxs: Transaction[] = [];
-
-      for (let i = 1; i < rows.length; i++) {
-        // Handle basic CSV commas & quotes
-        const columns = rows[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(col => col.replace(/^"|"$/g, '').trim());
-        
-        const date = columns[dateIdx];
-        const title = columns[titleIdx];
-        const rawAmount = columns[amountIdx];
-        const type = typeIdx !== -1 ? columns[typeIdx] : 'expense';
-        const category = categoryIdx !== -1 ? columns[categoryIdx] : 'Autres';
-
-        if (!date || !title || !rawAmount) continue;
-
-        const amount = Math.abs(parseFloat(rawAmount));
-        if (isNaN(amount)) continue;
-
-        // Smart Duplicate Check: same date, title, amount within this month
-        const isDuplicate = transactions.some(t => 
-          t.date === date && 
-          t.title.toLowerCase() === title.toLowerCase() && 
-          Math.abs(t.amount - amount) < 0.01
-        );
-
-        if (isDuplicate) {
-          duplicateCount++;
-          continue;
-        }
-
-        const nowUser = myMemberProfile?.displayName || 'Parent';
-        const newTx = {
-          id: crypto.randomUUID(),
-          foyer_id: foyerId,
-          title,
-          amount,
-          type: type.toLowerCase() === 'income' ? 'income' : 'expense',
-          category,
-          date,
-          member_id: activeMemberId,
-          member_name: activeMemberObj?.name || 'Système',
-          modification_history: JSON.stringify([{
-            date: new Date().toISOString(),
-            author: nowUser,
-            action: 'Importation automatique de relevé bancaire'
-          }])
-        };
-
-        try {
-          await supabase.from('transactions').insert(newTx);
-          insertedCount++;
-          importedTxs.push(mapDbTxToTransaction(newTx));
-        } catch (err) {
-          console.error('Import row failure:', err);
-        }
-      }
-
-      if (importedTxs.length > 0) {
-        setTransactions(prev => [...importedTxs, ...prev]);
-      }
-
-      setImportStatus(`${insertedCount} importés, ${duplicateCount} doublons ignorés`);
-      setTimeout(() => setImportStatus(null), 5000);
-    };
-    reader.readAsText(file);
-  };
 
   return (
     <div className="pb-32 pt-6 px-4 md:px-8 space-y-6 max-w-5xl mx-auto premium-glow-purple">
@@ -1263,28 +1127,25 @@ export const Finances: React.FC<FinancesProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={handleImportCSVClick}
-            className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/8 rounded-xl transition duration-200"
-          >
-            <Upload className="w-4 h-4 text-purple-400" />
-            <span className="text-xs font-bold text-white/80">Importer</span>
-          </button>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleImportCSVFile} 
-            accept=".csv" 
-            className="hidden" 
-          />
+          {isAuthorized && (
+            <>
+              <button
+                onClick={() => setIsImportModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/8 rounded-xl transition duration-200 cursor-pointer"
+              >
+                <Upload className="w-4 h-4 text-purple-400" />
+                <span className="text-xs font-bold text-white/80">Importer</span>
+              </button>
 
-          <button
-            onClick={handleExportCSV}
-            className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/8 rounded-xl transition duration-200"
-          >
-            <Download className="w-4 h-4 text-indigo-400" />
-            <span className="text-xs font-bold text-white/80">Exporter</span>
-          </button>
+              <button
+                onClick={() => setIsExportModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/8 rounded-xl transition duration-200 cursor-pointer"
+              >
+                <Download className="w-4 h-4 text-indigo-400" />
+                <span className="text-xs font-bold text-white/80">Exporter</span>
+              </button>
+            </>
+          )}
 
           <button
             onClick={handleOpenAddTx}
@@ -1296,17 +1157,6 @@ export const Finances: React.FC<FinancesProps> = ({
         </div>
       </div>
 
-      {importStatus && (
-        <div className="mt-4 px-4 py-2 bg-purple-900/40 border border-purple-500/30 rounded-xl text-center text-sm flex items-center justify-between">
-          <span className="flex items-center gap-2 text-white/90">
-            <Info className="w-4 h-4 text-purple-400" />
-            {importStatus}
-          </span>
-          <button onClick={() => setImportStatus(null)} className="text-white/60 hover:text-white">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
 
       {/* Tabs Subheader */}
       <div className="mt-8">
@@ -3183,6 +3033,49 @@ export const Finances: React.FC<FinancesProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {isExportModalOpen && (
+        <FinancesExport
+          isOpen={isExportModalOpen}
+          onClose={() => {
+            setIsExportModalOpen(false);
+            if (onClearActiveSubView) onClearActiveSubView();
+          }}
+          transactions={transactions}
+          savingGoals={savingGoals}
+          members={members}
+          customCategories={customCategories}
+          accounts={accounts}
+          abonnements={abonnements}
+          foyerId={foyerId}
+          myMemberProfile={myMemberProfile}
+          currencySymbol={_currencySymbol}
+          initialOptions={activeSubView?.type === 'export' ? activeSubView.options : undefined}
+        />
+      )}
+
+      {isImportModalOpen && (
+        <FinancesImport
+          isOpen={isImportModalOpen}
+          onClose={() => {
+            setIsImportModalOpen(false);
+            if (onClearActiveSubView) onClearActiveSubView();
+          }}
+          transactions={transactions}
+          accounts={accounts}
+          customCategories={customCategories}
+          foyerId={foyerId}
+          myMemberProfile={myMemberProfile}
+          activeMemberId={activeMemberId}
+          activeMemberObj={members.find(m => m.id === activeMemberId)}
+          onImportComplete={(newTxs) => {
+            const mapped = newTxs.map(mapDbTxToTransaction);
+            setTransactions(prev => [...mapped, ...prev]);
+            if (onClearActiveSubView) onClearActiveSubView();
+          }}
+          initialOptions={activeSubView?.type === 'import' ? activeSubView.options : undefined}
+        />
       )}
 
     </div>

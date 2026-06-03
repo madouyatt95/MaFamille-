@@ -390,6 +390,7 @@ function App() {
 
   // Navigation and Sheets UI State
   const [activeTab, setActiveTab] = useState('accueil');
+  const [financesActiveSubView, setFinancesActiveSubView] = useState<{ type: 'export' | 'import', options?: any } | null>(null);
   const [activeModule, rawSetActiveModule] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
@@ -661,8 +662,15 @@ function App() {
       });
     }
   }, [members, foyer]);
-  const discoverMode = false;
-  const setDiscoverMode = (_val: boolean) => {};
+  const [discoverMode, setDiscoverMode] = useState<boolean>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('demo') === 'true' || localStorage.getItem('mf_discover_mode') === 'true';
+  });
+
+  const handleEnterDiscoverMode = () => {
+    localStorage.setItem('mf_discover_mode', 'true');
+    setDiscoverMode(true);
+  };
 
   const [isRecoveringPassword, setIsRecoveringPassword] = useState<boolean>(false);
 
@@ -3404,58 +3412,51 @@ function App() {
       return;
     }
 
-    // 6. Export Finances Intent
-    // e.g. "exporter les finances"
-    if (promptLower.includes('exporter') || promptLower.includes('télécharger le csv') || promptLower.includes('telecharger le csv')) {
+    // 6. Export/Import Finances Intent
+    // e.g. "exporter les finances du mois en PDF", "importe mon relevé bancaire", "scanne ce ticket"
+    if (promptLower.includes('exporter') || promptLower.includes('télécharger le csv') || promptLower.includes('telecharger le csv') || promptLower.includes('rapport financier')) {
       intent = "export_finances";
-      try {
-        let csvContent = 'Date,Titre,Montant,Type,Categorie\n';
-        transactions.forEach(t => {
-          csvContent += `${t.date},"${t.title.replace(/"/g, '""')}",${t.amount},${t.type},"${t.category}"\n`;
-        });
-        
-        const csvContentWithBOM = '\uFEFF' + csvContent;
-        const fileName = 'Famille_Finances_Export.csv';
+      
+      // Parse format
+      let format: 'pdf' | 'excel' | 'csv' | 'json' | 'txt' = 'pdf';
+      if (promptLower.includes('excel') || promptLower.includes('xlsx') || promptLower.includes('tableur')) format = 'excel';
+      else if (promptLower.includes('csv')) format = 'csv';
+      else if (promptLower.includes('json')) format = 'json';
+      else if (promptLower.includes('texte') || promptLower.includes('txt') || promptLower.includes('simple')) format = 'txt';
 
-        // Support Web Share API (native share sheet on iOS/Android WebViews)
-        let shared = false;
-        if (navigator.share) {
-          try {
-            const file = new File([csvContentWithBOM], fileName, { type: 'text/csv;charset=utf-8' });
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-              await navigator.share({
-                files: [file],
-                title: 'Export Finances',
-                text: 'Export des finances de la famille'
-              });
-              shared = true;
-            }
-          } catch (shareErr) {
-            console.warn('Web Share failed, falling back to download:', shareErr);
-          }
-        }
+      // Parse period
+      let period: 'week' | 'month' | 'last_month' | 'year' | 'last_year' = 'month';
+      if (promptLower.includes('semaine')) period = 'week';
+      else if (promptLower.includes('mois dernier') || promptLower.includes('dernier mois')) period = 'last_month';
+      else if (promptLower.includes('an') || promptLower.includes('année') || promptLower.includes('annuel')) period = 'year';
+      else if (promptLower.includes('année précédente') || promptLower.includes('an dernier')) period = 'last_year';
 
-        if (!shared) {
-          const blob = new Blob([csvContentWithBOM], { type: 'text/csv;charset=utf-8;' });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.setAttribute('href', url);
-          link.setAttribute('download', fileName);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
-        }
+      setFinancesActiveSubView({
+        type: 'export',
+        options: { format, period }
+      });
+      
+      setActiveTab('finances');
+      setVoiceFeedback(`📊 Ouverture de l'assistant d'exportation (${format.toUpperCase()}, période: ${period})...`);
+      logVoiceCommandToSupabase(intent, true);
+      setTimeout(() => setVoiceActive(false), 2500);
+      return;
+    }
 
-        feedback = "📊 Export CSV téléchargé avec succès !";
-        isSuccess = true;
-      } catch (e: any) {
-        feedback = `❌ Échec : ${e.message}`;
-      }
+    if (promptLower.includes('importer') || promptLower.includes('import') || promptLower.includes('scanner') || promptLower.includes('scanne') || promptLower.includes('relevé') || promptLower.includes('releve')) {
+      intent = "import_finances";
+      
+      let type: 'relevé' | 'ticket' = 'relevé';
+      if (promptLower.includes('ticket') || promptLower.includes('scanner') || promptLower.includes('scanne')) type = 'ticket';
+
+      setFinancesActiveSubView({
+        type: 'import',
+        options: { type }
+      });
 
       setActiveTab('finances');
-      setVoiceFeedback(feedback);
-      logVoiceCommandToSupabase(intent, isSuccess);
+      setVoiceFeedback(`📥 Ouverture de l'assistant d'importation (${type === 'ticket' ? 'Scan Ticket' : 'Relevé Bancaire'})...`);
+      logVoiceCommandToSupabase(intent, true);
       setTimeout(() => setVoiceActive(false), 2500);
       return;
     }
@@ -5005,6 +5006,8 @@ function App() {
           setAbonnements={setAbonnements}
           debts={debts}
           setDebts={setDebts}
+          activeSubView={financesActiveSubView}
+          onClearActiveSubView={() => setFinancesActiveSubView(null)}
         />
       );
     }
@@ -5230,6 +5233,7 @@ function App() {
         onSuccess={handleOnboardingSuccess} 
         onLogout={handleLogout} 
         userEmail={user?.email || ''} 
+        onEnterDiscoverMode={handleEnterDiscoverMode}
       />
     );
   }
