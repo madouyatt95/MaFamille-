@@ -11,7 +11,8 @@ import {
   ArrowLeftRight, 
   X, 
   AlertTriangle,
-  Clock
+  Clock,
+  RefreshCw
 } from 'lucide-react';
 import type { 
   Transaction, 
@@ -23,7 +24,7 @@ import type {
   Debt,
   FoyerMember
 } from '../types';
-import { getSupabaseClient, serializeCategoryIcon, serializeTransactionComment } from '../utils/supabase';
+import { getSupabaseClient, serializeCategoryIcon, serializeTransactionComment, getModuleIdFromTransaction } from '../utils/supabase';
 import { BudgetExport } from './BudgetExport';
 import { BudgetImport } from './BudgetImport';
 
@@ -50,26 +51,28 @@ interface BudgetProps {
   setDebts: React.Dispatch<React.SetStateAction<Debt[]>>;
   activeSubView?: { type: 'export' | 'import' | 'transaction_form', options?: any } | null;
   onClearActiveSubView?: () => void;
+  moduleBudgets: Record<string, { budget: number; recurrence: string }>;
+  setModuleBudgets: React.Dispatch<React.SetStateAction<Record<string, { budget: number; recurrence: string }>>>;
 }
 
 type FinanceTab = 'dashboard' | 'transactions' | 'revenus' | 'depenses' | 'categories' | 'goals' | 'accounts' | 'abonnements' | 'budgets_modules' | 'imports' | 'exports' | 'reports';
 
 // Default categories and subcategories mapping
 export const DEFAULT_CATEGORIES = [
-  { name: 'Alimentation', icon: '🛒', color: '#10B981', budget: 600, sub: ['Supermarché', 'Restaurant', 'Boulangerie', 'Épicerie', 'Café'] },
-  { name: 'Transport', icon: '🚗', color: '#F59E0B', budget: 200, sub: ['Taxi', 'Uber', 'Essence', 'Péage', 'Transport public'] },
-  { name: 'Santé', icon: '🩺', color: '#EF4444', budget: 150, sub: ['Médecin', 'Pharmacie', 'Dentiste', 'Vaccin', 'Analyse', 'Mutuelle'] },
-  { name: 'Logement', icon: '🏠', color: '#3B82F6', budget: 800, sub: ['Loyer', 'Électricité', 'Eau', 'Internet', 'Assurance habitation', 'Travaux', 'Maintenance'] },
-  { name: 'Éducation', icon: '🎓', color: '#8B5CF6', budget: 200, sub: ['Inscriptions', 'Livres', 'Cours particuliers', 'Activités', 'Cantine'] },
-  { name: 'Véhicules', icon: '🔧', color: '#F59E0B', budget: 150, sub: ['Essence', 'Péage', 'Lavage', 'Assurance auto', 'Contrôle technique', 'Entretien', 'Réparation'] },
-  { name: 'Voyages', icon: '✈️', color: '#06B6D4', budget: 300, sub: ['Billets', 'Hôtel', 'Transport', 'Activités', 'Repas'] },
-  { name: 'Administratif', icon: '📂', color: '#6B7280', budget: 100, sub: ['Frais administratifs', 'Passeport', 'Visa', 'Carte identité', 'Timbres fiscaux'] },
-  { name: 'Animaux', icon: '🐶', color: '#10B981', budget: 100, sub: ['Nourriture', 'Vétérinaire', 'Médicaments', 'Jouets'] },
-  { name: 'Loisirs', icon: '🎨', color: '#EC4899', budget: 150, sub: ['Cinéma', 'Concert', 'Musée', 'Cadeaux', 'Sport'] },
-  { name: 'Abonnements', icon: '🔄', color: '#6366F1', budget: 80, sub: ['Streaming', 'Téléphone', 'Logiciels'] },
-  { name: 'Argent de poche', icon: '🪙', color: '#8B5CF6', budget: 50, sub: ['Allocation enfant', 'Récompense'] },
-  { name: 'Épargne', icon: '🐷', color: '#10B981', budget: 200, sub: ['Cagnotte', 'Placement'] },
-  { name: 'Autres', icon: '✨', color: '#6B7280', budget: 100, sub: ['Divers', 'Imprévu'] }
+  { name: 'Alimentation', icon: '🛒', color: '#10B981', budget: 0, sub: ['Supermarché', 'Restaurant', 'Boulangerie', 'Épicerie', 'Café'] },
+  { name: 'Transport', icon: '🚗', color: '#F59E0B', budget: 0, sub: ['Taxi', 'Uber', 'Essence', 'Péage', 'Transport public'] },
+  { name: 'Santé', icon: '🩺', color: '#EF4444', budget: 0, sub: ['Médecin', 'Pharmacie', 'Dentiste', 'Vaccin', 'Analyse', 'Mutuelle'] },
+  { name: 'Logement', icon: '🏠', color: '#3B82F6', budget: 0, sub: ['Loyer', 'Électricité', 'Eau', 'Internet', 'Assurance habitation', 'Travaux', 'Maintenance'] },
+  { name: 'Éducation', icon: '🎓', color: '#8B5CF6', budget: 0, sub: ['Inscriptions', 'Livres', 'Cours particuliers', 'Activités', 'Cantine'] },
+  { name: 'Véhicules', icon: '🔧', color: '#F59E0B', budget: 0, sub: ['Essence', 'Péage', 'Lavage', 'Assurance auto', 'Contrôle technique', 'Entretien', 'Réparation'] },
+  { name: 'Voyages', icon: '✈️', color: '#06B6D4', budget: 0, sub: ['Billets', 'Hôtel', 'Transport', 'Activités', 'Repas'] },
+  { name: 'Administratif', icon: '📂', color: '#6B7280', budget: 0, sub: ['Frais administratifs', 'Passeport', 'Visa', 'Carte identité', 'Timbres fiscaux'] },
+  { name: 'Animaux', icon: '🐶', color: '#10B981', budget: 0, sub: ['Nourriture', 'Vétérinaire', 'Médicaments', 'Jouets'] },
+  { name: 'Loisirs', icon: '🎨', color: '#EC4899', budget: 0, sub: ['Cinéma', 'Concert', 'Musée', 'Cadeaux', 'Sport'] },
+  { name: 'Abonnements', icon: '🔄', color: '#6366F1', budget: 0, sub: ['Streaming', 'Téléphone', 'Logiciels'] },
+  { name: 'Argent de poche', icon: '🪙', color: '#8B5CF6', budget: 0, sub: ['Allocation enfant', 'Récompense'] },
+  { name: 'Épargne', icon: '🐷', color: '#10B981', budget: 0, sub: ['Cagnotte', 'Placement'] },
+  { name: 'Autres', icon: '✨', color: '#6B7280', budget: 0, sub: ['Divers', 'Imprévu'] }
 ];
 
 export const Budget: React.FC<BudgetProps> = ({
@@ -94,7 +97,9 @@ export const Budget: React.FC<BudgetProps> = ({
   debts: _debts,
   setDebts: _setDebts,
   activeSubView,
-  onClearActiveSubView
+  onClearActiveSubView,
+  moduleBudgets,
+  setModuleBudgets
 }) => {
   const [activeTab, setActiveTab] = useState<FinanceTab>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
@@ -121,22 +126,25 @@ export const Budget: React.FC<BudgetProps> = ({
   const [editingAbo, setEditingAbo] = useState<Abonnement | null>(null);
   const [editingCat, setEditingCat] = useState<CustomCategory | null>(null);
 
-  // Module budgets state (overrides default or sets budget limit for modules)
-  const [moduleBudgets, setModuleBudgets] = useState<Record<string, { budget: number; recurrence: string }>>(() => {
-    const cached = localStorage.getItem(`mf_module_budgets_${foyerId}`);
-    return cached ? JSON.parse(cached) : {
-      courses: { budget: 500, recurrence: 'monthly' },
-      sante: { budget: 150, recurrence: 'monthly' },
-      vehicules: { budget: 200, recurrence: 'monthly' },
-      logement: { budget: 800, recurrence: 'monthly' },
-      voyages: { budget: 1000, recurrence: 'custom' },
-      ecole: { budget: 150, recurrence: 'monthly' },
-      demarches: { budget: 100, recurrence: 'monthly' },
-      animaux: { budget: 100, recurrence: 'monthly' },
-      argent_de_poche: { budget: 50, recurrence: 'monthly' },
-      taches: { budget: 50, recurrence: 'monthly' }
-    };
+  // Selected item details for interactive clicking
+  const [selectedAboDetail, setSelectedAboDetail] = useState<any | null>(null);
+  const [selectedTxDetail, setSelectedTxDetail] = useState<Transaction | null>(null);
+  const [suspendedAboIds, setSuspendedAboIds] = useState<string[]>(() => {
+    try {
+      const cached = localStorage.getItem(`mf_suspended_abonnements_${foyerId}`);
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
   });
+
+  const toggleSuspendAbo = (aboId: string) => {
+    setSuspendedAboIds(prev => {
+      const next = prev.includes(aboId) ? prev.filter(id => id !== aboId) : [...prev, aboId];
+      localStorage.setItem(`mf_suspended_abonnements_${foyerId}`, JSON.stringify(next));
+      return next;
+    });
+  };
 
   const saveModuleBudgets = (updated: typeof moduleBudgets) => {
     setModuleBudgets(updated);
@@ -220,18 +228,36 @@ export const Budget: React.FC<BudgetProps> = ({
   const formatTxListDate = (tx: Transaction) => {
     const d = new Date();
     const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const timeStr = tx.entryTime || '12:00';
     
     if (tx.date === todayStr) {
-      return `Aujourd'hui • ${tx.entryTime || `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`}`;
+      return `Aujourd'hui • ${timeStr}`;
     }
     
     if (tx.date && tx.date.includes('-')) {
       const parts = tx.date.split('-');
       if (parts.length === 3) {
-        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        return `${parts[2]}/${parts[1]}/${parts[0]} • ${timeStr}`;
       }
     }
-    return tx.date;
+    return tx.date ? `${tx.date} • ${timeStr}` : `• ${timeStr}`;
+  };
+
+  const getCreationMethod = (tx: Transaction) => {
+    const commentLower = (tx.comment || '').toLowerCase();
+    if (commentLower.includes('vocal') || commentLower.includes('voix') || commentLower.includes('micro') || commentLower.includes('audio')) {
+      return '🎙️ Commande Vocale (Micro)';
+    }
+    if (commentLower.includes('généré automatiquement par le système') || commentLower.includes('système')) {
+      return '⚙️ Système';
+    }
+    if (commentLower.includes('planificateur') || commentLower.includes('récurrent')) {
+      return '🔄 Planificateur récurrent';
+    }
+    if (tx.subscriptionId) {
+      return '🔄 Abonnement';
+    }
+    return '✍️ Manuellement';
   };
 
   // Forms state
@@ -338,14 +364,14 @@ export const Budget: React.FC<BudgetProps> = ({
           ...list[idx],
           icon: cc.icon || list[idx].icon,
           color: cc.color || list[idx].color,
-          budget: cc.budget || list[idx].budget
+          budget: 0
         };
       } else {
         list.push({
           name: cc.name,
           icon: cc.icon || '✨',
           color: cc.color || '#3B82F6',
-          budget: cc.budget || 0,
+          budget: 0,
           sub: cc.subcategories || ['Divers']
         } as any);
       }
@@ -570,18 +596,41 @@ export const Budget: React.FC<BudgetProps> = ({
         }
         return acc;
       }, 0);
-    const upcomingAboCost = abonnements.reduce((acc, a) => acc + a.amount, 0) + recurringTxCost;
+    const upcomingAboCost = abonnements
+      .filter(a => !suspendedAboIds.includes(a.id))
+      .reduce((acc, a) => acc + a.amount, 0) + recurringTxCost;
 
-    // Alert calculation
+    // Alert calculation based on module budgets
     const budgetAlerts: string[] = [];
-    const categorySums: Record<string, number> = {};
+    const moduleSums: Record<string, number> = {};
     activeTransactions.filter(t => t.type === 'expense').forEach(t => {
-      categorySums[t.category] = (categorySums[t.category] || 0) + t.amount;
+      const moduleId = getModuleIdFromTransaction(t);
+      if (moduleId) {
+        moduleSums[moduleId] = (moduleSums[moduleId] || 0) + t.amount;
+      }
     });
 
-    allCategories.forEach(cat => {
-      if (cat.budget > 0 && categorySums[cat.name] > cat.budget) {
-        budgetAlerts.push(`⚠️ Le budget de la catégorie "${cat.icon} ${cat.name}" a été dépassé (${categorySums[cat.name].toFixed(2)}€ dépensés / limit ${cat.budget}€)`);
+    const modulesList = [
+      { id: 'courses', label: 'Courses & Achats', icon: '🛒' },
+      { id: 'sante', label: 'Santé & Soins', icon: '🩺' },
+      { id: 'vehicules', label: 'Véhicule & Auto', icon: '🚗' },
+      { id: 'logement', label: 'Logement & Charges', icon: '🏠' },
+      { id: 'voyages', label: 'Voyages & Vacances', icon: '✈️' },
+      { id: 'ecole', label: 'École & Éducation', icon: '🎓' },
+      { id: 'demarches', label: 'Démarches Admin', icon: '📂' },
+      { id: 'animaux', label: 'Animaux & Veto', icon: '🐶' },
+      { id: 'argent_de_poche', label: 'Argent de Poche', icon: '🪙' },
+      { id: 'taches', label: 'Tâches Ménagères', icon: '🧹' }
+    ];
+
+    modulesList.forEach(m => {
+      const budgetObj = moduleBudgets[m.id];
+      const limit = budgetObj?.budget || 0;
+      if (limit > 0) {
+        const spent = moduleSums[m.id] || 0;
+        if (spent > limit) {
+          budgetAlerts.push(`⚠️ Le budget du module "${m.icon} ${m.label}" a été dépassé (${spent.toFixed(2)}€ dépensés / limite ${limit}€)`);
+        }
       }
     });
 
@@ -594,7 +643,7 @@ export const Budget: React.FC<BudgetProps> = ({
       depensesAVenir: upcomingAboCost,
       alerts: budgetAlerts
     };
-  }, [activeTransactions, accounts, savingGoals, abonnements, allCategories, transactions]);
+  }, [activeTransactions, accounts, savingGoals, abonnements, allCategories, transactions, suspendedAboIds, moduleBudgets]);
 
   const prelevementsAVenir = useMemo(() => {
     const list: any[] = [];
@@ -608,7 +657,9 @@ export const Budget: React.FC<BudgetProps> = ({
         category: a.category || 'Abonnements',
         nextDate: a.nextBillingDate,
         frequency: a.period === 'monthly' ? 'Mensuel' : a.period === 'yearly' ? 'Annuel' : a.period === 'weekly' ? 'Hebdomadaire' : a.period,
-        moduleSource: 'budget'
+        moduleSource: 'budget',
+        isSuspended: suspendedAboIds.includes(a.id),
+        rawAbo: a
       });
     });
 
@@ -622,7 +673,9 @@ export const Budget: React.FC<BudgetProps> = ({
           category: t.category,
           nextDate: t.nextOccurrence || t.date,
           frequency: t.recurrence === 'monthly' ? 'Mensuel' : t.recurrence === 'yearly' ? 'Annuel' : t.recurrence === 'weekly' ? 'Hebdomadaire' : t.recurrence === 'daily' ? 'Quotidien' : t.recurrence,
-          moduleSource: t.moduleSource || 'budget'
+          moduleSource: t.moduleSource || 'budget',
+          isSuspended: false,
+          rawTx: t
         });
       }
     });
@@ -632,7 +685,7 @@ export const Budget: React.FC<BudgetProps> = ({
       if (!b.nextDate) return -1;
       return a.nextDate.localeCompare(b.nextDate);
     });
-  }, [abonnements, transactions]);
+  }, [abonnements, transactions, suspendedAboIds]);
 
   // Filters
   const filteredTransactions = useMemo(() => {
@@ -878,7 +931,7 @@ export const Budget: React.FC<BudgetProps> = ({
     e.preventDefault();
     if (!catForm.name) return;
 
-    const limitVal = parseFloat(catForm.budget) || 0;
+    const limitVal = 0;
     const newCat: CustomCategory = {
       id: editingCat?.id || `cat-${Date.now()}`,
       name: catForm.name,
@@ -978,15 +1031,19 @@ export const Budget: React.FC<BudgetProps> = ({
       taches: 0
     };
 
-    activeTransactions.filter(t => t.type === 'expense').forEach(t => {
-      const src = t.moduleSource || 'budget';
-      if (src in map) {
-        map[src] += t.amount;
-      }
-    });
+    const currentMonthStr = new Date().toISOString().substring(0, 7);
+
+    transactions
+      .filter(t => !t.isArchived && t.type === 'expense' && t.date.startsWith(currentMonthStr))
+      .forEach(t => {
+        const moduleId = getModuleIdFromTransaction(t);
+        if (moduleId && moduleId in map) {
+          map[moduleId] += t.amount;
+        }
+      });
 
     return map;
-  }, [activeTransactions]);
+  }, [transactions]);
 
   return (
     <div className="pb-32 pt-6 px-4 md:px-8 space-y-6 max-w-5xl mx-auto premium-glow-purple">
@@ -1179,7 +1236,11 @@ export const Budget: React.FC<BudgetProps> = ({
                 {prelevementsAVenir.map(item => {
                   const accountName = accounts.find(a => a.id === item.accountId)?.name || 'Non spécifié';
                   return (
-                    <div key={item.id} className="flex flex-col space-y-1 p-2.5 bg-white/2 rounded-xl border border-white/5 text-[11px] hover:bg-white/5 transition-all">
+                    <div 
+                      key={item.id} 
+                      onClick={() => setSelectedAboDetail(item)}
+                      className="flex flex-col space-y-1 p-2.5 bg-white/2 rounded-xl border border-white/5 text-[11px] hover:bg-white/5 transition-all cursor-pointer"
+                    >
                       <div className="flex justify-between items-start">
                         <div>
                           <p className="font-bold text-white flex items-center gap-1">
@@ -1213,7 +1274,11 @@ export const Budget: React.FC<BudgetProps> = ({
               </div>
               <div className="space-y-2.5">
                 {filteredTransactions.slice(0, 5).map(tx => (
-                  <div key={tx.id} className="flex items-center justify-between p-3 bg-white/3 border border-white/5 rounded-2xl text-xs hover:bg-white/5 transition-all">
+                  <div 
+                    key={tx.id} 
+                    onClick={() => setSelectedTxDetail(tx)}
+                    className="flex items-center justify-between p-3 bg-white/3 border border-white/5 rounded-2xl text-xs hover:bg-white/5 transition-all cursor-pointer"
+                  >
                     <div className="flex items-center space-x-3 min-w-0">
                       <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-base shrink-0">
                         {allCategories.find(c => c.name === tx.category)?.icon || '💸'}
@@ -1288,7 +1353,11 @@ export const Budget: React.FC<BudgetProps> = ({
                   return true;
                 })
                 .map(tx => (
-                  <div key={tx.id} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 p-4 bg-white/3 border border-white/5 rounded-2xl hover:bg-white/5 transition text-xs">
+                  <div 
+                    key={tx.id} 
+                    onClick={() => setSelectedTxDetail(tx)}
+                    className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 p-4 bg-white/3 border border-white/5 rounded-2xl hover:bg-white/5 transition text-xs cursor-pointer"
+                  >
                     
                     <div className="flex items-center space-x-3 min-w-0">
                       <span className="text-2xl shrink-0">
@@ -1323,7 +1392,7 @@ export const Budget: React.FC<BudgetProps> = ({
                         )}
                         
                         {expandedTxHistory[tx.id] && tx.modificationHistory && (
-                          <div className="mt-2.5 p-3 rounded-xl bg-[#07111F]/50 border border-white/5 space-y-1.5 text-[10px] font-sans">
+                          <div className="mt-2.5 p-3 rounded-xl bg-[#07111F]/50 border border-white/5 space-y-1.5 text-[10px] font-sans" onClick={(e) => e.stopPropagation()}>
                             <span className="text-[9px] font-black text-white/30 uppercase block tracking-wider">Trace d'audit :</span>
                             <div className="space-y-1 border-l border-white/10 pl-2 ml-1">
                               {tx.modificationHistory.map((h, hIdx) => (
@@ -1339,7 +1408,7 @@ export const Budget: React.FC<BudgetProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end shrink-0 border-t md:border-t-0 border-white/5 pt-2.5 md:pt-0">
+                    <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end shrink-0 border-t md:border-t-0 border-white/5 pt-2.5 md:pt-0" onClick={(e) => e.stopPropagation()}>
                       <div className="text-left md:text-right">
                         <span className={`text-base font-black ${tx.type === 'income' ? 'text-emerald-400' : tx.type === 'savings' ? 'text-purple-400' : 'text-rose-400'}`}>
                           {tx.type === 'income' ? '+' : '-'}{formatMoney(tx.amount)}
@@ -1528,7 +1597,6 @@ export const Budget: React.FC<BudgetProps> = ({
                             <span className="px-1.5 py-0.5 text-[8px] font-bold rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase tracking-wider">Archivé</span>
                           )}
                         </div>
-                        <span className="text-[10px] text-white/40">Limite mensuelle : {cat.budget > 0 ? `${formatMoney(cat.budget)}` : 'Aucune'}</span>
                       </div>
                     </div>
 
@@ -1542,7 +1610,7 @@ export const Budget: React.FC<BudgetProps> = ({
                               name: cat.name,
                               icon: cat.icon,
                               color: cat.color,
-                              budget: cat.budget,
+                              budget: 0,
                               displayOrder: 0,
                               subcategories: cat.sub || []
                             });
@@ -1550,7 +1618,7 @@ export const Budget: React.FC<BudgetProps> = ({
                               name: matchedCc ? matchedCc.name : cat.name,
                               icon: matchedCc ? (matchedCc.icon || '✨') : cat.icon,
                               color: matchedCc ? (matchedCc.color || '#3B82F6') : cat.color,
-                              budget: matchedCc ? (matchedCc.budget ? matchedCc.budget.toString() : '') : (cat.budget ? cat.budget.toString() : ''),
+                              budget: '',
                               subcategories: matchedCc ? (matchedCc.subcategories || []) : (cat.sub || []),
                               newSubInput: ''
                             });
@@ -2132,28 +2200,17 @@ export const Budget: React.FC<BudgetProps> = ({
 
                     if (totalDep === 0) return null;
 
-                    const limitVal = cat.budget || 1;
-                    const pct = Math.min(100, Math.round((totalDep / limitVal) * 100));
                     const isHighlighted = selectedDonutSegment !== null && donutData.segments[selectedDonutSegment]?.category === cat.name;
 
                     return (
                       <div 
                         key={cat.name} 
-                        className={`space-y-1.5 p-2 rounded-xl border transition ${isHighlighted ? 'bg-white/5 border-purple-500/20' : 'bg-transparent border-transparent'}`}
+                        className={`p-2 rounded-xl border transition ${isHighlighted ? 'bg-white/5 border-purple-500/20' : 'bg-transparent border-transparent'}`}
                       >
                         <div className="flex justify-between text-[11px] items-center">
                           <span className="font-extrabold text-white flex items-center gap-1">{cat.icon} {cat.name}</span>
-                          <span className="text-white/70 font-semibold">{formatMoney(totalDep)} {cat.budget > 0 && `/ ${cat.budget}€`}</span>
+                          <span className="text-white/70 font-semibold">{formatMoney(totalDep)}</span>
                         </div>
-                        <div className="relative h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
-                          <div className="absolute inset-y-0 left-0 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: cat.color }} />
-                        </div>
-                        {cat.budget > 0 && (
-                          <div className="flex justify-between text-[9px] text-white/40">
-                            <span>Consommé : {pct}%</span>
-                            <span className={pct >= 100 ? 'text-red-400 font-bold' : ''}>{pct >= 100 ? 'Budget dépassé !' : `${formatMoney(cat.budget - totalDep)} restant`}</span>
-                          </div>
-                        )}
                       </div>
                     );
                   })}
@@ -2584,10 +2641,6 @@ export const Budget: React.FC<BudgetProps> = ({
                   <label className="block text-white/50 mb-1">Couleur (Hex) *</label>
                   <input type="color" value={catForm.color} onChange={e => setCatForm(prev => ({ ...prev, color: e.target.value }))} className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-1 text-xs text-white focus:outline-none" />
                 </div>
-              </div>
-              <div>
-                <label className="block text-white/50 mb-1">Budget mensuel (€)</label>
-                <input type="number" value={catForm.budget} onChange={e => setCatForm(prev => ({ ...prev, budget: e.target.value }))} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500" placeholder="Optionnel" />
               </div>
 
               {/* Subcategories list creation */}
@@ -3078,6 +3131,414 @@ export const Budget: React.FC<BudgetProps> = ({
             </div>
             <button type="submit" className="w-full py-2.5 bg-purple-600 text-white font-bold rounded-xl uppercase tracking-wider text-[11px]">Confirmer le virement</button>
           </form>
+        </div>
+      )}
+
+      {/* Modal Détail du Prélèvement */}
+      {selectedAboDetail && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="glass-panel border border-white/10 rounded-[28px] w-full max-w-sm p-6 space-y-4 text-xs text-white">
+            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+              <h3 className="text-sm font-bold flex items-center gap-1.5">
+                <span>{selectedAboDetail.moduleSource === 'budget' ? '🔄' : '🌐'} Détail du Prélèvement</span>
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => setSelectedAboDetail(null)} 
+                className="p-1 text-white/40 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-baseline border-b border-white/5 pb-2.5">
+                <span className="text-white/50">Nom :</span>
+                <span className="font-extrabold text-white">{selectedAboDetail.name}</span>
+              </div>
+              <div className="flex justify-between items-baseline border-b border-white/5 pb-2.5">
+                <span className="text-white/50">Montant :</span>
+                <span className="font-black text-rose-300">-{formatMoney(selectedAboDetail.amount)}</span>
+              </div>
+              <div className="flex justify-between items-baseline border-b border-white/5 pb-2.5">
+                <span className="text-white/50">Échéance :</span>
+                <span className="font-bold text-white">
+                  {selectedAboDetail.nextDate ? new Date(selectedAboDetail.nextDate).toLocaleDateString('fr-FR') : '--'}
+                </span>
+              </div>
+              <div className="flex justify-between items-baseline border-b border-white/5 pb-2.5">
+                <span className="text-white/50">Catégorie :</span>
+                <span className="font-bold text-white">{selectedAboDetail.category}</span>
+              </div>
+              <div className="flex justify-between items-baseline border-b border-white/5 pb-2.5">
+                <span className="text-white/50">Source :</span>
+                <span className="font-bold text-purple-400 capitalize">{selectedAboDetail.moduleSource}</span>
+              </div>
+              <div className="flex justify-between items-baseline border-b border-white/5 pb-2.5">
+                <span className="text-white/50">Statut :</span>
+                <span className={`font-bold px-2 py-0.5 rounded ${selectedAboDetail.isSuspended ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-green-500/10 text-green-400 border border-green-500/20'}`}>
+                  {selectedAboDetail.isSuspended ? 'Suspendu' : 'Actif'}
+                </span>
+              </div>
+
+              {/* Account Quick Selector (Only for transactions) */}
+              {selectedAboDetail.rawTx && isAuthorized && (
+                <div className="flex justify-between items-center border-b border-white/5 pb-2.5">
+                  <span className="text-white/50">Compte :</span>
+                  <select
+                    value={selectedAboDetail.accountId || ''}
+                    onChange={async (e) => {
+                      const newAccId = e.target.value;
+                      const tx = selectedAboDetail.rawTx;
+                      const client = getSupabaseClient();
+                      if (client) {
+                        await client.from('transactions').update({ account_id: newAccId }).eq('id', tx.id);
+                      }
+                      setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, accountId: newAccId } : t));
+                      setSelectedAboDetail((prev: any) => ({ ...prev, accountId: newAccId }));
+                    }}
+                    className="bg-[#07111F]/60 border border-white/10 rounded-lg px-2 py-1 text-white text-xs focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="">Non spécifié</option>
+                    {accounts.map(acc => (
+                      <option key={acc.id} value={acc.id} className="bg-neutral-900 text-white">
+                        {acc.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Frequency Selector */}
+              {isAuthorized && (
+                <div className="flex justify-between items-center border-b border-white/5 pb-2.5">
+                  <span className="text-white/50">Fréquence :</span>
+                  <select
+                    value={
+                      selectedAboDetail.rawAbo 
+                        ? selectedAboDetail.rawAbo.period 
+                        : selectedAboDetail.rawTx?.recurrence || 'none'
+                    }
+                    onChange={async (e) => {
+                      const newFreq = e.target.value as any;
+                      const client = getSupabaseClient();
+                      if (selectedAboDetail.rawAbo) {
+                        const ab = selectedAboDetail.rawAbo;
+                        if (client) {
+                          await client.from('abonnements').update({ period: newFreq }).eq('id', ab.id);
+                        }
+                        setAbonnements(prev => prev.map(a => a.id === ab.id ? { ...a, period: newFreq } : a));
+                        setSelectedAboDetail((prev: any) => ({
+                          ...prev,
+                          frequency: newFreq === 'monthly' ? 'Mensuel' : newFreq === 'yearly' ? 'Annuel' : newFreq === 'weekly' ? 'Hebdomadaire' : newFreq,
+                          rawAbo: { ...ab, period: newFreq }
+                        }));
+                      } else if (selectedAboDetail.rawTx) {
+                        const tx = selectedAboDetail.rawTx;
+                        if (client) {
+                          await client.from('transactions').update({ recurrence: newFreq }).eq('id', tx.id);
+                        }
+                        setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, recurrence: newFreq } : t));
+                        setSelectedAboDetail((prev: any) => ({
+                          ...prev,
+                          frequency: newFreq === 'monthly' ? 'Mensuel' : newFreq === 'yearly' ? 'Annuel' : newFreq === 'weekly' ? 'Hebdomadaire' : newFreq === 'daily' ? 'Quotidien' : newFreq,
+                          rawTx: { ...tx, recurrence: newFreq }
+                        }));
+                      }
+                    }}
+                    className="bg-[#07111F]/60 border border-white/10 rounded-lg px-2 py-1 text-white text-xs focus:outline-none focus:border-purple-500"
+                  >
+                    {selectedAboDetail.rawAbo ? (
+                      <>
+                        <option value="weekly" className="bg-neutral-900 text-white">Hebdomadaire</option>
+                        <option value="monthly" className="bg-neutral-900 text-white">Mensuel</option>
+                        <option value="yearly" className="bg-neutral-900 text-white">Annuel</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="none" className="bg-neutral-900 text-white">Aucune (Suspendu)</option>
+                        <option value="daily" className="bg-neutral-900 text-white">Quotidien</option>
+                        <option value="weekly" className="bg-neutral-900 text-white">Hebdomadaire</option>
+                        <option value="monthly" className="bg-neutral-900 text-white">Mensuel</option>
+                        <option value="yearly" className="bg-neutral-900 text-white">Annuel</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-white/5">
+              {/* Modifier */}
+              {isAuthorized && (
+                <button
+                  onClick={() => {
+                    setSelectedAboDetail(null);
+                    if (selectedAboDetail.rawAbo) {
+                      const ab = selectedAboDetail.rawAbo;
+                      setEditingAbo(ab);
+                      setAboForm({
+                        name: ab.name,
+                        amount: ab.amount.toString(),
+                        period: ab.period || 'monthly',
+                        nextBillingDate: ab.nextBillingDate || new Date().toISOString().split('T')[0],
+                        category: ab.category || 'Abonnements'
+                      });
+                      setIsAboModalOpen(true);
+                    } else if (selectedAboDetail.rawTx) {
+                      handleOpenEditTx(selectedAboDetail.rawTx);
+                    }
+                  }}
+                  className="py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-[11px] flex items-center justify-center gap-1 transition cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  Modifier
+                </button>
+              )}
+
+              {/* Suspendre / Reprendre */}
+              {isAuthorized && (
+                <button
+                  onClick={async () => {
+                    if (selectedAboDetail.rawAbo) {
+                      toggleSuspendAbo(selectedAboDetail.rawAbo.id);
+                      setSelectedAboDetail((prev: any) => ({
+                        ...prev,
+                        isSuspended: !prev.isSuspended
+                      }));
+                    } else if (selectedAboDetail.rawTx) {
+                      const tx = selectedAboDetail.rawTx;
+                      if (window.confirm("Voulez-vous suspendre la récurrence de cette transaction ? (La récurrence sera désactivée)")) {
+                        const client = getSupabaseClient();
+                        if (client) {
+                          await client.from('transactions').update({ recurrence: 'none' }).eq('id', tx.id);
+                        }
+                        setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, recurrence: 'none' } : t));
+                        setSelectedAboDetail(null);
+                      }
+                    }
+                  }}
+                  className={`py-2 font-bold rounded-xl text-[11px] flex items-center justify-center gap-1 transition cursor-pointer ${
+                    selectedAboDetail.isSuspended 
+                      ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30 border border-green-500/20' 
+                      : 'bg-amber-600/20 text-amber-400 hover:bg-amber-600/30 border border-amber-500/20'
+                  }`}
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  {selectedAboDetail.isSuspended ? 'Reprendre' : 'Suspendre'}
+                </button>
+              )}
+
+              {/* Supprimer */}
+              {isAuthorized && (
+                <button
+                  onClick={async () => {
+                    if (!window.confirm(`Voulez-vous supprimer ce prélèvement ?`)) return;
+                    const client = getSupabaseClient();
+                    if (selectedAboDetail.rawAbo) {
+                      const ab = selectedAboDetail.rawAbo;
+                      if (client) {
+                        await client.from('abonnements').delete().eq('id', ab.id);
+                      }
+                      setAbonnements(prev => prev.filter(a => a.id !== ab.id));
+                    } else if (selectedAboDetail.rawTx) {
+                      const tx = selectedAboDetail.rawTx;
+                      if (client) {
+                        await client.from('transactions').delete().eq('id', tx.id);
+                      }
+                      setTransactions(prev => prev.filter(t => t.id !== tx.id));
+                    }
+                    setSelectedAboDetail(null);
+                  }}
+                  className="col-span-2 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 font-bold rounded-xl text-[11px] flex items-center justify-center gap-1 border border-red-500/20 transition cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Supprimer définitivement
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Détail de la Transaction */}
+      {selectedTxDetail && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="glass-panel border border-white/10 rounded-[28px] w-full max-w-md p-6 space-y-4 text-xs text-white">
+            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+              <h3 className="text-sm font-bold flex items-center gap-1.5">
+                <span>📊 Détail de la Transaction</span>
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => setSelectedTxDetail(null)} 
+                className="p-1 text-white/40 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 no-scrollbar">
+              {/* Titre & Montant */}
+              <div className="flex justify-between items-start border-b border-white/5 pb-2.5">
+                <div>
+                  <h4 className="font-extrabold text-sm text-white">{selectedTxDetail.title}</h4>
+                  <p className="text-[10px] text-white/40 mt-0.5">ID: {selectedTxDetail.id}</p>
+                </div>
+                <span className={`font-black text-base ${selectedTxDetail.type === 'expense' ? 'text-rose-300' : selectedTxDetail.type === 'income' ? 'text-emerald-300' : 'text-purple-300'}`}>
+                  {selectedTxDetail.type === 'expense' ? '-' : selectedTxDetail.type === 'income' ? '+' : ''}
+                  {formatMoney(selectedTxDetail.amount)}
+                </span>
+              </div>
+
+              {/* Breadcrumb Hierarchy */}
+              <div className="flex justify-between items-baseline border-b border-white/5 pb-2.5">
+                <span className="text-white/50">Hiérarchie :</span>
+                <span className="font-bold text-white/80">
+                  Budget &gt; {selectedTxDetail.category} {selectedTxDetail.subCategory ? `> ${selectedTxDetail.subCategory}` : ''}
+                </span>
+              </div>
+
+              {/* Compte */}
+              <div className="flex justify-between items-baseline border-b border-white/5 pb-2.5">
+                <span className="text-white/50">Compte :</span>
+                <span className="font-bold text-white">
+                  {accounts.find(a => a.id === selectedTxDetail.accountId)?.name || 'Non spécifié'}
+                </span>
+              </div>
+
+              {/* Auteur */}
+              <div className="flex justify-between items-baseline border-b border-white/5 pb-2.5">
+                <span className="text-white/50">Auteur :</span>
+                <span className="font-bold text-white">
+                  {selectedTxDetail.memberName || 'Famille'}
+                </span>
+              </div>
+
+              {/* Created via */}
+              <div className="flex justify-between items-baseline border-b border-white/5 pb-2.5">
+                <span className="text-white/50">Créé via :</span>
+                <span className="font-bold text-white">
+                  {getCreationMethod(selectedTxDetail)}
+                </span>
+              </div>
+
+              {/* Saisie Date/Heure */}
+              <div className="flex justify-between items-baseline border-b border-white/5 pb-2.5">
+                <span className="text-white/50">Horodatage de création :</span>
+                <span className="font-bold text-white">
+                  {selectedTxDetail.entryDate ? new Date(selectedTxDetail.entryDate).toLocaleDateString('fr-FR') : '--'}
+                  {selectedTxDetail.entryTime ? ` • ${selectedTxDetail.entryTime}` : ''}
+                </span>
+              </div>
+
+              {/* Notes / Commentaire */}
+              {selectedTxDetail.comment && (
+                <div className="border-b border-white/5 pb-2.5 space-y-1">
+                  <span className="text-white/50 block">Notes / Commentaire :</span>
+                  <p className="text-white/70 italic bg-white/2 p-2 rounded-xl border border-white/5 leading-relaxed">
+                    {selectedTxDetail.comment}
+                  </p>
+                </div>
+              )}
+
+              {/* Attachment Receipt */}
+              {selectedTxDetail.receiptBase64 && (
+                <div className="border-b border-white/5 pb-2.5 space-y-1">
+                  <span className="text-white/50 block">Justificatif (Reçu/Ticket) :</span>
+                  <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-white/5 p-1 w-full max-w-[200px] mx-auto aspect-video flex items-center justify-center">
+                    <img 
+                      src={selectedTxDetail.receiptBase64} 
+                      alt="Reçu de paiement" 
+                      className="max-w-full max-h-full object-contain rounded-xl"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Modification History Timeline */}
+              {selectedTxDetail.modificationHistory && selectedTxDetail.modificationHistory.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest block">Historique des modifications</span>
+                  <div className="space-y-2 border-l border-white/10 pl-3 ml-1.5 py-1">
+                    {selectedTxDetail.modificationHistory.map((hist, idx) => (
+                      <div key={idx} className="relative text-[10px] space-y-0.5">
+                        <div className="absolute w-2 h-2 rounded-full bg-purple-500 -left-[17px] top-1 border border-neutral-950" />
+                        <div className="flex justify-between text-white/40">
+                          <span className="font-bold text-purple-300">{hist.author}</span>
+                          <span>{hist.date}</span>
+                        </div>
+                        <p className="text-white/70">{hist.action}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
+              {/* Modifier */}
+              {isAuthorized && (
+                <button
+                  onClick={() => {
+                    setSelectedTxDetail(null);
+                    handleOpenEditTx(selectedTxDetail);
+                  }}
+                  className="py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-[11px] flex items-center justify-center gap-1 transition cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  Modifier
+                </button>
+              )}
+
+              {/* Dupliquer */}
+              {isAuthorized && (
+                <button
+                  onClick={() => {
+                    setSelectedTxDetail(null);
+                    handleDuplicateTx(selectedTxDetail);
+                  }}
+                  className="py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 font-bold rounded-xl text-[11px] flex items-center justify-center gap-1 transition cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Dupliquer
+                </button>
+              )}
+
+              {/* Archiver / Désarchiver */}
+              {isAuthorized && (
+                <button
+                  onClick={async () => {
+                    await handleArchiveTx(selectedTxDetail);
+                    setSelectedTxDetail(prev => prev ? { ...prev, isArchived: !prev.isArchived } : null);
+                  }}
+                  className={`py-2.5 font-bold rounded-xl text-[11px] flex items-center justify-center gap-1 transition cursor-pointer ${
+                    selectedTxDetail.isArchived
+                      ? 'bg-amber-600/20 text-amber-400 hover:bg-amber-600/30 border border-amber-500/20'
+                      : 'bg-white/5 hover:bg-white/10 text-white border border-white/10'
+                  }`}
+                >
+                  <Archive className="w-3.5 h-3.5" />
+                  {selectedTxDetail.isArchived ? 'Désarchiver' : 'Archiver'}
+                </button>
+              )}
+
+              {/* Supprimer */}
+              {isAuthorized && (
+                <button
+                  onClick={async () => {
+                    const id = selectedTxDetail.id;
+                    setSelectedTxDetail(null);
+                    await handleDeleteTx(id);
+                  }}
+                  className="py-2.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 font-bold rounded-xl text-[11px] flex items-center justify-center gap-1 border border-red-500/20 transition cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Supprimer
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

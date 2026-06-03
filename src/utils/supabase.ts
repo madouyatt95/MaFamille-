@@ -168,3 +168,22 @@ export function deserializeTransactionComment(serialized: string | null | undefi
   return { comment: serialized, metadata: {} };
 }
 
+export function getModuleIdFromTransaction(t: any): string | null {
+  if (t.moduleSource && t.moduleSource !== 'budget') {
+    return t.moduleSource;
+  }
+  const cat = (t.category || '').toLowerCase().trim();
+  if (cat === 'alimentation' || cat === 'courses') return 'courses';
+  if (cat === 'santé' || cat === 'sante') return 'sante';
+  if (cat === 'transport' || cat === 'véhicules' || cat === 'vehicules') return 'vehicules';
+  if (cat === 'logement') return 'logement';
+  if (cat === 'voyages' || cat === 'voyage') return 'voyages';
+  if (cat === 'éducation' || cat === 'education' || cat === 'école' || cat === 'ecole') return 'ecole';
+  if (cat === 'administratif' || cat === 'démarches' || cat === 'demarches') return 'demarches';
+  if (cat === 'animaux') return 'animaux';
+  if (cat === 'argent de poche') return 'argent_de_poche';
+  if (cat === 'tâches' || cat === 'taches') return 'taches';
+  return null;
+}
+
+

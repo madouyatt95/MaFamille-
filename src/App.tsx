@@ -92,7 +92,7 @@ import { QuickActionsSheet } from './components/QuickActionsSheet';
 // Views imports
 import { Accueil } from './views/Accueil';
 import { Agenda } from './views/Agenda';
-import { Budget, DEFAULT_CATEGORIES } from './views/Budget';
+import { Budget } from './views/Budget';
 import { MenuHub } from './views/MenuHub';
 import { Settings } from './views/Settings';
 import { Membres } from './views/Membres';
@@ -102,7 +102,7 @@ import { Paywall } from './components/Paywall';
 import { Onboarding } from './views/Onboarding';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
 import { foyerService } from './services/foyerService';
-import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment } from './utils/supabase';
+import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction } from './utils/supabase';
 import { notificationService } from './services/notificationService';
 import type { Foyer, FoyerMember } from './types';
 
@@ -306,6 +306,37 @@ function App() {
 
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>(() => {
     return safeGetLocalStorage('mf_custom_categories', []);
+  });
+
+  const [moduleBudgets, setModuleBudgets] = useState<Record<string, { budget: number; recurrence: string }>>(() => {
+    try {
+      const cached = localStorage.getItem('mf_module_budgets_global');
+      return cached ? JSON.parse(cached) : {
+        courses: { budget: 500, recurrence: 'monthly' },
+        sante: { budget: 150, recurrence: 'monthly' },
+        vehicules: { budget: 200, recurrence: 'monthly' },
+        logement: { budget: 800, recurrence: 'monthly' },
+        voyages: { budget: 1000, recurrence: 'custom' },
+        ecole: { budget: 150, recurrence: 'monthly' },
+        demarches: { budget: 100, recurrence: 'monthly' },
+        animaux: { budget: 100, recurrence: 'monthly' },
+        argent_de_poche: { budget: 50, recurrence: 'monthly' },
+        taches: { budget: 50, recurrence: 'monthly' }
+      };
+    } catch {
+      return {
+        courses: { budget: 500, recurrence: 'monthly' },
+        sante: { budget: 150, recurrence: 'monthly' },
+        vehicules: { budget: 200, recurrence: 'monthly' },
+        logement: { budget: 800, recurrence: 'monthly' },
+        voyages: { budget: 1000, recurrence: 'custom' },
+        ecole: { budget: 150, recurrence: 'monthly' },
+        demarches: { budget: 100, recurrence: 'monthly' },
+        animaux: { budget: 100, recurrence: 'monthly' },
+        argent_de_poche: { budget: 50, recurrence: 'monthly' },
+        taches: { budget: 50, recurrence: 'monthly' }
+      };
+    }
   });
   const [accounts, setAccounts] = useState<Account[]>(() => {
     return safeGetLocalStorage('mf_accounts', []);
@@ -4225,6 +4256,129 @@ function App() {
     }
   }, [foyer, events]);
 
+  // Load foyer-specific module budgets when foyer changes
+  useEffect(() => {
+    if (foyer?.id) {
+      const cached = localStorage.getItem(`mf_module_budgets_${foyer.id}`);
+      if (cached) {
+        try {
+          setModuleBudgets(JSON.parse(cached));
+        } catch (e) {
+          console.error("Error parsing module budgets from cache", e);
+        }
+      }
+    }
+  }, [foyer]);
+
+  // Migration of category limits to module budgets
+  useEffect(() => {
+    if (!foyer?.id) return;
+    
+    const migrationKey = `mf_category_limits_migrated_${foyer.id}`;
+    const alreadyMigrated = localStorage.getItem(migrationKey);
+    if (alreadyMigrated) return;
+
+    // Load category budgets from localStorage (if any)
+    const categoryBudgetsSaved = localStorage.getItem('mf_category_budgets');
+    const localCategoryBudgets = categoryBudgetsSaved ? JSON.parse(categoryBudgetsSaved) : {};
+
+    // Load module budgets (foyer-specific)
+    const moduleBudgetsSaved = localStorage.getItem(`mf_module_budgets_${foyer.id}`);
+    const currentModuleBudgets = moduleBudgetsSaved ? JSON.parse(moduleBudgetsSaved) : {
+      courses: { budget: 500, recurrence: 'monthly' },
+      sante: { budget: 150, recurrence: 'monthly' },
+      vehicules: { budget: 200, recurrence: 'monthly' },
+      logement: { budget: 800, recurrence: 'monthly' },
+      voyages: { budget: 1000, recurrence: 'custom' },
+      ecole: { budget: 150, recurrence: 'monthly' },
+      demarches: { budget: 100, recurrence: 'monthly' },
+      animaux: { budget: 100, recurrence: 'monthly' },
+      argent_de_poche: { budget: 50, recurrence: 'monthly' },
+      taches: { budget: 50, recurrence: 'monthly' }
+    };
+
+    const categoryToModuleId: Record<string, string> = {
+      'alimentation': 'courses',
+      'santé': 'sante',
+      'transport': 'vehicules',
+      'logement': 'logement',
+      'voyages': 'voyages',
+      'éducation': 'ecole',
+      'administratif': 'demarches',
+      'animaux': 'animaux',
+      'argent de poche': 'argent_de_poche'
+    };
+
+    const updatedModuleBudgets = { ...currentModuleBudgets };
+    let hasChanges = false;
+
+    // 1. Migrate from localStorage 'mf_category_budgets'
+    Object.entries(localCategoryBudgets).forEach(([catName, budgetVal]) => {
+      const norm = catName.toLowerCase().trim();
+      const modId = categoryToModuleId[norm];
+      const budget = Number(budgetVal);
+      if (modId && budget > 0) {
+        const currentLimit = updatedModuleBudgets[modId]?.budget || 0;
+        // Overwrite standard/unset defaults
+        if (currentLimit === 0 || currentLimit === 500 || currentLimit === 150 || currentLimit === 200 || currentLimit === 800 || currentLimit === 1000 || currentLimit === 100) {
+          updatedModuleBudgets[modId] = {
+            budget,
+            recurrence: updatedModuleBudgets[modId]?.recurrence || 'monthly'
+          };
+          hasChanges = true;
+        }
+      }
+    });
+
+    // 2. Migrate from customCategories in state
+    customCategories.forEach(cc => {
+      const norm = cc.name.toLowerCase().trim();
+      const modId = categoryToModuleId[norm];
+      const budget = Number(cc.budget || 0);
+      if (modId && budget > 0) {
+        const currentLimit = updatedModuleBudgets[modId]?.budget || 0;
+        if (currentLimit === 0 || currentLimit === 500 || currentLimit === 150 || currentLimit === 200 || currentLimit === 800 || currentLimit === 1000 || currentLimit === 100) {
+          updatedModuleBudgets[modId] = {
+            budget,
+            recurrence: updatedModuleBudgets[modId]?.recurrence || 'monthly'
+          };
+          hasChanges = true;
+        }
+      }
+    });
+
+    // Save migrated module budgets
+    if (hasChanges) {
+      setModuleBudgets(updatedModuleBudgets);
+      localStorage.setItem(`mf_module_budgets_${foyer.id}`, JSON.stringify(updatedModuleBudgets));
+    }
+
+    // Update base de données : set budget to 0 on Supabase for custom categories
+    const client = getSupabaseClient();
+    customCategories.forEach(async (cc) => {
+      if (cc.budget && cc.budget > 0) {
+        if (client) {
+          try {
+            await client.from('custom_categories').update({
+              budget: 0
+            }).eq('id', cc.id);
+          } catch (e) {
+            console.error("Migration custom category budget error:", e);
+          }
+        }
+      }
+    });
+
+    // Clear localCategoryBudgets
+    localStorage.removeItem('mf_category_budgets');
+
+    // Mark as migrated
+    localStorage.setItem(migrationKey, 'true');
+
+    // Set client customCategories budgets to 0
+    setCustomCategories(prev => prev.map(c => ({ ...c, budget: 0 })));
+  }, [foyer, customCategories]);
+
   useEffect(() => {
     safeSetLocalStorage('mf_chat_groups', JSON.stringify(chatGroups));
   }, [chatGroups]);
@@ -4319,51 +4473,43 @@ function App() {
   };
 
   const dynamicBudgetAlerts = useMemo(() => {
-    const allCats = [...customCategories];
-    DEFAULT_CATEGORIES.forEach(dc => {
-      if (!allCats.some(c => c.name === dc.name)) {
-        allCats.push({
-          id: `default-${dc.name}`,
-          name: dc.name,
-          icon: dc.icon,
-          color: dc.color,
-          budget: dc.budget,
-          displayOrder: 0
-        });
-      }
-    });
-
-    const budgetsSaved = localStorage.getItem('mf_category_budgets');
-    const localBudgetsObj = budgetsSaved ? JSON.parse(budgetsSaved) : {};
-
-    const activeCats = allCats.map(c => {
-      const savedBudget = localBudgetsObj[c.name];
-      return {
-        ...c,
-        budget: savedBudget !== undefined ? Number(savedBudget) : c.budget
-      };
-    });
-
     const currentMonthStr = new Date().toISOString().substring(0, 7);
-    const categorySums: Record<string, number> = {};
+    const moduleSums: Record<string, number> = {};
     
     transactions
-      .filter(t => t.type === 'expense' && t.date.startsWith(currentMonthStr))
+      .filter(t => !t.isArchived && t.type === 'expense' && t.date.startsWith(currentMonthStr))
       .forEach(t => {
-        categorySums[t.category] = (categorySums[t.category] || 0) + t.amount;
+        const moduleId = getModuleIdFromTransaction(t);
+        if (moduleId) {
+          moduleSums[moduleId] = (moduleSums[moduleId] || 0) + t.amount;
+        }
       });
 
     const generatedAlerts: any[] = [];
-    activeCats.forEach(cat => {
-      const budgetLimit = cat.budget || 0;
+    const modulesList = [
+      { id: 'courses', label: 'Courses & Achats', icon: '🛒' },
+      { id: 'sante', label: 'Santé & Soins', icon: '🩺' },
+      { id: 'vehicules', label: 'Véhicule & Auto', icon: '🚗' },
+      { id: 'logement', label: 'Logement & Charges', icon: '🏠' },
+      { id: 'voyages', label: 'Voyages & Vacances', icon: '✈️' },
+      { id: 'ecole', label: 'École & Éducation', icon: '🎓' },
+      { id: 'demarches', label: 'Démarches Admin', icon: '📂' },
+      { id: 'animaux', label: 'Animaux & Veto', icon: '🐶' },
+      { id: 'argent_de_poche', label: 'Argent de Poche', icon: '🪙' },
+      { id: 'taches', label: 'Tâches Ménagères', icon: '🧹' }
+    ];
+
+    modulesList.forEach(m => {
+      const budgetObj = moduleBudgets[m.id];
+      const budgetLimit = budgetObj?.budget || 0;
       if (budgetLimit > 0) {
-        const spent = categorySums[cat.name] || 0;
+        const spent = moduleSums[m.id] || 0;
         
         if (spent > budgetLimit) {
           generatedAlerts.push({
-            id: `budget-overrun-${cat.name}-${currentMonthStr}`,
-            title: `⚠️ Budget dépassé : ${cat.name}`,
-            description: `Le budget de la catégorie "${cat.icon} ${cat.name}" a été dépassé (${spent.toFixed(2)}€ dépensés / limite ${budgetLimit}€).`,
+            id: `budget-overrun-${m.id}-${currentMonthStr}`,
+            title: `⚠️ Budget dépassé : ${m.label}`,
+            description: `Le budget du module "${m.icon} ${m.label}" a été dépassé (${spent.toFixed(2)}€ dépensés / limite ${budgetLimit}€).`,
             time: 'Actuellement',
             type: 'error',
             read: false,
@@ -4372,9 +4518,9 @@ function App() {
           });
         } else if (spent >= budgetLimit * 0.9) {
           generatedAlerts.push({
-            id: `budget-warning-${cat.name}-${currentMonthStr}`,
-            title: `⚠️ Budget bientôt atteint : ${cat.name}`,
-            description: `Le budget de la catégorie "${cat.icon} ${cat.name}" est presque atteint (${spent.toFixed(2)}€ dépensés / limite ${budgetLimit}€).`,
+            id: `budget-warning-${m.id}-${currentMonthStr}`,
+            title: `⚠️ Budget bientôt atteint : ${m.label}`,
+            description: `Le budget du module "${m.icon} ${m.label}" est presque atteint (${spent.toFixed(2)}€ dépensés / limite ${budgetLimit}€).`,
             time: 'Actuellement',
             type: 'warning',
             read: false,
@@ -4386,7 +4532,7 @@ function App() {
     });
 
     return generatedAlerts;
-  }, [transactions, customCategories]);
+  }, [transactions, moduleBudgets]);
 
   const allAlertsCombined = useMemo(() => {
     return [...alerts, ...dynamicBudgetAlerts];
@@ -4625,106 +4771,102 @@ function App() {
       }));
     }
 
-    // Vérification du plafond budgétaire et génération d'une alerte si nécessaire
+    // Vérification du plafond budgétaire par module et génération d'une alerte si nécessaire
     if (finalTx.type === 'expense') {
       try {
-        const budgetsSaved = localStorage.getItem('mf_category_budgets');
-        const budgets = budgetsSaved ? JSON.parse(budgetsSaved) : {
-          'Alimentation': 600,
-          'Logement': 800,
-          'Transport': 250,
-          'Santé': 150,
-          'Éducation': 200,
-          'Autres': 150
-        };
-
-        const category = finalTx.category;
-        const limit = budgets[category] || 0;
-        if (limit > 0) {
-          const transDate = finalTx.date || todayISO;
-          
-          let transMonth = '';
-          let transYear = '';
-          if (transDate.includes('/')) {
-            const parts = transDate.split('/');
-            transMonth = parts[1];
-            transYear = parts[2];
-          } else if (transDate.includes('-')) {
-            const parts = transDate.split('-');
-            transMonth = parts[1];
-            transYear = parts[0];
-          }
-
-          // Filtrer les dépenses de la même catégorie pour le même mois
-          const categoryTransactions = transactions.filter(t => {
-            if (t.type !== 'expense') return false;
-            
-            // Logique d'appartenance à la catégorie
-            const isCategory = (catName: string, tCat: string) => {
-              const mainCategories = ['Alimentation', 'Logement', 'Transport', 'Santé', 'Éducation'];
-              if (catName === 'Autres') {
-                return !mainCategories.includes(tCat);
-              }
-              return tCat === catName;
-            };
-            if (!isCategory(category, t.category)) return false;
-
-            if (!t.date) return false;
-            let tMonth = '';
-            let tYear = '';
-            if (t.date.includes('/')) {
-              const parts = t.date.split('/');
-              tMonth = parts[1];
-              tYear = parts[2];
-            } else if (t.date.includes('-')) {
-              const parts = t.date.split('-');
-              tMonth = parts[1];
-              tYear = parts[0];
+        const moduleId = getModuleIdFromTransaction(finalTx);
+        if (moduleId) {
+          const budgetObj = moduleBudgets[moduleId];
+          const limit = budgetObj?.budget || 0;
+          if (limit > 0) {
+            const transDate = finalTx.date || todayISO;
+            let transMonth = '';
+            let transYear = '';
+            if (transDate.includes('/')) {
+              const parts = transDate.split('/');
+              transMonth = parts[1];
+              transYear = parts[2];
+            } else if (transDate.includes('-')) {
+              const parts = transDate.split('-');
+              transMonth = parts[1];
+              transYear = parts[0];
             }
-            return tMonth === transMonth && tYear === transYear;
-          });
 
-          const previousExpenses = categoryTransactions.reduce((sum, t) => sum + t.amount, 0);
-          const currentExpenses = previousExpenses + finalTx.amount;
+            // Filtrer les dépenses du même module pour le même mois
+            const moduleTransactions = transactions.filter(t => {
+              if (t.type !== 'expense') return false;
+              if (getModuleIdFromTransaction(t) !== moduleId) return false;
+              if (!t.date) return false;
+              let tMonth = '';
+              let tYear = '';
+              if (t.date.includes('/')) {
+                const parts = t.date.split('/');
+                tMonth = parts[1];
+                tYear = parts[2];
+              } else if (t.date.includes('-')) {
+                const parts = t.date.split('-');
+                tMonth = parts[1];
+                tYear = parts[0];
+              }
+              return tMonth === transMonth && tYear === transYear;
+            });
 
-          const prevRatio = (previousExpenses / limit) * 100;
-          const currentRatio = (currentExpenses / limit) * 100;
+            const previousExpenses = moduleTransactions.reduce((sum, t) => sum + t.amount, 0);
+            const currentExpenses = previousExpenses + finalTx.amount;
 
-          let triggered = false;
-          let alertTitle = '';
-          let alertDesc = '';
-          let alertType: 'warning' | 'error' = 'warning';
+            const prevRatio = (previousExpenses / limit) * 100;
+            const currentRatio = (currentExpenses / limit) * 100;
 
-          if (currentRatio >= 100 && prevRatio < 100) {
-            triggered = true;
-            alertTitle = `🚨 Dépassement Budget : ${category}`;
-            alertDesc = `Le plafond mensuel de ${limit}€ pour ${category} a été dépassé. Total : ${currentExpenses.toFixed(2)}€.`;
-            alertType = 'error';
-          } else if (currentRatio >= 75 && prevRatio < 75) {
-            triggered = true;
-            alertTitle = `⚠️ Alerte Budget 75% : ${category}`;
-            alertDesc = `Les dépenses pour la catégorie ${category} ont atteint ${currentRatio.toFixed(0)}% du budget de ${limit}€ (Total : ${currentExpenses.toFixed(2)}€).`;
-            alertType = 'warning';
-          }
+            let triggered = false;
+            let alertTitle = '';
+            let alertDesc = '';
+            let alertType: 'warning' | 'error' = 'warning';
 
-          if (triggered) {
-            const newAlert: NotificationAlert = {
-              id: `alert-budget-${Date.now()}-${category}`,
-              title: alertTitle,
-              description: alertDesc,
-              time: 'À l\'instant',
-              type: alertType,
-              read: false,
-              module: 'budget'
+            const modulesList: Record<string, { label: string; icon: string }> = {
+              courses: { label: 'Courses & Achats', icon: '🛒' },
+              sante: { label: 'Santé & Soins', icon: '🩺' },
+              vehicules: { label: 'Véhicule & Auto', icon: '🚗' },
+              logement: { label: 'Logement & Charges', icon: '🏠' },
+              voyages: { label: 'Voyages & Vacances', icon: '✈️' },
+              ecole: { label: 'École & Éducation', icon: '🎓' },
+              demarches: { label: 'Démarches Admin', icon: '📂' },
+              animaux: { label: 'Animaux & Veto', icon: '🐶' },
+              argent_de_poche: { label: 'Argent de Poche', icon: '🪙' },
+              taches: { label: 'Tâches Ménagères', icon: '🧹' }
             };
-            setAlerts(prev => [newAlert, ...prev]);
-            saveAlertToCloud(newAlert);
-            
-            try {
-              const savedAlerts = localStorage.getItem('mf_alerts');
-              const parsedAlerts = savedAlerts ? JSON.parse(savedAlerts) : [];
-              localStorage.setItem('mf_alerts', JSON.stringify([newAlert, ...parsedAlerts]));
-            } catch (_) {}
+            const modInfo = modulesList[moduleId] || { label: moduleId, icon: '💰' };
+
+            if (currentRatio >= 100 && prevRatio < 100) {
+              triggered = true;
+              alertTitle = `🚨 Dépassement Budget : ${modInfo.label}`;
+              alertDesc = `Le plafond mensuel de ${limit}€ pour le module "${modInfo.icon} ${modInfo.label}" a été dépassé. Total : ${currentExpenses.toFixed(2)}€.`;
+              alertType = 'error';
+            } else if (currentRatio >= 90 && prevRatio < 90) {
+              triggered = true;
+              alertTitle = `⚠️ Alerte Budget 90% : ${modInfo.label}`;
+              alertDesc = `Les dépenses pour le module "${modInfo.icon} ${modInfo.label}" ont atteint ${currentRatio.toFixed(0)}% du budget de ${limit}€ (Total : ${currentExpenses.toFixed(2)}€).`;
+              alertType = 'warning';
+            }
+
+            if (triggered) {
+              const newAlert: NotificationAlert = {
+                id: `alert-budget-${Date.now()}-${moduleId}`,
+                title: alertTitle,
+                description: alertDesc,
+                time: 'À l\'instant',
+                type: alertType,
+                read: false,
+                module: 'budget'
+              };
+              setAlerts(prev => [newAlert, ...prev]);
+              saveAlertToCloud(newAlert);
+              
+              try {
+                const savedAlerts = localStorage.getItem('mf_alerts');
+                const parsedAlerts = savedAlerts ? JSON.parse(savedAlerts) : [];
+                localStorage.setItem('mf_alerts', JSON.stringify([newAlert, ...parsedAlerts]));
+              } catch (_) {}
+            }
           }
         }
       } catch (err) {
@@ -5711,6 +5853,8 @@ function App() {
           setDebts={setDebts}
           activeSubView={budgetActiveSubView}
           onClearActiveSubView={() => setBudgetActiveSubView(null)}
+          moduleBudgets={moduleBudgets}
+          setModuleBudgets={setModuleBudgets}
         />
       );
     }
