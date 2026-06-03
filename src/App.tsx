@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { parseSmartNaturalSentence } from './utils/groceryParser';
 
+
 import type { 
   Member, 
   FamilyEvent, 
@@ -390,7 +391,8 @@ function App() {
 
   // Navigation and Sheets UI State
   const [activeTab, setActiveTab] = useState('accueil');
-  const [budgetActiveSubView, setBudgetActiveSubView] = useState<{ type: 'export' | 'import', options?: any } | null>(null);
+  const [budgetActiveSubView, setBudgetActiveSubView] = useState<{ type: 'export' | 'import' | 'transaction_form', options?: any } | null>(null);
+
   const [activeModule, rawSetActiveModule] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);

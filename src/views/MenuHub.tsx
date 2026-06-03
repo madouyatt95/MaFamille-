@@ -4789,8 +4789,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                       onAddTransaction({
                         amount: amt,
                         type: 'expense',
-                        category: 'Autres',
-                        subCategory: 'Animaux',
+                        category: 'Animaux',
+                        subCategory: newPetExpenseSubCategory,
                         title: `Animaux - ${p.name} : ${newPetExpenseSubCategory}`,
                         date: new Date().toISOString().split('T')[0],
                         accountId: newPetExpenseAccountId || null,

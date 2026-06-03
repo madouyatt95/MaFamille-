@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, Briefcase, Car, Home, Plane, CreditCard, User, AlertTriangle, ArrowLeft, Trash2, Download, Share2, CheckCircle2, ChevronRight, Calendar, Users, Scan, Lock } from 'lucide-react';
 import Tesseract from 'tesseract.js';
-import type { DocumentFile, DocumentCategory, Member, Demarche, JustificatifPack } from '../../types';
+import type { DocumentFile, DocumentCategory, Member, Demarche, JustificatifPack, DemarcheTemplate } from '../../types';
 import { demarcheTemplates } from '../../data/demoData';
 import { generatePackPDF } from '../../utils/pdfGenerator';
 
@@ -62,6 +62,53 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
   const [newDemarcheTitle, setNewDemarcheTitle] = useState('');
   const [newDemarcheTemplate, setNewDemarcheTemplate] = useState('');
   const [newDemarcheAssignee, setNewDemarcheAssignee] = useState('');
+
+  const [demarcheSearchQuery, setDemarcheSearchQuery] = useState('');
+  const [suggestedMemberId, setSuggestedMemberId] = useState<string>(members[0]?.id || '');
+  const [customTemplates, setCustomTemplates] = useState<DemarcheTemplate[]>(() => {
+    try {
+      const cached = localStorage.getItem('mf_custom_demarche_templates');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [showCustomTplModal, setShowCustomTplModal] = useState(false);
+  const [customTplForm, setCustomTplForm] = useState({
+    title: '',
+    category: 'Identité',
+    description: '',
+    steps: '',
+    pieces: '',
+    cost: '',
+    icon: '📋'
+  });
+
+  const getAgeInYears = (m: Member): number => {
+    if (m.birthDate) {
+      const parts = m.birthDate.split('/');
+      if (parts.length === 3) {
+        const birth = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        const now = new Date();
+        let age = now.getFullYear() - birth.getFullYear();
+        const monthDiff = now.getMonth() - birth.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) {
+          age--;
+        }
+        return age;
+      }
+    }
+    if (m.age) {
+      const num = parseInt(m.age);
+      if (!isNaN(num)) {
+        if (m.age.toLowerCase().includes('mois')) {
+          return num / 12;
+        }
+        return num;
+      }
+    }
+    return 30; // default to adult
+  };
 
   // Pack states
   const [showNewPack, setShowNewPack] = useState(false);
@@ -245,6 +292,26 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
       alert("📋 Lien du document copié dans le presse-papiers ! Vous pouvez le coller pour le partager.");
     }
   };
+
+  const allTemplates = useMemo(() => [...demarcheTemplates, ...customTemplates], [customTemplates]);
+  const filteredTemplates = useMemo(() => {
+    if (!demarcheSearchQuery) return allTemplates;
+    const q = demarcheSearchQuery.toLowerCase();
+    return allTemplates.filter(t => t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q) || t.category.toLowerCase().includes(q));
+  }, [allTemplates, demarcheSearchQuery]);
+
+  const suggestions = useMemo(() => {
+    const suggestedMember = members.find(m => m.id === suggestedMemberId);
+    if (!suggestedMember) return [];
+    const age = getAgeInYears(suggestedMember);
+    if (age < 2) {
+      return allTemplates.filter(t => t.id === 'tpl-acte-naissance' || t.id === 'tpl-carte-vitale');
+    } else if (age < 18) {
+      return allTemplates.filter(t => t.id === 'tpl-cni' || t.id === 'tpl-passeport');
+    } else {
+      return allTemplates.filter(t => t.id === 'tpl-voyage-passeport' || t.id === 'tpl-permis');
+    }
+  }, [allTemplates, members, suggestedMemberId]);
 
   return (
     <div className="flex flex-col h-full bg-[#07111F] text-white">
@@ -888,6 +955,75 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
       {/* ===================== DEMARCHES VIEW ===================== */}
       {mainTab === 'demarches' && !activeDemarche && (
         <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          {/* Header Controls: Search & Custom Model Button */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+              <input
+                type="text"
+                value={demarcheSearchQuery}
+                onChange={e => setDemarcheSearchQuery(e.target.value)}
+                placeholder="Rechercher une démarche ou un modèle..."
+                className="w-full bg-white/5 border border-white/10 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-white/35 focus:outline-none focus:border-[#6C5CFF]"
+              />
+              {demarcheSearchQuery && (
+                <button type="button" onClick={() => setDemarcheSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowCustomTplModal(true)}
+              className="px-4 py-2.5 bg-[#00D26A]/10 border border-[#00D26A]/20 hover:bg-[#00D26A]/20 text-[#00D26A] font-extrabold rounded-2xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Créer mon modèle</span>
+            </button>
+          </div>
+
+          {/* Age-based Suggestions */}
+          <div className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2.5">
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest flex items-center gap-1.5">
+                <span>💡 Suggestions par âge</span>
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-white/40">pour</span>
+                <select
+                  value={suggestedMemberId}
+                  onChange={e => setSuggestedMemberId(e.target.value)}
+                  className="bg-white/5 border border-white/10 rounded-xl px-2.5 py-1 text-[10px] text-white focus:outline-none focus:border-[#6C5CFF] cursor-pointer"
+                >
+                  <option value="">Sélectionner un membre...</option>
+                  {members.filter(m => m.id !== '5').map(m => (
+                    <option key={m.id} value={m.id} className="bg-[#07111F] text-white">
+                      {m.name} ({m.age || getAgeInYears(m) + ' ans'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {suggestions.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {suggestions.map(tpl => (
+                  <button
+                    key={tpl.id}
+                    type="button"
+                    onClick={() => { setShowNewDemarche(true); setNewDemarcheTemplate(tpl.id); setNewDemarcheTitle(tpl.name); }}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/5 hover:bg-[#6C5CFF]/10 text-left transition cursor-pointer text-xs"
+                  >
+                    <span className="text-xl shrink-0">{tpl.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <h5 className="text-[11px] font-bold text-white truncate">{tpl.name}</h5>
+                      <p className="text-[9px] text-white/40 truncate">{tpl.description}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[10px] text-white/30 italic text-center">Sélectionnez un membre ci-dessus pour voir ses suggestions.</p>
+            )}
+          </div>
+
           {/* Active Demarches */}
           {demarches.length > 0 && (
             <div className="space-y-3">
@@ -898,7 +1034,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                 const pct = Math.round((doneSteps / totalSteps) * 100);
                 const missingPieces = dem.pieces.filter(p => p.status === 'missing').length;
                 const statusColor = dem.status === 'completed' ? '#00D26A' : dem.status === 'waiting' ? '#FFB020' : '#6C5CFF';
-                const statusLabel = dem.status === 'completed' ? 'Terminée' : dem.status === 'waiting' ? 'En attente' : dem.status === 'in_progress' ? 'En cours' : 'Brouillon';
+                const statusLabel = dem.status === 'completed' ? 'Terminée' : dem.status === 'waiting' ? 'En attente' : dem.status === 'in_progress' ? 'En cours' : 'À faire';
                 return (
                   <button
                     key={dem.id}
@@ -934,20 +1070,25 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
           {/* Templates catalog */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Lancer une démarche</span>
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Modèles disponibles</span>
             </div>
             <div className="grid grid-cols-2 gap-2.5">
-              {demarcheTemplates.map(tpl => (
+              {filteredTemplates.map(tpl => (
                 <button
                   key={tpl.id}
                   type="button"
                   onClick={() => { setShowNewDemarche(true); setNewDemarcheTemplate(tpl.id); setNewDemarcheTitle(tpl.name); }}
                   className="p-4 rounded-[20px] border border-white/8 bg-white/[0.03] hover:bg-white/[0.06] transition-all text-left space-y-2 cursor-pointer active:scale-[0.97]"
                 >
-                  <span className="text-2xl block">{tpl.icon}</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl">{tpl.icon}</span>
+                    {tpl.id.startsWith('tpl-custom') && (
+                      <span className="text-[7px] font-bold uppercase tracking-wider text-[#00D26A] px-1.5 py-0.5 rounded-md bg-[#00D26A]/10 border border-[#00D26A]/20">Perso</span>
+                    )}
+                  </div>
                   <h5 className="text-[11px] font-bold text-white">{tpl.name}</h5>
-                  <p className="text-[9px] text-white/40 leading-relaxed">{tpl.description}</p>
-                  <div className="flex items-center space-x-2 text-[8px] text-white/30">
+                  <p className="text-[9px] text-white/40 leading-relaxed line-clamp-2">{tpl.description}</p>
+                  <div className="flex items-center space-x-2 text-[8px] text-white/30 pt-1">
                     <span>{tpl.defaultSteps.length} étapes</span>
                     <span>•</span>
                     <span>{tpl.defaultPieces.length} pièces</span>
@@ -975,14 +1116,14 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                 <button
                   type="button"
                   onClick={() => {
-                    const tpl = demarcheTemplates.find(t => t.id === newDemarcheTemplate);
+                    const tpl = allTemplates.find(t => t.id === newDemarcheTemplate);
                     const member = members.find(m => m.id === newDemarcheAssignee);
                     const newDem: Demarche = {
                       id: `dem-${Date.now()}`,
                       templateId: newDemarcheTemplate || undefined,
                       title: newDemarcheTitle || 'Nouvelle démarche',
                       icon: tpl?.icon || '📋',
-                      status: 'draft',
+                      status: 'todo',
                       assignedMemberId: member?.id,
                       assignedMemberName: member?.name,
                       steps: (tpl?.defaultSteps || []).map((s, i) => ({ id: `ds-${Date.now()}-${i}`, title: s.title, done: false })),
@@ -1145,8 +1286,11 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   onAddTransaction({
                     amount: amt,
                     type: 'expense',
-                    category: 'Autres',
-                    subCategory: 'Frais admin',
+                    category: 'Administratif',
+                    subCategory: activeDemarche.title.toLowerCase().includes('passeport') ? 'Passeport' :
+                                 activeDemarche.title.toLowerCase().includes('visa') ? 'Visa' :
+                                 activeDemarche.title.toLowerCase().includes('carte') ? 'Carte identité' :
+                                 'Frais administratifs',
                     date: new Date().toISOString().split('T')[0],
                     title: `Frais admin : ${activeDemarche.title}`,
                     memberName: activeDemarche.assignedMemberName || 'Foyer',
@@ -1212,6 +1356,137 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                 </div>
               );
             })()}
+          </div>
+
+          {/* Edit Demarche Info Form */}
+          <div className="glass-panel rounded-[24px] border border-white/8 p-4 space-y-3 text-xs text-left">
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Édition des Détails</span>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-semibold text-white/50 mb-1">Titre de la démarche</label>
+                <input
+                  type="text"
+                  value={activeDemarche.title}
+                  onChange={(e) => {
+                    const updated = { ...activeDemarche, title: e.target.value };
+                    setActiveDemarche(updated);
+                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+                  }}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-white/50 mb-1">Catégorie</label>
+                <select
+                  value={activeDemarche.category || 'Identité'}
+                  onChange={(e) => {
+                    const updated = { ...activeDemarche, category: e.target.value };
+                    setActiveDemarche(updated);
+                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+                  }}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF] cursor-pointer"
+                >
+                  {['Identité', 'Famille', 'Santé', 'École', 'Logement', 'Travail', 'Voyage', 'Véhicules'].map(c => <option key={c} value={c} className="bg-[#07111F]">{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-white/50 mb-1">Date Limite (Échéance)</label>
+                <input
+                  type="date"
+                  value={activeDemarche.dueDate || ''}
+                  onChange={(e) => {
+                    const updated = { ...activeDemarche, dueDate: e.target.value };
+                    setActiveDemarche(updated);
+                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+                  }}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-white/50 mb-1">Statut</label>
+                <select
+                  value={activeDemarche.status}
+                  onChange={(e) => {
+                    const updated = { ...activeDemarche, status: e.target.value as any };
+                    setActiveDemarche(updated);
+                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+                  }}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none cursor-pointer"
+                >
+                  <option value="todo" className="bg-[#07111F]">À faire</option>
+                  <option value="in_progress" className="bg-[#07111F]">En cours</option>
+                  <option value="waiting" className="bg-[#07111F]">En attente</option>
+                  <option value="missing_docs" className="bg-[#07111F]">Documents manquants</option>
+                  <option value="payment_pending" className="bg-[#07111F]">Paiement en attente</option>
+                  <option value="completed" className="bg-[#07111F]">Terminée</option>
+                  <option value="archived" className="bg-[#07111F]">Archivée</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-white/50 mb-1">Coût Estimé (€)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={activeDemarche.costEstimated || ''}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value) || undefined;
+                    const updated = { ...activeDemarche, costEstimated: val };
+                    setActiveDemarche(updated);
+                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+                  }}
+                  placeholder="0.00"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-white/50 mb-1">Coût Réel (€)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={activeDemarche.costReal || activeDemarche.cost || ''}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value) || undefined;
+                    const updated = { ...activeDemarche, costReal: val, cost: val };
+                    setActiveDemarche(updated);
+                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+                  }}
+                  placeholder="0.00"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-white/50 mb-1">Récurrence</label>
+                <select
+                  value={activeDemarche.recurrence || 'none'}
+                  onChange={(e) => {
+                    const updated = { ...activeDemarche, recurrence: e.target.value === 'none' ? undefined : e.target.value };
+                    setActiveDemarche(updated);
+                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+                  }}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none cursor-pointer"
+                >
+                  <option value="none" className="bg-[#07111F]">Aucune</option>
+                  <option value="1m" className="bg-[#07111F]">Mensuelle</option>
+                  <option value="1y" className="bg-[#07111F]">Annuelle</option>
+                  <option value="custom" className="bg-[#07111F]">Personnalisée</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-white/50 mb-1">Rappels (Jours avant échéance)</label>
+                <input
+                  type="text"
+                  placeholder="Ex: 7, 3, 1"
+                  value={activeDemarche.reminders?.join(', ') || ''}
+                  onChange={(e) => {
+                    const list = e.target.value.split(',').map(r => r.trim()).filter(Boolean);
+                    const updated = { ...activeDemarche, reminders: list };
+                    setActiveDemarche(updated);
+                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+                  }}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Delete demarche */}
@@ -1393,6 +1668,86 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                 Fermer l'espace sécurité
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Custom Template Modal */}
+      {showCustomTplModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowCustomTplModal(false)}>
+          <div className="glass-panel border border-white/10 rounded-[28px] w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-extrabold text-white">Créer mon Modèle de Démarche</h3>
+              <button type="button" onClick={() => setShowCustomTplModal(false)} className="p-1.5 bg-white/5 rounded-xl text-white/40 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                if (!customTplForm.title) return;
+                const stepsList = customTplForm.steps.split(',').map(s => s.trim()).filter(Boolean).map(s => ({ title: s }));
+                const piecesList = customTplForm.pieces.split(',').map(p => p.trim()).filter(Boolean).map(p => ({ name: p, autoAttachTags: [p] }));
+                const newTpl: DemarcheTemplate = {
+                  id: `tpl-custom-${Date.now()}`,
+                  name: customTplForm.title,
+                  icon: customTplForm.icon || '📋',
+                  category: customTplForm.category,
+                  description: customTplForm.description || `Modèle personnalisé de démarche pour ${customTplForm.title}`,
+                  defaultSteps: stepsList.length > 0 ? stepsList : [{ title: 'Déposer le dossier' }],
+                  defaultPieces: piecesList,
+                  defaultCost: parseFloat(customTplForm.cost) || undefined
+                };
+                const updated = [...customTemplates, newTpl];
+                setCustomTemplates(updated);
+                localStorage.setItem('mf_custom_demarche_templates', JSON.stringify(updated));
+                setShowCustomTplModal(false);
+                setCustomTplForm({
+                  title: '',
+                  category: 'Identité',
+                  description: '',
+                  steps: '',
+                  pieces: '',
+                  cost: '',
+                  icon: '📋'
+                });
+                alert(`✅ Modèle "${newTpl.name}" créé avec succès !`);
+              }}
+              className="space-y-3.5 text-xs text-left"
+            >
+              <div>
+                <label className="block text-white/50 mb-1">Intitulé du modèle *</label>
+                <input type="text" required value={customTplForm.title} onChange={e => setCustomTplForm(prev => ({ ...prev, title: e.target.value }))} placeholder="Ex: Renouvellement Carte Scolaire" className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-white/50 mb-1">Catégorie *</label>
+                  <select value={customTplForm.category} onChange={e => setCustomTplForm(prev => ({ ...prev, category: e.target.value }))} className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF] cursor-pointer">
+                    {['Identité', 'Famille', 'Santé', 'École', 'Logement', 'Travail', 'Voyage', 'Véhicules'].map(c => <option key={c} value={c} className="bg-[#07111F]">{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-white/50 mb-1">Icône (Emoji) *</label>
+                  <input type="text" required value={customTplForm.icon} onChange={e => setCustomTplForm(prev => ({ ...prev, icon: e.target.value }))} className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-white/50 mb-1">Description</label>
+                <textarea value={customTplForm.description} onChange={e => setCustomTplForm(prev => ({ ...prev, description: e.target.value }))} placeholder="Ex: Démarches pour renouveler la carte annuelle de transport scolaire." className="w-full h-16 bg-white/5 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]" />
+              </div>
+              <div>
+                <label className="block text-white/50 mb-1">Étapes de la démarche (séparées par des virgules) *</label>
+                <input type="text" required value={customTplForm.steps} onChange={e => setCustomTplForm(prev => ({ ...prev, steps: e.target.value }))} placeholder="Ex: Remplir le formulaire, Faire la photo, Payer le timbre, Soumettre" className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]" />
+              </div>
+              <div>
+                <label className="block text-white/50 mb-1">Pièces justificatives requises (séparées par des virgules)</label>
+                <input type="text" value={customTplForm.pieces} onChange={e => setCustomTplForm(prev => ({ ...prev, pieces: e.target.value }))} placeholder="Ex: Justificatif de domicile, Photo d'identité, Attestation scolaire" className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]" />
+              </div>
+              <div>
+                <label className="block text-white/50 mb-1">Coût par défaut (€)</label>
+                <input type="number" step="0.01" value={customTplForm.cost} onChange={e => setCustomTplForm(prev => ({ ...prev, cost: e.target.value }))} placeholder="Ex: 35.00" className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]" />
+              </div>
+              <button type="submit" className="w-full py-3 bg-[#00D26A] rounded-xl text-white text-xs font-extrabold cursor-pointer hover:opacity-90 transition mt-2">
+                Enregistrer le modèle
+              </button>
+            </form>
           </div>
         </div>
       )}

@@ -262,6 +262,7 @@ export interface CustomCategory {
   color?: string;
   budget?: number;
   displayOrder?: number;
+  subcategories?: string[];
 }
 
 export interface Account {
@@ -391,7 +392,7 @@ export interface ChatGroup {
 
 // === DOCSBOX INTEGRATION ===
 
-export type DemarcheStatus = 'draft' | 'in_progress' | 'waiting' | 'completed';
+export type DemarcheStatus = 'todo' | 'in_progress' | 'waiting' | 'missing_docs' | 'payment_pending' | 'completed' | 'archived';
 
 export interface DemarcheStep {
   id: string;
@@ -413,24 +414,33 @@ export interface Demarche {
   title: string;
   icon: string;
   status: DemarcheStatus;
+  category?: string; // e.g. Identité, Famille, Santé, École, Logement, Travail, Voyage, Véhicules, Autre
   assignedMemberId?: string;
   assignedMemberName?: string;
   steps: DemarcheStep[];
   pieces: DemarchePiece[];
   createdAt: string;
+  dueDate?: string;
   notes?: string;
-  cost?: number;
+  cost?: number; // fallback or legacy
+  costEstimated?: number;
+  costReal?: number;
   isPaid?: boolean;
+  paymentStatus?: 'unpaid' | 'paid' | 'none';
   receiptDocId?: string;
+  recurrence?: string; // optional recurrence info
+  reminders?: string[]; // array of reminder strings or dates
 }
 
 export interface DemarcheTemplate {
   id: string;
   name: string;
   icon: string;
+  category: string; // e.g. Identité, Famille, Santé, École, Logement, Travail, Voyage, Véhicules
   description: string;
   defaultSteps: { title: string; }[];
   defaultPieces: { name: string; autoAttachTags?: string[]; }[];
+  defaultCost?: number;
 }
 
 export interface JustificatifPack {
