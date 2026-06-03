@@ -3720,7 +3720,8 @@ function App() {
             startDate: new Date().toISOString().split('T')[0],
             nextOccurrence: new Date().toISOString().split('T')[0],
             currency: currencyStr,
-            intent
+            intent,
+            isVoice: true
           };
 
           if (matches.length >= 1) {
@@ -4172,25 +4173,76 @@ function App() {
   };
 
   const handleAddTransaction = async (newTrans: any) => {
-    const id = `tx-${Date.now()}`;
-    setTransactions(prev => [{
+    const id = newTrans.id || `tx-${Date.now()}`;
+    const nowStr = new Date().toISOString();
+    const todayISO = nowStr.split('T')[0];
+    
+    // Custom French locale time extraction (HH:MM)
+    const d = new Date();
+    const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    
+    // Find active member name
+    const activeMember = members.find(m => m.id === activeMemberId);
+    const author = newTrans.createdBy || activeMember?.name || 'Système';
+    
+    // Deduce source module or prefix
+    let deducedSource = '✍️ Saisi manuellement';
+    if (newTrans.isVoice) {
+      deducedSource = '🎙️ Créé par le micro';
+    } else if (newTrans.moduleSource === 'voyages' || newTrans.category === 'Voyages') {
+      deducedSource = '✈️ Créé depuis Voyage';
+    } else if (newTrans.moduleSource === 'sante' || newTrans.category === 'Santé') {
+      deducedSource = '🏥 Créé depuis Santé';
+    } else if (newTrans.moduleSource === 'vehicules' || newTrans.category === 'Véhicules') {
+      deducedSource = '🚗 Créé depuis Véhicules';
+    } else if (newTrans.moduleSource === 'logement' || newTrans.category === 'Logement') {
+      deducedSource = '🏠 Créé depuis Logement';
+    } else if (newTrans.moduleSource === 'ecole' || newTrans.category === 'Éducation') {
+      deducedSource = '🎓 Créé depuis École';
+    } else if (newTrans.moduleSource === 'documents' || newTrans.category === 'Administratif') {
+      deducedSource = '📄 Créé depuis Démarches';
+    } else if (newTrans.moduleSource === 'import') {
+      deducedSource = '📄 Importé CSV';
+    } else if (newTrans.source_module) {
+      deducedSource = newTrans.source_module;
+    }
+
+    const initialHistory = newTrans.modificationHistory || [
+      { author, date: `${todayISO} à ${timeStr}`, action: 'Création' }
+    ];
+
+    const finalTx = {
       ...newTrans,
       id,
-      moduleSource: newTrans.moduleSource,
-      categoryId: newTrans.categoryId,
-      subCategoryId: newTrans.subCategoryId,
-      currency: newTrans.currency,
-      recurrenceInterval: newTrans.recurrenceInterval,
-      startDate: newTrans.startDate,
-      endDate: newTrans.endDate,
-      nextOccurrence: newTrans.nextOccurrence
-    }, ...prev]);
+      transaction_id: id,
+      family_id: foyer?.id || 'default',
+      user_id: activeMember?.userId || 'default',
+      member_id: newTrans.memberId || activeMemberId || 'default',
+      amount: newTrans.amount,
+      category_id: newTrans.categoryId || newTrans.category || 'Divers',
+      subcategory_id: newTrans.subCategoryId || newTrans.subCategory || 'Divers',
+      transaction_date: newTrans.date || todayISO,
+      entryDate: todayISO,
+      entryTime: timeStr,
+      createdAt: nowStr,
+      updatedAt: nowStr,
+      created_at: nowStr,
+      updated_at: nowStr,
+      createdBy: author,
+      created_by: author,
+      source_module: deducedSource,
+      modificationHistory: initialHistory,
+      travelId: newTrans.travelId || newTrans.travel_id,
+      travel_id: newTrans.travelId || newTrans.travel_id
+    };
+
+    setTransactions(prev => [finalTx, ...prev]);
 
     // Update bank account balance if accountId is provided
-    if (newTrans.accountId) {
+    if (finalTx.accountId) {
       setAccounts(prev => prev.map(acc => {
-        if (acc.id === newTrans.accountId) {
-          const change = newTrans.type === 'income' ? newTrans.amount : -newTrans.amount;
+        if (acc.id === finalTx.accountId) {
+          const change = finalTx.type === 'income' ? finalTx.amount : -finalTx.amount;
           const updatedBalance = acc.balance + change;
           
           // Update database asynchronously
@@ -4210,12 +4262,12 @@ function App() {
     }
 
     // Si la transaction est de type Épargne, mettre à jour l'objectif d'épargne principal
-    if (newTrans.type === 'savings') {
+    if (finalTx.type === 'savings') {
       setSavingGoals(prev => prev.map((goal, idx) => {
         if (idx === 0) { // On incrémente le premier objectif par défaut
           return {
             ...goal,
-            currentAmount: goal.currentAmount + newTrans.amount
+            currentAmount: goal.currentAmount + finalTx.amount
           };
         }
         return goal;
@@ -4223,7 +4275,7 @@ function App() {
     }
 
     // Vérification du plafond budgétaire et génération d'une alerte si nécessaire
-    if (newTrans.type === 'expense') {
+    if (finalTx.type === 'expense') {
       try {
         const budgetsSaved = localStorage.getItem('mf_category_budgets');
         const budgets = budgetsSaved ? JSON.parse(budgetsSaved) : {
@@ -4235,10 +4287,10 @@ function App() {
           'Autres': 150
         };
 
-        const category = newTrans.category;
+        const category = finalTx.category;
         const limit = budgets[category] || 0;
         if (limit > 0) {
-          const transDate = newTrans.date || new Date().toISOString().split('T')[0];
+          const transDate = finalTx.date || todayISO;
           
           let transMonth = '';
           let transYear = '';
@@ -4282,7 +4334,7 @@ function App() {
           });
 
           const previousExpenses = categoryTransactions.reduce((sum, t) => sum + t.amount, 0);
-          const currentExpenses = previousExpenses + newTrans.amount;
+          const currentExpenses = previousExpenses + finalTx.amount;
 
           const prevRatio = (previousExpenses / limit) * 100;
           const currentRatio = (currentExpenses / limit) * 100;
@@ -4340,23 +4392,29 @@ function App() {
             const { error } = await supabase.from('transactions').insert({
               id,
               foyer_id: activeFoyerId,
-              amount: newTrans.amount,
-              type: newTrans.type,
-              category: newTrans.category,
-              date: newTrans.date || new Date().toISOString().split('T')[0],
-              title: newTrans.title,
-              member_id: newTrans.memberId || null,
-              member_name: newTrans.memberName || 'Famille',
-              module_source: newTrans.moduleSource || null,
-              category_id: newTrans.categoryId || null,
-              subcategory_id: newTrans.subCategoryId || null,
-              currency: newTrans.currency || 'EUR',
-              recurrence_type: newTrans.recurrence || 'none',
-              recurrence_interval: newTrans.recurrenceInterval || 1,
-              start_date: newTrans.startDate || null,
-              end_date: newTrans.endDate || null,
-              next_occurrence: newTrans.nextOccurrence || null,
-              account_id: newTrans.accountId || null
+              amount: finalTx.amount,
+              type: finalTx.type,
+              category: finalTx.category,
+              date: finalTx.date || todayISO,
+              title: finalTx.title,
+              member_id: finalTx.memberId || null,
+              member_name: finalTx.memberName || 'Famille',
+              module_source: finalTx.source_module || null,
+              category_id: finalTx.categoryId || null,
+              subcategory_id: finalTx.subCategoryId || null,
+              currency: finalTx.currency || 'EUR',
+              recurrence_type: finalTx.recurrence || 'none',
+              recurrence_interval: finalTx.recurrenceInterval || 1,
+              start_date: finalTx.startDate || null,
+              end_date: finalTx.endDate || null,
+              next_occurrence: finalTx.nextOccurrence || null,
+              account_id: finalTx.accountId || null,
+              entry_date: finalTx.entryDate || null,
+              entry_time: finalTx.entryTime || null,
+              created_by: finalTx.createdBy || null,
+              source_module: finalTx.source_module || null,
+              travel_id: finalTx.travelId || finalTx.travel_id || null,
+              modification_history: JSON.stringify(finalTx.modificationHistory)
             });
             if (error) {
               console.error("Error inserting transaction to Supabase:", error);
@@ -5234,6 +5292,16 @@ function App() {
           onAddMemory={handleAddMemory}
           onDeleteMemory={handleDeleteMemory}
           onLikeMemory={handleLikeMemory}
+          
+          trips={trips}
+          demarches={demarches}
+          schoolTasks={schoolTasks}
+          tasks={tasks}
+          vehicles={vehicles}
+          maintenance={maintenance}
+          abonnements={abonnements}
+          savingGoals={savingGoals}
+          vaccines={vaccines}
         />
       );
     }
@@ -5251,6 +5319,14 @@ function App() {
           onToggleEventDone={handleToggleEventDone}
           onMoveEvent={handleMoveEvent}
           defaultSelectedDate={agendaSelectedDate}
+          trips={trips}
+          vaccines={vaccines}
+          schoolTasks={schoolTasks}
+          tasks={tasks}
+          demarches={demarches}
+          vehicles={vehicles}
+          maintenance={maintenance}
+          abonnements={abonnements}
         />
       );
     }

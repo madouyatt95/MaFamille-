@@ -24,7 +24,14 @@ import {
   Trash2,
   Download,
   Share2,
-  X
+  X,
+  Plane,
+  Car,
+  Calendar,
+  Gift,
+  FileText,
+  Wrench,
+  RefreshCw
 } from 'lucide-react';
 import type { Member, FamilyEvent, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog } from '../types';
 
@@ -91,6 +98,16 @@ interface AccueilProps {
   onAddMemory: (newMemory: MemoryLog) => void;
   onDeleteMemory: (id: string) => void;
   onLikeMemory: (id: string, newLikesCount: number) => void;
+
+  trips?: any[];
+  demarches?: any[];
+  schoolTasks?: any[];
+  tasks?: any[];
+  vehicles?: any[];
+  maintenance?: any[];
+  abonnements?: any[];
+  vaccines?: any[];
+  savingGoals?: any[];
 }
 
 export const Accueil: React.FC<AccueilProps> = ({
@@ -113,7 +130,17 @@ export const Accueil: React.FC<AccueilProps> = ({
   memories,
   onAddMemory,
   onDeleteMemory,
-  onLikeMemory
+  onLikeMemory,
+
+  trips = [],
+  demarches = [],
+  schoolTasks = [],
+  tasks = [],
+  vehicles = [],
+  maintenance = [],
+  abonnements = [],
+  vaccines = [],
+  savingGoals: _savingGoals = []
 }) => {
   const [selectedMealDay, setSelectedMealDay] = useState<string>('Lun');
 
@@ -274,11 +301,241 @@ export const Accueil: React.FC<AccueilProps> = ({
     return !m.readBy.includes(activeMemberId);
   }).length;
 
-  // Filtrer les événements d'aujourd'hui pour la section "À ne pas manquer"
-  const filteredEvents = isChild
+  // Helper to compute next birthday
+  const getNextBirthday = (birthDateStr: string, sysDate: Date) => {
+    if (!birthDateStr) return null;
+    const parts = birthDateStr.split('-');
+    if (parts.length !== 3) return null;
+    const birthMonth = parseInt(parts[1], 10) - 1;
+    const birthDay = parseInt(parts[2], 10);
+    
+    const currentYear = sysDate.getFullYear();
+    const bdayThisYear = new Date(currentYear, birthMonth, birthDay);
+    
+    const normalizedToday = new Date(sysDate.getFullYear(), sysDate.getMonth(), sysDate.getDate());
+    const normalizedBdayThisYear = new Date(bdayThisYear.getFullYear(), bdayThisYear.getMonth(), bdayThisYear.getDate());
+    
+    if (normalizedBdayThisYear >= normalizedToday) {
+      return normalizedBdayThisYear;
+    } else {
+      return new Date(currentYear + 1, birthMonth, birthDay);
+    }
+  };
+
+  const systemDate = new Date();
+  
+  const getLocalDateString = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
+  const todayStr = getLocalDateString(systemDate);
+
+  const getDaysDiff = (dateStr: string) => {
+    const target = new Date(dateStr);
+    if (isNaN(target.getTime())) return 0;
+    const d1 = new Date(systemDate.getFullYear(), systemDate.getMonth(), systemDate.getDate());
+    const d2 = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+    const diffTime = d2.getTime() - d1.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  const agendaUnified = (isChild
     ? events.filter(e => e.memberName === activeMember.name || e.type === 'school')
-    : events;
-  const todayEvents = filteredEvents.slice(0, 4);
+    : events
+  ).map(e => {
+    const eventDate = e.dateTime.split('T')[0];
+    return {
+      id: `agenda-${e.id}`,
+      title: e.title,
+      type: 'agenda',
+      date: eventDate,
+      time: e.time || '00:00',
+      description: e.description || e.location || 'Événement familial',
+      iconType: e.type,
+      memberId: e.memberId,
+      memberName: e.memberName,
+      done: e.done,
+      sourceModule: 'agenda'
+    };
+  });
+
+  const tripsUnified = trips.map(t => ({
+    id: `trip-${t.id}`,
+    title: `Voyage : ${t.destination}`,
+    type: 'trip',
+    date: t.startDate,
+    time: '09:00',
+    description: `Budget prévu : ${t.budget}€`,
+    iconType: 'trip',
+    done: false,
+    sourceModule: 'voyages'
+  }));
+
+  const demarchesUnified = demarches
+    .filter(d => d.status !== 'completed')
+    .map(d => {
+      const dDate = d.dueDate || d.createdAt?.split('T')[0] || todayStr;
+      return {
+        id: `demarche-${d.id}`,
+        title: `Démarche : ${d.title}`,
+        type: 'demarche',
+        date: dDate,
+        time: '11:00',
+        description: `Statut : ${d.status}`,
+        iconType: 'demarche',
+        memberId: d.assignedMemberId,
+        done: false,
+        sourceModule: 'demarches'
+      };
+    });
+
+  const schoolTasksUnified = schoolTasks
+    .filter(st => !st.done)
+    .map(st => ({
+      id: `school-${st.id}`,
+      title: `Devoir : ${st.title} (${st.subject})`,
+      type: 'schoolTask',
+      date: st.dueDate,
+      time: '17:00',
+      description: `Difficulté : ${st.difficulty}`,
+      iconType: 'school',
+      memberId: st.assignedMemberId,
+      done: false,
+      sourceModule: 'ecole'
+    }));
+
+  const tasksUnified = tasks
+    .filter(tk => !tk.done)
+    .map(tk => ({
+      id: `task-${tk.id}`,
+      title: `Tâche : ${tk.title}`,
+      type: 'task',
+      date: tk.dueDate,
+      time: '18:00',
+      description: `Points : ${tk.rewardPoints}`,
+      iconType: 'task',
+      memberId: tk.assignedMemberId,
+      done: false,
+      sourceModule: 'taches'
+    }));
+
+  const vaccinesUnified = vaccines.map(v => {
+    const vDate = v.nextDate || v.date;
+    return {
+      id: `vaccine-${v.id}`,
+      title: `Vaccin : ${v.name}`,
+      type: 'vaccine',
+      date: vDate,
+      time: '10:00',
+      description: 'Rappel de vaccin',
+      iconType: 'vaccine',
+      memberId: v.memberId,
+      done: false,
+      sourceModule: 'sante'
+    };
+  });
+
+  const abonnementsUnified = abonnements.map(a => ({
+    id: `abonnement-${a.id}`,
+    title: `Abonnement : ${a.name}`,
+    type: 'abonnement',
+    date: a.nextBillingDate,
+    time: '08:00',
+    description: `Montant : ${formatMoney(a.amount)}`,
+    iconType: 'abonnement',
+    done: false,
+    sourceModule: 'budget',
+    amount: a.amount
+  }));
+
+  const vehiclesUnified: any[] = [];
+  vehicles.forEach(v => {
+    if (v.technicalControl) {
+      vehiclesUnified.push({
+        id: `vehicle-tc-${v.id}`,
+        title: `Contrôle Technique : ${v.name}`,
+        type: 'vehicle_tc',
+        date: v.technicalControl,
+        time: '09:00',
+        description: `Plaque : ${v.plate}`,
+        iconType: 'vehicle',
+        done: false,
+        sourceModule: 'vehicules'
+      });
+    }
+    if (v.insuranceExpiry) {
+      vehiclesUnified.push({
+        id: `vehicle-ins-${v.id}`,
+        title: `Exp. Assurance : ${v.name}`,
+        type: 'vehicle_ins',
+        date: v.insuranceExpiry,
+        time: '09:00',
+        description: `Plaque : ${v.plate}`,
+        iconType: 'vehicle',
+        done: false,
+        sourceModule: 'vehicules'
+      });
+    }
+  });
+
+  const maintenanceUnified = maintenance
+    .filter(m => m.status !== 'completed')
+    .map(m => ({
+      id: `maintenance-${m.id}`,
+      title: `Entretien : ${m.title}`,
+      type: 'maintenance',
+      date: m.date,
+      time: '14:00',
+      description: `Prestataire : ${m.provider}`,
+      iconType: 'maintenance',
+      done: false,
+      sourceModule: 'logement'
+    }));
+
+  const birthdaysUnified = members
+    .map(m => {
+      if (!m.birthDate) return null;
+      const nextBday = getNextBirthday(m.birthDate, systemDate);
+      if (!nextBday) return null;
+      const bdayStr = getLocalDateString(nextBday);
+      return {
+        id: `birthday-${m.id}`,
+        title: `Anniversaire de ${m.name} !`,
+        type: 'birthday',
+        date: bdayStr,
+        time: '00:00',
+        description: `Joyeux anniversaire ${m.name} !`,
+        iconType: 'birthday',
+        memberId: m.id,
+        done: false,
+        sourceModule: 'membres'
+      };
+    })
+    .filter((b): b is any => b !== null);
+
+  const allUnifiedEvents = [
+    ...agendaUnified,
+    ...tripsUnified,
+    ...demarchesUnified,
+    ...schoolTasksUnified,
+    ...tasksUnified,
+    ...vaccinesUnified,
+    ...abonnementsUnified,
+    ...vehiclesUnified,
+    ...maintenanceUnified,
+    ...birthdaysUnified
+  ];
+
+  const todayUnifiedEvents = allUnifiedEvents
+    .filter(e => e.date === todayStr && !e.done)
+    .sort((a, b) => a.time.localeCompare(b.time));
+
+  const upcomingUnifiedEvents = allUnifiedEvents
+    .filter(e => e.date > todayStr && !e.done)
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   // Filtrer les plats du jour sélectionné
   const activeDishes = dishes.filter(d => d.day === selectedMealDay);
@@ -297,6 +554,84 @@ export const Accueil: React.FC<AccueilProps> = ({
   const daysOfWeek = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
   const unreadAlertsCount = alerts.filter(a => !a.read).length;
+
+  const getEventIconAndColor = (e: any) => {
+    switch (e.type) {
+      case 'trip':
+        return { Icon: Plane, cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20' };
+      case 'demarche':
+        return { Icon: FileText, cls: 'bg-purple-500/10 text-purple-400 border-purple-500/20' };
+      case 'schoolTask':
+      case 'school':
+        return { Icon: BookOpen, cls: 'bg-[#6C5CFF]/10 text-[#6C5CFF] border-[#6C5CFF]/20' };
+      case 'task':
+        return { Icon: Brush, cls: 'bg-[#00D26A]/10 text-[#00D26A] border-[#00D26A]/20' };
+      case 'vaccine':
+        return { Icon: HeartPulse, cls: 'bg-red-500/10 text-red-400 border-red-500/20' };
+      case 'abonnement':
+        return { Icon: RefreshCw, cls: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' };
+      case 'vehicle_tc':
+      case 'vehicle_ins':
+        return { Icon: Car, cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20' };
+      case 'maintenance':
+        return { Icon: Wrench, cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
+      case 'birthday':
+        return { Icon: Gift, cls: 'bg-pink-500/10 text-pink-400 border-pink-500/20' };
+      default:
+        if (e.iconType === 'medical') {
+          return { Icon: HeartPulse, cls: 'bg-[#6C5CFF]/10 text-[#6C5CFF] border-[#6C5CFF]/20' };
+        } else if (e.iconType === 'bill') {
+          return { Icon: Wifi, cls: 'bg-[#00D26A]/10 text-[#00D26A] border-[#00D26A]/20' };
+        } else if (e.iconType === 'grocery') {
+          return { Icon: ShoppingCart, cls: 'bg-[#FF4D6D]/10 text-[#FF4D6D] border-[#FF4D6D]/20' };
+        }
+        return { Icon: Calendar, cls: 'bg-gray-500/10 text-gray-400 border-gray-500/20' };
+    }
+  };
+
+  const handleEventClick = (event: any) => {
+    switch (event.sourceModule) {
+      case 'voyages':
+        setActiveTab('menu');
+        setActiveModule('voyages');
+        break;
+      case 'demarches':
+        setActiveTab('menu');
+        setActiveModule('demarches');
+        break;
+      case 'ecole':
+        setActiveTab('menu');
+        setActiveModule('ecole');
+        break;
+      case 'taches':
+        setActiveTab('menu');
+        setActiveModule('taches');
+        break;
+      case 'sante':
+        setActiveTab('menu');
+        setActiveModule('sante');
+        break;
+      case 'budget':
+        setActiveTab('budget');
+        break;
+      case 'vehicules':
+        setActiveTab('menu');
+        setActiveModule('vehicules');
+        break;
+      case 'logement':
+        setActiveTab('menu');
+        setActiveModule('logement');
+        break;
+      case 'membres':
+        setActiveTab('menu');
+        setActiveModule('membres');
+        break;
+      case 'agenda':
+      default:
+        onEventClick(event.date);
+        break;
+    }
+  };
 
   return (
     <div className="pb-32 pt-6 px-4 md:px-8 space-y-6 max-w-7xl mx-auto premium-glow-purple">
@@ -544,67 +879,119 @@ export const Accueil: React.FC<AccueilProps> = ({
       </div>
 
       {/* 3. À ne pas manquer aujourd'hui Section */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">À ne pas manquer aujourd'hui</h3>
-          <button 
-            onClick={() => setActiveTab('agenda')}
-            className="text-xs font-semibold text-[#6C5CFF] hover:text-[#4F8CFF] flex items-center cursor-pointer transition-colors"
-          >
-            Voir tout <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
-          </button>
+      <div className="space-y-4">
+        {/* Section Aujourd'hui */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#FF4D6D] animate-pulse" />
+              <span>À ne pas manquer aujourd'hui</span>
+            </h3>
+            <button 
+              onClick={() => setActiveTab('agenda')}
+              className="text-xs font-semibold text-[#6C5CFF] hover:text-[#4F8CFF] flex items-center cursor-pointer transition-colors"
+            >
+              Voir tout <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {todayUnifiedEvents.length > 0 ? (
+              todayUnifiedEvents.slice(0, 4).map((event) => {
+                const { Icon, cls } = getEventIconAndColor(event);
+                const linkedMember = event.memberId ? members.find(m => m.id === event.memberId) : null;
+                return (
+                  <button 
+                    key={event.id} 
+                    onClick={() => handleEventClick(event)}
+                    className="w-full text-left glass-panel rounded-[28px] p-4 flex items-center justify-between border border-white/8 transition-all hover:bg-white/10 cursor-pointer"
+                  >
+                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                      <div className={`p-3 rounded-[18px] ${cls} border shrink-0`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-xs sm:text-sm font-bold text-white truncate">{event.title}</h4>
+                        <p className="text-[11px] text-white/50 font-medium truncate">
+                          {linkedMember ? `${linkedMember.name} • ` : ''}
+                          {event.description}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="shrink-0 ml-2">
+                      <span className="text-xs font-bold text-white/70 bg-white/5 px-3 py-1.5 rounded-[12px] border border-white/5">
+                        {event.time}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="col-span-full glass-panel rounded-[28px] p-5 text-center text-xs text-white/30 border border-white/6">
+                Aucun événement prévu pour aujourd'hui. Profitez de votre journée ! ✨
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          
-          {todayEvents.map((event) => {
-            let ActiveIcon = BookOpen;
-            let colorClass = 'bg-[#6C5CFF]/10 text-[#6C5CFF] border-[#6C5CFF]/20';
-            let badgeEl = <span className="text-xs font-bold text-white/70 bg-white/5 px-3 py-1.5 rounded-[12px] border border-white/5">{event.time}</span>;
+        {/* Section Prochainement */}
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#6C5CFF]" />
+              <span>Prochainement</span>
+            </h3>
+          </div>
 
-            if (event.type === 'medical') {
-              ActiveIcon = HeartPulse;
-              colorClass = 'bg-[#6C5CFF]/10 text-[#6C5CFF] border-[#6C5CFF]/20';
-            } else if (event.type === 'bill') {
-              ActiveIcon = Wifi;
-              colorClass = 'bg-[#00D26A]/10 text-[#00D26A] border-[#00D26A]/20';
-              badgeEl = <span className="text-xs font-bold text-[#00D26A] bg-[#00D26A]/10 px-3 py-1.5 rounded-[12px] border border-[#00D26A]/20">{formatMoney(event.amount || 250)}</span>;
-            } else if (event.type === 'school') {
-              ActiveIcon = BookOpen;
-              colorClass = 'bg-[#6C5CFF]/10 text-[#6C5CFF] border-[#6C5CFF]/20';
-              badgeEl = <div className="p-2 rounded-full text-white/30"><Clock className="w-4 h-4" /></div>;
-            } else if (event.type === 'grocery') {
-              ActiveIcon = ShoppingCart;
-              colorClass = 'bg-[#FF4D6D]/10 text-[#FF4D6D] border-[#FF4D6D]/20';
-              badgeEl = <span className="text-[10px] font-bold text-[#FF4D6D] bg-[#FF4D6D]/10 px-2.5 py-1 rounded-[12px] border border-[#FF4D6D]/20 uppercase tracking-wide">Urgent</span>;
-            }
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {upcomingUnifiedEvents.length > 0 ? (
+              upcomingUnifiedEvents.slice(0, 6).map((event) => {
+                const { Icon, cls } = getEventIconAndColor(event);
+                const linkedMember = event.memberId ? members.find(m => m.id === event.memberId) : null;
+                const daysDiff = getDaysDiff(event.date);
+                
+                let badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+                if (daysDiff < 7) {
+                  badgeColor = 'bg-rose-500/10 text-rose-400 border-rose-500/20 animate-pulse';
+                } else if (daysDiff < 30) {
+                  badgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+                }
 
-            const sub = event.memberName 
-              ? `${event.memberName}${event.location ? ` — ${event.location}` : ''}`
-              : event.description || 'Événement familial';
+                const daysStr = daysDiff === 1 ? "Demain" : `Dans ${daysDiff} jours`;
+                const dateFr = new Date(event.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 
-            return (
-              <button 
-                key={event.id} 
-                onClick={() => onEventClick(event.dateTime)}
-                className="w-full text-left glass-panel rounded-[28px] p-4 flex items-center justify-between border border-white/8 transition-all hover:bg-white/10 cursor-pointer"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className={`p-3 rounded-[18px] ${colorClass} border shrink-0`}>
-                    <ActiveIcon className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h4 className="text-xs sm:text-sm font-bold text-white truncate">{event.title}</h4>
-                    <p className="text-[11px] text-white/50 font-medium truncate">{sub}</p>
-                  </div>
-                </div>
-                <div className="shrink-0 ml-2">
-                  {badgeEl}
-                </div>
-              </button>
-            );
-          })}
-
+                return (
+                  <button 
+                    key={event.id} 
+                    onClick={() => handleEventClick(event)}
+                    className="w-full text-left glass-panel rounded-[28px] p-4 flex items-center justify-between border border-white/8 transition-all hover:bg-white/10 cursor-pointer"
+                  >
+                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                      <div className={`p-3 rounded-[18px] ${cls} border shrink-0`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-xs sm:text-sm font-bold text-white truncate">{event.title}</h4>
+                        <p className="text-[11px] text-white/50 font-medium truncate">
+                          {linkedMember ? `${linkedMember.name} • ` : ''}
+                          {dateFr}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="shrink-0 ml-2">
+                      <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-[12px] border ${badgeColor} tracking-wider`}>
+                        {daysStr}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="col-span-full glass-panel rounded-[28px] p-5 text-center text-xs text-white/30 border border-white/6">
+                Aucun événement à venir.
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

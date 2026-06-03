@@ -864,16 +864,21 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     const startISO = parseCustomDateToISO(newT.startDate);
     const endISO = parseCustomDateToISO(newT.endDate);
 
-    // Financial transaction integration
-    if (budgetVal > 0 && onAddTransaction) {
-      onAddTransaction({
-        amount: budgetVal,
-        type: 'expense',
-        category: 'Voyages',
-        date: startISO,
-        title: `Budget Voyage : ${newTripDest}`,
-        memberName: 'Foyer'
-      });
+    // Enregistrement de l'enveloppe budgétaire dans les configurations locales sans créer de transaction Dépense
+    try {
+      const activeFoyerId = localStorage.getItem('mf_cloud_foyer_id') || 'default';
+      
+      const updateEnvelopes = (key: string) => {
+        const cached = localStorage.getItem(key);
+        const budgets = cached ? JSON.parse(cached) : {};
+        budgets['voyages'] = { budget: budgetVal, recurrence: 'project' };
+        localStorage.setItem(key, JSON.stringify(budgets));
+      };
+      
+      updateEnvelopes(`mf_module_budgets_${activeFoyerId}`);
+      updateEnvelopes('mf_module_budgets');
+    } catch (err) {
+      console.error("Error setting voyages module budget:", err);
     }
 
     // Agenda travel events integration
@@ -4368,14 +4373,16 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               {(() => {
                 const tripExpenses = (transactions || []).filter(tx => 
                   tx.type === 'expense' && 
-                  (tx.moduleSource === 'voyages' || tx.category === 'Loisirs' || tx.category === 'Autres' || tx.category === 'Voyages') && 
-                  (tx.title.toLowerCase().includes(t.destination.toLowerCase()) || (tx.comment && tx.comment.toLowerCase().includes(t.destination.toLowerCase())))
+                  (tx.travelId === t.id || tx.travel_id === t.id ||
+                   ((tx.moduleSource === 'voyages' || tx.category === 'Voyages') && 
+                    (tx.title.toLowerCase().includes(t.destination.toLowerCase()) || (tx.comment && tx.comment.toLowerCase().includes(t.destination.toLowerCase())))))
                 );
                 const totalTripSpent = tripExpenses.reduce((sum, tx) => sum + tx.amount, 0);
                 const matchingGoal = goals?.find(g => 
                   g.title.toLowerCase().includes(t.destination.toLowerCase()) || 
                   t.destination.toLowerCase().includes(g.title.toLowerCase())
                 );
+                const remainingBudget = t.budget - totalTripSpent;
                 const spendPct = Math.min(100, Math.round((totalTripSpent / t.budget) * 100)) || 0;
                 
                 const handleAddVoyageExpense = (e: React.FormEvent) => {
@@ -4402,7 +4409,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                       date: new Date().toISOString().split('T')[0],
                       accountId: newVoyageExpenseAccountId || null,
                       moduleSource: 'voyages',
-                      comment: `Dépense voyage liée à la destination ${t.destination}`
+                      comment: `Dépense voyage liée à la destination ${t.destination}`,
+                      travelId: t.id,
+                      travel_id: t.id
                     });
                   }
 
@@ -4412,18 +4421,36 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 };
 
                 return (
-                  <div className="space-y-3 p-4 rounded-2xl bg-white/5 border border-white/10 text-left">
+                  <div className="space-y-4 p-4 rounded-2xl bg-white/3 border border-white/5 text-left font-sans">
                     <span className="text-[9px] font-black text-[#FF4D6D] uppercase tracking-widest block">Suivi Budget & Cagnotte Voyage 📈</span>
                     
+                    {/* Columns Prévu / Réel / Reste */}
+                    <div className="grid grid-cols-3 gap-3 border-b border-white/5 pb-3">
+                      <div className="space-y-0.5 text-center">
+                        <span className="text-[9px] font-bold text-white/40 uppercase block">Budget Prévu</span>
+                        <span className="text-sm font-black text-white">{t.budget.toFixed(1)}€</span>
+                      </div>
+                      <div className="space-y-0.5 text-center border-l border-white/5">
+                        <span className="text-[9px] font-bold text-white/40 uppercase block">Dépenses Réelles</span>
+                        <span className="text-sm font-black text-rose-400">{totalTripSpent.toFixed(1)}€</span>
+                      </div>
+                      <div className="space-y-0.5 text-center border-l border-white/5">
+                        <span className="text-[9px] font-bold text-white/40 uppercase block">Reste disponible</span>
+                        <span className={`text-sm font-black ${remainingBudget >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {remainingBudget.toFixed(1)}€
+                        </span>
+                      </div>
+                    </div>
+
                     {/* Progress Bar Expenses */}
                     <div className="space-y-1">
-                      <div className="flex justify-between text-xs font-bold text-white">
-                        <span>Dépenses voyage</span>
-                        <span>{totalTripSpent.toFixed(2)}€ / {t.budget}€ ({spendPct}%)</span>
+                      <div className="flex justify-between text-[10px] font-bold text-white/70">
+                        <span>Consommation du budget</span>
+                        <span>{spendPct}%</span>
                       </div>
                       <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
                         <div 
-                          className={`h-full transition-all duration-500 ${spendPct >= 90 ? 'bg-red-500' : spendPct >= 75 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                          className={`h-full transition-all duration-500 ${spendPct >= 90 ? 'bg-red-500' : spendPct >= 75 ? 'bg-yellow-500' : 'bg-[#FF4D6D]'}`}
                           style={{ width: `${spendPct}%` }}
                         />
                       </div>
@@ -4445,6 +4472,24 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                       </div>
                     ) : (
                       <p className="text-[9px] text-white/30 italic">Aucune cagnotte d'épargne détectée pour "{t.destination}".</p>
+                    )}
+
+                    {/* Detailed List of Voyage Expenses */}
+                    {tripExpenses.length > 0 && (
+                      <div className="space-y-1 pt-1 border-t border-white/5">
+                        <span className="text-[9px] font-bold text-white/30 uppercase block">Détail des dépenses réelles :</span>
+                        <div className="max-h-[120px] overflow-y-auto space-y-1.5 pr-1 no-scrollbar">
+                          {tripExpenses.map(tx => (
+                            <div key={tx.id} className="flex justify-between items-center text-[10px] text-white/80 bg-white/5 px-2.5 py-1.5 rounded-xl border border-white/5">
+                              <div>
+                                <span className="font-bold block">{tx.title}</span>
+                                <span className="text-[8px] text-white/40">{tx.date} • {tx.subCategory || 'Divers'}</span>
+                              </div>
+                              <span className="font-extrabold text-rose-300">-{tx.amount.toFixed(2)}€</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
 
                     {/* Formulaire ajout dépense voyage */}

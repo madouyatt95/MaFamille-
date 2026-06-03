@@ -131,7 +131,14 @@ export interface Transaction {
   recurrenceInterval?: number;
   startDate?: string;
   endDate?: string;
-  nextOccurrence?: string;
+  entryDate?: string;
+  entryTime?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
+  source_module?: string;
+  travel_id?: string;
+  travelId?: string;
 }
 
 export type DocumentCategory = 'identity' | 'health' | 'school' | 'insurance' | 'bank' | 'contract' | 'vehicle' | 'home' | 'travel' | 'other';

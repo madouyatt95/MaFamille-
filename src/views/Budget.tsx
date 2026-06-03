@@ -10,7 +10,8 @@ import {
   ArrowLeft, 
   ArrowLeftRight, 
   X, 
-  AlertTriangle
+  AlertTriangle,
+  Clock
 } from 'lucide-react';
 import type { 
   Transaction, 
@@ -101,7 +102,7 @@ export const Budget: React.FC<BudgetProps> = ({
   const [accountFilter, setAccountFilter] = useState('all');
   
   // Period filter states
-  type PeriodType = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'all' | 'custom';
+  type PeriodType = 'today' | 'yesterday' | 'week' | 'month' | 'quarter' | 'year' | 'all' | 'custom';
   const [periodFilter, setPeriodFilter] = useState<PeriodType>('month');
   const [customStartDate, setCustomStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
   const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -150,6 +151,14 @@ export const Budget: React.FC<BudgetProps> = ({
   // Interactive chart hover/selection states
   const [selectedDonutSegment, setSelectedDonutSegment] = useState<number | null>(null);
   const [selectedTrendIndex, setSelectedTrendIndex] = useState<number | null>(null);
+  const [temporalStatTab, setTemporalStatTab] = useState<'day' | 'hour' | 'week' | 'month'>('day');
+  const [expandedTxHistory, setExpandedTxHistory] = useState<Record<string, boolean>>({});
+  const toggleTxHistory = (txId: string) => {
+    setExpandedTxHistory(prev => ({
+      ...prev,
+      [txId]: !prev[txId]
+    }));
+  };
 
   // Archive categories & subcategories states
   const [archivedCategories, setArchivedCategories] = useState<string[]>(() => {
@@ -168,6 +177,15 @@ export const Budget: React.FC<BudgetProps> = ({
     }
   });
 
+  const trips = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('mf_trips');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
   const toggleArchiveCategory = (catName: string) => {
     setArchivedCategories(prev => {
       const next = prev.includes(catName) ? prev.filter(n => n !== catName) : [...prev, catName];
@@ -183,6 +201,23 @@ export const Budget: React.FC<BudgetProps> = ({
       localStorage.setItem(`mf_archived_subcategories_${foyerId}`, JSON.stringify(next));
       return next;
     });
+  };
+
+  const formatTxListDate = (tx: Transaction) => {
+    const d = new Date();
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    
+    if (tx.date === todayStr) {
+      return `Aujourd'hui • ${tx.entryTime || `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`}`;
+    }
+    
+    if (tx.date && tx.date.includes('-')) {
+      const parts = tx.date.split('-');
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+    }
+    return tx.date;
   };
 
   // Forms state
@@ -329,6 +364,18 @@ export const Budget: React.FC<BudgetProps> = ({
 
     return transactions.filter(t => {
       if (t.isArchived) return false;
+
+      // Exclure les budgets prévus, objectifs et limites fictives de la liste des transactions réelles
+      const titleLower = t.title.toLowerCase();
+      if (
+        titleLower.startsWith('budget voyage') ||
+        titleLower.includes('budget prévu') ||
+        titleLower.includes('objectif de dépense') ||
+        titleLower.includes('limite budgétaire') ||
+        titleLower.includes('enveloppe voyage')
+      ) {
+        return false;
+      }
       
       const tDate = new Date(t.date);
       if (isNaN(tDate.getTime())) return true;
@@ -336,6 +383,13 @@ export const Budget: React.FC<BudgetProps> = ({
       switch (periodFilter) {
         case 'today':
           return tDate >= startOfToday;
+        case 'yesterday': {
+          const yesterday = new Date(startOfToday);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const endOfYesterday = new Date(startOfToday);
+          endOfYesterday.setMilliseconds(-1);
+          return tDate >= yesterday && tDate <= endOfYesterday;
+        }
         case 'week':
           return tDate >= startOfWeek;
         case 'month':
@@ -360,6 +414,58 @@ export const Budget: React.FC<BudgetProps> = ({
       }
     });
   }, [transactions, periodFilter, customStartDate, customEndDate]);
+
+  // Temporal statistics calculations
+  const temporalStats = useMemo(() => {
+    const days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+    const dayMap: Record<string, number> = { 'Lundi': 0, 'Mardi': 0, 'Mercredi': 0, 'Jeudi': 0, 'Vendredi': 0, 'Samedi': 0, 'Dimanche': 0 };
+    
+    const hourMap: Record<number, number> = {};
+    for (let h = 0; h < 24; h++) hourMap[h] = 0;
+    
+    const weekMap: Record<string, number> = {};
+    
+    const months = [
+      "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+      "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+    ];
+    const monthMap: Record<string, number> = {};
+    months.forEach(m => { monthMap[m] = 0; });
+    
+    activeTransactions.filter(t => t.type === 'expense').forEach(t => {
+      const d = new Date(t.date);
+      if (!isNaN(d.getTime())) {
+        const dName = days[d.getDay()];
+        dayMap[dName] = (dayMap[dName] || 0) + t.amount;
+        
+        const mName = months[d.getMonth()];
+        monthMap[mName] = (monthMap[mName] || 0) + t.amount;
+        
+        const temp = new Date(d);
+        const dayOfWeek = temp.getDay();
+        const diff = temp.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+        const monday = new Date(temp.getFullYear(), temp.getMonth(), diff);
+        const weekStr = `${monday.getDate()}/${monday.getMonth() + 1}`;
+        weekMap[weekStr] = (weekMap[weekStr] || 0) + t.amount;
+      }
+      
+      if (t.entryTime) {
+        const hr = parseInt(t.entryTime.split(':')[0]);
+        if (!isNaN(hr) && hr >= 0 && hr < 24) {
+          hourMap[hr] = (hourMap[hr] || 0) + t.amount;
+        }
+      } else {
+        hourMap[12] = (hourMap[12] || 0) + t.amount;
+      }
+    });
+
+    return {
+      day: Object.keys(dayMap).map(k => ({ label: k, amount: dayMap[k] })),
+      hour: Object.keys(hourMap).map(k => ({ label: `${k}h`, amount: hourMap[Number(k)] })),
+      week: Object.keys(weekMap).map(k => ({ label: `Sem. ${k}`, amount: weekMap[k] })).sort(),
+      month: Object.keys(monthMap).map(k => ({ label: k.slice(0, 4), amount: monthMap[k] }))
+    };
+  }, [activeTransactions]);
 
   // Donut chart logic
   const donutData = useMemo(() => {
@@ -547,10 +653,32 @@ export const Budget: React.FC<BudgetProps> = ({
 
     if (editingTx) {
       newTxData.id = editingTx.id;
-      newTxData.modificationHistory = [
-        ...(editingTx.modificationHistory || []),
-        { author: myMemberProfile?.displayName || 'Système', date: new Date().toISOString(), action: 'Modification manuelle' }
-      ];
+      
+      const history = [...(editingTx.modificationHistory || [])];
+      const author = myMemberProfile?.displayName || 'Système';
+      const d = new Date();
+      const changeDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} à ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      
+      const changes: string[] = [];
+      if (editingTx.amount !== amt) {
+        changes.push(`Montant modifié de ${editingTx.amount}€ à ${amt}€`);
+      }
+      if (editingTx.category !== txForm.category) {
+        changes.push(`Catégorie changée : ${editingTx.category} → ${txForm.category}`);
+      }
+      if (editingTx.subCategory !== txForm.subCategory) {
+        changes.push(`Sous-catégorie changée : ${editingTx.subCategory || 'Aucune'} → ${txForm.subCategory || 'Aucune'}`);
+      }
+      if (editingTx.title !== txForm.title) {
+        changes.push(`Titre modifié : "${editingTx.title}" → "${txForm.title}"`);
+      }
+      
+      const actionText = changes.length > 0 ? changes.join(', ') : 'Modification manuelle';
+      history.push({ author, date: changeDate, action: actionText });
+      
+      newTxData.modificationHistory = history;
+      newTxData.updatedAt = d.toISOString();
+      newTxData.updated_at = d.toISOString();
 
       const client = getSupabaseClient();
       if (client && foyerId) {
@@ -808,17 +936,18 @@ export const Budget: React.FC<BudgetProps> = ({
         <div className="flex justify-between items-center">
           <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">Choix de la période</span>
           <span className="text-[10px] font-bold text-purple-400 capitalize">
-            {periodFilter === 'month' ? 'Ce mois' : periodFilter === 'week' ? 'Cette semaine' : periodFilter === 'today' ? "Aujourd'hui" : periodFilter === 'quarter' ? 'Ce trimestre' : periodFilter === 'year' ? 'Cette année' : periodFilter === 'all' ? 'Toutes périodes' : 'Période personnalisée'}
+            {periodFilter === 'month' ? 'Ce mois' : periodFilter === 'week' ? 'Cette semaine' : periodFilter === 'today' ? "Aujourd'hui" : periodFilter === 'yesterday' ? "Hier" : periodFilter === 'quarter' ? 'Ce trimestre' : periodFilter === 'year' ? 'Cette année' : periodFilter === 'all' ? 'Toutes périodes' : 'Période personnalisée'}
           </span>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {[
             { id: 'today', label: "Aujourd'hui" },
-            { id: 'week', label: 'Semaine' },
-            { id: 'month', label: 'Mois' },
-            { id: 'quarter', label: 'Trimestre' },
-            { id: 'year', label: 'Année' },
-            { id: 'all', label: 'Tout' },
+            { id: 'yesterday', label: 'Hier' },
+            { id: 'week', label: 'Cette semaine' },
+            { id: 'month', label: 'Ce mois' },
+            { id: 'quarter', label: 'Ce trimestre' },
+            { id: 'year', label: 'Cette année' },
+            { id: 'all', label: 'Toutes' },
             { id: 'custom', label: '📅 Perso' }
           ].map(p => (
             <button
@@ -993,7 +1122,7 @@ export const Budget: React.FC<BudgetProps> = ({
                       <div className="min-w-0">
                         <p className="font-bold text-white truncate">{tx.title}</p>
                         <p className="text-[9.5px] text-white/40 mt-0.5">
-                          {tx.date} • {tx.category} {tx.subCategory && `(${tx.subCategory})`} {tx.memberName && `• ${tx.memberName}`}
+                          {formatTxListDate(tx)} • {tx.category} {tx.subCategory && `(${tx.subCategory})`} {tx.memberName && `• ${tx.memberName}`}
                         </p>
                       </div>
                     </div>
@@ -1077,11 +1206,37 @@ export const Budget: React.FC<BudgetProps> = ({
                           )}
                         </div>
                         <p className="text-[10px] text-white/40 mt-1 leading-normal">
-                          {tx.date} • <strong className="text-white/60">{tx.category}</strong> {tx.subCategory && `> ${tx.subCategory}`}
+                          {formatTxListDate(tx)} • <strong className="text-white/60">{tx.category}</strong> {tx.subCategory && `> ${tx.subCategory}`}
                           {tx.memberName && ` • Concerné: ${tx.memberName}`}
                           {tx.accountId && ` • Compte: ${accounts.find(a => a.id === tx.accountId)?.name || 'N/A'}`}
                         </p>
                         {tx.comment && <p className="text-[10px] text-[#FFB020] italic mt-1">{tx.comment}</p>}
+                        
+                        {tx.modificationHistory && tx.modificationHistory.length > 0 && (
+                          <button 
+                            type="button" 
+                            onClick={(e) => { e.stopPropagation(); toggleTxHistory(tx.id); }}
+                            className="mt-1.5 flex items-center space-x-1 text-[9px] font-bold text-purple-400 hover:text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20 w-fit cursor-pointer"
+                          >
+                            <Clock className="w-2.5 h-2.5" />
+                            <span>{expandedTxHistory[tx.id] ? "Masquer l'historique" : "Voir l'historique"}</span>
+                          </button>
+                        )}
+                        
+                        {expandedTxHistory[tx.id] && tx.modificationHistory && (
+                          <div className="mt-2.5 p-3 rounded-xl bg-[#07111F]/50 border border-white/5 space-y-1.5 text-[10px] font-sans">
+                            <span className="text-[9px] font-black text-white/30 uppercase block tracking-wider">Trace d'audit :</span>
+                            <div className="space-y-1 border-l border-white/10 pl-2 ml-1">
+                              {tx.modificationHistory.map((h, hIdx) => (
+                                <div key={hIdx} className="relative py-0.5">
+                                  <span className="absolute -left-[11.5px] top-1.5 w-1.5 h-1.5 rounded-full bg-[#6C5CFF]" />
+                                  <div className="text-white/40 text-[9px] font-semibold">{h.date} • par <strong className="text-white/60">{h.author}</strong></div>
+                                  <div className="text-white/80 font-medium">{h.action}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1902,6 +2057,79 @@ export const Budget: React.FC<BudgetProps> = ({
               </div>
             </div>
 
+            {/* Statistiques Temporelles */}
+            <div className="glass-panel border border-white/5 p-5 rounded-3xl space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Statistiques Temporelles</h3>
+                  <p className="text-[9px] text-white/40 mt-0.5">Analyse fine de la répartition des dépenses</p>
+                </div>
+                
+                <div className="flex bg-[#112240] p-1 rounded-xl border border-white/5 self-end">
+                  {[
+                    { id: 'day', label: 'Jour' },
+                    { id: 'hour', label: 'Heure' },
+                    { id: 'week', label: 'Semaine' },
+                    { id: 'month', label: 'Mois' }
+                  ].map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => setTemporalStatTab(t.id as any)}
+                      className={`px-3 py-1 text-[10px] font-bold rounded-lg transition-all ${
+                        temporalStatTab === t.id
+                          ? 'bg-[#6C5CFF] text-white shadow-md'
+                          : 'text-white/40 hover:text-white'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {(() => {
+                const currentData = temporalStats[temporalStatTab] || [];
+                const maxAmount = Math.max(...currentData.map(d => d.amount), 1);
+                
+                return (
+                  <div className="space-y-4">
+                    {/* SVG Bar Chart */}
+                    <div className="relative h-48 w-full bg-[#07111F]/30 rounded-2xl border border-white/5 p-4 flex items-end justify-between gap-1.5 overflow-x-auto no-scrollbar">
+                      {currentData.map((item, idx) => {
+                        const pct = (item.amount / maxAmount) * 100;
+                        return (
+                          <div key={idx} className="flex-1 flex flex-col items-center min-w-[30px] group relative">
+                            {/* Value tooltip */}
+                            <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-black border border-white/10 px-1.5 py-0.5 rounded text-[8px] text-white absolute -top-8 font-bold pointer-events-none whitespace-nowrap z-10">
+                              {item.amount.toFixed(1)}€
+                            </span>
+                            
+                            {/* Bar container */}
+                            <div className="w-full flex items-end justify-center h-28 relative">
+                              <div 
+                                className="w-4 rounded-t bg-gradient-to-t from-indigo-500 to-[#6C5CFF] hover:from-purple-500 hover:to-indigo-400 transition-all duration-300 shadow-[0_-2px_8px_rgba(108,92,255,0.2)] cursor-pointer"
+                                style={{ height: `${Math.max(4, pct)}%` }}
+                              />
+                            </div>
+                            
+                            {/* Label */}
+                            <span className="text-[8px] text-white/40 mt-1.5 font-bold truncate text-center w-full block">
+                              {item.label}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {currentData.length === 0 || maxAmount <= 1 ? (
+                        <div className="absolute inset-0 flex items-center justify-center text-white/30 text-xs italic">
+                          Aucune donnée à afficher pour cette période
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
             {/* 3. Rolling 12-Month Line Chart */}
             <div className="glass-panel border border-white/5 p-5 rounded-3xl space-y-4">
               <div className="flex flex-col md:flex-row justify-between md:items-center gap-3">
@@ -2076,6 +2304,7 @@ export const Budget: React.FC<BudgetProps> = ({
             foyerId={foyerId}
             myMemberProfile={myMemberProfile}
             currencySymbol={_currencySymbol}
+            trips={trips}
           />
         )}
 

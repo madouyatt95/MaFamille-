@@ -25,6 +25,15 @@ interface AgendaProps {
   onMoveEvent: (eventId: string, newDate: string) => void;
   activeMemberId?: string;
   defaultSelectedDate?: string;
+
+  trips?: any[];
+  vaccines?: any[];
+  schoolTasks?: any[];
+  tasks?: any[];
+  demarches?: any[];
+  vehicles?: any[];
+  maintenance?: any[];
+  abonnements?: any[];
 }
 
 export interface CalendarSource {
@@ -43,10 +52,36 @@ export const Agenda: React.FC<AgendaProps> = ({
   onToggleEventDone,
   onMoveEvent,
   activeMemberId = '1',
-  defaultSelectedDate
+  defaultSelectedDate,
+  trips = [],
+  vaccines = [],
+  schoolTasks = [],
+  tasks = [],
+  demarches = [],
+  vehicles = [],
+  maintenance = [],
+  abonnements = []
 }) => {
-  const [selectedDate, setSelectedDate] = useState<string>(defaultSelectedDate || '2026-05-18');
-  const [viewType, setViewType] = useState<'month' | 'week'>('month');
+  const getLocalDateString = (d: Date = new Date()) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [currentPivotDate, setCurrentPivotDate] = useState<Date>(() => {
+    if (defaultSelectedDate && !isNaN(new Date(defaultSelectedDate).getTime())) {
+      return new Date(defaultSelectedDate);
+    }
+    return new Date();
+  });
+
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    if (defaultSelectedDate) return defaultSelectedDate;
+    return getLocalDateString(new Date());
+  });
+
+  const [viewType, setViewType] = useState<'month' | 'week' | 'day' | 'list'>('month');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('all');
   const [selectedMemberFilter, setSelectedMemberFilter] = useState<string>('all');
   const [syncing, setSyncing] = useState(false);
@@ -168,6 +203,9 @@ export const Agenda: React.FC<AgendaProps> = ({
   useEffect(() => {
     if (defaultSelectedDate) {
       setSelectedDate(defaultSelectedDate);
+      if (!isNaN(new Date(defaultSelectedDate).getTime())) {
+        setCurrentPivotDate(new Date(defaultSelectedDate));
+      }
       setViewType('week');
     }
   }, [defaultSelectedDate]);
@@ -212,38 +250,190 @@ export const Agenda: React.FC<AgendaProps> = ({
       if (e.type === 'school' || e.type === 'social') return true;
       if (!e.memberId) return true;
       return false;
-    });
-    return [...local, ...mappedExternalEvents];
-  }, [events, mappedExternalEvents, isChild, activeMemberId]);
+    }).map(e => ({ ...e, sourceModule: 'agenda' }));
+    
+    const ext = mappedExternalEvents.map(e => ({ ...e, sourceModule: 'external' }));
 
-  // May 2026 Calendar grid data
-  const daysInMonth = 31;
-  const startOffset = 4; // Lundi=0, Mar=1, Mer=2, Jeu=3, Ven=4
-  
+    const tripEvs = trips.map((t: any) => ({
+      id: `trip-${t.id}`,
+      title: `✈️ Voyage : ${t.destination}`,
+      dateTime: `${t.startDate}T09:00:00`,
+      time: '09:00',
+      type: 'social' as EventType,
+      memberId: 'Foyer',
+      location: t.destination,
+      notes: `Budget : ${t.budget}€`,
+      done: false,
+      sourceModule: 'voyages'
+    }));
+
+    const vacEvs = vaccines.map((v: any) => ({
+      id: `vac-${v.id}`,
+      title: `🏥 Vaccin : ${v.name}`,
+      dateTime: `${v.nextDate || v.date}T10:00:00`,
+      time: '10:00',
+      type: 'medical' as EventType,
+      memberId: v.memberId || 'Foyer',
+      notes: 'Rappel de vaccin',
+      done: false,
+      sourceModule: 'sante'
+    }));
+
+    const schoolEvs = schoolTasks.map((st: any) => ({
+      id: `school-task-${st.id}`,
+      title: `📚 Devoir : ${st.title} (${st.subject})`,
+      dateTime: `${st.dueDate}T17:00:00`,
+      time: '17:00',
+      type: 'school' as EventType,
+      memberId: st.assignedMemberId,
+      notes: `Difficulté : ${st.difficulty}`,
+      done: st.done,
+      sourceModule: 'ecole'
+    }));
+
+    const choreEvs = tasks.map((tk: any) => ({
+      id: `task-${tk.id}`,
+      title: `🧹 Tâche : ${tk.title}`,
+      dateTime: `${tk.dueDate}T18:00:00`,
+      time: '18:00',
+      type: 'other' as EventType,
+      memberId: tk.assignedMemberId,
+      notes: `Points : ${tk.rewardPoints}`,
+      done: tk.done,
+      sourceModule: 'taches'
+    }));
+
+    const demEvs = demarches.map((d: any) => ({
+      id: `demarche-${d.id}`,
+      title: `${d.icon || '📄'} Démarche : ${d.title}`,
+      dateTime: `${d.dueDate || d.createdAt?.split('T')[0] || getLocalDateString()}T11:00:00`,
+      time: '11:00',
+      type: 'other' as EventType,
+      memberId: d.assignedMemberId,
+      notes: `Statut : ${d.status}`,
+      done: d.status === 'completed',
+      sourceModule: 'demarches'
+    }));
+
+    const vehEvs: any[] = [];
+    vehicles.forEach((v: any) => {
+      if (v.technicalControl) {
+        vehEvs.push({
+          id: `veh-tc-${v.id}`,
+          title: `🚗 Contrôle Technique : ${v.name}`,
+          dateTime: `${v.technicalControl}T09:00:00`,
+          time: '09:00',
+          type: 'other' as EventType,
+          notes: `Plaque : ${v.plate}`,
+          done: false,
+          sourceModule: 'vehicules'
+        });
+      }
+      if (v.insuranceExpiry) {
+        vehEvs.push({
+          id: `veh-ins-${v.id}`,
+          title: `📄 Exp. Assurance : ${v.name}`,
+          dateTime: `${v.insuranceExpiry}T09:00:00`,
+          time: '09:00',
+          type: 'other' as EventType,
+          notes: `Plaque : ${v.plate}`,
+          done: false,
+          sourceModule: 'vehicules'
+        });
+      }
+    });
+
+    const maintEvs = maintenance.map((m: any) => ({
+      id: `maint-${m.id}`,
+      title: `🏠 Entretien : ${m.title}`,
+      dateTime: `${m.date}T14:00:00`,
+      time: '14:00',
+      type: 'other' as EventType,
+      notes: `Prestataire : ${m.provider}`,
+      done: m.status === 'completed',
+      sourceModule: 'logement'
+    }));
+
+    const aboEvs = abonnements.map((a: any) => ({
+      id: `abo-${a.id}`,
+      title: `🔄 Abonnement : ${a.name}`,
+      dateTime: `${a.nextBillingDate}T08:00:00`,
+      time: '08:00',
+      type: 'bill' as EventType,
+      notes: `Montant : ${a.amount}€`,
+      done: false,
+      sourceModule: 'budget'
+    }));
+
+    return [
+      ...local,
+      ...ext,
+      ...tripEvs,
+      ...vacEvs,
+      ...schoolEvs,
+      ...choreEvs,
+      ...demEvs,
+      ...vehEvs,
+      ...maintEvs,
+      ...aboEvs
+    ];
+  }, [events, mappedExternalEvents, isChild, activeMemberId, trips, vaccines, schoolTasks, tasks, demarches, vehicles, maintenance, abonnements]);
+
   const calendarCells = useMemo(() => {
     const cells = [];
-    for (let i = 0; i < startOffset; i++) {
-      cells.push({ day: null, dateStr: null });
+    const year = currentPivotDate.getFullYear();
+    const month = currentPivotDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const startOffset = (firstDay.getDay() + 6) % 7; // Monday = 0
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    
+    // Previous month padding
+    const prevMonthDays = new Date(year, month, 0).getDate();
+    for (let i = startOffset - 1; i >= 0; i--) {
+      const d = prevMonthDays - i;
+      const m = month === 0 ? 11 : month - 1;
+      const y = month === 0 ? year - 1 : year;
+      const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      cells.push({ day: d, dateStr, isCurrentMonth: false });
     }
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dayStr = d < 10 ? `0${d}` : `${d}`;
-      cells.push({ day: d, dateStr: `2026-05-${dayStr}` });
+    
+    // Current month
+    for (let d = 1; d <= totalDays; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      cells.push({ day: d, dateStr, isCurrentMonth: true });
+    }
+    
+    // Next month padding to fill standard 42 cell grid
+    const remaining = 42 - cells.length;
+    for (let d = 1; d <= remaining; d++) {
+      const m = month === 11 ? 0 : month + 1;
+      const y = month === 11 ? year + 1 : year;
+      const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      cells.push({ day: d, dateStr, isCurrentMonth: false });
     }
     return cells;
-  }, []);
+  }, [currentPivotDate]);
 
   const weekCells = useMemo(() => {
-    // Current demo week starting 18 May 2026
-    return [
-      { day: 18, dateStr: '2026-05-18', name: 'Lun' },
-      { day: 19, dateStr: '2026-05-19', name: 'Mar' },
-      { day: 20, dateStr: '2026-05-20', name: 'Mer' },
-      { day: 21, dateStr: '2026-05-21', name: 'Jeu' },
-      { day: 22, dateStr: '2026-05-22', name: 'Ven' },
-      { day: 23, dateStr: '2026-05-23', name: 'Sam' },
-      { day: 24, dateStr: '2026-05-24', name: 'Dim' }
-    ];
-  }, []);
+    const pivot = new Date(currentPivotDate);
+    const dayOfWeek = pivot.getDay();
+    const diff = pivot.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    const monday = new Date(pivot.getFullYear(), pivot.getMonth(), diff);
+    
+    const cells = [];
+    const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      cells.push({
+        day: d.getDate(),
+        dateStr,
+        name: dayNames[i]
+      });
+    }
+    return cells;
+  }, [currentPivotDate]);
 
   const memberColors: { [key: string]: string } = {
     '1': 'bg-[#4F8CFF]', // Papa (Bleu)
@@ -253,7 +443,7 @@ export const Agenda: React.FC<AgendaProps> = ({
     '5': 'bg-[#00D26A]'  // Ibrahima (Vert)
   };
 
-  const typeLabels: { [key in EventType]: string } = {
+  const typeLabels: Record<string, string> = {
     medical: 'Médical',
     school: 'École',
     bill: 'Factures',
@@ -365,6 +555,83 @@ export const Agenda: React.FC<AgendaProps> = ({
     setCalendarSources(prev => prev.map(s => s.id === id ? { ...s, isActive: !s.isActive } : s));
   };
 
+  const getPivotHeaderLabel = () => {
+    const months = [
+      "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+      "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+    ];
+    const days = [
+      "Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"
+    ];
+    const y = currentPivotDate.getFullYear();
+    const m = months[currentPivotDate.getMonth()];
+    
+    if (viewType === 'month' || viewType === 'list') {
+      return `${m} ${y}`;
+    }
+    if (viewType === 'week') {
+      const pivot = new Date(currentPivotDate);
+      const dayOfWeek = pivot.getDay();
+      const diff = pivot.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+      const monday = new Date(pivot.getFullYear(), pivot.getMonth(), diff);
+      return `Sem. du ${monday.getDate()} ${months[monday.getMonth()]}`;
+    }
+    // viewType === 'day'
+    const dayName = days[currentPivotDate.getDay()];
+    return `${dayName} ${currentPivotDate.getDate()} ${m}`;
+  };
+
+  const handlePrevPivot = () => {
+    setCurrentPivotDate(prev => {
+      const next = new Date(prev);
+      if (viewType === 'month' || viewType === 'list') {
+        next.setMonth(prev.getMonth() - 1);
+      } else if (viewType === 'week') {
+        next.setDate(prev.getDate() - 7);
+      } else { // day
+        next.setDate(prev.getDate() - 1);
+      }
+      return next;
+    });
+  };
+
+  const handleNextPivot = () => {
+    setCurrentPivotDate(prev => {
+      const next = new Date(prev);
+      if (viewType === 'month' || viewType === 'list') {
+        next.setMonth(prev.getMonth() + 1);
+      } else if (viewType === 'week') {
+        next.setDate(prev.getDate() + 7);
+      } else { // day
+        next.setDate(prev.getDate() + 1);
+      }
+      return next;
+    });
+  };
+
+  const handleGoToToday = () => {
+    const today = new Date();
+    setCurrentPivotDate(today);
+    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    setSelectedDate(dateStr);
+  };
+
+  useEffect(() => {
+    if (viewType === 'day') {
+      const y = currentPivotDate.getFullYear();
+      const m = String(currentPivotDate.getMonth() + 1).padStart(2, '0');
+      const d = String(currentPivotDate.getDate()).padStart(2, '0');
+      setSelectedDate(`${y}-${m}-${d}`);
+    }
+  }, [currentPivotDate, viewType]);
+
+  const listEvents = useMemo(() => {
+    const prefix = `${currentPivotDate.getFullYear()}-${String(currentPivotDate.getMonth() + 1).padStart(2, '0')}`;
+    return visibleEvents
+      .filter(e => e.dateTime.startsWith(prefix))
+      .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+  }, [visibleEvents, currentPivotDate]);
+
   const filteredEvents = useMemo(() => {
     return visibleEvents.filter(event => {
       const matchesDate = event.dateTime.startsWith(selectedDate);
@@ -385,6 +652,10 @@ export const Agenda: React.FC<AgendaProps> = ({
 
   const handleDrop = (e: React.DragEvent, targetDate: string) => {
     e.preventDefault();
+    if (!isWritable) {
+      alert("🔒 Dérogation parentale requise pour déplacer des événements !");
+      return;
+    }
     const eventId = e.dataTransfer.getData('eventId');
     if (eventId) {
       onMoveEvent(eventId, targetDate);
@@ -459,20 +730,44 @@ export const Agenda: React.FC<AgendaProps> = ({
         </div>
       </div>
 
-      {/* Main Container */}
-      <div className={viewType === 'month' ? "grid grid-cols-1 md:grid-cols-2 gap-6" : "space-y-6"}>
+      <div className={(viewType === 'month' || viewType === 'day') ? "grid grid-cols-1 md:grid-cols-2 gap-6" : "space-y-6"}>
         
         {/* Calendar Widget */}
         <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/5 pb-4 space-y-3 sm:space-y-0">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Mai 2026</h3>
+            <div className="flex items-center space-x-2 text-white">
+              <button 
+                onClick={handlePrevPivot} 
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 cursor-pointer text-xs font-bold transition-all text-white/80"
+              >
+                ◀
+              </button>
+              <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider min-w-[120px] text-center">
+                {getPivotHeaderLabel()}
+              </h3>
+              <button 
+                onClick={handleNextPivot} 
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 cursor-pointer text-xs font-bold transition-all text-white/80"
+              >
+                ▶
+              </button>
+              <button 
+                onClick={handleGoToToday} 
+                className="px-2.5 py-1.5 rounded-lg bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-[#6C5CFF] text-[10px] font-extrabold uppercase tracking-wide hover:bg-[#6C5CFF]/25 cursor-pointer transition-all active:scale-95"
+              >
+                Aujourd'hui
+              </button>
+            </div>
+            
             <div className="flex bg-[#112240] p-1 rounded-xl border border-white/5">
-              <button onClick={() => setViewType('month')} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${viewType === 'month' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white'}`}>Mois</button>
-              <button onClick={() => setViewType('week')} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${viewType === 'week' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white'}`}>Semaine</button>
+              <button onClick={() => setViewType('month')} className={`px-3 py-1 text-[11px] font-bold rounded-lg transition-all ${viewType === 'month' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white'}`}>Mois</button>
+              <button onClick={() => setViewType('week')} className={`px-3 py-1 text-[11px] font-bold rounded-lg transition-all ${viewType === 'week' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white'}`}>Semaine</button>
+              <button onClick={() => setViewType('day')} className={`px-3 py-1 text-[11px] font-bold rounded-lg transition-all ${viewType === 'day' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white'}`}>Jour</button>
+              <button onClick={() => setViewType('list')} className={`px-3 py-1 text-[11px] font-bold rounded-lg transition-all ${viewType === 'list' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white'}`}>Liste</button>
             </div>
           </div>
 
-          {viewType === 'month' ? (
+          {viewType === 'month' && (
             /* Month Grid */
             <div className="grid grid-cols-7 gap-1 text-center">
               {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(day => (
@@ -482,24 +777,27 @@ export const Agenda: React.FC<AgendaProps> = ({
               {calendarCells.map((cell, idx) => {
                 const isSelected = cell.dateStr === selectedDate;
                 const hasEvents = cell.dateStr ? visibleEvents.some(e => e.dateTime.startsWith(cell.dateStr!)) : false;
+                const isToday = cell.dateStr === getLocalDateString(new Date());
                 
                 return (
                   <button
                     key={idx}
-                    disabled={!cell.day}
+                    disabled={!cell.dateStr}
                     onClick={() => cell.dateStr && setSelectedDate(cell.dateStr)}
                     onDragOver={handleDragOver}
                     onDrop={(e) => cell.dateStr && handleDrop(e, cell.dateStr)}
                     className={`relative aspect-square rounded-[14px] flex flex-col items-center justify-center transition-all ${
-                      !cell.day 
-                        ? 'opacity-0 pointer-events-none' 
+                      !cell.isCurrentMonth
+                        ? 'opacity-35 hover:bg-white/5 cursor-pointer text-white/40'
                         : isSelected
                           ? 'bg-[#6C5CFF] text-white font-extrabold shadow-[0_4px_10px_rgba(108,92,255,0.4)] cursor-pointer'
-                          : 'text-white/80 hover:bg-white/5 hover:text-white cursor-pointer'
+                          : isToday
+                            ? 'border border-[#6C5CFF]/50 text-white font-extrabold hover:bg-white/5 cursor-pointer'
+                            : 'text-white/80 hover:bg-white/5 hover:text-white cursor-pointer'
                     }`}
                   >
                     <span className="text-xs font-semibold">{cell.day}</span>
-                    {cell.day && cell.dateStr && hasEvents && (
+                    {cell.dateStr && hasEvents && (
                       <div className="absolute bottom-1.5 flex justify-center space-x-0.5 pointer-events-none">
                         {getDotsForDay(cell.dateStr).map((dot, dIdx) => (
                           <span 
@@ -514,14 +812,17 @@ export const Agenda: React.FC<AgendaProps> = ({
                 );
               })}
             </div>
-          ) : (
-            /* Week View (Google Calendar Style) */
+          )}
+
+          {viewType === 'week' && (
+            /* Week View */
             <div className="flex flex-col space-y-4">
               {/* Horizontal Days Carousel */}
               <div className="flex space-x-3 overflow-x-auto pb-2 no-scrollbar px-1">
                 {weekCells.map((cell, idx) => {
                   const isSelected = cell.dateStr === selectedDate;
                   const dayEventsCount = visibleEvents.filter(e => e.dateTime.startsWith(cell.dateStr)).length;
+                  const isToday = cell.dateStr === getLocalDateString(new Date());
                   
                   return (
                     <button
@@ -529,8 +830,10 @@ export const Agenda: React.FC<AgendaProps> = ({
                       onClick={() => setSelectedDate(cell.dateStr)}
                       className={`flex flex-col items-center justify-center min-w-[65px] h-[80px] rounded-[20px] transition-all shrink-0 border ${
                         isSelected 
-                          ? 'bg-[#6C5CFF] border-[#6C5CFF] text-white shadow-[0_4px_15px_rgba(108,92,255,0.4)]' 
-                          : 'bg-white/5 border-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+                          ? 'bg-[#6C5CFF] border-[#6C5CFF] text-white shadow-[0_4px_15px_rgba(108,92,255,0.4)] cursor-pointer' 
+                          : isToday
+                            ? 'bg-white/5 border-[#6C5CFF]/50 text-white font-bold hover:bg-white/10 cursor-pointer'
+                            : 'bg-white/5 border-white/5 text-white/60 hover:bg-white/10 hover:text-white cursor-pointer'
                       }`}
                     >
                       <span className="text-[10px] font-bold uppercase mb-1 tracking-wider">{cell.name}</span>
@@ -618,26 +921,173 @@ export const Agenda: React.FC<AgendaProps> = ({
                          </div>
                       );
                   })}
-                  {/* Empty space at the bottom to ensure scroll covers all hours (15 hours * 60px) */}
                   <div className="h-[900px]"></div>
                 </div>
               </div>
             </div>
           )}
 
+          {viewType === 'day' && (
+            /* Day View */
+            <div className="flex flex-col space-y-4">
+              <div className="px-1 text-white">
+                <span className="text-[10px] text-white/40 font-bold uppercase tracking-wider">Journée active :</span>
+                <h4 className="text-xs sm:text-sm font-black uppercase mt-0.5">
+                  {new Date(selectedDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </h4>
+              </div>
+
+              {/* Vertical Timeline for Selected Day */}
+              <div 
+                className="relative bg-[#07111F]/50 rounded-[28px] border border-white/5 overflow-y-auto h-[450px] no-scrollbar shadow-inner"
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, selectedDate)}
+              >
+                {/* Hours background grid */}
+                <div className="absolute top-0 left-0 w-full pointer-events-none">
+                  {Array.from({ length: 15 }).map((_, i) => {
+                    const hour = i + 7;
+                    return (
+                      <div key={hour} className="flex h-[60px] border-b border-white/5 w-full">
+                        <div className="w-14 shrink-0 text-right pr-3 pt-2">
+                          <span className="text-[10px] font-bold text-white/30">{hour}:00</span>
+                        </div>
+                        <div className="flex-1 border-l border-white/5"></div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Events Overlaid */}
+                <div className="relative pl-14 pt-2 w-full">
+                  {visibleEvents
+                    .filter(e => e.dateTime.startsWith(selectedDate))
+                    .map(event => {
+                      const member = !event.isExternal ? members.find(m => m.id === event.memberId) : null;
+                      
+                      let topOffset = 0;
+                      if (event.time) {
+                        const [hours, minutes] = event.time.split(':').map(Number);
+                        const decimalHour = hours + (minutes / 60);
+                        topOffset = Math.max(0, (decimalHour - 7) * 60);
+                      }
+                      
+                      return (
+                         <div 
+                           key={event.id}
+                           draggable={!event.isExternal && isWritable}
+                           onDragStart={(e) => {
+                             if (!isWritable || event.isExternal) {
+                               e.preventDefault();
+                               return;
+                             }
+                             handleDragStart(e, event.id);
+                           }}
+                           className={`absolute left-2 right-4 p-3 rounded-2xl border border-white/10 text-xs shadow-lg cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-all z-10 overflow-hidden ${
+                             event.done ? 'bg-[#112240]/50 opacity-60' : 'bg-[#1C2C4E]/90 backdrop-blur-md'
+                           }`}
+                           style={{ top: `${topOffset}px`, minHeight: '56px' }}
+                         >
+                           <div 
+                             className={`absolute left-0 top-0 bottom-0 w-1 ${event.memberId && !event.isExternal ? memberColors[event.memberId] : 'bg-white/40'}`}
+                             style={event.isExternal && event.sourceColor ? { backgroundColor: event.sourceColor } : undefined}
+                           ></div>
+                           
+                           <div className="flex justify-between items-start pl-1">
+                             <div className="flex items-center space-x-1.5 mb-1">
+                               <span className="font-bold text-white text-[11px] bg-white/10 px-1.5 py-0.5 rounded-md">{event.time}</span>
+                             </div>
+                             {event.isExternal ? (
+                               <span className="text-[8px] font-black uppercase text-white/50 bg-white/10 px-1.5 py-0.5 rounded-full tracking-wider flex items-center gap-1 shrink-0">
+                                 <Globe className="w-2 h-2 text-[#4F8CFF]" />
+                                 <span>{event.sourceName}</span>
+                               </span>
+                             ) : (
+                               member && <span className="text-[9px] font-black uppercase text-white/40 tracking-wider">{member.name}</span>
+                             )}
+                           </div>
+                           <p className={`font-bold text-white/90 leading-tight pl-1 mt-1 ${event.done ? 'line-through text-white/50' : ''}`}>{event.title}</p>
+                         </div>
+                      );
+                  })}
+                  <div className="h-[900px]"></div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {viewType === 'list' && (
+            /* List View */
+            <div className="flex flex-col space-y-3 max-h-[450px] overflow-y-auto pr-1 no-scrollbar">
+              {listEvents.length > 0 ? (
+                listEvents.map((event) => {
+                  const member = !event.isExternal ? members.find(m => m.id === event.memberId) : null;
+                  const dotColor = event.memberId ? memberColors[event.memberId] : 'bg-white/40';
+                  
+                  return (
+                    <div 
+                      key={event.id}
+                      className={`glass-panel rounded-2xl p-3 border border-white/6 flex items-start justify-between ${
+                        event.done ? 'opacity-50' : ''
+                      }`}
+                    >
+                      <div className="flex items-start space-x-3">
+                        <div className="flex flex-col items-center justify-center bg-white/5 rounded-xl px-2.5 py-1.5 border border-white/5 shrink-0 min-w-[50px]">
+                          <span className="text-[9px] text-white/40 font-bold uppercase">{new Date(event.dateTime.split('T')[0]).toLocaleDateString('fr-FR', { weekday: 'short' })}</span>
+                          <span className="text-xs text-white font-extrabold">{new Date(event.dateTime.split('T')[0]).getDate()}</span>
+                        </div>
+                        
+                        <div className="space-y-1">
+                          <div className="flex items-center space-x-2">
+                            <span 
+                              className={`w-2.5 h-2.5 rounded-full ${event.memberId && !event.isExternal ? dotColor : 'bg-white/40'}`} 
+                              style={event.isExternal && event.sourceColor ? { backgroundColor: event.sourceColor } : undefined}
+                            />
+                            <h4 className="text-xs font-bold text-white">
+                              {event.title}
+                            </h4>
+                          </div>
+                          
+                          <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider">
+                            {event.isExternal ? (
+                              <span className="text-[#4F8CFF] font-extrabold">🌐 {event.sourceName}</span>
+                            ) : (
+                              `${typeLabels[event.type]} ${member ? `• ${member.name}` : ''}`
+                            )}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-end space-y-1 shrink-0">
+                        <span className="text-[9px] font-bold text-white/70 bg-white/5 px-2 py-1 rounded-lg border border-white/5 flex items-center space-x-1">
+                          <Clock className="w-2.5 h-2.5 text-[#6C5CFF]" />
+                          <span>{event.time}</span>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="glass-panel rounded-[28px] border border-white/8 p-6 text-center text-white/30 text-xs">
+                  Aucun événement pour ce mois.
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Color Legend */}
           <div className="pt-3 border-t border-white/5 flex flex-wrap gap-x-3 gap-y-2 justify-center">
             {members.map(m => (
-              <div key={m.id} className="flex items-center space-x-1.5">
-                <span className={`w-2 h-2 rounded-full ${memberColors[m.id]}`} />
+              <div key={m.id} className="flex items-center space-x-1.5 animate-fade-in">
+                <span className={`w-2 h-2 rounded-full ${memberColors[m.id]} shadow-[0_0_6px_currentColor]`} />
                 <span className="text-[10px] text-white/50 font-medium">{m.name}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Schedule List (Only visible in Month view for layout reasons) */}
-        {viewType === 'month' && (
+        {/* Schedule List (Only visible in Month & Day views for layout reasons) */}
+        {(viewType === 'month' || viewType === 'day') && (
           <div className="space-y-4">
             
             {/* Controls / Filters */}
