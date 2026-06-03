@@ -53,6 +53,7 @@ interface BudgetProps {
   onClearActiveSubView?: () => void;
   moduleBudgets: Record<string, { budget: number; recurrence: string }>;
   setModuleBudgets: React.Dispatch<React.SetStateAction<Record<string, { budget: number; recurrence: string }>>>;
+  userId?: string;
 }
 
 type FinanceTab = 'dashboard' | 'transactions' | 'revenus' | 'depenses' | 'categories' | 'goals' | 'accounts' | 'abonnements' | 'budgets_modules' | 'imports' | 'exports' | 'reports';
@@ -87,6 +88,7 @@ export const Budget: React.FC<BudgetProps> = ({
   activeMemberId = '1',
   onAddTransaction,
   foyerId,
+  userId,
   myMemberProfile,
   customCategories,
   setCustomCategories,
@@ -105,6 +107,41 @@ export const Budget: React.FC<BudgetProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [accountFilter, setAccountFilter] = useState('all');
+
+  const [isSortModalOpen, setIsSortModalOpen] = useState(false);
+
+  const storageKey = `mf_budget_sort_config_${userId || 'default'}_${foyerId || 'default'}`;
+
+  const [sortConfig, setSortConfig] = useState<{
+    sortBy: 'date_desc' | 'date_asc' | 'amount_asc' | 'amount_desc' | 'category_asc' | 'category_desc';
+    typeFilter: 'all' | 'expense' | 'income' | 'saving';
+    moduleFilter: 'all' | 'budget' | 'sante' | 'vehicules' | 'logement' | 'voyages' | 'ecole' | 'documents' | 'animaux' | 'argent_de_poche';
+    accountFilter: 'all' | string;
+    memberFilter: 'all' | string;
+  }>(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn("Error parsing sortConfig", e);
+    }
+    return {
+      sortBy: 'date_desc',
+      typeFilter: 'all',
+      moduleFilter: 'all',
+      accountFilter: 'all',
+      memberFilter: 'all'
+    };
+  });
+
+  const saveSortConfig = (newConfig: any) => {
+    setSortConfig(newConfig);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(newConfig));
+    } catch (e) {
+      console.warn("Error saving sortConfig", e);
+    }
+  };
   
   // Period filter states
   type PeriodType = 'today' | 'yesterday' | 'week' | 'month' | 'quarter' | 'year' | 'all' | 'custom';
@@ -689,7 +726,7 @@ export const Budget: React.FC<BudgetProps> = ({
 
   // Filters
   const filteredTransactions = useMemo(() => {
-    return transactions.filter(t => {
+    const result = transactions.filter(t => {
       const matchQuery = searchQuery === '' || 
         t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -697,11 +734,83 @@ export const Budget: React.FC<BudgetProps> = ({
         (t.comment && t.comment.toLowerCase().includes(searchQuery.toLowerCase()));
 
       const matchCat = categoryFilter === 'all' || t.category === categoryFilter;
-      const matchAcc = accountFilter === 'all' || t.accountId === accountFilter;
 
-      return matchQuery && matchCat && matchAcc;
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions, searchQuery, categoryFilter, accountFilter]);
+      // Compte
+      const matchAcc = sortConfig.accountFilter === 'all' || t.accountId === sortConfig.accountFilter;
+
+      // Membre
+      const matchMem = sortConfig.memberFilter === 'all' || t.memberId === sortConfig.memberFilter;
+
+      // Type (Dépenses, Revenus, Épargne, Tous)
+      let matchType = true;
+      if (sortConfig.typeFilter === 'expense') {
+        matchType = t.type === 'expense' && t.category !== 'Épargne';
+      } else if (sortConfig.typeFilter === 'income') {
+        matchType = t.type === 'income' && t.category !== 'Épargne';
+      } else if (sortConfig.typeFilter === 'saving') {
+        matchType = t.category === 'Épargne';
+      }
+
+      // Module source (Budget, Santé, Véhicules, Logement, Voyages, École, Démarches, Animaux, Argent de poche)
+      let matchModule = true;
+      if (sortConfig.moduleFilter !== 'all') {
+        const mLower = (t.moduleSource || 'budget').toLowerCase();
+        if (sortConfig.moduleFilter === 'budget') {
+          matchModule = mLower === 'budget' || mLower === 'courses' || mLower === 'abonnements' || mLower === 'loisirs';
+        } else if (sortConfig.moduleFilter === 'sante') {
+          matchModule = mLower === 'sante' || mLower === 'santé';
+        } else if (sortConfig.moduleFilter === 'vehicules') {
+          matchModule = mLower === 'vehicules' || mLower === 'vehicule';
+        } else if (sortConfig.moduleFilter === 'logement') {
+          matchModule = mLower === 'logement';
+        } else if (sortConfig.moduleFilter === 'voyages') {
+          matchModule = mLower === 'voyages' || mLower === 'voyage';
+        } else if (sortConfig.moduleFilter === 'ecole') {
+          matchModule = mLower === 'ecole' || mLower === 'école';
+        } else if (sortConfig.moduleFilter === 'documents') {
+          matchModule = mLower === 'documents' || mLower === 'document' || mLower === 'démarches' || mLower === 'demarches';
+        } else if (sortConfig.moduleFilter === 'animaux') {
+          matchModule = mLower === 'animaux' || mLower === 'animal' || mLower === 'pets';
+        } else if (sortConfig.moduleFilter === 'argent_de_poche') {
+          matchModule = mLower === 'argent_de_poche' || mLower === 'pocket_money';
+        }
+      }
+
+      return matchQuery && matchCat && matchAcc && matchMem && matchType && matchModule;
+    });
+
+    return result.sort((a, b) => {
+      if (sortConfig.sortBy === 'date_desc') {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        if (dateA !== dateB) return dateB - dateA;
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
+      }
+      if (sortConfig.sortBy === 'date_asc') {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        if (dateA !== dateB) return dateA - dateB;
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeA - timeB;
+      }
+      if (sortConfig.sortBy === 'amount_asc') {
+        return a.amount - b.amount;
+      }
+      if (sortConfig.sortBy === 'amount_desc') {
+        return b.amount - a.amount;
+      }
+      if (sortConfig.sortBy === 'category_asc') {
+        return a.category.localeCompare(b.category);
+      }
+      if (sortConfig.sortBy === 'category_desc') {
+        return b.category.localeCompare(a.category);
+      }
+      return 0;
+    });
+  }, [transactions, searchQuery, categoryFilter, sortConfig]);
 
   // Operations CRUD
   const handleOpenAddTx = () => {
@@ -1323,7 +1432,7 @@ export const Budget: React.FC<BudgetProps> = ({
                 />
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
@@ -1341,6 +1450,14 @@ export const Budget: React.FC<BudgetProps> = ({
                   <option value="all">Tous comptes</option>
                   {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSortModalOpen(true)}
+                  className="flex items-center gap-1.5 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/30 text-purple-200 text-xs px-3 py-2 rounded-xl transition cursor-pointer"
+                >
+                  <span>↕️</span> Trier & Filtrer {(sortConfig.sortBy !== 'date_desc' || sortConfig.typeFilter !== 'all' || sortConfig.moduleFilter !== 'all' || sortConfig.accountFilter !== 'all' || sortConfig.memberFilter !== 'all') && '🔴'}
+                </button>
               </div>
             </div>
 
@@ -2472,6 +2589,125 @@ export const Budget: React.FC<BudgetProps> = ({
       </div>
 
       {/* ===================== MODALS DEFINITION ===================== */}
+
+      {/* Modal Trier & Filtrer */}
+      {isSortModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="glass-panel border border-white/10 rounded-[28px] w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+              <h3 className="text-sm font-extrabold text-white uppercase">Trier & Filtrer</h3>
+              <button type="button" onClick={() => setIsSortModalOpen(false)} className="p-1 text-white/40 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Tri */}
+              <div>
+                <label className="block text-white/50 mb-1 font-semibold">Trier par</label>
+                <select
+                  value={sortConfig.sortBy}
+                  onChange={e => saveSortConfig({ ...sortConfig, sortBy: e.target.value })}
+                  className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                >
+                  <option value="date_desc">Plus récentes (Date décroissante)</option>
+                  <option value="date_asc">Plus anciennes (Date croissante)</option>
+                  <option value="amount_asc">Montant croissant</option>
+                  <option value="amount_desc">Montant décroissant</option>
+                  <option value="category_asc">Catégorie (A → Z)</option>
+                  <option value="category_desc">Catégorie (Z → A)</option>
+                </select>
+              </div>
+
+              {/* Type */}
+              <div>
+                <label className="block text-white/50 mb-1 font-semibold">Type d'opération</label>
+                <select
+                  value={sortConfig.typeFilter}
+                  onChange={e => saveSortConfig({ ...sortConfig, typeFilter: e.target.value })}
+                  className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                >
+                  <option value="all">Tous les types</option>
+                  <option value="expense">Dépenses (hors épargne)</option>
+                  <option value="income">Revenus (hors épargne)</option>
+                  <option value="saving">Épargne</option>
+                </select>
+              </div>
+
+              {/* Module source */}
+              <div>
+                <label className="block text-white/50 mb-1 font-semibold">Module source</label>
+                <select
+                  value={sortConfig.moduleFilter}
+                  onChange={e => saveSortConfig({ ...sortConfig, moduleFilter: e.target.value })}
+                  className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                >
+                  <option value="all">Tous les modules</option>
+                  <option value="budget">Budget (Courses, Abonnements...)</option>
+                  <option value="sante">Santé</option>
+                  <option value="vehicules">Véhicules</option>
+                  <option value="logement">Logement</option>
+                  <option value="voyages">Voyages</option>
+                  <option value="ecole">École</option>
+                  <option value="documents">Démarches & Documents</option>
+                  <option value="animaux">Animaux</option>
+                  <option value="argent_de_poche">Argent de poche</option>
+                </select>
+              </div>
+
+              {/* Compte */}
+              <div>
+                <label className="block text-white/50 mb-1 font-semibold">Compte bancaire</label>
+                <select
+                  value={sortConfig.accountFilter}
+                  onChange={e => saveSortConfig({ ...sortConfig, accountFilter: e.target.value })}
+                  className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                >
+                  <option value="all">Tous les comptes</option>
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+
+              {/* Membre */}
+              <div>
+                <label className="block text-white/50 mb-1 font-semibold">Membre de la famille</label>
+                <select
+                  value={sortConfig.memberFilter}
+                  onChange={e => saveSortConfig({ ...sortConfig, memberFilter: e.target.value })}
+                  className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                >
+                  <option value="all">Tous les membres</option>
+                  {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    saveSortConfig({
+                      sortBy: 'date_desc',
+                      typeFilter: 'all',
+                      moduleFilter: 'all',
+                      accountFilter: 'all',
+                      memberFilter: 'all'
+                    });
+                  }}
+                  className="flex-1 py-2 text-center bg-white/5 border border-white/10 rounded-xl text-white/60 hover:text-white transition cursor-pointer"
+                >
+                  Réinitialiser
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsSortModalOpen(false)}
+                  className="flex-1 py-2 text-center bg-purple-600 hover:bg-purple-500 rounded-xl text-white font-bold transition cursor-pointer"
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Transaction */}
       {isTxModalOpen && (

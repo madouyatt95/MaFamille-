@@ -712,6 +712,15 @@ function App() {
     recurrence?: string;
     member?: string;
   } | null>(null);
+  const [voiceTransactionAdded, setVoiceTransactionAdded] = useState<{
+    type: 'expense' | 'income';
+    amount: number;
+    category: string;
+    subCategory?: string;
+    accountName: string;
+  } | null>(null);
+  const [devModeActive, setDevModeActive] = useState(() => localStorage.getItem('mf_dev_mode') === 'true');
+  const devClicks = useRef(0);
   const voiceRecognitionRef = useRef<any>(null);
   const [pendingGroceryItems, setPendingGroceryItems] = useState<any[] | null>(null);
   const [isEditingPendingGrocery, setIsEditingPendingGrocery] = useState(false);
@@ -3463,6 +3472,7 @@ function App() {
     setPendingVoiceCommandData(null);
     setAmbiguousChoices([]);
     setVoiceDebugInfo(null);
+    setVoiceTransactionAdded(null);
     setPendingGroceryItems(null);
     setIsEditingPendingGrocery(false);
 
@@ -4216,6 +4226,14 @@ function App() {
             module: choice.moduleSource === 'budget' ? 'Budget' : (choice.moduleSource === 'sante' ? 'Santé' : choice.moduleSource === 'vehicules' ? 'Véhicules' : choice.moduleSource === 'logement' ? 'Logement' : choice.moduleSource === 'ecole' ? 'École' : choice.moduleSource === 'documents' ? 'Démarches' : choice.moduleSource === 'courses' ? 'Courses' : choice.moduleSource === 'voyages' ? 'Voyages' : choice.moduleSource === 'animaux' ? 'Animaux' : choice.moduleSource === 'argent_de_poche' ? 'Argent de poche' : choice.moduleSource),
             recurrence: recurrenceType !== 'none' ? (recurrenceType === 'monthly' ? 'Mensuelle' : recurrenceType === 'weekly' ? 'Hebdomadaire' : recurrenceType === 'daily' ? 'Quotidienne' : recurrenceType === 'yearly' ? 'Annuelle' : recurrenceType) : undefined,
             member: matchedMember ? matchedMember.name : undefined
+          });
+
+          setVoiceTransactionAdded({
+            type: finalTx.type as any,
+            amount: finalTx.amount,
+            category: finalTx.category,
+            subCategory: finalTx.subCategory || undefined,
+            accountName: accounts.find(a => a.id === finalTx.accountId)?.name || 'Principal'
           });
 
           feedback = `💰 Transaction "${finalTx.title}" de ${amountVal}€ enregistrée dans le module ${choice.label.split(' ')[1] || choice.label}.`;
@@ -6057,6 +6075,7 @@ function App() {
           }}
           onAddTransaction={handleAddTransaction}
           foyerId={foyer?.id || ''}
+          userId={user?.id || ''}
           myMemberProfile={myMemberProfile}
           customCategories={customCategories}
           setCustomCategories={setCustomCategories}
@@ -6447,7 +6466,21 @@ function App() {
             </div>
 
             <div className="space-y-2">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF4D6D] animate-pulse">Contrôle Vocal Global</span>
+              <span 
+                onClick={() => {
+                  devClicks.current += 1;
+                  if (devClicks.current >= 7) {
+                    const nextDevMode = !devModeActive;
+                    setDevModeActive(nextDevMode);
+                    localStorage.setItem('mf_dev_mode', String(nextDevMode));
+                    alert(nextDevMode ? "Mode Développeur Activé 🛠️" : "Mode Développeur Désactivé 👤");
+                    devClicks.current = 0;
+                  }
+                }}
+                className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF4D6D] animate-pulse cursor-pointer select-none"
+              >
+                Contrôle Vocal Global
+              </span>
               <p className="text-lg font-bold text-white leading-snug">{voiceTranscript}</p>
             </div>
 
@@ -6704,6 +6737,14 @@ function App() {
                             recurrence: updatedTx.recurrence !== 'none' ? (updatedTx.recurrence === 'monthly' ? 'Mensuelle' : updatedTx.recurrence === 'weekly' ? 'Hebdomadaire' : updatedTx.recurrence === 'daily' ? 'Quotidienne' : updatedTx.recurrence === 'yearly' ? 'Annuelle' : updatedTx.recurrence) : undefined,
                             member: matchedMemberObj ? matchedMemberObj.name : undefined
                           });
+
+                          setVoiceTransactionAdded({
+                            type: updatedTx.type as any,
+                            amount: updatedTx.amount,
+                            category: choice.category,
+                            subCategory: choice.subCategory || undefined,
+                            accountName: accounts.find(a => a.id === updatedTx.accountId)?.name || 'Principal'
+                          });
                           
                           // Save to voice commands logs
                           const client = getSupabaseClient();
@@ -6745,13 +6786,31 @@ function App() {
               </div>
             )}
             
-            {voiceFeedback && (
+            {voiceFeedback && !voiceTransactionAdded && (
               <div className="bg-white/5 border border-white/10 rounded-[20px] p-4 text-xs font-semibold text-[#00D26A] leading-normal animate-fade-in">
                 {voiceFeedback}
               </div>
             )}
 
-            {voiceDebugInfo && (
+            {voiceTransactionAdded && (
+              <div className="glass-panel border border-emerald-500/20 bg-emerald-950/20 rounded-[24px] p-5 text-center space-y-3 shadow-[0_8px_32px_rgba(16,185,129,0.15)] animate-fade-in">
+                <div className="flex items-center justify-center gap-1.5 text-emerald-400 text-xs font-extrabold uppercase tracking-wider">
+                  <span>✓</span>
+                  <span>{voiceTransactionAdded.type === 'expense' ? 'Dépense ajoutée' : 'Revenu ajouté'}</span>
+                </div>
+                <div className="text-3xl font-black text-white">
+                  {voiceTransactionAdded.amount}€
+                </div>
+                <div className="text-xs font-semibold text-white/80">
+                  {voiceTransactionAdded.category} {voiceTransactionAdded.subCategory && `> ${voiceTransactionAdded.subCategory}`}
+                </div>
+                <div className="text-[10px] text-white/40 font-bold uppercase tracking-wider">
+                  Compte : {voiceTransactionAdded.accountName}
+                </div>
+              </div>
+            )}
+
+            {voiceDebugInfo && devModeActive && (
               <div className="bg-black/40 border border-white/10 rounded-2xl p-4 text-[10px] font-mono text-left text-white/90 space-y-1 mt-3 max-w-sm mx-auto shadow-inner animate-fade-in">
                 <div className="text-white/40 font-bold border-b border-white/5 pb-1 mb-2 flex items-center justify-between">
                   <span>⚙️ MODE DEBUG DÉVELOPPEUR</span>
