@@ -34,10 +34,10 @@ import type {
   FoyerMember
 } from '../types';
 import { getSupabaseClient } from '../utils/supabase';
-import { FinancesExport } from './FinancesExport';
-import { FinancesImport } from './FinancesImport';
+import { BudgetExport } from './BudgetExport';
+import { BudgetImport } from './BudgetImport';
 
-interface FinancesProps {
+interface BudgetProps {
   transactions: Transaction[];
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
   savingGoals: SavingGoal[];
@@ -75,7 +75,7 @@ const DEFAULT_CATEGORIES = [
   { name: 'Autres', icon: 'MoreHorizontal', color: '#6B7280', budget: 150, sub: ['Divers', 'Cadeaux', 'Abonnements'] }
 ];
 
-export const Finances: React.FC<FinancesProps> = ({
+export const Budget: React.FC<BudgetProps> = ({
   transactions,
   setTransactions,
   savingGoals,
@@ -169,7 +169,7 @@ export const Finances: React.FC<FinancesProps> = ({
     accountId: '',
     date: new Date().toISOString().split('T')[0],
     comment: '',
-    recurrence: 'none' as 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly',
+    recurrence: 'none' as 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'quarterly' | 'semiannually' | 'custom',
     receiptBase64: '',
     attachmentBase64: ''
   });
@@ -1117,7 +1117,7 @@ export const Finances: React.FC<FinancesProps> = ({
           </div>
           <div>
             <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-1.5">
-              <span>Finances de la Famille</span>
+              <span>Budget de la Famille</span>
               <span className="bg-gradient-to-r from-purple-500 to-indigo-500 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow-md shadow-purple-500/20">
                 Premium
               </span>
@@ -3036,7 +3036,7 @@ export const Finances: React.FC<FinancesProps> = ({
       )}
 
       {isExportModalOpen && (
-        <FinancesExport
+        <BudgetExport
           isOpen={isExportModalOpen}
           onClose={() => {
             setIsExportModalOpen(false);
@@ -3056,7 +3056,7 @@ export const Finances: React.FC<FinancesProps> = ({
       )}
 
       {isImportModalOpen && (
-        <FinancesImport
+        <BudgetImport
           isOpen={isImportModalOpen}
           onClose={() => {
             setIsImportModalOpen(false);

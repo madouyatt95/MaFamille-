@@ -1,10 +1,10 @@
 import React from 'react';
-import { Home, Calendar, Plus, Wallet, LayoutGrid } from 'lucide-react';
+import { Home, Calendar, Mic, Wallet, LayoutGrid } from 'lucide-react';
 
 interface BottomNavProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  onAddClick: () => void;
+  onMicClick: () => void;
   activeMemberId?: string;
   members?: any[];
 }
@@ -12,7 +12,7 @@ interface BottomNavProps {
 export const BottomNav: React.FC<BottomNavProps> = ({ 
   activeTab, 
   setActiveTab, 
-  onAddClick,
+  onMicClick,
   activeMemberId,
   members
 }) => {
@@ -57,34 +57,34 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           )}
         </button>
 
-        {/* Floating Add (+) Button */}
+        {/* Floating Mic Button */}
         {!isChild && (
           <div className="relative -top-4 flex justify-center">
-            <div className="absolute w-16 h-16 rounded-full bg-[#6C5CFF]/20 blur-xl animate-pulse-slow"></div>
+            <div className="absolute w-16 h-16 rounded-full bg-red-500/20 blur-xl animate-pulse-slow"></div>
             <button 
-              onClick={onAddClick}
-              className="relative flex items-center justify-center w-14 h-14 rounded-full bg-[var(--family-bg)] border-2 border-[#6C5CFF] text-[var(--family-text)] hover:text-[#6C5CFF] float-btn-halo cursor-pointer transition-all duration-300 hover:scale-110 active:scale-95 group"
+              onClick={onMicClick}
+              className="relative flex items-center justify-center w-14 h-14 rounded-full bg-[var(--family-bg)] border-2 border-red-500 text-[var(--family-text)] hover:text-red-500 float-btn-halo cursor-pointer transition-all duration-300 hover:scale-110 active:scale-95 group"
             >
-              <div className="absolute inset-0.5 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#4F8CFF] opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
-              <Plus className="w-7 h-7 text-white group-hover:rotate-90 transition-transform duration-300" />
+              <div className="absolute inset-0.5 rounded-full bg-gradient-to-tr from-red-500 to-pink-500 opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
+              <Mic className="w-6 h-6 text-white group-hover:scale-110 transition-transform duration-300" />
             </button>
           </div>
         )}
 
-        {/* Finances */}
+        {/* Budget */}
         <button 
-          onClick={() => setActiveTab('finances')}
+          onClick={() => setActiveTab('budget')}
           className={`flex flex-col items-center justify-center space-y-1 py-1 px-3 rounded-2xl transition-all duration-300 ${
-            activeTab === 'finances' 
+            activeTab === 'budget' 
               ? 'text-[#6C5CFF] scale-105' 
               : 'text-white/40 hover:text-white/70'
           }`}
         >
           <Wallet className="w-6 h-6" />
           <span className="text-[10px] font-semibold tracking-wider">
-            {isChild ? 'Cagnotte' : 'Finances'}
+            {isChild ? 'Cagnotte' : 'Budget'}
           </span>
-          {activeTab === 'finances' && (
+          {activeTab === 'budget' && (
             <div className="w-1 h-1 rounded-full bg-[#6C5CFF] shadow-[0_0_8px_#6C5CFF]" />
           )}
         </button>

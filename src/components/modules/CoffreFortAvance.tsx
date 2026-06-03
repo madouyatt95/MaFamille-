@@ -14,11 +14,12 @@ interface CoffreFortAvanceProps {
   packs: JustificatifPack[];
   setPacks: React.Dispatch<React.SetStateAction<JustificatifPack[]>>;
   onAddEvent?: (title: string, dateTime: string) => void;
+  onAddTransaction?: (newTrans: any) => void;
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
 }
 
-export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, setDocuments, members, demarches, setDemarches, packs, setPacks, onAddEvent, isPremium = false, onTriggerPaywall }) => {
+export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, setDocuments, members, demarches, setDemarches, packs, setPacks, onAddEvent, onAddTransaction, isPremium = false, onTriggerPaywall }) => {
   const [mainTab, setMainTab] = useState<'docs' | 'demarches' | 'packs'>('docs');
   const [viewMode, setViewMode] = useState<'categories' | 'members' | 'expiring' | 'all'>('categories');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1109,6 +1110,108 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                 </div>
               );
             })}
+          </div>
+
+          {/* Administrative Costs Section */}
+          <div className="glass-panel rounded-[24px] border border-white/8 p-4 space-y-4 text-xs">
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Coûts Administratifs & Paiement</span>
+            
+            {(() => {
+              const [costInput, setCostInput] = useState(activeDemarche.cost?.toString() || '');
+              const [receiptId, setReceiptId] = useState(activeDemarche.receiptDocId || '');
+              const isPaid = activeDemarche.isPaid || false;
+              
+              const handleUpdateCost = () => {
+                const amt = parseFloat(costInput);
+                if (isNaN(amt) || amt <= 0) return;
+                
+                const updated = { 
+                  ...activeDemarche, 
+                  cost: amt,
+                  receiptDocId: receiptId || undefined
+                };
+                setActiveDemarche(updated);
+                setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+                alert('🔧 Coût de la démarche mis à jour !');
+              };
+              
+              const handleAddCostToBudget = () => {
+                const amt = parseFloat(costInput) || activeDemarche.cost || 0;
+                if (amt <= 0) {
+                  alert('Veuillez spécifier un coût valide.');
+                  return;
+                }
+                if (onAddTransaction) {
+                  onAddTransaction({
+                    amount: amt,
+                    type: 'expense',
+                    category: 'Autres',
+                    subCategory: 'Frais admin',
+                    date: new Date().toISOString().split('T')[0],
+                    title: `Frais admin : ${activeDemarche.title}`,
+                    memberName: activeDemarche.assignedMemberName || 'Foyer',
+                    moduleSource: 'demarches',
+                    comment: `Coût administratif pour la démarche ${activeDemarche.title}. Reçu lié: ${receiptId ? 'Oui' : 'Non'}`
+                  });
+                  
+                  // Mark as paid in demarches
+                  const updated = { ...activeDemarche, cost: amt, isPaid: true, receiptDocId: receiptId || undefined };
+                  setActiveDemarche(updated);
+                  setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+                  
+                  alert('💰 Frais de démarche ajoutés au Budget avec succès !');
+                }
+              };
+              
+              return (
+                <div className="space-y-3 animate-fade-in">
+                  <div className="grid grid-cols-2 gap-3 text-left">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-white/50 mb-1">Coût Estimé (€)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={costInput}
+                        onChange={(e) => setCostInput(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-white/50 mb-1">Lier un Reçu / Justificatif</label>
+                      <select
+                        value={receiptId}
+                        onChange={(e) => setReceiptId(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                      >
+                        <option value="" className="bg-[#112240]">Aucun</option>
+                        {documents.map(d => (
+                          <option key={d.id} value={d.id} className="bg-[#112240]">{d.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleUpdateCost}
+                      className="flex-1 py-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-white font-bold"
+                    >
+                      Enregistrer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddCostToBudget}
+                      disabled={isPaid}
+                      className={`flex-1 py-2 rounded-xl text-black font-extrabold transition ${isPaid ? 'bg-emerald-500/25 border border-emerald-500/20 text-emerald-400 cursor-not-allowed' : 'bg-[#FFB020] hover:bg-[#DFA015] cursor-pointer'}`}
+                    >
+                      {isPaid ? '✅ Payé & Enregistré' : '💰 Payer (Budget)'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Delete demarche */}

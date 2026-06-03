@@ -91,7 +91,7 @@ import { QuickActionsSheet } from './components/QuickActionsSheet';
 // Views imports
 import { Accueil } from './views/Accueil';
 import { Agenda } from './views/Agenda';
-import { Finances } from './views/Finances';
+import { Budget } from './views/Budget';
 import { MenuHub } from './views/MenuHub';
 import { Settings } from './views/Settings';
 import { Membres } from './views/Membres';
@@ -106,7 +106,7 @@ import { notificationService } from './services/notificationService';
 import type { Foyer, FoyerMember } from './types';
 
 // Lucide icon for inline notifications
-import { Bell, X, ChevronRight, Mic, MicOff, Volume2, Phone, Settings as SettingsIcon, Lock, AlertTriangle, Sparkles } from 'lucide-react';
+import { Bell, X, ChevronRight, Mic, Volume2, Phone, Settings as SettingsIcon, Lock, AlertTriangle, Sparkles } from 'lucide-react';
 
 function App() {
   // Safe localStorage helper functions to prevent any corrupt cache startup crashes
@@ -390,7 +390,7 @@ function App() {
 
   // Navigation and Sheets UI State
   const [activeTab, setActiveTab] = useState('accueil');
-  const [financesActiveSubView, setFinancesActiveSubView] = useState<{ type: 'export' | 'import', options?: any } | null>(null);
+  const [budgetActiveSubView, setBudgetActiveSubView] = useState<{ type: 'export' | 'import', options?: any } | null>(null);
   const [activeModule, rawSetActiveModule] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
@@ -612,6 +612,9 @@ function App() {
   const [voiceFeedback, setVoiceFeedback] = useState('');
   const [voiceWave, setVoiceWave] = useState(false);
   const [manualVoiceCommand, setManualVoiceCommand] = useState('');
+  const [voiceAmbiguous, setVoiceAmbiguous] = useState(false);
+  const [ambiguousChoices, setAmbiguousChoices] = useState<{ moduleSource: string; category: string; subCategory: string; label: string }[]>([]);
+  const [pendingVoiceCommandData, setPendingVoiceCommandData] = useState<any | null>(null);
   const voiceRecognitionRef = useRef<any>(null);
 
   const [foyer, setFoyer] = useState<Foyer | null>(() => {
@@ -789,11 +792,11 @@ function App() {
     }
     
     if (actionParam === 'add-expense') {
-      setActiveTab('finances');
+      setActiveTab('budget');
       setActiveModule('');
       setQuickActionsOpen(true);
     } else if (actionParam === 'share-receipt') {
-      setActiveTab('finances');
+      setActiveTab('budget');
       setActiveModule('');
       setQuickActionsOpen(true);
       setTimeout(() => {
@@ -1256,7 +1259,15 @@ function App() {
           modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
           isArchived: !!t.is_archived,
           recurrence: t.recurrence || 'none',
-          subscriptionId: t.subscription_id
+          subscriptionId: t.subscription_id,
+          moduleSource: t.module_source || undefined,
+          categoryId: t.category_id || undefined,
+          subCategoryId: t.subcategory_id || undefined,
+          currency: t.currency || undefined,
+          recurrenceInterval: t.recurrence_interval ? Number(t.recurrence_interval) : undefined,
+          startDate: t.start_date || undefined,
+          endDate: t.end_date || undefined,
+          nextOccurrence: t.next_occurrence || undefined
         })));
       }
 
@@ -1303,7 +1314,8 @@ function App() {
           done: t.done,
           rotation: t.rotation,
           validatedByParent: t.validated_by_parent,
-          dueDate: t.due_date
+          dueDate: t.due_date,
+          rewardAmount: t.reward_amount ? Number(t.reward_amount) : undefined
         })));
       }
 
@@ -1579,27 +1591,33 @@ function App() {
           nextBillingDate: a.next_billing_date || '',
           category: a.category
         }));
-        checkAndProcessRecurringTransactions(foyerId, abos);
+        processRecurringItems(foyerId, abos, transactionsRes.data || [], tasksRes.data || [], pocketMoneyRes.data || []);
       }
     }).catch((err: any) => {
       console.error("Error loading foyer tables background data:", err);
     });
   };
 
-  const checkAndProcessRecurringTransactions = async (foyerId: string, currentAbonnements: Abonnement[]) => {
-    if (!foyerId || currentAbonnements.length === 0) return;
+  const processRecurringItems = async (
+    foyerId: string,
+    currentAbonnements: any[],
+    dbTransactions: any[],
+    dbTasks: any[],
+    dbPocketMoney: any[]
+  ) => {
+    if (!foyerId) return;
     const todayStr = new Date().toISOString().split('T')[0];
     
     const client = getSupabaseClient();
     if (!client) return;
 
+    // 1. Process recurring Abonnements
     for (const abonnement of currentAbonnements) {
       let nextDateStr = abonnement.nextBillingDate;
       if (!nextDateStr) continue;
 
       let updated = false;
       const transactionsToAdd: any[] = [];
-
       let iterations = 0;
       while (nextDateStr && nextDateStr <= todayStr && iterations < 12) {
         iterations++;
@@ -1613,7 +1631,7 @@ function App() {
           title: `Récurrence : ${abonnement.name}`,
           member_id: activeMemberIdRef.current || activeMemberId || null,
           member_name: members.find(m => m.id === (activeMemberIdRef.current || activeMemberId))?.name || 'Système',
-          recurrence: abonnement.period,
+          recurrence_type: 'none',
           subscription_id: abonnement.id,
           comment: 'Généré automatiquement par le système'
         };
@@ -1641,6 +1659,155 @@ function App() {
           await client.from('abonnements').update({ next_billing_date: nextDateStr }).eq('id', abonnement.id);
         } catch (err) {
           console.error("Error processing recurring abonnement:", err);
+        }
+      }
+    }
+
+    // 2. Process recurring Transactions (universal budget scheduler)
+    for (const t of dbTransactions) {
+      if (!t.recurrence_type || t.recurrence_type === 'none') continue;
+      
+      let nextDateStr = t.next_occurrence || t.start_date || t.date;
+      if (!nextDateStr) continue;
+      
+      let updated = false;
+      const transactionsToAdd: any[] = [];
+      let iterations = 0;
+      
+      while (nextDateStr && nextDateStr <= todayStr && iterations < 12) {
+        iterations++;
+        const newTxId = crypto.randomUUID();
+        const newTrans = {
+          id: newTxId,
+          foyer_id: foyerId,
+          amount: Number(t.amount || 0),
+          type: t.type,
+          category: t.category,
+          date: nextDateStr,
+          title: `Récurrence : ${t.title}`,
+          member_id: t.member_id,
+          member_name: t.member_name,
+          recurrence_type: 'none',
+          account_id: t.account_id,
+          module_source: t.module_source,
+          category_id: t.category_id,
+          subcategory_id: t.subcategory_id,
+          currency: t.currency || 'EUR',
+          comment: 'Généré automatiquement par le planificateur récurrent'
+        };
+        transactionsToAdd.push(newTrans);
+        
+        // Calculate next occurrence date
+        const nextDate = new Date(nextDateStr);
+        const interval = t.recurrence_interval || 1;
+        if (t.recurrence_type === 'daily') {
+          nextDate.setDate(nextDate.getDate() + interval);
+        } else if (t.recurrence_type === 'weekly') {
+          nextDate.setDate(nextDate.getDate() + (interval * 7));
+        } else if (t.recurrence_type === 'monthly') {
+          nextDate.setMonth(nextDate.getMonth() + interval);
+        } else if (t.recurrence_type === 'quarterly') {
+          nextDate.setMonth(nextDate.getMonth() + 3);
+        } else if (t.recurrence_type === 'semiannually') {
+          nextDate.setMonth(nextDate.getMonth() + 6);
+        } else if (t.recurrence_type === 'yearly') {
+          nextDate.setFullYear(nextDate.getFullYear() + interval);
+        } else {
+          nextDate.setDate(nextDate.getDate() + 1);
+        }
+        
+        const potentialNextDateStr = nextDate.toISOString().split('T')[0];
+        if (t.end_date && potentialNextDateStr > t.end_date) {
+          nextDateStr = null;
+        } else {
+          nextDateStr = potentialNextDateStr;
+        }
+        updated = true;
+      }
+      
+      if (updated) {
+        try {
+          for (const tx of transactionsToAdd) {
+            await client.from('transactions').insert(tx);
+            
+            // Debit or credit the account balance in Supabase
+            if (tx.account_id) {
+              const { data: accData } = await client.from('accounts').select('balance').eq('id', tx.account_id).single();
+              if (accData) {
+                const balanceChange = tx.type === 'income' ? tx.amount : -tx.amount;
+                const newBalance = Number(accData.balance || 0) + balanceChange;
+                await client.from('accounts').update({ balance: newBalance }).eq('id', tx.account_id);
+              }
+            }
+            
+            // Credit child's pocket money balance if generated by argent_de_poche
+            if (tx.module_source === 'argent_de_poche') {
+              const kid = dbPocketMoney.find(k => k.id === tx.member_id || k.name.toLowerCase() === tx.member_name?.toLowerCase());
+              if (kid) {
+                const newBal = Number(kid.balance || 0) + tx.amount;
+                await client.from('pocket_money').update({ balance: newBal }).eq('id', kid.id);
+              }
+            }
+            
+            // Create budget alert notification
+            const alertObj = {
+              id: `alert-rec-${Date.now()}-${tx.id}`,
+              foyer_id: foyerId,
+              title: `🔄 Transaction récurrente générée`,
+              description: `La transaction "${tx.title}" de ${tx.amount}€ a été exécutée pour le ${tx.date}.`,
+              time: 'À l\'instant',
+              type: 'info',
+              read: false,
+              module: 'budget'
+            };
+            await client.from('alerts').insert(alertObj);
+          }
+          
+          // Update the template transaction's next billing date
+          await client.from('transactions').update({ next_occurrence: nextDateStr }).eq('id', t.id);
+        } catch (err) {
+          console.error("Error processing recurring transaction template:", err);
+        }
+      }
+    }
+
+    // 3. Process recurring ChoreTask rotations
+    for (const task of dbTasks) {
+      if (!task.rotation || task.rotation === 'none') continue;
+      
+      const taskDueDate = task.due_date;
+      // Rotate if task is completed or the due date is in the past
+      if (taskDueDate && (taskDueDate <= todayStr || task.validated_by_parent || task.done)) {
+        try {
+          const nextDueDateObj = new Date(taskDueDate || todayStr);
+          if (task.rotation === 'daily') {
+            nextDueDateObj.setDate(nextDueDateObj.getDate() + 1);
+          } else if (task.rotation === 'weekly') {
+            nextDueDateObj.setDate(nextDueDateObj.getDate() + 7);
+          }
+          const nextDueDateStr = nextDueDateObj.toISOString().split('T')[0];
+          
+          // Reset task state and set next due date
+          await client.from('chore_tasks').update({
+            done: false,
+            validated_by_parent: false,
+            due_date: nextDueDateStr
+          }).eq('id', task.id);
+          
+          // Trigger task alert notification
+          const alertObj = {
+            id: `alert-chore-${Date.now()}-${task.id}`,
+            foyer_id: foyerId,
+            title: `🧹 Tâche récurrente replanifiée`,
+            description: `La tâche "${task.title}" a été renouvelée pour le ${nextDueDateStr}.`,
+            time: 'À l\'instant',
+            type: 'info',
+            read: false,
+            module: 'tasks'
+          };
+          await client.from('alerts').insert(alertObj);
+        } catch (err) {
+          console.error("Error updating recurring chore task rotation:", err);
         }
       }
     }
@@ -1758,7 +1925,15 @@ function App() {
           subCategory: t.sub_category, accountId: t.account_id,
           receiptBase64: t.receipt_base64, attachmentBase64: t.attachment_base64, comment: t.comment,
           modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
-          isArchived: !!t.is_archived, recurrence: t.recurrence || 'none', subscriptionId: t.subscription_id
+          isArchived: !!t.is_archived, recurrence: t.recurrence || 'none', subscriptionId: t.subscription_id,
+          moduleSource: t.module_source || undefined,
+          categoryId: t.category_id || undefined,
+          subCategoryId: t.subcategory_id || undefined,
+          currency: t.currency || undefined,
+          recurrenceInterval: t.recurrence_interval ? Number(t.recurrence_interval) : undefined,
+          startDate: t.start_date || undefined,
+          endDate: t.end_date || undefined,
+          nextOccurrence: t.next_occurrence || undefined
         }));
         setTransactions(prev => {
           const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
@@ -1799,7 +1974,8 @@ function App() {
         const mapped = tasksRes.data.map(t => ({
           id: t.id, title: t.title, rewardPoints: t.reward_points, assignedMemberId: t.assigned_member_id,
           assignedMemberName: t.assigned_member_name, done: t.done, rotation: t.rotation,
-          validatedByParent: t.validated_by_parent, dueDate: t.due_date
+          validatedByParent: t.validated_by_parent, dueDate: t.due_date,
+          rewardAmount: t.reward_amount ? Number(t.reward_amount) : undefined
         }));
         setTasks(prev => {
           const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
@@ -2173,7 +2349,8 @@ function App() {
             done: t.done,
             rotation: t.rotation,
             validatedByParent: t.validated_by_parent,
-            dueDate: t.due_date
+            dueDate: t.due_date,
+            rewardAmount: t.reward_amount ? Number(t.reward_amount) : undefined
           }));
           setTasks(prev => {
             const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
@@ -2502,7 +2679,15 @@ function App() {
             modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
             isArchived: !!t.is_archived,
             recurrence: t.recurrence || 'none',
-            subscriptionId: t.subscription_id
+            subscriptionId: t.subscription_id,
+            moduleSource: t.module_source || undefined,
+            categoryId: t.category_id || undefined,
+            subCategoryId: t.subcategory_id || undefined,
+            currency: t.currency || undefined,
+            recurrenceInterval: t.recurrence_interval ? Number(t.recurrence_interval) : undefined,
+            startDate: t.start_date || undefined,
+            endDate: t.end_date || undefined,
+            nextOccurrence: t.next_occurrence || undefined
           })));
         }
       });
@@ -2872,7 +3057,8 @@ function App() {
         done: t.done,
         rotation: t.rotation,
         validated_by_parent: t.validatedByParent,
-        due_date: t.dueDate || null
+        due_date: t.dueDate || null,
+        reward_amount: t.rewardAmount || null
       }));
 
       // Saving Goals
@@ -3086,6 +3272,9 @@ function App() {
     setVoiceTranscript('Je vous écoute...');
     setVoiceFeedback('');
     setVoiceWave(true);
+    setVoiceAmbiguous(false);
+    setPendingVoiceCommandData(null);
+    setAmbiguousChoices([]);
 
     const recognition = new SpeechRecognition();
     voiceRecognitionRef.current = recognition;
@@ -3158,535 +3347,548 @@ function App() {
   };
 
   const parseVoiceCommand = async (text: string) => {
-    try {
-      const textWithDigits = convertFrenchNumbersToDigits(text);
-    const promptLower = textWithDigits.toLowerCase().trim();
-    let feedback = "";
-    let intent = "unknown";
-    let isSuccess = false;
+      try {
+        const textWithDigits = convertFrenchNumbersToDigits(text);
+        const promptLower = textWithDigits.toLowerCase().trim();
+        let feedback = "";
+        let intent = "unknown";
+        let isSuccess = false;
 
-    const logVoiceCommandToSupabase = async (cmdIntent: string, success: boolean) => {
-      const client = getSupabaseClient();
-      if (client && foyer?.id) {
-        try {
-          await client.from('voice_commands').insert({
-            id: crypto.randomUUID(),
-            foyer_id: foyer.id,
-            raw_text: text,
-            parsed_intent: cmdIntent,
-            is_success: success
-          });
-        } catch (err) {
-          console.warn("Log command warning:", err);
-        }
-      }
-    };
-
-    const hasNumber = /(\d+[\.,]?\d*)/.test(promptLower);
-    const amountMatch = promptLower.match(/(\d+[\.,]?\d*)/);
-    const amountVal = amountMatch ? parseFloat(amountMatch[1].replace(',', '.')) : 0;
-
-    const defaultCategories = ['Alimentation', 'Transport', 'Logement', 'Santé', 'Éducation', 'Autres', 'Transfert', 'Épargne'];
-    const allCategories = [...defaultCategories, ...customCategories.map(c => c.name)];
-
-    // 1. Account Transfer Intent
-    // e.g. "transférer 50 euros de principal à épargne"
-    if ((promptLower.includes('transférer') || promptLower.includes('transferer') || promptLower.includes('virement') || promptLower.includes('transfert')) && hasNumber) {
-      intent = "account_transfer";
-      const srcMatch = accounts.find(a => promptLower.includes(a.name.toLowerCase()));
-      const destMatch = accounts.find(a => promptLower.includes(a.name.toLowerCase()) && a.id !== srcMatch?.id);
-      
-      if (srcMatch && destMatch && amountVal > 0) {
-        const client = getSupabaseClient();
-        if (client && foyer?.id) {
-          try {
-            await client.from('transactions').insert({
-              id: crypto.randomUUID(),
-              foyer_id: foyer.id,
-              amount: amountVal,
-              type: 'expense',
-              category: 'Transfert',
-              account_id: srcMatch.id,
-              date: new Date().toISOString().split('T')[0],
-              title: `Virement vers ${destMatch.name} (Vocal)`,
-              member_id: activeMemberId,
-              member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
-              comment: 'Généré par commande vocale'
-            });
-
-            await client.from('transactions').insert({
-              id: crypto.randomUUID(),
-              foyer_id: foyer.id,
-              amount: amountVal,
-              type: 'income',
-              category: 'Transfert',
-              account_id: destMatch.id,
-              date: new Date().toISOString().split('T')[0],
-              title: `Virement reçu de ${srcMatch.name} (Vocal)`,
-              member_id: activeMemberId,
-              member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
-              comment: 'Généré par commande vocale'
-            });
-
-            await client.from('accounts').update({ balance: Math.max(0, srcMatch.balance - amountVal) }).eq('id', srcMatch.id);
-            await client.from('accounts').update({ balance: destMatch.balance + amountVal }).eq('id', destMatch.id);
-
-            feedback = `💸 Virement de ${amountVal}€ effectué de ${srcMatch.name} vers ${destMatch.name} !`;
-            isSuccess = true;
-          } catch (e: any) {
-            feedback = `❌ Échec du virement : ${e.message}`;
+        const logVoiceCommandToSupabase = async (cmdIntent: string, success: boolean) => {
+          const client = getSupabaseClient();
+          if (client && foyer?.id) {
+            try {
+              await client.from('voice_commands').insert({
+                id: crypto.randomUUID(),
+                foyer_id: foyer.id,
+                raw_text: text,
+                parsed_intent: cmdIntent,
+                is_success: success
+              });
+            } catch (err) {
+              console.warn("Log command warning:", err);
+            }
           }
+        };
+
+        const hasNumber = /(\d+[\.,]?\d*)/.test(promptLower);
+        const amountMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+        const amountVal = amountMatch ? parseFloat(amountMatch[1].replace(',', '.')) : 0;
+
+        const defaultCategories = ['Alimentation', 'Transport', 'Logement', 'Santé', 'Éducation', 'Autres', 'Transfert', 'Épargne'];
+        const allCategories = [...defaultCategories, ...customCategories.map(c => c.name)];
+
+        // 1. Account Transfer Intent
+        if ((promptLower.includes('transférer') || promptLower.includes('transferer') || promptLower.includes('virement') || promptLower.includes('transfert')) && hasNumber) {
+          intent = "account_transfer";
+          const srcMatch = accounts.find(a => promptLower.includes(a.name.toLowerCase()));
+          const destMatch = accounts.find(a => promptLower.includes(a.name.toLowerCase()) && a.id !== srcMatch?.id);
+          
+          if (srcMatch && destMatch && amountVal > 0) {
+            const client = getSupabaseClient();
+            if (client && foyer?.id) {
+              try {
+                await client.from('transactions').insert({
+                  id: crypto.randomUUID(),
+                  foyer_id: foyer.id,
+                  amount: amountVal,
+                  type: 'expense',
+                  category: 'Transfert',
+                  account_id: srcMatch.id,
+                  date: new Date().toISOString().split('T')[0],
+                  title: `Virement vers ${destMatch.name} (Vocal)`,
+                  member_id: activeMemberId,
+                  member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
+                  comment: 'Généré par commande vocale'
+                });
+
+                await client.from('transactions').insert({
+                  id: crypto.randomUUID(),
+                  foyer_id: foyer.id,
+                  amount: amountVal,
+                  type: 'income',
+                  category: 'Transfert',
+                  account_id: destMatch.id,
+                  date: new Date().toISOString().split('T')[0],
+                  title: `Virement reçu de ${srcMatch.name} (Vocal)`,
+                  member_id: activeMemberId,
+                  member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
+                  comment: 'Généré par commande vocale'
+                });
+
+                await client.from('accounts').update({ balance: Math.max(0, srcMatch.balance - amountVal) }).eq('id', srcMatch.id);
+                await client.from('accounts').update({ balance: destMatch.balance + amountVal }).eq('id', destMatch.id);
+
+                feedback = `💸 Virement de ${amountVal}€ effectué de ${srcMatch.name} vers ${destMatch.name} !`;
+                isSuccess = true;
+              } catch (e: any) {
+                feedback = `❌ Échec du virement : ${e.message}`;
+              }
+            }
+          } else {
+            feedback = "🤔 Comptes non identifiés pour le virement.";
+          }
+          
+          setActiveTab('budget');
+          setVoiceFeedback(feedback);
+          logVoiceCommandToSupabase(intent, isSuccess);
+          setTimeout(() => setVoiceActive(false), 2500);
+          return;
         }
-      } else {
-        feedback = "🤔 Comptes non identifiés pour le virement.";
-      }
-      
-      setActiveTab('finances');
-      setVoiceFeedback(feedback);
-      logVoiceCommandToSupabase(intent, isSuccess);
-      setTimeout(() => setVoiceActive(false), 2500);
-      return;
-    }
 
-    // 2. Abonnement/Subscription Create Intent
-    // e.g. "ajouter un abonnement netflix de 15 euros"
-    if ((promptLower.includes('abonnement') || promptLower.includes('netflix') || promptLower.includes('spotify') || promptLower.includes('mensuel')) && (promptLower.includes('ajouter') || promptLower.includes('créer') || promptLower.includes('creer')) && hasNumber) {
-      intent = "abonnement_create";
-      const client = getSupabaseClient();
-      if (client && foyer?.id && amountVal > 0) {
-        try {
-          let name = 'Abonnement vocal';
-          if (promptLower.includes('netflix')) name = 'Netflix';
-          else if (promptLower.includes('spotify')) name = 'Spotify';
-          else if (promptLower.includes('disney')) name = 'Disney+';
-          else if (promptLower.includes('amazon')) name = 'Amazon Prime';
-          else if (promptLower.includes('canal')) name = 'Canal+';
+        // 2. Abonnement/Subscription Create Intent
+        if ((promptLower.includes('abonnement') || promptLower.includes('netflix') || promptLower.includes('spotify') || promptLower.includes('mensuel')) && (promptLower.includes('ajouter') || promptLower.includes('créer') || promptLower.includes('creer')) && hasNumber) {
+          intent = "abonnement_create";
+          const client = getSupabaseClient();
+          if (client && foyer?.id && amountVal > 0) {
+            try {
+              let name = 'Abonnement vocal';
+              if (promptLower.includes('netflix')) name = 'Netflix';
+              else if (promptLower.includes('spotify')) name = 'Spotify';
+              else if (promptLower.includes('disney')) name = 'Disney+';
+              else if (promptLower.includes('amazon')) name = 'Amazon Prime';
+              else if (promptLower.includes('canal')) name = 'Canal+';
 
-          await client.from('abonnements').insert({
-            id: crypto.randomUUID(),
-            foyer_id: foyer.id,
-            name,
+              await client.from('abonnements').insert({
+                id: crypto.randomUUID(),
+                foyer_id: foyer.id,
+                name,
+                amount: amountVal,
+                period: 'monthly',
+                next_billing_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
+                category: 'Loisirs'
+              });
+              feedback = `🍿 Abonnement ${name} de ${amountVal}€/mois enregistré !`;
+              isSuccess = true;
+            } catch (e: any) {
+              feedback = `❌ Échec : ${e.message}`;
+            }
+          }
+          
+          setActiveTab('budget');
+          setVoiceFeedback(feedback);
+          logVoiceCommandToSupabase(intent, isSuccess);
+          setTimeout(() => setVoiceActive(false), 2500);
+          return;
+        }
+
+        // 3. Saving Goal Contribution Intent
+        if ((promptLower.includes('cagnotte') || promptLower.includes('épargner') || promptLower.includes('contribuer') || promptLower.includes('retirer')) && hasNumber) {
+          intent = "saving_contribution";
+          const isAdd = !promptLower.includes('retirer');
+          const goalMatch = savingGoals.find(g => promptLower.includes(g.title.toLowerCase()) || (g.category && promptLower.includes(g.category.toLowerCase())));
+          
+          if (goalMatch && amountVal > 0) {
+            const client = getSupabaseClient();
+            if (client && foyer?.id) {
+              try {
+                const change = isAdd ? amountVal : -amountVal;
+                const newCurrent = Math.max(0, goalMatch.currentAmount + change);
+                const contribLog = {
+                  id: crypto.randomUUID(),
+                  date: new Date().toISOString(),
+                  memberId: activeMemberId,
+                  memberName: members.find(m => m.id === activeMemberId)?.name || 'Parent',
+                  amount: change
+                };
+                const updatedContribs = [...(goalMatch.contributions || []), contribLog];
+
+                await client.from('saving_goals').update({
+                  current_amount: newCurrent,
+                  contributions: JSON.stringify(updatedContribs)
+                }).eq('id', goalMatch.id);
+
+                await client.from('transactions').insert({
+                  id: crypto.randomUUID(),
+                  foyer_id: foyer.id,
+                  title: isAdd ? `Versement : ${goalMatch.title}` : `Retrait : ${goalMatch.title}`,
+                  amount: amountVal,
+                  type: isAdd ? 'expense' : 'income',
+                  category: 'Épargne',
+                  date: new Date().toISOString().split('T')[0],
+                  member_id: activeMemberId,
+                  member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
+                  comment: 'Généré par commande vocale'
+                });
+
+                feedback = `🎯 Cagnotte "${goalMatch.title}" : ${isAdd ? 'Ajout' : 'Retrait'} de ${amountVal}€ effectué !`;
+                isSuccess = true;
+              } catch (e: any) {
+                feedback = `❌ Échec : ${e.message}`;
+              }
+            }
+          } else {
+            feedback = "🤔 Cagnotte non identifiée. Spécifiez le titre (ex: voyage).";
+          }
+
+          setActiveTab('budget');
+          setVoiceFeedback(feedback);
+          logVoiceCommandToSupabase(intent, isSuccess);
+          setTimeout(() => setVoiceActive(false), 2500);
+          return;
+        }
+
+        // 4. Custom Category Create Intent
+        if (promptLower.includes('catégorie') && (promptLower.includes('créer') || promptLower.includes('ajouter') || promptLower.includes('nouvelle'))) {
+          intent = "category_create";
+          const cleanName = promptLower.replace(/créer|creer|ajouter|nouvelle|catégorie|categorie/g, '').trim();
+          if (cleanName) {
+            const client = getSupabaseClient();
+            if (client && foyer?.id) {
+              try {
+                await client.from('custom_categories').insert({
+                  id: crypto.randomUUID(),
+                  foyer_id: foyer.id,
+                  name: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
+                  icon: '🕌 Mosquée',
+                  color: '#8B5CF6',
+                  budget: 0,
+                  display_order: 0
+                });
+                feedback = `🏷️ Catégorie "${cleanName}" créée avec succès !`;
+                isSuccess = true;
+              } catch (e: any) {
+                feedback = `❌ Échec : ${e.message}`;
+              }
+            }
+          } else {
+            feedback = "🤔 Quel est le nom de la catégorie ?";
+          }
+
+          setActiveTab('budget');
+          setVoiceFeedback(feedback);
+          logVoiceCommandToSupabase(intent, isSuccess);
+          setTimeout(() => setVoiceActive(false), 2500);
+          return;
+        }
+
+        // 5. Budget Limits Set Intent
+        if ((promptLower.includes('budget') || promptLower.includes('limite')) && promptLower.includes('fixer') && hasNumber) {
+          intent = "budget_limit";
+          const matchedCat = allCategories.find(c => promptLower.includes(c.toLowerCase()));
+          if (matchedCat && amountVal > 0) {
+            const ccObj = customCategories.find(cc => cc.name.toLowerCase() === matchedCat.toLowerCase());
+            const client = getSupabaseClient();
+            if (client && foyer?.id && ccObj) {
+              try {
+                await client.from('custom_categories').update({ budget: amountVal }).eq('id', ccObj.id);
+                feedback = `✍️ Budget de la catégorie ${matchedCat} fixé à ${amountVal}€ !`;
+                isSuccess = true;
+              } catch (e: any) {
+                feedback = `❌ Échec : ${e.message}`;
+              }
+            } else {
+              const budgetsSaved = localStorage.getItem('mf_category_budgets');
+              const budgetsObj = budgetsSaved ? JSON.parse(budgetsSaved) : {};
+              budgetsObj[matchedCat] = amountVal;
+              localStorage.setItem('mf_category_budgets', JSON.stringify(budgetsObj));
+              feedback = `✍️ Budget de la catégorie ${matchedCat} fixé à ${amountVal}€ !`;
+              isSuccess = true;
+            }
+          } else {
+            feedback = "🤔 Catégorie non trouvée.";
+          }
+
+          setActiveTab('budget');
+          setVoiceFeedback(feedback);
+          logVoiceCommandToSupabase(intent, isSuccess);
+          setTimeout(() => setVoiceActive(false), 2500);
+          return;
+        }
+
+        // 6. Export/Import Finances Intent
+        if (promptLower.includes('exporter') || promptLower.includes('télécharger le csv') || promptLower.includes('telecharger le csv') || promptLower.includes('rapport financier')) {
+          intent = "export_finances";
+          let format: 'csv' | 'pdf' = 'csv';
+          if (promptLower.includes('pdf')) format = 'pdf';
+
+          let period: 'month' | 'last_month' | 'year' | 'last_year' = 'month';
+          if (promptLower.includes('mois dernier') || promptLower.includes('dernier mois')) period = 'last_month';
+          else if (promptLower.includes('an') || promptLower.includes('année') || promptLower.includes('annuel')) period = 'year';
+          else if (promptLower.includes('année précédente') || promptLower.includes('an dernier')) period = 'last_year';
+
+          setBudgetActiveSubView({
+            type: 'export',
+            options: { format, period }
+          });
+          
+          setActiveTab('budget');
+          setVoiceFeedback(`📊 Ouverture de l'assistant d'exportation (${format.toUpperCase()}, période: ${period})...`);
+          logVoiceCommandToSupabase(intent, true);
+          setTimeout(() => setVoiceActive(false), 2500);
+          return;
+        }
+
+        if (promptLower.includes('importer') || promptLower.includes('import') || promptLower.includes('scanner') || promptLower.includes('scanne') || promptLower.includes('relevé') || promptLower.includes('releve')) {
+          intent = "import_finances";
+          let type: 'relevé' | 'ticket' = 'relevé';
+          if (promptLower.includes('ticket') || promptLower.includes('scanner') || promptLower.includes('scanne')) type = 'ticket';
+
+          setBudgetActiveSubView({
+            type: 'import',
+            options: { type }
+          });
+
+          setActiveTab('budget');
+          setVoiceFeedback(`📥 Ouverture de l'assistant d'importation (${type === 'ticket' ? 'Scan Ticket' : 'Relevé Bancaire'})...`);
+          logVoiceCommandToSupabase(intent, true);
+          setTimeout(() => setVoiceActive(false), 2500);
+          return;
+        }
+
+        // 7. General Transactions parser (fallback expense / income)
+        const hasEuro = promptLower.includes('euro') || promptLower.includes('€');
+        const financialKeywords = [
+          'dépense', 'depense', 'revenu', 'salaire', 'budget', 'payé', 'paye', 'coûte', 'coute', 'facture', 'loyer',
+          'essence', 'carburant', 'péage', 'peage', 'hébergement', 'hebergement', 'remboursement'
+        ];
+        const categoryKeywords = [
+          'transport', 'alimentation', 'logement', 'santé', 'sante', 'éducation', 'education', 'loisir', 'loisirs'
+        ];
+        const isFinancial = hasEuro || (hasNumber && (
+          financialKeywords.some(kw => promptLower.includes(kw)) ||
+          categoryKeywords.some(kw => promptLower.includes(kw))
+        ));
+
+        if (isFinancial && hasNumber && amountVal > 0) {
+          intent = promptLower.includes('salaire') || promptLower.includes('revenu') ? 'transaction_income' : 'transaction_expense';
+          let type: 'expense' | 'income' = 'expense';
+          if (promptLower.includes('salaire') || promptLower.includes('revenu') || promptLower.includes('reçu') || promptLower.includes('gagné')) {
+            type = 'income';
+          }
+
+          let currencyStr = 'EUR';
+          if (promptLower.includes('dollar') || promptLower.includes('$')) currencyStr = 'USD';
+
+          let recurrenceType: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'quarterly' | 'semiannually' | 'custom' = 'none';
+          let recurrenceInterval = 1;
+          if (/mensuel|tous les mois|chaque mois/i.test(promptLower)) {
+            recurrenceType = 'monthly';
+          } else if (/quotidien|tous les jours|chaque jour/i.test(promptLower)) {
+            recurrenceType = 'daily';
+          } else if (/hebdomadaire|toutes les semaines|chaque semaine/i.test(promptLower)) {
+            recurrenceType = 'weekly';
+          } else if (/trimestriel|tous les trimestres/i.test(promptLower)) {
+            recurrenceType = 'quarterly';
+          } else if (/semestriel|tous les semestres/i.test(promptLower)) {
+            recurrenceType = 'semiannually';
+          } else if (/annuel|tous les ans|chaque année/i.test(promptLower)) {
+            recurrenceType = 'yearly';
+          }
+
+          const matchedAccount = accounts.find(a => promptLower.includes(a.name.toLowerCase()));
+          const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
+
+          let title = 'Achat rapide';
+          const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€)/i;
+          let cleanTitle = textWithDigits.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|dépense|depense/gi, '').trim();
+          cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[\.,]?\d*)/, '').trim();
+          cleanTitle = cleanTitle.replace(/\b(?:dans|pour|en|le|la|les|de|du)\b/gi, '').trim();
+          categoryKeywords.forEach(kw => {
+            const regex = new RegExp('\\b' + kw + '\\b', 'gi');
+            cleanTitle = cleanTitle.replace(regex, '').trim();
+          });
+          if (cleanTitle) {
+            title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
+          }
+
+          const matches: any[] = [];
+          if (/course|aliment|supermar|manger|nourriture|carrefour|lidl|auchan/i.test(promptLower)) {
+            matches.push({ moduleSource: 'courses', category: 'Alimentation', subCategory: 'Supermarché', label: '🛒 Courses' });
+          }
+          if (/medecin|docteur|sante|santé|dentiste|pharmacie|medicament|soin|visite/i.test(promptLower)) {
+            matches.push({ moduleSource: 'sante', category: 'Santé', subCategory: 'Médecin', label: '🩺 Santé' });
+          }
+          if (/essence|carburant|diesel|gazole|peage|péage|voiture|garage|véhicule/i.test(promptLower)) {
+            matches.push({ moduleSource: 'vehicules', category: 'Transport', subCategory: 'Carburant', label: '🚗 Véhicule' });
+          }
+          if (/loyer|edf|electricite|électricité|eau|gaz|internet|wifi|charges|maison/i.test(promptLower)) {
+            matches.push({ moduleSource: 'logement', category: 'Logement', subCategory: 'Charges', label: '🏠 Logement' });
+          }
+          if (/voyage|vacance|hotel|hôtel|avion|vol/i.test(promptLower)) {
+            matches.push({ moduleSource: 'voyages', category: 'Loisirs', subCategory: 'Voyage', label: '✈️ Voyage' });
+          }
+          if (/ecole|école|cantine|fourniture|cahier|stylo|scolarite/i.test(promptLower)) {
+            matches.push({ moduleSource: 'ecole', category: 'Éducation', subCategory: 'Scolarité', label: '🎓 École' });
+          }
+          if (/croquette|veto|chien|chat|animaux|animal/i.test(promptLower)) {
+            matches.push({ moduleSource: 'animaux', category: 'Divers', subCategory: 'Animaux', label: '🐶 Animaux' });
+          }
+
+          const allCandidates = [
+            { moduleSource: 'courses', category: 'Alimentation', subCategory: 'Supermarché', label: '🛒 Courses' },
+            { moduleSource: 'sante', category: 'Santé', subCategory: 'Médecin', label: '🩺 Santé' },
+            { moduleSource: 'vehicules', category: 'Transport', subCategory: 'Carburant', label: '🚗 Véhicule' },
+            { moduleSource: 'logement', category: 'Logement', subCategory: 'Charges', label: '🏠 Logement' },
+            { moduleSource: 'voyages', category: 'Loisirs', subCategory: 'Voyage', label: '✈️ Voyage' },
+            { moduleSource: 'ecole', category: 'Éducation', subCategory: 'Scolarité', label: '🎓 École' },
+            { moduleSource: 'animaux', category: 'Divers', subCategory: 'Animaux', label: '🐶 Animaux' }
+          ];
+
+          const parsedTxData = {
             amount: amountVal,
-            period: 'monthly',
-            next_billing_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
-            category: 'Loisirs'
-          });
-          feedback = `🍿 Abonnement ${name} de ${amountVal}€/mois enregistré !`;
-          isSuccess = true;
-        } catch (e: any) {
-          feedback = `❌ Échec : ${e.message}`;
-        }
-      }
-      
-      setActiveTab('finances');
-      setVoiceFeedback(feedback);
-      logVoiceCommandToSupabase(intent, isSuccess);
-      setTimeout(() => setVoiceActive(false), 2500);
-      return;
-    }
+            type,
+            category: 'Autres',
+            date: new Date().toISOString().split('T')[0],
+            title: title,
+            memberId: matchedMember?.id || activeMemberId || null,
+            memberName: matchedMember?.name || members.find(m => m.id === activeMemberId)?.name || 'Famille',
+            accountId: matchedAccount?.id || null,
+            recurrence: recurrenceType,
+            recurrenceInterval,
+            startDate: new Date().toISOString().split('T')[0],
+            nextOccurrence: new Date().toISOString().split('T')[0],
+            currency: currencyStr,
+            intent
+          };
 
-    // 3. Saving Goal Contribution Intent
-    // e.g. "contribuer 30 euros pour voyage" or "retirer 20 euros de vacances"
-    if ((promptLower.includes('cagnotte') || promptLower.includes('épargner') || promptLower.includes('contribuer') || promptLower.includes('retirer')) && hasNumber) {
-      intent = "saving_contribution";
-      const isAdd = !promptLower.includes('retirer');
-      const goalMatch = savingGoals.find(g => promptLower.includes(g.title.toLowerCase()) || (g.category && promptLower.includes(g.category.toLowerCase())));
-      
-      if (goalMatch && amountVal > 0) {
-        const client = getSupabaseClient();
-        if (client && foyer?.id) {
-          try {
-            const change = isAdd ? amountVal : -amountVal;
-            const newCurrent = Math.max(0, goalMatch.currentAmount + change);
-            const contribLog = {
-              id: crypto.randomUUID(),
-              date: new Date().toISOString(),
-              memberId: activeMemberId,
-              memberName: members.find(m => m.id === activeMemberId)?.name || 'Parent',
-              amount: change
+          if (matches.length === 1) {
+            const choice = matches[0];
+            const finalTx = {
+              ...parsedTxData,
+              moduleSource: choice.moduleSource,
+              category: choice.category,
+              subCategory: choice.subCategory,
+              title: title === 'Achat rapide' ? `Dépense ${choice.label}` : title
             };
-            const updatedContribs = [...(goalMatch.contributions || []), contribLog];
 
-            await client.from('saving_goals').update({
-              current_amount: newCurrent,
-              contributions: JSON.stringify(updatedContribs)
-            }).eq('id', goalMatch.id);
+            await handleAddTransaction(finalTx);
 
-            await client.from('transactions').insert({
-              id: crypto.randomUUID(),
-              foyer_id: foyer.id,
-              title: isAdd ? `Versement : ${goalMatch.title}` : `Retrait : ${goalMatch.title}`,
-              amount: amountVal,
-              type: isAdd ? 'expense' : 'income',
-              category: 'Épargne',
-              date: new Date().toISOString().split('T')[0],
-              member_id: activeMemberId,
-              member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
-              comment: 'Généré par commande vocale'
+            if (choice.moduleSource === 'argent_de_poche' && finalTx.memberId) {
+              setPocketMoney(prev => prev.map(child => {
+                if (child.id === finalTx.memberId) {
+                  const newBal = child.balance + finalTx.amount;
+                  const client = getSupabaseClient();
+                  if (client) {
+                    client.from('pocket_money').update({ balance: newBal }).eq('id', child.id);
+                  }
+                  return { ...child, balance: newBal };
+                }
+                return child;
+              }));
+            }
+
+            feedback = `💰 Budget : Transaction "${finalTx.title}" de ${amountVal}€ enregistrée dans ${choice.label}.`;
+            isSuccess = true;
+            setActiveTab('budget');
+            setActiveModule('');
+            setVoiceFeedback(feedback);
+            logVoiceCommandToSupabase(intent, isSuccess);
+            setTimeout(() => setVoiceActive(false), 2500);
+            return;
+          } else {
+            setPendingVoiceCommandData(parsedTxData);
+            setVoiceAmbiguous(true);
+            setAmbiguousChoices(matches.length > 0 ? matches : allCandidates);
+            setVoiceTranscript(`"${text}"`);
+            setVoiceFeedback(matches.length > 0 
+              ? "Plusieurs modules sources possibles pour cette transaction. Veuillez en sélectionner un :" 
+              : "Module source non identifié. Sélectionnez la cible de la transaction :");
+            return;
+          }
+        }
+
+        // 8. Groceries action commands (e.g. ajoute des bananes) - PRIORITÉ ABSOLUE
+        if (
+          promptLower.includes('ajoute') || 
+          promptLower.includes('ajouter') || 
+          promptLower.includes('mets') || 
+          promptLower.includes('mettre') || 
+          promptLower.includes('rajoute') || 
+          promptLower.includes('rajouter') ||
+          promptLower.includes('prépare') ||
+          promptLower.includes('prepare')
+        ) {
+          const activeMemberObj = members.find(m => m.id === activeMemberId);
+          const activeMemberName = activeMemberObj?.name || 'Foyer';
+          const parsedItems = parseSmartNaturalSentence(text, activeMemberName);
+
+          if (parsedItems.length > 0) {
+            parsedItems.forEach(item => {
+              handleAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
             });
 
-            feedback = `🎯 Cagnotte "${goalMatch.title}" : ${isAdd ? 'Ajout' : 'Retrait'} de ${amountVal}€ effectué !`;
-            isSuccess = true;
-          } catch (e: any) {
-            feedback = `❌ Échec : ${e.message}`;
+            if (parsedItems.length === 1) {
+              feedback = `🛒 Action : J'ai ajouté "${parsedItems[0].name}" (${parsedItems[0].quantity}) dans la catégorie *${parsedItems[0].category}* !`;
+            } else {
+              feedback = `🛒 Action : J'ai ajouté ${parsedItems.length} articles à vos courses (${parsedItems.map(i => i.name).join(', ')}) !`;
+            }
+
+            setActiveTab('menu');
+            setActiveModule('courses');
+          } else {
+            feedback = "🤔 Je n'ai pas compris quel article ajouter à vos courses...";
           }
+        } 
+        else if (promptLower.includes('alerte') || promptLower.includes('sos') || promptLower.includes('danger')) {
+          triggerSosAlarm();
+          feedback = "🚨 ACTION CRITIQUE : Alerte SOS activée ! Vos proches ont été notifiés.";
         }
-      } else {
-        feedback = "🤔 Cagnotte non identifiée. Spécifiez le titre (ex: voyage).";
-      }
-
-      setActiveTab('finances');
-      setVoiceFeedback(feedback);
-      logVoiceCommandToSupabase(intent, isSuccess);
-      setTimeout(() => setVoiceActive(false), 2500);
-      return;
-    }
-
-    // 4. Custom Category Create Intent
-    // e.g. "créer la catégorie mosquée"
-    if (promptLower.includes('catégorie') && (promptLower.includes('créer') || promptLower.includes('ajouter') || promptLower.includes('nouvelle'))) {
-      intent = "category_create";
-      const cleanName = promptLower.replace(/créer|creer|ajouter|nouvelle|catégorie|categorie/g, '').trim();
-      if (cleanName) {
-        const client = getSupabaseClient();
-        if (client && foyer?.id) {
-          try {
-            await client.from('custom_categories').insert({
-              id: crypto.randomUUID(),
-              foyer_id: foyer.id,
-              name: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
-              icon: '🕌 Mosquée',
-              color: '#8B5CF6',
-              budget: 0,
-              display_order: 0
-            });
-            feedback = `🏷️ Catégorie "${cleanName}" créée avec succès !`;
-            isSuccess = true;
-          } catch (e: any) {
-            feedback = `❌ Échec : ${e.message}`;
-          }
+        else if (promptLower.includes('carte') || promptLower.includes('gps') || promptLower.includes('position') || promptLower.includes('itiné')) {
+          setActiveTab('menu');
+          setActiveModule('carte');
+          feedback = "🧭 Navigation : J'affiche la Carte Familiale.";
+        } 
+        else if (promptLower.includes('agenda') || promptLower.includes('planning') || promptLower.includes('calendrier') || promptLower.includes('évènement') || promptLower.includes('rdv') || promptLower.includes('rendez')) {
+          setActiveTab('agenda');
+          setActiveModule('');
+          feedback = "📅 Navigation : J'ouvre l'Agenda Familial.";
+        } 
+        else if (promptLower.includes('finance') || promptLower.includes('budget') || promptLower.includes('dépense') || promptLower.includes('argent') || promptLower.includes('cagnotte') || promptLower.includes('solde')) {
+          setActiveTab('budget');
+          setActiveModule('');
+          feedback = "💰 Navigation : J'ouvre le cockpit financier Budget.";
+        } 
+        else if (promptLower.includes('course') || promptLower.includes('caddie') || promptLower.includes('achat') || promptLower.includes('épicerie') || promptLower.includes('supermar')) {
+          setActiveTab('menu');
+          setActiveModule('courses');
+          feedback = "🛒 Navigation : J'affiche la liste de courses partagée (Éco-Chef).";
+        } 
+        else if (promptLower.includes('capsule') || promptLower.includes('temps') || promptLower.includes('souvenir') || promptLower.includes('moment')) {
+          setActiveTab('menu');
+          setActiveModule('capsule');
+          feedback = "🔒 Navigation : J'ouvre la Capsule Temporelle de vos souvenirs.";
+        } 
+        else if (promptLower.includes('peacemaker') || promptLower.includes('dispute') || promptLower.includes('arbitre') || promptLower.includes('juge')) {
+          setActiveTab('menu');
+          setActiveModule('peacemaker');
+          feedback = "⚖️ Navigation : J'active le PeaceMaker IA pour résoudre le conflit.";
+        } 
+        else if (promptLower.includes('simul') || promptLower.includes('mavie') || promptLower.includes('vie')) {
+          setActiveTab('menu');
+          setActiveModule('mavie');
+          feedback = "🎮 Navigation : Je lance le simulateur d'éducation MaVie.";
+        } 
+        else if (promptLower.includes('conseil') || promptLower.includes('vote') || promptLower.includes('décision') || promptLower.includes('scrutin')) {
+          setActiveTab('menu');
+          setActiveModule('conseil');
+          feedback = "🗳️ Navigation : J'ouvre le Conseil de Famille.";
+        } 
+        else if (promptLower.includes('messagerie') || promptLower.includes('discussion') || promptLower.includes('tchat') || promptLower.includes('chat') || promptLower.includes('parle')) {
+          setActiveTab('menu');
+          setActiveModule('messagerie');
+          feedback = "💬 Navigation : J'affiche la messagerie familiale.";
         }
-      } else {
-        feedback = "🤔 Quel est le nom de la catégorie ?";
-      }
-
-      setActiveTab('finances');
-      setVoiceFeedback(feedback);
-      logVoiceCommandToSupabase(intent, isSuccess);
-      setTimeout(() => setVoiceActive(false), 2500);
-      return;
-    }
-
-    // 5. Budget Limits Set Intent
-    // e.g. "fixer le budget alimentation à 500 euros"
-    if ((promptLower.includes('budget') || promptLower.includes('limite')) && promptLower.includes('fixer') && hasNumber) {
-      intent = "budget_limit";
-      const matchedCat = allCategories.find(c => promptLower.includes(c.toLowerCase()));
-      if (matchedCat && amountVal > 0) {
-        const ccObj = customCategories.find(cc => cc.name.toLowerCase() === matchedCat.toLowerCase());
-        const client = getSupabaseClient();
-        if (client && foyer?.id && ccObj) {
-          try {
-            await client.from('custom_categories').update({ budget: amountVal }).eq('id', ccObj.id);
-            feedback = `✍️ Budget de la catégorie ${matchedCat} fixé à ${amountVal}€ !`;
-            isSuccess = true;
-          } catch (e: any) {
-            feedback = `❌ Échec : ${e.message}`;
-          }
-        } else {
-          const budgetsSaved = localStorage.getItem('mf_category_budgets');
-          const budgetsObj = budgetsSaved ? JSON.parse(budgetsSaved) : {};
-          budgetsObj[matchedCat] = amountVal;
-          localStorage.setItem('mf_category_budgets', JSON.stringify(budgetsObj));
-          feedback = `✍️ Budget de la catégorie ${matchedCat} fixé à ${amountVal}€ !`;
-          isSuccess = true;
+        else if (promptLower.includes('devoir') || promptLower.includes('tuteur') || promptLower.includes('école') || promptLower.includes('prof')) {
+          setActiveTab('menu');
+          setActiveModule('devoirs');
+          feedback = "🎓 Navigation : J'ouvre le Tuteur Scolaire IA.";
         }
-      } else {
-        feedback = "🤔 Catégorie non trouvée.";
-      }
-
-      setActiveTab('finances');
-      setVoiceFeedback(feedback);
-      logVoiceCommandToSupabase(intent, isSuccess);
-      setTimeout(() => setVoiceActive(false), 2500);
-      return;
-    }
-
-    // 6. Export/Import Finances Intent
-    // e.g. "exporter les finances du mois en PDF", "importe mon relevé bancaire", "scanne ce ticket"
-    if (promptLower.includes('exporter') || promptLower.includes('télécharger le csv') || promptLower.includes('telecharger le csv') || promptLower.includes('rapport financier')) {
-      intent = "export_finances";
-      
-      // Parse format
-      let format: 'pdf' | 'excel' | 'csv' | 'json' | 'txt' = 'pdf';
-      if (promptLower.includes('excel') || promptLower.includes('xlsx') || promptLower.includes('tableur')) format = 'excel';
-      else if (promptLower.includes('csv')) format = 'csv';
-      else if (promptLower.includes('json')) format = 'json';
-      else if (promptLower.includes('texte') || promptLower.includes('txt') || promptLower.includes('simple')) format = 'txt';
-
-      // Parse period
-      let period: 'week' | 'month' | 'last_month' | 'year' | 'last_year' = 'month';
-      if (promptLower.includes('semaine')) period = 'week';
-      else if (promptLower.includes('mois dernier') || promptLower.includes('dernier mois')) period = 'last_month';
-      else if (promptLower.includes('an') || promptLower.includes('année') || promptLower.includes('annuel')) period = 'year';
-      else if (promptLower.includes('année précédente') || promptLower.includes('an dernier')) period = 'last_year';
-
-      setFinancesActiveSubView({
-        type: 'export',
-        options: { format, period }
-      });
-      
-      setActiveTab('finances');
-      setVoiceFeedback(`📊 Ouverture de l'assistant d'exportation (${format.toUpperCase()}, période: ${period})...`);
-      logVoiceCommandToSupabase(intent, true);
-      setTimeout(() => setVoiceActive(false), 2500);
-      return;
-    }
-
-    if (promptLower.includes('importer') || promptLower.includes('import') || promptLower.includes('scanner') || promptLower.includes('scanne') || promptLower.includes('relevé') || promptLower.includes('releve')) {
-      intent = "import_finances";
-      
-      let type: 'relevé' | 'ticket' = 'relevé';
-      if (promptLower.includes('ticket') || promptLower.includes('scanner') || promptLower.includes('scanne')) type = 'ticket';
-
-      setFinancesActiveSubView({
-        type: 'import',
-        options: { type }
-      });
-
-      setActiveTab('finances');
-      setVoiceFeedback(`📥 Ouverture de l'assistant d'importation (${type === 'ticket' ? 'Scan Ticket' : 'Relevé Bancaire'})...`);
-      logVoiceCommandToSupabase(intent, true);
-      setTimeout(() => setVoiceActive(false), 2500);
-      return;
-    }
-
-    // 7. General Transactions parser (fallback expense / income)
-    const hasEuro = promptLower.includes('euro') || promptLower.includes('€');
-    const financialKeywords = [
-      'dépense', 'depense', 'revenu', 'salaire', 'budget', 'payé', 'paye', 'coûte', 'coute', 'facture', 'loyer',
-      'essence', 'carburant', 'péage', 'peage', 'hébergement', 'hebergement', 'remboursement'
-    ];
-    const categoryKeywords = [
-      'transport', 'alimentation', 'logement', 'santé', 'sante', 'éducation', 'education', 'loisir', 'loisirs'
-    ];
-    const isFinancial = hasEuro || (hasNumber && (
-      financialKeywords.some(kw => promptLower.includes(kw)) ||
-      categoryKeywords.some(kw => promptLower.includes(kw))
-    ));
-
-    if (isFinancial && hasNumber) {
-      intent = promptLower.includes('salaire') || promptLower.includes('revenu') ? 'transaction_income' : 'transaction_expense';
-      const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€)/i;
-      let amountMatch = promptLower.match(amountRegexWithEuro);
-      if (!amountMatch) {
-        amountMatch = promptLower.match(/(\d+[\.,]?\d*)/);
-      }
-      
-      if (amountMatch) {
-        const amountVal = parseFloat(amountMatch[1].replace(',', '.'));
-        
-        let category = 'Autres';
-        const alimentTerms = [
-          'course', 'aliment', 'supermarché', 'supermarche', 'manger', 'carrefour', 'auchan', 'alimentation', 
-          'leclerc', 'lidl', 'intermarché', 'intermarche', 'monoprix', 'restaurant', 'resto', 'dîner', 'diner', 
-          'déjeuner', 'dejeuner', 'petit-déjeuner', 'petit-dejeuner', 'boulangerie', 'pain', 'fruits', 'légumes', 
-          'legumes', 'viande', 'poisson', 'épicerie', 'epicerie', 'courses', 'kebab', 'pizza', 'mcdo', 'burger'
-        ];
-        const transportTerms = [
-          'essence', 'carburant', 'péage', 'peage', 'voiture', 'transport', 'total', 'bus', 'train', 'tram', 
-          'metro', 'métro', 'sncf', 'billet', 'ticket', 'parking', 'garage', 'diesel', 'sans-plomb', 'sp95', 
-          'sp98', 'vol', 'avion', 'uber', 'taxi', 'trottinette', 'vélo', 'velo'
-        ];
-        const logementTerms = [
-          'loyer', 'logement', 'maison', 'électricité', 'electricite', 'eau', 'edf', 'engie', 'facture', 'gaz',
-          'internet', 'box', 'téléphone', 'telephone', 'assurance', 'brico', 'bricolage', 'ikea', 'leroy', 
-          'castorama', 'meuble', 'déco', 'deco', 'travaux', 'chauffage', 'copropriété', 'copropriete'
-        ];
-        const santeTerms = [
-          'santé', 'sante', 'médecin', 'medecin', 'pharmacie', 'médicament', 'medicament', 'dentiste', 'ophtalmo',
-          'doctolib', 'mutuelle', 'ordonnance', 'soin', 'hôpital', 'hopital', 'clinique', 'visite', 'lunettes'
-        ];
-        const educationTerms = [
-          'école', 'ecole', 'cahier', 'livre', 'études', 'etudes', 'éducation', 'education', 'cantine', 'crèche', 
-          'creche', 'fournitures', 'cartable', 'cours', 'devoirs', 'inscription', 'collège', 'college', 'lycée', 
-          'lycee', 'université', 'universite'
-        ];
-        const loisirsTerms = [
-          'loisir', 'loisirs', 'cinéma', 'cinema', 'netflix', 'spotify', 'jeu', 'jeux', 'jouet', 'jouets', 
-          'cadeau', 'cadeaux', 'concert', 'théâtre', 'theatre', 'vacances', 'voyage', 'sport', 'abonnement', 
-          'piscine', 'musée', 'musee', 'parc', 'disney', 'bar', 'café', 'cafe', 'bière', 'biere'
-        ];
-
-        if (alimentTerms.some(term => promptLower.includes(term))) {
-          category = 'Alimentation';
-        } else if (transportTerms.some(term => promptLower.includes(term))) {
-          category = 'Transport';
-        } else if (logementTerms.some(term => promptLower.includes(term))) {
-          category = 'Logement';
-        } else if (santeTerms.some(term => promptLower.includes(term))) {
-          category = 'Santé';
-        } else if (educationTerms.some(term => promptLower.includes(term))) {
-          category = 'Éducation';
-        } else if (loisirsTerms.some(term => promptLower.includes(term))) {
-          category = 'Autres';
+        else if (promptLower.includes('coffre') || promptLower.includes('document') || promptLower.includes('papier') || promptLower.includes('cni')) {
+          setActiveTab('menu');
+          setActiveModule('documents');
+          feedback = "📂 Navigation : J'ouvre le Coffre-Fort administratif.";
+        }
+        else if (promptLower.includes('voyage') || promptLower.includes('vacance') || promptLower.includes('bagage')) {
+          setActiveTab('menu');
+          setActiveModule('voyage');
+          feedback = "✈️ Navigation : Je lance l'Assistant Voyage IA.";
+        }
+        else {
+          feedback = `🔍 Recherche : Commande "${text}" non reconnue. Essayez : "Ouvre l'agenda", "Affiche la carte" ou "Ajoute du lait".`;
         }
 
-        let type: 'expense' | 'income' = 'expense';
-        if (promptLower.includes('salaire') || promptLower.includes('revenu') || promptLower.includes('reçu') || promptLower.includes('gagné')) {
-          type = 'income';
-        }
-
-        let title = 'Achat rapide';
-        let cleanTitle = textWithDigits.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|dépense|depense/gi, '').trim();
-        cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[\.,]?\d*)/, '').trim();
-        cleanTitle = cleanTitle.replace(/\b(?:dans|pour|en|le|la|les|de|du)\b/gi, '').trim();
-        
-        categoryKeywords.forEach(kw => {
-          const regex = new RegExp('\\b' + kw + '\\b', 'gi');
-          cleanTitle = cleanTitle.replace(regex, '').trim();
-        });
-        
-        if (cleanTitle) {
-          title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
-        } else {
-          title = type === 'expense' ? `Dépense ${category}` : `Revenu ${category}`;
-        }
-
-        const activeMemberObj = members.find(m => m.id === activeMemberId);
-
-        handleAddTransaction({
-          amount: amountVal,
-          type,
-          category,
-          date: new Date().toISOString().split('T')[0],
-          title,
-          memberId: activeMemberId,
-          memberName: activeMemberObj?.name || 'Famille'
-        });
-
-        feedback = `💰 Finance : J'ai enregistré une dépense de ${amountVal}€ (${category}) pour "${title}" !`;
-        isSuccess = true;
-
-        setActiveTab('finances');
-        setActiveModule('');
         setVoiceFeedback(feedback);
-        
-        logVoiceCommandToSupabase(intent, isSuccess);
-        setTimeout(() => setVoiceActive(false), 2500);
-        return;
-      }
-    }
-
-    // 8. Groceries action commands (e.g. ajoute des bananes) - PRIORITÉ ABSOLUE
-    if (
-      promptLower.includes('ajoute') || 
-      promptLower.includes('ajouter') || 
-      promptLower.includes('mets') || 
-      promptLower.includes('mettre') || 
-      promptLower.includes('rajoute') || 
-      promptLower.includes('rajouter') ||
-      promptLower.includes('prépare') ||
-      promptLower.includes('prepare')
-    ) {
-      const activeMemberObj = members.find(m => m.id === activeMemberId);
-      const activeMemberName = activeMemberObj?.name || 'Foyer';
-      const parsedItems = parseSmartNaturalSentence(text, activeMemberName);
-
-      if (parsedItems.length > 0) {
-        parsedItems.forEach(item => {
-          handleAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
-        });
-
-        if (parsedItems.length === 1) {
-          feedback = `🛒 Action : J'ai ajouté "${parsedItems[0].name}" (${parsedItems[0].quantity}) dans la catégorie *${parsedItems[0].category}* !`;
-        } else {
-          feedback = `🛒 Action : J'ai ajouté ${parsedItems.length} articles à vos courses (${parsedItems.map(i => i.name).join(', ')}) !`;
-        }
-
-        // Open the grocery list interface instantly
-        setActiveTab('menu');
-        setActiveModule('courses');
-      } else {
-        feedback = "🤔 Je n'ai pas compris quel article ajouter à vos courses...";
-      }
-    } 
-    else if (promptLower.includes('alerte') || promptLower.includes('sos') || promptLower.includes('danger')) {
-      triggerSosAlarm();
-      feedback = "🚨 ACTION CRITIQUE : Alerte SOS activée ! Vos proches ont été notifiés.";
-    }
-    // 2. Navigation to tabs
-    else if (promptLower.includes('carte') || promptLower.includes('gps') || promptLower.includes('position') || promptLower.includes('itiné')) {
-      setActiveTab('menu');
-      setActiveModule('carte');
-      feedback = "🧭 Navigation : J'affiche la Carte Familiale.";
-    } 
-    else if (promptLower.includes('agenda') || promptLower.includes('planning') || promptLower.includes('calendrier') || promptLower.includes('évènement') || promptLower.includes('rdv') || promptLower.includes('rendez')) {
-      setActiveTab('agenda');
-      setActiveModule('');
-      feedback = "📅 Navigation : J'ouvre l'Agenda Familial.";
-    } 
-    else if (promptLower.includes('finance') || promptLower.includes('budget') || promptLower.includes('dépense') || promptLower.includes('argent') || promptLower.includes('cagnotte') || promptLower.includes('solde')) {
-      setActiveTab('finances');
-      setActiveModule('');
-      feedback = "💰 Navigation : J'ouvre le module Finances & Épargne.";
-    } 
-    // 3. Navigation to specific submodules inside Menu
-    else if (promptLower.includes('course') || promptLower.includes('caddie') || promptLower.includes('achat') || promptLower.includes('épicerie') || promptLower.includes('supermar')) {
-      setActiveTab('menu');
-      setActiveModule('courses');
-      feedback = "🛒 Navigation : J'affiche la liste de courses partagée (Éco-Chef).";
-    } 
-    else if (promptLower.includes('capsule') || promptLower.includes('temps') || promptLower.includes('souvenir') || promptLower.includes('moment')) {
-      setActiveTab('menu');
-      setActiveModule('capsule');
-      feedback = "🔒 Navigation : J'ouvre la Capsule Temporelle de vos souvenirs.";
-    } 
-    else if (promptLower.includes('peacemaker') || promptLower.includes('dispute') || promptLower.includes('arbitre') || promptLower.includes('juge')) {
-      setActiveTab('menu');
-      setActiveModule('peacemaker');
-      feedback = "⚖️ Navigation : J'active le PeaceMaker IA pour résoudre le conflit.";
-    } 
-    else if (promptLower.includes('simul') || promptLower.includes('mavie') || promptLower.includes('vie')) {
-      setActiveTab('menu');
-      setActiveModule('mavie');
-      feedback = "🎮 Navigation : Je lance le simulateur d'éducation MaVie.";
-    } 
-    else if (promptLower.includes('conseil') || promptLower.includes('vote') || promptLower.includes('décision') || promptLower.includes('scrutin')) {
-      setActiveTab('menu');
-      setActiveModule('conseil');
-      feedback = "🗳️ Navigation : J'ouvre le Conseil de Famille.";
-    } 
-    else if (promptLower.includes('messagerie') || promptLower.includes('discussion') || promptLower.includes('tchat') || promptLower.includes('chat') || promptLower.includes('parle')) {
-      setActiveTab('menu');
-      setActiveModule('messagerie');
-      feedback = "💬 Navigation : J'affiche la messagerie familiale.";
-    }
-    else if (promptLower.includes('devoir') || promptLower.includes('tuteur') || promptLower.includes('école') || promptLower.includes('prof')) {
-      setActiveTab('menu');
-      setActiveModule('devoirs');
-      feedback = "🎓 Navigation : J'ouvre le Tuteur Scolaire IA.";
-    }
-    else if (promptLower.includes('coffre') || promptLower.includes('document') || promptLower.includes('papier') || promptLower.includes('cni')) {
-      setActiveTab('menu');
-      setActiveModule('documents');
-      feedback = "📂 Navigation : J'ouvre le Coffre-Fort administratif.";
-    }
-    else if (promptLower.includes('voyage') || promptLower.includes('vacance') || promptLower.includes('bagage')) {
-      setActiveTab('menu');
-      setActiveModule('voyage');
-      feedback = "✈️ Navigation : Je lance l'Assistant Voyage IA.";
-    }
-    else {
-      feedback = `🔍 Recherche : Commande "${text}" non reconnue. Essayez : "Ouvre l'agenda", "Affiche la carte" ou "Ajoute du lait".`;
-    }
-
-      setVoiceFeedback(feedback);
-      
-      // Automatically close overlay after 2.5 seconds
-      setTimeout(() => {
-        setVoiceActive(false);
-      }, 2500);
     } catch (err: any) {
       console.error("Critical error in parseVoiceCommand:", err);
       setVoiceFeedback("❌ Erreur lors du traitement de la commande vocale.");
@@ -3880,7 +4082,7 @@ function App() {
       if (mod === 'groceries' || mod === 'courses') return notificationPrefs.groceries;
       if (mod === 'tasks' || mod === 'chore_tasks') return notificationPrefs.tasks;
       if (mod === 'events' || mod === 'agenda' || mod === 'calendar') return notificationPrefs.agenda;
-      if (mod === 'finances' || mod === 'transactions' || mod === 'saving_goals') return notificationPrefs.finances;
+      if (mod === 'finances' || mod === 'budget' || mod === 'transactions' || mod === 'saving_goals') return notificationPrefs.finances;
       if (mod === 'chat' || mod === 'messages') return notificationPrefs.chat;
       if (mod === 'health' || mod === 'sante') return notificationPrefs.health;
       if (mod === 'vault' || mod === 'documents' || mod === 'demarches' || mod === 'justificatif_packs') return notificationPrefs.vault;
@@ -3977,7 +4179,41 @@ function App() {
 
   const handleAddTransaction = async (newTrans: any) => {
     const id = `tx-${Date.now()}`;
-    setTransactions(prev => [{ ...newTrans, id }, ...prev]);
+    setTransactions(prev => [{
+      ...newTrans,
+      id,
+      moduleSource: newTrans.moduleSource,
+      categoryId: newTrans.categoryId,
+      subCategoryId: newTrans.subCategoryId,
+      currency: newTrans.currency,
+      recurrenceInterval: newTrans.recurrenceInterval,
+      startDate: newTrans.startDate,
+      endDate: newTrans.endDate,
+      nextOccurrence: newTrans.nextOccurrence
+    }, ...prev]);
+
+    // Update bank account balance if accountId is provided
+    if (newTrans.accountId) {
+      setAccounts(prev => prev.map(acc => {
+        if (acc.id === newTrans.accountId) {
+          const change = newTrans.type === 'income' ? newTrans.amount : -newTrans.amount;
+          const updatedBalance = acc.balance + change;
+          
+          // Update database asynchronously
+          const supabase = getSupabaseClient();
+          if (supabase) {
+            supabase.from('accounts')
+              .update({ balance: updatedBalance })
+              .eq('id', acc.id)
+              .then(({ error }) => {
+                if (error) console.error("Error updating account balance in Supabase:", error);
+              });
+          }
+          return { ...acc, balance: updatedBalance };
+        }
+        return acc;
+      }));
+    }
 
     // Si la transaction est de type Épargne, mettre à jour l'objectif d'épargne principal
     if (newTrans.type === 'savings') {
@@ -4082,7 +4318,7 @@ function App() {
               time: 'À l\'instant',
               type: alertType,
               read: false,
-              module: 'finances'
+              module: 'budget'
             };
             setAlerts(prev => [newAlert, ...prev]);
             saveAlertToCloud(newAlert);
@@ -4116,7 +4352,17 @@ function App() {
               date: newTrans.date || new Date().toISOString().split('T')[0],
               title: newTrans.title,
               member_id: newTrans.memberId || null,
-              member_name: newTrans.memberName || 'Famille'
+              member_name: newTrans.memberName || 'Famille',
+              module_source: newTrans.moduleSource || null,
+              category_id: newTrans.categoryId || null,
+              subcategory_id: newTrans.subCategoryId || null,
+              currency: newTrans.currency || 'EUR',
+              recurrence_type: newTrans.recurrence || 'none',
+              recurrence_interval: newTrans.recurrenceInterval || 1,
+              start_date: newTrans.startDate || null,
+              end_date: newTrans.endDate || null,
+              next_occurrence: newTrans.nextOccurrence || null,
+              account_id: newTrans.accountId || null
             });
             if (error) {
               console.error("Error inserting transaction to Supabase:", error);
@@ -4304,24 +4550,59 @@ function App() {
   const handleValidateTask = (id: string) => {
     setTasks(prev => prev.map(t => {
       if (t.id === id) {
-        // Ajouter la récompense financière correspondante au budget épargne
-        // Ex: 10 points = 1.00 € / Equivalent devise
+        // Parent bank account to debit from
+        const parentAccountId = accounts.find(a => a.type === 'bank')?.id || accounts[0]?.id || null;
+
+        // Ajouter la récompense financière correspondante au budget épargne (points)
+        // Ex: 10 points = 1.00 €
         handleAddTransaction({
           amount: t.rewardPoints / 10,
           type: 'savings',
           category: 'Argent de Poche',
           date: new Date().toISOString().split('T')[0],
-          title: `Récompense : ${t.title}`,
+          title: `Récompense (Points) : ${t.title}`,
           memberName: t.assignedMemberName
         });
         
-        // Mettre à jour l'argent de poche de l'enfant (points)
+        // Mettre à jour l'argent de poche de l'enfant
         if (t.assignedMemberId || t.assignedMemberName) {
           setPocketMoney(prev => prev.map(child => {
             if (child.id === t.assignedMemberId || child.name.toLowerCase() === t.assignedMemberName?.toLowerCase()) {
+              let updatedBalance = child.balance;
+              let pointsReward = child.points + t.rewardPoints;
+
+              // Si une récompense financière en cash (rewardAmount) est définie
+              if (t.rewardAmount && t.rewardAmount > 0) {
+                updatedBalance += t.rewardAmount;
+
+                // Créer la transaction de débit parent / crédit enfant
+                handleAddTransaction({
+                  amount: t.rewardAmount,
+                  type: 'expense',
+                  category: 'Argent de Poche',
+                  date: new Date().toISOString().split('T')[0],
+                  title: `Tâche validée (Cash) : ${t.title}`,
+                  memberName: t.assignedMemberName,
+                  accountId: parentAccountId,
+                  moduleSource: 'tasks'
+                });
+              }
+
+              // Mettre à jour dans Supabase
+              const client = getSupabaseClient();
+              if (client) {
+                client.from('pocket_money')
+                  .update({ balance: updatedBalance, points: pointsReward })
+                  .eq('id', child.id)
+                  .then(({ error }) => {
+                    if (error) console.error("Error updating child pocket money in Supabase:", error);
+                  });
+              }
+
               return {
                 ...child,
-                points: child.points + t.rewardPoints
+                balance: updatedBalance,
+                points: pointsReward
               };
             }
             return child;
@@ -4980,9 +5261,9 @@ function App() {
       );
     }
 
-    if (activeTab === 'finances') {
+    if (activeTab === 'budget') {
       return (
-        <Finances 
+        <Budget 
           transactions={transactions}
           setTransactions={setTransactions}
           savingGoals={savingGoals}
@@ -5006,17 +5287,17 @@ function App() {
           setAbonnements={setAbonnements}
           debts={debts}
           setDebts={setDebts}
-          activeSubView={financesActiveSubView}
-          onClearActiveSubView={() => setFinancesActiveSubView(null)}
+          activeSubView={budgetActiveSubView}
+          onClearActiveSubView={() => setBudgetActiveSubView(null)}
         />
       );
     }
 
     if (activeTab === 'menu') {
       if (activeModule === 'objectifs') {
-        // Rediriger immédiatement vers le module Finances
+        // Rediriger immédiatement vers le module Budget
         setTimeout(() => {
-          setActiveTab('finances');
+          setActiveTab('budget');
           setActiveModule('');
         }, 0);
         return null;
@@ -5342,8 +5623,9 @@ function App() {
           setActiveTab(tab);
           setActiveModule('');
         }}
-        onAddClick={() => setQuickActionsOpen(true)}
+        onMicClick={() => startVoiceAssistant()}
         activeMemberId={activeMemberId}
+        members={members}
       />
 
       <Paywall 
@@ -5362,18 +5644,7 @@ function App() {
         }}
       />
 
-      {/* Floating Global Voice Assistant Button (fixed bottom-25 right-6, just above the Menu tab on the right) */}
-      <button 
-        onClick={startVoiceAssistant}
-        className={`fixed bottom-25 right-6 z-[45] w-14 h-14 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] text-white flex items-center justify-center shadow-lg shadow-[#6C5CFF]/30 hover:scale-110 active:scale-95 transition-all cursor-pointer group ${voiceActive ? 'scale-110' : ''}`}
-      >
-        <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] blur-md opacity-40 group-hover:opacity-70 transition-opacity animate-pulse"></div>
-        {voiceActive ? (
-          <MicOff className="w-6 h-6 relative z-10 text-white animate-pulse" />
-        ) : (
-          <Mic className="w-6 h-6 relative z-10 text-white animate-bounce" style={{ animationDuration: '3s' }} />
-        )}
-      </button>
+
 
       {/* Voice Command pulsing HUD overlay */}
       {voiceActive && (
@@ -5432,6 +5703,86 @@ function App() {
                 Ex : "Ajoute du lait", "Ouvre la carte", "Affiche l'agenda"
               </p>
             </form>
+
+            {voiceAmbiguous && ambiguousChoices.length > 0 && (
+              <div className="space-y-2 pt-2 animate-fade-in border-t border-white/5">
+                <span className="text-[10px] font-black text-white/50 uppercase tracking-wider block mb-1">
+                  Confirmer le module cible :
+                </span>
+                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1">
+                  {ambiguousChoices.map((choice) => (
+                    <button
+                      key={choice.moduleSource}
+                      type="button"
+                      onClick={async () => {
+                        if (pendingVoiceCommandData) {
+                          const updatedTx = {
+                            ...pendingVoiceCommandData,
+                            moduleSource: choice.moduleSource,
+                            category: choice.category,
+                            subCategory: choice.subCategory,
+                            title: pendingVoiceCommandData.title === 'Achat rapide' 
+                              ? `Dépense ${choice.label}`
+                              : pendingVoiceCommandData.title
+                          };
+                          
+                          // Execute the transaction
+                          await handleAddTransaction(updatedTx);
+                          
+                          // Check if it's pocket money allowance, credit the kid
+                          if (choice.moduleSource === 'argent_de_poche' && updatedTx.memberId) {
+                            setPocketMoney(prev => prev.map(child => {
+                              if (child.id === updatedTx.memberId) {
+                                const newBal = child.balance + updatedTx.amount;
+                                const client = getSupabaseClient();
+                                if (client) {
+                                  client.from('pocket_money').update({ balance: newBal }).eq('id', child.id);
+                                }
+                                return { ...child, balance: newBal };
+                              }
+                              return child;
+                            }));
+                          }
+
+                          // Save to voice commands logs
+                          const client = getSupabaseClient();
+                          if (client && foyer?.id) {
+                            try {
+                              await client.from('voice_commands').insert({
+                                id: crypto.randomUUID(),
+                                foyer_id: foyer.id,
+                                raw_text: voiceTranscript.replace(/^"|"$/g, ''),
+                                parsed_intent: pendingVoiceCommandData.intent || 'transaction_expense',
+                                is_success: true,
+                                module_source: choice.moduleSource,
+                                category_id: choice.category,
+                                subcategory_id: choice.subCategory,
+                                amount: updatedTx.amount,
+                                currency: updatedTx.currency || 'EUR',
+                                recurrence_type: updatedTx.recurrence || 'none',
+                                recurrence_interval: updatedTx.recurrenceInterval || 1
+                              });
+                            } catch (err) {
+                              console.warn("Log command error:", err);
+                            }
+                          }
+
+                          setVoiceFeedback(`💰 Budget : Dépense enregistrée dans ${choice.label} !`);
+                          setVoiceAmbiguous(false);
+                          setPendingVoiceCommandData(null);
+                          setActiveTab('budget');
+                          setActiveModule('');
+                          setTimeout(() => setVoiceActive(false), 2000);
+                        }
+                      }}
+                      className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black text-white text-center cursor-pointer transition-all active:scale-95 hover:border-[#6C5CFF]"
+                    >
+                      {choice.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {voiceFeedback && (
               <div className="bg-white/5 border border-white/10 rounded-[20px] p-4 text-xs font-semibold text-[#00D26A] leading-normal animate-fade-in">

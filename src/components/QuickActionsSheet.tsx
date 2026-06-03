@@ -158,6 +158,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   // Task
   const [taskTitle, setTaskTitle] = useState('');
   const [taskPoints, setTaskPoints] = useState('10');
+  const [taskRewardAmount, setTaskRewardAmount] = useState('');
   const [taskMemberId, setTaskMemberId] = useState('');
   const [taskRotation, setTaskRotation] = useState<'daily' | 'weekly' | 'none'>('daily');
   const [taskDue, setTaskDue] = useState('Ce soir');
@@ -178,7 +179,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   const resetForms = () => {
     setEventTitle(''); setEventDate(''); setEventTime(''); setEventMemberId(''); setEventLoc(''); setEventDesc('');
     setTransTitle(''); setTransAmount(''); setTransMemberId('');
-    setTaskTitle(''); setTaskMemberId('');
+    setTaskTitle(''); setTaskMemberId(''); setTaskRewardAmount('');
   };
 
   const handleEventSubmit = (e: React.FormEvent) => {
@@ -222,6 +223,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
     onAddTask({
       title: taskTitle,
       rewardPoints: parseInt(taskPoints) || 10,
+      rewardAmount: parseFloat(taskRewardAmount) || undefined,
       assignedMemberId: taskMemberId,
       assignedMemberName: member?.name || 'Inconnu',
       done: false,
@@ -593,7 +595,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Attribuer à</label>
                       <select 
@@ -610,18 +612,31 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Récompense (Points)</label>
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Points (+)</label>
                       <select 
                         value={taskPoints}
                         onChange={(e) => setTaskPoints(e.target.value)}
                         className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
                       >
-                        <option value="5">5 points (0,50 €)</option>
-                        <option value="10">10 points (1,00 €)</option>
-                        <option value="15">15 points (1,50 €)</option>
-                        <option value="20">20 points (2,00 €)</option>
-                        <option value="50">50 points (5,00 €)</option>
+                        <option value="5">5 pts (0,50 €)</option>
+                        <option value="10">10 pts (1,00 €)</option>
+                        <option value="15">15 pts (1,50 €)</option>
+                        <option value="20">20 pts (2,00 €)</option>
+                        <option value="50">50 pts (5,00 €)</option>
                       </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Argent (€)</label>
+                      <input 
+                        type="number" 
+                        step="0.10"
+                        min="0"
+                        placeholder="0.00"
+                        value={taskRewardAmount}
+                        onChange={(e) => setTaskRewardAmount(e.target.value)}
+                        className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all placeholder-white/30"
+                      />
                     </div>
                   </div>
 

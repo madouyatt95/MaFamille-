@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   AlertCircle,
   Activity,
+  Check,
   Plus,
   Calendar,
   Layers,
@@ -69,7 +70,9 @@ import type {
   JustificatifPack,
   Artisan,
   PocketMoneyChild,
-  ArchivedList
+  ArchivedList,
+  Account,
+  Transaction
 } from '../types';
 
 // Import newly built premium sub-modules
@@ -234,6 +237,8 @@ interface MenuHubProps {
   initialChatGroupId?: string;
   onTriggerSos?: () => void;
   foyer?: any;
+  accounts?: Account[];
+  transactions?: Transaction[];
 }
 
 export const MenuHub: React.FC<MenuHubProps> = ({
@@ -260,6 +265,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   formatMoney,
   activeModule,
   setActiveModule,
+  onAddTask,
   onToggleTask,
   onDeleteTask,
   onEditTask,
@@ -306,7 +312,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   vaccines = [],
   setVaccines,
   setMembers,
-  initialChatGroupId
+  initialChatGroupId,
+  accounts = [],
+  transactions = []
 }) => {
   const [newGroceryName, setNewGroceryName] = useState('');
   const [newGroceryCat, setNewGroceryCat] = useState('Épicerie');
@@ -404,7 +412,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [questVisualStep, setQuestVisualStep] = useState<number>(0);
 
   // --- Feature 6: Health Emergency Card ---
-  const [healthSubTab, setHealthSubTab] = useState<'croissance' | 'vaccins' | 'urgence'>('croissance');
+  const [healthSubTab, setHealthSubTab] = useState<'croissance' | 'vaccins' | 'urgence' | 'frais'>('croissance');
   const [selectedHealthMemberId, setSelectedHealthMemberId] = useState(() => {
     return localStorage.getItem('mf_selected_health_member_id') || activeMemberId;
   });
@@ -447,7 +455,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [editEmergencyPhone, setEditEmergencyPhone] = useState('');
 
   // --- Feature 8: House Plan View ---
-  const [logementViewMode, setLogementViewMode] = useState<'list' | 'plan' | 'artisans'>('list');
+  const [logementViewMode, setLogementViewMode] = useState<'list' | 'plan' | 'artisans' | 'charges'>('list');
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
 
   // Artisan form states
@@ -458,6 +466,53 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newArtisanRating, setNewArtisanRating] = useState(5);
   const [newArtisanNotes, setNewArtisanNotes] = useState('');
   const [artisanSearchQuery, setArtisanSearchQuery] = useState('');
+
+  // --- States for Transversal Budget Integration ---
+  const [isValiderAchatsOpen, setIsValiderAchatsOpen] = useState(false);
+  const [validerAchatsCost, setValiderAchatsCost] = useState('');
+  const [validerAchatsAccountId, setValiderAchatsAccountId] = useState('');
+
+  const [newFraisType, setNewFraisType] = useState('Consultation');
+  const [newFraisAmount, setNewFraisAmount] = useState('');
+  const [newFraisBaseReimbSecu, setNewFraisBaseReimbSecu] = useState('70');
+  const [newFraisBaseReimbMutuelle, setNewFraisBaseReimbMutuelle] = useState('30');
+  const [newFraisMemberId, setNewFraisMemberId] = useState(activeMemberId || '1');
+  const [newFraisAccountId, setNewFraisAccountId] = useState('');
+
+  const [newVehExpenseSubCategory, setNewVehExpenseSubCategory] = useState('Essence');
+  const [newVehExpenseAmount, setNewVehExpenseAmount] = useState('');
+  const [newVehExpenseAccountId, setNewVehExpenseAccountId] = useState('');
+
+  const [newLogChargeType, setNewLogChargeType] = useState('Loyer');
+  const [newLogChargeAmount, setNewLogChargeAmount] = useState('');
+  const [newLogChargeIsRecurring, setNewLogChargeIsRecurring] = useState(false);
+  const [newLogChargeRecurrenceType, setNewLogChargeRecurrenceType] = useState('monthly');
+  const [newLogChargeAccountId, setNewLogChargeAccountId] = useState('');
+
+  const [newVoyageExpenseSubCategory, setNewVoyageExpenseSubCategory] = useState('Hôtel');
+  const [newVoyageExpenseAmount, setNewVoyageExpenseAmount] = useState('');
+  const [newVoyageExpenseAccountId, setNewVoyageExpenseAccountId] = useState('');
+
+  const [newSchoolFeeType, setNewSchoolFeeType] = useState('Cantine');
+  const [newSchoolFeeAmount, setNewSchoolFeeAmount] = useState('');
+  const [newSchoolFeeMemberId, setNewSchoolFeeMemberId] = useState(activeMemberId || '1');
+  const [newSchoolFeeAccountId, setNewSchoolFeeAccountId] = useState('');
+  const [newSchoolFeeIsRecurring, setNewSchoolFeeIsRecurring] = useState(false);
+  const [newSchoolFeeRecurrenceType, setNewSchoolFeeRecurrenceType] = useState('monthly');
+
+  const [newLocalTaskTitle, setNewLocalTaskTitle] = useState('');
+  const [newLocalTaskPoints, setNewLocalTaskPoints] = useState(10);
+  const [newLocalTaskRotation, setNewLocalTaskRotation] = useState('none');
+  const [newLocalTaskAssigneeId, setNewLocalTaskAssigneeId] = useState(activeMemberId || '1');
+  const [newLocalTaskRewardAmount, setNewLocalTaskRewardAmount] = useState('');
+
+  const [newPetExpenseSubCategory, setNewPetExpenseSubCategory] = useState('Nourriture');
+  const [newPetExpenseAmount, setNewPetExpenseAmount] = useState('');
+  const [newPetExpenseAccountId, setNewPetExpenseAccountId] = useState('');
+
+  const [allowanceAccountId, setAllowanceAccountId] = useState('');
+  const [allowanceIsRecurring, setAllowanceIsRecurring] = useState(false);
+  const [allowanceRecurrenceType, setAllowanceRecurrenceType] = useState('weekly');
 
   // Dynamically calculate unread messages from other members where the active member is in the group
   const unreadMessagesCount = chatMessages.filter(m => {
@@ -917,7 +972,13 @@ export const MenuHub: React.FC<MenuHubProps> = ({
         category: 'Argent de Poche',
         date: new Date().toISOString().split('T')[0],
         title: `Distribution argent de poche à ${childName}`,
-        memberName: childName
+        memberName: childName,
+        accountId: allowanceAccountId || null,
+        moduleSource: 'argent_de_poche',
+        recurrence: allowanceIsRecurring ? allowanceRecurrenceType : 'none',
+        recurrenceInterval: allowanceIsRecurring ? 1 : undefined,
+        startDate: allowanceIsRecurring ? new Date().toISOString().split('T')[0] : undefined,
+        nextOccurrence: allowanceIsRecurring ? new Date().toISOString().split('T')[0] : undefined
       });
     }
     
@@ -1179,7 +1240,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
       {/* SUB-MODULE 1: Documents Vault */}
       {activeModule === 'documents' && !isLockedForChild && (
-        <CoffreFortAvance documents={documents} setDocuments={setDocuments} members={members} demarches={demarches} setDemarches={setDemarches} packs={justificatifPacks} setPacks={setJustificatifPacks} onAddEvent={onAddEvent} isPremium={isPremium} onTriggerPaywall={onTriggerPaywall} />
+        <CoffreFortAvance documents={documents} setDocuments={setDocuments} members={members} demarches={demarches} setDemarches={setDemarches} packs={justificatifPacks} setPacks={setJustificatifPacks} onAddEvent={onAddEvent} isPremium={isPremium} onTriggerPaywall={onTriggerPaywall} onAddTransaction={onAddTransaction} />
       )}
 
       {/* SUB-MODULE 1.5: Messagerie */}
@@ -1223,15 +1284,18 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           </div>
 
           {/* Sub-tab navigation */}
-          <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 grid grid-cols-3 gap-1">
+          <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 grid grid-cols-4 gap-1">
             <button onClick={() => setHealthSubTab('croissance')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'croissance' ? 'bg-[#FF4D6D] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
               📈 Croissance
             </button>
             <button onClick={() => setHealthSubTab('vaccins')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'vaccins' ? 'bg-[#FF4D6D] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
               💉 Vaccins
             </button>
-            <button onClick={() => setHealthSubTab('urgence')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'urgence' ? 'bg-[#FF4D6D] text-white shadow-md animate-pulse' : 'text-white/40 hover:text-white/60'}`}>
-              🚨 Fiches d'Urgence
+            <button onClick={() => setHealthSubTab('urgence')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'urgence' ? 'bg-[#FF4D6D] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
+              🚨 Fiches SOS
+            </button>
+            <button onClick={() => setHealthSubTab('frais')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'frais' ? 'bg-[#FF4D6D] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
+              💶 Frais Santé
             </button>
           </div>
 
@@ -1737,6 +1801,139 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               </div>
             );
           })()}
+
+          {/* 4. Frais Santé */}
+          {healthSubTab === 'frais' && (() => {
+            const handleAddHealthExpense = (e: React.FormEvent) => {
+              e.preventDefault();
+              const amt = parseFloat(newFraisAmount);
+              if (isNaN(amt) || amt <= 0) return;
+              
+              const secuPct = parseFloat(newFraisBaseReimbSecu) || 0;
+              const mutuellePct = parseFloat(newFraisBaseReimbMutuelle) || 0;
+              const resteACharge = amt - (amt * (secuPct + mutuellePct) / 100);
+              
+              if (onAddTransaction) {
+                const targetMemberName = members.find(m => m.id === newFraisMemberId)?.name || 'Famille';
+                onAddTransaction({
+                  amount: amt,
+                  type: 'expense',
+                  category: 'Santé',
+                  subCategory: newFraisType,
+                  title: `Santé : ${newFraisType} - ${targetMemberName}`,
+                  memberId: newFraisMemberId,
+                  memberName: targetMemberName,
+                  date: new Date().toISOString().split('T')[0],
+                  accountId: newFraisAccountId || null,
+                  moduleSource: 'sante',
+                  comment: `Remboursement attendu : Sécu ${secuPct}%, Mutuelle ${mutuellePct}%. Reste à charge : ${resteACharge.toFixed(2)}€`
+                });
+              }
+              
+              setNewFraisAmount('');
+              alert(`💶 Frais de ${amt.toFixed(2)}€ ajoutés ! Reste à charge estimé : ${resteACharge.toFixed(2)}€`);
+            };
+
+            return (
+              <form onSubmit={handleAddHealthExpense} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
+                <span className="text-[10px] font-bold text-[#FF4D6D] uppercase tracking-widest block flex items-center space-x-1.5">
+                  <Coins className="w-3.5 h-3.5 text-[#FF4D6D]" />
+                  <span>Enregistrer des frais médicaux 🏥</span>
+                </span>
+                
+                <div className="grid grid-cols-2 gap-3 text-left">
+                  <div className="space-y-1.5 font-medium">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Type de frais</label>
+                    <select
+                      value={newFraisType}
+                      onChange={(e) => setNewFraisType(e.target.value)}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                    >
+                      <option value="Consultation">Consultation médecin / spécialiste</option>
+                      <option value="Pharmacie">Médicaments / Pharmacie</option>
+                      <option value="Traitements">Traitements médicaux</option>
+                      <option value="Vaccins">Vaccination</option>
+                      <option value="Autre">Autre frais médical</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5 font-medium">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Montant (€)</label>
+                    <input 
+                      type="number" 
+                      required
+                      step="0.01"
+                      placeholder="ex: 35.00"
+                      value={newFraisAmount}
+                      onChange={(e) => setNewFraisAmount(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF4D6D]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-left">
+                  <div className="space-y-1.5 font-medium">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Remboursement Sécu (%)</label>
+                    <input 
+                      type="number"
+                      placeholder="ex: 70"
+                      value={newFraisBaseReimbSecu}
+                      onChange={(e) => setNewFraisBaseReimbSecu(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 font-medium">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Remboursement Mutuelle (%)</label>
+                    <input 
+                      type="number"
+                      placeholder="ex: 30"
+                      value={newFraisBaseReimbMutuelle}
+                      onChange={(e) => setNewFraisBaseReimbMutuelle(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-left">
+                  <div className="space-y-1.5 font-medium">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Patient concerné</label>
+                    <select
+                      value={newFraisMemberId}
+                      onChange={(e) => setNewFraisMemberId(e.target.value)}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                    >
+                      {members.map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5 font-medium">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Compte à débiter</label>
+                    <select
+                      value={newFraisAccountId}
+                      onChange={(e) => setNewFraisAccountId(e.target.value)}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                    >
+                      <option value="">Sélectionner un compte...</option>
+                      {accounts.map(acc => (
+                        <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toFixed(2)}€)</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-[18px] bg-gradient-to-r from-[#FF4D6D] to-[#FF8FA3] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#FF4D6D]/20"
+                >
+                  <Plus className="w-4 h-4 text-white" />
+                  <span>Enregistrer les frais</span>
+                </button>
+              </form>
+            );
+          })()}
         </div>
       )}
 
@@ -2043,6 +2240,19 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
                   {/* Action buttons */}
                   <div className="flex space-x-2 shrink-0">
+
+                    {groceries.some(g => g.checked) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsValiderAchatsOpen(true);
+                        }}
+                        className="py-1.5 px-3 bg-[#00D26A]/15 border border-[#00D26A]/30 hover:bg-[#00D26A]/25 text-[#00D26A] rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Valider mes achats</span>
+                      </button>
+                    )}
 
                     <button
                       type="button"
@@ -2675,6 +2885,111 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             <p className="text-xs text-white/50">Rotation automatique et argent de poche</p>
           </div>
 
+          {/* Formulaire ajout Tâche avec récompense financière */}
+          {isParent && (
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!newLocalTaskTitle.trim()) return;
+                
+                const assigneeObj = members.find(m => m.id === newLocalTaskAssigneeId);
+                onAddTask({
+                  title: newLocalTaskTitle,
+                  rewardPoints: Number(newLocalTaskPoints) || 0,
+                  rotation: newLocalTaskRotation,
+                  assignedMemberId: newLocalTaskAssigneeId,
+                  assignedMemberName: assigneeObj ? assigneeObj.name : 'Général',
+                  done: false,
+                  validatedByParent: false,
+                  dueDate: new Date().toISOString().split('T')[0],
+                  rewardAmount: parseFloat(newLocalTaskRewardAmount) || undefined
+                });
+
+                setNewLocalTaskTitle('');
+                setNewLocalTaskRewardAmount('');
+                alert(`🧹 Mission "${newLocalTaskTitle}" créée !`);
+              }}
+              className="glass-panel border border-[#6C5CFF]/20 rounded-[28px] p-5 space-y-4 text-left font-sans"
+            >
+              <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block flex items-center space-x-1.5">
+                <Plus className="w-3.5 h-3.5 text-[#6C5CFF]" />
+                <span>Créer une mission / tâche (Accès Parent) 🧹</span>
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left font-medium">
+                <div>
+                  <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Intitulé de la tâche</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="ex: Ranger la chambre, Tondre la pelouse..."
+                    value={newLocalTaskTitle}
+                    onChange={(e) => setNewLocalTaskTitle(e.target.value)}
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Assigné à</label>
+                  <select
+                    value={newLocalTaskAssigneeId}
+                    onChange={(e) => setNewLocalTaskAssigneeId(e.target.value)}
+                    className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                  >
+                    {members.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 text-left font-medium">
+                <div>
+                  <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Points récompensés</label>
+                  <input
+                    type="number"
+                    value={newLocalTaskPoints}
+                    onChange={(e) => setNewLocalTaskPoints(Number(e.target.value))}
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Récompense (€ - Cash)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="ex: 5.00"
+                    value={newLocalTaskRewardAmount}
+                    onChange={(e) => setNewLocalTaskRewardAmount(e.target.value)}
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Périodicité</label>
+                  <select
+                    value={newLocalTaskRotation}
+                    onChange={(e) => setNewLocalTaskRotation(e.target.value as any)}
+                    className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                  >
+                    <option value="none">Unique / Ponctuelle</option>
+                    <option value="daily">Quotidienne</option>
+                    <option value="weekly">Hebdomadaire</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 rounded-[18px] bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#6C5CFF]/20"
+              >
+                <Plus className="w-4 h-4 text-white" />
+                <span>Créer la mission</span>
+              </button>
+            </form>
+          )}
+
           {/* Gamified Parent Validation Alert */}
           {isParent && tasks.some(t => t.done && !t.validatedByParent) && (
             <div className="p-4 rounded-[28px] bg-[#FFB020]/10 border border-[#FFB020]/20 space-y-3">
@@ -2953,6 +3268,143 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             </div>
           </div>
 
+          {/* Frais Scolaires & Scolarité */}
+          {(() => {
+            const handleAddSchoolFee = (e: React.FormEvent) => {
+              e.preventDefault();
+              const amt = parseFloat(newSchoolFeeAmount);
+              if (isNaN(amt) || amt <= 0) return;
+
+              if (onAddTransaction) {
+                const targetMemberName = members.find(m => m.id === newSchoolFeeMemberId)?.name || 'Famille';
+                onAddTransaction({
+                  amount: amt,
+                  type: 'expense',
+                  category: 'Éducation',
+                  subCategory: newSchoolFeeType,
+                  title: `École : ${newSchoolFeeType} - ${targetMemberName}`,
+                  memberId: newSchoolFeeMemberId,
+                  memberName: targetMemberName,
+                  date: new Date().toISOString().split('T')[0],
+                  accountId: newSchoolFeeAccountId || null,
+                  moduleSource: 'ecole',
+                  recurrence: newSchoolFeeIsRecurring ? newSchoolFeeRecurrenceType : 'none',
+                  recurrenceInterval: newSchoolFeeIsRecurring ? 1 : undefined,
+                  startDate: newSchoolFeeIsRecurring ? new Date().toISOString().split('T')[0] : undefined,
+                  nextOccurrence: newSchoolFeeIsRecurring ? new Date().toISOString().split('T')[0] : undefined
+                });
+              }
+
+              setNewSchoolFeeAmount('');
+              alert(`🎓 Frais de scolarité de ${amt.toFixed(2)}€ enregistrés !`);
+            };
+
+            return (
+              <form onSubmit={handleAddSchoolFee} className="glass-panel border border-[#6C5CFF]/20 rounded-[28px] p-5 space-y-4 text-left">
+                <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block flex items-center space-x-1.5">
+                  <Coins className="w-3.5 h-3.5 text-[#6C5CFF]" />
+                  <span>Enregistrer des frais scolaires 🎓</span>
+                </span>
+
+                <div className="grid grid-cols-2 gap-3 text-left font-medium">
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Type de frais</label>
+                    <select
+                      value={newSchoolFeeType}
+                      onChange={(e) => setNewSchoolFeeType(e.target.value)}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                    >
+                      <option value="Cantine">Cantine scolaire</option>
+                      <option value="Fournitures">Fournitures / Manuels</option>
+                      <option value="Activités">Sorties / Activités scolaires</option>
+                      <option value="Cours">Cours particuliers / Soutien</option>
+                      <option value="Autre">Autre frais d'études</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Montant (€)</label>
+                    <input 
+                      type="number" 
+                      required
+                      step="0.01"
+                      placeholder="ex: 120"
+                      value={newSchoolFeeAmount}
+                      onChange={(e) => setNewSchoolFeeAmount(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-left font-medium">
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Élève concerné</label>
+                    <select
+                      value={newSchoolFeeMemberId}
+                      onChange={(e) => setNewSchoolFeeMemberId(e.target.value)}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                    >
+                      {members.map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Compte de débit</label>
+                    <select
+                      value={newSchoolFeeAccountId}
+                      onChange={(e) => setNewSchoolFeeAccountId(e.target.value)}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                    >
+                      <option value="">Sélectionner un compte...</option>
+                      {accounts.map(acc => (
+                        <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toFixed(2)}€)</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-left font-medium">
+                  <div className="flex items-center space-x-3 pt-6">
+                    <input
+                      type="checkbox"
+                      id="schoolFeeIsRecurring"
+                      checked={newSchoolFeeIsRecurring}
+                      onChange={(e) => setNewSchoolFeeIsRecurring(e.target.checked)}
+                      className="w-4 h-4 rounded bg-white/5 border border-white/10 text-[#6C5CFF]"
+                    />
+                    <label htmlFor="schoolFeeIsRecurring" className="text-xs text-white font-bold cursor-pointer select-none">Frais récurrent ?</label>
+                  </div>
+
+                  {newSchoolFeeIsRecurring && (
+                    <div>
+                      <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Fréquence de récurrence</label>
+                      <select
+                        value={newSchoolFeeRecurrenceType}
+                        onChange={(e) => setNewSchoolFeeRecurrenceType(e.target.value as any)}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                      >
+                        <option value="monthly">Chaque mois (Mensuel)</option>
+                        <option value="quarterly">Chaque trimestre (Trimestriel)</option>
+                        <option value="semiannually">Chaque semestre (Semestriel)</option>
+                        <option value="yearly">Chaque année (Annuel)</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-[18px] bg-gradient-to-r from-[#6C5CFF] to-[#8B5CF6] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#6C5CFF]/20"
+                >
+                  <Plus className="w-4 h-4 text-white" />
+                  <span>Enregistrer les frais d'école</span>
+                </button>
+              </form>
+            );
+          })()}
+
           {/* Interactive AI homework tutor & quizzes */}
           <div className="border-t border-white/5 pt-6">
             <TuteurScolaire 
@@ -3091,6 +3543,110 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             })}
           </div>
 
+          {/* Dashboard Coût Annuel & Formulaire de Dépenses Véhicules */}
+          {(() => {
+            const annualVehiclesCost = (transactions || [])
+              .filter(t => t.type === 'expense' && (t.category === 'Transport' || t.moduleSource === 'vehicules') && (new Date().getTime() - new Date(t.date).getTime()) <= 365 * 24 * 60 * 60 * 1000)
+              .reduce((sum, t) => sum + t.amount, 0);
+
+            const handleAddVehExpense = (e: React.FormEvent) => {
+              e.preventDefault();
+              const amt = parseFloat(newVehExpenseAmount);
+              if (isNaN(amt) || amt <= 0) return;
+
+              if (onAddTransaction) {
+                onAddTransaction({
+                  amount: amt,
+                  type: 'expense',
+                  category: 'Transport',
+                  subCategory: newVehExpenseSubCategory,
+                  title: `Véhicule : ${newVehExpenseSubCategory}`,
+                  date: new Date().toISOString().split('T')[0],
+                  accountId: newVehExpenseAccountId || null,
+                  moduleSource: 'vehicules'
+                });
+              }
+
+              setNewVehExpenseAmount('');
+              alert(`🚗 Dépense véhicule de ${amt.toFixed(2)}€ enregistrée !`);
+            };
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4">
+                {/* Card Coût Annuel */}
+                <div className="glass-panel border border-[#4F8CFF]/20 rounded-[28px] p-5 bg-[#4F8CFF]/5 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[9px] font-bold text-[#4F8CFF] uppercase tracking-widest block">Cockpit Financier Transport 📊</span>
+                    <h3 className="text-sm font-extrabold text-white mt-1">Dépenses Véhicules (365j)</h3>
+                  </div>
+                  <div className="mt-4">
+                    <span className="text-3xl font-black text-white">{annualVehiclesCost.toFixed(2)}€</span>
+                    <p className="text-[10px] text-white/40 mt-1 leading-normal">Total cumulé des dépenses de carburant, péage, entretien et assurance sur les 12 derniers mois.</p>
+                  </div>
+                </div>
+
+                {/* Formulaire ajout dépense */}
+                <form onSubmit={handleAddVehExpense} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3">
+                  <span className="text-[10px] font-bold text-[#4F8CFF] uppercase tracking-widest block flex items-center space-x-1.5">
+                    <Coins className="w-3.5 h-3.5 text-[#4F8CFF]" />
+                    <span>Ajouter un frais de véhicule ⛽</span>
+                  </span>
+
+                  <div className="grid grid-cols-2 gap-2 text-left">
+                    <div>
+                      <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Catégorie de frais</label>
+                      <select
+                        value={newVehExpenseSubCategory}
+                        onChange={(e) => setNewVehExpenseSubCategory(e.target.value)}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                      >
+                        <option value="Essence">Essence / Diesel</option>
+                        <option value="Péage">Péage / Parking</option>
+                        <option value="Maintenance">Entretien / Révision</option>
+                        <option value="Assurance">Assurance Auto</option>
+                        <option value="Autre">Autre frais</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Montant (€)</label>
+                      <input
+                        type="number"
+                        required
+                        step="0.01"
+                        placeholder="ex: 60"
+                        value={newVehExpenseAmount}
+                        onChange={(e) => setNewVehExpenseAmount(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Compte bancaire</label>
+                    <select
+                      value={newVehExpenseAccountId}
+                      onChange={(e) => setNewVehExpenseAccountId(e.target.value)}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                    >
+                      <option value="">Sélectionner un compte...</option>
+                      {accounts.map(acc => (
+                        <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toFixed(2)}€)</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2 rounded-xl bg-[#4F8CFF] hover:bg-[#3b7ae6] text-white font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer"
+                  >
+                    Enregistrer la dépense
+                  </button>
+                </form>
+              </div>
+            );
+          })()}
+
           {/* Formulaire d'ajout de Véhicule */}
           <form onSubmit={handleAddVehicle} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
             <span className="text-[10px] font-bold text-[#4F8CFF] uppercase tracking-widest block flex items-center space-x-1.5">
@@ -3191,7 +3747,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           </div>
 
           {/* View Toggle */}
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => { setLogementViewMode('list'); setSelectedRoom(null); }} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition ${logementViewMode === 'list' ? 'bg-[#FFB020] text-black' : 'bg-white/5 text-white/50'}`}>
               📝 Vue Liste
             </button>
@@ -3200,6 +3756,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             </button>
             <button type="button" onClick={() => { setLogementViewMode('artisans'); setSelectedRoom(null); }} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition ${logementViewMode === 'artisans' ? 'bg-[#FFB020] text-black' : 'bg-white/5 text-white/50'}`}>
               👷 Artisans Partenaires
+            </button>
+            <button type="button" onClick={() => { setLogementViewMode('charges'); setSelectedRoom(null); }} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition ${logementViewMode === 'charges' ? 'bg-[#FFB020] text-black' : 'bg-white/5 text-white/50'}`}>
+              ⚡ Charges & Loyers
             </button>
           </div>
 
@@ -3581,6 +4140,151 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               )}
             </div>
           )}
+
+          {logementViewMode === 'charges' && (
+            <div className="space-y-4">
+              {/* Formulaire ajout charge/facture */}
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const amt = parseFloat(newLogChargeAmount);
+                  if (isNaN(amt) || amt <= 0) return;
+
+                  if (onAddTransaction) {
+                    onAddTransaction({
+                      amount: amt,
+                      type: 'expense',
+                      category: 'Logement',
+                      subCategory: newLogChargeType,
+                      title: `Logement : ${newLogChargeType}`,
+                      date: new Date().toISOString().split('T')[0],
+                      accountId: newLogChargeAccountId || null,
+                      moduleSource: 'logement',
+                      recurrence: newLogChargeIsRecurring ? newLogChargeRecurrenceType : 'none',
+                      recurrenceInterval: newLogChargeIsRecurring ? 1 : undefined,
+                      startDate: newLogChargeIsRecurring ? new Date().toISOString().split('T')[0] : undefined,
+                      nextOccurrence: newLogChargeIsRecurring ? new Date().toISOString().split('T')[0] : undefined
+                    });
+                  }
+
+                  setNewLogChargeAmount('');
+                  alert(`⚡ Facture/charge de ${amt.toFixed(2)}€ enregistrée !`);
+                }} 
+                className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 text-left"
+              >
+                <span className="text-[10px] font-bold text-[#FFB020] uppercase tracking-widest block flex items-center space-x-1.5">
+                  <Coins className="w-3.5 h-3.5 text-[#FFB020]" />
+                  <span>Enregistrer une facture ou charge de logement 🏠</span>
+                </span>
+
+                <div className="grid grid-cols-2 gap-3 text-left font-medium">
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Type de charge</label>
+                    <select
+                      value={newLogChargeType}
+                      onChange={(e) => setNewLogChargeType(e.target.value)}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                    >
+                      <option value="Loyer">Loyer / Mensualité crédit</option>
+                      <option value="Électricité">Électricité (EDF/Engie)</option>
+                      <option value="Eau">Eau courante</option>
+                      <option value="Internet">Internet / Téléphone box</option>
+                      <option value="Assurance">Assurance Logement</option>
+                      <option value="Autre">Autre charge / Taxe</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Montant (€)</label>
+                    <input 
+                      type="number" 
+                      required
+                      step="0.01"
+                      placeholder="ex: 150"
+                      value={newLogChargeAmount}
+                      onChange={(e) => setNewLogChargeAmount(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-left font-medium">
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Compte de débit</label>
+                    <select
+                      value={newLogChargeAccountId}
+                      onChange={(e) => setNewLogChargeAccountId(e.target.value)}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                    >
+                      <option value="">Sélectionner un compte...</option>
+                      {accounts.map(acc => (
+                        <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toFixed(2)}€)</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center space-x-3 pt-6">
+                    <input
+                      type="checkbox"
+                      id="logChargeIsRecurring"
+                      checked={newLogChargeIsRecurring}
+                      onChange={(e) => setNewLogChargeIsRecurring(e.target.checked)}
+                      className="w-4 h-4 rounded bg-white/5 border border-white/10 text-[#FFB020]"
+                    />
+                    <label htmlFor="logChargeIsRecurring" className="text-xs text-white font-bold cursor-pointer select-none">Paiement récurrent ?</label>
+                  </div>
+                </div>
+
+                {newLogChargeIsRecurring && (
+                  <div className="text-left font-medium">
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Fréquence de récurrence</label>
+                    <select
+                      value={newLogChargeRecurrenceType}
+                      onChange={(e) => setNewLogChargeRecurrenceType(e.target.value as any)}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                    >
+                      <option value="daily">Chaque jour (Quotidien)</option>
+                      <option value="weekly">Chaque semaine (Hebdomadaire)</option>
+                      <option value="monthly">Chaque mois (Mensuel)</option>
+                      <option value="quarterly">Chaque trimestre (Trimestriel)</option>
+                      <option value="semiannually">Chaque semestre (Semestriel)</option>
+                      <option value="yearly">Chaque année (Annuel)</option>
+                    </select>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-[18px] bg-gradient-to-r from-[#FFB020] to-[#FF4D6D] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#FFB020]/20"
+                >
+                  <Plus className="w-4 h-4 text-white" />
+                  <span>Enregistrer la facture / charge</span>
+                </button>
+              </form>
+
+              {/* Liste des charges enregistrées */}
+              <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3">
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Charges Logement Récentes</h3>
+                <div className="space-y-2">
+                  {(transactions || [])
+                    .filter(t => t.category === 'Logement' && t.moduleSource === 'logement')
+                    .slice(0, 5)
+                    .map(tx => (
+                      <div key={tx.id} className="flex items-center justify-between p-3 rounded-2xl bg-white/3 border border-white/5 text-xs">
+                        <div>
+                          <p className="font-bold text-white">{tx.title}</p>
+                          <p className="text-[10px] text-white/40">{tx.date} {tx.recurrence !== 'none' && `• Récurrent (${tx.recurrence})`}</p>
+                        </div>
+                        <span className="font-extrabold text-red-400">-{tx.amount.toFixed(2)}€</span>
+                      </div>
+                    ))}
+                  {(transactions || []).filter(t => t.category === 'Logement' && t.moduleSource === 'logement').length === 0 && (
+                    <p className="text-[10px] text-white/30 text-center py-4">Aucune facture enregistrée pour le moment.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -3640,6 +4344,125 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   )}
                 </div>
               </div>
+
+              {/* Suivi Financier du Voyage */}
+              {(() => {
+                const tripExpenses = (transactions || []).filter(tx => 
+                  tx.type === 'expense' && 
+                  (tx.moduleSource === 'voyages' || tx.category === 'Loisirs' || tx.category === 'Autres') && 
+                  (tx.title.toLowerCase().includes(t.destination.toLowerCase()) || (tx.comment && tx.comment.toLowerCase().includes(t.destination.toLowerCase())))
+                );
+                const totalTripSpent = tripExpenses.reduce((sum, tx) => sum + tx.amount, 0);
+                const matchingGoal = goals?.find(g => 
+                  g.title.toLowerCase().includes(t.destination.toLowerCase()) || 
+                  t.destination.toLowerCase().includes(g.title.toLowerCase())
+                );
+                const spendPct = Math.min(100, Math.round((totalTripSpent / t.budget) * 100)) || 0;
+                
+                const handleAddVoyageExpense = (e: React.FormEvent) => {
+                  e.preventDefault();
+                  const amt = parseFloat(newVoyageExpenseAmount);
+                  if (isNaN(amt) || amt <= 0) return;
+
+                  if (onAddTransaction) {
+                    onAddTransaction({
+                      amount: amt,
+                      type: 'expense',
+                      category: 'Autres',
+                      subCategory: newVoyageExpenseSubCategory,
+                      title: `Voyage ${t.destination} : ${newVoyageExpenseSubCategory}`,
+                      date: new Date().toISOString().split('T')[0],
+                      accountId: newVoyageExpenseAccountId || null,
+                      moduleSource: 'voyages',
+                      comment: `Dépense voyage liée à la destination ${t.destination}`
+                    });
+                  }
+
+                  setNewVoyageExpenseAmount('');
+                  alert(`✈️ Dépense de voyage de ${amt.toFixed(2)}€ enregistrée pour ${t.destination} !`);
+                };
+
+                return (
+                  <div className="space-y-3 p-4 rounded-2xl bg-white/5 border border-white/10 text-left">
+                    <span className="text-[9px] font-black text-[#FF4D6D] uppercase tracking-widest block">Suivi Budget & Cagnotte Voyage 📈</span>
+                    
+                    {/* Progress Bar Expenses */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs font-bold text-white">
+                        <span>Dépenses voyage</span>
+                        <span>{totalTripSpent.toFixed(2)}€ / {t.budget}€ ({spendPct}%)</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+                        <div 
+                          className={`h-full transition-all duration-500 ${spendPct >= 90 ? 'bg-red-500' : spendPct >= 75 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                          style={{ width: `${spendPct}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Progress Bar Savings Goal (if matches) */}
+                    {matchingGoal ? (
+                      <div className="space-y-1 pt-1 border-t border-white/5">
+                        <div className="flex justify-between text-xs font-bold text-white">
+                          <span>Cagnotte liée : {matchingGoal.title}</span>
+                          <span>{matchingGoal.currentAmount}€ / {matchingGoal.targetAmount}€ ({Math.round(matchingGoal.currentAmount / matchingGoal.targetAmount * 100)}%)</span>
+                        </div>
+                        <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+                          <div 
+                            className="h-full bg-[#6C5CFF] transition-all duration-500"
+                            style={{ width: `${Math.min(100, Math.round(matchingGoal.currentAmount / matchingGoal.targetAmount * 100))}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[9px] text-white/30 italic">Aucune cagnotte d'épargne détectée pour "{t.destination}".</p>
+                    )}
+
+                    {/* Formulaire ajout dépense voyage */}
+                    <form onSubmit={handleAddVoyageExpense} className="flex items-center space-x-2 pt-2 border-t border-white/5 font-sans font-medium">
+                      <select
+                        value={newVoyageExpenseSubCategory}
+                        onChange={(e) => setNewVoyageExpenseSubCategory(e.target.value)}
+                        className="bg-[#07111F] border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white focus:outline-none"
+                      >
+                        <option value="Hôtel">Hôtel</option>
+                        <option value="Transport">Transport</option>
+                        <option value="Resto">Restauration</option>
+                        <option value="Loisirs">Activités</option>
+                        <option value="Autre">Autre</option>
+                      </select>
+
+                      <input
+                        type="number"
+                        required
+                        step="0.01"
+                        placeholder="Montant (€)"
+                        value={newVoyageExpenseAmount}
+                        onChange={(e) => setNewVoyageExpenseAmount(e.target.value)}
+                        className="flex-1 bg-white/5 border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white placeholder-white/30 focus:outline-none"
+                      />
+
+                      <select
+                        value={newVoyageExpenseAccountId}
+                        onChange={(e) => setNewVoyageExpenseAccountId(e.target.value)}
+                        className="bg-[#07111F] border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white focus:outline-none max-w-[100px]"
+                      >
+                        <option value="">Compte...</option>
+                        {accounts.map(acc => (
+                          <option key={acc.id} value={acc.id}>{acc.name}</option>
+                        ))}
+                      </select>
+
+                      <button
+                        type="submit"
+                        className="px-3 py-1 rounded-xl bg-[#FF4D6D] hover:bg-[#ff3356] text-[10px] text-white font-bold transition cursor-pointer"
+                      >
+                        Ajouter
+                      </button>
+                    </form>
+                  </div>
+                );
+              })()}
 
               {/* Widget Météo Local */}
               <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/15 flex items-center justify-between">
@@ -3948,6 +4771,80 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* Frais liés à l'animal */}
+              <div className="space-y-2 pt-3 border-t border-white/5 text-left font-sans">
+                <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest flex items-center space-x-1">
+                  <Coins className="w-3.5 h-3.5" />
+                  <span>Dépenses & Frais de {p.name}</span>
+                </p>
+
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const amt = parseFloat(newPetExpenseAmount);
+                    if (isNaN(amt) || amt <= 0) return;
+
+                    if (onAddTransaction) {
+                      onAddTransaction({
+                        amount: amt,
+                        type: 'expense',
+                        category: 'Autres',
+                        subCategory: 'Animaux',
+                        title: `Animaux - ${p.name} : ${newPetExpenseSubCategory}`,
+                        date: new Date().toISOString().split('T')[0],
+                        accountId: newPetExpenseAccountId || null,
+                        moduleSource: 'animaux',
+                        comment: `Frais pour ${p.name} (${newPetExpenseSubCategory})`
+                      });
+                    }
+
+                    setNewPetExpenseAmount('');
+                    alert(`🐶 Dépense de ${amt.toFixed(2)}€ enregistrée pour ${p.name} !`);
+                  }}
+                  className="flex items-center space-x-2 font-sans font-medium"
+                >
+                  <select
+                    value={newPetExpenseSubCategory}
+                    onChange={(e) => setNewPetExpenseSubCategory(e.target.value)}
+                    className="bg-[#07111F] border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white focus:outline-none"
+                  >
+                    <option value="Nourriture">Nourriture</option>
+                    <option value="Vétérinaire">Vétérinaire</option>
+                    <option value="Médicaments">Soins / Traitement</option>
+                    <option value="Jouets">Jouets / Accessoires</option>
+                    <option value="Autre">Autre</option>
+                  </select>
+
+                  <input
+                    type="number"
+                    required
+                    step="0.01"
+                    placeholder="Montant (€)"
+                    value={newPetExpenseAmount}
+                    onChange={(e) => setNewPetExpenseAmount(e.target.value)}
+                    className="flex-1 bg-white/5 border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white placeholder-white/30 focus:outline-none"
+                  />
+
+                  <select
+                    value={newPetExpenseAccountId}
+                    onChange={(e) => setNewPetExpenseAccountId(e.target.value)}
+                    className="bg-[#07111F] border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white focus:outline-none max-w-[100px]"
+                  >
+                    <option value="">Compte...</option>
+                    {accounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>{acc.name}</option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="submit"
+                    className="px-3 py-1 rounded-xl bg-[#00D26A] hover:bg-[#00b058] text-[10px] text-white font-bold transition cursor-pointer"
+                  >
+                    Ajouter
+                  </button>
+                </form>
+              </div>
             </div>
           ))}
 
@@ -4187,8 +5084,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 <span>Distribuer de l'Argent ou des Points (Accès Parent) 💰</span>
               </span>
               
-              <div className="grid grid-cols-3 gap-3 text-left">
-                <div className="space-y-1.5 text-left font-medium font-sans">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left font-sans">
+                <div className="space-y-1.5 text-left font-medium">
                   <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Sélectionner l'Enfant</label>
                   <select
                     value={allowanceChildId}
@@ -4200,8 +5097,24 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     ))}
                   </select>
                 </div>
-                
+
                 <div className="space-y-1.5 text-left font-medium">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Compte à débiter (Parent)</label>
+                  <select
+                    value={allowanceAccountId}
+                    onChange={(e) => setAllowanceAccountId(e.target.value)}
+                    className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                  >
+                    <option value="">Sélectionner un compte...</option>
+                    {accounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toFixed(2)}€)</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-left">
+                <div className="space-y-1.5 text-left font-medium font-sans">
                   <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Ajouter Euros (€)</label>
                   <input 
                     type="number" 
@@ -4212,7 +5125,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   />
                 </div>
 
-                <div className="space-y-1.5 text-left font-medium">
+                <div className="space-y-1.5 text-left font-medium font-sans">
                   <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Ajouter Points (Pts)</label>
                   <input 
                     type="number" 
@@ -4222,6 +5135,33 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-left font-medium font-sans">
+                <div className="flex items-center space-x-3 pt-6">
+                  <input
+                    type="checkbox"
+                    id="allowanceIsRecurring"
+                    checked={allowanceIsRecurring}
+                    onChange={(e) => setAllowanceIsRecurring(e.target.checked)}
+                    className="w-4 h-4 rounded bg-white/5 border border-white/10 text-[#6C5CFF]"
+                  />
+                  <label htmlFor="allowanceIsRecurring" className="text-xs text-white font-bold cursor-pointer select-none">Versement récurrent ?</label>
+                </div>
+
+                {allowanceIsRecurring && (
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Fréquence du versement</label>
+                    <select
+                      value={allowanceRecurrenceType}
+                      onChange={(e) => setAllowanceRecurrenceType(e.target.value as any)}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                    >
+                      <option value="weekly">Chaque semaine</option>
+                      <option value="monthly">Chaque mois</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               <button
@@ -4617,6 +5557,100 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             >
               Annuler
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Valider Achats Modal */}
+      {isValiderAchatsOpen && (
+        <div className="fixed inset-0 bg-[#07111F]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-panel border-white/10 rounded-[28px] w-full max-w-sm p-6 space-y-4 shadow-2xl animate-scale-up">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+              <h3 className="text-xs font-black uppercase tracking-wider text-white">Valider mes achats</h3>
+              <button 
+                type="button"
+                onClick={() => setIsValiderAchatsOpen(false)}
+                className="p-1 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest block mb-1">Montant Total (€)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={validerAchatsCost}
+                  onChange={(e) => setValiderAchatsCost(e.target.value)}
+                  placeholder="Ex: 45.50"
+                  className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FFB020]"
+                />
+              </div>
+              <div>
+                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest block mb-1">Compte bancaire</label>
+                <select
+                  value={validerAchatsAccountId}
+                  onChange={(e) => setValiderAchatsAccountId(e.target.value)}
+                  className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FFB020] cursor-pointer"
+                >
+                  <option value="">Sélectionner un compte...</option>
+                  {(accounts || []).map((acc) => (
+                    <option key={acc.id} value={acc.id} className="bg-[#0b1726]">
+                      {acc.name} ({formatMoney(acc.balance)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsValiderAchatsOpen(false)}
+                className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer border border-white/5"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const costVal = parseFloat(validerAchatsCost);
+                  if (isNaN(costVal) || costVal <= 0) {
+                    alert("Veuillez saisir un montant valide.");
+                    return;
+                  }
+                  if (onAddTransaction) {
+                    onAddTransaction({
+                      amount: costVal,
+                      type: 'expense',
+                      category: 'Alimentation',
+                      title: `Courses validées`,
+                      date: new Date().toISOString().split('T')[0],
+                      accountId: validerAchatsAccountId || null,
+                      moduleSource: 'courses'
+                    });
+                  }
+                  
+                  // Auto-archive and clean checked items
+                  const checkedItems = groceries.filter(g => g.checked);
+                  if (checkedItems.length > 0) {
+                    onArchiveCurrentList(`Achats du ${new Date().toLocaleDateString('fr-FR')}`);
+                    onCleanGroceryList('checked');
+                  }
+                  
+                  setIsValiderAchatsOpen(false);
+                  setValiderAchatsCost('');
+                  setValiderAchatsAccountId('');
+                  alert("🛒 Achats validés et ajoutés au Budget !");
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-[#00D26A] text-white font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer hover:opacity-90"
+              >
+                Valider
+              </button>
+            </div>
           </div>
         </div>
       )}

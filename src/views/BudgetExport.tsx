@@ -18,7 +18,7 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-interface FinancesExportProps {
+interface BudgetExportProps {
   isOpen: boolean;
   onClose: () => void;
   transactions: Transaction[];
@@ -51,7 +51,7 @@ interface HistoryItem {
   file_path: string | null;
 }
 
-export const FinancesExport: React.FC<FinancesExportProps> = ({
+export const BudgetExport: React.FC<BudgetExportProps> = ({
   isOpen,
   onClose,
   transactions,
@@ -205,7 +205,7 @@ export const FinancesExport: React.FC<FinancesExportProps> = ({
     setSuccess(false);
 
     try {
-      const fileName = `Export_Finances_${formattedStartStr}_to_${formattedEndStr}.${format === 'excel' ? 'xlsx' : format}`;
+      const fileName = `Export_Budget_${formattedStartStr}_to_${formattedEndStr}.${format === 'excel' ? 'xlsx' : format}`;
       let fileBlob: Blob | null = null;
       let textContent = '';
 
@@ -236,7 +236,7 @@ export const FinancesExport: React.FC<FinancesExportProps> = ({
       } 
       else if (format === 'txt') {
         textContent = `====================================================\n`;
-        textContent += `RAPPORT FINANCIER DE LA FAMILLE - MAFAMILLE+\n`;
+        textContent += `RAPPORT BUDGÉTAIRE DE LA FAMILLE - MAFAMILLE+\n`;
         textContent += `====================================================\n`;
         textContent += `Période : Du ${formattedStartStr} au ${formattedEndStr}\n`;
         textContent += `Généré le : ${new Date().toLocaleString()}\n`;
@@ -407,7 +407,7 @@ export const FinancesExport: React.FC<FinancesExportProps> = ({
         doc.setFontSize(18);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(150, 160, 180);
-        doc.text("RAPPORT FINANCIER PREMIUM", pageWidth / 2, 85, { align: 'center' });
+        doc.text("RAPPORT BUDGÉTAIRE PREMIUM", pageWidth / 2, 85, { align: 'center' });
 
         // Metadata block
         doc.setFillColor(255, 255, 255, 0.03);
@@ -539,7 +539,7 @@ export const FinancesExport: React.FC<FinancesExportProps> = ({
           doc.setFontSize(8);
           doc.setTextColor(150, 150, 150);
           doc.text(`Page ${j} sur ${totalPages}`, pageWidth - 25, doc.internal.pageSize.getHeight() - 10);
-          doc.text(`Export Financier MyFamily+ - ${new Date().toLocaleDateString()}`, 15, doc.internal.pageSize.getHeight() - 10);
+          doc.text(`Export Budget MyFamily+ - ${new Date().toLocaleDateString()}`, 15, doc.internal.pageSize.getHeight() - 10);
         }
 
         fileBlob = doc.output('blob');
@@ -640,7 +640,7 @@ export const FinancesExport: React.FC<FinancesExportProps> = ({
       const fileUrl = URL.createObjectURL(data);
       const link = document.createElement('a');
       link.href = fileUrl;
-      link.download = `Export_Finances_Historique_${item.start_date}_to_${item.end_date}.${item.format === 'excel' ? 'xlsx' : item.format}`;
+      link.download = `Export_Budget_Historique_${item.start_date}_to_${item.end_date}.${item.format === 'excel' ? 'xlsx' : item.format}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -671,7 +671,7 @@ export const FinancesExport: React.FC<FinancesExportProps> = ({
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-extrabold text-white uppercase tracking-wider">Module "Exporter les finances"</h2>
+              <h2 className="text-base font-extrabold text-white uppercase tracking-wider">Module "Exporter le budget"</h2>
               <p className="text-xs text-white/50">Générez des rapports premium pour votre foyer</p>
             </div>
           </div>

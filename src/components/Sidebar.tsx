@@ -55,7 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'accueil', label: 'Accueil', icon: Home, isTab: true },
     { id: 'membres', label: 'Membres de la Famille', icon: Users, isTab: false, module: 'membres' },
     { id: 'agenda', label: 'Agenda Partagé', icon: Calendar, isTab: true },
-    { id: 'finances', label: 'Finances & Budgets', icon: Wallet, isTab: true },
+    { id: 'budget', label: 'Budget', icon: Wallet, isTab: true },
     { id: 'documents', label: 'Coffre-fort Documents', icon: FolderLock, isTab: false, module: 'documents' },
     { id: 'sante', label: 'Santé & Vaccins', icon: HeartPulse, isTab: false, module: 'sante' },
     { id: 'ecole', label: 'École & Devoirs', icon: GraduationCap, isTab: false, module: 'ecole' },

@@ -578,7 +578,7 @@ export const Settings: React.FC<SettingsProps> = ({
             { key: 'groceries', label: '🛒 Courses & Liste d\'achats' },
             { key: 'tasks', label: '🧹 Tâches ménagères' },
             { key: 'agenda', label: '📅 Agenda & Événements' },
-            { key: 'finances', label: '💰 Finances, Budgets & Épargne' },
+            { key: 'finances', label: '💰 Budget & Épargne' },
             { key: 'chat', label: '💬 Messages & Chat' },
             { key: 'health', label: '🏥 Santé & Vaccins' },
             { key: 'vault', label: '📂 Coffre-fort & Documents' },

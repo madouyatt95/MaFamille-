@@ -122,8 +122,16 @@ export interface Transaction {
   comment?: string;
   modificationHistory?: { author: string; date: string; action: string }[];
   isArchived?: boolean;
-  recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+  recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'quarterly' | 'semiannually' | 'custom';
   subscriptionId?: string;
+  moduleSource?: string;
+  categoryId?: string;
+  subCategoryId?: string;
+  currency?: string;
+  recurrenceInterval?: number;
+  startDate?: string;
+  endDate?: string;
+  nextOccurrence?: string;
 }
 
 export type DocumentCategory = 'identity' | 'health' | 'school' | 'insurance' | 'bank' | 'contract' | 'vehicle' | 'home' | 'travel' | 'other';
@@ -186,6 +194,7 @@ export interface ChoreTask {
   rotation: 'daily' | 'weekly' | 'none';
   validatedByParent: boolean;
   dueDate: string;
+  rewardAmount?: number;
 }
 
 export interface Vehicle {
@@ -290,6 +299,13 @@ export interface VoiceCommandLog {
   command: string;
   success: boolean;
   createdAt?: string;
+  moduleSource?: string;
+  categoryId?: string;
+  subCategoryId?: string;
+  amount?: number;
+  currency?: string;
+  recurrenceType?: string;
+  recurrenceInterval?: number;
 }
 
 export interface NotificationAlert {
@@ -403,6 +419,9 @@ export interface Demarche {
   pieces: DemarchePiece[];
   createdAt: string;
   notes?: string;
+  cost?: number;
+  isPaid?: boolean;
+  receiptDocId?: string;
 }
 
 export interface DemarcheTemplate {

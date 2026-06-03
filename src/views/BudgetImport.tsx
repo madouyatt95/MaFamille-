@@ -18,7 +18,7 @@ import type { Transaction, CustomCategory, Account } from '../types';
 import * as XLSX from 'xlsx';
 import { createWorker } from 'tesseract.js';
 
-interface FinancesImportProps {
+interface BudgetImportProps {
   isOpen: boolean;
   onClose: () => void;
   transactions: Transaction[];
@@ -57,7 +57,7 @@ interface ImportHistoryItem {
   tx_count: number;
 }
 
-export const FinancesImport: React.FC<FinancesImportProps> = ({
+export const BudgetImport: React.FC<BudgetImportProps> = ({
   isOpen,
   onClose,
   transactions,
@@ -638,8 +638,8 @@ export const FinancesImport: React.FC<FinancesImportProps> = ({
               <Upload className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-extrabold text-white uppercase tracking-wider">Module "Importer des finances"</h2>
-              <p className="text-xs text-white/50">Assistant intelligent d'importation multi-formats</p>
+              <h2 className="text-base font-extrabold text-white uppercase tracking-wider">Module "Importer un budget"</h2>
+              <p className="text-xs text-white/50">Importez des transactions et scannez des tickets</p>
             </div>
           </div>
           <button 
