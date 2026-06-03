@@ -8,7 +8,6 @@ import {
   UserPlus, 
   CheckCircle2,
   FileText,
-  ShieldAlert,
   Camera,
   Sparkles,
   Loader
@@ -24,7 +23,6 @@ interface QuickActionsSheetProps {
   onAddTask: (task: any) => void;
   onNavigateToVault?: () => void;
   onNavigateToMembers?: () => void;
-  onTriggerSos?: () => void;
 }
 
 type AddTab = 'event' | 'transaction' | 'task' | 'document' | 'member';
@@ -37,8 +35,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   onAddTransaction,
   onAddTask,
   onNavigateToVault,
-  onNavigateToMembers,
-  onTriggerSos
+  onNavigateToMembers
 }) => {
   const [activeTab, setActiveTab] = useState<AddTab>('event');
   const [showSuccess, setShowSuccess] = useState(false);
@@ -273,19 +270,6 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
         ) : (
           /* Forms Interface */
           <>
-            {/* SOS Emergency Button */}
-            <div className="px-4 pt-4 shrink-0">
-              <button 
-                onClick={() => {
-                  if (onTriggerSos) onTriggerSos();
-                  onClose();
-                }}
-                className="w-full py-3 bg-[#FF4D6D] text-white rounded-2xl text-xs font-black tracking-widest uppercase hover:bg-[#FF4D6D]/95 active:scale-95 transition-all flex items-center justify-center space-x-2 shadow-lg shadow-[#FF4D6D]/30 cursor-pointer"
-              >
-                <ShieldAlert className="w-4 h-4 animate-pulse" />
-                <span>🚨 Déclencher Alerte SOS 🚨</span>
-              </button>
-            </div>
 
             {/* Tabs selector */}
             <div className="px-4 pt-2 flex space-x-2 overflow-x-auto no-scrollbar border-b border-white/5 pb-3">

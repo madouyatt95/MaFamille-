@@ -139,8 +139,7 @@ export const Settings: React.FC<SettingsProps> = ({
       finances: true,
       chat: true,
       health: true,
-      vault: true,
-      sos: true
+      vault: true
     };
   });
 
@@ -355,7 +354,7 @@ export const Settings: React.FC<SettingsProps> = ({
   };
 
   return (
-    <div className="pb-32 pt-6 px-4 md:px-8 space-y-6 max-w-xl mx-auto premium-glow-blue">
+    <div className="pb-32 pt-[calc(1.5rem+env(safe-area-inset-top,0px))] px-4 md:px-8 space-y-6 max-w-xl mx-auto premium-glow-blue">
       
       {/* Header */}
       <div className="flex items-center space-x-3">
@@ -581,8 +580,7 @@ export const Settings: React.FC<SettingsProps> = ({
             { key: 'finances', label: '💰 Budget & Épargne' },
             { key: 'chat', label: '💬 Messages & Chat' },
             { key: 'health', label: '🏥 Santé & Vaccins' },
-            { key: 'vault', label: '📂 Coffre-fort & Documents' },
-            { key: 'sos', label: '🚨 SOS & Alertes d\'urgence' }
+            { key: 'vault', label: '📂 Coffre-fort & Documents' }
           ].map((item) => {
             const isEnabled = localPrefs[item.key] !== false;
             return (

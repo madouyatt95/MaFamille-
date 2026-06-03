@@ -107,7 +107,7 @@ import { notificationService } from './services/notificationService';
 import type { Foyer, FoyerMember } from './types';
 
 // Lucide icon for inline notifications
-import { Bell, X, ChevronRight, Mic, Volume2, Phone, Settings as SettingsIcon, Lock, AlertTriangle, Sparkles } from 'lucide-react';
+import { Bell, X, ChevronRight, Mic, Volume2, Settings as SettingsIcon, Lock, Sparkles } from 'lucide-react';
 
 function App() {
   // Safe localStorage helper functions to prevent any corrupt cache startup crashes
@@ -403,8 +403,7 @@ function App() {
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
   const [sharedPackId, setSharedPackId] = useState<string | null>(null);
-  const [sosActive, setSosActive] = useState(false);
-  const [receivedSos, setReceivedSos] = useState<{ senderId: string; senderName: string; location: string; timestamp: number } | null>(null);
+
 
   // React Refs to keep subscriptions updated and prevent stale closures
   const activeMemberIdRef = useRef(activeMemberId);
@@ -425,72 +424,9 @@ function App() {
   const [isIOS, setIsIOS] = useState(false);
   const [showIosGuide, setShowIosGuide] = useState(false);
 
-  // Sync SOS state across household members
-  useEffect(() => {
-    const checkSos = () => {
-      try {
-        const rawSos = localStorage.getItem('mf_active_sos');
-        if (rawSos) {
-          const sos = JSON.parse(rawSos);
-          if (sos && sos.active) {
-            if (sos.senderId === activeMemberId) {
-              setSosActive(true);
-              setReceivedSos(null);
-            } else {
-              setSosActive(false);
-              setReceivedSos(sos);
-            }
-            return;
-          }
-        }
-        setSosActive(false);
-        setReceivedSos(null);
-      } catch (e) {
-        console.error("Error reading active SOS state:", e);
-      }
-    };
 
-    checkSos();
-    const interval = setInterval(checkSos, 1000);
-    return () => clearInterval(interval);
-  }, [activeMemberId]);
 
-  const triggerSosAlarm = () => {
-    setSosActive(true);
-    const activeMember = members.find(m => m.id === activeMemberId) || members[0];
-    const sosData = {
-      active: true,
-      senderId: activeMemberId,
-      senderName: activeMember?.name || 'Un membre de la famille',
-      timestamp: Date.now(),
-      location: 'Forêt de Chevreuse 🌲'
-    };
-    localStorage.setItem('mf_active_sos', JSON.stringify(sosData));
 
-    // Create a persistent notification alert
-    const newAlert: NotificationAlert = {
-      id: `alert-sos-${Date.now()}-by-${activeMemberId}`,
-      title: `🚨 ALERTE SOS ACTIVÉE`,
-      description: `${activeMember?.name || 'Un membre'} a déclenché l'alerte d'urgence (SOS).`,
-      time: 'À l\'instant',
-      type: 'error',
-      read: false,
-      module: 'sos'
-    };
-    setAlerts(prev => [newAlert, ...prev]);
-    saveAlertToCloud(newAlert);
-    try {
-      const savedAlerts = localStorage.getItem('mf_alerts');
-      const parsedAlerts = savedAlerts ? JSON.parse(savedAlerts) : [];
-      localStorage.setItem('mf_alerts', JSON.stringify([newAlert, ...parsedAlerts]));
-    } catch (_) {}
-  };
-
-  const turnOffSosAlarm = () => {
-    setSosActive(false);
-    setReceivedSos(null);
-    localStorage.removeItem('mf_active_sos');
-  };
 
   // Listen for PWA installation events
   useEffect(() => {
@@ -617,6 +553,16 @@ function App() {
   const [voiceAmbiguous, setVoiceAmbiguous] = useState(false);
   const [ambiguousChoices, setAmbiguousChoices] = useState<{ moduleSource: string; category: string; subCategory: string; label: string }[]>([]);
   const [pendingVoiceCommandData, setPendingVoiceCommandData] = useState<any | null>(null);
+  const [voiceDebugInfo, setVoiceDebugInfo] = useState<{
+    phrase: string;
+    type: string;
+    amount: string;
+    category: string;
+    subCategory: string;
+    module: string;
+    recurrence?: string;
+    member?: string;
+  } | null>(null);
   const voiceRecognitionRef = useRef<any>(null);
 
   const [foyer, setFoyer] = useState<Foyer | null>(() => {
@@ -735,8 +681,7 @@ function App() {
       finances: true,
       chat: true,
       health: true,
-      vault: true,
-      sos: true
+      vault: true
     };
   });
 
@@ -755,8 +700,7 @@ function App() {
         finances: true,
         chat: true,
         health: true,
-        vault: true,
-        sos: true
+        vault: true
       });
     }
   }, [foyer?.id, user?.id]);
@@ -1348,12 +1292,20 @@ function App() {
 
       // Set accounts
       if (accountsRes.success && accountsRes.data) {
-        setAccounts(accountsRes.data.map((a: any) => ({
-          id: a.id,
-          name: a.name,
-          type: a.type || 'bank',
-          balance: Number(a.balance || 0)
-        })));
+        const metadataStr = localStorage.getItem('mf_accounts_metadata');
+        const metadata = metadataStr ? JSON.parse(metadataStr) : {};
+        setAccounts(accountsRes.data.map((a: any) => {
+          const meta = metadata[a.id] || {};
+          return {
+            id: a.id,
+            name: a.name,
+            type: a.type || 'bank',
+            balance: Number(a.balance || 0),
+            icon: meta.icon || undefined,
+            color: meta.color || undefined,
+            initialBalance: meta.initialBalance !== undefined ? Number(meta.initialBalance) : undefined
+          };
+        }));
       }
 
       // Set abonnements
@@ -2170,9 +2122,20 @@ function App() {
       }
 
       if (accountsRes && accountsRes.data) {
-        const mapped = accountsRes.data.map(a => ({
-          id: a.id, name: a.name, type: a.type || 'bank', balance: Number(a.balance || 0)
-        }));
+        const metadataStr = localStorage.getItem('mf_accounts_metadata');
+        const metadata = metadataStr ? JSON.parse(metadataStr) : {};
+        const mapped = accountsRes.data.map(a => {
+          const meta = metadata[a.id] || {};
+          return {
+            id: a.id,
+            name: a.name,
+            type: a.type || 'bank',
+            balance: Number(a.balance || 0),
+            icon: meta.icon || undefined,
+            color: meta.color || undefined,
+            initialBalance: meta.initialBalance !== undefined ? Number(meta.initialBalance) : undefined
+          };
+        });
         setAccounts(prev => {
           const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
           const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
@@ -2729,12 +2692,20 @@ function App() {
     const subAccounts = foyerService.subscribeToChanges('accounts', foyer.id, () => {
       foyerService.fetchTableData('accounts', foyer.id).then(data => {
         if (data) {
-          setAccounts(data.map(a => ({
-            id: a.id,
-            name: a.name,
-            type: a.type || 'bank',
-            balance: Number(a.balance || 0)
-          })));
+          const metadataStr = localStorage.getItem('mf_accounts_metadata');
+          const metadata = metadataStr ? JSON.parse(metadataStr) : {};
+          setAccounts(data.map(a => {
+            const meta = metadata[a.id] || {};
+            return {
+              id: a.id,
+              name: a.name,
+              type: a.type || 'bank',
+              balance: Number(a.balance || 0),
+              icon: meta.icon || undefined,
+              color: meta.color || undefined,
+              initialBalance: meta.initialBalance !== undefined ? Number(meta.initialBalance) : undefined
+            };
+          }));
         }
       });
     });
@@ -3277,6 +3248,7 @@ function App() {
     setVoiceAmbiguous(false);
     setPendingVoiceCommandData(null);
     setAmbiguousChoices([]);
+    setVoiceDebugInfo(null);
 
     const recognition = new SpeechRecognition();
     voiceRecognitionRef.current = recognition;
@@ -3639,98 +3611,105 @@ function App() {
         }
 
         // 7. General Transactions parser (fallback expense / income)
-        const hasEuro = promptLower.includes('euro') || promptLower.includes('€');
-        const financialKeywords = [
-          'dépense', 'depense', 'revenu', 'salaire', 'budget', 'payé', 'paye', 'coûte', 'coute', 'facture', 'loyer',
-          'essence', 'carburant', 'péage', 'peage', 'hébergement', 'hebergement', 'remboursement'
-        ];
-        const categoryKeywords = [
-          'transport', 'alimentation', 'logement', 'santé', 'sante', 'éducation', 'education', 'loisir', 'loisirs'
-        ];
-        const isFinancial = hasEuro || (hasNumber && (
-          financialKeywords.some(kw => promptLower.includes(kw)) ||
-          categoryKeywords.some(kw => promptLower.includes(kw))
-        ));
-
-        if (isFinancial && hasNumber && amountVal > 0) {
-          intent = promptLower.includes('salaire') || promptLower.includes('revenu') ? 'transaction_income' : 'transaction_expense';
+        if (hasNumber && amountVal > 0) {
           let type: 'expense' | 'income' = 'expense';
-          if (promptLower.includes('salaire') || promptLower.includes('revenu') || promptLower.includes('reçu') || promptLower.includes('gagné')) {
+          if (promptLower.includes('salaire') || promptLower.includes('revenu') || promptLower.includes('reçu') || promptLower.includes('gagné') || promptLower.includes('recu') || promptLower.includes('gagne')) {
             type = 'income';
           }
+          intent = type === 'income' ? 'transaction_income' : 'transaction_expense';
 
           let currencyStr = 'EUR';
           if (promptLower.includes('dollar') || promptLower.includes('$')) currencyStr = 'USD';
 
           let recurrenceType: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'quarterly' | 'semiannually' | 'custom' = 'none';
           let recurrenceInterval = 1;
-          if (/mensuel|tous les mois|chaque mois/i.test(promptLower)) {
+          if (/mensuel|mensuelle|tous les mois|chaque mois/i.test(promptLower)) {
             recurrenceType = 'monthly';
-          } else if (/quotidien|tous les jours|chaque jour/i.test(promptLower)) {
+          } else if (/quotidien|quotidienne|tous les jours|chaque jour/i.test(promptLower)) {
             recurrenceType = 'daily';
-          } else if (/hebdomadaire|toutes les semaines|chaque semaine/i.test(promptLower)) {
+          } else if (/hebdomadaire|toutes les semaines|chaque semaine|chaque samedi|chaque (lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)/i.test(promptLower)) {
             recurrenceType = 'weekly';
           } else if (/trimestriel|tous les trimestres/i.test(promptLower)) {
             recurrenceType = 'quarterly';
-          } else if (/semestriel|tous les semestres/i.test(promptLower)) {
-            recurrenceType = 'semiannually';
-          } else if (/annuel|tous les ans|chaque année/i.test(promptLower)) {
+          } else if (/annuel|annuelle|tous les ans|chaque année|chaque annee/i.test(promptLower)) {
             recurrenceType = 'yearly';
           }
 
-          const matchedAccount = accounts.find(a => promptLower.includes(a.name.toLowerCase()));
           const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
+          const matchedAccount = accounts.find(a => promptLower.includes(a.name.toLowerCase()));
 
           let title = 'Achat rapide';
-          const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€)/i;
-          let cleanTitle = textWithDigits.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|dépense|depense/gi, '').trim();
+          const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€|eur)/i;
+          let cleanTitle = textWithDigits.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|dépense|depense|pour/gi, '').trim();
           cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[\.,]?\d*)/, '').trim();
-          cleanTitle = cleanTitle.replace(/\b(?:dans|pour|en|le|la|les|de|du)\b/gi, '').trim();
-          categoryKeywords.forEach(kw => {
-            const regex = new RegExp('\\b' + kw + '\\b', 'gi');
-            cleanTitle = cleanTitle.replace(regex, '').trim();
-          });
+          cleanTitle = cleanTitle.replace(/tous les mois|chaque mois|mensuel|mensuelle|tous les jours|chaque jour|quotidien|quotidienne|chaque semaine|toutes les semaines|hebdomadaire|chaque (lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)|chaque samedi|tous les ans|chaque année|chaque annee/gi, '').trim();
+          if (matchedMember) {
+            const memberRegex = new RegExp(`\\b${matchedMember.name}\\b`, 'gi');
+            cleanTitle = cleanTitle.replace(memberRegex, '').trim();
+          }
+          cleanTitle = cleanTitle.replace(/^\b(?:dans|pour|en|le|la|les|de|du|d'|l')\b/gi, '').trim();
+          cleanTitle = cleanTitle.replace(/\s+/g, ' ');
+
           if (cleanTitle) {
             title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
           }
 
-          const matches: any[] = [];
-          if (/course|aliment|supermar|manger|nourriture|carrefour|lidl|auchan/i.test(promptLower)) {
-            matches.push({ moduleSource: 'courses', category: 'Alimentation', subCategory: 'Supermarché', label: '🛒 Courses' });
-          }
-          if (/medecin|docteur|sante|santé|dentiste|pharmacie|medicament|soin|visite/i.test(promptLower)) {
-            matches.push({ moduleSource: 'sante', category: 'Santé', subCategory: 'Médecin', label: '🩺 Santé' });
-          }
-          if (/essence|carburant|diesel|gazole|peage|péage|voiture|garage|véhicule/i.test(promptLower)) {
-            matches.push({ moduleSource: 'vehicules', category: 'Transport', subCategory: 'Carburant', label: '🚗 Véhicule' });
-          }
-          if (/loyer|edf|electricite|électricité|eau|gaz|internet|wifi|charges|maison/i.test(promptLower)) {
-            matches.push({ moduleSource: 'logement', category: 'Logement', subCategory: 'Charges', label: '🏠 Logement' });
-          }
-          if (/voyage|vacance|hotel|hôtel|avion|vol/i.test(promptLower)) {
-            matches.push({ moduleSource: 'voyages', category: 'Loisirs', subCategory: 'Voyage', label: '✈️ Voyage' });
-          }
-          if (/ecole|école|cantine|fourniture|cahier|stylo|scolarite/i.test(promptLower)) {
-            matches.push({ moduleSource: 'ecole', category: 'Éducation', subCategory: 'Scolarité', label: '🎓 École' });
-          }
-          if (/croquette|veto|chien|chat|animaux|animal/i.test(promptLower)) {
-            matches.push({ moduleSource: 'animaux', category: 'Divers', subCategory: 'Animaux', label: '🐶 Animaux' });
-          }
-
-          const allCandidates = [
-            { moduleSource: 'courses', category: 'Alimentation', subCategory: 'Supermarché', label: '🛒 Courses' },
-            { moduleSource: 'sante', category: 'Santé', subCategory: 'Médecin', label: '🩺 Santé' },
-            { moduleSource: 'vehicules', category: 'Transport', subCategory: 'Carburant', label: '🚗 Véhicule' },
-            { moduleSource: 'logement', category: 'Logement', subCategory: 'Charges', label: '🏠 Logement' },
-            { moduleSource: 'voyages', category: 'Loisirs', subCategory: 'Voyage', label: '✈️ Voyage' },
-            { moduleSource: 'ecole', category: 'Éducation', subCategory: 'Scolarité', label: '🎓 École' },
-            { moduleSource: 'animaux', category: 'Divers', subCategory: 'Animaux', label: '🐶 Animaux' }
+          const keywordRules = [
+            // TRANSPORT
+            { keywords: ['uber', 'bolt'], category: 'Transport', subCategory: 'Uber', moduleSource: 'budget', label: '🚗 Transport' },
+            { keywords: ['taxi'], category: 'Transport', subCategory: 'Taxi', moduleSource: 'budget', label: '🚗 Transport' },
+            { keywords: ['transport public', 'bus', 'train', 'metro', 'métro', 'rer'], category: 'Transport', subCategory: 'Transport public', moduleSource: 'budget', label: '🚗 Transport' },
+            
+            // SANTÉ
+            { keywords: ['medecin', 'médecin', 'docteur', 'dentiste', 'pédiatre', 'pediatre', 'consultation', 'osteo', 'ostéopathe', 'visite medicale', 'sante', 'santé'], category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante', label: '🩺 Santé' },
+            { keywords: ['pharmacie', 'medicament', 'médicament', 'soin', 'analyses', 'analyse', 'mutuelle'], category: 'Santé', subCategory: 'Pharmacie', moduleSource: 'sante', label: '🩺 Santé' },
+            
+            // VÉHICULES
+            { keywords: ['essence', 'carburant', 'diesel', 'gazole', 'sans plomb'], category: 'Véhicules', subCategory: 'Essence', moduleSource: 'vehicules', label: '🚗 Véhicule' },
+            { keywords: ['peage', 'péage', 'parking', 'stationnement', 'lavage', 'garage', 'entretien voiture', 'réparation voiture', 'pneu', 'vidange'], category: 'Véhicules', subCategory: 'Entretien', moduleSource: 'vehicules', label: '🚗 Véhicule' },
+            
+            // LOGEMENT
+            { keywords: ['loyer'], category: 'Logement', subCategory: 'Loyer', moduleSource: 'logement', label: '🏠 Logement' },
+            { keywords: ['internet', 'wifi', 'box internet', 'fibre'], category: 'Logement', subCategory: 'Internet', moduleSource: 'logement', label: '🏠 Logement' },
+            { keywords: ['edf', 'electricite', 'électricité', 'eau', 'gaz', 'charges', 'assurance habitation', 'travaux', 'maintenance maison'], category: 'Logement', subCategory: 'Charges', moduleSource: 'logement', label: '🏠 Logement' },
+            
+            // ÉDUCATION
+            { keywords: ['cantine'], category: 'Éducation', subCategory: 'Cantine', moduleSource: 'ecole', label: '🎓 École' },
+            { keywords: ['ecole', 'école', 'scolarite', 'scolarité', 'fournitures scolaires', 'livres scolaires', 'cahier', 'stylo', 'inscriptions scolaires', 'cours particuliers', 'devoirs'], category: 'Éducation', subCategory: 'Scolarité', moduleSource: 'ecole', label: '🎓 École' },
+            
+            // ADMINISTRATIF
+            { keywords: ['passeport', 'visa', 'carte d\'identité', 'carte identite', 'cni', 'timbre fiscal', 'timbres fiscaux', 'démarche', 'demarche', 'frais administratif', 'administratif'], category: 'Administratif', subCategory: 'Passeport', moduleSource: 'documents', label: '📂 Démarches' },
+            
+            // ALIMENTATION
+            { keywords: ['course', 'courses', 'supermarche', 'supermarché', 'carrefour', 'lidl', 'auchan', 'leclerc', 'intermarche', 'intermarché', 'alimentation', 'nourriture', 'manger'], category: 'Alimentation', subCategory: 'Supermarché', moduleSource: 'courses', label: '🛒 Courses' },
+            { keywords: ['restaurant', 'resto', 'restau', 'mcdo', 'boulangerie', 'epicerie', 'épicerie', 'café', 'cafe', 'starbucks'], category: 'Alimentation', subCategory: 'Restaurant', moduleSource: 'courses', label: '🛒 Courses' },
+            
+            // VOYAGES
+            { keywords: ['voyage', 'voyages', 'vacance', 'vacances', 'hotel', 'hôtel', 'avion', 'vol', 'billet avion', 'train billet', 'airbnb', 'booking'], category: 'Voyages', subCategory: 'Voyage', moduleSource: 'voyages', label: '✈️ Voyage' },
+            
+            // ANIMAUX
+            { keywords: ['chien', 'chat', 'croquette', 'croquettes', 'veto', 'vétérinaire', 'litiere', 'litière', 'animaux', 'animal'], category: 'Animaux', subCategory: 'Nourriture', moduleSource: 'animaux', label: '🐶 Animaux' },
+            
+            // ARGENT DE POCHE
+            { keywords: ['argent de poche', 'argent-de-poche', 'tirelire', 'allocation', 'recompense', 'récompense'], category: 'Argent de poche', subCategory: 'Allocation enfant', moduleSource: 'argent_de_poche', label: '🪙 Argent de poche' },
+            
+            // ABONNEMENTS
+            { keywords: ['abonnement', 'abonnements', 'forfait', 'netflix', 'spotify', 'disney', 'amazon prime', 'canal', 'youtube premium', 'icloud', 'forfait mobile', 'forfait internet'], category: 'Abonnements', subCategory: 'Streaming', moduleSource: 'budget', label: '🔄 Abonnements' },
+            
+            // LOISIRS
+            { keywords: ['cinema', 'cinéma', 'concert', 'musee', 'musée', 'cadeau', 'cadeaux', 'sport', 'match', 'loisir', 'loisirs'], category: 'Loisirs', subCategory: 'Cinéma', moduleSource: 'budget', label: '🎨 Loisirs' }
           ];
+
+          const matches = keywordRules.filter(rule => 
+            rule.keywords.some(kw => promptLower.includes(kw))
+          );
 
           const parsedTxData = {
             amount: amountVal,
             type,
             category: 'Autres',
+            subCategory: 'Divers',
+            moduleSource: 'budget',
             date: new Date().toISOString().split('T')[0],
             title: title,
             memberId: matchedMember?.id || activeMemberId || null,
@@ -3744,14 +3723,14 @@ function App() {
             intent
           };
 
-          if (matches.length === 1) {
+          if (matches.length >= 1) {
             const choice = matches[0];
             const finalTx = {
               ...parsedTxData,
               moduleSource: choice.moduleSource,
               category: choice.category,
               subCategory: choice.subCategory,
-              title: title === 'Achat rapide' ? `Dépense ${choice.label}` : title
+              title: title === 'Achat rapide' ? `${choice.label.split(' ')[1] || 'Dépense'} ${choice.subCategory}` : title
             };
 
             await handleAddTransaction(finalTx);
@@ -3759,7 +3738,7 @@ function App() {
             if (choice.moduleSource === 'argent_de_poche' && finalTx.memberId) {
               setPocketMoney(prev => prev.map(child => {
                 if (child.id === finalTx.memberId) {
-                  const newBal = child.balance + finalTx.amount;
+                  const newBal = child.balance + (type === 'income' ? finalTx.amount : -finalTx.amount);
                   const client = getSupabaseClient();
                   if (client) {
                     client.from('pocket_money').update({ balance: newBal }).eq('id', child.id);
@@ -3770,22 +3749,38 @@ function App() {
               }));
             }
 
-            feedback = `💰 Budget : Transaction "${finalTx.title}" de ${amountVal}€ enregistrée dans ${choice.label}.`;
+            setVoiceDebugInfo({
+              phrase: text,
+              type: type === 'expense' ? 'Dépense' : 'Revenu',
+              amount: `${amountVal}€`,
+              category: choice.category,
+              subCategory: choice.subCategory,
+              module: choice.moduleSource === 'budget' ? 'Budget' : (choice.moduleSource === 'sante' ? 'Santé' : choice.moduleSource === 'vehicules' ? 'Véhicules' : choice.moduleSource === 'logement' ? 'Logement' : choice.moduleSource === 'ecole' ? 'École' : choice.moduleSource === 'documents' ? 'Démarches' : choice.moduleSource === 'courses' ? 'Courses' : choice.moduleSource === 'voyages' ? 'Voyages' : choice.moduleSource === 'animaux' ? 'Animaux' : choice.moduleSource === 'argent_de_poche' ? 'Argent de poche' : choice.moduleSource),
+              recurrence: recurrenceType !== 'none' ? (recurrenceType === 'monthly' ? 'Mensuelle' : recurrenceType === 'weekly' ? 'Hebdomadaire' : recurrenceType === 'daily' ? 'Quotidienne' : recurrenceType === 'yearly' ? 'Annuelle' : recurrenceType) : undefined,
+              member: matchedMember ? matchedMember.name : undefined
+            });
+
+            feedback = `💰 Transaction "${finalTx.title}" de ${amountVal}€ enregistrée dans le module ${choice.label.split(' ')[1] || choice.label}.`;
             isSuccess = true;
             setActiveTab('budget');
             setActiveModule('');
             setVoiceFeedback(feedback);
             logVoiceCommandToSupabase(intent, isSuccess);
-            setTimeout(() => setVoiceActive(false), 2500);
+            setTimeout(() => setVoiceActive(false), 4000);
             return;
           } else {
+            const allCandidates = [
+              { moduleSource: 'courses', category: 'Alimentation', subCategory: 'Supermarché', label: '🛒 Courses' },
+              { moduleSource: 'sante', category: 'Santé', subCategory: 'Médecin', label: '🩺 Santé' },
+              { moduleSource: 'budget', category: 'Transport', subCategory: 'Taxi', label: '🚗 Transport' },
+              { moduleSource: 'budget', category: 'Autres', subCategory: 'Divers', label: '✨ Autre' }
+            ];
+
             setPendingVoiceCommandData(parsedTxData);
             setVoiceAmbiguous(true);
-            setAmbiguousChoices(matches.length > 0 ? matches : allCandidates);
+            setAmbiguousChoices(allCandidates);
             setVoiceTranscript(`"${text}"`);
-            setVoiceFeedback(matches.length > 0 
-              ? "Plusieurs modules sources possibles pour cette transaction. Veuillez en sélectionner un :" 
-              : "Module source non identifié. Sélectionnez la cible de la transaction :");
+            setVoiceFeedback("À quoi correspond cette dépense ?");
             return;
           }
         }
@@ -3822,10 +3817,7 @@ function App() {
             feedback = "🤔 Je n'ai pas compris quel article ajouter à vos courses...";
           }
         } 
-        else if (promptLower.includes('alerte') || promptLower.includes('sos') || promptLower.includes('danger')) {
-          triggerSosAlarm();
-          feedback = "🚨 ACTION CRITIQUE : Alerte SOS activée ! Vos proches ont été notifiés.";
-        }
+
         else if (promptLower.includes('carte') || promptLower.includes('gps') || promptLower.includes('position') || promptLower.includes('itiné')) {
           setActiveTab('menu');
           setActiveModule('carte');
@@ -4088,7 +4080,7 @@ function App() {
       if (mod === 'chat' || mod === 'messages') return notificationPrefs.chat;
       if (mod === 'health' || mod === 'sante') return notificationPrefs.health;
       if (mod === 'vault' || mod === 'documents' || mod === 'demarches' || mod === 'justificatif_packs') return notificationPrefs.vault;
-      if (mod === 'sos' || mod === 'urgences') return notificationPrefs.sos;
+
       return true;
     })
     .sort((a, b) => {
@@ -5212,7 +5204,7 @@ function App() {
             events={events}
             setActiveTab={setActiveTab}
             setActiveModule={setActiveModule}
-            onTriggerSos={triggerSosAlarm}
+
           />
         );
       }
@@ -5231,7 +5223,7 @@ function App() {
           setActiveModule={setActiveModule}
           onMenuClick={() => setSidebarOpen(true)}
           onAlertsClick={() => setAlertsPanelOpen(true)}
-          onTriggerSos={triggerSosAlarm}
+
           chatGroups={chatGroups}
           chatMessages={chatMessages}
           onEventClick={(dateStr) => {
@@ -5454,7 +5446,7 @@ function App() {
           isPremium={isPremium}
           setIsPremium={setIsPremium}
           onTriggerPaywall={() => setPaywallOpen(true)}
-          onTriggerSos={triggerSosAlarm}
+
         />
       );
     }
@@ -5615,7 +5607,7 @@ function App() {
           setActiveModule('membres');
           setQuickActionsOpen(false);
         }}
-        onTriggerSos={triggerSosAlarm}
+
       />
 
       {/* Shared bottom iOS premium nav bar with quick actions central (+) trigger */}
@@ -5709,12 +5701,12 @@ function App() {
             {voiceAmbiguous && ambiguousChoices.length > 0 && (
               <div className="space-y-2 pt-2 animate-fade-in border-t border-white/5">
                 <span className="text-[10px] font-black text-white/50 uppercase tracking-wider block mb-1">
-                  Confirmer le module cible :
+                  À quoi correspond cette dépense ?
                 </span>
                 <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1">
                   {ambiguousChoices.map((choice) => (
                     <button
-                      key={choice.moduleSource}
+                      key={choice.moduleSource + choice.category + choice.subCategory}
                       type="button"
                       onClick={async () => {
                         if (pendingVoiceCommandData) {
@@ -5724,18 +5716,16 @@ function App() {
                             category: choice.category,
                             subCategory: choice.subCategory,
                             title: pendingVoiceCommandData.title === 'Achat rapide' 
-                              ? `Dépense ${choice.label}`
+                              ? `${choice.label.split(' ')[1] || 'Dépense'} ${choice.subCategory}`
                               : pendingVoiceCommandData.title
                           };
                           
-                          // Execute the transaction
                           await handleAddTransaction(updatedTx);
                           
-                          // Check if it's pocket money allowance, credit the kid
                           if (choice.moduleSource === 'argent_de_poche' && updatedTx.memberId) {
                             setPocketMoney(prev => prev.map(child => {
                               if (child.id === updatedTx.memberId) {
-                                const newBal = child.balance + updatedTx.amount;
+                                const newBal = child.balance + (updatedTx.type === 'income' ? updatedTx.amount : -updatedTx.amount);
                                 const client = getSupabaseClient();
                                 if (client) {
                                   client.from('pocket_money').update({ balance: newBal }).eq('id', child.id);
@@ -5746,6 +5736,19 @@ function App() {
                             }));
                           }
 
+                          // Save debug info
+                          const matchedMemberObj = members.find(m => m.id === updatedTx.memberId);
+                          setVoiceDebugInfo({
+                            phrase: voiceTranscript.replace(/^"|"$/g, ''),
+                            type: updatedTx.type === 'expense' ? 'Dépense' : 'Revenu',
+                            amount: `${updatedTx.amount}€`,
+                            category: choice.category,
+                            subCategory: choice.subCategory,
+                            module: choice.moduleSource === 'budget' ? 'Budget' : (choice.moduleSource === 'sante' ? 'Santé' : choice.moduleSource === 'vehicules' ? 'Véhicules' : choice.moduleSource === 'logement' ? 'Logement' : choice.moduleSource === 'ecole' ? 'École' : choice.moduleSource === 'documents' ? 'Démarches' : choice.moduleSource === 'courses' ? 'Courses' : choice.moduleSource === 'voyages' ? 'Voyages' : choice.moduleSource === 'animaux' ? 'Animaux' : choice.moduleSource === 'argent_de_poche' ? 'Argent de poche' : choice.moduleSource),
+                            recurrence: updatedTx.recurrence !== 'none' ? (updatedTx.recurrence === 'monthly' ? 'Mensuelle' : updatedTx.recurrence === 'weekly' ? 'Hebdomadaire' : updatedTx.recurrence === 'daily' ? 'Quotidienne' : updatedTx.recurrence === 'yearly' ? 'Annuelle' : updatedTx.recurrence) : undefined,
+                            member: matchedMemberObj ? matchedMemberObj.name : undefined
+                          });
+                          
                           // Save to voice commands logs
                           const client = getSupabaseClient();
                           if (client && foyer?.id) {
@@ -5768,13 +5771,13 @@ function App() {
                               console.warn("Log command error:", err);
                             }
                           }
-
-                          setVoiceFeedback(`💰 Budget : Dépense enregistrée dans ${choice.label} !`);
+                          
+                          setVoiceFeedback(`💰 Transaction "${updatedTx.title}" enregistrée dans ${choice.label.split(' ')[1] || choice.label} !`);
                           setVoiceAmbiguous(false);
                           setPendingVoiceCommandData(null);
                           setActiveTab('budget');
                           setActiveModule('');
-                          setTimeout(() => setVoiceActive(false), 2000);
+                          setTimeout(() => setVoiceActive(false), 4000);
                         }
                       }}
                       className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black text-white text-center cursor-pointer transition-all active:scale-95 hover:border-[#6C5CFF]"
@@ -5785,10 +5788,27 @@ function App() {
                 </div>
               </div>
             )}
-
+            
             {voiceFeedback && (
               <div className="bg-white/5 border border-white/10 rounded-[20px] p-4 text-xs font-semibold text-[#00D26A] leading-normal animate-fade-in">
                 {voiceFeedback}
+              </div>
+            )}
+
+            {voiceDebugInfo && (
+              <div className="bg-black/40 border border-white/10 rounded-2xl p-4 text-[10px] font-mono text-left text-white/90 space-y-1 mt-3 max-w-sm mx-auto shadow-inner animate-fade-in">
+                <div className="text-white/40 font-bold border-b border-white/5 pb-1 mb-2 flex items-center justify-between">
+                  <span>⚙️ MODE DEBUG DÉVELOPPEUR</span>
+                  <span className="text-[8px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded uppercase tracking-wider font-extrabold">Actif</span>
+                </div>
+                <div>Phrase : <span className="text-[#FFB020]">"{voiceDebugInfo.phrase}"</span></div>
+                <div>✓ Type détecté : <span className="text-[#6C5CFF] font-bold">{voiceDebugInfo.type}</span></div>
+                <div>✓ Montant extrait : <span className="text-emerald-400 font-bold">{voiceDebugInfo.amount}</span></div>
+                <div>✓ Catégorie déduite : <span className="text-[#4F8CFF] font-bold">{voiceDebugInfo.category}</span></div>
+                <div>✓ Sous-catégorie : <span className="text-[#FF4D6D] font-bold">{voiceDebugInfo.subCategory}</span></div>
+                <div>✓ Module : <span className="text-[#FFB020] font-bold">{voiceDebugInfo.module}</span></div>
+                {voiceDebugInfo.recurrence && <div>✓ Récurrence : <span className="text-violet-400 font-bold">{voiceDebugInfo.recurrence}</span></div>}
+                {voiceDebugInfo.member && <div>✓ Membre : <span className="text-pink-400 font-bold">{voiceDebugInfo.member}</span></div>}
               </div>
             )}
 
@@ -5839,7 +5859,7 @@ function App() {
                   <span className="text-lg">🔔</span>
                   <div className="space-y-0.5">
                     <h4 className="text-[11px] font-black text-white uppercase tracking-wider">Activer les Notifications Push</h4>
-                    <p className="text-[9px] text-white/50 leading-relaxed font-sans font-medium">Restez informé en direct quand un membre publie une photo, envoie un SOS ou modifie l'agenda !</p>
+                    <p className="text-[9px] text-white/50 leading-relaxed font-sans font-medium">Restez informé en direct quand un membre publie une photo, signale une urgence ou modifie l'agenda !</p>
                   </div>
                 </div>
                 <button
@@ -6200,147 +6220,7 @@ function App() {
         </div>
       )}
 
-      {/* SOS EMERGENCY FULLSCREEN OVERLAY */}
-      {sosActive && (() => {
-        // Load urgent contacts dynamically
-        let urgentContacts = [
-          { id: 'c1', name: 'SAMU (Urgences)', phone: '15' },
-          { id: 'c2', name: 'Sapeurs-Pompiers', phone: '18' },
-          { id: 'c3', name: 'Police Secours', phone: '17' }
-        ];
-        try {
-          const saved = localStorage.getItem('mf_important_contacts');
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            const filtered = parsed.filter((c: any) => c.isUrgent);
-            if (filtered.length > 0) {
-              urgentContacts = filtered;
-            }
-          }
-        } catch (e) {}
 
-        return (
-          <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-6 bg-red-950/95 backdrop-blur-lg animate-pulse overflow-y-auto no-scrollbar">
-            <style dangerouslySetInnerHTML={{__html: `
-              @keyframes flash-bg {
-                0%, 100% { background-color: rgba(69, 10, 10, 0.95); }
-                50% { background-color: rgba(153, 27, 27, 0.98); }
-              }
-              .animate-flash { animation: flash-bg 1.2s infinite; }
-            `}} />
-            <div className="absolute inset-0 animate-flash -z-10"></div>
-            
-            <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center border-4 border-white shadow-[0_0_50px_rgba(239,68,68,0.8)] mb-4 animate-bounce shrink-0">
-              <Bell className="w-10 h-10 text-white fill-white animate-pulse" />
-            </div>
-
-            <h1 className="text-2xl font-black text-white text-center tracking-tight mb-1">ALERTE SOS ENVOYÉE</h1>
-            <p className="text-[10px] font-bold text-red-300 text-center uppercase tracking-widest mb-4">Géolocalisation activée</p>
-            
-            <div className="glass-panel border-white/10 bg-white/5 rounded-3xl p-5 text-center max-w-sm space-y-3 mb-5 shrink-0">
-              <p className="text-xs text-white/80 leading-relaxed">
-                Votre position exacte a été transmise en direct à **Papa, Maman** ainsi qu'aux contacts d'urgence.
-              </p>
-              <p className="text-[10px] text-white/50">
-                Restez calme. Quelqu'un a été prévenu et est en route.
-              </p>
-            </div>
-
-            {/* Emergency Direct Call Panel */}
-            <div className="w-full max-w-sm space-y-2 mb-6">
-              <span className="text-[9px] font-bold text-red-300/60 uppercase tracking-widest block text-center">
-                Appel d'urgence immédiat
-              </span>
-              
-              <div className="grid grid-cols-1 gap-2">
-                {urgentContacts.map(uc => (
-                  <a
-                    key={uc.id}
-                    href={`tel:${uc.phone}`}
-                    className="p-3.5 bg-red-600 hover:bg-red-500 border border-red-500/30 text-white font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-between shadow-lg shadow-red-900/30 transition-all active:scale-[0.98]"
-                  >
-                    <div className="flex items-center space-x-2.5 min-w-0">
-                      <div className="p-1.5 rounded-lg bg-white/10">
-                        <Phone className="w-3.5 h-3.5 text-white" />
-                      </div>
-                      <span className="truncate text-left">{uc.name}</span>
-                    </div>
-                    <span className="bg-white/20 px-2.5 py-0.5 rounded-lg font-mono text-[10px]">
-                      {uc.phone}
-                    </span>
-                  </a>
-                ))}
-              </div>
-            </div>
-
-            <button
-              onClick={turnOffSosAlarm}
-              className="px-8 py-3.5 bg-white text-red-600 font-extrabold rounded-2xl shadow-xl hover:bg-red-50 active:scale-95 transition-all text-xs uppercase tracking-wider cursor-pointer shrink-0"
-            >
-              Désactiver l'Alerte
-            </button>
-          </div>
-        );
-      })()}
-
-      {/* RECEIVED SOS EMERGENCY FULLSCREEN OVERLAY (FOR OTHER MEMBERS) */}
-      {receivedSos && (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-6 bg-red-950/95 backdrop-blur-lg animate-pulse overflow-y-auto no-scrollbar">
-          <style dangerouslySetInnerHTML={{__html: `
-            @keyframes flash-bg-received {
-              0%, 100% { background-color: rgba(90, 6, 6, 0.96); }
-              50% { background-color: rgba(180, 10, 10, 0.99); }
-            }
-            .animate-flash-received { animation: flash-bg-received 1.2s infinite; }
-          `}} />
-          <div className="absolute inset-0 animate-flash-received -z-10"></div>
-          
-          <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center border-4 border-red-600 shadow-[0_0_60px_rgba(239,68,68,1)] mb-6 animate-bounce shrink-0">
-            <AlertTriangle className="w-12 h-12 text-red-600 animate-pulse" />
-          </div>
-
-          <h1 className="text-3xl font-black text-white text-center tracking-tight mb-2 uppercase">
-            🚨 SOS EN COURS 🚨
-          </h1>
-          <p className="text-sm font-extrabold text-red-200 text-center uppercase tracking-widest mb-6">
-            {receivedSos.senderName} a besoin d'aide !
-          </p>
-          
-          <div className="glass-panel border-white/10 bg-white/5 rounded-3xl p-5 text-center max-w-sm space-y-4 mb-6 shrink-0 text-white">
-            <p className="text-xs text-white/90 leading-relaxed font-bold">
-              Une alerte d'urgence majeure a été émise à l'instant.
-            </p>
-            <div className="p-3 bg-black/30 rounded-2xl border border-white/5 flex items-center justify-center gap-2">
-              <span className="text-[10px] uppercase font-bold text-red-300">Dernière Position :</span>
-              <span className="text-xs font-semibold text-white">{receivedSos.location}</span>
-            </div>
-            <p className="text-[10px] text-white/50 leading-normal font-medium">
-              Prenez contact immédiatement pour prêter assistance.
-            </p>
-          </div>
-
-          {/* Quick Actions Panel */}
-          <div className="w-full max-w-sm space-y-3 mb-6 shrink-0">
-            <button
-              onClick={() => {
-                setActiveTab('menu');
-                setActiveModule('carte');
-                setReceivedSos(null); // locally dismiss to view map
-              }}
-              className="w-full p-4 bg-white text-red-700 hover:bg-red-50 border border-white font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98] cursor-pointer"
-            >
-              <span>🧭 Ouvrir la carte de géolocalisation</span>
-            </button>
-
-            <button
-              onClick={turnOffSosAlarm}
-              className="w-full p-4 bg-red-600 hover:bg-red-500 border border-red-500/30 text-white font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98] cursor-pointer"
-            >
-              <span>✅ Signaler résolu / Éteindre l'alarme</span>
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Floating PWA Install Prompt Banner */}
       {showInstallPrompt && (

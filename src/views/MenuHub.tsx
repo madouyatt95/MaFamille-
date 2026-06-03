@@ -235,11 +235,19 @@ interface MenuHubProps {
   setArtisans?: React.Dispatch<React.SetStateAction<Artisan[]>>;
   onUpdateMemberProfile?: (memberId: string, updates: any) => Promise<void>;
   initialChatGroupId?: string;
-  onTriggerSos?: () => void;
   foyer?: any;
   accounts?: Account[];
   transactions?: Transaction[];
 }
+
+const getTripDuration = (start: string, end: string) => {
+  const d1 = new Date(start);
+  const d2 = new Date(end);
+  if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return null;
+  const diffTime = d2.getTime() - d1.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  return diffDays > 0 ? `${diffDays} jour${diffDays > 1 ? 's' : ''}` : null;
+};
 
 export const MenuHub: React.FC<MenuHubProps> = ({
   foyer,
@@ -308,7 +316,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   onAddEventDirect,
   isPremium = false,
   onTriggerPaywall,
-  onTriggerSos,
   vaccines = [],
   setVaccines,
   setMembers,
@@ -489,7 +496,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newLogChargeRecurrenceType, setNewLogChargeRecurrenceType] = useState('monthly');
   const [newLogChargeAccountId, setNewLogChargeAccountId] = useState('');
 
-  const [newVoyageExpenseSubCategory, setNewVoyageExpenseSubCategory] = useState('Hôtel');
+  const [newVoyageExpenseType, setNewVoyageExpenseType] = useState('Dépense');
+  const [newVoyageExpenseDescription, setNewVoyageExpenseDescription] = useState('');
   const [newVoyageExpenseAmount, setNewVoyageExpenseAmount] = useState('');
   const [newVoyageExpenseAccountId, setNewVoyageExpenseAccountId] = useState('');
 
@@ -558,7 +566,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     { id: 'argent', title: 'Argent de Poche', desc: 'Portefeuilles enfants', icon: Coins, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10' },
     { id: 'capsule', title: 'Capsule Temporelle', desc: 'Album de souvenirs & Gazette', icon: Camera, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10' },
     { id: 'conseil', title: 'Conseil de Famille', desc: 'Sondages actifs & Charte de vie', icon: Users, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10' },
-    { id: 'contacts', title: 'Répertoire & SOS', desc: 'Numéros utiles & urgences directes', icon: Phone, color: 'text-red-500 bg-red-500/10' },
+    { id: 'contacts', title: 'Répertoire Important', desc: 'Numéros utiles & urgences directes', icon: Phone, color: 'text-red-500 bg-red-500/10' },
     { id: 'peacemaker', title: 'PeaceMaker IA', desc: 'Médiateur de conflits intelligents', icon: HeartHandshake, color: 'text-[#00D26A] bg-[#00D26A]/10' },
     { id: 'conteur', title: 'Histoires du Soir', desc: 'Contes IA personnalisés interactifs', icon: BookOpen, color: 'text-[#FFB020] bg-[#FFB020]/10' },
     { id: 'atelier_art', title: 'Atelier d\'Art IA', desc: 'Dessine & Imagine avec l\'IA', icon: Paintbrush, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
@@ -1264,7 +1272,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-extrabold text-white">Carnet Santé & Vaccins</h2>
-              <p className="text-xs text-white/50">Vaccination, suivi de croissance & Fiche SOS</p>
+              <p className="text-xs text-white/50">Vaccination, suivi de croissance & Fiche d'Urgence</p>
             </div>
             
             {/* Filtre de membre global pour la Santé */}
@@ -1292,7 +1300,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               💉 Vaccins
             </button>
             <button onClick={() => setHealthSubTab('urgence')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'urgence' ? 'bg-[#FF4D6D] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
-              🚨 Fiches SOS
+              🚨 Fiches d'Urgence
             </button>
             <button onClick={() => setHealthSubTab('frais')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'frais' ? 'bg-[#FF4D6D] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
               💶 Frais Santé
@@ -1642,7 +1650,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                       <AlertCircle className="w-6 h-6" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-extrabold text-white">FICHE D'URGENCE SOS</h3>
+                      <h3 className="text-sm font-extrabold text-white">FICHE D'URGENCE</h3>
                       <p className="text-[10px] text-white/60 font-bold">Informations vitales du foyer • Accès immédiat</p>
                     </div>
                   </div>
@@ -1694,17 +1702,18 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               <div className="space-y-1">
-                                <label className="text-[9px] font-bold text-white/40 uppercase block">Nom Contact SOS</label>
+                                <label className="text-[9px] font-bold text-white/40 uppercase block">Nom Contact d'Urgence</label>
                                 <input 
                                   type="text"
                                   value={editEmergencyName}
                                   onChange={(e) => setEditEmergencyName(e.target.value)}
                                   className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
                                   placeholder="ex: Papa"
+                                  id="emergency_contact_name_input"
                                 />
                               </div>
                               <div className="space-y-1">
-                                <label className="text-[9px] font-bold text-white/40 uppercase block">Téléphone SOS</label>
+                                <label className="text-[9px] font-bold text-white/40 uppercase block">Téléphone d'Urgence</label>
                                 <input 
                                   type="text"
                                   value={editEmergencyPhone}
@@ -1770,9 +1779,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                             
                             {((member as any).emergencyContactName || (member as any).emergencyContactPhone || member.emergencyContact?.name || member.emergencyContact?.phone) ? (
                               <div className="p-3 bg-[#00D26A]/5 rounded-xl border border-[#00D26A]/20">
-                                <span className="text-[9px] font-black text-[#00D26A] uppercase tracking-wider block">🚨 Contact d'urgence SOS</span>
+                                <span className="text-[9px] font-black text-[#00D26A] uppercase tracking-wider block">🚨 Contact d'urgence</span>
                                 <span className="text-white font-extrabold mt-0.5 block leading-relaxed">
-                                  {((member as any).emergencyContactName || member.emergencyContact?.name || 'SOS')} •{' '}
+                                  {((member as any).emergencyContactName || member.emergencyContact?.name || 'Urgence')} •{' '}
                                   <a href={`tel:${(member as any).emergencyContactPhone || member.emergencyContact?.phone}`} className="underline hover:text-[#00FF87] transition-colors">
                                     {((member as any).emergencyContactPhone || member.emergencyContact?.phone)}
                                   </a>
@@ -1791,7 +1800,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                             className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center space-x-1"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
-                            <span>Modifier les données SOS</span>
+                            <span>Modifier les données d'Urgence</span>
                           </button>
                         </div>
                       )}
@@ -4305,7 +4314,17 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white">{t.destination}</h3>
-                    <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider mt-0.5">Dates: {t.startDate} - {t.endDate}</p>
+                    <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                      <span className="text-[10px] text-white/40 font-bold uppercase tracking-wider">Dates: {t.startDate} - {t.endDate}</span>
+                      {(() => {
+                        const dur = getTripDuration(t.startDate, t.endDate);
+                        return dur && (
+                          <span className="px-1.5 py-0.5 text-[8px] font-extrabold rounded bg-[#FF4D6D]/15 text-[#FF4D6D] uppercase tracking-wider">
+                            {dur}
+                          </span>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -4317,7 +4336,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                       <button 
                         type="button"
                         onClick={() => {
-                          const newDest = window.prompt("Modifier la destination :", t.destination);
+                      const newDest = window.prompt("Modifier la destination :", t.destination);
                           if (!newDest) return;
                           const newBudget = window.prompt("Modifier le budget (€) :", String(t.budget));
                           if (newBudget === null) return;
@@ -4349,7 +4368,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               {(() => {
                 const tripExpenses = (transactions || []).filter(tx => 
                   tx.type === 'expense' && 
-                  (tx.moduleSource === 'voyages' || tx.category === 'Loisirs' || tx.category === 'Autres') && 
+                  (tx.moduleSource === 'voyages' || tx.category === 'Loisirs' || tx.category === 'Autres' || tx.category === 'Voyages') && 
                   (tx.title.toLowerCase().includes(t.destination.toLowerCase()) || (tx.comment && tx.comment.toLowerCase().includes(t.destination.toLowerCase())))
                 );
                 const totalTripSpent = tripExpenses.reduce((sum, tx) => sum + tx.amount, 0);
@@ -4364,13 +4383,22 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   const amt = parseFloat(newVoyageExpenseAmount);
                   if (isNaN(amt) || amt <= 0) return;
 
+                  let deducedSub = 'Repas';
+                  if (newVoyageExpenseType === 'Billet') deducedSub = 'Billets';
+                  else if (newVoyageExpenseType === 'Hôtel' || newVoyageExpenseType === 'Réservation') deducedSub = 'Hôtel';
+                  else if (newVoyageExpenseType === 'Activité') deducedSub = 'Activités';
+                  else if (newVoyageExpenseType === 'Dépense') deducedSub = 'Transport';
+
+                  const detailSuffix = newVoyageExpenseDescription.trim() ? ` - ${newVoyageExpenseDescription.trim()}` : '';
+                  const txTitle = `Voyage ${t.destination} : ${newVoyageExpenseType}${detailSuffix}`;
+
                   if (onAddTransaction) {
                     onAddTransaction({
                       amount: amt,
                       type: 'expense',
-                      category: 'Autres',
-                      subCategory: newVoyageExpenseSubCategory,
-                      title: `Voyage ${t.destination} : ${newVoyageExpenseSubCategory}`,
+                      category: 'Voyages',
+                      subCategory: deducedSub,
+                      title: txTitle,
                       date: new Date().toISOString().split('T')[0],
                       accountId: newVoyageExpenseAccountId || null,
                       moduleSource: 'voyages',
@@ -4379,6 +4407,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   }
 
                   setNewVoyageExpenseAmount('');
+                  setNewVoyageExpenseDescription('');
                   alert(`✈️ Dépense de voyage de ${amt.toFixed(2)}€ enregistrée pour ${t.destination} !`);
                 };
 
@@ -4419,46 +4448,56 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     )}
 
                     {/* Formulaire ajout dépense voyage */}
-                    <form onSubmit={handleAddVoyageExpense} className="flex items-center space-x-2 pt-2 border-t border-white/5 font-sans font-medium">
-                      <select
-                        value={newVoyageExpenseSubCategory}
-                        onChange={(e) => setNewVoyageExpenseSubCategory(e.target.value)}
-                        className="bg-[#07111F] border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white focus:outline-none"
-                      >
-                        <option value="Hôtel">Hôtel</option>
-                        <option value="Transport">Transport</option>
-                        <option value="Resto">Restauration</option>
-                        <option value="Loisirs">Activités</option>
-                        <option value="Autre">Autre</option>
-                      </select>
+                    <form onSubmit={handleAddVoyageExpense} className="space-y-2 pt-2 border-t border-white/5 font-sans font-medium">
+                      <div className="grid grid-cols-2 gap-2">
+                        <select
+                          value={newVoyageExpenseType}
+                          onChange={(e) => setNewVoyageExpenseType(e.target.value)}
+                          className="bg-[#07111F] border border-white/8 rounded-xl px-2 py-1.5 text-[10px] text-white focus:outline-none"
+                        >
+                          <option value="Dépense">+ Dépense</option>
+                          <option value="Réservation">+ Réservation</option>
+                          <option value="Billet">+ Billet</option>
+                          <option value="Hôtel">+ Hôtel</option>
+                          <option value="Activité">+ Activité</option>
+                        </select>
+                        <input
+                          type="text"
+                          placeholder="Description (ex: Vol Paris)"
+                          value={newVoyageExpenseDescription}
+                          onChange={(e) => setNewVoyageExpenseDescription(e.target.value)}
+                          className="bg-white/5 border border-white/8 rounded-xl px-2 py-1.5 text-[10px] text-white placeholder-white/30 focus:outline-none"
+                        />
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="number"
+                          required
+                          step="0.01"
+                          placeholder="Montant (€)"
+                          value={newVoyageExpenseAmount}
+                          onChange={(e) => setNewVoyageExpenseAmount(e.target.value)}
+                          className="flex-1 bg-white/5 border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white placeholder-white/30 focus:outline-none"
+                        />
 
-                      <input
-                        type="number"
-                        required
-                        step="0.01"
-                        placeholder="Montant (€)"
-                        value={newVoyageExpenseAmount}
-                        onChange={(e) => setNewVoyageExpenseAmount(e.target.value)}
-                        className="flex-1 bg-white/5 border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white placeholder-white/30 focus:outline-none"
-                      />
+                        <select
+                          value={newVoyageExpenseAccountId}
+                          onChange={(e) => setNewVoyageExpenseAccountId(e.target.value)}
+                          className="bg-[#07111F] border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white focus:outline-none max-w-[100px]"
+                        >
+                          <option value="">Compte...</option>
+                          {accounts.map(acc => (
+                            <option key={acc.id} value={acc.id}>{acc.name}</option>
+                          ))}
+                        </select>
 
-                      <select
-                        value={newVoyageExpenseAccountId}
-                        onChange={(e) => setNewVoyageExpenseAccountId(e.target.value)}
-                        className="bg-[#07111F] border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white focus:outline-none max-w-[100px]"
-                      >
-                        <option value="">Compte...</option>
-                        {accounts.map(acc => (
-                          <option key={acc.id} value={acc.id}>{acc.name}</option>
-                        ))}
-                      </select>
-
-                      <button
-                        type="submit"
-                        className="px-3 py-1 rounded-xl bg-[#FF4D6D] hover:bg-[#ff3356] text-[10px] text-white font-bold transition cursor-pointer"
-                      >
-                        Ajouter
-                      </button>
+                        <button
+                          type="submit"
+                          className="px-3 py-1.5 rounded-xl bg-[#FF4D6D] hover:bg-[#ff3356] text-[10px] text-white font-bold transition cursor-pointer"
+                        >
+                          Ajouter
+                        </button>
+                      </div>
                     </form>
                   </div>
                 );
@@ -4585,22 +4624,22 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 <div className="space-y-1.5 text-left font-medium font-sans">
                   <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Date de Départ</label>
                   <input 
-                    type="text" 
-                    placeholder="ex: 15 Juillet 2026"
+                    type="date" 
+                    required
                     value={newTripStart}
                     onChange={(e) => setNewTripStart(e.target.value)}
-                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF4D6D]"
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D] [color-scheme:dark]"
                   />
                 </div>
                 
                 <div className="space-y-1.5 text-left font-medium font-sans">
                   <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Date de Retour</label>
                   <input 
-                    type="text" 
-                    placeholder="ex: 22 Juillet 2026"
+                    type="date" 
+                    required
                     value={newTripEnd}
                     onChange={(e) => setNewTripEnd(e.target.value)}
-                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF4D6D]"
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D] [color-scheme:dark]"
                   />
                 </div>
               </div>
@@ -5402,7 +5441,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             <span>Retour au Hub</span>
           </button>
           
-          <ContactsImportants onTriggerSos={onTriggerSos} />
+          <ContactsImportants />
         </div>
       )}
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, CheckCircle2, Calendar, Gift, MapPin, MessageCircle, GraduationCap, ShieldAlert } from 'lucide-react';
+import { Star, CheckCircle2, Calendar, Gift, MapPin, MessageCircle, GraduationCap } from 'lucide-react';
 import type { Member, ChoreTask, FamilyEvent } from '../types';
 
 interface KidsDashboardProps {
@@ -10,7 +10,7 @@ interface KidsDashboardProps {
   events: FamilyEvent[];
   setActiveTab: (tab: string) => void;
   setActiveModule: (moduleName: string) => void;
-  onTriggerSos: () => void;
+
 }
 
 export const KidsDashboard: React.FC<KidsDashboardProps> = ({ 
@@ -21,7 +21,7 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
   events,
   setActiveTab,
   setActiveModule,
-  onTriggerSos
+
 }) => {
   // Filter tasks assigned to this kid that are not done
   const myTasks = tasks.filter(t => t.assignedMemberId === member.id && !t.done);
@@ -56,16 +56,6 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
           <h1 className="text-3xl font-black tracking-tight">Salut {member.name} ! ✌️</h1>
           <p className="text-white/60 font-medium">Prêt pour de nouvelles missions ?</p>
           
-          {/* Urgent SOS Trigger */}
-          <div className="pt-2 flex justify-center">
-            <button 
-              onClick={onTriggerSos}
-              className="px-6 py-3 bg-[#FF4D6D] hover:bg-[#FF4D6D]/95 text-white font-black text-xs rounded-2xl uppercase tracking-widest flex items-center justify-center space-x-2 shadow-lg shadow-[#FF4D6D]/30 cursor-pointer animate-pulse"
-            >
-              <ShieldAlert className="w-4 h-4" />
-              <span>🚨 SOS URGENCE 🚨</span>
-            </button>
-          </div>
         </div>
       </div>
 

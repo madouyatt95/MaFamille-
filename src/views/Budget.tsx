@@ -7,10 +7,9 @@ import {
   Copy, 
   Archive, 
   Search, 
-  CreditCard, 
+  ArrowLeft, 
   ArrowLeftRight, 
   X, 
-  Wallet, 
   AlertTriangle
 } from 'lucide-react';
 import type { 
@@ -100,6 +99,12 @@ export const Budget: React.FC<BudgetProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [accountFilter, setAccountFilter] = useState('all');
+  
+  // Period filter states
+  type PeriodType = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'all' | 'custom';
+  const [periodFilter, setPeriodFilter] = useState<PeriodType>('month');
+  const [customStartDate, setCustomStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
+  const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Modals state
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
@@ -141,6 +146,44 @@ export const Budget: React.FC<BudgetProps> = ({
   const [selectedModuleForLimit, setSelectedModuleForLimit] = useState<string | null>(null);
   const [moduleLimitInput, setModuleLimitInput] = useState('');
   const [moduleLimitRecurrence, setModuleLimitRecurrence] = useState('monthly');
+
+  // Interactive chart hover/selection states
+  const [selectedDonutSegment, setSelectedDonutSegment] = useState<number | null>(null);
+  const [selectedTrendIndex, setSelectedTrendIndex] = useState<number | null>(null);
+
+  // Archive categories & subcategories states
+  const [archivedCategories, setArchivedCategories] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`mf_archived_categories_${foyerId}`) || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  const [archivedSubcategories, setArchivedSubcategories] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`mf_archived_subcategories_${foyerId}`) || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  const toggleArchiveCategory = (catName: string) => {
+    setArchivedCategories(prev => {
+      const next = prev.includes(catName) ? prev.filter(n => n !== catName) : [...prev, catName];
+      localStorage.setItem(`mf_archived_categories_${foyerId}`, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const toggleArchiveSubcategory = (catName: string, subName: string) => {
+    const key = `${catName}:${subName}`;
+    setArchivedSubcategories(prev => {
+      const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key];
+      localStorage.setItem(`mf_archived_subcategories_${foyerId}`, JSON.stringify(next));
+      return next;
+    });
+  };
 
   // Forms state
   const [txForm, setTxForm] = useState({
@@ -189,6 +232,18 @@ export const Budget: React.FC<BudgetProps> = ({
     amount: '',
     title: 'Virement interne'
   });
+
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [accountForm, setAccountForm] = useState({
+    name: '',
+    type: 'bank' as 'bank' | 'cash' | 'savings' | 'wallet',
+    balance: '',
+    icon: '💳',
+    color: '#6C5CFF',
+    initialBalance: ''
+  });
+  const [selectedHistoryAccount, setSelectedHistoryAccount] = useState<Account | null>(null);
 
   const [mergeSource, setMergeSource] = useState('');
   const [mergeTarget, setMergeTarget] = useState('');
@@ -251,13 +306,119 @@ export const Budget: React.FC<BudgetProps> = ({
 
   const activeSubcategories = useMemo(() => {
     const matched = allCategories.find(c => c.name === txForm.category);
-    return matched ? matched.sub : ['Divers'];
-  }, [txForm.category, allCategories]);
+    if (!matched) return ['Divers'];
+    return matched.sub.filter(s => !archivedSubcategories.includes(`${txForm.category}:${s}`));
+  }, [txForm.category, allCategories, archivedSubcategories]);
 
   // Financial Stats
   const activeTransactions = useMemo(() => {
-    return transactions.filter(t => !t.isArchived);
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    // Helper to get Monday of the current week
+    const currentDay = now.getDay();
+    const distanceToMonday = currentDay === 0 ? 6 : currentDay - 1;
+    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distanceToMonday);
+    
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const currentQuarter = Math.floor(now.getMonth() / 3);
+    const startOfQuarter = new Date(now.getFullYear(), currentQuarter * 3, 1);
+    
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    return transactions.filter(t => {
+      if (t.isArchived) return false;
+      
+      const tDate = new Date(t.date);
+      if (isNaN(tDate.getTime())) return true;
+
+      switch (periodFilter) {
+        case 'today':
+          return tDate >= startOfToday;
+        case 'week':
+          return tDate >= startOfWeek;
+        case 'month':
+          return tDate >= startOfMonth;
+        case 'quarter':
+          return tDate >= startOfQuarter;
+        case 'year':
+          return tDate >= startOfYear;
+        case 'custom': {
+          const start = customStartDate ? new Date(customStartDate) : null;
+          const end = customEndDate ? new Date(customEndDate) : null;
+          if (start) start.setHours(0, 0, 0, 0);
+          if (end) end.setHours(23, 59, 59, 999);
+          
+          if (start && tDate < start) return false;
+          if (end && tDate > end) return false;
+          return true;
+        }
+        case 'all':
+        default:
+          return true;
+      }
+    });
+  }, [transactions, periodFilter, customStartDate, customEndDate]);
+
+  // Donut chart logic
+  const donutData = useMemo(() => {
+    const data: { category: string; icon: string; color: string; amount: number }[] = [];
+    let totalExpenses = 0;
+    
+    allCategories.forEach(cat => {
+      const amount = activeTransactions
+        .filter(t => t.category === cat.name && t.type === 'expense')
+        .reduce((sum, t) => sum + t.amount, 0);
+      if (amount > 0) {
+        data.push({ category: cat.name, icon: cat.icon || '💸', color: cat.color || '#3B82F6', amount });
+        totalExpenses += amount;
+      }
+    });
+
+    return { segments: data, total: totalExpenses };
+  }, [allCategories, activeTransactions]);
+
+  // 12-Month Trend Line Chart Calculations
+  const trendData = useMemo(() => {
+    const list: { label: string; year: number; month: number; income: number; expense: number; savings: number }[] = [];
+    const now = new Date();
+    const localeMonths = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+    
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = d.getMonth();
+      const label = `${localeMonths[month]} ${year.toString().slice(-2)}`;
+      
+      let monthIncome = 0;
+      let monthExpense = 0;
+      let monthSavings = 0;
+      
+      transactions.forEach(t => {
+        if (t.isArchived) return;
+        const tDate = new Date(t.date);
+        if (!isNaN(tDate.getTime()) && tDate.getFullYear() === year && tDate.getMonth() === month) {
+          if (t.type === 'income') monthIncome += t.amount;
+          else if (t.type === 'expense') monthExpense += t.amount;
+          else if (t.type === 'savings') monthSavings += t.amount;
+        }
+      });
+      
+      list.push({ label, year, month, income: monthIncome, expense: monthExpense, savings: monthSavings });
+    }
+    return list;
   }, [transactions]);
+
+  const maxVal = useMemo(() => {
+    let max = 100;
+    trendData.forEach(d => {
+      if (d.income > max) max = d.income;
+      if (d.expense > max) max = d.expense;
+      if (d.savings > max) max = d.savings;
+    });
+    return max * 1.15;
+  }, [trendData]);
 
   const stats = useMemo(() => {
     let income = 0;
@@ -531,7 +692,13 @@ export const Budget: React.FC<BudgetProps> = ({
     }
 
     if (editingCat) {
-      setCustomCategories(prev => prev.map(c => c.id === editingCat.id ? newCat : c));
+      setCustomCategories(prev => {
+        if (prev.some(c => c.id === editingCat.id)) {
+          return prev.map(c => c.id === editingCat.id ? newCat : c);
+        } else {
+          return [...prev, newCat];
+        }
+      });
     } else {
       setCustomCategories(prev => [...prev, newCat]);
     }
@@ -633,6 +800,62 @@ export const Budget: React.FC<BudgetProps> = ({
             <Plus className="w-4 h-4 text-white" />
             <span>Ajouter une opération</span>
           </button>
+        )}
+      </div>
+
+      {/* Period Selector */}
+      <div className="glass-panel border border-white/5 p-4 rounded-[28px] space-y-3">
+        <div className="flex justify-between items-center">
+          <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">Choix de la période</span>
+          <span className="text-[10px] font-bold text-purple-400 capitalize">
+            {periodFilter === 'month' ? 'Ce mois' : periodFilter === 'week' ? 'Cette semaine' : periodFilter === 'today' ? "Aujourd'hui" : periodFilter === 'quarter' ? 'Ce trimestre' : periodFilter === 'year' ? 'Cette année' : periodFilter === 'all' ? 'Toutes périodes' : 'Période personnalisée'}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {[
+            { id: 'today', label: "Aujourd'hui" },
+            { id: 'week', label: 'Semaine' },
+            { id: 'month', label: 'Mois' },
+            { id: 'quarter', label: 'Trimestre' },
+            { id: 'year', label: 'Année' },
+            { id: 'all', label: 'Tout' },
+            { id: 'custom', label: '📅 Perso' }
+          ].map(p => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setPeriodFilter(p.id as PeriodType)}
+              className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold transition cursor-pointer active:scale-95 ${
+                periodFilter === p.id 
+                  ? 'bg-purple-600 text-white shadow-md' 
+                  : 'bg-white/5 text-white/60 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {periodFilter === 'custom' && (
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <div>
+              <label className="block text-[9px] text-white/40 mb-1">Date de début</label>
+              <input 
+                type="date" 
+                value={customStartDate} 
+                onChange={e => setCustomStartDate(e.target.value)} 
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-[10px] text-white focus:outline-none focus:border-purple-500 [color-scheme:dark]" 
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] text-white/40 mb-1">Date de fin</label>
+              <input 
+                type="date" 
+                value={customEndDate} 
+                onChange={e => setCustomEndDate(e.target.value)} 
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-[10px] text-white focus:outline-none focus:border-purple-500 [color-scheme:dark]" 
+              />
+            </div>
+          </div>
         )}
       </div>
 
@@ -1036,55 +1259,79 @@ export const Budget: React.FC<BudgetProps> = ({
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {allCategories.map(cat => (
-                <div key={cat.name} className="glass-panel border border-white/5 p-5 rounded-3xl space-y-3 text-xs">
+                <div key={cat.name} className={`glass-panel border border-white/5 p-5 rounded-3xl space-y-3 text-xs transition ${archivedCategories.includes(cat.name) ? 'opacity-50' : ''}`}>
                   <div className="flex justify-between items-start">
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl shrink-0 shadow-lg" style={{ backgroundColor: `${cat.color}20`, border: `1px solid ${cat.color}40`, color: cat.color }}>
                         {cat.icon}
                       </div>
                       <div>
-                        <h4 className="font-extrabold text-white text-sm">{cat.name}</h4>
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="font-extrabold text-white text-sm">{cat.name}</h4>
+                          {archivedCategories.includes(cat.name) && (
+                            <span className="px-1.5 py-0.5 text-[8px] font-bold rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase tracking-wider">Archivé</span>
+                          )}
+                        </div>
                         <span className="text-[10px] text-white/40">Limite mensuelle : {cat.budget > 0 ? `${formatMoney(cat.budget)}` : 'Aucune'}</span>
                       </div>
                     </div>
 
-                    {isAuthorized && customCategories.some(c => c.name.toLowerCase() === cat.name.toLowerCase()) && (
-                      <div className="flex gap-1.5">
+                    {isAuthorized && (
+                      <div className="flex gap-1.5 items-center">
                         <button
                           onClick={() => {
-                            const matchedCc = customCategories.find(c => c.name.toLowerCase() === cat.name.toLowerCase())!;
-                            setEditingCat(matchedCc);
+                            const matchedCc = customCategories.find(c => c.name.toLowerCase() === cat.name.toLowerCase());
+                            setEditingCat(matchedCc || {
+                              id: `cat-override-${cat.name.toLowerCase()}`,
+                              name: cat.name,
+                              icon: cat.icon,
+                              color: cat.color,
+                              budget: cat.budget,
+                              displayOrder: 0,
+                              subcategories: cat.sub || []
+                            });
                             setCatForm({
-                              name: matchedCc.name,
-                              icon: matchedCc.icon || '✨',
-                              color: matchedCc.color || '#3B82F6',
-                              budget: matchedCc.budget ? matchedCc.budget.toString() : '',
-                              subcategories: matchedCc.subcategories || [],
+                              name: matchedCc ? matchedCc.name : cat.name,
+                              icon: matchedCc ? (matchedCc.icon || '✨') : cat.icon,
+                              color: matchedCc ? (matchedCc.color || '#3B82F6') : cat.color,
+                              budget: matchedCc ? (matchedCc.budget ? matchedCc.budget.toString() : '') : (cat.budget ? cat.budget.toString() : ''),
+                              subcategories: matchedCc ? (matchedCc.subcategories || []) : (cat.sub || []),
                               newSubInput: ''
                             });
                             setIsCatModalOpen(true);
                           }}
-                          className="p-1.5 bg-white/5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition"
+                          title="Modifier"
+                          className="p-1.5 bg-white/5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition cursor-pointer"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={async () => {
-                            if (window.confirm(`Supprimer la catégorie "${cat.name}" ?`)) {
-                              const matchedCc = customCategories.find(c => c.name.toLowerCase() === cat.name.toLowerCase())!;
-                              const client = getSupabaseClient();
-                              if (client) {
-                                await client.from('custom_categories').delete().eq('id', matchedCc.id);
-                              }
-                              setCustomCategories(prev => prev.filter(c => c.id !== matchedCc.id));
-                            }
-                          }}
-                          className="p-1.5 bg-red-500/10 rounded-lg text-red-400 hover:bg-red-500/20 transition"
+                          onClick={() => toggleArchiveCategory(cat.name)}
+                          title={archivedCategories.includes(cat.name) ? "Restaurer" : "Archiver"}
+                          className={`p-1.5 rounded-lg transition cursor-pointer ${archivedCategories.includes(cat.name) ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30' : 'bg-white/5 text-white/60 hover:text-white hover:bg-white/10'}`}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Archive className="w-3.5 h-3.5" />
                         </button>
+                        {customCategories.some(c => c.name.toLowerCase() === cat.name.toLowerCase()) && (
+                          <button
+                            onClick={async () => {
+                              if (window.confirm(`Supprimer la catégorie "${cat.name}" ?`)) {
+                                const matchedCc = customCategories.find(c => c.name.toLowerCase() === cat.name.toLowerCase())!;
+                                const client = getSupabaseClient();
+                                if (client) {
+                                  await client.from('custom_categories').delete().eq('id', matchedCc.id);
+                                }
+                                setCustomCategories(prev => prev.filter(c => c.id !== matchedCc.id));
+                              }
+                            }}
+                            title="Supprimer"
+                            className="p-1.5 bg-red-500/10 rounded-lg text-red-400 hover:bg-red-500/20 transition cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1093,11 +1340,25 @@ export const Budget: React.FC<BudgetProps> = ({
                   <div className="space-y-1.5">
                     <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest block">Sous-catégories</span>
                     <div className="flex flex-wrap gap-1.5">
-                      {cat.sub?.map(s => (
-                        <span key={s} className="px-2.5 py-1 rounded-lg bg-white/3 border border-white/5 text-[10px] text-white/70">
-                          {s}
-                        </span>
-                      ))}
+                      {cat.sub?.map(s => {
+                        const isArchived = archivedSubcategories.includes(`${cat.name}:${s}`);
+                        return (
+                          <button 
+                            key={s} 
+                            disabled={!isAuthorized}
+                            onClick={() => toggleArchiveSubcategory(cat.name, s)}
+                            className={`px-2.5 py-1 rounded-lg border text-[10px] transition-all duration-200 text-left flex items-center gap-1 cursor-pointer active:scale-95 ${
+                              isArchived 
+                                ? 'bg-amber-500/10 border-amber-500/20 text-amber-400/80 hover:bg-amber-500/20' 
+                                : 'bg-white/3 border-white/5 text-white/70 hover:bg-white/5 hover:border-white/10'
+                            }`}
+                            title={isArchived ? "Restaurer la sous-catégorie" : "Archiver la sous-catégorie"}
+                          >
+                            <span>{s}</span>
+                            {isArchived && <span className="text-[8px] opacity-75 font-semibold">(Archivé)</span>}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1245,42 +1506,193 @@ export const Budget: React.FC<BudgetProps> = ({
         {/* --- TABS: ACCOUNTS (Comptes bancaires) --- */}
         {activeTab === 'accounts' && (
           <div className="space-y-6">
-            <div className="glass-panel border border-white/5 p-5 rounded-3xl flex justify-between items-center">
-              <div>
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Comptes Financiers & Virements</h3>
-                <p className="text-[10px] text-white/40 mt-0.5">Soldes actuels des comptes du foyer</p>
-              </div>
+            {!selectedHistoryAccount ? (
+              // 1. ACCOUNTS LISTING VIEW
+              <>
+                <div className="glass-panel border border-white/5 p-5 rounded-3xl flex justify-between items-center shadow-lg">
+                  <div>
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">Comptes Financiers & Virements</h3>
+                    <p className="text-[10px] text-white/40 mt-0.5">Soldes actuels des comptes du foyer</p>
+                  </div>
 
-              {isAuthorized && (
-                <button
-                  onClick={() => {
-                    setTransferForm({ sourceAccountId: '', targetAccountId: '', amount: '', title: 'Virement interne' });
-                    setIsTransferModalOpen(true);
-                  }}
-                  className="px-4 py-2.5 bg-purple-600 rounded-xl text-xs font-bold text-white cursor-pointer hover:opacity-90 transition flex items-center gap-1.5"
+                  <div className="flex gap-2">
+                    {isAuthorized && (
+                      <button
+                        onClick={() => {
+                          setAccountForm({ name: '', type: 'bank', balance: '', icon: '💳', color: '#6C5CFF', initialBalance: '' });
+                          setEditingAccount(null);
+                          setIsAccountModalOpen(true);
+                        }}
+                        className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl text-xs font-bold text-white cursor-pointer hover:opacity-90 active:scale-95 transition-all flex items-center gap-1.5 shadow-lg shadow-purple-500/20"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Nouveau compte</span>
+                      </button>
+                    )}
+                    {isAuthorized && (
+                      <button
+                        onClick={() => {
+                          setTransferForm({ sourceAccountId: '', targetAccountId: '', amount: '', title: 'Virement interne' });
+                          setIsTransferModalOpen(true);
+                        }}
+                        className="px-4 py-2.5 bg-white/5 border border-white/10 hover:bg-white/10 rounded-xl text-xs font-bold text-white cursor-pointer hover:opacity-90 active:scale-95 transition-all flex items-center gap-1.5"
+                      >
+                        <ArrowLeftRight className="w-4 h-4" />
+                        <span>Virement</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {accounts.map(acc => {
+                    const fallbackColor = acc.type === 'bank' ? '#3B82F6' : acc.type === 'savings' ? '#10B981' : '#F59E0B';
+                    const color = acc.color || fallbackColor;
+                    const icon = acc.icon || (acc.type === 'bank' ? '💳' : acc.type === 'savings' ? '🐷' : '👛');
+                    return (
+                      <div 
+                        key={acc.id} 
+                        onClick={() => setSelectedHistoryAccount(acc)}
+                        className="glass-panel border border-white/5 p-5 rounded-3xl flex justify-between items-center text-xs cursor-pointer hover:border-white/15 hover:bg-white/[0.04] transition-all active:scale-[0.98]"
+                        style={{ borderLeft: `4px solid ${color}` }}
+                      >
+                        <div className="flex items-center space-x-3.5">
+                          <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-lg bg-white/5 border border-white/5">
+                            {icon}
+                          </div>
+                          <div>
+                            <h4 className="font-extrabold text-white text-sm">{acc.name}</h4>
+                            <span className="text-[9px] text-white/40 uppercase font-semibold">
+                              {acc.type === 'bank' ? 'Banque / Carte' : acc.type === 'savings' ? 'Épargne' : acc.type === 'cash' ? 'Espèces' : 'Portefeuille'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right space-y-0.5">
+                          <span className="text-base font-black text-white block">{formatMoney(acc.balance)}</span>
+                          <span className="text-[8px] font-bold text-purple-400/80 uppercase tracking-wider">Voir l'historique →</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              // 2. ACCOUNT DETAIL & TRANSACTION HISTORY VIEW
+              <div className="space-y-6">
+                <div 
+                  className="glass-panel border border-white/5 p-5 rounded-3xl flex flex-col md:flex-row justify-between md:items-center gap-4 shadow-xl"
+                  style={{ borderLeft: `5px solid ${selectedHistoryAccount.color || '#6C5CFF'}` }}
                 >
-                  <ArrowLeftRight className="w-4 h-4" />
-                  <span>Nouveau virement</span>
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {accounts.map(acc => (
-                <div key={acc.id} className="glass-panel border border-white/5 p-5 rounded-3xl flex justify-between items-center text-xs">
-                  <div className="flex items-center space-x-3.5">
-                    <div className="p-3 rounded-2xl bg-white/5 text-white/80 border border-white/5">
-                      {acc.type === 'bank' ? <CreditCard className="w-5 h-5" /> : acc.type === 'savings' ? <PiggyBank className="w-5 h-5" /> : <Wallet className="w-5 h-5" />}
-                    </div>
-                    <div>
-                      <h4 className="font-extrabold text-white text-sm">{acc.name}</h4>
-                      <span className="text-[9px] text-white/40 uppercase font-semibold">{acc.type}</span>
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => setSelectedHistoryAccount(null)}
+                      className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white transition active:scale-95 cursor-pointer"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{selectedHistoryAccount.icon || '💳'}</span>
+                      <div>
+                        <h3 className="text-sm font-extrabold text-white">{selectedHistoryAccount.name}</h3>
+                        <p className="text-[10px] text-white/40 mt-0.5 uppercase tracking-wider font-bold">
+                          {selectedHistoryAccount.type === 'bank' ? 'Compte bancaire' : selectedHistoryAccount.type === 'savings' ? 'Compte épargne' : selectedHistoryAccount.type === 'cash' ? 'Espèces' : 'Portefeuille mobile'}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <span className="text-base font-black text-white">{formatMoney(acc.balance)}</span>
+
+                  <div className="flex justify-between md:justify-end items-center gap-4">
+                    <div className="text-left md:text-right">
+                      <span className="text-[10px] text-white/40 block">Solde actuel</span>
+                      <span className="text-lg font-black text-white">{formatMoney(selectedHistoryAccount.balance)}</span>
+                    </div>
+
+                    {isAuthorized && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setAccountForm({
+                              name: selectedHistoryAccount.name,
+                              type: selectedHistoryAccount.type,
+                              balance: selectedHistoryAccount.balance.toString(),
+                              icon: selectedHistoryAccount.icon || '💳',
+                              color: selectedHistoryAccount.color || '#6C5CFF',
+                              initialBalance: selectedHistoryAccount.initialBalance?.toString() || '0'
+                            });
+                            setEditingAccount(selectedHistoryAccount);
+                            setIsAccountModalOpen(true);
+                          }}
+                          className="px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white cursor-pointer active:scale-95 transition-all"
+                        >
+                          Modifier
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm("Voulez-vous vraiment supprimer ce compte ? Cette action n'effacera pas les transactions associées mais dissociera le compte.")) {
+                              const client = getSupabaseClient();
+                              if (client && foyerId) {
+                                client.from('accounts').delete().eq('id', selectedHistoryAccount.id).then(() => {
+                                  const metadataStr = localStorage.getItem('mf_accounts_metadata');
+                                  if (metadataStr) {
+                                    const metadata = JSON.parse(metadataStr);
+                                    delete metadata[selectedHistoryAccount.id];
+                                    localStorage.setItem('mf_accounts_metadata', JSON.stringify(metadata));
+                                  }
+                                  setAccounts(prev => prev.filter(a => a.id !== selectedHistoryAccount.id));
+                                  setSelectedHistoryAccount(null);
+                                });
+                              }
+                            }
+                          }}
+                          className="px-3.5 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 rounded-xl text-xs font-bold text-red-400 cursor-pointer active:scale-95 transition-all"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
+
+                {/* Account Transactions History */}
+                <div className="glass-panel border border-white/5 rounded-3xl p-5 space-y-4">
+                  <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">Historique des Transactions</span>
+                  
+                  {(() => {
+                    const accountTransactions = transactions.filter(t => t.accountId === selectedHistoryAccount.id);
+                    if (accountTransactions.length === 0) {
+                      return (
+                        <div className="py-8 text-center text-white/30 text-xs italic">
+                          Aucune transaction enregistrée pour ce compte.
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-2">
+                        {accountTransactions.map(tx => (
+                          <div key={tx.id} className="flex justify-between items-center p-3 rounded-2xl bg-white/[0.02] border border-white/5 text-xs hover:bg-white/[0.04] transition">
+                            <div className="flex items-center space-x-3.5">
+                              <span className="text-xl">
+                                {tx.type === 'income' ? '📈' : tx.type === 'savings' ? '🐷' : '📉'}
+                              </span>
+                              <div>
+                                <h4 className="font-extrabold text-white">{tx.title}</h4>
+                                <p className="text-[9px] text-white/40 mt-0.5">
+                                  {tx.date} • {tx.category} • {tx.memberName}
+                                </p>
+                              </div>
+                            </div>
+                            <span className={`font-black ${tx.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {tx.type === 'income' ? '+' : '-'}{formatMoney(tx.amount)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1370,33 +1782,264 @@ export const Budget: React.FC<BudgetProps> = ({
 
         {/* --- TABS: REPORTS (Analytics chart simulation) --- */}
         {activeTab === 'reports' && (
-          <div className="glass-panel border border-white/5 p-5 rounded-3xl space-y-6">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Répartition analytique des dépenses</h3>
-            
-            {/* Visual SVG pie-like chart or bars */}
-            <div className="space-y-4 text-xs font-sans">
-              {allCategories.map(cat => {
-                const totalDep = activeTransactions
-                  .filter(t => t.category === cat.name && t.type === 'expense')
-                  .reduce((sum, t) => sum + t.amount, 0);
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* 1. Interactive SVG Donut Chart */}
+              <div className="lg:col-span-1 glass-panel border border-white/5 p-5 rounded-3xl flex flex-col items-center justify-between text-xs space-y-4">
+                <div className="w-full">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider text-left">Répartition des dépenses</h3>
+                  <p className="text-[9px] text-white/40 text-left mt-0.5">Cliquez sur un segment pour le sélectionner</p>
+                </div>
 
-                if (totalDep === 0) return null;
+                <div className="relative w-48 h-48 flex items-center justify-center">
+                  {donutData.total === 0 ? (
+                    <span className="text-white/30 text-xs italic">Aucune dépense</span>
+                  ) : (
+                    <>
+                      <svg width="180" height="180" viewBox="0 0 120 120" className="transform -rotate-90">
+                        {(() => {
+                          let currentOffset = 0;
+                          return donutData.segments.map((seg, idx) => {
+                            const pct = (seg.amount / donutData.total) * 100;
+                            const strokeLength = (pct / 100) * 314.159;
+                            const strokeOffset = -currentOffset;
+                            currentOffset += strokeLength;
 
-                const limitVal = cat.budget || 1;
-                const pct = Math.min(100, Math.round((totalDep / limitVal) * 100));
+                            const isSelected = selectedDonutSegment === idx;
+                            return (
+                              <circle
+                                key={seg.category}
+                                cx="60"
+                                cy="60"
+                                r="50"
+                                fill="transparent"
+                                stroke={seg.color}
+                                strokeWidth={isSelected ? "14" : "10"}
+                                strokeDasharray={`${strokeLength} 314.159`}
+                                strokeDashoffset={strokeOffset}
+                                className="cursor-pointer transition-all duration-300 hover:stroke-[14px]"
+                                onClick={() => setSelectedDonutSegment(isSelected ? null : idx)}
+                              />
+                            );
+                          });
+                        })()}
+                      </svg>
+                      {/* Central label */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none p-4">
+                        {selectedDonutSegment !== null && donutData.segments[selectedDonutSegment] ? (
+                          <>
+                            <span className="text-xl">{donutData.segments[selectedDonutSegment].icon}</span>
+                            <span className="text-[9px] font-black text-white/50 uppercase tracking-widest mt-0.5 truncate max-w-[100px]">
+                              {donutData.segments[selectedDonutSegment].category}
+                            </span>
+                            <span className="text-xs font-black text-white mt-0.5">
+                              {formatMoney(donutData.segments[selectedDonutSegment].amount)}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-[8px] font-black text-white/50 uppercase tracking-widest">Total Dépenses</span>
+                            <span className="text-sm font-black text-white mt-0.5">{formatMoney(donutData.total)}</span>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
 
-                return (
-                  <div key={cat.name} className="space-y-1">
-                    <div className="flex justify-between text-xs">
-                      <span className="font-bold text-white flex items-center gap-1">{cat.icon} {cat.name}</span>
-                      <span className="text-white/60">{formatMoney(totalDep)} {cat.budget > 0 && `(limite: ${cat.budget}€)`}</span>
+                {/* Donut Legend */}
+                <div className="w-full grid grid-cols-2 gap-2 pt-2 border-t border-white/5 max-h-[140px] overflow-y-auto scrollbar-none">
+                  {donutData.segments.map((seg, idx) => (
+                    <div 
+                      key={seg.category} 
+                      onClick={() => setSelectedDonutSegment(selectedDonutSegment === idx ? null : idx)}
+                      className={`flex items-center gap-1.5 cursor-pointer p-1.5 rounded-lg transition ${selectedDonutSegment === idx ? 'bg-white/5 border border-white/10' : 'hover:bg-white/2 border border-transparent'}`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
+                      <span className="text-[10px] text-white/80 font-medium truncate">{seg.icon} {seg.category}</span>
                     </div>
-                    <div className="relative h-3 bg-white/5 rounded-full overflow-hidden border border-white/5">
-                      <div className="absolute inset-y-0 left-0 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: cat.color }} />
+                  ))}
+                </div>
+              </div>
+
+              {/* 2. Donut Detailed Categories list with progress bar */}
+              <div className="lg:col-span-2 glass-panel border border-white/5 p-5 rounded-3xl space-y-4">
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Suivi analytique et Limites</h3>
+                <div className="space-y-4 text-xs font-sans max-h-[300px] overflow-y-auto scrollbar-none pr-1">
+                  {allCategories.map(cat => {
+                    const totalDep = activeTransactions
+                      .filter(t => t.category === cat.name && t.type === 'expense')
+                      .reduce((sum, t) => sum + t.amount, 0);
+
+                    if (totalDep === 0) return null;
+
+                    const limitVal = cat.budget || 1;
+                    const pct = Math.min(100, Math.round((totalDep / limitVal) * 100));
+                    const isHighlighted = selectedDonutSegment !== null && donutData.segments[selectedDonutSegment]?.category === cat.name;
+
+                    return (
+                      <div 
+                        key={cat.name} 
+                        className={`space-y-1.5 p-2 rounded-xl border transition ${isHighlighted ? 'bg-white/5 border-purple-500/20' : 'bg-transparent border-transparent'}`}
+                      >
+                        <div className="flex justify-between text-[11px] items-center">
+                          <span className="font-extrabold text-white flex items-center gap-1">{cat.icon} {cat.name}</span>
+                          <span className="text-white/70 font-semibold">{formatMoney(totalDep)} {cat.budget > 0 && `/ ${cat.budget}€`}</span>
+                        </div>
+                        <div className="relative h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                          <div className="absolute inset-y-0 left-0 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: cat.color }} />
+                        </div>
+                        {cat.budget > 0 && (
+                          <div className="flex justify-between text-[9px] text-white/40">
+                            <span>Consommé : {pct}%</span>
+                            <span className={pct >= 100 ? 'text-red-400 font-bold' : ''}>{pct >= 100 ? 'Budget dépassé !' : `${formatMoney(cat.budget - totalDep)} restant`}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Rolling 12-Month Line Chart */}
+            <div className="glass-panel border border-white/5 p-5 rounded-3xl space-y-4">
+              <div className="flex flex-col md:flex-row justify-between md:items-center gap-3">
+                <div>
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Évolution mensuelle des finances</h3>
+                  <p className="text-[9px] text-white/40 mt-0.5">Revenus, Dépenses et Épargne sur les 12 derniers mois</p>
+                </div>
+                {/* Legend colors */}
+                <div className="flex gap-4 text-[10px]">
+                  <span className="flex items-center gap-1.5 font-bold text-emerald-400"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400" /> Revenus</span>
+                  <span className="flex items-center gap-1.5 font-bold text-rose-400"><span className="w-2.5 h-2.5 rounded-full bg-rose-400" /> Dépenses</span>
+                  <span className="flex items-center gap-1.5 font-bold text-purple-400"><span className="w-2.5 h-2.5 rounded-full bg-purple-400" /> Épargne</span>
+                </div>
+              </div>
+
+              {/* Line graph canvas wrapper */}
+              <div className="w-full overflow-x-auto scrollbar-none pt-2">
+                <div className="min-w-[500px] h-[250px] relative">
+                  <svg viewBox="0 0 500 240" className="w-full h-full font-sans overflow-visible text-[9px] text-white/30">
+                    {/* Vertical grid lines & Y labels */}
+                    {(() => {
+                      const lines = [];
+                      for (let i = 0; i <= 4; i++) {
+                        const v = (maxVal / 4) * i;
+                        const y = 20 + 185 - (v / maxVal) * 185;
+                        lines.push(
+                          <g key={i}>
+                            <line x1="50" y1={y} x2="480" y2={y} stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
+                            <text x="45" y={y + 3} textAnchor="end" fill="rgba(255,255,255,0.4)" className="font-extrabold">{formatMoney(v)}</text>
+                          </g>
+                        );
+                      }
+                      return lines;
+                    })()}
+
+                    {/* Horizontal labels (Months) */}
+                    {trendData.map((d, i) => {
+                      const x = 50 + (i / 11) * 430;
+                      return (
+                        <text key={i} x={x} y="225" textAnchor="middle" fill="rgba(255,255,255,0.4)" className="font-extrabold">
+                          {d.label}
+                        </text>
+                      );
+                    })}
+
+                    {/* Line path definitions */}
+                    {(() => {
+                      const left = 50;
+                      const plotWidth = 430;
+                      const plotHeight = 185;
+                      const top = 20;
+
+                      let incPath = '';
+                      let expPath = '';
+                      let savPath = '';
+
+                      trendData.forEach((d, i) => {
+                        const x = left + (i / 11) * plotWidth;
+                        const yInc = top + plotHeight - (d.income / maxVal) * plotHeight;
+                        const yExp = top + plotHeight - (d.expense / maxVal) * plotHeight;
+                        const ySav = top + plotHeight - (d.savings / maxVal) * plotHeight;
+
+                        if (i === 0) {
+                          incPath = `M ${x} ${yInc}`;
+                          expPath = `M ${x} ${yExp}`;
+                          savPath = `M ${x} ${ySav}`;
+                        } else {
+                          incPath += ` L ${x} ${yInc}`;
+                          expPath += ` L ${x} ${yExp}`;
+                          savPath += ` L ${x} ${ySav}`;
+                        }
+                      });
+
+                      return (
+                        <>
+                          {/* Curves */}
+                          <path d={incPath} fill="none" stroke="#10B981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d={expPath} fill="none" stroke="#F43F5E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d={savPath} fill="none" stroke="#8B5CF6" strokeWidth="2" strokeDasharray="3 3" strokeLinecap="round" strokeLinejoin="round" />
+
+                          {/* Hover target guides & points */}
+                          {trendData.map((d, i) => {
+                            const x = left + (i / 11) * plotWidth;
+                            const yInc = top + plotHeight - (d.income / maxVal) * plotHeight;
+                            const yExp = top + plotHeight - (d.expense / maxVal) * plotHeight;
+                            const ySav = top + plotHeight - (d.savings / maxVal) * plotHeight;
+
+                            const isSelected = selectedTrendIndex === i;
+
+                            return (
+                              <g key={i}>
+                                {/* Vertical highlight bar on hover */}
+                                <rect
+                                  x={x - 15}
+                                  y={top}
+                                  width="30"
+                                  height={plotHeight}
+                                  fill="transparent"
+                                  className="cursor-pointer"
+                                  onMouseEnter={() => setSelectedTrendIndex(i)}
+                                  onMouseLeave={() => setSelectedTrendIndex(null)}
+                                />
+                                {isSelected && (
+                                  <>
+                                    <line x1={x} y1={top} x2={x} y2={top + plotHeight} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                                    {/* Circles on dots */}
+                                    <circle cx={x} cy={yInc} r="5" fill="#10B981" stroke="white" strokeWidth="1.5" />
+                                    <circle cx={x} cy={yExp} r="5" fill="#F43F5E" stroke="white" strokeWidth="1.5" />
+                                    <circle cx={x} cy={ySav} r="5" fill="#8B5CF6" stroke="white" strokeWidth="1.5" />
+                                  </>
+                                )}
+                              </g>
+                            );
+                          })}
+                        </>
+                      );
+                    })()}
+                  </svg>
+
+                  {/* Trend chart HTML Tooltip overlays on hover */}
+                  {selectedTrendIndex !== null && trendData[selectedTrendIndex] && (
+                    <div 
+                      className="absolute top-1 bg-[#091424] border border-white/10 p-3 rounded-2xl text-[9px] text-white/90 space-y-1 shadow-2xl pointer-events-none"
+                      style={{ 
+                        left: `${50 + (selectedTrendIndex / 11) * 75}%`,
+                        transform: selectedTrendIndex > 8 ? 'translateX(-100%)' : 'none'
+                      }}
+                    >
+                      <h4 className="font-extrabold uppercase text-white tracking-widest">{trendData[selectedTrendIndex].label}</h4>
+                      <div className="space-y-0.5 font-semibold text-left">
+                        <p className="flex justify-between gap-6">Revenus: <span className="text-emerald-400">+{formatMoney(trendData[selectedTrendIndex].income)}</span></p>
+                        <p className="flex justify-between gap-6">Dépenses: <span className="text-rose-400">-{formatMoney(trendData[selectedTrendIndex].expense)}</span></p>
+                        <p className="flex justify-between gap-6">Épargne: <span className="text-purple-400">{formatMoney(trendData[selectedTrendIndex].savings)}</span></p>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1473,8 +2116,15 @@ export const Budget: React.FC<BudgetProps> = ({
                 </div>
                 <div>
                   <label className="block text-white/50 mb-1">Catégorie *</label>
-                  <select value={txForm.category} onChange={e => setTxForm(prev => ({ ...prev, category: e.target.value, subCategory: allCategories.find(c => c.name === e.target.value)?.sub[0] || 'Divers' }))} className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
-                    {allCategories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                  <select value={txForm.category} onChange={e => {
+                    const selectedCat = e.target.value;
+                    const foundCat = allCategories.find(c => c.name === selectedCat);
+                    const subArray = foundCat?.sub || ['Divers'];
+                    const nonArchivedSubs = subArray.filter(s => !archivedSubcategories.includes(`${selectedCat}:${s}`));
+                    const firstSub = nonArchivedSubs[0] || subArray[0] || 'Divers';
+                    setTxForm(prev => ({ ...prev, category: selectedCat, subCategory: firstSub }));
+                  }} className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+                    {allCategories.filter(c => !archivedCategories.includes(c.name)).map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
                   </select>
                 </div>
               </div>
@@ -1833,6 +2483,156 @@ export const Budget: React.FC<BudgetProps> = ({
               </div>
             </div>
             <button type="submit" className="w-full py-2.5 bg-purple-600 text-white font-bold rounded-xl uppercase tracking-wider text-[11px]">Enregistrer</button>
+          </form>
+        </div>
+      )}
+
+      {/* Modal Compte */}
+      {isAccountModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <form 
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const initialBal = parseFloat(accountForm.initialBalance || '0') || 0;
+              const name = accountForm.name.trim();
+              if (!name) return;
+
+              const client = getSupabaseClient();
+              const accountId = editingAccount?.id || `acc-${Date.now()}`;
+              
+              const updatedAccount: Account = {
+                id: accountId,
+                name: name,
+                type: accountForm.type,
+                balance: editingAccount ? editingAccount.balance : initialBal,
+                icon: accountForm.icon,
+                color: accountForm.color,
+                initialBalance: initialBal
+              };
+
+              const metadataStr = localStorage.getItem('mf_accounts_metadata');
+              const metadata = metadataStr ? JSON.parse(metadataStr) : {};
+              metadata[accountId] = { 
+                icon: accountForm.icon, 
+                color: accountForm.color, 
+                initialBalance: initialBal 
+              };
+              localStorage.setItem('mf_accounts_metadata', JSON.stringify(metadata));
+
+              if (client && foyerId) {
+                try {
+                  await client.from('accounts').upsert({
+                    id: accountId,
+                    foyer_id: foyerId,
+                    name: updatedAccount.name,
+                    type: updatedAccount.type,
+                    balance: updatedAccount.balance
+                  });
+                } catch (err) {
+                  console.error("Error upserting account in Supabase:", err);
+                }
+              }
+
+              if (editingAccount) {
+                setAccounts(prev => prev.map(a => a.id === editingAccount.id ? updatedAccount : a));
+                if (selectedHistoryAccount?.id === editingAccount.id) {
+                  setSelectedHistoryAccount(updatedAccount);
+                }
+              } else {
+                setAccounts(prev => [...prev, updatedAccount]);
+              }
+
+              setIsAccountModalOpen(false);
+              setEditingAccount(null);
+            }}
+            className="glass-panel border border-white/10 rounded-[28px] w-full max-w-sm p-6 space-y-4 text-xs text-left"
+          >
+            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+              <h3 className="text-sm font-extrabold text-white">
+                {editingAccount ? 'Modifier le compte' : 'Créer un nouveau compte'}
+              </h3>
+              <button type="button" onClick={() => { setIsAccountModalOpen(false); setEditingAccount(null); }} className="p-1 text-white/40 hover:text-white"><X className="w-4 h-4" /></button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-white/50 mb-1">Nom du compte *</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={accountForm.name} 
+                  onChange={e => setAccountForm(prev => ({ ...prev, name: e.target.value }))} 
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500" 
+                  placeholder="Ex: Orange Money, Revolut, Compte joint" 
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-white/50 mb-1">Type de compte</label>
+                  <select 
+                    value={accountForm.type} 
+                    onChange={e => setAccountForm(prev => ({ ...prev, type: e.target.value as any }))} 
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none cursor-pointer"
+                  >
+                    <option value="bank" className="bg-[#07111F]">Banque / Carte</option>
+                    <option value="cash" className="bg-[#07111F]">Espèces</option>
+                    <option value="savings" className="bg-[#07111F]">Épargne</option>
+                    <option value="wallet" className="bg-[#07111F]">Portefeuille mobile</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-white/50 mb-1">Solde initial (€) *</label>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    required 
+                    disabled={!!editingAccount}
+                    value={accountForm.initialBalance} 
+                    onChange={e => setAccountForm(prev => ({ ...prev, initialBalance: e.target.value }))} 
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none disabled:opacity-50" 
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-white/50 mb-1">Icône (Emoji)</label>
+                  <input 
+                    type="text" 
+                    value={accountForm.icon} 
+                    onChange={e => setAccountForm(prev => ({ ...prev, icon: e.target.value }))} 
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none" 
+                    placeholder="Ex: 💳, 💰, 🏦" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-white/50 mb-1">Couleur (Hex)</label>
+                  <div className="flex gap-2 items-center">
+                    <input 
+                      type="color" 
+                      value={accountForm.color} 
+                      onChange={e => setAccountForm(prev => ({ ...prev, color: e.target.value }))} 
+                      className="w-8 h-8 rounded-lg bg-transparent border-0 cursor-pointer" 
+                    />
+                    <input 
+                      type="text" 
+                      value={accountForm.color} 
+                      onChange={e => setAccountForm(prev => ({ ...prev, color: e.target.value }))} 
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-xs text-white focus:outline-none" 
+                      placeholder="#6C5CFF" 
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" className="w-full py-2.5 bg-purple-600 text-white font-bold rounded-xl uppercase tracking-wider text-[11px]">
+              Enregistrer
+            </button>
           </form>
         </div>
       )}

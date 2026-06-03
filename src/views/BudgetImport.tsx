@@ -627,7 +627,7 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
       />
 
       <div 
-        className={`fixed bottom-0 left-0 right-0 top-0 md:top-10 md:bottom-10 max-h-[92vh] md:max-w-4xl mx-auto glass-panel border-t md:border border-white/10 z-50 rounded-t-[32px] md:rounded-[32px] shadow-[0_-15px_40px_rgba(0,0,0,0.6)] flex flex-col transition-all duration-300 ease-out transform ${
+        className={`fixed bottom-0 left-0 right-0 top-0 md:top-10 md:bottom-10 max-h-[92vh] md:max-w-4xl mx-auto glass-panel border-t md:border border-white/10 z-50 rounded-t-[32px] md:rounded-[32px] shadow-[0_-15px_40px_rgba(0,0,0,0.6)] flex flex-col pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] transition-all duration-300 ease-out transform ${
           isOpen ? 'translate-y-0 opacity-100Scale' : 'translate-y-full opacity-0'
         }`}
       >

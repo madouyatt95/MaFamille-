@@ -17,7 +17,6 @@ import {
   Droplet,
   UtensilsCrossed,
   MessageCircle,
-  ShieldAlert,
   Camera,
   Heart,
   Smile,
@@ -81,7 +80,7 @@ interface AccueilProps {
   setActiveModule: (moduleName: string) => void;
   onMenuClick: () => void;
   onAlertsClick: () => void;
-  onTriggerSos: () => void;
+
   activeMemberId?: string;
   onProfileSwitcherOpen?: () => void;
   onAvatarClick?: () => void;
@@ -104,7 +103,7 @@ export const Accueil: React.FC<AccueilProps> = ({
   setActiveModule,
   onMenuClick,
   onAlertsClick,
-  onTriggerSos,
+
   activeMemberId = '1',
   onProfileSwitcherOpen,
   onAvatarClick,
@@ -335,14 +334,7 @@ export const Accueil: React.FC<AccueilProps> = ({
         </div>
         
         <div className="flex items-center space-x-3">
-          {/* Flashing SOS button */}
-          <button 
-            onClick={onTriggerSos}
-            className="px-3.5 py-2.5 bg-[#FF4D6D] hover:bg-[#FF4D6D]/90 text-white rounded-xl text-[10px] font-black tracking-widest uppercase flex items-center justify-center space-x-1.5 shadow-md shadow-[#FF4D6D]/20 cursor-pointer animate-pulse shrink-0"
-          >
-            <ShieldAlert className="w-3.5 h-3.5" />
-            <span>SOS</span>
-          </button>
+
 
           <button 
             onClick={onAlertsClick}

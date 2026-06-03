@@ -1174,336 +1174,15 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
 
       {/* Active Demarche Detail View */}
       {mainTab === 'demarches' && activeDemarche && (
-        <div className="flex-1 overflow-y-auto p-4 space-y-5">
-          <button type="button" onClick={() => setActiveDemarche(null)} className="flex items-center space-x-1.5 text-[10px] font-bold text-white/40 hover:text-white transition cursor-pointer">
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Retour aux démarches</span>
-          </button>
-
-          <div className="flex items-center space-x-3">
-            <span className="text-3xl">{activeDemarche.icon}</span>
-            <div>
-              <h3 className="text-sm font-extrabold text-white">{activeDemarche.title}</h3>
-              {activeDemarche.assignedMemberName && (
-                <p className="text-[10px] text-white/40 flex items-center space-x-1 mt-0.5"><Users className="w-3 h-3" /><span>Assignée à {activeDemarche.assignedMemberName}</span></p>
-              )}
-            </div>
-          </div>
-
-          {activeDemarche.notes && (
-            <div className="p-3 rounded-xl bg-[#FFB020]/10 border border-[#FFB020]/20 text-[10px] text-[#FFB020] font-medium">📝 {activeDemarche.notes}</div>
-          )}
-
-          {/* Steps checklist */}
-          <div className="space-y-2">
-            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Étapes</span>
-            {activeDemarche.steps.map((step, idx) => (
-              <div key={step.id} className={`flex items-center space-x-3 p-3 rounded-xl border transition ${step.done ? 'bg-[#00D26A]/5 border-[#00D26A]/20' : 'bg-white/[0.02] border-white/5'}`}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const updated = { ...activeDemarche, steps: activeDemarche.steps.map(s => s.id === step.id ? { ...s, done: !s.done } : s) };
-                    const allDone = updated.steps.every(s => s.done);
-                    if (allDone) updated.status = 'completed';
-                    else if (updated.steps.some(s => s.done)) updated.status = 'in_progress';
-                    setActiveDemarche(updated);
-                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
-                  }}
-                  className="shrink-0 cursor-pointer"
-                >
-                  {step.done ? <CheckCircle2 className="w-5 h-5 text-[#00D26A]" /> : <div className="w-5 h-5 rounded-full border-2 border-white/20" />}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <span className={`text-xs font-medium ${step.done ? 'text-white/40 line-through' : 'text-white'}`}>{idx + 1}. {step.title}</span>
-                  {step.dueDate && <span className="text-[9px] text-[#FFB020] font-bold block mt-0.5">📅 Échéance : {step.dueDate}</span>}
-                </div>
-                {step.dueDate && !step.done && onAddEvent && (
-                  <button
-                    type="button"
-                    onClick={() => { onAddEvent(step.title, step.dueDate!); alert('📅 Ajouté au calendrier familial !'); }}
-                    className="p-1.5 bg-[#4F8CFF]/10 rounded-lg border border-[#4F8CFF]/20 text-[#4F8CFF] shrink-0 cursor-pointer hover:bg-[#4F8CFF]/20 transition"
-                    title="Ajouter au calendrier"
-                  >
-                    <Calendar className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Required pieces */}
-          <div className="space-y-2">
-            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Pièces requises</span>
-            {activeDemarche.pieces.map(piece => {
-              const color = piece.status === 'attached' ? '#00D26A' : piece.status === 'expired' ? '#FF4D6D' : '#FFB020';
-              const label = piece.status === 'attached' ? '✅ Fournie' : piece.status === 'expired' ? '⚠️ Expirée' : '❌ Manquante';
-              const linkedDoc = piece.documentId ? documents.find(d => d.id === piece.documentId) : null;
-              return (
-                <div key={piece.id} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5">
-                  <div className="flex items-center space-x-2.5 min-w-0">
-                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                    <div className="min-w-0">
-                      <span className="text-xs font-medium text-white block truncate">{piece.name}</span>
-                      {linkedDoc && <span className="text-[9px] text-white/30 block truncate">📎 {linkedDoc.name}</span>}
-                    </div>
-                  </div>
-                  <span className="text-[9px] font-bold shrink-0" style={{ color }}>{label}</span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Administrative Costs Section */}
-          <div className="glass-panel rounded-[24px] border border-white/8 p-4 space-y-4 text-xs">
-            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Coûts Administratifs & Paiement</span>
-            
-            {(() => {
-              const [costInput, setCostInput] = useState(activeDemarche.cost?.toString() || '');
-              const [receiptId, setReceiptId] = useState(activeDemarche.receiptDocId || '');
-              const isPaid = activeDemarche.isPaid || false;
-              
-              const handleUpdateCost = () => {
-                const amt = parseFloat(costInput);
-                if (isNaN(amt) || amt <= 0) return;
-                
-                const updated = { 
-                  ...activeDemarche, 
-                  cost: amt,
-                  receiptDocId: receiptId || undefined
-                };
-                setActiveDemarche(updated);
-                setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
-                alert('🔧 Coût de la démarche mis à jour !');
-              };
-              
-              const handleAddCostToBudget = () => {
-                const amt = parseFloat(costInput) || activeDemarche.cost || 0;
-                if (amt <= 0) {
-                  alert('Veuillez spécifier un coût valide.');
-                  return;
-                }
-                if (onAddTransaction) {
-                  onAddTransaction({
-                    amount: amt,
-                    type: 'expense',
-                    category: 'Administratif',
-                    subCategory: activeDemarche.title.toLowerCase().includes('passeport') ? 'Passeport' :
-                                 activeDemarche.title.toLowerCase().includes('visa') ? 'Visa' :
-                                 activeDemarche.title.toLowerCase().includes('carte') ? 'Carte identité' :
-                                 'Frais administratifs',
-                    date: new Date().toISOString().split('T')[0],
-                    title: `Frais admin : ${activeDemarche.title}`,
-                    memberName: activeDemarche.assignedMemberName || 'Foyer',
-                    moduleSource: 'demarches',
-                    comment: `Coût administratif pour la démarche ${activeDemarche.title}. Reçu lié: ${receiptId ? 'Oui' : 'Non'}`
-                  });
-                  
-                  // Mark as paid in demarches
-                  const updated = { ...activeDemarche, cost: amt, isPaid: true, receiptDocId: receiptId || undefined };
-                  setActiveDemarche(updated);
-                  setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
-                  
-                  alert('💰 Frais de démarche ajoutés au Budget avec succès !');
-                }
-              };
-              
-              return (
-                <div className="space-y-3 animate-fade-in">
-                  <div className="grid grid-cols-2 gap-3 text-left">
-                    <div>
-                      <label className="block text-[10px] font-semibold text-white/50 mb-1">Coût Estimé (€)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={costInput}
-                        onChange={(e) => setCostInput(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-semibold text-white/50 mb-1">Lier un Reçu / Justificatif</label>
-                      <select
-                        value={receiptId}
-                        onChange={(e) => setReceiptId(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
-                      >
-                        <option value="" className="bg-[#112240]">Aucun</option>
-                        {documents.map(d => (
-                          <option key={d.id} value={d.id} className="bg-[#112240]">{d.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={handleUpdateCost}
-                      className="flex-1 py-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-white font-bold"
-                    >
-                      Enregistrer
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleAddCostToBudget}
-                      disabled={isPaid}
-                      className={`flex-1 py-2 rounded-xl text-black font-extrabold transition ${isPaid ? 'bg-emerald-500/25 border border-emerald-500/20 text-emerald-400 cursor-not-allowed' : 'bg-[#FFB020] hover:bg-[#DFA015] cursor-pointer'}`}
-                    >
-                      {isPaid ? '✅ Payé & Enregistré' : '💰 Payer (Budget)'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Edit Demarche Info Form */}
-          <div className="glass-panel rounded-[24px] border border-white/8 p-4 space-y-3 text-xs text-left">
-            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Édition des Détails</span>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[10px] font-semibold text-white/50 mb-1">Titre de la démarche</label>
-                <input
-                  type="text"
-                  value={activeDemarche.title}
-                  onChange={(e) => {
-                    const updated = { ...activeDemarche, title: e.target.value };
-                    setActiveDemarche(updated);
-                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
-                  }}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-white/50 mb-1">Catégorie</label>
-                <select
-                  value={activeDemarche.category || 'Identité'}
-                  onChange={(e) => {
-                    const updated = { ...activeDemarche, category: e.target.value };
-                    setActiveDemarche(updated);
-                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
-                  }}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF] cursor-pointer"
-                >
-                  {['Identité', 'Famille', 'Santé', 'École', 'Logement', 'Travail', 'Voyage', 'Véhicules'].map(c => <option key={c} value={c} className="bg-[#07111F]">{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-white/50 mb-1">Date Limite (Échéance)</label>
-                <input
-                  type="date"
-                  value={activeDemarche.dueDate || ''}
-                  onChange={(e) => {
-                    const updated = { ...activeDemarche, dueDate: e.target.value };
-                    setActiveDemarche(updated);
-                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
-                  }}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-white/50 mb-1">Statut</label>
-                <select
-                  value={activeDemarche.status}
-                  onChange={(e) => {
-                    const updated = { ...activeDemarche, status: e.target.value as any };
-                    setActiveDemarche(updated);
-                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
-                  }}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none cursor-pointer"
-                >
-                  <option value="todo" className="bg-[#07111F]">À faire</option>
-                  <option value="in_progress" className="bg-[#07111F]">En cours</option>
-                  <option value="waiting" className="bg-[#07111F]">En attente</option>
-                  <option value="missing_docs" className="bg-[#07111F]">Documents manquants</option>
-                  <option value="payment_pending" className="bg-[#07111F]">Paiement en attente</option>
-                  <option value="completed" className="bg-[#07111F]">Terminée</option>
-                  <option value="archived" className="bg-[#07111F]">Archivée</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-white/50 mb-1">Coût Estimé (€)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={activeDemarche.costEstimated || ''}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value) || undefined;
-                    const updated = { ...activeDemarche, costEstimated: val };
-                    setActiveDemarche(updated);
-                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
-                  }}
-                  placeholder="0.00"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-white/50 mb-1">Coût Réel (€)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={activeDemarche.costReal || activeDemarche.cost || ''}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value) || undefined;
-                    const updated = { ...activeDemarche, costReal: val, cost: val };
-                    setActiveDemarche(updated);
-                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
-                  }}
-                  placeholder="0.00"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-white/50 mb-1">Récurrence</label>
-                <select
-                  value={activeDemarche.recurrence || 'none'}
-                  onChange={(e) => {
-                    const updated = { ...activeDemarche, recurrence: e.target.value === 'none' ? undefined : e.target.value };
-                    setActiveDemarche(updated);
-                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
-                  }}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none cursor-pointer"
-                >
-                  <option value="none" className="bg-[#07111F]">Aucune</option>
-                  <option value="1m" className="bg-[#07111F]">Mensuelle</option>
-                  <option value="1y" className="bg-[#07111F]">Annuelle</option>
-                  <option value="custom" className="bg-[#07111F]">Personnalisée</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-white/50 mb-1">Rappels (Jours avant échéance)</label>
-                <input
-                  type="text"
-                  placeholder="Ex: 7, 3, 1"
-                  value={activeDemarche.reminders?.join(', ') || ''}
-                  onChange={(e) => {
-                    const list = e.target.value.split(',').map(r => r.trim()).filter(Boolean);
-                    const updated = { ...activeDemarche, reminders: list };
-                    setActiveDemarche(updated);
-                    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
-                  }}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Delete demarche */}
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm('Supprimer cette démarche ?')) {
-                setDemarches(prev => prev.filter(d => d.id !== activeDemarche.id));
-                setActiveDemarche(null);
-              }
-            }}
-            className="w-full py-2.5 rounded-xl bg-[#FF4D6D]/10 border border-[#FF4D6D]/20 text-[#FF4D6D] text-xs font-bold cursor-pointer hover:bg-[#FF4D6D]/20 transition flex items-center justify-center space-x-1.5"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Supprimer la démarche</span>
-          </button>
-        </div>
+        <ActiveDemarcheDetail
+          key={activeDemarche.id}
+          activeDemarche={activeDemarche}
+          setActiveDemarche={setActiveDemarche}
+          setDemarches={setDemarches}
+          documents={documents}
+          onAddEvent={onAddEvent}
+          onAddTransaction={onAddTransaction}
+        />
       )}
 
       {/* ===================== PACKS VIEW ===================== */}
@@ -1751,6 +1430,353 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+interface ActiveDemarcheDetailProps {
+  activeDemarche: Demarche;
+  setActiveDemarche: React.Dispatch<React.SetStateAction<Demarche | null>>;
+  setDemarches: React.Dispatch<React.SetStateAction<Demarche[]>>;
+  documents: DocumentFile[];
+  onAddEvent?: (title: string, date: string) => void;
+  onAddTransaction?: (newTrans: any) => void;
+}
+
+const ActiveDemarcheDetail: React.FC<ActiveDemarcheDetailProps> = ({
+  activeDemarche,
+  setActiveDemarche,
+  setDemarches,
+  documents,
+  onAddEvent,
+  onAddTransaction
+}) => {
+  const [costInput, setCostInput] = useState(activeDemarche.cost?.toString() || '');
+  const [receiptId, setReceiptId] = useState(activeDemarche.receiptDocId || '');
+  const isPaid = activeDemarche.isPaid || false;
+
+  const handleUpdateCost = () => {
+    const amt = parseFloat(costInput);
+    if (isNaN(amt) || amt <= 0) return;
+    
+    const updated = { 
+      ...activeDemarche, 
+      cost: amt,
+      receiptDocId: receiptId || undefined
+    };
+    setActiveDemarche(updated);
+    setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+    alert('🔧 Coût de la démarche mis à jour !');
+  };
+
+  const handleAddCostToBudget = () => {
+    const amt = parseFloat(costInput) || activeDemarche.cost || 0;
+    if (amt <= 0) {
+      alert('Veuillez spécifier un coût valide.');
+      return;
+    }
+    if (onAddTransaction) {
+      onAddTransaction({
+        amount: amt,
+        type: 'expense',
+        category: 'Administratif',
+        subCategory: activeDemarche.title.toLowerCase().includes('passeport') ? 'Passeport' :
+                     activeDemarche.title.toLowerCase().includes('visa') ? 'Visa' :
+                     activeDemarche.title.toLowerCase().includes('carte') ? 'Carte identité' :
+                     'Frais administratifs',
+        date: new Date().toISOString().split('T')[0],
+        title: `Frais admin : ${activeDemarche.title}`,
+        memberName: activeDemarche.assignedMemberName || 'Foyer',
+        moduleSource: 'demarches',
+        comment: `Coût administratif pour la démarche ${activeDemarche.title}. Reçu lié: ${receiptId ? 'Oui' : 'Non'}`
+      });
+      
+      // Mark as paid in demarches
+      const updated = { ...activeDemarche, cost: amt, isPaid: true, receiptDocId: receiptId || undefined };
+      setActiveDemarche(updated);
+      setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+      
+      alert('💰 Frais de démarche ajoutés au Budget avec succès !');
+    }
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-5">
+      <button type="button" onClick={() => setActiveDemarche(null)} className="flex items-center space-x-1.5 text-[10px] font-bold text-white/40 hover:text-white transition cursor-pointer">
+        <ArrowLeft className="w-3.5 h-3.5" />
+        <span>Retour aux démarches</span>
+      </button>
+
+      <div className="flex items-center space-x-3">
+        <span className="text-3xl">{activeDemarche.icon}</span>
+        <div>
+          <h3 className="text-sm font-extrabold text-white">{activeDemarche.title}</h3>
+          {activeDemarche.assignedMemberName && (
+            <p className="text-[10px] text-white/40 flex items-center space-x-1 mt-0.5"><Users className="w-3 h-3" /><span>Assignée à {activeDemarche.assignedMemberName}</span></p>
+          )}
+        </div>
+      </div>
+
+      {activeDemarche.notes && (
+        <div className="p-3 rounded-xl bg-[#FFB020]/10 border border-[#FFB020]/20 text-[10px] text-[#FFB020] font-medium">📝 {activeDemarche.notes}</div>
+      )}
+
+      {/* Steps checklist */}
+      <div className="space-y-2">
+        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Étapes</span>
+        {activeDemarche.steps.map((step, idx) => (
+          <div key={step.id} className={`flex items-center space-x-3 p-3 rounded-xl border transition ${step.done ? 'bg-[#00D26A]/5 border-[#00D26A]/20' : 'bg-white/[0.02] border-white/5'}`}>
+            <button
+              type="button"
+              onClick={() => {
+                const updated = { ...activeDemarche, steps: activeDemarche.steps.map(s => s.id === step.id ? { ...s, done: !s.done } : s) };
+                const allDone = updated.steps.every(s => s.done);
+                if (allDone) updated.status = 'completed';
+                else if (updated.steps.some(s => s.done)) updated.status = 'in_progress';
+                setActiveDemarche(updated);
+                setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+              }}
+              className="shrink-0 cursor-pointer"
+            >
+              {step.done ? <CheckCircle2 className="w-5 h-5 text-[#00D26A]" /> : <div className="w-5 h-5 rounded-full border-2 border-white/20" />}
+            </button>
+            <div className="flex-1 min-w-0">
+              <span className={`text-xs font-medium ${step.done ? 'text-white/40 line-through' : 'text-white'}`}>{idx + 1}. {step.title}</span>
+              {step.dueDate && <span className="text-[9px] text-[#FFB020] font-bold block mt-0.5">📅 Échéance : {step.dueDate}</span>}
+            </div>
+            {step.dueDate && !step.done && onAddEvent && (
+              <button
+                type="button"
+                onClick={() => { onAddEvent(step.title, step.dueDate!); alert('📅 Ajouté au calendrier familial !'); }}
+                className="p-1.5 bg-[#4F8CFF]/10 rounded-lg border border-[#4F8CFF]/20 text-[#4F8CFF] shrink-0 cursor-pointer hover:bg-[#4F8CFF]/20 transition"
+                title="Ajouter au calendrier"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Required pieces */}
+      <div className="space-y-2">
+        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Pièces requises</span>
+        {activeDemarche.pieces.map(piece => {
+          const color = piece.status === 'attached' ? '#00D26A' : piece.status === 'expired' ? '#FF4D6D' : '#FFB020';
+          const label = piece.status === 'attached' ? '✅ Fournie' : piece.status === 'expired' ? '⚠️ Expirée' : '❌ Manquante';
+          const linkedDoc = piece.documentId ? documents.find(d => d.id === piece.documentId) : null;
+          return (
+            <div key={piece.id} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5">
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                <div className="min-w-0">
+                  <span className="text-xs font-medium text-white block truncate">{piece.name}</span>
+                  {linkedDoc && <span className="text-[9px] text-white/30 block truncate">📎 {linkedDoc.name}</span>}
+                </div>
+              </div>
+              <span className="text-[9px] font-bold shrink-0" style={{ color }}>{label}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Administrative Costs Section */}
+      <div className="glass-panel rounded-[24px] border border-white/8 p-4 space-y-4 text-xs">
+        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Coûts Administratifs & Paiement</span>
+        
+        <div className="space-y-3 animate-fade-in">
+          <div className="grid grid-cols-2 gap-3 text-left">
+            <div>
+              <label className="block text-[10px] font-semibold text-white/50 mb-1">Coût Estimé (€)</label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={costInput}
+                onChange={(e) => setCostInput(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-white/50 mb-1">Lier un Reçu / Justificatif</label>
+              <select
+                value={receiptId}
+                onChange={(e) => setReceiptId(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+              >
+                <option value="" className="bg-[#112240]">Aucun</option>
+                {documents.map(d => (
+                  <option key={d.id} value={d.id} className="bg-[#112240]">{d.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleUpdateCost}
+              className="flex-1 py-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-white font-bold"
+            >
+              Enregistrer
+            </button>
+            <button
+              type="button"
+              onClick={handleAddCostToBudget}
+              disabled={isPaid}
+              className={`flex-1 py-2 rounded-xl text-black font-extrabold transition ${isPaid ? 'bg-emerald-500/25 border border-emerald-500/20 text-emerald-400 cursor-not-allowed' : 'bg-[#FFB020] hover:bg-[#DFA015] cursor-pointer'}`}
+            >
+              {isPaid ? '✅ Payé & Enregistré' : '💰 Payer (Budget)'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Edit Demarche Info Form */}
+      <div className="glass-panel rounded-[24px] border border-white/8 p-4 space-y-3 text-xs text-left">
+        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Édition des Détails</span>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[10px] font-semibold text-white/50 mb-1">Titre de la démarche</label>
+            <input
+              type="text"
+              value={activeDemarche.title}
+              onChange={(e) => {
+                const updated = { ...activeDemarche, title: e.target.value };
+                setActiveDemarche(updated);
+                setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+              }}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-white/50 mb-1">Catégorie</label>
+            <select
+              value={activeDemarche.category || 'Identité'}
+              onChange={(e) => {
+                const updated = { ...activeDemarche, category: e.target.value };
+                setActiveDemarche(updated);
+                setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+              }}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF] cursor-pointer"
+            >
+              {['Identité', 'Famille', 'Santé', 'École', 'Logement', 'Travail', 'Voyage', 'Véhicules'].map(c => <option key={c} value={c} className="bg-[#07111F]">{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-white/50 mb-1">Date Limite (Échéance)</label>
+            <input
+              type="date"
+              value={activeDemarche.dueDate || ''}
+              onChange={(e) => {
+                const updated = { ...activeDemarche, dueDate: e.target.value };
+                setActiveDemarche(updated);
+                setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+              }}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-white/50 mb-1">Statut</label>
+            <select
+              value={activeDemarche.status}
+              onChange={(e) => {
+                const updated = { ...activeDemarche, status: e.target.value as any };
+                setActiveDemarche(updated);
+                setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+              }}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none cursor-pointer"
+            >
+              <option value="todo" className="bg-[#07111F]">À faire</option>
+              <option value="in_progress" className="bg-[#07111F]">En cours</option>
+              <option value="waiting" className="bg-[#07111F]">En attente</option>
+              <option value="missing_docs" className="bg-[#07111F]">Documents manquants</option>
+              <option value="payment_pending" className="bg-[#07111F]">Paiement en attente</option>
+              <option value="completed" className="bg-[#07111F]">Terminée</option>
+              <option value="archived" className="bg-[#07111F]">Archivée</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-white/50 mb-1">Coût Estimé (€)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={activeDemarche.costEstimated || ''}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || undefined;
+                const updated = { ...activeDemarche, costEstimated: val };
+                setActiveDemarche(updated);
+                setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+              }}
+              placeholder="0.00"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-white/50 mb-1">Coût Réel (€)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={activeDemarche.costReal || activeDemarche.cost || ''}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || undefined;
+                const updated = { ...activeDemarche, costReal: val, cost: val };
+                setActiveDemarche(updated);
+                setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+              }}
+              placeholder="0.00"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-white/50 mb-1">Récurrence</label>
+            <select
+              value={activeDemarche.recurrence || 'none'}
+              onChange={(e) => {
+                const updated = { ...activeDemarche, recurrence: e.target.value === 'none' ? undefined : e.target.value };
+                setActiveDemarche(updated);
+                setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+              }}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none cursor-pointer"
+            >
+              <option value="none" className="bg-[#07111F]">Aucune</option>
+              <option value="1m" className="bg-[#07111F]">Mensuelle</option>
+              <option value="1y" className="bg-[#07111F]">Annuelle</option>
+              <option value="custom" className="bg-[#07111F]">Personnalisée</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-white/50 mb-1">Rappels (Jours avant échéance)</label>
+            <input
+              type="text"
+              placeholder="Ex: 7, 3, 1"
+              value={activeDemarche.reminders?.join(', ') || ''}
+              onChange={(e) => {
+                const list = e.target.value.split(',').map(r => r.trim()).filter(Boolean);
+                const updated = { ...activeDemarche, reminders: list };
+                setActiveDemarche(updated);
+                setDemarches(prev => prev.map(d => d.id === updated.id ? updated : d));
+              }}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Delete demarche */}
+      <button
+        type="button"
+        onClick={() => {
+          if (window.confirm('Supprimer cette démarche ?')) {
+            setDemarches(prev => prev.filter(d => d.id !== activeDemarche.id));
+            setActiveDemarche(null);
+          }
+        }}
+        className="w-full py-2.5 rounded-xl bg-[#FF4D6D]/10 border border-[#FF4D6D]/20 text-[#FF4D6D] text-xs font-bold cursor-pointer hover:bg-[#FF4D6D]/20 transition flex items-center justify-center space-x-1.5"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+        <span>Supprimer la démarche</span>
+      </button>
     </div>
   );
 };

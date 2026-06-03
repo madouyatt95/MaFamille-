@@ -270,6 +270,9 @@ export interface Account {
   name: string;
   type: 'bank' | 'cash' | 'savings' | 'wallet';
   balance: number;
+  icon?: string;
+  color?: string;
+  initialBalance?: number;
 }
 
 export interface Abonnement {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Search, Palette, X, Pin, PinOff, Smile, Sparkles, Play, Pause, Archive, Download, FileText, Reply, Trash2 } from 'lucide-react';
+import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Search, Palette, X, Pin, PinOff, Smile, Sparkles, Play, Pause, Archive, Download, FileText, Reply, Trash2, MoreVertical } from 'lucide-react';
 import type { Member, ChatMessage, ChatGroup } from '../../types';
 import { foyerService } from '../../services/foyerService';
 import { getSupabaseClient } from '../../utils/supabase';
@@ -185,6 +185,17 @@ export const Messagerie: React.FC<MessagerieProps> = ({
       return [];
     }
   });
+
+  const [hiddenGroupIds, setHiddenGroupIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(`mf_hidden_groups_${activeMemberId}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [showGroupMenu, setShowGroupMenu] = useState(false);
 
   const [deletedMessageIds, setDeletedMessageIds] = useState<string[]>(() => {
     try {
@@ -897,6 +908,7 @@ Demande de l'utilisateur : "${userText}"`;
   });
 
   const visibleGroups = groups.filter(g => {
+    if (hiddenGroupIds.includes(g.id)) return false;
     if (!g.isPrivate) return true;
     return g.memberIds.includes(activeMemberId);
   });
@@ -1110,13 +1122,110 @@ Demande de l'utilisateur : "${userText}"`;
           </div>
         </div>
 
-        <button
-          onClick={() => { setShowMsgSearch(!showMsgSearch); if (showMsgSearch) setMessageSearchQuery(''); }}
-          className={`p-2 hover:bg-white/10 rounded-full transition-colors ${showMsgSearch ? 'text-[#00D26A]' : 'text-white/60'}`}
-          title="Rechercher"
-        >
-          <Search className="w-5 h-5" />
-        </button>
+        <div className="flex items-center space-x-1">
+          <button
+            onClick={() => { setShowMsgSearch(!showMsgSearch); if (showMsgSearch) setMessageSearchQuery(''); }}
+            className={`p-2 hover:bg-white/10 rounded-full transition-colors ${showMsgSearch ? 'text-[#00D26A]' : 'text-white/60'}`}
+            title="Rechercher"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+          
+          <div className="relative">
+            <button
+              onClick={() => setShowGroupMenu(!showGroupMenu)}
+              className={`p-2 hover:bg-white/10 rounded-full transition-colors ${showGroupMenu ? 'text-white' : 'text-white/60'}`}
+              title="Options de discussion"
+            >
+              <MoreVertical className="w-5 h-5" />
+            </button>
+            
+            {showGroupMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-[#0F1626]/95 border border-white/10 rounded-2xl shadow-2xl py-2 z-50 text-xs text-left animate-fade-in backdrop-blur-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowGroupMenu(false);
+                    if (window.confirm("Masquer cette discussion de votre liste ?")) {
+                      const next = [...hiddenGroupIds, activeGroupId!];
+                      setHiddenGroupIds(next);
+                      localStorage.setItem(`mf_hidden_groups_${activeMemberId}`, JSON.stringify(next));
+                      setActiveGroupId(null);
+                    }
+                  }}
+                  className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-white/80 transition cursor-pointer"
+                >
+                  Supprimer pour moi
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowGroupMenu(false);
+                    const isArchived = archivedGroupIds.includes(activeGroupId!);
+                    const next = isArchived 
+                      ? archivedGroupIds.filter(id => id !== activeGroupId)
+                      : [...archivedGroupIds, activeGroupId!];
+                    setArchivedGroupIds(next);
+                    localStorage.setItem(`archived_groups_${activeMemberId}`, JSON.stringify(next));
+                    alert(isArchived ? "Discussion désarchivée." : "Discussion archivée.");
+                    setActiveGroupId(null);
+                  }}
+                  className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-white/80 transition cursor-pointer"
+                >
+                  {archivedGroupIds.includes(activeGroupId!) ? 'Désarchiver' : 'Archiver la discussion'}
+                </button>
+
+                {activeGroupId !== 'g_ai_assistant' && activeGroup && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowGroupMenu(false);
+                      if (window.confirm("Quitter ce groupe de discussion ?")) {
+                        const updated = {
+                          ...activeGroup,
+                          memberIds: activeGroup.memberIds.filter(id => id !== activeMemberId)
+                        };
+                        setGroups(prev => prev.map(g => g.id === activeGroup.id ? updated : g));
+                        saveGroupToCloud(updated);
+                        setActiveGroupId(null);
+                      }
+                    }}
+                    className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-amber-400 transition cursor-pointer"
+                  >
+                    Quitter le groupe
+                  </button>
+                )}
+
+                {activeGroupId !== 'g_ai_assistant' && activeGroup && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setShowGroupMenu(false);
+                      if (window.confirm("Supprimer COMPLÈTEMENT ce groupe et tous ses messages pour TOUTE la famille ? Cette action est irréversible.")) {
+                        const client = getSupabaseClient();
+                        const foyerId = localStorage.getItem('mf_cloud_foyer_id');
+                        if (client && foyerId) {
+                          try {
+                            await client.from('chat_groups').delete().eq('id', activeGroup.id);
+                            await client.from('chat_messages').delete().eq('group_id', activeGroup.id);
+                          } catch (err) {
+                            console.error("Error deleting group from Supabase:", err);
+                          }
+                        }
+                        setGroups(prev => prev.filter(g => g.id !== activeGroup.id));
+                        setActiveGroupId(null);
+                      }
+                    }}
+                    className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-red-500 font-bold border-t border-white/5 transition cursor-pointer"
+                  >
+                    Supprimer le groupe
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Message Search Bar */}

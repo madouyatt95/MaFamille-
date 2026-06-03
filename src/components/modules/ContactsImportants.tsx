@@ -39,11 +39,9 @@ const CATEGORIES = [
   { id: 'other', label: '💡 Autres', icon: HelpCircle, color: 'text-slate-400' }
 ];
 
-interface ContactsImportantsProps {
-  onTriggerSos?: () => void;
-}
+interface ContactsImportantsProps {}
 
-export const ContactsImportants: React.FC<ContactsImportantsProps> = ({ onTriggerSos }) => {
+export const ContactsImportants: React.FC<ContactsImportantsProps> = () => {
   const [contacts, setContacts] = useState<ImportantContact[]>(() => {
     const saved = localStorage.getItem('mf_important_contacts');
     if (saved) return JSON.parse(saved);
@@ -202,16 +200,7 @@ export const ContactsImportants: React.FC<ContactsImportantsProps> = ({ onTrigge
         </button>
       </div>
 
-      {/* Grand Bouton SOS d'Urgence Clignotant */}
-      {onTriggerSos && (
-        <button
-          onClick={onTriggerSos}
-          className="w-full py-4.5 bg-gradient-to-r from-red-600 via-rose-500 to-red-600 hover:from-red-500 hover:to-rose-500 text-white rounded-[24px] text-xs font-black tracking-widest uppercase flex items-center justify-center space-x-2.5 shadow-[0_8px_30px_rgba(239,68,68,0.3)] active:scale-95 transition-all cursor-pointer animate-pulse border border-red-500/30"
-        >
-          <ShieldAlert className="w-5 h-5 text-white" />
-          <span>⚠️ Déclencher l'Alerte SOS d'Urgence Globale 🚨</span>
-        </button>
-      )}
+
 
       {/* Formulaire d'ajout rapide */}
       {showAddForm && (
@@ -318,7 +307,7 @@ export const ContactsImportants: React.FC<ContactsImportantsProps> = ({ onTrigge
               className="w-4 h-4 rounded text-[#6C5CFF] focus:ring-0"
             />
             <label htmlFor="isUrgent" className="text-xs font-bold text-white select-none cursor-pointer flex items-center space-x-1">
-              <span>🚨 Afficher dans l'Overlay SOS d'urgence global</span>
+              <span>🚨 Afficher dans l'Overlay d'urgence global</span>
             </label>
           </div>
 
@@ -397,7 +386,7 @@ export const ContactsImportants: React.FC<ContactsImportantsProps> = ({ onTrigge
                     <h4 className="text-xs sm:text-sm font-bold text-white truncate">{contact.name}</h4>
                     {contact.isUrgent && (
                       <span className="text-[7.5px] font-black uppercase text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded-full tracking-wider animate-pulse">
-                        SOS
+                        URGENT
                       </span>
                     )}
                   </div>

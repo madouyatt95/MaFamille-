@@ -231,28 +231,6 @@ export const demarcheTemplates: DemarcheTemplate[] = [
     ],
     defaultCost: 500
   },
-  {
-    id: 'tpl-adoption',
-    name: 'Agrément en vue d\'Adoption',
-    icon: '👪',
-    category: 'Famille',
-    description: 'Demande d\'agrément auprès du Conseil Départemental.',
-    defaultSteps: [
-      { title: 'Envoyer une lettre d\'intention au Conseil Départemental' },
-      { title: 'Participer aux réunions d\'information obligatoires' },
-      { title: 'Déposer le dossier officiel de demande d\'agrément' },
-      { title: 'Passer les entretiens psychologiques et sociaux' },
-      { title: 'Attendre la décision de la commission d\'agrément' }
-    ],
-    defaultPieces: [
-      { name: 'Copie intégrale de l\'acte de naissance du demandeur', autoAttachTags: ['acte', 'naissance'] },
-      { name: 'Extrait de casier judiciaire (bulletin n°3)', autoAttachTags: ['casier', 'judiciaire'] },
-      { name: 'Certificat médical d\'aptitude à l\'adoption', autoAttachTags: ['certificat', 'medical', 'sante'] },
-      { name: 'Justificatifs de ressources (impôts, salaire)', autoAttachTags: ['impots', 'salaire'] }
-    ],
-    defaultCost: 0
-  },
-
   // SANTÉ
   {
     id: 'tpl-carte-vitale',
