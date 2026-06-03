@@ -233,7 +233,7 @@ export const notificationService = {
         localStorage.setItem('mf_fcm_token', token);
 
         // 6. Écouter les messages reçus lorsque l'application est au premier plan (Foreground)
-        onMessage(messaging, (payload) => {
+        onMessage(messaging, (payload: any) => {
           console.log('[FCM] Message reçu au premier plan :', payload);
           if (onMessageReceived) {
             onMessageReceived(payload);
