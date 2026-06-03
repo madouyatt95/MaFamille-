@@ -15,6 +15,7 @@ import {
   Sparkles,
   Edit3
 } from 'lucide-react';
+import { getSupabaseClient } from '../../utils/supabase';
 import type { SchoolTask } from '../../types';
 import { aiQuotaService } from '../../services/aiQuotaService';
 
@@ -91,9 +92,13 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   const [editTaskDifficulty, setEditTaskDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [editTaskAssigneeId, setEditTaskAssigneeId] = useState('');
 
-  const handleDeleteHomework = (id: string) => {
+  const handleDeleteHomework = async (id: string) => {
     if (window.confirm("Voulez-vous vraiment supprimer ce devoir ?")) {
       setSchoolTasks(prev => prev.filter(t => t.id !== id));
+      const client = getSupabaseClient();
+      if (client) {
+        await client.from('school_tasks').delete().eq('id', id);
+      }
       alert("Devoir supprimé avec succès.");
     }
   };

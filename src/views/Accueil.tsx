@@ -129,6 +129,7 @@ interface AccueilProps {
   abonnements?: any[];
   vaccines?: any[];
   savingGoals?: any[];
+  pets?: any[];
 }
 
 export const Accueil: React.FC<AccueilProps> = ({
@@ -161,7 +162,8 @@ export const Accueil: React.FC<AccueilProps> = ({
   maintenance = [],
   abonnements = [],
   vaccines = [],
-  savingGoals: _savingGoals = []
+  savingGoals: _savingGoals = [],
+  pets = []
 }) => {
   const [selectedMealDay, setSelectedMealDay] = useState<string>('Lun');
 
@@ -459,6 +461,36 @@ export const Accueil: React.FC<AccueilProps> = ({
     };
   });
 
+  const petsUnified: any[] = [];
+  (pets || []).forEach(p => {
+    if (p.nextVaccine) {
+      petsUnified.push({
+        id: `pet-vac-${p.id}`,
+        title: `🐱 Vaccin de ${p.name}`,
+        type: 'pet_vac',
+        date: p.nextVaccine,
+        time: '10:00',
+        description: `Vaccin de rappel pour ${p.name} (${p.species})`,
+        iconType: 'medical',
+        done: false,
+        sourceModule: 'animaux'
+      });
+    }
+    if (p.vetAppointment) {
+      petsUnified.push({
+        id: `pet-vet-${p.id}`,
+        title: `🏥 RDV Vétérinaire : ${p.name}`,
+        type: 'pet_vet',
+        date: p.vetAppointment,
+        time: '14:00',
+        description: `Rendez-vous vétérinaire pour ${p.name}`,
+        iconType: 'medical',
+        done: false,
+        sourceModule: 'animaux'
+      });
+    }
+  });
+
   const abonnementsUnified = abonnements.map(a => ({
     id: `abonnement-${a.id}`,
     title: `Abonnement : ${a.name}`,
@@ -583,6 +615,7 @@ export const Accueil: React.FC<AccueilProps> = ({
     ...schoolTasksUnified,
     ...tasksUnified,
     ...vaccinesUnified,
+    ...petsUnified,
     ...abonnementsUnified,
     ...vehiclesUnified,
     ...maintenanceUnified,
@@ -627,6 +660,8 @@ export const Accueil: React.FC<AccueilProps> = ({
       case 'task':
         return { Icon: Brush, cls: 'bg-[#00D26A]/10 text-[#00D26A] border-[#00D26A]/20' };
       case 'vaccine':
+      case 'pet_vac':
+      case 'pet_vet':
         return { Icon: HeartPulse, cls: 'bg-red-500/10 text-red-400 border-red-500/20' };
       case 'abonnement':
         return { Icon: RefreshCw, cls: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' };

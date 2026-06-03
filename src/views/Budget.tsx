@@ -558,8 +558,19 @@ export const Budget: React.FC<BudgetProps> = ({
     const accountsTotal = accounts.reduce((acc, a) => acc + a.balance, 0);
     const savingsTotal = savingGoals.reduce((acc, g) => acc + g.currentAmount, 0);
 
-    // Sum abonnements for upcoming billing this month
-    const upcomingAboCost = abonnements.reduce((acc, a) => acc + a.amount, 0);
+    // Sum abonnements and monthly equivalent of recurring transactions
+    const recurringTxCost = transactions
+      .filter(t => t.recurrence && t.recurrence !== 'none')
+      .reduce((acc, t) => {
+        if (t.type === 'expense') {
+          if (t.recurrence === 'daily') return acc + t.amount * 30;
+          if (t.recurrence === 'weekly') return acc + t.amount * 4.33;
+          if (t.recurrence === 'monthly') return acc + t.amount;
+          if (t.recurrence === 'yearly') return acc + t.amount / 12;
+        }
+        return acc;
+      }, 0);
+    const upcomingAboCost = abonnements.reduce((acc, a) => acc + a.amount, 0) + recurringTxCost;
 
     // Alert calculation
     const budgetAlerts: string[] = [];
@@ -583,7 +594,45 @@ export const Budget: React.FC<BudgetProps> = ({
       depensesAVenir: upcomingAboCost,
       alerts: budgetAlerts
     };
-  }, [activeTransactions, accounts, savingGoals, abonnements, allCategories]);
+  }, [activeTransactions, accounts, savingGoals, abonnements, allCategories, transactions]);
+
+  const prelevementsAVenir = useMemo(() => {
+    const list: any[] = [];
+    
+    abonnements.forEach(a => {
+      list.push({
+        id: `abo-${a.id}`,
+        name: a.name,
+        amount: a.amount,
+        accountId: undefined,
+        category: a.category || 'Abonnements',
+        nextDate: a.nextBillingDate,
+        frequency: a.period === 'monthly' ? 'Mensuel' : a.period === 'yearly' ? 'Annuel' : a.period === 'weekly' ? 'Hebdomadaire' : a.period,
+        moduleSource: 'budget'
+      });
+    });
+
+    transactions.forEach(t => {
+      if (t.recurrence && t.recurrence !== 'none') {
+        list.push({
+          id: `tx-rec-${t.id}`,
+          name: t.title,
+          amount: t.amount,
+          accountId: t.accountId,
+          category: t.category,
+          nextDate: t.nextOccurrence || t.date,
+          frequency: t.recurrence === 'monthly' ? 'Mensuel' : t.recurrence === 'yearly' ? 'Annuel' : t.recurrence === 'weekly' ? 'Hebdomadaire' : t.recurrence === 'daily' ? 'Quotidien' : t.recurrence,
+          moduleSource: t.moduleSource || 'budget'
+        });
+      }
+    });
+
+    return list.sort((a, b) => {
+      if (!a.nextDate) return 1;
+      if (!b.nextDate) return -1;
+      return a.nextDate.localeCompare(b.nextDate);
+    });
+  }, [abonnements, transactions]);
 
   // Filters
   const filteredTransactions = useMemo(() => {
@@ -1124,19 +1173,35 @@ export const Budget: React.FC<BudgetProps> = ({
             <div className="glass-panel border border-white/5 p-5 rounded-3xl space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider">Prélèvements à venir</h3>
-                <span className="text-[10px] font-bold text-purple-400">{formatMoney(stats.depensesAVenir)} / mois</span>
+                <span className="text-[10px] font-bold text-rose-400">{formatMoney(stats.depensesAVenir)} / mois</span>
               </div>
-              <div className="space-y-2">
-                {abonnements.slice(0, 3).map(ab => (
-                  <div key={ab.id} className="flex justify-between items-center text-xs p-2.5 bg-white/2 rounded-xl border border-white/5">
-                    <div>
-                      <p className="font-bold text-white">{ab.name}</p>
-                      <p className="text-[9px] text-white/40">Échéance: {ab.nextBillingDate}</p>
+              <div className="space-y-2.5 max-h-[190px] overflow-y-auto no-scrollbar">
+                {prelevementsAVenir.map(item => {
+                  const accountName = accounts.find(a => a.id === item.accountId)?.name || 'Non spécifié';
+                  return (
+                    <div key={item.id} className="flex flex-col space-y-1 p-2.5 bg-white/2 rounded-xl border border-white/5 text-[11px] hover:bg-white/5 transition-all">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-bold text-white flex items-center gap-1">
+                            {item.moduleSource === 'budget' ? '🔄' : '🌐'} {item.name}
+                          </p>
+                          <p className="text-[9px] text-white/40 mt-0.5">
+                            Catégorie: {item.category} • Compte: {accountName}
+                          </p>
+                        </div>
+                        <span className="font-black text-rose-300">-{formatMoney(item.amount)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[8.5px] text-white/30 pt-1 border-t border-white/5 font-bold uppercase tracking-wider">
+                        <span>Échéance: {item.nextDate ? new Date(item.nextDate).toLocaleDateString('fr-FR') : '--'}</span>
+                        <div className="flex items-center gap-1">
+                          <span className="px-1 py-0.2 rounded bg-white/5 text-white/60">{item.frequency}</span>
+                          <span className="px-1 py-0.2 rounded bg-purple-500/10 text-purple-400 border border-purple-500/10">{item.moduleSource}</span>
+                        </div>
+                      </div>
                     </div>
-                    <span className="font-black text-rose-300">-{formatMoney(ab.amount)}</span>
-                  </div>
-                ))}
-                {abonnements.length === 0 && <p className="text-xs text-white/30 italic">Aucun abonnement en cours.</p>}
+                  );
+                })}
+                {prelevementsAVenir.length === 0 && <p className="text-xs text-white/30 italic">Aucun prélèvement prévu.</p>}
               </div>
             </div>
 

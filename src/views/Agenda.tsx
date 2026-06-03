@@ -34,6 +34,7 @@ interface AgendaProps {
   vehicles?: any[];
   maintenance?: any[];
   abonnements?: any[];
+  pets?: any[];
 }
 
 export interface CalendarSource {
@@ -60,7 +61,8 @@ export const Agenda: React.FC<AgendaProps> = ({
   demarches = [],
   vehicles = [],
   maintenance = [],
-  abonnements = []
+  abonnements = [],
+  pets = []
 }) => {
   const getLocalDateString = (d: Date = new Date()) => {
     const year = d.getFullYear();
@@ -354,13 +356,43 @@ export const Agenda: React.FC<AgendaProps> = ({
       sourceModule: 'logement'
     }));
 
-    const aboEvs = abonnements.map((a: any) => ({
+    const petEvs: any[] = [];
+    (pets || []).forEach((p: any) => {
+      if (p.nextVaccine) {
+        petEvs.push({
+          id: `pet-vac-${p.id}`,
+          title: `🐾 Vaccin de ${p.name}`,
+          dateTime: `${p.nextVaccine}T10:00:00`,
+          time: '10:00',
+          type: 'medical' as EventType,
+          memberId: 'Foyer',
+          notes: `Vaccin pour ${p.name} (${p.species})`,
+          done: false,
+          sourceModule: 'animaux'
+        });
+      }
+      if (p.vetAppointment) {
+        petEvs.push({
+          id: `pet-vet-${p.id}`,
+          title: `🏥 RDV Vétérinaire : ${p.name}`,
+          dateTime: `${p.vetAppointment}T14:00:00`,
+          time: '14:00',
+          type: 'medical' as EventType,
+          memberId: 'Foyer',
+          notes: `RDV vétérinaire pour ${p.name}`,
+          done: false,
+          sourceModule: 'animaux'
+        });
+      }
+    });
+
+    const aboEvs = (abonnements || []).map((a: any) => ({
       id: `abo-${a.id}`,
-      title: `🔄 Abonnement : ${a.name}`,
-      dateTime: `${a.nextBillingDate}T08:00:00`,
+      title: `💸 Prélèvement : ${a.name}`,
+      dateTime: `${a.nextBillingDate || getLocalDateString()}T08:00:00`,
       time: '08:00',
       type: 'bill' as EventType,
-      notes: `Montant : ${a.amount}€`,
+      notes: `Montant : ${a.amount}€ (${a.period === 'monthly' ? 'Mensuel' : a.period === 'yearly' ? 'Annuel' : a.period === 'weekly' ? 'Hebdomadaire' : a.period})`,
       done: false,
       sourceModule: 'budget'
     }));
@@ -375,9 +407,10 @@ export const Agenda: React.FC<AgendaProps> = ({
       ...demEvs,
       ...vehEvs,
       ...maintEvs,
-      ...aboEvs
+      ...aboEvs,
+      ...petEvs
     ];
-  }, [events, mappedExternalEvents, isChild, activeMemberId, trips, vaccines, schoolTasks, tasks, demarches, vehicles, maintenance, abonnements]);
+  }, [events, mappedExternalEvents, isChild, activeMemberId, trips, vaccines, schoolTasks, tasks, demarches, vehicles, maintenance, abonnements, pets]);
 
   const calendarCells = useMemo(() => {
     const cells = [];

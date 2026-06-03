@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { parseSmartNaturalSentence } from './utils/groceryParser';
@@ -92,7 +92,7 @@ import { QuickActionsSheet } from './components/QuickActionsSheet';
 // Views imports
 import { Accueil } from './views/Accueil';
 import { Agenda } from './views/Agenda';
-import { Budget } from './views/Budget';
+import { Budget, DEFAULT_CATEGORIES } from './views/Budget';
 import { MenuHub } from './views/MenuHub';
 import { Settings } from './views/Settings';
 import { Membres } from './views/Membres';
@@ -222,7 +222,8 @@ function App() {
   });
 
   const [events, setEvents] = useState<FamilyEvent[]>(() => {
-    return safeGetLocalStorage('mf_events', []);
+    const loaded = safeGetLocalStorage('mf_events', []);
+    return loaded.filter((e: any) => !['e1', 'e2', 'e3', 'e4', 'e5', 'e6'].includes(e.id));
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
@@ -376,9 +377,119 @@ function App() {
   }, [schedule]);
 
 
-  const [vaccines, setVaccines] = useState<any[]>(() => {
-    return safeGetLocalStorage('mf_vaccines', []);
-  });
+  const vaccines = useMemo(() => {
+    return events
+      .filter(e => e.type === 'vaccine')
+      .map(e => ({
+        id: e.id,
+        memberId: e.memberId || '1',
+        name: e.title,
+        date: e.dateTime ? e.dateTime.split('T')[0] : '',
+        status: e.done ? 'Fait' : 'À faire',
+        doctor: e.description || 'Médecin traitant'
+      }));
+  }, [events]);
+
+  const setVaccines = async (actionOrUpdater: any) => {
+    let nextVaccines: any[] = [];
+    const currentVaccines = events
+      .filter(e => e.type === 'vaccine')
+      .map(e => ({
+        id: e.id,
+        memberId: e.memberId || '1',
+        name: e.title,
+        date: e.dateTime ? e.dateTime.split('T')[0] : '',
+        status: e.done ? 'Fait' : 'À faire',
+        doctor: e.description || 'Médecin traitant'
+      }));
+
+    if (typeof actionOrUpdater === 'function') {
+      nextVaccines = actionOrUpdater(currentVaccines);
+    } else {
+      nextVaccines = actionOrUpdater;
+    }
+
+    nextVaccines = nextVaccines.filter(v => !['v1', 'v2', 'v3', 'v4'].includes(v.id));
+
+    const added = nextVaccines.filter((nv: any) => !currentVaccines.some((cv: any) => cv.id === nv.id));
+    const deleted = currentVaccines.filter((cv: any) => !nextVaccines.some((nv: any) => nv.id === cv.id));
+    const updated = nextVaccines.filter((nv: any) => {
+      const cv = currentVaccines.find((c: any) => c.id === nv.id);
+      return cv && (cv.status !== nv.status || cv.date !== nv.date || cv.name !== nv.name || cv.doctor !== nv.doctor);
+    });
+
+    const client = getSupabaseClient();
+
+    for (const v of added) {
+      const newEvent: FamilyEvent = {
+        id: v.id,
+        title: v.name,
+        type: 'vaccine',
+        dateTime: `${v.date}T10:00:00`,
+        time: '10:00',
+        memberId: v.memberId,
+        memberName: members.find(m => m.id === v.memberId)?.name || 'Membre',
+        done: v.status === 'Fait',
+        description: v.doctor
+      };
+      setEvents(prev => [newEvent, ...prev]);
+      if (client && foyer) {
+        try {
+          await client.from('events').insert({
+            id: newEvent.id,
+            foyer_id: foyer.id,
+            title: newEvent.title,
+            type: newEvent.type,
+            date_time: newEvent.dateTime,
+            time: newEvent.time,
+            member_id: newEvent.memberId,
+            member_name: newEvent.memberName,
+            description: newEvent.description,
+            done: newEvent.done
+          });
+        } catch (err) {
+          console.error("Error inserting vaccine event:", err);
+        }
+      }
+    }
+
+    for (const v of deleted) {
+      setEvents(prev => prev.filter(e => e.id !== v.id));
+      if (client && foyer) {
+        try {
+          await client.from('events').delete().eq('foyer_id', foyer.id).eq('id', v.id);
+        } catch (err) {
+          console.error("Error deleting vaccine event:", err);
+        }
+      }
+    }
+
+    for (const v of updated) {
+      setEvents(prev => prev.map(e => e.id === v.id ? {
+        ...e,
+        title: v.name,
+        dateTime: `${v.date}T10:00:00`,
+        memberId: v.memberId,
+        memberName: members.find(m => m.id === v.memberId)?.name || 'Membre',
+        done: v.status === 'Fait',
+        description: v.doctor
+      } : e));
+      if (client && foyer) {
+        try {
+          await client.from('events').update({
+            title: v.name,
+            date_time: `${v.date}T10:00:00`,
+            member_id: v.memberId,
+            member_name: members.find(m => m.id === v.memberId)?.name || 'Membre',
+            done: v.status === 'Fait',
+            description: v.doctor
+          }).eq('foyer_id', foyer.id).eq('id', v.id);
+        } catch (err) {
+          console.error("Error updating vaccine event:", err);
+        }
+      }
+    }
+  };
 
   const [memberMoods, setMemberMoods] = useState<Record<string, string>>(() => {
     return safeGetLocalStorage('mf_moods', { '1': '☀️', '2': '☀️', '3': '🌈', '4': '☁️' });
@@ -395,6 +506,12 @@ function App() {
   const [deletedAlertIds, setDeletedAlertIds] = useState<string[]>(() => {
     try {
       const key = `mf_deleted_alerts_${activeMemberId}`;
+      return JSON.parse(localStorage.getItem(key) || '[]');
+    } catch { return []; }
+  });
+  const [readAlertIds, setReadAlertIds] = useState<string[]>(() => {
+    try {
+      const key = `mf_read_alerts_${activeMemberId}`;
       return JSON.parse(localStorage.getItem(key) || '[]');
     } catch { return []; }
   });
@@ -3014,7 +3131,7 @@ function App() {
         description: e.description || null,
         done: e.done,
         amount: e.amount || null
-      }));
+      }), true);
 
       // Groceries
       await syncTable('groceries', groceries, g => ({
@@ -3028,7 +3145,7 @@ function App() {
         meal: g.meal || null,
         added_by: g.addedBy || 'Foyer',
         is_favorite: g.isFavorite
-      }));
+      }), true);
 
 
       // Transactions
@@ -3051,7 +3168,7 @@ function App() {
         is_archived: !!t.isArchived,
         recurrence: t.recurrence || 'none',
         subscription_id: t.subscriptionId || null
-      }));
+      }), true);
 
       // Documents
       await syncTable('documents', documents, d => ({
@@ -3070,7 +3187,7 @@ function App() {
         description: d.description || null,
         file_base64: d.fileBase64 || null,
         is_secure: d.isSecure
-      }));
+      }), true);
 
       // Dishes
       await syncTable('dishes', dishes, d => ({
@@ -3081,7 +3198,7 @@ function App() {
         name: d.name,
         image: d.image,
         ingredients: d.ingredients || []
-      }));
+      }), true);
 
       // Chore tasks
       await syncTable('chore_tasks', tasks, t => ({
@@ -3096,7 +3213,7 @@ function App() {
         validated_by_parent: t.validatedByParent,
         due_date: t.dueDate || null,
         reward_amount: t.rewardAmount || null
-      }));
+      }), true);
 
       // Saving Goals
       await syncTable('saving_goals', savingGoals, s => ({
@@ -3108,7 +3225,7 @@ function App() {
         target_date: s.targetDate,
         category: s.category,
         contributions: s.contributions ? JSON.stringify(s.contributions) : null
-      }));
+      }), true);
 
       // Alerts
       await syncTable('alerts', alerts, a => ({
@@ -3120,7 +3237,7 @@ function App() {
         type: a.type,
         read: a.read,
         module: a.module || null
-      }), false);
+      }), true);
 
 
       // Votes
@@ -3132,7 +3249,7 @@ function App() {
         author_name: v.authorName,
         active: v.active,
         due_date: v.dueDate
-      }), false);
+      }), true);
 
       // School tasks
       await syncTable('school_tasks', schoolTasks, s => ({
@@ -3145,7 +3262,7 @@ function App() {
         assigned_member_id: s.assignedMemberId || null,
         difficulty: s.difficulty,
         grade: s.grade || null
-      }), false);
+      }), true);
 
       // Chat groups
       await syncTable('chat_groups', chatGroups, c => ({
@@ -3157,7 +3274,7 @@ function App() {
         last_message: c.lastMessage || null,
         last_message_time: c.lastMessageTime || null,
         unread_count: c.unreadCount || 0
-      }), false);
+      }), true);
 
       // Chat messages
       await syncTable('chat_messages', chatMessages, c => ({
@@ -3171,7 +3288,7 @@ function App() {
         timestamp: c.timestamp,
         read_by: c.readBy || [],
         reactions: c.reactions || []
-      }), false);
+      }), true);
 
       // Demarches
       await syncTable('demarches', demarches, d => ({
@@ -3187,7 +3304,7 @@ function App() {
         pieces: d.pieces,
         created_at_text: d.createdAt,
         notes: d.notes || null
-      }));
+      }), true);
 
       // Packs
       await syncTable('justificatif_packs', justificatifPacks, p => ({
@@ -3197,7 +3314,7 @@ function App() {
         template_type: p.templateType,
         document_ids: p.documentIds || [],
         created_at_text: p.createdAt
-      }));
+      }), true);
 
       // Vehicles
       await syncTable('vehicles', vehicles, v => ({
@@ -3210,7 +3327,7 @@ function App() {
         last_service: v.lastService || null,
         next_service: v.nextService || null,
         mileage: v.mileage || 0
-      }));
+      }), true);
 
       // Maintenance
       await syncTable('maintenance', maintenance, m => ({
@@ -3221,7 +3338,7 @@ function App() {
         cost: m.cost || 0,
         status: m.status || 'scheduled',
         provider: m.provider || null
-      }));
+      }), true);
 
       // Trips
       await syncTable('trips', trips, t => ({
@@ -3233,7 +3350,7 @@ function App() {
         budget: t.budget || 0,
         checklist: t.checklist || [],
         booking_refs: t.bookingRefs || []
-      }));
+      }), true);
 
       // Pets
       await syncTable('pets', pets, p => ({
@@ -3247,7 +3364,7 @@ function App() {
         notes: p.notes || null,
         weight_history: p.weightHistory || [],
         document_ids: p.documentIds || []
-      }));
+      }), true);
 
       // Pocket Money
       await syncTable('pocket_money', pocketMoney, p => ({
@@ -3259,7 +3376,7 @@ function App() {
         avatar: p.avatar || null,
         goal_title: p.goalTitle || null,
         goal_amount: p.goalAmount || null
-      }));
+      }), true);
 
       // Artisans
       await syncTable('artisans', artisans, a => ({
@@ -3271,7 +3388,7 @@ function App() {
         email: a.email || null,
         rating: a.rating || 5,
         notes: a.notes || null
-      }));
+      }), true);
     };
 
     const timer = setTimeout(() => {
@@ -4054,9 +4171,59 @@ function App() {
     safeSetLocalStorage('mf_alerts', JSON.stringify(alerts));
   }, [alerts]);
 
+  // Migrate legacy mf_vaccines to events table if present
   useEffect(() => {
-    safeSetLocalStorage('mf_vaccines', JSON.stringify(vaccines));
-  }, [vaccines]);
+    if (foyer && events.length > 0) {
+      const localVacs = localStorage.getItem('mf_vaccines');
+      if (localVacs) {
+        try {
+          const parsed = JSON.parse(localVacs);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const migrable = parsed.filter((v: any) => {
+              if (['v1', 'v2', 'v3', 'v4'].includes(v.id)) return false; // skip mock
+              return !events.some(e => e.type === 'vaccine' && (e.id === v.id || (e.title === v.name && e.memberId === v.memberId)));
+            });
+
+            if (migrable.length > 0) {
+              const client = getSupabaseClient();
+              migrable.forEach(async (v: any) => {
+                const id = v.id || `ev-vac-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                const newEvent: FamilyEvent = {
+                  id,
+                  title: v.name,
+                  type: 'vaccine',
+                  dateTime: `${v.date}T10:00:00`,
+                  time: '10:00',
+                  memberId: v.memberId,
+                  memberName: members.find(m => m.id === v.memberId)?.name || 'Membre',
+                  description: v.doctor || '',
+                  done: v.status === 'Fait'
+                };
+                setEvents(prev => [newEvent, ...prev]);
+                if (client) {
+                  await client.from('events').insert({
+                    id: newEvent.id,
+                    foyer_id: foyer.id,
+                    title: newEvent.title,
+                    type: newEvent.type,
+                    date_time: newEvent.dateTime,
+                    time: newEvent.time,
+                    member_id: newEvent.memberId,
+                    member_name: newEvent.memberName,
+                    description: newEvent.description,
+                    done: newEvent.done
+                  });
+                }
+              });
+            }
+          }
+          localStorage.removeItem('mf_vaccines');
+        } catch (e) {
+          console.error("Migration vaccines error:", e);
+        }
+      }
+    }
+  }, [foyer, events]);
 
   useEffect(() => {
     safeSetLocalStorage('mf_chat_groups', JSON.stringify(chatGroups));
@@ -4151,13 +4318,85 @@ function App() {
     }).format(converted) + ' ' + symbol;
   };
 
-  const filteredAlerts = alerts
-    .filter(al => !deletedAlertIds.includes(al.id))
-    .filter(al => {
-      // 1. Filter out alerts created by the active member
+  const dynamicBudgetAlerts = useMemo(() => {
+    const allCats = [...customCategories];
+    DEFAULT_CATEGORIES.forEach(dc => {
+      if (!allCats.some(c => c.name === dc.name)) {
+        allCats.push({
+          id: `default-${dc.name}`,
+          name: dc.name,
+          icon: dc.icon,
+          color: dc.color,
+          budget: dc.budget,
+          displayOrder: 0
+        });
+      }
+    });
+
+    const budgetsSaved = localStorage.getItem('mf_category_budgets');
+    const localBudgetsObj = budgetsSaved ? JSON.parse(budgetsSaved) : {};
+
+    const activeCats = allCats.map(c => {
+      const savedBudget = localBudgetsObj[c.name];
+      return {
+        ...c,
+        budget: savedBudget !== undefined ? Number(savedBudget) : c.budget
+      };
+    });
+
+    const currentMonthStr = new Date().toISOString().substring(0, 7);
+    const categorySums: Record<string, number> = {};
+    
+    transactions
+      .filter(t => t.type === 'expense' && t.date.startsWith(currentMonthStr))
+      .forEach(t => {
+        categorySums[t.category] = (categorySums[t.category] || 0) + t.amount;
+      });
+
+    const generatedAlerts: any[] = [];
+    activeCats.forEach(cat => {
+      const budgetLimit = cat.budget || 0;
+      if (budgetLimit > 0) {
+        const spent = categorySums[cat.name] || 0;
+        
+        if (spent > budgetLimit) {
+          generatedAlerts.push({
+            id: `budget-overrun-${cat.name}-${currentMonthStr}`,
+            title: `⚠️ Budget dépassé : ${cat.name}`,
+            description: `Le budget de la catégorie "${cat.icon} ${cat.name}" a été dépassé (${spent.toFixed(2)}€ dépensés / limite ${budgetLimit}€).`,
+            time: 'Actuellement',
+            type: 'error',
+            read: false,
+            module: 'budget',
+            createdAt: new Date().toISOString()
+          });
+        } else if (spent >= budgetLimit * 0.9) {
+          generatedAlerts.push({
+            id: `budget-warning-${cat.name}-${currentMonthStr}`,
+            title: `⚠️ Budget bientôt atteint : ${cat.name}`,
+            description: `Le budget de la catégorie "${cat.icon} ${cat.name}" est presque atteint (${spent.toFixed(2)}€ dépensés / limite ${budgetLimit}€).`,
+            time: 'Actuellement',
+            type: 'warning',
+            read: false,
+            module: 'budget',
+            createdAt: new Date().toISOString()
+          });
+        }
+      }
+    });
+
+    return generatedAlerts;
+  }, [transactions, customCategories]);
+
+  const allAlertsCombined = useMemo(() => {
+    return [...alerts, ...dynamicBudgetAlerts];
+  }, [alerts, dynamicBudgetAlerts]);
+
+  const filteredAlerts = allAlertsCombined
+    .filter((al: any) => !deletedAlertIds.includes(al.id))
+    .filter((al: any) => {
       if (al.id.includes(`-by-${activeMemberId}`)) return false;
       
-      // 2. Filter by user preference toggles
       const mod = al.module || '';
       if (mod === 'groceries' || mod === 'courses') return notificationPrefs.groceries;
       if (mod === 'tasks' || mod === 'chore_tasks') return notificationPrefs.tasks;
@@ -4169,11 +4408,10 @@ function App() {
 
       return true;
     })
-    .sort((a, b) => {
+    .sort((a: any, b: any) => {
       const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       if (timeA && timeB) return timeB - timeA;
-      // Fallback extract timestamp from ID
       const extractTime = (id: string) => {
         const match = id.match(/\d{10,}/);
         return match ? parseInt(match[0], 10) : 0;
@@ -4181,7 +4419,35 @@ function App() {
       return extractTime(b.id) - extractTime(a.id);
     });
 
+  const handleMarkAsRead = async (id: string) => {
+    if (id.startsWith('budget-')) {
+      setReadAlertIds(prev => {
+        const next = [...prev, id];
+        localStorage.setItem(`mf_read_alerts_${activeMemberId}`, JSON.stringify(next));
+        return next;
+      });
+    } else {
+      setAlerts(prev => prev.map(a => a.id === id ? { ...a, read: true } : a));
+      const client = getSupabaseClient();
+      if (client) {
+        await client.from('alerts').update({ read: true }).eq('id', id);
+      }
+    }
+  };
 
+  const handleDeleteAlert = async (id: string) => {
+    setDeletedAlertIds(prev => {
+      const next = [...prev, id];
+      localStorage.setItem(`mf_deleted_alerts_${activeMemberId}`, JSON.stringify(next));
+      return next;
+    });
+    if (!id.startsWith('budget-')) {
+      const client = getSupabaseClient();
+      if (client) {
+        await client.from('alerts').delete().eq('id', id);
+      }
+    }
+  };
 
   // ----------------------------------------------------
   // Callbacks and Form Submissions
@@ -5386,6 +5652,7 @@ function App() {
           abonnements={abonnements}
           savingGoals={savingGoals}
           vaccines={vaccines}
+          pets={pets}
         />
       );
     }
@@ -5411,6 +5678,7 @@ function App() {
           vehicles={vehicles}
           maintenance={maintenance}
           abonnements={abonnements}
+          pets={pets}
         />
       );
     }
@@ -6008,10 +6276,19 @@ function App() {
               <button
                 onClick={() => {
                   if (window.confirm('Supprimer toutes les notifications affichées ?')) {
-                    const currentIds = filteredAlerts.map(a => a.id);
+                    const currentIds = filteredAlerts.map((a: any) => a.id);
                     const newDeleted = [...deletedAlertIds, ...currentIds];
                     setDeletedAlertIds(newDeleted);
                     localStorage.setItem(`mf_deleted_alerts_${activeMemberId}`, JSON.stringify(newDeleted));
+                    
+                    // Also delete DB alerts from cloud
+                    const dbIds = currentIds.filter((id: string) => !id.startsWith('budget-'));
+                    if (dbIds.length > 0) {
+                      const client = getSupabaseClient();
+                      if (client && foyer) {
+                        client.from('alerts').delete().eq('foyer_id', foyer.id).in('id', dbIds).then();
+                      }
+                    }
                   }
                 }}
                 className="text-xs text-red-400 hover:text-red-300 ml-auto"
@@ -6083,15 +6360,24 @@ function App() {
 
             <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar">
               {filteredAlerts
-                .map((al) => {
+                .map((al: any) => {
                 const targetModule = al.module || '';
                 const iconColor = al.type === 'success' ? '#00D26A' : al.type === 'warning' ? '#FFB020' : al.type === 'error' ? '#FF4D6D' : '#6C5CFF';
+                const isRead = al.read || readAlertIds.includes(al.id);
                 return (
                   <div 
                     key={al.id} 
                     onClick={() => {
-                      setAlerts(prev => prev.map(a => a.id === al.id ? { ...a, read: true } : a));
-                      updateAlertReadStatusInCloud(al.id, true);
+                      if (al.id.startsWith('budget-')) {
+                        setReadAlertIds(prev => {
+                          const next = [...prev, al.id];
+                          localStorage.setItem(`mf_read_alerts_${activeMemberId}`, JSON.stringify(next));
+                          return next;
+                        });
+                      } else {
+                        setAlerts(prev => prev.map(a => a.id === al.id ? { ...a, read: true } : a));
+                        updateAlertReadStatusInCloud(al.id, true);
+                      }
                       if (targetModule) {
                         const mainTabs = ['accueil', 'agenda', 'budget'];
                         if (mainTabs.includes(targetModule)) {
@@ -6117,15 +6403,40 @@ function App() {
                         <Bell className="w-4 h-4" />
                       </div>
                     )}
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                        {al.title}
-                        {!al.read && <span className="w-2 h-2 rounded-full bg-[#FFB020] animate-pulse"></span>}
-                      </h4>
-                      <p className="text-[10px] text-white/50 leading-relaxed mt-1">{al.description}</p>
-                      <span className="text-[9px] text-white/30 block mt-2 font-bold tracking-wider">
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                          {al.title}
+                          {!isRead && <span className="w-2 h-2 rounded-full bg-[#FFB020] animate-pulse"></span>}
+                        </h4>
+                      </div>
+                      <p className="text-[10px] text-white/50 leading-relaxed">{al.description}</p>
+                      <span className="text-[9px] text-white/30 block font-bold tracking-wider">
                         {formatRelativeTime(al.createdAt, al.time)}
                       </span>
+                      
+                      <div className="flex items-center gap-2 pt-1">
+                        {!isRead && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMarkAsRead(al.id);
+                            }}
+                            className="px-2 py-0.5 rounded bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-[#6C5CFF] text-[8.5px] font-black uppercase tracking-wider hover:bg-[#6C5CFF]/25 active:scale-95 transition-all cursor-pointer"
+                          >
+                            👁️ Lu
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteAlert(al.id);
+                          }}
+                          className="px-2 py-0.5 rounded bg-red-500/10 border border-red-500/30 text-red-400 text-[8.5px] font-black uppercase tracking-wider hover:bg-red-500/20 active:scale-95 transition-all cursor-pointer"
+                        >
+                          🗑️ Supprimer
+                        </button>
+                      </div>
                     </div>
                     {targetModule && (
                       <ChevronRight className="w-4 h-4 text-white/20 shrink-0 mt-2" />
@@ -6139,6 +6450,16 @@ function App() {
               onClick={() => {
                 setAlerts(prev => prev.map(a => ({ ...a, read: true })));
                 markAllAlertsAsReadInCloud();
+                
+                // Also mark dynamic alerts as read
+                const dynamicIds = filteredAlerts.filter((a: any) => a.id.startsWith('budget-')).map((a: any) => a.id);
+                if (dynamicIds.length > 0) {
+                  setReadAlertIds(prev => {
+                    const next = [...prev, ...dynamicIds];
+                    localStorage.setItem(`mf_read_alerts_${activeMemberId}`, JSON.stringify(next));
+                    return next;
+                  });
+                }
                 setAlertsPanelOpen(false);
               }}
               className="w-full py-3 rounded-[18px] bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xs transition-all cursor-pointer text-center"

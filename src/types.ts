@@ -85,7 +85,7 @@ export interface Member {
   approved?: boolean;
 }
 
-export type EventType = 'medical' | 'school' | 'bill' | 'grocery' | 'social' | 'other';
+export type EventType = 'medical' | 'school' | 'bill' | 'grocery' | 'social' | 'other' | 'vaccine';
 
 export interface FamilyEvent {
   id: string;
