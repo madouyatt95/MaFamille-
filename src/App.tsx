@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
-import { parseSmartNaturalSentence } from './utils/groceryParser';
+import { parseSmartNaturalSentence, detectGroceryCategory } from './utils/groceryParser';
 
 
 import type { 
@@ -713,6 +713,8 @@ function App() {
     member?: string;
   } | null>(null);
   const voiceRecognitionRef = useRef<any>(null);
+  const [pendingGroceryItems, setPendingGroceryItems] = useState<any[] | null>(null);
+  const [isEditingPendingGrocery, setIsEditingPendingGrocery] = useState(false);
 
   const [foyer, setFoyer] = useState<Foyer | null>(() => {
     return safeGetLocalStorage<Foyer | null>('mf_cached_foyer', null);
@@ -3461,6 +3463,8 @@ function App() {
     setPendingVoiceCommandData(null);
     setAmbiguousChoices([]);
     setVoiceDebugInfo(null);
+    setPendingGroceryItems(null);
+    setIsEditingPendingGrocery(false);
 
     const recognition = new SpeechRecognition();
     voiceRecognitionRef.current = recognition;
@@ -3533,39 +3537,369 @@ function App() {
   };
 
   const parseVoiceCommand = async (text: string) => {
-      try {
-        const textWithDigits = convertFrenchNumbersToDigits(text);
-        const promptLower = textWithDigits.toLowerCase().trim();
-        let feedback = "";
-        let intent = "unknown";
-        let isSuccess = false;
+    try {
+      const textWithDigits = convertFrenchNumbersToDigits(text);
+      const promptLower = textWithDigits.toLowerCase().trim();
+      let feedback = "";
+      let intent = "unknown";
+      let isSuccess = false;
 
-        const logVoiceCommandToSupabase = async (cmdIntent: string, success: boolean) => {
-          const client = getSupabaseClient();
-          if (client && foyer?.id) {
-            try {
-              await client.from('voice_commands').insert({
-                id: crypto.randomUUID(),
-                foyer_id: foyer.id,
-                raw_text: text,
-                parsed_intent: cmdIntent,
-                is_success: success
-              });
-            } catch (err) {
-              console.warn("Log command warning:", err);
-            }
+      const logVoiceCommandToSupabase = async (cmdIntent: string, success: boolean, customFields: any = {}) => {
+        const client = getSupabaseClient();
+        if (client && foyer?.id) {
+          try {
+            await client.from('voice_commands').insert({
+              id: crypto.randomUUID(),
+              foyer_id: foyer.id,
+              raw_text: text,
+              parsed_intent: cmdIntent,
+              is_success: success,
+              ...customFields
+            });
+          } catch (err) {
+            console.warn("Log command warning:", err);
           }
-        };
+        }
+      };
 
-        const hasNumber = /(\d+[\.,]?\d*)/.test(promptLower);
-        const amountMatch = promptLower.match(/(\d+[\.,]?\d*)/);
-        const amountVal = amountMatch ? parseFloat(amountMatch[1].replace(',', '.')) : 0;
+      // Determine explicit financial amount first
+      const hasExplicitAmount = /(\d+[\.,]?\d*)\s*(?:euros?|€|dollars?|\$|eur|usd)/i.test(promptLower) || 
+                               /(?:dépense de|revenu de|salaire de|montant de|payé|coûte|couté) (\d+[\.,]?\d*)/i.test(promptLower);
+      
+      let amountVal = 0;
+      const amountMatch = promptLower.match(/(\d+[\.,]?\d*)\s*(?:euros?|€|dollars?|\$|eur|usd)/i) || 
+                          promptLower.match(/(?:dépense de|revenu de|salaire de|montant de|payé|coûte|couté) (\d+[\.,]?\d*)/i);
+      if (amountMatch) {
+        amountVal = parseFloat(amountMatch[1].replace(',', '.'));
+      }
 
-        const defaultCategories = ['Alimentation', 'Transport', 'Logement', 'Santé', 'Éducation', 'Autres', 'Transfert', 'Épargne'];
-        const allCategories = [...defaultCategories, ...customCategories.map(c => c.name)];
+      // CLASSIFY INTENT IN ORDER OF PRIORITY
 
-        // 1. Account Transfer Intent
-        if ((promptLower.includes('transférer') || promptLower.includes('transferer') || promptLower.includes('virement') || promptLower.includes('transfert')) && hasNumber) {
+      // 1. Courses (Grocery)
+      const hasGroceryKeywords = 
+        promptLower.includes('courses') || 
+        promptLower.includes('liste') || 
+        promptLower.includes('acheter') || 
+        promptLower.includes('ajoute dans les courses') || 
+        promptLower.includes('ajoute à la liste') || 
+        promptLower.includes('ajoute au panier') || 
+        promptLower.includes('panier') || 
+        promptLower.includes('caddie') || 
+        promptLower.includes('épicerie') || 
+        promptLower.includes('supermarché') || 
+        promptLower.includes('supermarche') ||
+        promptLower.includes('course') ||
+        promptLower.includes('achat') ||
+        promptLower.includes('achats');
+
+      const startsWithActionVerb = 
+        promptLower.startsWith('ajoute') || 
+        promptLower.startsWith('ajouter') || 
+        promptLower.startsWith('mets') || 
+        promptLower.startsWith('mettre') || 
+        promptLower.startsWith('rajoute') || 
+        promptLower.startsWith('rajouter') || 
+        promptLower.startsWith('prépare') || 
+        promptLower.startsWith('prepare') || 
+        promptLower.startsWith('acheter') || 
+        promptLower.startsWith('achète');
+
+      const hasFoodKeywords = 
+        promptLower.includes('lait') || 
+        promptLower.includes('coca') || 
+        promptLower.includes('tomate') || 
+        promptLower.includes('tomates') || 
+        promptLower.includes('pomme') || 
+        promptLower.includes('pommes') || 
+        promptLower.includes('banane') || 
+        promptLower.includes('bananes') || 
+        promptLower.includes('eau') || 
+        promptLower.includes('oignon') || 
+        promptLower.includes('oignons') || 
+        promptLower.includes('pain') || 
+        promptLower.includes('pâtes') || 
+        promptLower.includes('beurre') || 
+        promptLower.includes('croissant') || 
+        promptLower.includes('fromage') || 
+        promptLower.includes('yaourt') || 
+        promptLower.includes('viande') || 
+        promptLower.includes('poulet') || 
+        promptLower.includes('soda') || 
+        promptLower.includes('jus') || 
+        promptLower.includes('fruits') || 
+        promptLower.includes('légumes') || 
+        promptLower.includes('legumes') || 
+        promptLower.includes('nourriture') || 
+        promptLower.includes('manger');
+
+      const isFinancialTrigger = 
+        promptLower.includes('dépense') || 
+        promptLower.includes('depense') || 
+        promptLower.includes('revenu') || 
+        promptLower.includes('salaire') || 
+        promptLower.includes('virement') || 
+        promptLower.includes('transfert') || 
+        promptLower.includes('cagnotte') || 
+        promptLower.includes('épargne') || 
+        promptLower.includes('solde') || 
+        promptLower.includes('abonnement');
+
+      const isGroceryIntent = 
+        (hasGroceryKeywords && !isFinancialTrigger) ||
+        (startsWithActionVerb && !hasExplicitAmount && !isFinancialTrigger) ||
+        (hasFoodKeywords && !hasExplicitAmount && !isFinancialTrigger);
+
+      if (isGroceryIntent) {
+        intent = "grocery_add";
+        const activeMemberObj = members.find(m => m.id === activeMemberId);
+        const activeMemberName = activeMemberObj?.name || 'Foyer';
+        let parsedItems = parseSmartNaturalSentence(text, activeMemberName);
+
+        // Fallback if groceryParser couldn't structure it (e.g. "Coca")
+        if (parsedItems.length === 0) {
+          let cleanItem = textWithDigits
+            .replace(/ajoute|ajouter|mets|mettre|rajoute|rajouter|achete|achète|acheter/gi, '')
+            .replace(/dans les courses|dans la liste|au panier|à la liste/gi, '')
+            .trim();
+          if (cleanItem) {
+            cleanItem = cleanItem.charAt(0).toUpperCase() + cleanItem.slice(1);
+            parsedItems = [{
+              name: cleanItem,
+              category: detectGroceryCategory(cleanItem),
+              quantity: '1 pièces',
+              checked: false,
+              inStock: true,
+              meal: undefined,
+              addedBy: activeMemberName
+            }];
+          }
+        }
+
+        if (parsedItems.length > 0) {
+          // Show confirmation UI
+          setPendingGroceryItems(parsedItems);
+          setIsEditingPendingGrocery(false);
+          setVoiceTranscript(`"${text}"`);
+          setVoiceFeedback("Articles reconnus, veuillez valider.");
+          logVoiceCommandToSupabase(intent, true);
+        } else {
+          feedback = "🤔 Je n'ai pas compris quel article ajouter à vos courses...";
+          setVoiceFeedback(feedback);
+          logVoiceCommandToSupabase(intent, false);
+          setTimeout(() => setVoiceActive(false), 2500);
+        }
+        return;
+      }
+
+      // 2. Agenda
+      const isAgendaIntent = 
+        (promptLower.includes('agenda') || 
+         promptLower.includes('planning') || 
+         promptLower.includes('calendrier') || 
+         promptLower.includes('évènement') || 
+         promptLower.includes('evenement') || 
+         promptLower.includes('rdv') || 
+         promptLower.includes('rendez-vous') || 
+         promptLower.includes('rendez vous') || 
+         promptLower.includes('planifier') || 
+         promptLower.includes('planifie') || 
+         promptLower.includes('ajouter un événement') || 
+         promptLower.includes('ajouter un evenement')) && 
+        !hasExplicitAmount;
+
+      if (isAgendaIntent) {
+        setActiveTab('agenda');
+        setActiveModule('');
+        feedback = "📅 Navigation : J'ouvre l'Agenda Familial.";
+        setVoiceFeedback(feedback);
+        logVoiceCommandToSupabase("agenda_nav", true);
+        setTimeout(() => setVoiceActive(false), 2500);
+        return;
+      }
+
+      // 3. Santé
+      const isSanteIntent = 
+        promptLower.includes('médecin') || 
+        promptLower.includes('medecin') || 
+        promptLower.includes('docteur') || 
+        promptLower.includes('vaccin') || 
+        promptLower.includes('dentiste') || 
+        promptLower.includes('pédiatre') || 
+        promptLower.includes('pediatre') || 
+        promptLower.includes('visite médicale') || 
+        promptLower.includes('visite medicale') || 
+        promptLower.includes('ordonnance') || 
+        promptLower.includes('pharmacie') || 
+        promptLower.includes('médicament') || 
+        promptLower.includes('medicament') || 
+        promptLower.includes('malade') || 
+        promptLower.includes('santé') || 
+        promptLower.includes('sante') || 
+        promptLower.includes('ophtalmo') || 
+        promptLower.includes('ostéo') || 
+        promptLower.includes('osteo');
+
+      if (isSanteIntent) {
+        if (hasExplicitAmount) {
+          // Fall through to transaction creation but open Santé module too
+        } else {
+          setActiveTab('menu');
+          setActiveModule('sante');
+          feedback = "🩺 Navigation : J'ouvre le Carnet de Santé.";
+          setVoiceFeedback(feedback);
+          logVoiceCommandToSupabase("sante_nav", true);
+          setTimeout(() => setVoiceActive(false), 2500);
+          return;
+        }
+      }
+
+      // 4. École
+      const isEcoleIntent = 
+        promptLower.includes('devoir') || 
+        promptLower.includes('devoirs') || 
+        promptLower.includes('classe') || 
+        promptLower.includes('cours') || 
+        promptLower.includes('professeur') || 
+        promptLower.includes('prof') || 
+        promptLower.includes('tuteur') || 
+        promptLower.includes('tuteur scolaire') || 
+        promptLower.includes('école') || 
+        promptLower.includes('ecole') || 
+        promptLower.includes('cantine');
+
+      if (isEcoleIntent && !hasExplicitAmount) {
+        setActiveTab('menu');
+        setActiveModule('devoirs');
+        feedback = "🎓 Navigation : J'ouvre le Tuteur Scolaire IA.";
+        setVoiceFeedback(feedback);
+        logVoiceCommandToSupabase("ecole_nav", true);
+        setTimeout(() => setVoiceActive(false), 2500);
+        return;
+      }
+
+      // 5. Démarches
+      const isDemarchesIntent = 
+        promptLower.includes('démarche') || 
+        promptLower.includes('demarche') || 
+        promptLower.includes('démarches') || 
+        promptLower.includes('demarches') || 
+        promptLower.includes('administratif') || 
+        promptLower.includes('timbre fiscal') || 
+        promptLower.includes('timbres fiscaux') || 
+        promptLower.includes('passeport') || 
+        promptLower.includes('visa') || 
+        promptLower.includes('justificatif') || 
+        promptLower.includes('impôts') || 
+        promptLower.includes('impot');
+
+      if (isDemarchesIntent && !hasExplicitAmount) {
+        setActiveTab('menu');
+        setActiveModule('documents');
+        feedback = "📂 Navigation : J'ouvre vos Démarches Administratives.";
+        setVoiceFeedback(feedback);
+        logVoiceCommandToSupabase("demarches_nav", true);
+        setTimeout(() => setVoiceActive(false), 2500);
+        return;
+      }
+
+      // 6. Voyages
+      const isVoyagesIntent = 
+        promptLower.includes('voyage') || 
+        promptLower.includes('voyages') || 
+        promptLower.includes('vacance') || 
+        promptLower.includes('vacances') || 
+        promptLower.includes('bagage') || 
+        promptLower.includes('bagages') || 
+        promptLower.includes('vol') || 
+        promptLower.includes('avion') || 
+        promptLower.includes('hôtel') || 
+        promptLower.includes('hotel') || 
+        promptLower.includes('airbnb') || 
+        promptLower.includes('valise');
+
+      if (isVoyagesIntent && !hasExplicitAmount) {
+        setActiveTab('menu');
+        setActiveModule('voyage');
+        feedback = "✈️ Navigation : Je lance l'Assistant Voyage IA.";
+        setVoiceFeedback(feedback);
+        logVoiceCommandToSupabase("voyages_nav", true);
+        setTimeout(() => setVoiceActive(false), 2500);
+        return;
+      }
+
+      // 7. Véhicules
+      const isVehiculesIntent = 
+        promptLower.includes('essence') || 
+        promptLower.includes('carburant') || 
+        promptLower.includes('diesel') || 
+        promptLower.includes('gazole') || 
+        promptLower.includes('peage') || 
+        promptLower.includes('péage') || 
+        promptLower.includes('vidange') || 
+        promptLower.includes('pneu') || 
+        promptLower.includes('pneus') || 
+        promptLower.includes('garage') || 
+        promptLower.includes('voiture') || 
+        promptLower.includes('véhicule') || 
+        promptLower.includes('vehicule') || 
+        promptLower.includes('entretien voiture');
+
+      if (isVehiculesIntent && !hasExplicitAmount) {
+        setActiveTab('menu');
+        setActiveModule('vehicule');
+        feedback = "🚗 Navigation : J'ouvre le carnet d'entretien Véhicule.";
+        setVoiceFeedback(feedback);
+        logVoiceCommandToSupabase("vehicules_nav", true);
+        setTimeout(() => setVoiceActive(false), 2500);
+        return;
+      }
+
+      // 8. Documents
+      const isDocumentsIntent = 
+        promptLower.includes('coffre') || 
+        promptLower.includes('document') || 
+        promptLower.includes('documents') || 
+        promptLower.includes('papier') || 
+        promptLower.includes('papiers') || 
+        promptLower.includes('cni') || 
+        promptLower.includes('carte d\'identité') || 
+        promptLower.includes('carte identite');
+
+      if (isDocumentsIntent && !hasExplicitAmount) {
+        setActiveTab('menu');
+        setActiveModule('documents');
+        feedback = "📂 Navigation : J'ouvre le Coffre-Fort administratif.";
+        setVoiceFeedback(feedback);
+        logVoiceCommandToSupabase("documents_nav", true);
+        setTimeout(() => setVoiceActive(false), 2500);
+        return;
+      }
+
+      // 9. Messagerie
+      const isMessagerieIntent = 
+        promptLower.includes('messagerie') || 
+        promptLower.includes('discussion') || 
+        promptLower.includes('tchat') || 
+        promptLower.includes('chat') || 
+        promptLower.includes('parle') || 
+        promptLower.includes('discuter') || 
+        promptLower.includes('message') || 
+        promptLower.includes('envoyer');
+
+      if (isMessagerieIntent && !hasExplicitAmount) {
+        setActiveTab('menu');
+        setActiveModule('messagerie');
+        feedback = "💬 Navigation : J'ouvre la messagerie familiale.";
+        setVoiceFeedback(feedback);
+        logVoiceCommandToSupabase("messagerie_nav", true);
+        setTimeout(() => setVoiceActive(false), 2500);
+        return;
+      }
+
+      // 10. Budget / Transactions (requires explicit amount or financial trigger)
+      if (hasExplicitAmount && amountVal > 0) {
+        // 10a. Account Transfer Intent
+        if (promptLower.includes('transférer') || promptLower.includes('transferer') || promptLower.includes('virement') || promptLower.includes('transfert')) {
           intent = "account_transfer";
           const srcMatch = accounts.find(a => promptLower.includes(a.name.toLowerCase()));
           const destMatch = accounts.find(a => promptLower.includes(a.name.toLowerCase()) && a.id !== srcMatch?.id);
@@ -3634,8 +3968,8 @@ function App() {
           return;
         }
 
-        // 2. Abonnement/Subscription Create Intent
-        if ((promptLower.includes('abonnement') || promptLower.includes('netflix') || promptLower.includes('spotify') || promptLower.includes('mensuel')) && (promptLower.includes('ajouter') || promptLower.includes('créer') || promptLower.includes('creer')) && hasNumber) {
+        // 10b. Subscription Create Intent
+        if (promptLower.includes('abonnement') || promptLower.includes('netflix') || promptLower.includes('spotify') || promptLower.includes('mensuel')) {
           intent = "abonnement_create";
           const client = getSupabaseClient();
           if (client && foyer?.id && amountVal > 0) {
@@ -3670,8 +4004,8 @@ function App() {
           return;
         }
 
-        // 3. Saving Goal Contribution Intent
-        if ((promptLower.includes('cagnotte') || promptLower.includes('épargner') || promptLower.includes('contribuer') || promptLower.includes('retirer')) && hasNumber) {
+        // 10c. Saving Goal Contribution Intent
+        if (promptLower.includes('cagnotte') || promptLower.includes('épargner') || promptLower.includes('contribuer') || promptLower.includes('retirer')) {
           intent = "saving_contribution";
           const isAdd = !promptLower.includes('retirer');
           const goalMatch = savingGoals.find(g => promptLower.includes(g.title.toLowerCase()) || (g.category && promptLower.includes(g.category.toLowerCase())));
@@ -3734,388 +4068,269 @@ function App() {
           return;
         }
 
-        // 4. Custom Category Create Intent
-        if (promptLower.includes('catégorie') && (promptLower.includes('créer') || promptLower.includes('ajouter') || promptLower.includes('nouvelle'))) {
-          intent = "category_create";
-          const cleanName = promptLower.replace(/créer|creer|ajouter|nouvelle|catégorie|categorie/g, '').trim();
-          if (cleanName) {
-            const client = getSupabaseClient();
-            if (client && foyer?.id) {
-              try {
-                await client.from('custom_categories').insert({
-                  id: crypto.randomUUID(),
-                  foyer_id: foyer.id,
-                  name: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
-                  icon: '🕌 Mosquée',
-                  color: '#8B5CF6',
-                  budget: 0,
-                  display_order: 0
-                });
-                feedback = `🏷️ Catégorie "${cleanName}" créée avec succès !`;
-                isSuccess = true;
-              } catch (e: any) {
-                feedback = `❌ Échec : ${e.message}`;
-              }
-            }
-          } else {
-            feedback = "🤔 Quel est le nom de la catégorie ?";
-          }
+        // 10d. General Transactions parser (fallback expense / income)
+        let type: 'expense' | 'income' = 'expense';
+        if (promptLower.includes('salaire') || promptLower.includes('revenu') || promptLower.includes('reçu') || promptLower.includes('gagné') || promptLower.includes('recu') || promptLower.includes('gagne')) {
+          type = 'income';
+        }
+        intent = type === 'income' ? 'transaction_income' : 'transaction_expense';
 
-          setActiveTab('budget');
-          setVoiceFeedback(feedback);
-          logVoiceCommandToSupabase(intent, isSuccess);
-          setTimeout(() => setVoiceActive(false), 2500);
-          return;
+        let currencyStr = 'EUR';
+        if (promptLower.includes('dollar') || promptLower.includes('$')) currencyStr = 'USD';
+
+        let recurrenceType: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'quarterly' | 'semiannually' | 'custom' = 'none';
+        let recurrenceInterval = 1;
+        if (/mensuel|mensuelle|tous les mois|chaque mois/i.test(promptLower)) {
+          recurrenceType = 'monthly';
+        } else if (/quotidien|quotidienne|tous les jours|chaque jour/i.test(promptLower)) {
+          recurrenceType = 'daily';
+        } else if (/hebdomadaire|toutes les semaines|chaque semaine|chaque samedi|chaque (lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)/i.test(promptLower)) {
+          recurrenceType = 'weekly';
+        } else if (/trimestriel|tous les trimestres/i.test(promptLower)) {
+          recurrenceType = 'quarterly';
+        } else if (/annuel|annuelle|tous les ans|chaque année|chaque annee/i.test(promptLower)) {
+          recurrenceType = 'yearly';
         }
 
-        // 5. Budget Limits Set Intent
-        if ((promptLower.includes('budget') || promptLower.includes('limite')) && promptLower.includes('fixer') && hasNumber) {
-          intent = "budget_limit";
-          const matchedCat = allCategories.find(c => promptLower.includes(c.toLowerCase()));
-          if (matchedCat && amountVal > 0) {
-            const ccObj = customCategories.find(cc => cc.name.toLowerCase() === matchedCat.toLowerCase());
-            const client = getSupabaseClient();
-            if (client && foyer?.id && ccObj) {
-              try {
-                await client.from('custom_categories').update({ budget: amountVal }).eq('id', ccObj.id);
-                feedback = `✍️ Budget de la catégorie ${matchedCat} fixé à ${amountVal}€ !`;
-                isSuccess = true;
-              } catch (e: any) {
-                feedback = `❌ Échec : ${e.message}`;
-              }
-            } else {
-              const budgetsSaved = localStorage.getItem('mf_category_budgets');
-              const budgetsObj = budgetsSaved ? JSON.parse(budgetsSaved) : {};
-              budgetsObj[matchedCat] = amountVal;
-              localStorage.setItem('mf_category_budgets', JSON.stringify(budgetsObj));
-              feedback = `✍️ Budget de la catégorie ${matchedCat} fixé à ${amountVal}€ !`;
-              isSuccess = true;
-            }
-          } else {
-            feedback = "🤔 Catégorie non trouvée.";
-          }
+        const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
+        const matchedAccount = accounts.find(a => promptLower.includes(a.name.toLowerCase()));
 
-          setActiveTab('budget');
-          setVoiceFeedback(feedback);
-          logVoiceCommandToSupabase(intent, isSuccess);
-          setTimeout(() => setVoiceActive(false), 2500);
-          return;
+        let title = 'Achat rapide';
+        const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€|eur)/i;
+        let cleanTitle = textWithDigits.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|dépense|depense|pour/gi, '').trim();
+        cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[\.,]?\d*)/, '').trim();
+        cleanTitle = cleanTitle.replace(/tous les mois|chaque mois|mensuel|mensuelle|tous les jours|chaque jour|quotidien|quotidienne|chaque semaine|toutes les semaines|hebdomadaire|chaque (lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)|chaque samedi|tous les ans|chaque année|chaque annee/gi, '').trim();
+        if (matchedMember) {
+          const memberRegex = new RegExp(`\\b${matchedMember.name}\\b`, 'gi');
+          cleanTitle = cleanTitle.replace(memberRegex, '').trim();
+        }
+        cleanTitle = cleanTitle.replace(/^\b(?:dans|pour|en|le|la|les|de|du|d'|l')\b/gi, '').trim();
+        cleanTitle = cleanTitle.replace(/\s+/g, ' ');
+
+        if (cleanTitle) {
+          title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
         }
 
-        // 6. Export/Import Finances Intent
-        if (promptLower.includes('exporter') || promptLower.includes('télécharger le csv') || promptLower.includes('telecharger le csv') || promptLower.includes('rapport financier')) {
-          intent = "export_finances";
-          let format: 'csv' | 'pdf' = 'csv';
-          if (promptLower.includes('pdf')) format = 'pdf';
-
-          let period: 'month' | 'last_month' | 'year' | 'last_year' = 'month';
-          if (promptLower.includes('mois dernier') || promptLower.includes('dernier mois')) period = 'last_month';
-          else if (promptLower.includes('an') || promptLower.includes('année') || promptLower.includes('annuel')) period = 'year';
-          else if (promptLower.includes('année précédente') || promptLower.includes('an dernier')) period = 'last_year';
-
-          setBudgetActiveSubView({
-            type: 'export',
-            options: { format, period }
-          });
+        const keywordRules = [
+          // TRANSPORT
+          { keywords: ['uber', 'bolt'], category: 'Transport', subCategory: 'Uber', moduleSource: 'budget', label: '🚗 Transport' },
+          { keywords: ['taxi'], category: 'Transport', subCategory: 'Taxi', moduleSource: 'budget', label: '🚗 Transport' },
+          { keywords: ['transport public', 'bus', 'train', 'metro', 'métro', 'rer'], category: 'Transport', subCategory: 'Transport public', moduleSource: 'budget', label: '🚗 Transport' },
           
-          setActiveTab('budget');
-          setVoiceFeedback(`📊 Ouverture de l'assistant d'exportation (${format.toUpperCase()}, période: ${period})...`);
-          logVoiceCommandToSupabase(intent, true);
-          setTimeout(() => setVoiceActive(false), 2500);
-          return;
-        }
+          // SANTÉ
+          { keywords: ['medecin', 'médecin', 'docteur', 'dentiste', 'pédiatre', 'pediatre', 'consultation', 'osteo', 'ostéopathe', 'visite medicale', 'sante', 'santé'], category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante', label: '🩺 Santé' },
+          { keywords: ['pharmacie', 'medicament', 'médicament', 'soin', 'analyses', 'analyse', 'mutuelle'], category: 'Santé', subCategory: 'Pharmacie', moduleSource: 'sante', label: '🩺 Santé' },
+          
+          // VÉHICULES
+          { keywords: ['essence', 'carburant', 'diesel', 'gazole', 'sans plomb'], category: 'Véhicules', subCategory: 'Essence', moduleSource: 'vehicules', label: '🚗 Véhicule' },
+          { keywords: ['peage', 'péage', 'parking', 'stationnement', 'lavage', 'garage', 'entretien voiture', 'réparation voiture', 'pneu', 'vidange'], category: 'Véhicules', subCategory: 'Entretien', moduleSource: 'vehicules', label: '🚗 Véhicule' },
+          
+          // LOGEMENT
+          { keywords: ['loyer'], category: 'Logement', subCategory: 'Loyer', moduleSource: 'logement', label: '🏠 Logement' },
+          { keywords: ['internet', 'wifi', 'box internet', 'fibre'], category: 'Logement', subCategory: 'Internet', moduleSource: 'logement', label: '🏠 Logement' },
+          { keywords: ['edf', 'electricite', 'électricité', 'eau', 'gaz', 'charges', 'assurance habitation', 'travaux', 'maintenance maison'], category: 'Logement', subCategory: 'Charges', moduleSource: 'logement', label: '🏠 Logement' },
+          
+          // ÉDUCATION
+          { keywords: ['cantine'], category: 'Éducation', subCategory: 'Cantine', moduleSource: 'ecole', label: '🎓 École' },
+          { keywords: ['ecole', 'école', 'scolarite', 'scolarité', 'fournitures scolaires', 'livres scolaires', 'cahier', 'stylo', 'inscriptions scolaires', 'cours particuliers', 'devoirs'], category: 'Éducation', subCategory: 'Scolarité', moduleSource: 'ecole', label: '🎓 École' },
+          
+          // ADMINISTRATIF
+          { keywords: ['passeport', 'visa', 'carte d\'identité', 'carte identite', 'cni', 'timbre fiscal', 'timbres fiscaux', 'démarche', 'demarche', 'frais administratif', 'administratif'], category: 'Administratif', subCategory: 'Passeport', moduleSource: 'documents', label: '📂 Démarches' },
+          
+          // ALIMENTATION
+          { keywords: ['course', 'courses', 'supermarche', 'supermarché', 'carrefour', 'lidl', 'auchan', 'leclerc', 'intermarche', 'intermarché', 'alimentation', 'nourriture', 'manger', 'coca', 'lait', 'tomate', 'tomates', 'pomme', 'pommes', 'banane', 'bananes', 'eau', 'oignon', 'oignons', 'pain', 'pâtes', 'beurre'], category: 'Alimentation', subCategory: 'Supermarché', moduleSource: 'courses', label: '🛒 Courses' },
+          { keywords: ['restaurant', 'resto', 'restau', 'mcdo', 'boulangerie', 'epicerie', 'épicerie', 'café', 'cafe', 'starbucks'], category: 'Alimentation', subCategory: 'Restaurant', moduleSource: 'courses', label: '🛒 Courses' },
+          
+          // VOYAGES
+          { keywords: ['voyage', 'voyages', 'vacance', 'vacances', 'hotel', 'hôtel', 'avion', 'vol', 'billet avion', 'train billet', 'airbnb', 'booking'], category: 'Voyages', subCategory: 'Voyage', moduleSource: 'voyages', label: '✈️ Voyage' },
+          
+          // ANIMAUX
+          { keywords: ['chien', 'chat', 'croquette', 'croquettes', 'veto', 'vétérinaire', 'litiere', 'litière', 'animaux', 'animal'], category: 'Animaux', subCategory: 'Nourriture', moduleSource: 'animaux', label: '🐶 Animaux' },
+          
+          // ARGENT DE POCHE
+          { keywords: ['argent de poche', 'argent-de-poche', 'tirelire', 'allocation', 'recompense', 'récompense'], category: 'Argent de poche', subCategory: 'Allocation enfant', moduleSource: 'argent_de_poche', label: '🪙 Argent de poche' },
+          
+          // ABONNEMENTS
+          { keywords: ['abonnement', 'abonnements', 'forfait', 'netflix', 'spotify', 'disney', 'amazon prime', 'canal', 'youtube premium', 'icloud', 'forfait mobile', 'forfait internet'], category: 'Abonnements', subCategory: 'Streaming', moduleSource: 'budget', label: '🔄 Abonnements' },
+          
+          // LOISIRS
+          { keywords: ['cinema', 'cinéma', 'concert', 'musee', 'musée', 'cadeau', 'cadeaux', 'sport', 'match', 'loisir', 'loisirs'], category: 'Loisirs', subCategory: 'Cinéma', moduleSource: 'budget', label: '🎨 Loisirs' }
+        ];
 
-        if (promptLower.includes('importer') || promptLower.includes('import') || promptLower.includes('scanner') || promptLower.includes('scanne') || promptLower.includes('relevé') || promptLower.includes('releve')) {
-          intent = "import_finances";
-          let type: 'relevé' | 'ticket' = 'relevé';
-          if (promptLower.includes('ticket') || promptLower.includes('scanner') || promptLower.includes('scanne')) type = 'ticket';
+        const matches = keywordRules.filter(rule => 
+          rule.keywords.some(kw => promptLower.includes(kw))
+        );
 
-          setBudgetActiveSubView({
-            type: 'import',
-            options: { type }
-          });
+        const parsedTxData = {
+          amount: amountVal,
+          type,
+          category: 'Autres',
+          subCategory: 'Divers',
+          moduleSource: 'budget',
+          date: new Date().toISOString().split('T')[0],
+          title: title,
+          memberId: matchedMember?.id || activeMemberId || null,
+          memberName: matchedMember?.name || members.find(m => m.id === activeMemberId)?.name || 'Famille',
+          accountId: matchedAccount?.id || null,
+          recurrence: recurrenceType,
+          recurrenceInterval,
+          startDate: new Date().toISOString().split('T')[0],
+          nextOccurrence: new Date().toISOString().split('T')[0],
+          currency: currencyStr,
+          intent,
+          isVoice: true
+        };
 
-          setActiveTab('budget');
-          setVoiceFeedback(`📥 Ouverture de l'assistant d'importation (${type === 'ticket' ? 'Scan Ticket' : 'Relevé Bancaire'})...`);
-          logVoiceCommandToSupabase(intent, true);
-          setTimeout(() => setVoiceActive(false), 2500);
-          return;
-        }
-
-        // 7. General Transactions parser (fallback expense / income)
-        if (hasNumber && amountVal > 0) {
-          let type: 'expense' | 'income' = 'expense';
-          if (promptLower.includes('salaire') || promptLower.includes('revenu') || promptLower.includes('reçu') || promptLower.includes('gagné') || promptLower.includes('recu') || promptLower.includes('gagne')) {
-            type = 'income';
-          }
-          intent = type === 'income' ? 'transaction_income' : 'transaction_expense';
-
-          let currencyStr = 'EUR';
-          if (promptLower.includes('dollar') || promptLower.includes('$')) currencyStr = 'USD';
-
-          let recurrenceType: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'quarterly' | 'semiannually' | 'custom' = 'none';
-          let recurrenceInterval = 1;
-          if (/mensuel|mensuelle|tous les mois|chaque mois/i.test(promptLower)) {
-            recurrenceType = 'monthly';
-          } else if (/quotidien|quotidienne|tous les jours|chaque jour/i.test(promptLower)) {
-            recurrenceType = 'daily';
-          } else if (/hebdomadaire|toutes les semaines|chaque semaine|chaque samedi|chaque (lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)/i.test(promptLower)) {
-            recurrenceType = 'weekly';
-          } else if (/trimestriel|tous les trimestres/i.test(promptLower)) {
-            recurrenceType = 'quarterly';
-          } else if (/annuel|annuelle|tous les ans|chaque année|chaque annee/i.test(promptLower)) {
-            recurrenceType = 'yearly';
-          }
-
-          const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
-          const matchedAccount = accounts.find(a => promptLower.includes(a.name.toLowerCase()));
-
-          let title = 'Achat rapide';
-          const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€|eur)/i;
-          let cleanTitle = textWithDigits.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|dépense|depense|pour/gi, '').trim();
-          cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[\.,]?\d*)/, '').trim();
-          cleanTitle = cleanTitle.replace(/tous les mois|chaque mois|mensuel|mensuelle|tous les jours|chaque jour|quotidien|quotidienne|chaque semaine|toutes les semaines|hebdomadaire|chaque (lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)|chaque samedi|tous les ans|chaque année|chaque annee/gi, '').trim();
-          if (matchedMember) {
-            const memberRegex = new RegExp(`\\b${matchedMember.name}\\b`, 'gi');
-            cleanTitle = cleanTitle.replace(memberRegex, '').trim();
-          }
-          cleanTitle = cleanTitle.replace(/^\b(?:dans|pour|en|le|la|les|de|du|d'|l')\b/gi, '').trim();
-          cleanTitle = cleanTitle.replace(/\s+/g, ' ');
-
-          if (cleanTitle) {
-            title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
-          }
-
-          const keywordRules = [
-            // TRANSPORT
-            { keywords: ['uber', 'bolt'], category: 'Transport', subCategory: 'Uber', moduleSource: 'budget', label: '🚗 Transport' },
-            { keywords: ['taxi'], category: 'Transport', subCategory: 'Taxi', moduleSource: 'budget', label: '🚗 Transport' },
-            { keywords: ['transport public', 'bus', 'train', 'metro', 'métro', 'rer'], category: 'Transport', subCategory: 'Transport public', moduleSource: 'budget', label: '🚗 Transport' },
-            
-            // SANTÉ
-            { keywords: ['medecin', 'médecin', 'docteur', 'dentiste', 'pédiatre', 'pediatre', 'consultation', 'osteo', 'ostéopathe', 'visite medicale', 'sante', 'santé'], category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante', label: '🩺 Santé' },
-            { keywords: ['pharmacie', 'medicament', 'médicament', 'soin', 'analyses', 'analyse', 'mutuelle'], category: 'Santé', subCategory: 'Pharmacie', moduleSource: 'sante', label: '🩺 Santé' },
-            
-            // VÉHICULES
-            { keywords: ['essence', 'carburant', 'diesel', 'gazole', 'sans plomb'], category: 'Véhicules', subCategory: 'Essence', moduleSource: 'vehicules', label: '🚗 Véhicule' },
-            { keywords: ['peage', 'péage', 'parking', 'stationnement', 'lavage', 'garage', 'entretien voiture', 'réparation voiture', 'pneu', 'vidange'], category: 'Véhicules', subCategory: 'Entretien', moduleSource: 'vehicules', label: '🚗 Véhicule' },
-            
-            // LOGEMENT
-            { keywords: ['loyer'], category: 'Logement', subCategory: 'Loyer', moduleSource: 'logement', label: '🏠 Logement' },
-            { keywords: ['internet', 'wifi', 'box internet', 'fibre'], category: 'Logement', subCategory: 'Internet', moduleSource: 'logement', label: '🏠 Logement' },
-            { keywords: ['edf', 'electricite', 'électricité', 'eau', 'gaz', 'charges', 'assurance habitation', 'travaux', 'maintenance maison'], category: 'Logement', subCategory: 'Charges', moduleSource: 'logement', label: '🏠 Logement' },
-            
-            // ÉDUCATION
-            { keywords: ['cantine'], category: 'Éducation', subCategory: 'Cantine', moduleSource: 'ecole', label: '🎓 École' },
-            { keywords: ['ecole', 'école', 'scolarite', 'scolarité', 'fournitures scolaires', 'livres scolaires', 'cahier', 'stylo', 'inscriptions scolaires', 'cours particuliers', 'devoirs'], category: 'Éducation', subCategory: 'Scolarité', moduleSource: 'ecole', label: '🎓 École' },
-            
-            // ADMINISTRATIF
-            { keywords: ['passeport', 'visa', 'carte d\'identité', 'carte identite', 'cni', 'timbre fiscal', 'timbres fiscaux', 'démarche', 'demarche', 'frais administratif', 'administratif'], category: 'Administratif', subCategory: 'Passeport', moduleSource: 'documents', label: '📂 Démarches' },
-            
-            // ALIMENTATION
-            { keywords: ['course', 'courses', 'supermarche', 'supermarché', 'carrefour', 'lidl', 'auchan', 'leclerc', 'intermarche', 'intermarché', 'alimentation', 'nourriture', 'manger'], category: 'Alimentation', subCategory: 'Supermarché', moduleSource: 'courses', label: '🛒 Courses' },
-            { keywords: ['restaurant', 'resto', 'restau', 'mcdo', 'boulangerie', 'epicerie', 'épicerie', 'café', 'cafe', 'starbucks'], category: 'Alimentation', subCategory: 'Restaurant', moduleSource: 'courses', label: '🛒 Courses' },
-            
-            // VOYAGES
-            { keywords: ['voyage', 'voyages', 'vacance', 'vacances', 'hotel', 'hôtel', 'avion', 'vol', 'billet avion', 'train billet', 'airbnb', 'booking'], category: 'Voyages', subCategory: 'Voyage', moduleSource: 'voyages', label: '✈️ Voyage' },
-            
-            // ANIMAUX
-            { keywords: ['chien', 'chat', 'croquette', 'croquettes', 'veto', 'vétérinaire', 'litiere', 'litière', 'animaux', 'animal'], category: 'Animaux', subCategory: 'Nourriture', moduleSource: 'animaux', label: '🐶 Animaux' },
-            
-            // ARGENT DE POCHE
-            { keywords: ['argent de poche', 'argent-de-poche', 'tirelire', 'allocation', 'recompense', 'récompense'], category: 'Argent de poche', subCategory: 'Allocation enfant', moduleSource: 'argent_de_poche', label: '🪙 Argent de poche' },
-            
-            // ABONNEMENTS
-            { keywords: ['abonnement', 'abonnements', 'forfait', 'netflix', 'spotify', 'disney', 'amazon prime', 'canal', 'youtube premium', 'icloud', 'forfait mobile', 'forfait internet'], category: 'Abonnements', subCategory: 'Streaming', moduleSource: 'budget', label: '🔄 Abonnements' },
-            
-            // LOISIRS
-            { keywords: ['cinema', 'cinéma', 'concert', 'musee', 'musée', 'cadeau', 'cadeaux', 'sport', 'match', 'loisir', 'loisirs'], category: 'Loisirs', subCategory: 'Cinéma', moduleSource: 'budget', label: '🎨 Loisirs' }
-          ];
-
-          const matches = keywordRules.filter(rule => 
-            rule.keywords.some(kw => promptLower.includes(kw))
-          );
-
-          const parsedTxData = {
-            amount: amountVal,
-            type,
-            category: 'Autres',
-            subCategory: 'Divers',
-            moduleSource: 'budget',
-            date: new Date().toISOString().split('T')[0],
-            title: title,
-            memberId: matchedMember?.id || activeMemberId || null,
-            memberName: matchedMember?.name || members.find(m => m.id === activeMemberId)?.name || 'Famille',
-            accountId: matchedAccount?.id || null,
-            recurrence: recurrenceType,
-            recurrenceInterval,
-            startDate: new Date().toISOString().split('T')[0],
-            nextOccurrence: new Date().toISOString().split('T')[0],
-            currency: currencyStr,
-            intent,
-            isVoice: true
+        if (matches.length >= 1) {
+          const choice = matches[0];
+          const finalTx = {
+            ...parsedTxData,
+            moduleSource: choice.moduleSource,
+            category: choice.category,
+            subCategory: choice.subCategory,
+            title: title === 'Achat rapide' ? `${choice.label.split(' ')[1] || 'Dépense'} ${choice.subCategory}` : title
           };
 
-          if (matches.length >= 1) {
-            const choice = matches[0];
-            const finalTx = {
-              ...parsedTxData,
-              moduleSource: choice.moduleSource,
-              category: choice.category,
-              subCategory: choice.subCategory,
-              title: title === 'Achat rapide' ? `${choice.label.split(' ')[1] || 'Dépense'} ${choice.subCategory}` : title
-            };
+          await handleAddTransaction(finalTx);
 
-            await handleAddTransaction(finalTx);
-
-            if (choice.moduleSource === 'argent_de_poche' && finalTx.memberId) {
-              setPocketMoney(prev => prev.map(child => {
-                if (child.id === finalTx.memberId) {
-                  const newBal = child.balance + (type === 'income' ? finalTx.amount : -finalTx.amount);
-                  const client = getSupabaseClient();
-                  if (client) {
-                    client.from('pocket_money').update({ balance: newBal }).eq('id', child.id);
-                  }
-                  return { ...child, balance: newBal };
+          if (choice.moduleSource === 'argent_de_poche' && finalTx.memberId) {
+            setPocketMoney(prev => prev.map(child => {
+              if (child.id === finalTx.memberId) {
+                const newBal = child.balance + (type === 'income' ? finalTx.amount : -finalTx.amount);
+                const client = getSupabaseClient();
+                if (client) {
+                  client.from('pocket_money').update({ balance: newBal }).eq('id', child.id);
                 }
-                return child;
-              }));
-            }
-
-            setVoiceDebugInfo({
-              phrase: text,
-              type: type === 'expense' ? 'Dépense' : 'Revenu',
-              amount: `${amountVal}€`,
-              category: choice.category,
-              subCategory: choice.subCategory,
-              module: choice.moduleSource === 'budget' ? 'Budget' : (choice.moduleSource === 'sante' ? 'Santé' : choice.moduleSource === 'vehicules' ? 'Véhicules' : choice.moduleSource === 'logement' ? 'Logement' : choice.moduleSource === 'ecole' ? 'École' : choice.moduleSource === 'documents' ? 'Démarches' : choice.moduleSource === 'courses' ? 'Courses' : choice.moduleSource === 'voyages' ? 'Voyages' : choice.moduleSource === 'animaux' ? 'Animaux' : choice.moduleSource === 'argent_de_poche' ? 'Argent de poche' : choice.moduleSource),
-              recurrence: recurrenceType !== 'none' ? (recurrenceType === 'monthly' ? 'Mensuelle' : recurrenceType === 'weekly' ? 'Hebdomadaire' : recurrenceType === 'daily' ? 'Quotidienne' : recurrenceType === 'yearly' ? 'Annuelle' : recurrenceType) : undefined,
-              member: matchedMember ? matchedMember.name : undefined
-            });
-
-            feedback = `💰 Transaction "${finalTx.title}" de ${amountVal}€ enregistrée dans le module ${choice.label.split(' ')[1] || choice.label}.`;
-            isSuccess = true;
-            setActiveTab('budget');
-            setActiveModule('');
-            setVoiceFeedback(feedback);
-            logVoiceCommandToSupabase(intent, isSuccess);
-            setTimeout(() => setVoiceActive(false), 4000);
-            return;
-          } else {
-            const allCandidates = [
-              { moduleSource: 'courses', category: 'Alimentation', subCategory: 'Supermarché', label: '🛒 Courses' },
-              { moduleSource: 'sante', category: 'Santé', subCategory: 'Médecin', label: '🩺 Santé' },
-              { moduleSource: 'budget', category: 'Transport', subCategory: 'Taxi', label: '🚗 Transport' },
-              { moduleSource: 'budget', category: 'Autres', subCategory: 'Divers', label: '✨ Autre' }
-            ];
-
-            setPendingVoiceCommandData(parsedTxData);
-            setVoiceAmbiguous(true);
-            setAmbiguousChoices(allCandidates);
-            setVoiceTranscript(`"${text}"`);
-            setVoiceFeedback("À quoi correspond cette dépense ?");
-            return;
+                return { ...child, balance: newBal };
+              }
+              return child;
+            }));
           }
-        }
 
-        // 8. Groceries action commands (e.g. ajoute des bananes) - PRIORITÉ ABSOLUE
-        if (
-          promptLower.includes('ajoute') || 
-          promptLower.includes('ajouter') || 
-          promptLower.includes('mets') || 
-          promptLower.includes('mettre') || 
-          promptLower.includes('rajoute') || 
-          promptLower.includes('rajouter') ||
-          promptLower.includes('prépare') ||
-          promptLower.includes('prepare')
-        ) {
-          const activeMemberObj = members.find(m => m.id === activeMemberId);
-          const activeMemberName = activeMemberObj?.name || 'Foyer';
-          const parsedItems = parseSmartNaturalSentence(text, activeMemberName);
+          setVoiceDebugInfo({
+            phrase: text,
+            type: type === 'expense' ? 'Dépense' : 'Revenu',
+            amount: `${amountVal}€`,
+            category: choice.category,
+            subCategory: choice.subCategory,
+            module: choice.moduleSource === 'budget' ? 'Budget' : (choice.moduleSource === 'sante' ? 'Santé' : choice.moduleSource === 'vehicules' ? 'Véhicules' : choice.moduleSource === 'logement' ? 'Logement' : choice.moduleSource === 'ecole' ? 'École' : choice.moduleSource === 'documents' ? 'Démarches' : choice.moduleSource === 'courses' ? 'Courses' : choice.moduleSource === 'voyages' ? 'Voyages' : choice.moduleSource === 'animaux' ? 'Animaux' : choice.moduleSource === 'argent_de_poche' ? 'Argent de poche' : choice.moduleSource),
+            recurrence: recurrenceType !== 'none' ? (recurrenceType === 'monthly' ? 'Mensuelle' : recurrenceType === 'weekly' ? 'Hebdomadaire' : recurrenceType === 'daily' ? 'Quotidienne' : recurrenceType === 'yearly' ? 'Annuelle' : recurrenceType) : undefined,
+            member: matchedMember ? matchedMember.name : undefined
+          });
 
-          if (parsedItems.length > 0) {
-            parsedItems.forEach(item => {
-              handleAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
-            });
-
-            if (parsedItems.length === 1) {
-              feedback = `🛒 Action : J'ai ajouté "${parsedItems[0].name}" (${parsedItems[0].quantity}) dans la catégorie *${parsedItems[0].category}* !`;
-            } else {
-              feedback = `🛒 Action : J'ai ajouté ${parsedItems.length} articles à vos courses (${parsedItems.map(i => i.name).join(', ')}) !`;
-            }
-
+          feedback = `💰 Transaction "${finalTx.title}" de ${amountVal}€ enregistrée dans le module ${choice.label.split(' ')[1] || choice.label}.`;
+          isSuccess = true;
+          
+          if (choice.moduleSource === 'sante') {
+            setActiveTab('menu');
+            setActiveModule('sante');
+          } else if (choice.moduleSource === 'vehicules') {
+            setActiveTab('menu');
+            setActiveModule('vehicule');
+          } else if (choice.moduleSource === 'ecole') {
+            setActiveTab('menu');
+            setActiveModule('devoirs');
+          } else if (choice.moduleSource === 'documents') {
+            setActiveTab('menu');
+            setActiveModule('documents');
+          } else if (choice.moduleSource === 'courses') {
             setActiveTab('menu');
             setActiveModule('courses');
+          } else if (choice.moduleSource === 'voyages') {
+            setActiveTab('menu');
+            setActiveModule('voyage');
           } else {
-            feedback = "🤔 Je n'ai pas compris quel article ajouter à vos courses...";
+            setActiveTab('budget');
+            setActiveModule('');
           }
-        } 
 
-        else if (promptLower.includes('carte') || promptLower.includes('gps') || promptLower.includes('position') || promptLower.includes('itiné')) {
-          setActiveTab('menu');
-          setActiveModule('carte');
-          feedback = "🧭 Navigation : J'affiche la Carte Familiale.";
-        } 
-        else if (promptLower.includes('agenda') || promptLower.includes('planning') || promptLower.includes('calendrier') || promptLower.includes('évènement') || promptLower.includes('rdv') || promptLower.includes('rendez')) {
-          setActiveTab('agenda');
-          setActiveModule('');
-          feedback = "📅 Navigation : J'ouvre l'Agenda Familial.";
-        } 
-        else if (promptLower.includes('finance') || promptLower.includes('budget') || promptLower.includes('dépense') || promptLower.includes('argent') || promptLower.includes('cagnotte') || promptLower.includes('solde')) {
-          setActiveTab('budget');
-          setActiveModule('');
-          feedback = "💰 Navigation : J'ouvre le cockpit financier Budget.";
-        } 
-        else if (promptLower.includes('course') || promptLower.includes('caddie') || promptLower.includes('achat') || promptLower.includes('épicerie') || promptLower.includes('supermar')) {
-          setActiveTab('menu');
-          setActiveModule('courses');
-          feedback = "🛒 Navigation : J'affiche la liste de courses partagée (Éco-Chef).";
-        } 
-        else if (promptLower.includes('capsule') || promptLower.includes('temps') || promptLower.includes('souvenir') || promptLower.includes('moment')) {
-          setActiveTab('menu');
-          setActiveModule('capsule');
-          feedback = "🔒 Navigation : J'ouvre la Capsule Temporelle de vos souvenirs.";
-        } 
-        else if (promptLower.includes('peacemaker') || promptLower.includes('dispute') || promptLower.includes('arbitre') || promptLower.includes('juge')) {
-          setActiveTab('menu');
-          setActiveModule('peacemaker');
-          feedback = "⚖️ Navigation : J'active le PeaceMaker IA pour résoudre le conflit.";
-        } 
-        else if (promptLower.includes('simul') || promptLower.includes('mavie') || promptLower.includes('vie')) {
-          setActiveTab('menu');
-          setActiveModule('mavie');
-          feedback = "🎮 Navigation : Je lance le simulateur d'éducation MaVie.";
-        } 
-        else if (promptLower.includes('conseil') || promptLower.includes('vote') || promptLower.includes('décision') || promptLower.includes('scrutin')) {
-          setActiveTab('menu');
-          setActiveModule('conseil');
-          feedback = "🗳️ Navigation : J'ouvre le Conseil de Famille.";
-        } 
-        else if (promptLower.includes('messagerie') || promptLower.includes('discussion') || promptLower.includes('tchat') || promptLower.includes('chat') || promptLower.includes('parle')) {
-          setActiveTab('menu');
-          setActiveModule('messagerie');
-          feedback = "💬 Navigation : J'affiche la messagerie familiale.";
-        }
-        else if (promptLower.includes('devoir') || promptLower.includes('tuteur') || promptLower.includes('école') || promptLower.includes('prof')) {
-          setActiveTab('menu');
-          setActiveModule('devoirs');
-          feedback = "🎓 Navigation : J'ouvre le Tuteur Scolaire IA.";
-        }
-        else if (promptLower.includes('coffre') || promptLower.includes('document') || promptLower.includes('papier') || promptLower.includes('cni')) {
-          setActiveTab('menu');
-          setActiveModule('documents');
-          feedback = "📂 Navigation : J'ouvre le Coffre-Fort administratif.";
-        }
-        else if (promptLower.includes('voyage') || promptLower.includes('vacance') || promptLower.includes('bagage')) {
-          setActiveTab('menu');
-          setActiveModule('voyage');
-          feedback = "✈️ Navigation : Je lance l'Assistant Voyage IA.";
-        }
-        else {
-          feedback = `🔍 Recherche : Commande "${text}" non reconnue. Essayez : "Ouvre l'agenda", "Affiche la carte" ou "Ajoute du lait".`;
-        }
+          setVoiceFeedback(feedback);
+          logVoiceCommandToSupabase(intent, isSuccess);
+          setTimeout(() => setVoiceActive(false), 4000);
+          return;
+        } else {
+          const allCandidates = [
+            { moduleSource: 'courses', category: 'Alimentation', subCategory: 'Supermarché', label: '🛒 Courses' },
+            { moduleSource: 'sante', category: 'Santé', subCategory: 'Médecin', label: '🩺 Santé' },
+            { moduleSource: 'budget', category: 'Transport', subCategory: 'Taxi', label: '🚗 Transport' },
+            { moduleSource: 'budget', category: 'Autres', subCategory: 'Divers', label: '✨ Autre' }
+          ];
 
-        setVoiceFeedback(feedback);
+          setPendingVoiceCommandData(parsedTxData);
+          setVoiceAmbiguous(true);
+          setAmbiguousChoices(allCandidates);
+          setVoiceTranscript(`"${text}"`);
+          setVoiceFeedback("À quoi correspond cette dépense ?");
+          return;
+        }
+      }
+
+      // Default routing (Navigation) fallbacks if no explicit amount is set
+      if (promptLower.includes('carte') || promptLower.includes('gps') || promptLower.includes('position') || promptLower.includes('itiné')) {
+        setActiveTab('menu');
+        setActiveModule('carte');
+        feedback = "🧭 Navigation : J'affiche la Carte Familiale.";
+      } 
+      else if (promptLower.includes('agenda') || promptLower.includes('planning') || promptLower.includes('calendrier') || promptLower.includes('évènement') || promptLower.includes('rdv') || promptLower.includes('rendez')) {
+        setActiveTab('agenda');
+        setActiveModule('');
+        feedback = "📅 Navigation : J'ouvre l'Agenda Familial.";
+      } 
+      else if (promptLower.includes('finance') || promptLower.includes('budget') || promptLower.includes('dépense') || promptLower.includes('argent') || promptLower.includes('cagnotte') || promptLower.includes('solde')) {
+        setActiveTab('budget');
+        setActiveModule('');
+        feedback = "💰 Navigation : J'ouvre le cockpit financier Budget.";
+      } 
+      else if (promptLower.includes('course') || promptLower.includes('caddie') || promptLower.includes('achat') || promptLower.includes('épicerie') || promptLower.includes('supermar')) {
+        setActiveTab('menu');
+        setActiveModule('courses');
+        feedback = "🛒 Navigation : J'affiche la liste de courses partagée (Éco-Chef).";
+      } 
+      else if (promptLower.includes('capsule') || promptLower.includes('temps') || promptLower.includes('souvenir') || promptLower.includes('moment')) {
+        setActiveTab('menu');
+        setActiveModule('capsule');
+        feedback = "🔒 Navigation : J'ouvre la Capsule Temporelle de vos souvenirs.";
+      } 
+      else if (promptLower.includes('peacemaker') || promptLower.includes('dispute') || promptLower.includes('arbitre') || promptLower.includes('juge')) {
+        setActiveTab('menu');
+        setActiveModule('peacemaker');
+        feedback = "⚖️ Navigation : J'active le PeaceMaker IA pour résoudre le conflit.";
+      } 
+      else if (promptLower.includes('simul') || promptLower.includes('mavie') || promptLower.includes('vie')) {
+        setActiveTab('menu');
+        setActiveModule('mavie');
+        feedback = "🎮 Navigation : Je lance le simulateur d'éducation MaVie.";
+      } 
+      else if (promptLower.includes('conseil') || promptLower.includes('vote') || promptLower.includes('décision') || promptLower.includes('scrutin')) {
+        setActiveTab('menu');
+        setActiveModule('conseil');
+        feedback = "🗳️ Navigation : J'ouvre le Conseil de Famille.";
+      } 
+      else if (promptLower.includes('messagerie') || promptLower.includes('discussion') || promptLower.includes('tchat') || promptLower.includes('chat') || promptLower.includes('parle')) {
+        setActiveTab('menu');
+        setActiveModule('messagerie');
+        feedback = "💬 Navigation : J'affiche la messagerie familiale.";
+      }
+      else if (promptLower.includes('devoir') || promptLower.includes('tuteur') || promptLower.includes('école') || promptLower.includes('prof')) {
+        setActiveTab('menu');
+        setActiveModule('devoirs');
+        feedback = "🎓 Navigation : J'ouvre le Tuteur Scolaire IA.";
+      }
+      else if (promptLower.includes('coffre') || promptLower.includes('document') || promptLower.includes('papier') || promptLower.includes('cni')) {
+        setActiveTab('menu');
+        setActiveModule('documents');
+        feedback = "📂 Navigation : J'ouvre le Coffre-Fort administratif.";
+      }
+      else if (promptLower.includes('voyage') || promptLower.includes('vacance') || promptLower.includes('bagage')) {
+        setActiveTab('menu');
+        setActiveModule('voyage');
+        feedback = "✈️ Navigation : Je lance l'Assistant Voyage IA.";
+      }
+      else {
+        feedback = `🔍 Recherche : Commande "${text}" non reconnue. Essayez : "Ouvre l'agenda", "Affiche la carte" ou "Ajoute du lait".`;
+      }
+
+      setVoiceFeedback(feedback);
     } catch (err: any) {
       console.error("Critical error in parseVoiceCommand:", err);
       setVoiceFeedback("❌ Erreur lors du traitement de la commande vocale.");
@@ -6237,39 +6452,207 @@ function App() {
             </div>
 
             {/* Formulaire de saisie manuelle de secours */}
-            <form 
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!manualVoiceCommand.trim()) return;
-                const cmd = manualVoiceCommand.trim();
-                setVoiceTranscript(`"${cmd}"`);
-                setVoiceWave(false);
-                setTimeout(() => {
-                  parseVoiceCommand(cmd);
-                }, 500);
-                setManualVoiceCommand('');
-              }}
-              className="space-y-3 pt-2"
-            >
-              <div className="relative">
-                <input 
-                  type="text"
-                  placeholder="Écrivez votre commande ici..."
-                  value={manualVoiceCommand}
-                  onChange={(e) => setManualVoiceCommand(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020] pr-12 text-center"
-                />
-                <button
-                  type="submit"
-                  className="absolute right-1 top-1 bottom-1 px-3 rounded-lg bg-[#FFB020] text-black text-[10px] font-extrabold hover:opacity-90 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
-                >
-                  Go
-                </button>
+            {!pendingGroceryItems && (
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!manualVoiceCommand.trim()) return;
+                  const cmd = manualVoiceCommand.trim();
+                  setVoiceTranscript(`"${cmd}"`);
+                  setVoiceWave(false);
+                  setTimeout(() => {
+                    parseVoiceCommand(cmd);
+                  }, 500);
+                  setManualVoiceCommand('');
+                }}
+                className="space-y-3 pt-2"
+              >
+                <div className="relative">
+                  <input 
+                    type="text"
+                    placeholder="Écrivez votre commande ici..."
+                    value={manualVoiceCommand}
+                    onChange={(e) => setManualVoiceCommand(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020] pr-12 text-center"
+                  />
+                  <button
+                    type="submit"
+                    className="absolute right-1 top-1 bottom-1 px-3 rounded-lg bg-[#FFB020] text-black text-[10px] font-extrabold hover:opacity-90 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+                  >
+                    Go
+                  </button>
+                </div>
+                <p className="text-[9px] text-white/30 italic">
+                  Ex : "Ajoute du lait", "Ouvre la carte", "Affiche l'agenda"
+                </p>
+              </form>
+            )}
+
+            {pendingGroceryItems && pendingGroceryItems.length > 0 && !isEditingPendingGrocery && (
+              <div className="bg-white/5 border border-white/10 rounded-[20px] p-4 text-xs font-semibold text-white text-left space-y-4 animate-fade-in">
+                <div className="text-white/60 font-bold border-b border-white/5 pb-2">
+                  🛒 Ajouté à la liste de courses :
+                </div>
+                <div className="space-y-3 max-h-40 overflow-y-auto pr-1">
+                  {pendingGroceryItems.map((item, idx) => {
+                    let emoji = '🛒';
+                    const nameLower = item.name.toLowerCase();
+                    if (nameLower.includes('coca')) emoji = '🥤';
+                    else if (nameLower.includes('lait')) emoji = '🥛';
+                    else if (nameLower.includes('tomate')) emoji = '🍅';
+                    else if (nameLower.includes('pomme') && !nameLower.includes('pomme de terre')) emoji = '🍎';
+                    else if (nameLower.includes('banane')) emoji = '🍌';
+                    else if (nameLower.includes('eau')) emoji = '💧';
+                    else if (nameLower.includes('oignon')) emoji = '🧅';
+                    else if (nameLower.includes('pain') || nameLower.includes('baguette')) emoji = '🥖';
+                    else if (nameLower.includes('beurre')) emoji = '🧈';
+                    else if (nameLower.includes('fromage')) emoji = '🧀';
+                    else if (nameLower.includes('yaourt')) emoji = '🥛';
+                    else if (nameLower.includes('viande') || nameLower.includes('poulet')) emoji = '🍗';
+                    
+                    return (
+                      <div key={idx} className="flex flex-col space-y-1 bg-white/5 p-2.5 rounded-xl border border-white/5">
+                        <div className="text-white text-sm font-extrabold flex items-center gap-1.5">
+                          <span>{emoji}</span>
+                          <span>{item.name}</span>
+                        </div>
+                        <div className="text-white/60 text-[10px] flex justify-between">
+                          <span>Catégorie : {item.category}</span>
+                          <span>Quantité : {item.quantity}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => {
+                      pendingGroceryItems.forEach(item => {
+                        handleAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
+                      });
+                      setVoiceFeedback(`🛒 Action : Articles ajoutés avec succès !`);
+                      setPendingGroceryItems(null);
+                      setActiveTab('menu');
+                      setActiveModule('courses');
+                      setTimeout(() => setVoiceActive(false), 2000);
+                    }}
+                    className="flex-1 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:brightness-110 active:scale-95 text-black font-extrabold uppercase text-[10px] tracking-wider transition-all cursor-pointer text-center animate-pulse"
+                  >
+                    Valider
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsEditingPendingGrocery(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 active:scale-95 text-white font-extrabold uppercase text-[10px] tracking-wider transition-all cursor-pointer text-center"
+                  >
+                    Modifier
+                  </button>
+                </div>
               </div>
-              <p className="text-[9px] text-white/30 italic">
-                Ex : "Ajoute du lait", "Ouvre la carte", "Affiche l'agenda"
-              </p>
-            </form>
+            )}
+
+            {pendingGroceryItems && pendingGroceryItems.length > 0 && isEditingPendingGrocery && (
+              <div className="bg-white/5 border border-white/10 rounded-[20px] p-4 text-xs text-white text-left space-y-4 animate-fade-in">
+                <div className="text-white/60 font-bold border-b border-white/5 pb-2">
+                  ✏️ Modifier les articles :
+                </div>
+                <div className="space-y-4 max-h-52 overflow-y-auto pr-1">
+                  {pendingGroceryItems.map((item, idx) => (
+                    <div key={idx} className="space-y-2 bg-white/5 p-3 rounded-xl border border-white/5">
+                      <div>
+                        <label className="text-[10px] text-white/40 uppercase font-black tracking-wider block mb-1">Nom du produit</label>
+                        <input
+                          type="text"
+                          value={item.name}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setPendingGroceryItems(prev => {
+                              if (!prev) return null;
+                              const updated = [...prev];
+                              updated[idx] = { ...updated[idx], name: val };
+                              return updated;
+                            });
+                          }}
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-white/40 uppercase font-black tracking-wider block mb-1">Catégorie</label>
+                          <select
+                            value={item.category}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setPendingGroceryItems(prev => {
+                                if (!prev) return null;
+                                const updated = [...prev];
+                                updated[idx] = { ...updated[idx], category: val };
+                                return updated;
+                              });
+                            }}
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                          >
+                            <option value="Fruits & Légumes" className="bg-[#07111F]">Fruits & Légumes</option>
+                            <option value="Produits Frais" className="bg-[#07111F]">Produits Frais</option>
+                            <option value="Boulangerie" className="bg-[#07111F]">Boulangerie</option>
+                            <option value="Boucherie" className="bg-[#07111F]">Boucherie</option>
+                            <option value="Épicerie" className="bg-[#07111F]">Épicerie</option>
+                            <option value="Boissons" className="bg-[#07111F]">Boissons</option>
+                            <option value="Surgelés" className="bg-[#07111F]">Surgelés</option>
+                            <option value="Hygiène" className="bg-[#07111F]">Hygiène</option>
+                            <option value="Maison" className="bg-[#07111F]">Maison</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-white/40 uppercase font-black tracking-wider block mb-1">Quantité</label>
+                          <input
+                            type="text"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setPendingGroceryItems(prev => {
+                                if (!prev) return null;
+                                const updated = [...prev];
+                                updated[idx] = { ...updated[idx], quantity: val };
+                                return updated;
+                              });
+                            }}
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      pendingGroceryItems.forEach(item => {
+                        handleAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
+                      });
+                      setVoiceFeedback(`🛒 Action : Articles ajoutés après modification !`);
+                      setPendingGroceryItems(null);
+                      setIsEditingPendingGrocery(false);
+                      setActiveTab('menu');
+                      setActiveModule('courses');
+                      setTimeout(() => setVoiceActive(false), 2000);
+                    }}
+                    className="flex-1 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:brightness-110 active:scale-95 text-black font-extrabold uppercase text-[10px] tracking-wider transition-all cursor-pointer text-center"
+                  >
+                    Enregistrer & Valider
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsEditingPendingGrocery(false);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 active:scale-95 text-white font-extrabold uppercase text-[10px] tracking-wider transition-all cursor-pointer text-center"
+                  >
+                    Retour
+                  </button>
+                </div>
+              </div>
+            )}
 
             {voiceAmbiguous && ambiguousChoices.length > 0 && (
               <div className="space-y-2 pt-2 animate-fade-in border-t border-white/5">
@@ -6389,6 +6772,8 @@ function App() {
               onClick={() => {
                 if (voiceRecognitionRef.current) voiceRecognitionRef.current.stop();
                 setVoiceActive(false);
+                setPendingGroceryItems(null);
+                setIsEditingPendingGrocery(false);
               }}
               className="text-xs font-extrabold uppercase text-white/40 hover:text-white pt-2 cursor-pointer transition-colors"
             >

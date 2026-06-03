@@ -192,14 +192,16 @@ export const parseSmartNaturalSentence = (text: string, activeMemberName: string
       .replace('pour le gouter', '');
   }
 
-  // Enlever les préfixes de commande
+  // Enlever les préfixes de commande et suffixes de liste
   cleanText = cleanText
     .replace(/^ajoute\s+(du\s+|de\s+la\s+|des\s+|de\s+|l\')/, '')
     .replace(/^ajoute\s+/, '')
     .replace(/^achète\s+/, '')
     .replace(/^acheter\s+/, '')
     .replace(/^rajoute\s+/, '')
-    .replace(/^il faut\s+/, '');
+    .replace(/^il faut\s+/, '')
+    .replace(/\s*(?:dans les courses|dans la liste|au panier|à la liste|aux courses|de courses)\s*/gi, ' ')
+    .trim();
 
   // Découper la phrase vocale en sous-segments
   // Connecteurs : " et ", ", ", " plus ", " puis "
