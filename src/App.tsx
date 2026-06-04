@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { parseSmartNaturalSentence, detectGroceryCategory, getGroceryItemEmoji, parseGroceryAction, formatGroceryQty } from './utils/groceryParser';
+import { DICTIONARIES } from './utils/dictionaries';
 
 
 import type { 
@@ -741,6 +742,22 @@ function App() {
   const [pendingGroceryItems, setPendingGroceryItems] = useState<any[] | null>(null);
   const [isEditingPendingGrocery, setIsEditingPendingGrocery] = useState(false);
 
+  // Context states for conversational voice assistant
+  const [voiceContext, setVoiceContext] = useState<{
+    pendingAction: 'create_trip' | string;
+    destination?: string;
+    startDate?: string;
+    endDate?: string;
+    budget?: number;
+    expenseTitle?: string;
+    expenseAmount?: number;
+    missingField?: 'destination' | 'budget' | 'date' | string;
+    remainingSegments?: string[];
+    lastActiveTime: number;
+  } | null>(null);
+
+  const [lastCreatedTrip, setLastCreatedTrip] = useState<{ id: string; destination: string } | null>(null);
+
   const [foyer, setFoyer] = useState<Foyer | null>(() => {
     return safeGetLocalStorage<Foyer | null>('mf_cached_foyer', null);
   });
@@ -753,6 +770,11 @@ function App() {
       safeRemoveLocalStorage('mf_cached_foyer');
     }
   }, [foyer]);
+
+  useEffect(() => {
+    setVoiceContext(null);
+    setLastCreatedTrip(null);
+  }, [foyer?.id, activeMemberId]);
   const [myMemberProfile, setMyMemberProfile] = useState<FoyerMember | null>(() => {
     return safeGetLocalStorage<FoyerMember | null>('mf_cached_member_profile', null);
   });
@@ -3482,6 +3504,37 @@ function App() {
       clearTimeout(voiceTimeoutRef.current);
     }
     
+    // Process remaining segments if any before turning off
+    if (nextState === 'inactif' && voiceContext && voiceContext.remainingSegments && voiceContext.remainingSegments.length > 0) {
+      if (redirection) {
+        setActiveTab(redirection.tab);
+        setActiveModule(redirection.module);
+        if (redirection.subView !== undefined) {
+          setBudgetActiveSubView(redirection.subView);
+        }
+        if (redirection.groceryFilter !== undefined) {
+          setExternalGroceryFilter(redirection.groceryFilter);
+        }
+        setVoiceToast(redirection.toastMessage);
+      }
+      
+      const nextSeg = voiceContext.remainingSegments[0];
+      const nextRemaining = voiceContext.remainingSegments.slice(1);
+      
+      setVoiceContext({
+        ...voiceContext,
+        remainingSegments: nextRemaining,
+        lastActiveTime: Date.now()
+      });
+      
+      setVoiceState('traitement');
+      
+      voiceTimeoutRef.current = setTimeout(() => {
+        parseVoiceCommand(nextSeg);
+      }, delayMs);
+      return;
+    }
+    
     if (nextState === 'inactif') {
       setVoiceState('termine');
     }
@@ -3703,10 +3756,228 @@ function App() {
     };
   };
 
-  const parseVoiceCommand = async (text: string) => {
+  const splitVoiceCommand = (text: string): string[] => {
+    const segments = text.split(/\s+puis\s+|\s+et\s+/i);
+    const result: string[] = [];
+    let lastActionVerb = "";
+    
+    const actionVerbs = ['ajoute', 'ajouter', 'crée', 'creer', 'créer', 'cree', 'planifie', 'planifier', 'programme', 'programmer', 'ouvre', 'montre', 'va', 'affiche', 'coche', 'valide', 'récupère', 'recupere', 'décoche', 'decoche', 'supprime', 'supprimer', 'remplace', 'remplacer', 'modifie', 'modifier'];
+    
+    for (let i = 0; i < segments.length; i++) {
+      let segment = segments[i].trim();
+      if (!segment) continue;
+      
+      const firstWord = segment.split(/\s+/)[0].toLowerCase();
+      const startsWithVerb = actionVerbs.some(v => firstWord.startsWith(v) || v.startsWith(firstWord));
+      
+      if (startsWithVerb) {
+        lastActionVerb = segment.split(/\s+/)[0];
+      } else if (lastActionVerb && i > 0) {
+        segment = `${lastActionVerb} ${segment}`;
+      }
+      result.push(segment);
+    }
+    return result;
+  };
+
+  const parseVoyageCommand = (text: string) => {
+    const textLower = text.toLowerCase();
+    
+    let destination = "";
+    const destMatch = text.match(/(?:voyage|vacances)\s+(?:au|en|à|a|vers)\s+([a-zA-Z0-9éèàùçâêîôûäëïöü\s-]+)/i);
+    if (destMatch) {
+      let rawDest = destMatch[1].trim();
+      const cleanMatch = rawDest.split(/\b(?:pour|et|le|la|de|du|avec|à\b|a\b|en\b|au\b|vers\b)/i)[0].trim();
+      if (cleanMatch) {
+        const cleanLower = cleanMatch.toLowerCase();
+        if (!['au', 'en', 'à', 'a', 'vers', 'le', 'la', 'un', 'une'].includes(cleanLower)) {
+          destination = cleanMatch.charAt(0).toUpperCase() + cleanMatch.slice(1);
+        }
+      }
+    }
+    
+    let dateText = "";
+    const dateMatch = text.match(/(?:pour le|le|du|au|partir du|dès le)\s+(\d{1,2}\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i);
+    if (dateMatch) {
+      dateText = dateMatch[1].trim();
+    }
+    
+    let expenseAmount = 0;
+    const amountMatch = text.match(/(\d+[\.,]?\d*)\s*(?:euros?|€|eur)/i);
+    if (amountMatch) {
+      expenseAmount = parseFloat(amountMatch[1].replace(',', '.'));
+    }
+    
+    let expenseTitle = "";
+    const expenseKeywords = ['billet', 'billets', 'vol', 'vols', 'hotel', 'hôtel', 'hotels', 'hôtels', 'airbnb', 'activite', 'activité', 'activités', 'activites', 'hébergement', 'hebergement', 'repas', 'restaurant', 'resto', 'essence', 'location'];
+    for (const kw of expenseKeywords) {
+      if (textLower.includes(kw)) {
+        expenseTitle = kw.charAt(0).toUpperCase() + kw.slice(1);
+        break;
+      }
+    }
+    
+    let budgetAmount = 0;
+    const budgetMatch = text.match(/budget\s*(?:de)?\s*(\d+[\.,]?\d*)/i);
+    if (budgetMatch) {
+      budgetAmount = parseFloat(budgetMatch[1].replace(',', '.'));
+    }
+    
+    return {
+      destination,
+      dateText,
+      expenseAmount,
+      expenseTitle,
+      budgetAmount
+    };
+  };
+
+  const processVoiceContext = async (ctx: any) => {
+    if (!ctx.destination) {
+      ctx.missingField = 'destination';
+      setVoiceContext(ctx);
+      setVoiceFeedback("Pour quelle destination souhaitez-vous créer ce voyage ?");
+      setVoiceState('confirmation');
+      setVoiceTranscript('');
+      closeVoiceAssistantAfterDelay(3000, 'ecoute');
+      return;
+    }
+    
+    if (!ctx.budget) {
+      ctx.missingField = 'budget';
+      setVoiceContext(ctx);
+      setVoiceFeedback(`✈️ Voyage détecté : ${ctx.destination}\nQuel budget souhaitez-vous prévoir pour ce voyage ?`);
+      setVoiceState('confirmation');
+      setVoiceTranscript('');
+      closeVoiceAssistantAfterDelay(3000, 'ecoute');
+      return;
+    }
+    
+    if (!ctx.startDate) {
+      ctx.missingField = 'date';
+      setVoiceContext(ctx);
+      setVoiceFeedback(`✈️ Voyage : ${ctx.destination} (Budget: ${ctx.budget}€)\nÀ quelle date prévoyez-vous ce voyage ?`);
+      setVoiceState('confirmation');
+      setVoiceTranscript('');
+      closeVoiceAssistantAfterDelay(3000, 'ecoute');
+      return;
+    }
+    
+    const client = getSupabaseClient();
+    const newTripId = `t-${Date.now()}`;
+    const newTrip = {
+      id: newTripId,
+      foyer_id: foyer?.id || '',
+      destination: ctx.destination,
+      startDate: ctx.startDate,
+      endDate: ctx.endDate || ctx.startDate,
+      budget: Number(ctx.budget),
+      bookingRefs: ['hotel:non_defini', 'transport:non_defini', 'billets:non_defini', 'activite:non_defini'],
+      checklist: []
+    };
+    
+    setTrips(prev => [...prev, newTrip]);
+    if (client && foyer?.id) {
+      try {
+        await client.from('trips').insert({
+          id: newTrip.id,
+          foyer_id: foyer.id,
+          destination: newTrip.destination,
+          start_date: newTrip.startDate,
+          end_date: newTrip.endDate,
+          budget: newTrip.budget,
+          booking_refs: JSON.stringify(newTrip.bookingRefs),
+          checklist: JSON.stringify([])
+        });
+      } catch (err) {
+        console.error("Error creating trip in Supabase:", err);
+      }
+    }
+    
+    setLastCreatedTrip({ id: newTripId, destination: ctx.destination });
+    
+    let toastMessage = `Voyage ${ctx.destination} créé`;
+    let feedback = `✈️ Voyage au ${ctx.destination} créé avec un budget de ${ctx.budget}€ pour le ${ctx.startDate}.`;
+    
+    if (ctx.expenseAmount > 0) {
+      const expenseTitle = ctx.expenseTitle || 'Billets';
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const dateStr = now.toISOString().split('T')[0];
+      
+      const newTx = {
+        id: crypto.randomUUID(),
+        foyer_id: foyer?.id || '',
+        title: `${expenseTitle} (Voyage ${ctx.destination})`,
+        amount: ctx.expenseAmount,
+        type: 'expense' as const,
+        category: 'Voyages',
+        subCategory: expenseTitle,
+        date: dateStr,
+        member_id: activeMemberId,
+        member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
+        comment: serializeTransactionComment(`Lié au voyage ${ctx.destination}`, {
+          moduleSource: 'voyages',
+          entryTime: timeStr,
+          entryDate: dateStr,
+          travelId: newTripId
+        })
+      };
+      
+      setTransactions(prev => [newTx, ...prev]);
+      if (client && foyer?.id) {
+        try {
+          await client.from('transactions').insert({
+            id: newTx.id,
+            foyer_id: foyer.id,
+            amount: newTx.amount,
+            type: newTx.type,
+            category: newTx.category,
+            date: newTx.date,
+            title: newTx.title,
+            member_id: newTx.member_id,
+            member_name: newTx.member_name,
+            comment: newTx.comment
+          });
+        } catch (err) {
+          console.error("Error inserting transaction in Supabase:", err);
+        }
+      }
+      
+      feedback += ` Dépense de ${ctx.expenseAmount}€ pour ${expenseTitle} ajoutée.`;
+      toastMessage = `Voyage ${ctx.destination} créé et dépenses ajoutées`;
+    }
+    
+    setVoiceFeedback(feedback);
+    
+    const remainingSegments = ctx.remainingSegments || [];
+    if (remainingSegments.length > 0) {
+      setVoiceContext({
+        pendingAction: 'none',
+        lastActiveTime: Date.now(),
+        remainingSegments: remainingSegments.slice(1)
+      });
+      setTimeout(() => {
+        parseVoiceCommand(remainingSegments[0]);
+      }, 2500);
+    } else {
+      setVoiceContext({
+        pendingAction: 'none',
+        lastActiveTime: Date.now()
+      });
+      closeVoiceAssistantAfterDelay(2500, 'inactif', {
+        tab: 'menu',
+        module: 'voyages',
+        toastMessage
+      });
+    }
+  };
+
+  const parseVoiceCommand = async (rawInputText: string) => {
     try {
-      const textWithDigits = convertFrenchNumbersToDigits(text);
-      const promptLower = textWithDigits.toLowerCase().trim();
+      const textWithDigits = convertFrenchNumbersToDigits(rawInputText);
+      let promptLower = textWithDigits.toLowerCase().trim();
+      let text = rawInputText;
       let feedback = "";
       let intent = "unknown";
       let isSuccess = false;
@@ -3718,7 +3989,7 @@ function App() {
             await client.from('voice_commands').insert({
               id: crypto.randomUUID(),
               foyer_id: foyer.id,
-              raw_text: text,
+              raw_text: rawInputText,
               parsed_intent: cmdIntent,
               is_success: success,
               ...customFields
@@ -3728,6 +3999,105 @@ function App() {
           }
         }
       };
+
+      // 1. Check Voice Context conversational memory
+      const now = Date.now();
+      const isContextActive = voiceContext && (now - voiceContext.lastActiveTime <= 120000);
+      const isShortAnswer = text.split(/\s+/).length <= 4;
+      
+      if (voiceContext && voiceContext.pendingAction !== 'none') {
+        if (!isContextActive) {
+          setVoiceContext(null);
+          if (isShortAnswer) {
+            feedback = "Je n'ai plus assez d'informations pour terminer l'action. Pouvez-vous recommencer ?";
+            setVoiceFeedback(feedback);
+            logVoiceCommandToSupabase("context_expired", false);
+            closeVoiceAssistantAfterDelay(3500);
+            return;
+          }
+        } else {
+          let resolved = false;
+          const updatedCtx = { ...voiceContext, lastActiveTime: now };
+          
+          if (voiceContext.missingField === 'budget') {
+            const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+            if (numMatch) {
+              updatedCtx.budget = parseFloat(numMatch[1].replace(',', '.'));
+              delete updatedCtx.missingField;
+              resolved = true;
+            }
+          } else if (voiceContext.missingField === 'destination') {
+            let destVal = text.trim();
+            destVal = destVal.replace(/voyage au|voyage en|voyage à|voyage a|voyage vers/gi, '').trim();
+            destVal = destVal.replace(/au|en|à|a|vers/gi, '').trim();
+            if (destVal) {
+              destVal = destVal.charAt(0).toUpperCase() + destVal.slice(1);
+              updatedCtx.destination = destVal;
+              delete updatedCtx.missingField;
+              resolved = true;
+            }
+          } else if (voiceContext.missingField === 'date') {
+            let dateVal = text.trim();
+            if (dateVal) {
+              updatedCtx.startDate = dateVal;
+              updatedCtx.endDate = dateVal;
+              delete updatedCtx.missingField;
+              resolved = true;
+            }
+          }
+          
+          if (resolved) {
+            setVoiceContext(updatedCtx);
+            await processVoiceContext(updatedCtx);
+            return;
+          } else {
+            const actionVerbs = ['ajoute', 'ajouter', 'crée', 'creer', 'créer', 'cree', 'ouvre', 'montre', 'va', 'affiche', 'coche', 'décoche', 'supprime'];
+            const firstWord = promptLower.split(/\s+/)[0];
+            const isInterrupt = actionVerbs.some(v => firstWord.startsWith(v) || v.startsWith(firstWord)) || promptLower.includes('voyage');
+            
+            if (isInterrupt) {
+              setVoiceContext(null);
+            } else {
+              setVoiceFeedback("Je n'ai pas compris votre réponse. " + (
+                voiceContext.missingField === 'budget' ? "Quel budget souhaitez-vous prévoir ?" :
+                voiceContext.missingField === 'destination' ? "Pour quelle destination ?" : "À quelle date ?"
+              ));
+              closeVoiceAssistantAfterDelay(3000, 'ecoute');
+              return;
+            }
+          }
+        }
+      }
+
+      // 2. Split multi-action command
+      const segments = splitVoiceCommand(text);
+      const currentSegmentText = segments[0];
+      
+      text = currentSegmentText;
+      promptLower = convertFrenchNumbersToDigits(text).toLowerCase().trim();
+
+      // 3. Intercept Voyage Creation for Conversational Memory
+      const voyageDetails = parseVoyageCommand(promptLower);
+      const isVoyageCreate = /crée|creer|créer|cree|planifie|planifier/i.test(promptLower) && (promptLower.includes('voyage') || promptLower.includes('vacances'));
+      
+      if (isVoyageCreate && voyageDetails) {
+        intent = "voyage_create";
+        
+        const initialCtx = {
+          pendingAction: 'create_trip',
+          destination: voyageDetails.destination || undefined,
+          startDate: voyageDetails.dateText || undefined,
+          endDate: voyageDetails.dateText || undefined,
+          budget: voyageDetails.budgetAmount || undefined,
+          expenseTitle: voyageDetails.expenseTitle || undefined,
+          expenseAmount: voyageDetails.expenseAmount || undefined,
+          remainingSegments: segments.slice(1),
+          lastActiveTime: Date.now()
+        };
+        
+        await processVoiceContext(initialCtx);
+        return;
+      }
 
       const executeGroceryVoiceAction = async (actionResult: any) => {
         const client = getSupabaseClient();
@@ -4070,8 +4440,17 @@ function App() {
         }
       }
 
+      // Helper check function for dictionary matches
+      const hasWordMatch = (dict: string[], textToCheck: string) => {
+        return dict.some(word => {
+          const regex = new RegExp(`\\b${word}\\b`, 'i');
+          return regex.test(textToCheck);
+        });
+      };
+
       // Détection de création d'événement d'agenda / médical
       const startsWithAgendaAction = /ajoute|ajouter|planifie|planifier|creer|créer|crée|cree|programme|programmer/i.test(promptLower);
+      const containsSanteDictWord = hasWordMatch(DICTIONARIES.sante, promptLower);
       const isEventCreation = startsWithAgendaAction && 
         (promptLower.includes('rendez-vous') || 
          promptLower.includes('rendez vous') || 
@@ -4092,7 +4471,8 @@ function App() {
          promptLower.includes('osteo') || 
          promptLower.includes('vaccin') || 
          promptLower.includes('agenda') || 
-         promptLower.includes('calendrier'));
+         promptLower.includes('calendrier') ||
+         containsSanteDictWord);
 
       if (isEventCreation && !hasExplicitAmount) {
         intent = "event_create";
@@ -4202,10 +4582,12 @@ function App() {
         promptLower.includes('solde') || 
         promptLower.includes('abonnement');
 
+      const hasGroceryDictWord = hasWordMatch(DICTIONARIES.courses, promptLower);
       const isGroceryIntent = 
         (hasGroceryKeywords && !isFinancialTrigger) ||
         (startsWithActionVerb && !hasExplicitAmount && !isFinancialTrigger) ||
-        (hasFoodKeywords && !hasExplicitAmount && !isFinancialTrigger);
+        (hasFoodKeywords && !hasExplicitAmount && !isFinancialTrigger) ||
+        (hasGroceryDictWord && startsWithActionVerb && !hasExplicitAmount && !isFinancialTrigger);
 
       if (isGroceryIntent) {
         intent = "grocery_add";
@@ -4307,7 +4689,8 @@ function App() {
         promptLower.includes('sante') || 
         promptLower.includes('ophtalmo') || 
         promptLower.includes('ostéo') || 
-        promptLower.includes('osteo');
+        promptLower.includes('osteo') ||
+        containsSanteDictWord;
 
       if (isSanteIntent) {
         if (hasExplicitAmount) {
@@ -4348,6 +4731,7 @@ function App() {
       }
 
       // 5. Démarches
+      const containsDemarchesDictWord = hasWordMatch(DICTIONARIES.demarches, promptLower);
       const isDemarchesIntent = 
         promptLower.includes('démarche') || 
         promptLower.includes('demarche') || 
@@ -4360,7 +4744,8 @@ function App() {
         promptLower.includes('visa') || 
         promptLower.includes('justificatif') || 
         promptLower.includes('impôts') || 
-        promptLower.includes('impot');
+        promptLower.includes('impot') ||
+        containsDemarchesDictWord;
 
       if (isDemarchesIntent && !hasExplicitAmount) {
         setActiveTab('menu');
@@ -4373,6 +4758,7 @@ function App() {
       }
 
       // 6. Voyages
+      const containsVoyagesDictWord = hasWordMatch(DICTIONARIES.voyages, promptLower);
       const isVoyagesIntent = 
         promptLower.includes('voyage') || 
         promptLower.includes('voyages') || 
@@ -4385,7 +4771,8 @@ function App() {
         promptLower.includes('hôtel') || 
         promptLower.includes('hotel') || 
         promptLower.includes('airbnb') || 
-        promptLower.includes('valise');
+        promptLower.includes('valise') ||
+        containsVoyagesDictWord;
 
       if (isVoyagesIntent && !hasExplicitAmount) {
         setActiveTab('menu');
@@ -4779,6 +5166,14 @@ function App() {
             travelId = matchingTravels[0].id;
           } else {
             requiresTravelResolution = true;
+          }
+        } else if (lastCreatedTrip) {
+          const hasTravelKeywords = /voyage|vacances|billet|vol|hôtel|hotel|airbnb/i.test(promptLower);
+          if (hasTravelKeywords) {
+            travelId = lastCreatedTrip.id;
+            travelNameFound = lastCreatedTrip.destination;
+            parsedTxData.category = 'Voyages';
+            parsedTxData.moduleSource = 'voyages';
           }
         }
 
@@ -7462,7 +7857,10 @@ function App() {
                               }
                             }
                             
+                            setLastCreatedTrip({ id: newTripId, destination: newTripDest });
                             finalTravelId = newTripId;
+                          } else if (choice.action === 'link') {
+                            setLastCreatedTrip({ id: choice.id, destination: choice.destination });
                           }
                           
                           const finalTx = {
@@ -7524,14 +7922,23 @@ function App() {
                           setAmbiguousTravelChoices([]);
                           setPendingVoiceCommandData(null);
                           
+                          const destLabel = choice.destination;
+                          const capitalizedDest = destLabel.charAt(0).toUpperCase() + destLabel.slice(1);
+                          
                           if (choice.action !== 'global') {
-                            setActiveTab('menu');
-                            setActiveModule('voyages');
+                            closeVoiceAssistantAfterDelay(2500, 'inactif', {
+                              tab: 'menu',
+                              module: 'voyages',
+                              toastMessage: choice.action === 'create' ? `Voyage ${capitalizedDest} créé` : `Voyage ${capitalizedDest} mis à jour`
+                            });
                           } else {
-                            setActiveTab('budget');
-                            setActiveModule('');
+                            closeVoiceAssistantAfterDelay(2500, 'inactif', {
+                              tab: 'budget',
+                              module: '',
+                              subView: { type: 'tab', tab: 'transactions' },
+                              toastMessage: 'Dépense ajoutée'
+                            });
                           }
-                          closeVoiceAssistantAfterDelay(4000);
                         }
                       }}
                       className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black text-white text-left cursor-pointer transition-all active:scale-95 hover:border-[#FF4D6D]"
