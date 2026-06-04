@@ -1036,6 +1036,40 @@ function App() {
     } else if (moduleName === 'budget') {
       setAbonnements(prev => prev.filter(a => a.id !== rawId));
       if (client) await client.from('abonnements').delete().eq('id', rawId);
+    } else if (moduleName === 'animaux') {
+      const isVac = id.startsWith('pet-vac-');
+      const isVet = id.startsWith('pet-vet-');
+      setPets(prev => prev.map(p => {
+        if (p.id !== rawId) return p;
+        return {
+          ...p,
+          nextVaccine: isVac ? "" : p.nextVaccine,
+          vetAppointment: isVet ? "" : p.vetAppointment
+        };
+      }));
+      if (client) {
+        const updateData: any = {};
+        if (isVac) updateData.next_vaccine = null;
+        if (isVet) updateData.vet_appointment = null;
+        await client.from('pets').update(updateData).eq('id', rawId);
+      }
+    } else if (moduleName === 'vehicules') {
+      const isTc = id.startsWith('veh-tc-');
+      const isIns = id.startsWith('veh-ins-');
+      setVehicles(prev => prev.map(v => {
+        if (v.id !== rawId) return v;
+        return {
+          ...v,
+          technicalControl: isTc ? "" : v.technicalControl,
+          insuranceExpiry: isIns ? "" : v.insuranceExpiry
+        };
+      }));
+      if (client) {
+        const updateData: any = {};
+        if (isTc) updateData.technical_control = null;
+        if (isIns) updateData.insurance_expiry = null;
+        await client.from('vehicles').update(updateData).eq('id', rawId);
+      }
     }
   };
 
@@ -1107,6 +1141,7 @@ function App() {
   const [devModeActive, setDevModeActive] = useState(() => localStorage.getItem('mf_dev_mode') === 'true');
   const devClicks = useRef(0);
   const [voiceDebugTrace, setVoiceDebugTrace] = useState<any | null>(null);
+  if (voiceDebugTrace) { console.debug("voiceDebugTrace", voiceDebugTrace); }
   const [voiceState, setVoiceState] = useState<'idle' | 'listening' | 'processing' | 'asking_missing_field' | 'waiting_for_answer' | 'executing' | 'success' | 'error' | 'inactif' | 'ecoute' | 'traitement' | 'confirmation' | 'termine' | 'erreur'>('idle');
   const voiceTimeoutRef = useRef<any>(null);
   const voiceRecognitionRef = useRef<any>(null);
@@ -10831,104 +10866,6 @@ function App() {
             </button>
           </div>
 
-          {/* Trace Panel Render */}
-          {voiceDebugTrace && (
-            <div className="glass-panel border border-dashed border-[#FF4D6D]/30 bg-black/60 rounded-[30px] p-5 max-w-sm w-full text-xs font-semibold text-left text-white/90 space-y-3 shadow-[0_10px_30px_rgba(255,77,109,0.15)] animate-fade-in mt-4">
-              <div className="text-white/60 font-black border-b border-white/10 pb-1.5 flex items-center justify-between uppercase tracking-wider select-none text-[10px]">
-                <span className="flex items-center gap-1.5">
-                  <span className="animate-pulse">🐞</span> Audit du Parseur Vocal
-                </span>
-                <span className="text-[9px] bg-[#FF4D6D]/20 text-[#FF4D6D] px-2 py-0.5 rounded font-extrabold">Trace</span>
-              </div>
-              
-              <div className="space-y-2.5 font-mono text-[10px] leading-relaxed">
-                <div>
-                  <span className="text-white/40 uppercase block text-[8px] font-bold tracking-wider">Intention Détectée</span>
-                  <span className="text-[#6C5CFF] font-black">{voiceDebugTrace.intention}</span>
-                </div>
-                
-                <div>
-                  <span className="text-white/40 uppercase block text-[8px] font-bold tracking-wider">Entités Détectées</span>
-                  {Object.keys(voiceDebugTrace.entities || {}).length > 0 ? (
-                    <div className="bg-white/5 p-2 rounded-lg border border-white/5 space-y-0.5 mt-1">
-                      {Object.entries(voiceDebugTrace.entities).map(([key, val]) => (
-                        <div key={key}>
-                          <span className="text-blue-400 font-bold">{key} :</span>{' '}
-                          <span className="text-emerald-400">{typeof val === 'object' ? JSON.stringify(val) : String(val)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-white/30 italic">Aucune</span>
-                  )}
-                </div>
-                
-                 <div>
-                  <span className="text-white/40 uppercase block text-[8px] font-bold tracking-wider">Champs Manquants</span>
-                  {voiceDebugTrace.missingFields && voiceDebugTrace.missingFields.length > 0 ? (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {voiceDebugTrace.missingFields.map((field: string) => (
-                        <span key={field} className="bg-rose-500/20 text-rose-400 border border-rose-500/30 px-1.5 py-0.5 rounded font-extrabold text-[9px] uppercase tracking-wider">
-                          {field === 'memberId' ? 'personne' : field}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-emerald-400 font-bold">Aucun</span>
-                  )}
-                </div>
-                
-                {voiceDebugTrace.dateAudit && (
-                  <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-2.5 space-y-1 text-orange-200 mt-2">
-                    <div className="text-orange-400 font-extrabold uppercase text-[8px] tracking-wider mb-1 flex items-center gap-1">
-                      <span>📅</span> Audit de la date (Temporaire)
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/40">1. Détectée:</span>
-                      <span className="text-orange-300 font-mono">{voiceDebugTrace.dateAudit.detected}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/40">2. Contexte:</span>
-                      <span className="text-orange-300 font-mono">{voiceDebugTrace.dateAudit.context}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/40">3. Création:</span>
-                      <span className="text-orange-300 font-mono">{voiceDebugTrace.dateAudit.creation}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/40">4. Supabase:</span>
-                      <span className="text-orange-300 font-mono">{voiceDebugTrace.dateAudit.supabase}</span>
-                    </div>
-                  </div>
-                )}
-                
-                <div>
-                  <span className="text-white/40 uppercase block text-[8px] font-bold tracking-wider">Contexte Actif</span>
-                  <span className={voiceDebugTrace.contextActive ? "text-emerald-400 font-bold" : "text-white/30 font-bold"}>
-                    {voiceDebugTrace.contextActive ? "✓ Actif" : "✗ Inactif"}
-                  </span>
-                  {voiceDebugTrace.contextFlow && (
-                    <div className="bg-purple-950/20 border border-purple-500/15 rounded-lg p-2 mt-1 space-y-1 text-purple-200">
-                      <div><span className="text-purple-400 font-extrabold">context_active :</span> {String(voiceDebugTrace.contextFlow.context_active)}</div>
-                      <div><span className="text-purple-400 font-extrabold">waiting_for :</span> {voiceDebugTrace.contextFlow.waiting_for}</div>
-                      <div><span className="text-purple-400 font-extrabold">received :</span> "{voiceDebugTrace.contextFlow.received}"</div>
-                      {voiceDebugTrace.contextFlow.waiting_for && voiceDebugTrace.contextFlow[voiceDebugTrace.contextFlow.waiting_for] !== undefined && (
-                        <div>
-                          <span className="text-purple-400 font-extrabold">{voiceDebugTrace.contextFlow.waiting_for} :</span>{' '}
-                          {String(voiceDebugTrace.contextFlow[voiceDebugTrace.contextFlow.waiting_for])}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                
-                <div>
-                  <span className="text-white/40 uppercase block text-[8px] font-bold tracking-wider">Action Exécutée</span>
-                  <span className="text-[#FFB020] font-black">{voiceDebugTrace.actionExecuted}</span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 

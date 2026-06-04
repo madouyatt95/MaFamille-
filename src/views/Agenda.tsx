@@ -139,6 +139,7 @@ export const Agenda: React.FC<AgendaProps> = ({
       return {
         id: e.id,
         title: e.title,
+        date: eDate,
         dateTime: eTime ? `${eDate}T${eTime}:00` : `${eDate}T00:00:00`,
         time: eTime,
         type: eType,
@@ -227,15 +228,23 @@ export const Agenda: React.FC<AgendaProps> = ({
     other: 'Autre'
   };
 
-  const getDotsForDay = (dateStr: string) => {
-    const dayEvents = visibleEvents.filter(e => e.dateTime.startsWith(dateStr));
-    return dayEvents.map(e => {
-      if ((e as any).isExternal && (e as any).sourceColor) {
-        return { style: { backgroundColor: (e as any).sourceColor }, isStyle: true, className: '' };
-      }
-      const cls = e.memberId ? memberColors[e.memberId] : 'bg-white/50';
-      return { className: cls, isStyle: false, style: {} };
-    }).slice(0, 3);
+
+
+  const getEventEmoji = (e: any): string => {
+    const type = e.type || e.event_type;
+    const sourceModule = e.sourceModule || e.source_module;
+    if (sourceModule === 'fetes') return '🎉';
+    if (type === 'birthday' || type === 'bday') return '🎂';
+    if (type === 'vaccine' || type === 'medical' || type === 'pet-vac' || type === 'pet-vet') return '💉';
+    if (type === 'school') return '📚';
+    if (type === 'trip' || type === 'social') return '✈️';
+    if (type === 'bill' || type === 'abonnement') return '💸';
+    if (type === 'veh-tc' || type === 'veh-ins') return '🚗';
+    if (type === 'maint') return '🏠';
+    if (type === 'task') return '🧹';
+    if (type === 'demarche') return '📄';
+    if (sourceModule === 'external') return '📅';
+    return '•';
   };
 
   // Synchronisation de toutes les sources iCal actives
@@ -403,13 +412,13 @@ export const Agenda: React.FC<AgendaProps> = ({
   const listEvents = useMemo(() => {
     const prefix = `${currentPivotDate.getFullYear()}-${String(currentPivotDate.getMonth() + 1).padStart(2, '0')}`;
     return visibleEvents
-      .filter(e => e.dateTime.startsWith(prefix))
+      .filter(e => e.date.startsWith(prefix))
       .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
   }, [visibleEvents, currentPivotDate]);
 
   const filteredEvents = useMemo(() => {
     return visibleEvents.filter(event => {
-      const matchesDate = event.dateTime.startsWith(selectedDate);
+      const matchesDate = event.date === selectedDate;
       const matchesType = selectedTypeFilter === 'all' || event.type === selectedTypeFilter;
       const matchesMember = selectedMemberFilter === 'all' || event.memberId === selectedMemberFilter;
       return matchesDate && matchesType && matchesMember;
@@ -564,9 +573,11 @@ export const Agenda: React.FC<AgendaProps> = ({
 
               {calendarCells.map((cell, idx) => {
                 const isSelected = cell.dateStr === selectedDate;
-                const hasEvents = cell.dateStr ? visibleEvents.some(e => e.dateTime.startsWith(cell.dateStr!)) : false;
+                const dayEvents = cell.dateStr ? visibleEvents.filter(e => e.date === cell.dateStr) : [];
+                const dayEventsCount = dayEvents.length;
+                const hasEvents = dayEventsCount > 0;
                 const isToday = cell.dateStr === getLocalDateString(new Date());
-                const isHoliday = cell.dateStr ? visibleEvents.some(e => e.dateTime.startsWith(cell.dateStr!) && e.sourceModule === 'fetes') : false;
+                const isHoliday = cell.dateStr ? dayEvents.some(e => e.sourceModule === 'fetes') : false;
                 
                 return (
                   <button
@@ -589,14 +600,12 @@ export const Agenda: React.FC<AgendaProps> = ({
                   >
                     <span className="text-xs font-semibold">{cell.day}</span>
                     {cell.dateStr && hasEvents && (
-                      <div className="absolute bottom-1.5 flex justify-center space-x-0.5 pointer-events-none">
-                        {getDotsForDay(cell.dateStr).map((dot, dIdx) => (
-                          <span 
-                            key={dIdx} 
-                            className={`w-1.5 h-1.5 rounded-full ${!dot.isStyle ? dot.className : ''}`} 
-                            style={dot.isStyle ? dot.style : undefined}
-                          />
-                        ))}
+                      <div className="absolute bottom-1.5 flex justify-center pointer-events-none w-full">
+                        {dayEventsCount === 1 ? (
+                          <span className="text-[11px] leading-none">{getEventEmoji(dayEvents[0])}</span>
+                        ) : (
+                          <span className="text-[9px] font-black bg-white/20 text-white px-1 py-0.2 rounded-md font-sans leading-none">({dayEventsCount})</span>
+                        )}
                       </div>
                     )}
                   </button>
@@ -612,7 +621,7 @@ export const Agenda: React.FC<AgendaProps> = ({
               <div className="flex space-x-3 overflow-x-auto pb-2 no-scrollbar px-1">
                 {weekCells.map((cell, idx) => {
                   const isSelected = cell.dateStr === selectedDate;
-                  const dayEventsCount = visibleEvents.filter(e => e.dateTime.startsWith(cell.dateStr)).length;
+                  const dayEventsCount = visibleEvents.filter(e => e.date === cell.dateStr).length;
                   const isToday = cell.dateStr === getLocalDateString(new Date());
                   
                   return (
@@ -661,7 +670,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                 {/* Events Overlaid */}
                 <div className="relative pl-14 pt-2 w-full">
                   {visibleEvents
-                    .filter(e => e.dateTime.startsWith(selectedDate))
+                    .filter(e => e.date === selectedDate)
                     .map(event => {
                       const member = !event.isExternal ? members.find(m => m.id === event.memberId) : null;
                       
@@ -758,7 +767,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                 {/* Events Overlaid */}
                 <div className="relative pl-14 pt-2 w-full">
                   {visibleEvents
-                    .filter(e => e.dateTime.startsWith(selectedDate))
+                    .filter(e => e.date === selectedDate)
                     .map(event => {
                       const member = !event.isExternal ? members.find(m => m.id === event.memberId) : null;
                       
@@ -841,8 +850,8 @@ export const Agenda: React.FC<AgendaProps> = ({
                     >
                       <div className="flex items-start space-x-3">
                         <div className="flex flex-col items-center justify-center bg-white/5 rounded-xl px-2.5 py-1.5 border border-white/5 shrink-0 min-w-[50px]">
-                          <span className="text-[9px] text-white/40 font-bold uppercase">{new Date(event.dateTime.split('T')[0]).toLocaleDateString('fr-FR', { weekday: 'short' })}</span>
-                          <span className="text-xs text-white font-extrabold">{new Date(event.dateTime.split('T')[0]).getDate()}</span>
+                          <span className="text-[9px] text-white/40 font-bold uppercase">{new Date(event.date).toLocaleDateString('fr-FR', { weekday: 'short' })}</span>
+                          <span className="text-xs text-white font-extrabold">{new Date(event.date).getDate()}</span>
                         </div>
                         
                         <div className="space-y-1">

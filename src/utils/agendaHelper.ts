@@ -536,6 +536,40 @@ export function getUnifiedEvents({
           return; // Skip duplicate!
         }
       }
+      if (titleLower.includes('devoir :')) {
+        const tName = e.title.split(':').slice(1).join(':').trim();
+        if (tName && schoolTasks.some(st => st.title.toLowerCase().includes(tName.toLowerCase()))) {
+          return; // Skip duplicate!
+        }
+      }
+      if (titleLower.includes('tâche :') || titleLower.includes('tache :')) {
+        const tName = e.title.split(':').slice(1).join(':').trim();
+        if (tName && tasks.some(tk => tk.title.toLowerCase().includes(tName.toLowerCase()))) {
+          return; // Skip duplicate!
+        }
+      }
+      if (titleLower.includes('démarche :') || titleLower.includes('demarche :')) {
+        const tName = e.title.split(':').slice(1).join(':').trim();
+        if (tName && demarches.some(d => d.title.toLowerCase().includes(tName.toLowerCase()))) {
+          return; // Skip duplicate!
+        }
+      }
+      if (titleLower.includes('prélèvement :') || titleLower.includes('prelevement :')) {
+        const tName = e.title.split(':').slice(1).join(':').trim();
+        if (tName && abonnements.some(a => a.name.toLowerCase().includes(tName.toLowerCase()))) {
+          return; // Skip duplicate!
+        }
+      }
+      if (titleLower.includes('contrôle technique') || titleLower.includes('controle technique') || titleLower.includes('assurance :')) {
+        if (vehicles.some(v => titleLower.includes(v.name.toLowerCase()))) {
+          return; // Skip duplicate!
+        }
+      }
+      if (titleLower.includes('vaccin de') || titleLower.includes('rdv vétérinaire') || titleLower.includes('rdv veterinaire')) {
+        if (pets.some(p => titleLower.includes(p.name.toLowerCase()))) {
+          return; // Skip duplicate!
+        }
+      }
 
       const eDate = e.dateTime ? e.dateTime.split('T')[0] : todayStr;
       unifiedList.push({

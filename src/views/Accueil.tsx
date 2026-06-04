@@ -1064,7 +1064,7 @@ export const Accueil: React.FC<AccueilProps> = ({
               <button
                 onClick={() => {
                   if (window.confirm(`Archiver "${selectedEventForMenu.title}" ?`)) {
-                    if (onArchiveUnifiedEvent) onArchiveUnifiedEvent(selectedEventForMenu.id, selectedEventForMenu.sourceModule);
+                    if (onArchiveUnifiedEvent) onArchiveUnifiedEvent(selectedEventForMenu.id, selectedEventForMenu.source_module);
                     setSelectedEventForMenu(null);
                   }
                 }}
@@ -1076,7 +1076,7 @@ export const Accueil: React.FC<AccueilProps> = ({
               <button
                 onClick={() => {
                   if (window.confirm(`Supprimer définitivement "${selectedEventForMenu.title}" ?`)) {
-                    if (onDeleteUnifiedEvent) onDeleteUnifiedEvent(selectedEventForMenu.id, selectedEventForMenu.sourceModule);
+                    if (onDeleteUnifiedEvent) onDeleteUnifiedEvent(selectedEventForMenu.id, selectedEventForMenu.source_module);
                     setSelectedEventForMenu(null);
                   }
                 }}
