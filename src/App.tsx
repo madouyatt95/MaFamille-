@@ -394,9 +394,24 @@ function App() {
     return safeGetLocalStorage('mf_votes', []);
   });
 
-  const [schoolTasks, setSchoolTasks] = useState<SchoolTask[]>(() => {
+  const [schoolTasks, setSchoolTasksState] = useState<SchoolTask[]>(() => {
     return safeGetLocalStorage('mf_school_tasks', []);
   });
+
+  const setSchoolTasks = (actionOrUpdater: SchoolTask[] | ((prev: SchoolTask[]) => SchoolTask[])) => {
+    setSchoolTasksState((prev: SchoolTask[]) => {
+      const next = typeof actionOrUpdater === 'function' ? actionOrUpdater(prev) : actionOrUpdater;
+      const added = next.filter((n: any) => !prev.some((p: any) => p.id === n.id));
+      added.forEach((t: any) => {
+        sendLocalNotification(
+          "Nouveau devoir assigné",
+          `📚 Le devoir de ${t.subject} "${t.title}" a été ajouté pour ${members.find(m => m.id === t.assignedMemberId)?.name || 'un élève'}.`,
+          "ecole"
+        );
+      });
+      return next;
+    });
+  };
 
   const [grades, setGrades] = useState<any[]>(() => {
     const stored = localStorage.getItem('school_grades');
@@ -477,6 +492,11 @@ function App() {
         description: v.doctor
       };
       setEvents(prev => [newEvent, ...prev]);
+      sendLocalNotification(
+        "Vaccin planifié",
+        `💉 Le vaccin "${v.name}" a été planifié pour ${members.find(m => m.id === v.memberId)?.name || 'un membre'}.`,
+        "sante"
+      );
       if (client && foyer) {
         try {
           await client.from('events').insert({
@@ -706,6 +726,111 @@ function App() {
     }
   };
 
+  async function sendLocalNotification(title: string, description: string, moduleName?: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') {
+    const newAlert: NotificationAlert = {
+      id: crypto.randomUUID() + `-by-${activeMemberId}`,
+      title,
+      description,
+      time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      type,
+      read: false,
+      module: moduleName,
+      senderUserId: user?.id || undefined,
+      senderMemberId: activeMemberId,
+      senderName: myMemberProfile?.displayName || 'Membre',
+      senderAvatar: myMemberProfile?.photoUrl || undefined,
+      createdAt: new Date().toISOString()
+    };
+
+    setAlerts(prev => [newAlert, ...prev]);
+
+    setActiveToast({
+      title: newAlert.title,
+      description: newAlert.description
+    });
+
+    await saveAlertToCloud(newAlert);
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(newAlert.title, {
+          body: newAlert.description,
+          icon: '/favicon.svg'
+        });
+      } catch (err) {
+        console.warn("Could not fire native notification:", err);
+      }
+    }
+  }
+
+  const handleDeleteUnifiedEvent = async (id: string, moduleName: string) => {
+    const rawId = id.replace(/^(agenda|trip-dep|trip-ret|trip|demarche|school-task|school|task|vac|pet-vac|pet-vet|abo|vehicle-tc|vehicle-ins|veh-tc|veh-ins|maint|maintenance)-/, '');
+    const client = getSupabaseClient();
+    
+    if (moduleName === 'agenda') {
+      setEvents(prev => prev.filter(e => e.id !== rawId));
+      if (client) await client.from('events').delete().eq('id', rawId);
+    } else if (moduleName === 'voyages') {
+      setTrips(prev => prev.filter(t => t.id !== rawId));
+      if (client) await client.from('trips').delete().eq('id', rawId);
+    } else if (moduleName === 'demarches') {
+      setDemarches(prev => prev.filter(d => d.id !== rawId));
+      if (client) await client.from('demarches').delete().eq('id', rawId);
+    } else if (moduleName === 'ecole') {
+      setSchoolTasksState(prev => prev.filter(st => st.id !== rawId));
+      if (client) await client.from('school_tasks').delete().eq('id', rawId);
+    } else if (moduleName === 'taches') {
+      setTasks(prev => prev.filter(tk => tk.id !== rawId));
+      if (client) await client.from('chore_tasks').delete().eq('id', rawId);
+    } else if (moduleName === 'sante') {
+      setEvents(prev => prev.filter(e => e.id !== rawId));
+      if (client) await client.from('events').delete().eq('id', rawId);
+    } else if (moduleName === 'logement') {
+      setMaintenance(prev => prev.filter(m => m.id !== rawId));
+      if (client) await client.from('maintenance').delete().eq('id', rawId);
+    } else if (moduleName === 'budget') {
+      setAbonnements(prev => prev.filter(a => a.id !== rawId));
+      if (client) await client.from('abonnements').delete().eq('id', rawId);
+    }
+  };
+
+  const handleArchiveUnifiedEvent = async (id: string, moduleName: string) => {
+    const rawId = id.replace(/^(agenda|trip-dep|trip-ret|trip|demarche|school-task|school|task|vac|pet-vac|pet-vet|abo|vehicle-tc|vehicle-ins|veh-tc|veh-ins|maint|maintenance)-/, '');
+    const client = getSupabaseClient();
+
+    if (moduleName === 'agenda') {
+      setEvents(prev => prev.map(e => e.id === rawId ? { ...e, done: true } : e));
+      if (client) await client.from('events').update({ done: true }).eq('id', rawId);
+    } else if (moduleName === 'demarches') {
+      setDemarches(prev => prev.map(d => d.id === rawId ? { ...d, status: 'archived' as any } : d));
+      if (client) await client.from('demarches').update({ status: 'archived' }).eq('id', rawId);
+    } else if (moduleName === 'ecole') {
+      setSchoolTasksState(prev => prev.map(st => st.id === rawId ? { ...st, done: true, grade: 'Validé' } : st));
+      if (client) await client.from('school_tasks').update({ done: true, grade: 'Validé' }).eq('id', rawId);
+    } else if (moduleName === 'taches') {
+      setTasks(prev => prev.map(tk => tk.id === rawId ? { ...tk, done: true, validatedByParent: true } : tk));
+      if (client) await client.from('chore_tasks').update({ done: true, validated_by_parent: true }).eq('id', rawId);
+    } else if (moduleName === 'sante') {
+      setEvents(prev => prev.map(e => e.id === rawId ? { ...e, done: true } : e));
+      if (client) await client.from('events').update({ done: true }).eq('id', rawId);
+    } else if (moduleName === 'logement') {
+      setMaintenance(prev => prev.map(m => m.id === rawId ? { ...m, status: 'completed' as any } : m));
+      if (client) await client.from('maintenance').update({ status: 'completed' }).eq('id', rawId);
+    } else if (moduleName === 'voyages') {
+      const activeFoyerId = foyer?.id || 'default';
+      const key = `mf_archived_trips_${activeFoyerId}`;
+      let archivedIds: string[] = [];
+      try {
+        archivedIds = JSON.parse(localStorage.getItem(key) || '[]');
+      } catch (_) {}
+      if (!archivedIds.includes(rawId)) {
+        archivedIds.push(rawId);
+        localStorage.setItem(key, JSON.stringify(archivedIds));
+      }
+      setTrips(prev => [...prev]);
+    }
+  };
+
   // Voice Command Assistant State
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
@@ -761,6 +886,13 @@ function App() {
 
   const parseVoiceCommandRef = useRef<any>(null);
   const voiceActionStatusRef = useRef<'waiting' | 'processing' | 'completed'>('waiting');
+  const voiceInactivityTimerRef = useRef<any>(null);
+  const voiceActiveRef = useRef(voiceActive);
+  const voiceStateRef = useRef(voiceState);
+  const voiceContextRef = useRef(voiceContext);
+  useEffect(() => { voiceActiveRef.current = voiceActive; }, [voiceActive]);
+  useEffect(() => { voiceStateRef.current = voiceState; }, [voiceState]);
+  useEffect(() => { voiceContextRef.current = voiceContext; }, [voiceContext]);
 
   const [foyer, setFoyer] = useState<Foyer | null>(() => {
     return safeGetLocalStorage<Foyer | null>('mf_cached_foyer', null);
@@ -792,6 +924,101 @@ function App() {
       safeRemoveLocalStorage('mf_cached_member_profile');
     }
   }, [myMemberProfile]);
+
+  useEffect(() => {
+    if (!foyer) return;
+    const checkExpiringItems = async () => {
+      try {
+        const foyerId = foyer.id;
+        const storageKey = `mf_alerted_expiries_${foyerId}`;
+        let alertedIds: string[] = [];
+        try {
+          alertedIds = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        } catch (_) {}
+        const newAlertedIds = [...alertedIds];
+        let changed = false;
+        const now = new Date();
+
+        // 1. Check documents
+        if (Array.isArray(documents)) {
+          documents.forEach((doc: any) => {
+            if (doc.expiryDate) {
+              const exp = new Date(doc.expiryDate);
+              if (!isNaN(exp.getTime())) {
+                const diffTime = exp.getTime() - now.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const alertKey = `doc-${doc.id}-${doc.expiryDate}`;
+                if (diffDays >= 0 && diffDays <= 30 && !alertedIds.includes(alertKey)) {
+                  sendLocalNotification(
+                    "⚠️ Document expirant bientôt",
+                    `Le document "${doc.name}" pour ${doc.memberName || 'un membre'} expire le ${doc.expiryDate} (dans ${diffDays} jours).`,
+                    "documents",
+                    "warning"
+                  );
+                  newAlertedIds.push(alertKey);
+                  changed = true;
+                }
+              }
+            }
+          });
+        }
+
+        // 2. Check vehicles (technicalControl & insuranceExpiry)
+        if (Array.isArray(vehicles)) {
+          vehicles.forEach((v: any) => {
+            if (v.technicalControl) {
+              const tc = new Date(v.technicalControl);
+              if (!isNaN(tc.getTime())) {
+                const diffTime = tc.getTime() - now.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const alertKey = `veh-tc-${v.id}-${v.technicalControl}`;
+                if (diffDays >= 0 && diffDays <= 30 && !alertedIds.includes(alertKey)) {
+                  sendLocalNotification(
+                    "⚠️ Contrôle technique proche",
+                    `Le contrôle technique pour le véhicule "${v.name}" (${v.plate}) arrive à échéance le ${v.technicalControl} (dans ${diffDays} jours).`,
+                    "vehicules",
+                    "warning"
+                  );
+                  newAlertedIds.push(alertKey);
+                  changed = true;
+                }
+              }
+            }
+
+            if (v.insuranceExpiry) {
+              const ins = new Date(v.insuranceExpiry);
+              if (!isNaN(ins.getTime())) {
+                const diffTime = ins.getTime() - now.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const alertKey = `veh-ins-${v.id}-${v.insuranceExpiry}`;
+                if (diffDays >= 0 && diffDays <= 30 && !alertedIds.includes(alertKey)) {
+                  sendLocalNotification(
+                    "⚠️ Échéance d'assurance proche",
+                    `L'assurance pour le véhicule "${v.name}" (${v.plate}) expire le ${v.insuranceExpiry} (dans ${diffDays} jours).`,
+                    "vehicules",
+                    "warning"
+                  );
+                  newAlertedIds.push(alertKey);
+                  changed = true;
+                }
+              }
+            }
+          });
+        }
+
+        if (changed) {
+          localStorage.setItem(storageKey, JSON.stringify(newAlertedIds));
+        }
+      } catch (err) {
+        console.error("Error in checkExpiringItems:", err);
+      }
+    };
+
+    // Delay checking slightly to ensure sendLocalNotification is available and stable
+    const t = setTimeout(checkExpiringItems, 2000);
+    return () => clearTimeout(t);
+  }, [documents, vehicles, foyer]);
+
   const [onboardingActive, setOnboardingActive] = useState(false);
   const isSessionCheckingRef = useRef(false);
 
@@ -3615,6 +3842,18 @@ function App() {
     setPendingGroceryItems(null);
     setIsEditingPendingGrocery(false);
 
+    if (voiceInactivityTimerRef.current) {
+      clearTimeout(voiceInactivityTimerRef.current);
+    }
+    voiceInactivityTimerRef.current = setTimeout(() => {
+      if (voiceActiveRef.current) {
+        setVoiceState('inactif');
+        setVoiceActive(false);
+        setVoiceContext(null);
+        voiceActionStatusRef.current = 'waiting';
+      }
+    }, 120000);
+
     try {
       const recognition = new SpeechRecognition();
       voiceRecognitionRef.current = recognition;
@@ -3623,6 +3862,18 @@ function App() {
       recognition.maxAlternatives = 1;
 
       recognition.onresult = (event: any) => {
+        if (voiceInactivityTimerRef.current) {
+          clearTimeout(voiceInactivityTimerRef.current);
+        }
+        voiceInactivityTimerRef.current = setTimeout(() => {
+          if (voiceActiveRef.current) {
+            setVoiceState('inactif');
+            setVoiceActive(false);
+            setVoiceContext(null);
+            voiceActionStatusRef.current = 'waiting';
+          }
+        }, 120000);
+
         const transcript = event.results[0][0].transcript;
         setVoiceTranscript(`"${transcript}"`);
         setVoiceWave(false);
@@ -3648,6 +3899,13 @@ function App() {
 
       recognition.onend = () => {
         setVoiceWave(false);
+        const isConversational = voiceContextRef.current && voiceContextRef.current.pendingAction !== 'none';
+        if (voiceActiveRef.current && isConversational && (voiceStateRef.current === 'ecoute' || voiceStateRef.current === 'confirmation')) {
+          try {
+            recognition.start();
+            setVoiceWave(true);
+          } catch(e) {}
+        }
       };
 
       recognition.start();
@@ -4387,6 +4645,18 @@ function App() {
     // 3. Perform actions
     // 3a. create_trip
     if (ctx.pendingAction === 'create_trip') {
+      if (ctx.startDate && ctx.endDate && ctx.startDate !== 'Non planifié' && ctx.endDate !== 'Non planifié') {
+        const start = new Date(ctx.startDate);
+        const end = new Date(ctx.endDate);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end < start) {
+          setVoiceFeedback("La date de retour doit être postérieure à la date de départ.");
+          setVoiceWave(false);
+          setVoiceActive(false);
+          voiceActionStatusRef.current = 'completed';
+          return;
+        }
+      }
+
       const duplicateExists = trips.some(t => 
         t.destination.toLowerCase() === ctx.destination.toLowerCase() &&
         t.startDate === ctx.startDate &&
@@ -7029,30 +7299,11 @@ function App() {
           const activeMemberObj = members.find(m => m.id === activeMemberId);
           const activeMemberName = activeMemberObj ? activeMemberObj.name : 'Un parent';
 
-          const newAlert = {
-            id: `a-ev-${Date.now()}-by-${activeMemberId}`,
-            title: `📅 Nouvel événement : ${newEvent.title}`,
-            description: `Ajouté pour le ${newEvent.dateTime.split('T')[0]} par ${activeMemberName}.`,
-            time: 'À l\'instant',
-            type: 'info' as const,
-            read: false,
-            module: 'agenda'
-          };
-
-          await client.from('alerts').insert({
-            id: newAlert.id,
-            foyer_id: foyer.id,
-            title: newAlert.title,
-            description: newAlert.description,
-            time: newAlert.time,
-            type: newAlert.type,
-            read: newAlert.read,
-            module: newAlert.module,
-            sender_user_id: user?.id,
-            sender_member_id: myMemberProfile?.id,
-            sender_name: myMemberProfile?.displayName || activeMemberName,
-            sender_avatar: myMemberProfile?.photoUrl || activeMemberObj?.photoUrl
-          });
+          await sendLocalNotification(
+            `📅 Nouvel événement : ${newEvent.title}`,
+            `Ajouté pour le ${newEvent.dateTime.split('T')[0]} par ${activeMemberName}.`,
+            "agenda"
+          );
         } catch (err) {
           console.error("Erreur lors de l'ajout cloud de l'événement :", err);
         }
@@ -7240,23 +7491,7 @@ function App() {
             }
 
             if (triggered) {
-              const newAlert: NotificationAlert = {
-                id: `alert-budget-${Date.now()}-${moduleId}`,
-                title: alertTitle,
-                description: alertDesc,
-                time: 'À l\'instant',
-                type: alertType,
-                read: false,
-                module: 'budget'
-              };
-              setAlerts(prev => [newAlert, ...prev]);
-              saveAlertToCloud(newAlert);
-              
-              try {
-                const savedAlerts = localStorage.getItem('mf_alerts');
-                const parsedAlerts = savedAlerts ? JSON.parse(savedAlerts) : [];
-                localStorage.setItem('mf_alerts', JSON.stringify([newAlert, ...parsedAlerts]));
-              } catch (_) {}
+              sendLocalNotification(alertTitle, alertDesc, 'budget', alertType);
             }
           }
         }
@@ -7313,6 +7548,11 @@ function App() {
   const handleAddTask = (newTask: any) => {
     const id = `tk-${Date.now()}`;
     setTasks(prev => [{ ...newTask, id }, ...prev]);
+    sendLocalNotification(
+      "Nouvelle tâche assignée",
+      `🧹 La tâche "${newTask.title}" a été assignée à ${newTask.assignedMemberName || 'un membre'}.`,
+      "taches"
+    );
   };
 
   const handleAddMember = async (newMem: any) => {
@@ -7621,6 +7861,11 @@ function App() {
     };
 
     setGroceries(prev => [newItem, ...prev]);
+    sendLocalNotification(
+      "Article ajouté aux courses",
+      `🛒 L'article "${name}" (qté: ${qty || '1'}) a été ajouté aux courses par ${defaultAddedBy}.`,
+      "courses"
+    );
 
     if (foyer) {
       const client = getSupabaseClient();
@@ -8186,6 +8431,8 @@ function App() {
           savingGoals={savingGoals}
           vaccines={vaccines}
           pets={pets}
+          onDeleteUnifiedEvent={handleDeleteUnifiedEvent}
+          onArchiveUnifiedEvent={handleArchiveUnifiedEvent}
         />
       );
     }

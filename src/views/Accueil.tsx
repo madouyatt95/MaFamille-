@@ -130,6 +130,8 @@ interface AccueilProps {
   vaccines?: any[];
   savingGoals?: any[];
   pets?: any[];
+  onDeleteUnifiedEvent?: (id: string, moduleName: string) => Promise<void>;
+  onArchiveUnifiedEvent?: (id: string, moduleName: string) => Promise<void>;
 }
 
 export const Accueil: React.FC<AccueilProps> = ({
@@ -163,9 +165,12 @@ export const Accueil: React.FC<AccueilProps> = ({
   abonnements = [],
   vaccines = [],
   savingGoals: _savingGoals = [],
-  pets = []
+  pets = [],
+  onDeleteUnifiedEvent,
+  onArchiveUnifiedEvent
 }) => {
   const [selectedMealDay, setSelectedMealDay] = useState<string>('Lun');
+  const [hiddenEventIds, setHiddenEventIds] = useState<string[]>([]);
 
   const activeMember = members.find(m => m.id === activeMemberId) || members[0] || {
     id: activeMemberId || '1',
@@ -385,17 +390,35 @@ export const Accueil: React.FC<AccueilProps> = ({
     };
   });
 
-  const tripsUnified = trips.map(t => ({
-    id: `trip-${t.id}`,
-    title: `Voyage : ${t.destination}`,
-    type: 'trip',
-    date: t.startDate,
-    time: '09:00',
-    description: `Budget prévu : ${t.budget}€`,
-    iconType: 'trip',
-    done: false,
-    sourceModule: 'voyages'
-  }));
+  const tripsUnified: any[] = [];
+  trips.forEach(t => {
+    if (t.startDate) {
+      tripsUnified.push({
+        id: `trip-dep-${t.id}`,
+        title: `✈️ Départ : ${t.destination}`,
+        type: 'trip',
+        date: t.startDate,
+        time: '09:00',
+        description: `Départ pour le voyage à ${t.destination}. Budget : ${t.budget}€`,
+        iconType: 'trip',
+        done: false,
+        sourceModule: 'voyages'
+      });
+    }
+    if (t.endDate) {
+      tripsUnified.push({
+        id: `trip-ret-${t.id}`,
+        title: `🛬 Retour : ${t.destination}`,
+        type: 'trip',
+        date: t.endDate,
+        time: '18:00',
+        description: `Retour du voyage à ${t.destination}.`,
+        iconType: 'trip',
+        done: false,
+        sourceModule: 'voyages'
+      });
+    }
+  });
 
   const demarchesUnified = demarches
     .filter(d => d.status !== 'completed')
@@ -620,7 +643,7 @@ export const Accueil: React.FC<AccueilProps> = ({
     ...vehiclesUnified,
     ...maintenanceUnified,
     ...birthdaysUnified
-  ];
+  ].filter(e => e && !hiddenEventIds.includes(e.id));
 
   const todayUnifiedEvents = allUnifiedEvents
     .filter(e => e.date === todayStr && !e.done)
@@ -996,12 +1019,14 @@ export const Accueil: React.FC<AccueilProps> = ({
                 const { Icon, cls } = getEventIconAndColor(event);
                 const linkedMember = event.memberId ? members.find(m => m.id === event.memberId) : null;
                 return (
-                  <button 
+                  <div 
                     key={event.id} 
-                    onClick={() => handleEventClick(event)}
-                    className="w-full text-left glass-panel rounded-[28px] p-4 flex items-center justify-between border border-white/8 transition-all hover:bg-white/10 cursor-pointer"
+                    className="w-full text-left glass-panel rounded-[28px] p-4 flex items-center justify-between border border-white/8 transition-all hover:bg-white/10 group relative"
                   >
-                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                    <div 
+                      onClick={() => handleEventClick(event)}
+                      className="flex items-center space-x-3 min-w-0 flex-1 cursor-pointer"
+                    >
                       <div className={`p-3 rounded-[18px] ${cls} border shrink-0`}>
                         <Icon className="w-5 h-5" />
                       </div>
@@ -1013,12 +1038,49 @@ export const Accueil: React.FC<AccueilProps> = ({
                         </p>
                       </div>
                     </div>
-                    <div className="shrink-0 ml-2">
+                    <div className="shrink-0 ml-2 flex items-center space-x-2">
                       <span className="text-xs font-bold text-white/70 bg-white/5 px-3 py-1.5 rounded-[12px] border border-white/5">
                         {event.time}
                       </span>
+                      
+                      <div className="opacity-0 group-hover:opacity-100 flex items-center space-x-1 transition-all duration-200 absolute right-3 top-1/2 -translate-y-1/2 bg-[#07111F]/95 p-1 rounded-xl border border-white/10 shadow-lg z-10">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Archiver "${event.title}" ?`)) {
+                              if (onArchiveUnifiedEvent) onArchiveUnifiedEvent(event.id, event.sourceModule);
+                            }
+                          }}
+                          className="p-1.5 hover:bg-white/10 rounded text-[11px] cursor-pointer"
+                          title="Archiver"
+                        >
+                          📦
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHiddenEventIds(prev => [...prev, event.id]);
+                          }}
+                          className="p-1.5 hover:bg-white/10 rounded text-[11px] cursor-pointer"
+                          title="Masquer"
+                        >
+                          🙈
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Supprimer définitivement "${event.title}" ?`)) {
+                              if (onDeleteUnifiedEvent) onDeleteUnifiedEvent(event.id, event.sourceModule);
+                            }
+                          }}
+                          className="p-1.5 hover:bg-red-500/20 text-red-400 rounded text-[11px] cursor-pointer"
+                          title="Supprimer"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })
             ) : (
@@ -1056,12 +1118,14 @@ export const Accueil: React.FC<AccueilProps> = ({
                 const dateFr = new Date(event.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 
                 return (
-                  <button 
+                  <div 
                     key={event.id} 
-                    onClick={() => handleEventClick(event)}
-                    className="w-full text-left glass-panel rounded-[28px] p-4 flex items-center justify-between border border-white/8 transition-all hover:bg-white/10 cursor-pointer"
+                    className="w-full text-left glass-panel rounded-[28px] p-4 flex items-center justify-between border border-white/8 transition-all hover:bg-white/10 group relative"
                   >
-                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                    <div 
+                      onClick={() => handleEventClick(event)}
+                      className="flex items-center space-x-3 min-w-0 flex-1 cursor-pointer"
+                    >
                       <div className={`p-3 rounded-[18px] ${cls} border shrink-0`}>
                         <Icon className="w-5 h-5" />
                       </div>
@@ -1073,12 +1137,49 @@ export const Accueil: React.FC<AccueilProps> = ({
                         </p>
                       </div>
                     </div>
-                    <div className="shrink-0 ml-2">
+                    <div className="shrink-0 ml-2 flex items-center space-x-2">
                       <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-[12px] border ${badgeColor} tracking-wider`}>
                         {daysStr}
                       </span>
+                      
+                      <div className="opacity-0 group-hover:opacity-100 flex items-center space-x-1 transition-all duration-200 absolute right-3 top-1/2 -translate-y-1/2 bg-[#07111F]/95 p-1 rounded-xl border border-white/10 shadow-lg z-10">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Archiver "${event.title}" ?`)) {
+                              if (onArchiveUnifiedEvent) onArchiveUnifiedEvent(event.id, event.sourceModule);
+                            }
+                          }}
+                          className="p-1.5 hover:bg-white/10 rounded text-[11px] cursor-pointer"
+                          title="Archiver"
+                        >
+                          📦
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHiddenEventIds(prev => [...prev, event.id]);
+                          }}
+                          className="p-1.5 hover:bg-white/10 rounded text-[11px] cursor-pointer"
+                          title="Masquer"
+                        >
+                          🙈
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Supprimer définitivement "${event.title}" ?`)) {
+                              if (onDeleteUnifiedEvent) onDeleteUnifiedEvent(event.id, event.sourceModule);
+                            }
+                          }}
+                          className="p-1.5 hover:bg-red-500/20 text-red-400 rounded text-[11px] cursor-pointer"
+                          title="Supprimer"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })
             ) : (

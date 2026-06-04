@@ -1,0 +1,2 @@
+// === FOYER SYSTEM ===
+export {};

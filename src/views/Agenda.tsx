@@ -256,18 +256,37 @@ export const Agenda: React.FC<AgendaProps> = ({
     
     const ext = mappedExternalEvents.map(e => ({ ...e, sourceModule: 'external' }));
 
-    const tripEvs = trips.map((t: any) => ({
-      id: `trip-${t.id}`,
-      title: `✈️ Voyage : ${t.destination}`,
-      dateTime: `${t.startDate}T09:00:00`,
-      time: '09:00',
-      type: 'social' as EventType,
-      memberId: 'Foyer',
-      location: t.destination,
-      notes: `Budget : ${t.budget}€`,
-      done: false,
-      sourceModule: 'voyages'
-    }));
+    const tripEvs: any[] = [];
+    trips.forEach((t: any) => {
+      if (t.startDate) {
+        tripEvs.push({
+          id: `trip-dep-${t.id}`,
+          title: `✈️ Départ : ${t.destination}`,
+          dateTime: `${t.startDate}T09:00:00`,
+          time: '09:00',
+          type: 'social' as EventType,
+          memberId: 'Foyer',
+          location: t.destination,
+          notes: `Départ pour le voyage à ${t.destination}. Budget : ${t.budget}€`,
+          done: false,
+          sourceModule: 'voyages'
+        });
+      }
+      if (t.endDate) {
+        tripEvs.push({
+          id: `trip-ret-${t.id}`,
+          title: `🛬 Retour : ${t.destination}`,
+          dateTime: `${t.endDate}T18:00:00`,
+          time: '18:00',
+          type: 'social' as EventType,
+          memberId: 'Foyer',
+          location: t.destination,
+          notes: `Retour du voyage à ${t.destination}.`,
+          done: false,
+          sourceModule: 'voyages'
+        });
+      }
+    });
 
     const vacEvs = vaccines.map((v: any) => ({
       id: `vac-${v.id}`,

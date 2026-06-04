@@ -979,13 +979,22 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
   const handleAddTrip = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTripDest || !newTripBudget) return;
+    if (!newTripDest || !newTripBudget || !newTripStart || !newTripEnd) {
+      alert("Veuillez remplir tous les champs obligatoires.");
+      return;
+    }
+    const startISO = parseCustomDateToISO(newTripStart);
+    const endISO = parseCustomDateToISO(newTripEnd);
+    if (new Date(endISO) < new Date(startISO)) {
+      alert("La date de retour doit être postérieure à la date de départ.");
+      return;
+    }
     const budgetVal = parseFloat(newTripBudget) || 0;
     const newT: Trip = {
       id: `t-${Date.now()}`,
       destination: newTripDest,
-      startDate: newTripStart || '15 Juillet 2026',
-      endDate: newTripEnd || '22 Juillet 2026',
+      startDate: newTripStart,
+      endDate: newTripEnd,
       budget: budgetVal,
       bookingRefs: ['hotel:non_defini', 'transport:non_defini', 'billets:non_defini', 'activite:non_defini'],
       checklist: [
@@ -994,9 +1003,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       ]
     };
     setTrips(prev => [...prev, newT]);
-
-    const startISO = parseCustomDateToISO(newT.startDate);
-    const endISO = parseCustomDateToISO(newT.endDate);
 
     // Enregistrement de l'enveloppe budgétaire dans les configurations locales sans créer de transaction Dépense
     try {
