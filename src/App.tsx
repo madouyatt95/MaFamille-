@@ -285,6 +285,17 @@ function App() {
     }
   }, [activeToast]);
 
+  const [voiceToast, setVoiceToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (voiceToast) {
+      const timer = setTimeout(() => {
+        setVoiceToast(null);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [voiceToast]);
+
   const [chatGroups, setChatGroups] = useState<ChatGroup[]>(() => {
     return safeGetLocalStorage('mf_chat_groups', []);
   });
@@ -3456,7 +3467,17 @@ function App() {
     justificatifPacks, vehicles, maintenance, trips, pets, pocketMoney, artisans
   ]);
 
-  const closeVoiceAssistantAfterDelay = (delayMs: number = 2500, nextState: 'inactif' | 'ecoute' = 'inactif') => {
+  const closeVoiceAssistantAfterDelay = (
+    delayMs: number = 2500,
+    nextState: 'inactif' | 'ecoute' = 'inactif',
+    redirection?: {
+      tab: string;
+      module: string;
+      subView?: any;
+      groceryFilter?: 'all' | 'pending' | 'checked';
+      toastMessage: string;
+    }
+  ) => {
     if (voiceTimeoutRef.current) {
       clearTimeout(voiceTimeoutRef.current);
     }
@@ -3469,6 +3490,18 @@ function App() {
       if (nextState === 'inactif') {
         setVoiceActive(false);
         setVoiceState('inactif');
+        
+        if (redirection) {
+          setActiveTab(redirection.tab);
+          setActiveModule(redirection.module);
+          if (redirection.subView !== undefined) {
+            setBudgetActiveSubView(redirection.subView);
+          }
+          if (redirection.groceryFilter !== undefined) {
+            setExternalGroceryFilter(redirection.groceryFilter);
+          }
+          setVoiceToast(redirection.toastMessage);
+        }
       } else {
         // Redémarrer le micro immédiatement
         setVoiceState('inactif');
@@ -3599,6 +3632,75 @@ function App() {
       res = res.replace(regex, replacement);
     }
     return res;
+  };
+
+  const parseAgendaVoiceCommand = (prompt: string, text: string) => {
+    const textLower = prompt.toLowerCase();
+    
+    let eventDate = new Date();
+    let dateStr = eventDate.toISOString().split('T')[0];
+    let dateLabel = "aujourd'hui";
+    
+    if (textLower.includes("demain")) {
+      eventDate.setDate(eventDate.getDate() + 1);
+      dateStr = eventDate.toISOString().split('T')[0];
+      dateLabel = "demain";
+    } else if (textLower.includes("après-demain") || textLower.includes("apres-demain") || textLower.includes("après demain")) {
+      eventDate.setDate(eventDate.getDate() + 2);
+      dateStr = eventDate.toISOString().split('T')[0];
+      dateLabel = "après-demain";
+    } else {
+      const daysOfWeek = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+      for (let i = 0; i < 7; i++) {
+        if (textLower.includes(daysOfWeek[i])) {
+          const currentDay = eventDate.getDay();
+          let daysToAdd = i - currentDay;
+          if (daysToAdd <= 0) daysToAdd += 7;
+          eventDate.setDate(eventDate.getDate() + daysToAdd);
+          dateStr = eventDate.toISOString().split('T')[0];
+          dateLabel = daysOfWeek[i];
+          break;
+        }
+      }
+    }
+    
+    let timeStr = "12:00";
+    let timeLabel = "";
+    const timeRegex = /(?:à|a|vers)\s*(\d{1,2})\s*(?:h|heures?|:)\s*(\d{1,2})?/i;
+    const match = textLower.match(timeRegex);
+    if (match) {
+      const hours = match[1].padStart(2, '0');
+      const minutes = (match[2] || '00').padStart(2, '0');
+      timeStr = `${hours}:${minutes}`;
+      timeLabel = ` à ${hours}h${match[2] || ''}`;
+    }
+    
+    let title = text
+      .replace(/ajoute|ajouter|planifie|planifier|creer|créer|crée|cree|programme|programmer/gi, '')
+      .replace(/rendez-vous|rendez vous|rdv/gi, 'Rendez-vous')
+      .replace(/demain|après-demain|apres-demain/gi, '')
+      .replace(/(?:lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)/gi, '')
+      .replace(/(?:à|a|vers)\s*\d{1,2}\s*(?:h|heures?|:)\s*\d{0,2}/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+      
+    if (!title) {
+      title = "Événement vocal";
+    } else {
+      title = title.charAt(0).toUpperCase() + title.slice(1);
+    }
+    
+    const isHealth = /médecin|medecin|docteur|dentiste|pédiatre|pediatre|ophtalmo|ostéo|osteo|vaccin|clinique|hôpital|hopital|visite médicale|visite medicale|sante|santé/i.test(textLower);
+    const type = isHealth ? 'health' : 'other';
+    
+    return {
+      title,
+      dateTime: dateStr,
+      time: timeStr,
+      type,
+      dateLabel,
+      timeLabel
+    };
   };
 
   const parseVoiceCommand = async (text: string) => {
@@ -3786,9 +3888,45 @@ function App() {
           }
         }
         
+        let redirectPayload = undefined;
+        if (localSuccess) {
+          let toastMessage = "Liste de courses mise à jour";
+          let groceryFilter: 'all' | 'pending' | 'checked' = 'all';
+
+          if (actionResult.action === 'summary_remaining' || actionResult.action === 'count_remaining') {
+            toastMessage = "Filtre : À acheter";
+            groceryFilter = 'pending';
+          } else if (actionResult.action === 'summary_bought') {
+            toastMessage = "Filtre : Déjà achetés";
+            groceryFilter = 'checked';
+          } else {
+            const names = actionResult.items ? actionResult.items.map((i: any) => i.item.name).join(', ') : '';
+            if (actionResult.action === 'check') {
+              toastMessage = names ? `${names} acheté` : "Article coché";
+            } else if (actionResult.action === 'uncheck') {
+              toastMessage = names ? `${names} décoché` : "Article décoché";
+            } else if (actionResult.action === 'delete') {
+              toastMessage = names ? `${names} supprimé` : "Article supprimé";
+            } else if (actionResult.action === 'update_qty') {
+              toastMessage = names ? `Quantité de ${names} mise à jour` : "Quantité mise à jour";
+            } else if (actionResult.action === 'replace') {
+              const oldName = actionResult.items[0]?.item.name || '';
+              const newName = actionResult.items[0]?.details.replaceWith || '';
+              toastMessage = `Remplacé ${oldName} par ${newName}`;
+            }
+          }
+
+          redirectPayload = {
+            tab: 'menu',
+            module: 'courses',
+            groceryFilter,
+            toastMessage
+          };
+        }
+
         setVoiceFeedback(localFeedback);
         logVoiceCommandToSupabase(`grocery_${actionResult.action}`, localSuccess);
-        closeVoiceAssistantAfterDelay(4000);
+        closeVoiceAssistantAfterDelay(2500, 'inactif', redirectPayload);
       };
 
       // Determine explicit financial amount first
@@ -3878,16 +4016,47 @@ function App() {
         }
 
         if (matched) {
-          setActiveTab(matched.tab);
-          setActiveModule(matched.module);
-          if (matched.subView === 'transactions') {
-            setBudgetActiveSubView({ type: 'tab', tab: 'transactions' });
-          } else {
-            setBudgetActiveSubView(null);
+          const moduleNames: Record<string, string> = {
+            accueil: 'Accueil',
+            agenda: 'Agenda',
+            budget: 'Budget',
+            courses: 'Courses',
+            sante: 'Santé',
+            documents: 'Démarches',
+            voyages: 'Voyages',
+            vehicules: 'Véhicules',
+            logement: 'Logement',
+            ecole: 'École',
+            animaux: 'Animaux',
+            argent: 'Argent de poche',
+            taches: 'Tâches',
+            messagerie: 'Messagerie',
+            capsule: 'Souvenirs',
+            carte: 'Carte',
+            contacts: 'Contacts',
+            settings: 'Paramètres'
+          };
+          const targetKey = matched.module || matched.tab;
+          const displayLabel = moduleNames[targetKey] || targetKey;
+          
+          let toastMessage = `${displayLabel} ouvert`;
+          if (displayLabel === 'Courses' || displayLabel === 'Démarches' || displayLabel === 'Tâches') {
+            toastMessage = `${displayLabel} ouvertes`;
+          } else if (displayLabel === 'Santé' || displayLabel === 'Messagerie' || displayLabel === 'Carte' || displayLabel === 'École') {
+            toastMessage = `${displayLabel} ouverte`;
+          } else if (displayLabel === 'Voyages' || displayLabel === 'Véhicules' || displayLabel === 'Animaux' || displayLabel === 'Souvenirs' || displayLabel === 'Contacts' || displayLabel === 'Paramètres') {
+            toastMessage = `${displayLabel} ouverts`;
           }
+
           setVoiceFeedback(matched.message);
           logVoiceCommandToSupabase("navigation", true, { target_module: matched.module || matched.tab });
-          closeVoiceAssistantAfterDelay(2500);
+
+          closeVoiceAssistantAfterDelay(2500, 'inactif', {
+            tab: matched.tab,
+            module: matched.module,
+            subView: matched.subView === 'transactions' ? { type: 'tab', tab: 'transactions' } : null,
+            toastMessage
+          });
           return;
         }
       }
@@ -3899,6 +4068,67 @@ function App() {
           await executeGroceryVoiceAction(actionResult);
           return;
         }
+      }
+
+      // Détection de création d'événement d'agenda / médical
+      const startsWithAgendaAction = /ajoute|ajouter|planifie|planifier|creer|créer|crée|cree|programme|programmer/i.test(promptLower);
+      const isEventCreation = startsWithAgendaAction && 
+        (promptLower.includes('rendez-vous') || 
+         promptLower.includes('rendez vous') || 
+         promptLower.includes('rdv') || 
+         promptLower.includes('événement') || 
+         promptLower.includes('evenement') || 
+         promptLower.includes('réunion') || 
+         promptLower.includes('reunion') || 
+         promptLower.includes('visite') || 
+         promptLower.includes('médecin') || 
+         promptLower.includes('medecin') || 
+         promptLower.includes('docteur') || 
+         promptLower.includes('dentiste') || 
+         promptLower.includes('pédiatre') || 
+         promptLower.includes('pediatre') || 
+         promptLower.includes('ophtalmo') || 
+         promptLower.includes('ostéo') || 
+         promptLower.includes('osteo') || 
+         promptLower.includes('vaccin') || 
+         promptLower.includes('agenda') || 
+         promptLower.includes('calendrier'));
+
+      if (isEventCreation && !hasExplicitAmount) {
+        intent = "event_create";
+        const agendaData = parseAgendaVoiceCommand(promptLower, text);
+        const activeMemberObj = members.find(m => m.id === activeMemberId);
+        const activeMemberName = activeMemberObj?.name || 'Famille';
+        
+        const newEvent = {
+          title: agendaData.title,
+          type: agendaData.type,
+          dateTime: agendaData.dateTime,
+          time: agendaData.time,
+          memberId: activeMemberId || '',
+          memberName: activeMemberName,
+          location: '',
+          description: 'Créé par commande vocale',
+          done: false
+        };
+
+        await handleAddEvent(newEvent);
+        
+        feedback = `📅 ${agendaData.title} créé pour le ${agendaData.dateTime}${agendaData.timeLabel ? ' à ' + agendaData.time : ''}`;
+        setVoiceFeedback(feedback);
+        logVoiceCommandToSupabase(intent, true);
+        
+        const isHealth = agendaData.type === 'health';
+        const targetTab = isHealth ? 'menu' : 'agenda';
+        const targetModule = isHealth ? 'sante' : '';
+        const toastText = `${agendaData.title} ${agendaData.dateLabel}${agendaData.timeLabel} créé`;
+        
+        closeVoiceAssistantAfterDelay(2500, 'inactif', {
+          tab: targetTab,
+          module: targetModule,
+          toastMessage: toastText
+        });
+        return;
       }
 
       // CLASSIFY INTENT IN ORDER OF PRIORITY
@@ -4012,7 +4242,16 @@ function App() {
           feedback = `Ajouté à la liste de courses : ${parsedItems.map(item => item.name).join(', ')}`;
           setVoiceFeedback(feedback);
           logVoiceCommandToSupabase(intent, true);
-          closeVoiceAssistantAfterDelay(3000);
+          
+          const toastMsg = parsedItems.length === 1 
+            ? `${parsedItems[0].name} ajouté à la liste` 
+            : `${parsedItems.map(item => item.name).join(', ')} ajoutés à la liste`;
+
+          closeVoiceAssistantAfterDelay(2500, 'inactif', {
+            tab: 'menu',
+            module: 'courses',
+            toastMessage: toastMsg
+          });
         } else {
           feedback = "🤔 Je n'ai pas compris quel article ajouter à vos courses...";
           setVoiceFeedback(feedback);
@@ -4292,10 +4531,14 @@ function App() {
             feedback = "🤔 Comptes non identifiés pour le virement.";
           }
           
-          setActiveTab('budget');
           setVoiceFeedback(feedback);
           logVoiceCommandToSupabase(intent, isSuccess);
-          closeVoiceAssistantAfterDelay(2500);
+          closeVoiceAssistantAfterDelay(2500, 'inactif', isSuccess ? {
+            tab: 'budget',
+            module: '',
+            subView: { type: 'tab', tab: 'transactions' },
+            toastMessage: feedback.replace('💸 ', '')
+          } : undefined);
           return;
         }
 
@@ -4328,10 +4571,14 @@ function App() {
             }
           }
           
-          setActiveTab('budget');
           setVoiceFeedback(feedback);
           logVoiceCommandToSupabase(intent, isSuccess);
-          closeVoiceAssistantAfterDelay(2500);
+          closeVoiceAssistantAfterDelay(2500, 'inactif', isSuccess ? {
+            tab: 'budget',
+            module: '',
+            subView: { type: 'tab', tab: 'abonnements' },
+            toastMessage: `Abonnement ${name} enregistré`
+          } : undefined);
           return;
         }
 
@@ -4392,10 +4639,14 @@ function App() {
             feedback = "🤔 Cagnotte non identifiée. Spécifiez le titre (ex: voyage).";
           }
 
-          setActiveTab('budget');
           setVoiceFeedback(feedback);
           logVoiceCommandToSupabase(intent, isSuccess);
-          closeVoiceAssistantAfterDelay(2500);
+          closeVoiceAssistantAfterDelay(2500, 'inactif', (isSuccess && goalMatch) ? {
+            tab: 'budget',
+            module: '',
+            subView: { type: 'tab', tab: 'cagnottes' },
+            toastMessage: `Cagnotte ${goalMatch.title} mise à jour`
+          } : undefined);
           return;
         }
 
@@ -4647,35 +4898,56 @@ function App() {
           feedback = `💰 Transaction "${finalTx.title}" de ${amountVal}€ enregistrée dans le module ${modLabel}.`;
           isSuccess = true;
           
+          let targetTab = 'budget';
+          let targetModule = '';
+          let targetSubView = undefined;
+          
           if (finalTx.moduleSource === 'sante') {
-            setActiveTab('menu');
-            setActiveModule('sante');
+            targetTab = 'menu';
+            targetModule = 'sante';
           } else if (finalTx.moduleSource === 'vehicules') {
-            setActiveTab('menu');
-            setActiveModule('vehicules'); // avec 's'
+            targetTab = 'menu';
+            targetModule = 'vehicules';
           } else if (finalTx.moduleSource === 'ecole') {
-            setActiveTab('menu');
-            setActiveModule('ecole');
+            targetTab = 'menu';
+            targetModule = 'ecole';
           } else if (finalTx.moduleSource === 'documents') {
-            setActiveTab('menu');
-            setActiveModule('documents');
+            targetTab = 'menu';
+            targetModule = 'documents';
           } else if (finalTx.moduleSource === 'courses') {
-            setActiveTab('menu');
-            setActiveModule('courses');
+            targetTab = 'menu';
+            targetModule = 'courses';
           } else if (finalTx.moduleSource === 'voyages') {
-            setActiveTab('menu');
-            setActiveModule('voyages'); // avec 's'
+            targetTab = 'menu';
+            targetModule = 'voyages';
           } else if (finalTx.moduleSource === 'argent') {
-            setActiveTab('menu');
-            setActiveModule('argent');
+            targetTab = 'menu';
+            targetModule = 'argent';
           } else {
-            setActiveTab('budget');
-            setActiveModule('');
+            targetTab = 'budget';
+            targetModule = '';
+            targetSubView = { type: 'tab', tab: 'transactions' };
+          }
+
+          let toastMessage = "";
+          if (finalTx.moduleSource === 'voyages') {
+            const destLabel = matchingTravels[0]?.destination || travelNameFound || 'Maroc';
+            const capitalizedDest = destLabel.charAt(0).toUpperCase() + destLabel.slice(1);
+            toastMessage = `Voyage ${capitalizedDest} mis à jour`;
+          } else {
+            const txTypeWord = finalTx.type === 'expense' ? 'Dépense' : 'Revenu';
+            const txSuffix = finalTx.type === 'expense' ? 'ajoutée' : 'ajouté';
+            toastMessage = `${txTypeWord} ${finalTx.title} ${txSuffix}`;
           }
 
           setVoiceFeedback(feedback);
           logVoiceCommandToSupabase(intent, isSuccess);
-          closeVoiceAssistantAfterDelay(4000);
+          closeVoiceAssistantAfterDelay(2500, 'inactif', {
+            tab: targetTab,
+            module: targetModule,
+            subView: targetSubView,
+            toastMessage
+          });
           return;
         } else {
           const allCandidates = [
@@ -4695,72 +4967,66 @@ function App() {
         }
       }
 
-      // Default routing (Navigation) fallbacks if no explicit amount is set
+      let fallbackTarget: { tab: string; module: string; toastMessage: string } | null = null;
+
       if (promptLower.includes('carte') || promptLower.includes('gps') || promptLower.includes('position') || promptLower.includes('itiné')) {
-        setActiveTab('menu');
-        setActiveModule('carte');
         feedback = "🧭 Navigation : J'affiche la Carte Familiale.";
+        fallbackTarget = { tab: 'menu', module: 'carte', toastMessage: 'Carte ouverte' };
       } 
       else if (promptLower.includes('agenda') || promptLower.includes('planning') || promptLower.includes('calendrier') || promptLower.includes('évènement') || promptLower.includes('rdv') || promptLower.includes('rendez')) {
-        setActiveTab('agenda');
-        setActiveModule('');
         feedback = "📅 Navigation : J'ouvre l'Agenda Familial.";
+        fallbackTarget = { tab: 'agenda', module: '', toastMessage: 'Agenda ouvert' };
       } 
       else if (promptLower.includes('finance') || promptLower.includes('budget') || promptLower.includes('dépense') || promptLower.includes('argent') || promptLower.includes('cagnotte') || promptLower.includes('solde')) {
-        setActiveTab('budget');
-        setActiveModule('');
         feedback = "💰 Navigation : J'ouvre le cockpit financier Budget.";
+        fallbackTarget = { tab: 'budget', module: '', toastMessage: 'Budget ouvert' };
       } 
       else if (promptLower.includes('course') || promptLower.includes('caddie') || promptLower.includes('achat') || promptLower.includes('épicerie') || promptLower.includes('supermar')) {
-        setActiveTab('menu');
-        setActiveModule('courses');
         feedback = "🛒 Navigation : J'affiche la liste de courses partagée (Éco-Chef).";
+        fallbackTarget = { tab: 'menu', module: 'courses', toastMessage: 'Courses ouvertes' };
       } 
       else if (promptLower.includes('capsule') || promptLower.includes('temps') || promptLower.includes('souvenir') || promptLower.includes('moment')) {
-        setActiveTab('menu');
-        setActiveModule('capsule');
         feedback = "🔒 Navigation : J'ouvre la Capsule Temporelle de vos souvenirs.";
+        fallbackTarget = { tab: 'menu', module: 'capsule', toastMessage: 'Souvenirs ouverts' };
       } 
       else if (promptLower.includes('peacemaker') || promptLower.includes('dispute') || promptLower.includes('arbitre') || promptLower.includes('juge')) {
-        setActiveTab('menu');
-        setActiveModule('peacemaker');
         feedback = "⚖️ Navigation : J'active le PeaceMaker IA pour résoudre le conflit.";
+        fallbackTarget = { tab: 'menu', module: 'peacemaker', toastMessage: 'PeaceMaker ouvert' };
       } 
       else if (promptLower.includes('simul') || promptLower.includes('mavie') || promptLower.includes('vie')) {
-        setActiveTab('menu');
-        setActiveModule('mavie');
         feedback = "🎮 Navigation : Je lance le simulateur d'éducation MaVie.";
+        fallbackTarget = { tab: 'menu', module: 'mavie', toastMessage: 'MaVie ouvert' };
       } 
       else if (promptLower.includes('conseil') || promptLower.includes('vote') || promptLower.includes('décision') || promptLower.includes('scrutin')) {
-        setActiveTab('menu');
-        setActiveModule('conseil');
         feedback = "🗳️ Navigation : J'ouvre le Conseil de Famille.";
+        fallbackTarget = { tab: 'menu', module: 'conseil', toastMessage: 'Conseil de Famille ouvert' };
       } 
       else if (promptLower.includes('messagerie') || promptLower.includes('discussion') || promptLower.includes('tchat') || promptLower.includes('chat') || promptLower.includes('parle')) {
-        setActiveTab('menu');
-        setActiveModule('messagerie');
         feedback = "💬 Navigation : J'affiche la messagerie familiale.";
+        fallbackTarget = { tab: 'menu', module: 'messagerie', toastMessage: 'Messagerie ouverte' };
       }
       else if (promptLower.includes('devoir') || promptLower.includes('tuteur') || promptLower.includes('école') || promptLower.includes('prof')) {
-        setActiveTab('menu');
-        setActiveModule('devoirs');
         feedback = "🎓 Navigation : J'ouvre le Tuteur Scolaire IA.";
+        fallbackTarget = { tab: 'menu', module: 'devoirs', toastMessage: 'École ouverte' };
       }
       else if (promptLower.includes('coffre') || promptLower.includes('document') || promptLower.includes('papier') || promptLower.includes('cni')) {
-        setActiveTab('menu');
-        setActiveModule('documents');
         feedback = "📂 Navigation : J'ouvre le Coffre-Fort administratif.";
+        fallbackTarget = { tab: 'menu', module: 'documents', toastMessage: 'Démarches ouvertes' };
       }
       else if (promptLower.includes('voyage') || promptLower.includes('vacance') || promptLower.includes('bagage')) {
-        setActiveTab('menu');
-        setActiveModule('voyage');
         feedback = "✈️ Navigation : Je lance l'Assistant Voyage IA.";
+        fallbackTarget = { tab: 'menu', module: 'voyage', toastMessage: 'Voyages ouverts' };
       }
       else {
         feedback = `🔍 Recherche : Commande "${text}" non reconnue. Essayez : "Ouvre l'agenda", "Affiche la carte" ou "Ajoute du lait".`;
       }
 
       setVoiceFeedback(feedback);
+      if (fallbackTarget) {
+        closeVoiceAssistantAfterDelay(2500, 'inactif', fallbackTarget);
+      } else {
+        closeVoiceAssistantAfterDelay(3500);
+      }
     } catch (err: any) {
       console.error("Critical error in parseVoiceCommand:", err);
       closeVoiceAssistantAfterDelay(2500);
@@ -7005,14 +7271,22 @@ function App() {
                 <div className="flex gap-2 pt-1">
                   <button
                     onClick={() => {
+                      if (!pendingGroceryItems) return;
                       pendingGroceryItems.forEach(item => {
                         handleAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
                       });
                       setVoiceFeedback(`🛒 Action : Articles ajoutés avec succès !`);
+                      
+                      const toastMsg = pendingGroceryItems.length === 1 
+                        ? `${pendingGroceryItems[0].name} ajouté à la liste` 
+                        : `${pendingGroceryItems.map(item => item.name).join(', ')} ajoutés à la liste`;
+
                       setPendingGroceryItems(null);
-                      setActiveTab('menu');
-                      setActiveModule('courses');
-                      closeVoiceAssistantAfterDelay(2000);
+                      closeVoiceAssistantAfterDelay(1500, 'inactif', {
+                        tab: 'menu',
+                        module: 'courses',
+                        toastMessage: toastMsg
+                      });
                     }}
                     className="flex-1 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:brightness-110 active:scale-95 text-black font-extrabold uppercase text-[10px] tracking-wider transition-all cursor-pointer text-center animate-pulse"
                   >
@@ -7106,15 +7380,23 @@ function App() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
+                      if (!pendingGroceryItems) return;
                       pendingGroceryItems.forEach(item => {
                         handleAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
                       });
                       setVoiceFeedback(`🛒 Action : Articles ajoutés après modification !`);
+                      
+                      const toastMsg = pendingGroceryItems.length === 1 
+                        ? `${pendingGroceryItems[0].name} ajouté à la liste` 
+                        : `${pendingGroceryItems.map(item => item.name).join(', ')} ajoutés à la liste`;
+
                       setPendingGroceryItems(null);
                       setIsEditingPendingGrocery(false);
-                      setActiveTab('menu');
-                      setActiveModule('courses');
-                      closeVoiceAssistantAfterDelay(2000);
+                      closeVoiceAssistantAfterDelay(1500, 'inactif', {
+                        tab: 'menu',
+                        module: 'courses',
+                        toastMessage: toastMsg
+                      });
                     }}
                     className="flex-1 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:brightness-110 active:scale-95 text-black font-extrabold uppercase text-[10px] tracking-wider transition-all cursor-pointer text-center"
                   >
@@ -7984,6 +8266,13 @@ function App() {
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {/* Voice Assistant Confirmation Toast */}
+      {voiceToast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-full bg-slate-900/95 backdrop-blur-md border border-emerald-500/30 text-emerald-400 text-xs font-bold shadow-[0_8px_32px_rgba(0,210,106,0.15)] flex items-center gap-2 animate-fade-in whitespace-nowrap">
+          <span>✨</span> {voiceToast}
         </div>
       )}
 
