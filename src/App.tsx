@@ -93,7 +93,7 @@ import { QuickActionsSheet } from './components/QuickActionsSheet';
 // Views imports
 import { Accueil } from './views/Accueil';
 import { Agenda } from './views/Agenda';
-import { Budget } from './views/Budget';
+import { Budget, DEFAULT_CATEGORIES } from './views/Budget';
 import { MenuHub } from './views/MenuHub';
 import { Settings } from './views/Settings';
 import { Membres } from './views/Membres';
@@ -320,6 +320,49 @@ function App() {
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>(() => {
     return safeGetLocalStorage('mf_custom_categories', []);
   });
+
+  const getMergedCategories = (): { name: string; icon: string; subcategories: string[]; isArchived?: boolean }[] => {
+    const merged: Record<string, { name: string; icon: string; subcategories: string[]; isArchived?: boolean }> = {};
+
+    // 1. Add all system default categories
+    if (typeof DEFAULT_CATEGORIES !== 'undefined' && Array.isArray(DEFAULT_CATEGORIES)) {
+      DEFAULT_CATEGORIES.forEach(cat => {
+        merged[cat.name.toLowerCase()] = {
+          name: cat.name,
+          icon: cat.icon,
+          subcategories: [...(cat.sub || [])],
+          isArchived: false
+        };
+      });
+    }
+
+    // 2. Merge user custom categories
+    if (customCategories && Array.isArray(customCategories)) {
+      customCategories.forEach(cat => {
+        const key = cat.name.toLowerCase();
+        const customSubs = cat.subcategories || [];
+        if (merged[key]) {
+          const existingSubsLower = new Set(merged[key].subcategories.map(s => s.toLowerCase()));
+          customSubs.forEach(sub => {
+            if (!existingSubsLower.has(sub.toLowerCase())) {
+              merged[key].subcategories.push(sub);
+            }
+          });
+          merged[key].icon = cat.icon || merged[key].icon;
+          merged[key].isArchived = cat.isArchived;
+        } else {
+          merged[key] = {
+            name: cat.name,
+            icon: cat.icon || '✨',
+            subcategories: [...customSubs],
+            isArchived: cat.isArchived
+          };
+        }
+      });
+    }
+
+    return Object.values(merged);
+  };
 
   const [moduleBudgets, setModuleBudgets] = useState<Record<string, { budget: number; recurrence: string }>>(() => {
     try {
@@ -861,6 +904,7 @@ function App() {
   } | null>(null);
   const [devModeActive, setDevModeActive] = useState(() => localStorage.getItem('mf_dev_mode') === 'true');
   const devClicks = useRef(0);
+  const [voiceDebugTrace, setVoiceDebugTrace] = useState<any | null>(null);
   const [voiceState, setVoiceState] = useState<'idle' | 'listening' | 'processing' | 'asking_missing_field' | 'waiting_for_answer' | 'executing' | 'success' | 'error' | 'inactif' | 'ecoute' | 'traitement' | 'confirmation' | 'termine' | 'erreur'>('idle');
   const voiceTimeoutRef = useRef<any>(null);
   const voiceRecognitionRef = useRef<any>(null);
@@ -3843,6 +3887,7 @@ function App() {
       setVoiceState('idle');
       setVoiceActive(false);
       setVoiceContext(null);
+      setVoiceDebugTrace(null);
       voiceActionStatusRef.current = 'waiting';
       return;
     }
@@ -3856,6 +3901,7 @@ function App() {
     setPendingVoiceCommandData(null);
     setAmbiguousChoices([]);
     setVoiceDebugInfo(null);
+    setVoiceDebugTrace(null);
     setVoiceTransactionAdded(null);
     setPendingGroceryItems(null);
     setIsEditingPendingGrocery(false);
@@ -4134,7 +4180,7 @@ function App() {
   const findCategoryAndSubcategory = (
     promptLower: string,
     titleText: string,
-    customCats: CustomCategory[],
+    customCats: any[],
     pastTx: any[]
   ) => {
     const textLower = promptLower.toLowerCase();
@@ -4507,6 +4553,22 @@ function App() {
   };
 
   const processVoiceContext = async (ctx: any) => {
+    const missing = getMissingFields(ctx);
+    const entities = getEntities(ctx);
+    const hasMissing = missing.length > 0;
+    const actionStr = hasMissing 
+      ? `Question complémentaire : demande de ${missing[0]}` 
+      : `Enregistrement en base de données de l'intention : ${ctx.pendingAction}`;
+
+    setVoiceDebugTrace((prev: any) => ({
+      intention: ctx.pendingAction || 'unknown',
+      entities,
+      missingFields: missing,
+      contextActive: true,
+      actionExecuted: actionStr,
+      contextFlow: prev?.contextFlow || null
+    }));
+
     // Acquire voiceActionStatus lock to prevent duplicate runs
     if (voiceActionStatusRef.current === 'processing' || voiceActionStatusRef.current === 'completed') {
       console.log("processVoiceContext: execution locked, ignoring duplicate run.");
@@ -4525,13 +4587,31 @@ function App() {
         closeVoiceAssistantAfterDelay(3000, 'ecoute');
         return;
       }
-      if (ctx.expenseAmount > 0 && !ctx.budget) {
-        ctx.missingField = 'budget';
+      if (!ctx.startDate) {
+        ctx.missingField = 'startDate';
         setVoiceContext(ctx);
-        setVoiceFeedback(`✈️ Voyage détecté : ${ctx.destination}\nQuel budget souhaitez-vous prévoir pour ce voyage ?`);
+        setVoiceFeedback("Pour quelle date de départ ?");
         setVoiceState('confirmation');
         setVoiceTranscript('');
         closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (!ctx.endDate && !ctx.endDateAsked) {
+        ctx.missingField = 'endDate';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Souhaitez-vous ajouter une date de retour ? Vous pouvez répondre ‘non’.");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3500, 'ecoute');
+        return;
+      }
+      if (!ctx.budget && !ctx.budgetAsked) {
+        ctx.missingField = 'budget';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Souhaitez-vous prévoir un budget ? Vous pouvez répondre ‘non’.");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3500, 'ecoute');
         return;
       }
     }
@@ -4873,7 +4953,7 @@ function App() {
       }
       
       setLastCreatedTrip({ id: newTripId, destination: ctx.destination });
-      feedback = `✈️ Voyage au ${ctx.destination} créé.`;
+      feedback = `✈️ Voyage ${ctx.destination} créé.`;
       toastMessage = `Voyage ${ctx.destination} créé`;
       
       if (ctx.expenseAmount > 0) {
@@ -5426,6 +5506,12 @@ function App() {
     }
 
     // 4. Wrap up execution
+    setVoiceDebugTrace((prev: any) => ({
+      ...prev,
+      missingFields: [],
+      actionExecuted: `Action exécutée avec succès ! (${ctx.pendingAction})`
+    }));
+
     setVoiceFeedback(feedback);
     
     const remainingSegments = ctx.remainingSegments || [];
@@ -5476,7 +5562,7 @@ function App() {
       return d.toISOString().split('T')[0];
     }
     
-    const textMatch = lower.match(/(\d+)\s+([a-zéûûô]+)/);
+    const textMatch = lower.match(/(\d+)(?:er)?\s+([a-zàâäéèêëîïôöùûüç]+)/);
     if (textMatch) {
       const day = textMatch[1].padStart(2, '0');
       const monthStr = textMatch[2];
@@ -5495,7 +5581,79 @@ function App() {
       return `${fullYear}-${month}-${day}`;
     }
     
-    return input;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(lower)) {
+      return lower;
+    }
+    
+    const parsed = new Date(lower);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().split('T')[0];
+    }
+    
+    return new Date().toISOString().split('T')[0];
+  };
+
+  const getMissingFields = (ctx: any) => {
+    const missing: string[] = [];
+    if (!ctx) return missing;
+    if (ctx.pendingAction === 'create_trip') {
+      if (!ctx.destination) missing.push('destination');
+      if (!ctx.startDate) missing.push('startDate');
+      if (ctx.destination && ctx.startDate) {
+        if (!ctx.endDate && !ctx.endDateAsked) missing.push('endDate');
+        else if (!ctx.budget && !ctx.budgetAsked) missing.push('budget');
+      }
+    } else if (ctx.pendingAction === 'create_vaccine') {
+      if (!ctx.date) missing.push('date');
+      if (!ctx.title) missing.push('title');
+      if (!ctx.memberId) missing.push('memberId');
+    } else if (ctx.pendingAction === 'create_pocket_money') {
+      if (!ctx.memberId) missing.push('memberId');
+      if (!ctx.amount) missing.push('amount');
+    } else if (ctx.pendingAction === 'create_vehicle_expense') {
+      if (!ctx.vehicleId) missing.push('vehicleId');
+      if (!ctx.amount) missing.push('amount');
+    } else if (ctx.pendingAction === 'create_bill') {
+      if (!ctx.category) missing.push('category');
+      if (!ctx.amount) missing.push('amount');
+    } else if (ctx.pendingAction === 'create_demarche') {
+      if (!ctx.memberId) missing.push('memberId');
+      if (!ctx.date) missing.push('date');
+    } else if (ctx.pendingAction === 'create_school_task') {
+      if (!ctx.memberId) missing.push('memberId');
+      if (!ctx.title) missing.push('title');
+      if (!ctx.date) missing.push('date');
+    } else if (ctx.pendingAction === 'create_event') {
+      if (!ctx.date) missing.push('date');
+      if (!ctx.time) missing.push('time');
+    } else if (ctx.pendingAction === 'create_document') {
+      if (!ctx.category) missing.push('category');
+      if (!ctx.memberId) missing.push('memberId');
+    } else if (ctx.pendingAction === 'create_pet_action') {
+      if (!ctx.petId) missing.push('petId');
+      if (!ctx.date) missing.push('date');
+    } else if (ctx.pendingAction === 'create_meal') {
+      if (!ctx.day) missing.push('day');
+      if (!ctx.mealType) missing.push('mealType');
+    } else if (ctx.pendingAction === 'create_saving_goal') {
+      if (!ctx.title) missing.push('title');
+      if (!ctx.amount) missing.push('amount');
+    } else if (ctx.pendingAction === 'create_transaction') {
+      if (!ctx.category) missing.push('category');
+    }
+    return missing;
+  };
+
+  const getEntities = (ctx: any) => {
+    const entities: Record<string, any> = {};
+    if (!ctx) return entities;
+    const skip = ['pendingAction', 'remainingSegments', 'lastActiveTime', 'missingField'];
+    Object.keys(ctx).forEach(key => {
+      if (!skip.includes(key) && ctx[key] !== undefined && ctx[key] !== null) {
+        entities[key] = ctx[key];
+      }
+    });
+    return entities;
   };
 
   const parseVoiceCommand = async (rawInputText: string) => {
@@ -5546,6 +5704,41 @@ function App() {
           const updatedCtx = { ...voiceContext, lastActiveTime: now } as any;
           const textLower = promptLower.trim();
 
+          let resolvedValue: any = text.trim();
+          if (voiceContext.missingField === 'memberId') {
+            const matchedMember = members.find(m => textLower.includes(m.name.toLowerCase()) || textLower.includes(m.role.toLowerCase()));
+            if (matchedMember) {
+              resolvedValue = matchedMember.name;
+            } else {
+              resolvedValue = text.trim();
+            }
+          } else if (voiceContext.missingField === 'date') {
+            resolvedValue = parseFrenchDate(text.trim());
+          } else if (voiceContext.missingField === 'amount' || voiceContext.missingField === 'budget') {
+            const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+            if (numMatch) {
+              resolvedValue = parseFloat(numMatch[1].replace(',', '.'));
+            }
+          }
+
+          const waitingForFriendly: string = voiceContext.missingField === 'memberId' ? 'member' : (voiceContext.missingField || 'unknown');
+          
+          const contextFlowObj: any = {
+            context_active: true,
+            waiting_for: waitingForFriendly,
+            received: text.trim(),
+            [waitingForFriendly]: resolvedValue
+          };
+
+          setVoiceDebugTrace({
+            intention: voiceContext.pendingAction || 'unknown',
+            entities: getEntities(updatedCtx),
+            missingFields: getMissingFields(updatedCtx),
+            contextActive: true,
+            actionExecuted: `Réception de la réponse pour le champ : ${waitingForFriendly}`,
+            contextFlow: contextFlowObj
+          });
+
           // 1. Check for cancellation
           if (textLower === 'annuler' || textLower === 'annule' || textLower === 'stop' || textLower === 'quitter') {
             setVoiceFeedback("Action annulée.");
@@ -5556,12 +5749,38 @@ function App() {
             return;
           }
           
+          const isSkipAnswer = (val: string) => {
+            const norm = val.toLowerCase().trim();
+            return norm === 'non' || 
+                   norm === 'non merci' || 
+                   norm === 'pas encore' || 
+                   norm === 'je ne sais pas' || 
+                   norm === 'plus tard' || 
+                   norm === 'sans' || 
+                   norm === 'aucune' || 
+                   norm === 'aucun';
+          };
+
           if (voiceContext.missingField === 'budget') {
-            const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
-            if (numMatch) {
-              updatedCtx.budget = parseFloat(numMatch[1].replace(',', '.'));
+            let val = text.trim();
+            if (isSkipAnswer(val)) {
+              updatedCtx.budget = 0;
+              updatedCtx.budgetAsked = true;
               delete updatedCtx.missingField;
               resolved = true;
+            } else {
+              const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+              if (numMatch) {
+                updatedCtx.budget = parseFloat(numMatch[1].replace(',', '.'));
+                updatedCtx.budgetAsked = true;
+                delete updatedCtx.missingField;
+                resolved = true;
+              } else if (val) {
+                updatedCtx.budget = 0;
+                updatedCtx.budgetAsked = true;
+                delete updatedCtx.missingField;
+                resolved = true;
+              }
             }
           } else if (voiceContext.missingField === 'destination') {
             let destVal = text.trim();
@@ -5572,6 +5791,28 @@ function App() {
                 delete updatedCtx.missingField;
                 resolved = true;
               }
+            }
+          } else if (voiceContext.missingField === 'startDate') {
+            let dateVal = text.trim();
+            if (dateVal) {
+              const isoDate = parseFrenchDate(dateVal);
+              updatedCtx.startDate = isoDate;
+              delete updatedCtx.missingField;
+              resolved = true;
+            }
+          } else if (voiceContext.missingField === 'endDate') {
+            let val = text.trim();
+            if (isSkipAnswer(val)) {
+              updatedCtx.endDate = 'Non planifié';
+              updatedCtx.endDateAsked = true;
+              delete updatedCtx.missingField;
+              resolved = true;
+            } else if (val) {
+              const isoDate = parseFrenchDate(val);
+              updatedCtx.endDate = isoDate;
+              updatedCtx.endDateAsked = true;
+              delete updatedCtx.missingField;
+              resolved = true;
             }
           } else if (voiceContext.missingField === 'date') {
             let dateVal = text.trim();
@@ -5714,6 +5955,17 @@ function App() {
       const creationCtx = detectCreationContext(promptLower, text);
       if (creationCtx) {
         intent = creationCtx.pendingAction;
+
+        const missing = getMissingFields(creationCtx);
+        const entities = getEntities(creationCtx);
+        setVoiceDebugTrace({
+          intention: intent,
+          entities,
+          missingFields: missing,
+          contextActive: false,
+          actionExecuted: `Intention de création détectée : ${intent}`
+        });
+
         await processVoiceContext({
           ...creationCtx,
           remainingSegments: segments.slice(1),
@@ -5920,11 +6172,13 @@ function App() {
 
       // Determine explicit financial amount first
       const hasExplicitAmount = /(\d+[\.,]?\d*)\s*(?:euros?|€|dollars?|\$|eur|usd)/i.test(promptLower) || 
-                               /(?:dépense de|revenu de|salaire de|montant de|payé|coûte|couté) (\d+[\.,]?\d*)/i.test(promptLower);
+                               /(?:dépense de|revenu de|salaire de|montant de|payé|coûte|couté) (\d+[\.,]?\d*)/i.test(promptLower) ||
+                               /(?:^|\s)(\d+[\.,]?\d*)\s*(?:euros?|€|dollars?|\$|eur|usd)?\s+pour\s+/i.test(promptLower);
       
       let amountVal = 0;
       const amountMatch = promptLower.match(/(\d+[\.,]?\d*)\s*(?:euros?|€|dollars?|\$|eur|usd)/i) || 
-                          promptLower.match(/(?:dépense de|revenu de|salaire de|montant de|payé|coûte|couté) (\d+[\.,]?\d*)/i);
+                          promptLower.match(/(?:dépense de|revenu de|salaire de|montant de|payé|coûte|couté) (\d+[\.,]?\d*)/i) ||
+                          promptLower.match(/(?:^|\s)(\d+[\.,]?\d*)\s*(?:euros?|€|dollars?|\$|eur|usd)?\s+pour\s+/i);
       if (amountMatch) {
         amountVal = parseFloat(amountMatch[1].replace(',', '.'));
       }
@@ -6005,6 +6259,15 @@ function App() {
         }
 
         if (matched) {
+          const targetKey = matched.module || matched.tab;
+          setVoiceDebugTrace({
+            intention: "navigation",
+            entities: { tab: matched.tab, module: matched.module || 'Aucun' },
+            missingFields: [],
+            contextActive: false,
+            actionExecuted: `Navigation vers : ${matched.tab}${matched.module ? ' / ' + matched.module : ''}`
+          });
+
           const moduleNames: Record<string, string> = {
             accueil: 'Accueil',
             agenda: 'Agenda',
@@ -6025,7 +6288,6 @@ function App() {
             contacts: 'Contacts',
             settings: 'Paramètres'
           };
-          const targetKey = matched.module || matched.tab;
           const displayLabel = moduleNames[targetKey] || targetKey;
           
           let toastMessage = `${displayLabel} ouvert`;
@@ -6684,20 +6946,27 @@ function App() {
         const matchedAccount = accounts.find(a => promptLower.includes(a.name.toLowerCase()));
 
         let title = 'Achat rapide';
-        const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€|eur)/i;
-        let cleanTitle = textWithDigits.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|dépense|depense|pour/gi, '').trim();
-        cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[\.,]?\d*)/, '').trim();
-        cleanTitle = cleanTitle.replace(/tous les mois|chaque mois|mensuel|mensuelle|tous les jours|chaque jour|quotidien|quotidienne|chaque semaine|toutes les semaines|hebdomadaire|chaque (lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)|chaque samedi|tous les ans|chaque année|chaque annee/gi, '').trim();
-        if (matchedMember) {
-          const memberRegex = new RegExp(`\\b${matchedMember.name}\\b`, 'gi');
-          cleanTitle = cleanTitle.replace(memberRegex, '').trim();
-        }
-        // Clean leading prepositions from description
-        cleanTitle = cleanTitle.replace(/^(?:dans\s+le|dans\s+la|dans\s+l'|dans\s+|pour\s+l'|pour\s+la|pour\s+le|pour\s+les|pour\s+|en\s+|au\s+|aux\s+|à\s+|a\s+|de\s+l'|de\s+la|de\s+le|de\s+les|de\s+|du\s+|d'|l')/i, '');
-        cleanTitle = cleanTitle.replace(/\s+/g, ' ').trim();
+        let pourKeyword = '';
+        const pourMatch = promptLower.match(/(?:^|\s)(?:\d+[\.,]?\d*)\s*(?:euros?|€|eur|dollars?|\$)?\s+pour\s+(?:le\s+|la\s+|l'\s+|les\s+)?([a-z0-9éèàùçâêîôûäëïöü\s-]+)/i);
+        if (pourMatch) {
+          pourKeyword = pourMatch[1].trim();
+          title = pourKeyword.charAt(0).toUpperCase() + pourKeyword.slice(1);
+        } else {
+          const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€|eur)/i;
+          let cleanTitle = textWithDigits.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|dépense|depense|pour/gi, '').trim();
+          cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[\.,]?\d*)/, '').trim();
+          cleanTitle = cleanTitle.replace(/tous les mois|chaque mois|mensuel|mensuelle|tous les jours|chaque jour|quotidien|quotidienne|chaque semaine|toutes les semaines|hebdomadaire|chaque (lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)|chaque samedi|tous les ans|chaque année|chaque annee/gi, '').trim();
+          if (matchedMember) {
+            const memberRegex = new RegExp(`\\b${matchedMember.name}\\b`, 'gi');
+            cleanTitle = cleanTitle.replace(memberRegex, '').trim();
+          }
+          // Clean leading prepositions from description
+          cleanTitle = cleanTitle.replace(/^(?:dans\s+le|dans\s+la|dans\s+l'|dans\s+|pour\s+l'|pour\s+la|pour\s+le|pour\s+les|pour\s+|en\s+|au\s+|aux\s+|à\s+|a\s+|de\s+l'|de\s+la|de\s+le|de\s+les|de\s+|du\s+|d'|l')/i, '');
+          cleanTitle = cleanTitle.replace(/\s+/g, ' ').trim();
 
-        if (cleanTitle) {
-          title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
+          if (cleanTitle) {
+            title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
+          }
         }
 
         const keywordRules = [
@@ -6746,20 +7015,55 @@ function App() {
           { keywords: ['cinema', 'cinéma', 'concert', 'musee', 'musée', 'cadeau', 'cadeaux', 'sport', 'match', 'loisir', 'loisirs'], category: 'Loisirs', subCategory: 'Cinéma', moduleSource: 'budget', label: '🎨 Loisirs' }
         ];
 
-        const matches = keywordRules.filter(rule => 
-          rule.keywords.some(kw => promptLower.includes(kw))
-        );
+        const EXACT_VOICE_MAPPING: Record<string, { category: string; subCategory: string; moduleSource: string }> = {
+          'taxi': { category: 'Transport', subCategory: 'Taxi', moduleSource: 'budget' },
+          'uber': { category: 'Transport', subCategory: 'Uber', moduleSource: 'budget' },
+          'vtc': { category: 'Transport', subCategory: 'VTC', moduleSource: 'budget' },
+          'essence': { category: 'Véhicules', subCategory: 'Carburant', moduleSource: 'vehicules' },
+          'carburant': { category: 'Véhicules', subCategory: 'Carburant', moduleSource: 'vehicules' },
+          'pharmacie': { category: 'Santé', subCategory: 'Pharmacie', moduleSource: 'sante' },
+          'médecin': { category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante' },
+          'medecin': { category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante' },
+          'dentiste': { category: 'Santé', subCategory: 'Dentiste', moduleSource: 'sante' },
+          'internet': { category: 'Logement', subCategory: 'Internet', moduleSource: 'logement' },
+          'loyer': { category: 'Logement', subCategory: 'Loyer', moduleSource: 'logement' },
+          'électricité': { category: 'Logement', subCategory: 'Électricité', moduleSource: 'logement' },
+          'electricite': { category: 'Logement', subCategory: 'Électricité', moduleSource: 'logement' },
+          'cantine': { category: 'Éducation', subCategory: 'Cantine', moduleSource: 'ecole' },
+          'passeport': { category: 'Administratif', subCategory: 'Passeport', moduleSource: 'documents' },
+          'navigo': { category: 'Transport', subCategory: 'Pass Navigo', moduleSource: 'budget' },
+          'pass navigo': { category: 'Transport', subCategory: 'Pass Navigo', moduleSource: 'budget' }
+        };
 
-        if (matches.length === 0) {
-          const searchMatch = findCategoryAndSubcategory(promptLower, title, customCategories, transactions);
-          if (searchMatch) {
-            matches.push({
-              keywords: [],
-              category: searchMatch.category,
-              subCategory: searchMatch.subCategory,
-              moduleSource: searchMatch.moduleSource,
-              label: `💸 ${searchMatch.category}`
-            });
+        let matches: any[] = [];
+        const cleanKwd = pourKeyword.toLowerCase().trim();
+        
+        if (cleanKwd && EXACT_VOICE_MAPPING[cleanKwd]) {
+          const map = EXACT_VOICE_MAPPING[cleanKwd];
+          matches.push({
+            keywords: [],
+            category: map.category,
+            subCategory: map.subCategory,
+            moduleSource: map.moduleSource,
+            label: `💸 ${map.category}`
+          });
+        } else {
+          // Standard matches lookup
+          matches = keywordRules.filter(rule => 
+            rule.keywords.some(kw => promptLower.includes(kw))
+          ).map(r => ({ ...r, label: `💸 ${r.category}` }));
+          
+          if (matches.length === 0) {
+            const searchMatch = findCategoryAndSubcategory(promptLower, title, getMergedCategories(), transactions);
+            if (searchMatch) {
+              matches.push({
+                keywords: [],
+                category: searchMatch.category,
+                subCategory: searchMatch.subCategory,
+                moduleSource: searchMatch.moduleSource,
+                label: `💸 ${searchMatch.category}`
+              });
+            }
           }
         }
 
@@ -6875,6 +7179,14 @@ function App() {
 
         await handleAddTransaction(finalTx);
 
+        setVoiceDebugTrace({
+          intention: "create_transaction",
+          entities: { amount: finalTx.amount, title: finalTx.title, category: finalTx.category, subCategory: finalTx.subCategory },
+          missingFields: [],
+          contextActive: false,
+          actionExecuted: `Transaction créée immédiatement : ${finalTx.category} > ${finalTx.subCategory}`
+        });
+
           if (finalTx.moduleSource === 'argent_de_poche' && finalTx.memberId) {
             setPocketMoney(prev => prev.map(child => {
               if (child.id === finalTx.memberId) {
@@ -6985,6 +7297,14 @@ function App() {
             { moduleSource: 'budget', category: 'Autres', subCategory: 'Divers', label: '✨ Autre' }
           ];
 
+          setVoiceDebugTrace({
+            intention: "create_transaction",
+            entities: { amount: parsedTxData.amount, title: parsedTxData.title },
+            missingFields: ['category'],
+            contextActive: false,
+            actionExecuted: "Demande de clarification : Choix de la catégorie"
+          });
+
           setPendingVoiceCommandData(parsedTxData);
           setVoiceAmbiguous(true);
           setAmbiguousChoices(allCandidates);
@@ -7051,8 +7371,22 @@ function App() {
 
       setVoiceFeedback(feedback);
       if (fallbackTarget) {
+        setVoiceDebugTrace({
+          intention: "navigation",
+          entities: { tab: fallbackTarget.tab, module: fallbackTarget.module },
+          missingFields: [],
+          contextActive: false,
+          actionExecuted: `Navigation vers : ${fallbackTarget.tab} / ${fallbackTarget.module}`
+        });
         closeVoiceAssistantAfterDelay(2500, 'inactif', fallbackTarget);
       } else {
+        setVoiceDebugTrace({
+          intention: "unknown",
+          entities: {},
+          missingFields: [],
+          contextActive: false,
+          actionExecuted: "Commande non reconnue"
+        });
         closeVoiceAssistantAfterDelay(3500);
       }
     } catch (err: any) {
@@ -9809,6 +10143,7 @@ function App() {
                 setVoiceState('inactif');
                 setVoiceActive(false);
                 setVoiceContext(null);
+                setVoiceDebugTrace(null);
                 voiceActionStatusRef.current = 'waiting';
                 setPendingGroceryItems(null);
                 setIsEditingPendingGrocery(false);
@@ -9818,6 +10153,81 @@ function App() {
               Annuler
             </button>
           </div>
+
+          {/* Trace Panel Render */}
+          {voiceDebugTrace && (
+            <div className="glass-panel border border-dashed border-[#FF4D6D]/30 bg-black/60 rounded-[30px] p-5 max-w-sm w-full text-xs font-semibold text-left text-white/90 space-y-3 shadow-[0_10px_30px_rgba(255,77,109,0.15)] animate-fade-in mt-4">
+              <div className="text-white/60 font-black border-b border-white/10 pb-1.5 flex items-center justify-between uppercase tracking-wider select-none text-[10px]">
+                <span className="flex items-center gap-1.5">
+                  <span className="animate-pulse">🐞</span> Audit du Parseur Vocal
+                </span>
+                <span className="text-[9px] bg-[#FF4D6D]/20 text-[#FF4D6D] px-2 py-0.5 rounded font-extrabold">Trace</span>
+              </div>
+              
+              <div className="space-y-2.5 font-mono text-[10px] leading-relaxed">
+                <div>
+                  <span className="text-white/40 uppercase block text-[8px] font-bold tracking-wider">Intention Détectée</span>
+                  <span className="text-[#6C5CFF] font-black">{voiceDebugTrace.intention}</span>
+                </div>
+                
+                <div>
+                  <span className="text-white/40 uppercase block text-[8px] font-bold tracking-wider">Entités Détectées</span>
+                  {Object.keys(voiceDebugTrace.entities || {}).length > 0 ? (
+                    <div className="bg-white/5 p-2 rounded-lg border border-white/5 space-y-0.5 mt-1">
+                      {Object.entries(voiceDebugTrace.entities).map(([key, val]) => (
+                        <div key={key}>
+                          <span className="text-blue-400 font-bold">{key} :</span>{' '}
+                          <span className="text-emerald-400">{typeof val === 'object' ? JSON.stringify(val) : String(val)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-white/30 italic">Aucune</span>
+                  )}
+                </div>
+                
+                <div>
+                  <span className="text-white/40 uppercase block text-[8px] font-bold tracking-wider">Champs Manquants</span>
+                  {voiceDebugTrace.missingFields && voiceDebugTrace.missingFields.length > 0 ? (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {voiceDebugTrace.missingFields.map((field: string) => (
+                        <span key={field} className="bg-rose-500/20 text-rose-400 border border-rose-500/30 px-1.5 py-0.5 rounded font-extrabold text-[9px] uppercase tracking-wider">
+                          {field}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-emerald-400 font-bold">Aucun</span>
+                  )}
+                </div>
+                
+                <div>
+                  <span className="text-white/40 uppercase block text-[8px] font-bold tracking-wider">Contexte Actif</span>
+                  <span className={voiceDebugTrace.contextActive ? "text-emerald-400 font-bold" : "text-white/30 font-bold"}>
+                    {voiceDebugTrace.contextActive ? "✓ Actif" : "✗ Inactif"}
+                  </span>
+                  {voiceDebugTrace.contextFlow && (
+                    <div className="bg-purple-950/20 border border-purple-500/15 rounded-lg p-2 mt-1 space-y-1 text-purple-200">
+                      <div><span className="text-purple-400 font-extrabold">context_active :</span> {String(voiceDebugTrace.contextFlow.context_active)}</div>
+                      <div><span className="text-purple-400 font-extrabold">waiting_for :</span> {voiceDebugTrace.contextFlow.waiting_for}</div>
+                      <div><span className="text-purple-400 font-extrabold">received :</span> "{voiceDebugTrace.contextFlow.received}"</div>
+                      {voiceDebugTrace.contextFlow.waiting_for && voiceDebugTrace.contextFlow[voiceDebugTrace.contextFlow.waiting_for] !== undefined && (
+                        <div>
+                          <span className="text-purple-400 font-extrabold">{voiceDebugTrace.contextFlow.waiting_for} :</span>{' '}
+                          {String(voiceDebugTrace.contextFlow[voiceDebugTrace.contextFlow.waiting_for])}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                <div>
+                  <span className="text-white/40 uppercase block text-[8px] font-bold tracking-wider">Action Exécutée</span>
+                  <span className="text-[#FFB020] font-black">{voiceDebugTrace.actionExecuted}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
