@@ -861,7 +861,7 @@ function App() {
   } | null>(null);
   const [devModeActive, setDevModeActive] = useState(() => localStorage.getItem('mf_dev_mode') === 'true');
   const devClicks = useRef(0);
-  const [voiceState, setVoiceState] = useState<'inactif' | 'ecoute' | 'traitement' | 'confirmation' | 'termine' | 'erreur'>('inactif');
+  const [voiceState, setVoiceState] = useState<'idle' | 'listening' | 'processing' | 'asking_missing_field' | 'waiting_for_answer' | 'executing' | 'success' | 'error' | 'inactif' | 'ecoute' | 'traitement' | 'confirmation' | 'termine' | 'erreur'>('idle');
   const voiceTimeoutRef = useRef<any>(null);
   const voiceRecognitionRef = useRef<any>(null);
   const [pendingGroceryItems, setPendingGroceryItems] = useState<any[] | null>(null);
@@ -3723,7 +3723,7 @@ function App() {
 
   const closeVoiceAssistantAfterDelay = (
     delayMs: number = 2500,
-    nextState: 'inactif' | 'ecoute' = 'inactif',
+    nextState: 'idle' | 'listening' | 'inactif' | 'ecoute' = 'idle',
     redirection?: {
       tab: string;
       module: string;
@@ -3732,12 +3732,30 @@ function App() {
       toastMessage: string;
     }
   ) => {
+    const finalNextState: 'idle' | 'listening' = (nextState === 'ecoute' || nextState === 'listening') ? 'listening' : 'idle';
+
+    if (finalNextState === 'listening') {
+      setVoiceState('asking_missing_field');
+      if (voiceTimeoutRef.current) {
+        clearTimeout(voiceTimeoutRef.current);
+      }
+      voiceTimeoutRef.current = setTimeout(() => {
+        setVoiceState('waiting_for_answer');
+        if (voiceRecognitionRef.current) {
+          try {
+            voiceRecognitionRef.current.start();
+          } catch(e) {}
+        }
+      }, delayMs);
+      return;
+    }
+
     if (voiceTimeoutRef.current) {
       clearTimeout(voiceTimeoutRef.current);
     }
     
     // Process remaining segments if any before turning off
-    if (nextState === 'inactif' && voiceContext && voiceContext.remainingSegments && voiceContext.remainingSegments.length > 0) {
+    if (finalNextState === 'idle' && voiceContext && voiceContext.remainingSegments && voiceContext.remainingSegments.length > 0) {
       if (redirection) {
         setActiveTab(redirection.tab);
         setActiveModule(redirection.module);
@@ -3759,7 +3777,7 @@ function App() {
         lastActiveTime: Date.now()
       });
       
-      setVoiceState('traitement');
+      setVoiceState('processing');
       
       voiceTimeoutRef.current = setTimeout(() => {
         parseVoiceCommand(nextSeg);
@@ -3767,14 +3785,14 @@ function App() {
       return;
     }
     
-    if (nextState === 'inactif') {
-      setVoiceState('termine');
+    if (finalNextState === 'idle') {
+      setVoiceState('success');
     }
     
     voiceTimeoutRef.current = setTimeout(() => {
-      if (nextState === 'inactif') {
+      if (finalNextState === 'idle') {
         setVoiceActive(false);
-        setVoiceState('inactif');
+        setVoiceState('idle');
         
         if (redirection) {
           setActiveTab(redirection.tab);
@@ -3789,7 +3807,7 @@ function App() {
         }
       } else {
         // Redémarrer le micro immédiatement
-        setVoiceState('inactif');
+        setVoiceState('idle');
         startVoiceAssistant();
       }
     }, delayMs);
@@ -3811,7 +3829,7 @@ function App() {
       voiceTimeoutRef.current = null;
     }
 
-    if (voiceState !== 'inactif') {
+    if (voiceState !== 'idle') {
       if (voiceRecognitionRef.current) {
         try {
           voiceRecognitionRef.current.onresult = null;
@@ -3822,7 +3840,7 @@ function App() {
           console.warn("Error stopping SpeechRecognition:", e);
         }
       }
-      setVoiceState('inactif');
+      setVoiceState('idle');
       setVoiceActive(false);
       setVoiceContext(null);
       voiceActionStatusRef.current = 'waiting';
@@ -3830,7 +3848,7 @@ function App() {
     }
 
     setVoiceActive(true);
-    setVoiceState('ecoute');
+    setVoiceState('listening');
     setVoiceTranscript('Je vous écoute...');
     setVoiceFeedback('');
     setVoiceWave(true);
@@ -3847,7 +3865,7 @@ function App() {
     }
     voiceInactivityTimerRef.current = setTimeout(() => {
       if (voiceActiveRef.current) {
-        setVoiceState('inactif');
+        setVoiceState('idle');
         setVoiceActive(false);
         setVoiceContext(null);
         voiceActionStatusRef.current = 'waiting';
@@ -3867,7 +3885,7 @@ function App() {
         }
         voiceInactivityTimerRef.current = setTimeout(() => {
           if (voiceActiveRef.current) {
-            setVoiceState('inactif');
+            setVoiceState('idle');
             setVoiceActive(false);
             setVoiceContext(null);
             voiceActionStatusRef.current = 'waiting';
@@ -3877,7 +3895,7 @@ function App() {
         const transcript = event.results[0][0].transcript;
         setVoiceTranscript(`"${transcript}"`);
         setVoiceWave(false);
-        setVoiceState('traitement');
+        setVoiceState('processing');
         
         // Parse Voice Command
         const timer = setTimeout(() => {
@@ -3894,13 +3912,13 @@ function App() {
         console.error("Vocal search error", event.error);
         setVoiceTranscript("🎙️ Impossible d'écouter votre commande. Réessayer.");
         setVoiceWave(false);
-        setVoiceState('erreur');
+        setVoiceState('error');
       };
 
       recognition.onend = () => {
         setVoiceWave(false);
         const isConversational = voiceContextRef.current && voiceContextRef.current.pendingAction !== 'none';
-        if (voiceActiveRef.current && isConversational && (voiceStateRef.current === 'ecoute' || voiceStateRef.current === 'confirmation')) {
+        if (voiceActiveRef.current && isConversational && (voiceStateRef.current === 'listening' || voiceStateRef.current === 'asking_missing_field' || voiceStateRef.current === 'waiting_for_answer')) {
           try {
             recognition.start();
             setVoiceWave(true);
@@ -3911,7 +3929,7 @@ function App() {
       recognition.start();
     } catch (err) {
       console.error("Failed to start SpeechRecognition:", err);
-      setVoiceState('erreur');
+      setVoiceState('error');
       setVoiceTranscript("🎙️ Impossible d'écouter votre commande. Réessayer.");
     }
   };
@@ -4762,7 +4780,7 @@ function App() {
         title: ctx.title,
         type: 'vaccine' as const,
         dateTime: ctx.date,
-        time: ctx.time || 'à définir',
+        time: ctx.time || 'horaire à définir',
         memberId: ctx.memberId,
         memberName: memberObj?.name || 'Membre',
         description: 'Médecin traitant',
@@ -4770,6 +4788,15 @@ function App() {
       };
 
       setEvents(prev => [newEvent, ...prev]);
+
+      // Envoi de la notification
+      const timeStr = newEvent.time === 'horaire à définir' ? 'horaire à définir' : `à ${newEvent.time}`;
+      sendLocalNotification(
+        "Vaccin planifié",
+        `💉 Le vaccin "${newEvent.title}" a été planifié pour ${newEvent.memberName} le ${ctx.date} (${timeStr}).`,
+        "sante"
+      );
+
       if (client && foyer?.id) {
         try {
           await client.from('events').insert({
@@ -4789,7 +4816,7 @@ function App() {
         }
       }
 
-      feedback = `🩺 Vaccin ${ctx.title} enregistré pour ${newEvent.memberName} le ${ctx.date} (heure: ${ctx.time}).`;
+      feedback = `🩺 Vaccin ${ctx.title} enregistré pour ${newEvent.memberName} le ${ctx.date} (${timeStr}).`;
       toastMessage = `${ctx.title} enregistré dans Santé`;
       redirectPayload = { tab: 'menu', module: 'sante', toastMessage };
     }
@@ -5016,18 +5043,31 @@ function App() {
     // 3h. create_event
     else if (ctx.pendingAction === 'create_event') {
       const newEventId = `ev-${Date.now()}`;
+      const targetMemberId = ctx.memberId || activeMemberId;
+      const targetMember = members.find(m => m.id === targetMemberId);
+      const isMedical = /médical|medical|dentiste|docteur|médecin|medecin|hopital|hôpital|sante|santé|vaccin/i.test(ctx.title || '');
+      
       const newEvent = {
         id: newEventId,
         title: ctx.title || 'Rendez-vous',
-        type: 'other' as const,
+        type: (isMedical ? 'medical' : 'other') as any,
         dateTime: ctx.date,
-        time: ctx.time || '12:00',
-        memberId: activeMemberId,
-        memberName: members.find(m => m.id === activeMemberId)?.name || 'Famille',
+        time: ctx.time || 'horaire à définir',
+        memberId: targetMemberId,
+        memberName: targetMember?.name || 'Famille',
         done: false
       };
 
       setEvents(prev => [newEvent, ...prev]);
+      
+      // Envoi de la notification
+      const timeStr = newEvent.time === 'horaire à définir' ? 'horaire à définir' : `à ${newEvent.time}`;
+      sendLocalNotification(
+        isMedical ? "Rendez-vous médical planifié" : "Événement planifié",
+        `📅 Rendez-vous "${newEvent.title}" enregistré pour ${newEvent.memberName} le ${ctx.date} (${timeStr}).`,
+        "agenda"
+      );
+
       if (client && foyer?.id) {
         try {
           await client.from('events').insert({
@@ -5046,9 +5086,11 @@ function App() {
         }
       }
 
-      feedback = `📅 Rendez-vous "${newEvent.title}" enregistré pour le ${ctx.date} à ${ctx.time}.`;
+      feedback = `📅 Rendez-vous "${newEvent.title}" enregistré pour ${newEvent.memberName} le ${ctx.date} (${timeStr}).`;
       toastMessage = `Rendez-vous enregistré`;
-      redirectPayload = { tab: 'agenda', toastMessage };
+      redirectPayload = isMedical 
+        ? { tab: 'menu', module: 'sante', toastMessage }
+        : { tab: 'agenda', toastMessage };
     }
 
     // 3i. create_document
@@ -5255,7 +5297,49 @@ function App() {
         closeVoiceAssistantAfterDelay(2500);
       }
     }
-    voiceActionStatusRef.current = 'completed';
+  };
+
+  const parseFrenchDate = (input: string): string => {
+    const months: Record<string, string> = {
+      janvier: '01', fevrier: '02', février: '02', mars: '03', avril: '04', mai: '05', juin: '06',
+      juillet: '07', aout: '08', août: '08', septembre: '09', octobre: '10', novembre: '11', decembre: '12', décembre: '12'
+    };
+    const lower = input.toLowerCase().trim();
+    
+    if (lower.includes("aujourd'hui")) {
+      return new Date().toISOString().split('T')[0];
+    }
+    if (lower.includes("demain")) {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      return d.toISOString().split('T')[0];
+    }
+    if (lower.includes("après-demain") || lower.includes("apres demain")) {
+      const d = new Date();
+      d.setDate(d.getDate() + 2);
+      return d.toISOString().split('T')[0];
+    }
+    
+    const textMatch = lower.match(/(\d+)\s+([a-zéûûô]+)/);
+    if (textMatch) {
+      const day = textMatch[1].padStart(2, '0');
+      const monthStr = textMatch[2];
+      const month = months[monthStr];
+      if (month) {
+        return `${new Date().getFullYear()}-${month}-${day}`;
+      }
+    }
+    
+    const numMatch = lower.match(/(\d+)[-/.](\d+)([-/.](\d+))?/);
+    if (numMatch) {
+      const day = numMatch[1].padStart(2, '0');
+      const month = numMatch[2].padStart(2, '0');
+      const year = numMatch[4] || String(new Date().getFullYear());
+      const fullYear = year.length === 2 ? `20${year}` : year;
+      return `${fullYear}-${month}-${day}`;
+    }
+    
+    return input;
   };
 
   const parseVoiceCommand = async (rawInputText: string) => {
@@ -5305,6 +5389,16 @@ function App() {
           let resolved = false;
           const updatedCtx = { ...voiceContext, lastActiveTime: now } as any;
           const textLower = promptLower.trim();
+
+          // 1. Check for cancellation
+          if (textLower === 'annuler' || textLower === 'annule' || textLower === 'stop' || textLower === 'quitter') {
+            setVoiceFeedback("Action annulée.");
+            setVoiceContext(null);
+            voiceActionStatusRef.current = 'completed';
+            setVoiceWave(false);
+            closeVoiceAssistantAfterDelay(2000, 'idle');
+            return;
+          }
           
           if (voiceContext.missingField === 'budget') {
             const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
@@ -5326,14 +5420,15 @@ function App() {
           } else if (voiceContext.missingField === 'date') {
             let dateVal = text.trim();
             if (dateVal) {
-              updatedCtx.startDate = dateVal;
-              updatedCtx.endDate = dateVal;
-              updatedCtx.date = dateVal;
+              const isoDate = parseFrenchDate(dateVal);
+              updatedCtx.startDate = isoDate;
+              updatedCtx.endDate = isoDate;
+              updatedCtx.date = isoDate;
               delete updatedCtx.missingField;
               resolved = true;
             }
           } else if (voiceContext.missingField === 'memberId') {
-            const matchedMember = members.find(m => textLower.includes(m.name.toLowerCase()));
+            const matchedMember = members.find(m => textLower.includes(m.name.toLowerCase()) || textLower.includes(m.role.toLowerCase()));
             if (matchedMember) {
               updatedCtx.memberId = matchedMember.id;
               delete updatedCtx.missingField;
@@ -5394,8 +5489,21 @@ function App() {
               resolved = true;
             }
           } else if (voiceContext.missingField === 'time') {
-            if (text.trim()) {
-              updatedCtx.time = text.trim();
+            const lowerVal = text.toLowerCase().trim();
+            if (lowerVal.includes('sais pas') || lowerVal.includes('pas encore') || lowerVal.includes('non défini') || lowerVal.includes('non defini') || lowerVal.includes('aucune') || lowerVal.includes('aucun')) {
+              updatedCtx.time = 'horaire à définir';
+              delete updatedCtx.missingField;
+              resolved = true;
+            } else if (text.trim()) {
+              let clean = lowerVal.replace(/heures|heure/gi, 'h').replace(/\s+/g, '').trim();
+              const match = clean.match(/(\d+)h(\d*)/) || clean.match(/(\d+):(\d*)/) || clean.match(/(\d+)/);
+              if (match) {
+                const hh = match[1].padStart(2, '0');
+                const mm = (match[2] || '00').padEnd(2, '0');
+                updatedCtx.time = `${hh}:${mm}`;
+              } else {
+                updatedCtx.time = text.trim();
+              }
               delete updatedCtx.missingField;
               resolved = true;
             }
@@ -5403,10 +5511,11 @@ function App() {
           
           if (resolved) {
             setVoiceContext(updatedCtx);
+            setVoiceState('processing');
             await processVoiceContext(updatedCtx);
             return;
           } else {
-            const actionVerbs = ['ajoute', 'ajouter', 'crée', 'creer', 'créer', 'cree', 'ouvre', 'montre', 'va', 'affiche', 'coche', 'décoche', 'supprime', 'annuler', 'annule'];
+            const actionVerbs = ['ajoute', 'ajouter', 'crée', 'creer', 'créer', 'cree', 'ouvre', 'montre', 'va', 'affiche', 'coche', 'décoche', 'supprime'];
             const firstWord = promptLower.split(/\s+/)[0];
             const isInterrupt = actionVerbs.some(v => firstWord.startsWith(v) || v.startsWith(firstWord)) || promptLower.includes('voyage');
             
@@ -5426,7 +5535,7 @@ function App() {
               else if (voiceContext.missingField === 'category') question = "Dans quelle catégorie / type ?";
               else if (voiceContext.missingField === 'amount') question = "Quel montant ?";
               else if (voiceContext.missingField === 'title') question = "Quel est l'intitulé ?";
-              else if (voiceContext.missingField === 'time') question = "À quelle heure ?";
+              else if (voiceContext.missingField === 'time') question = "À quelle heure (ou dites 'pas encore') ?";
               
               setVoiceFeedback(question);
               closeVoiceAssistantAfterDelay(3000, 'ecoute');
@@ -8892,27 +9001,37 @@ function App() {
               
               {/* Indicateur visuel d'état */}
               <div className="text-[11px] font-bold text-white/50 uppercase tracking-widest pt-1 flex items-center justify-center gap-1.5 select-none">
-                {voiceState === 'ecoute' && (
+                {(voiceState === 'listening' || voiceState === 'ecoute') && (
                   <span className="text-blue-400 animate-pulse flex items-center gap-1">
                     <span>🎤</span> Écoute en cours...
                   </span>
                 )}
-                {voiceState === 'traitement' && (
+                {(voiceState === 'processing' || voiceState === 'traitement') && (
                   <span className="text-[#FFB020] animate-pulse flex items-center gap-1">
                     <span>⏳</span> Traitement...
                   </span>
                 )}
-                {voiceState === 'confirmation' && (
+                {(voiceState === 'asking_missing_field' || voiceState === 'confirmation') && (
                   <span className="text-purple-400 flex items-center gap-1 animate-pulse">
-                    <span>⚙️</span> Confirmation requise...
+                    <span>⚙️</span> Question complémentaire...
                   </span>
                 )}
-                {voiceState === 'termine' && (
+                {voiceState === 'waiting_for_answer' && (
+                  <span className="text-pink-400 flex items-center gap-1 animate-pulse">
+                    <span>🤔</span> En attente de votre réponse...
+                  </span>
+                )}
+                {voiceState === 'executing' && (
+                  <span className="text-amber-400 flex items-center gap-1 animate-pulse">
+                    <span>⚙️</span> Enregistrement...
+                  </span>
+                )}
+                {(voiceState === 'success' || voiceState === 'termine') && (
                   <span className="text-emerald-400 flex items-center gap-1">
                     <span>✓</span> Commande enregistrée
                   </span>
                 )}
-                {voiceState === 'erreur' && (
+                {(voiceState === 'error' || voiceState === 'erreur') && (
                   <span className="text-rose-400 flex items-center gap-1">
                     <span>❌</span> Erreur
                   </span>
@@ -8939,7 +9058,7 @@ function App() {
             )}
 
             {/* Formulaire de saisie manuelle de secours */}
-            {!pendingGroceryItems && voiceState !== 'erreur' && !voiceTransactionAdded && (
+            {!pendingGroceryItems && voiceState !== 'error' && voiceState !== 'erreur' && voiceState !== 'waiting_for_answer' && voiceState !== 'asking_missing_field' && !voiceTransactionAdded && (
               <form 
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -8947,6 +9066,7 @@ function App() {
                   const cmd = manualVoiceCommand.trim();
                   setVoiceTranscript(`"${cmd}"`);
                   setVoiceWave(false);
+                  setVoiceState('processing');
                   setTimeout(() => {
                     parseVoiceCommand(cmd);
                   }, 500);
@@ -8973,6 +9093,83 @@ function App() {
                   Ex : "Ajoute du lait", "Ouvre la carte", "Affiche l'agenda"
                 </p>
               </form>
+            )}
+
+            {/* Formulaire pour répondre à la question active (waiting_for_answer) */}
+            {!pendingGroceryItems && voiceState !== 'error' && voiceState !== 'erreur' && (voiceState === 'waiting_for_answer' || voiceState === 'asking_missing_field') && (
+              <div className="space-y-4 pt-2 w-full border-t border-white/10 animate-fade-in">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!manualVoiceCommand.trim()) return;
+                    const cmd = manualVoiceCommand.trim();
+                    setManualVoiceCommand('');
+                    setVoiceTranscript(`"${cmd}"`);
+                    setVoiceState('processing');
+                    setTimeout(() => {
+                      if (parseVoiceCommandRef.current) {
+                        parseVoiceCommandRef.current(cmd);
+                      } else {
+                        parseVoiceCommand(cmd);
+                      }
+                    }, 500);
+                  }}
+                  className="flex gap-2"
+                >
+                  <input
+                    type="text"
+                    placeholder="Écrivez votre réponse ici..."
+                    value={manualVoiceCommand}
+                    onChange={(e) => setManualVoiceCommand(e.target.value)}
+                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
+                    autoFocus
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 rounded-xl bg-[#FFB020] text-black text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+                  >
+                    Envoyer
+                  </button>
+                </form>
+                
+                <div className="flex justify-center gap-4 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVoiceState('waiting_for_answer');
+                      if (voiceRecognitionRef.current) {
+                        try {
+                          voiceRecognitionRef.current.start();
+                          setVoiceWave(true);
+                        } catch(e) {}
+                      }
+                    }}
+                    className="py-1.5 px-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-[10px] font-bold text-white flex items-center gap-1 cursor-pointer transition-all"
+                  >
+                    🎙️ Réactiver micro
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (voiceRecognitionRef.current) {
+                        try {
+                          voiceRecognitionRef.current.onresult = null;
+                          voiceRecognitionRef.current.onerror = null;
+                          voiceRecognitionRef.current.onend = null;
+                          voiceRecognitionRef.current.stop();
+                        } catch(e){}
+                      }
+                      setVoiceState('idle');
+                      setVoiceActive(false);
+                      setVoiceContext(null);
+                      voiceActionStatusRef.current = 'waiting';
+                    }}
+                    className="py-1.5 px-3 rounded-xl border border-red-500/20 bg-red-500/10 hover:bg-red-500/15 text-[10px] font-bold text-red-400 flex items-center gap-1 cursor-pointer transition-all"
+                  >
+                    ❌ Annuler
+                  </button>
+                </div>
+              </div>
             )}
 
             {pendingGroceryItems && pendingGroceryItems.length > 0 && !isEditingPendingGrocery && (
