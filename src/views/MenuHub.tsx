@@ -907,6 +907,52 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newTripEnd, setNewTripEnd] = useState('');
   const [newTripBudget, setNewTripBudget] = useState('');
 
+  // Booking items helpers
+  const bookingTypeLabels = {
+    hotel: '🏠 Hébergement / Hôtel',
+    transport: '🚗 Transport sur place',
+    billets: '✈️ Billets de transport',
+    activite: '🎨 Activités & Loisirs'
+  };
+
+  const bookingStatusLabels = {
+    non_defini: { label: 'Non défini', color: 'text-white/40 border-white/10 bg-white/5', icon: '⚪' },
+    prevu: { label: 'Prévu', color: 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10', icon: '🟡' },
+    reserve: { label: 'Réservé', color: 'text-blue-400 border-blue-500/30 bg-blue-500/10', icon: '🔵' },
+    paye: { label: 'Payé', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10', icon: '🟢' },
+    annule: { label: 'Annulé', color: 'text-rose-400 border-rose-500/30 bg-rose-500/10', icon: '🔴' }
+  };
+
+  const parseBookingRefs = (refs?: string[]): { type: 'hotel' | 'transport' | 'billets' | 'activite'; label: string; status: 'non_defini' | 'prevu' | 'reserve' | 'paye' | 'annule' }[] => {
+    const defaultItems: { type: 'hotel' | 'transport' | 'billets' | 'activite'; label: string; status: 'non_defini' | 'prevu' | 'reserve' | 'paye' | 'annule' }[] = [
+      { type: 'hotel', label: bookingTypeLabels['hotel'], status: 'non_defini' },
+      { type: 'transport', label: bookingTypeLabels['transport'], status: 'non_defini' },
+      { type: 'billets', label: bookingTypeLabels['billets'], status: 'non_defini' },
+      { type: 'activite', label: bookingTypeLabels['activite'], status: 'non_defini' }
+    ];
+
+    if (!refs || refs.length === 0) return defaultItems;
+
+    const parsed = [...defaultItems];
+    for (const ref of refs) {
+      if (ref.includes(':')) {
+        const [type, status] = ref.split(':') as [any, any];
+        const index = parsed.findIndex(item => item.type === type);
+        if (index !== -1) {
+          parsed[index].status = status;
+        }
+      } else {
+        const lower = ref.toLowerCase();
+        if (lower.includes('hôtel') || lower.includes('hotel')) {
+          parsed[0].status = lower.includes('✓') || lower.includes('réservé') || lower.includes('réserve') ? 'reserve' : 'non_defini';
+        } else if (lower.includes('transport')) {
+          parsed[1].status = lower.includes('✓') || lower.includes('planifié') || lower.includes('planifie') ? 'prevu' : 'non_defini';
+        }
+      }
+    }
+    return parsed;
+  };
+
   const handleAddTrip = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTripDest || !newTripBudget) return;
@@ -917,7 +963,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       startDate: newTripStart || '15 Juillet 2026',
       endDate: newTripEnd || '22 Juillet 2026',
       budget: budgetVal,
-      bookingRefs: ['Hôtel réservé ✓', 'Transport planifié ✓'],
+      bookingRefs: ['hotel:non_defini', 'transport:non_defini', 'billets:non_defini', 'activite:non_defini'],
       checklist: [
         { id: 'c1', text: 'Passeports valides', done: true },
         { id: 'c2', text: 'Trousse de secours', done: false }
@@ -4665,13 +4711,48 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
               {/* Reservations lists */}
               <div className="space-y-2">
-                <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Réservations</p>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {t.bookingRefs.map((ref, idx) => (
-                    <div key={idx} className="p-2.5 rounded-xl bg-[#07111F] border border-white/5 text-white font-medium">
-                      {ref}
-                    </div>
-                  ))}
+                <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Réservations (Statuts)</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {parseBookingRefs(t.bookingRefs).map((item) => {
+                    const statusMeta = bookingStatusLabels[item.status] || bookingStatusLabels.non_defini;
+                    return (
+                      <div key={item.type} className="flex items-center justify-between p-2.5 rounded-xl bg-[#07111F] border border-white/5 text-white">
+                        <div className="space-y-1">
+                          <span className="font-bold block text-[10px] text-white/80">{item.label}</span>
+                          <span className={`inline-flex items-center space-x-1 text-[9px] font-extrabold px-1.5 py-0.5 rounded border ${statusMeta.color}`}>
+                            <span>{statusMeta.icon}</span>
+                            <span>{statusMeta.label}</span>
+                          </span>
+                        </div>
+                        
+                        <select
+                          value={item.status}
+                          onChange={(e) => {
+                            const newStatus = e.target.value as any;
+                            const currentItems = parseBookingRefs(t.bookingRefs);
+                            const updatedItems = currentItems.map(b => b.type === item.type ? { ...b, status: newStatus } : b);
+                            const newRefs = updatedItems.map(b => `${b.type}:${b.status}`);
+                            
+                            setTrips(prev => prev.map(trip => trip.id === t.id ? { ...trip, bookingRefs: newRefs } : trip));
+                            
+                            const client = getSupabaseClient();
+                            if (client) {
+                              client.from('trips').update({ booking_refs: newRefs }).eq('id', t.id).then(({ error }) => {
+                                if (error) console.error("Error updating trip booking status in Supabase:", error);
+                              });
+                            }
+                          }}
+                          className="bg-white/5 border border-white/10 rounded-lg px-1.5 py-1 text-[10px] text-white focus:outline-none focus:border-[#FF4D6D] cursor-pointer"
+                        >
+                          <option value="non_defini" className="bg-[#07111F] text-white">⚪ Non défini</option>
+                          <option value="prevu" className="bg-[#07111F] text-white">🟡 Prévu</option>
+                          <option value="reserve" className="bg-[#07111F] text-white">🔵 Réservé</option>
+                          <option value="paye" className="bg-[#07111F] text-white">🟢 Payé</option>
+                          <option value="annule" className="bg-[#07111F] text-white">🔴 Annulé</option>
+                        </select>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

@@ -203,9 +203,33 @@ export const parseSmartNaturalSentence = (text: string, activeMemberName: string
     .replace(/\s*(?:dans les courses|dans la liste|au panier|à la liste|aux courses|de courses)\s*/gi, ' ')
     .trim();
 
+  // 1. Remplacer les connecteurs explicites par '|'
+  let textWithSplits = cleanText.replace(/,|\bet\b|\bplus\b|\bpuis\b|\bavec\b/g, '|');
+
+  // 2. Insérer '|' devant les répétitions de quantités (chiffres ou mots-nombres)
+  // s'ils sont précédés d'un espace et pas déjà précédés d'un séparateur '|'
+  textWithSplits = textWithSplits.replace(/(?<![|])\s+\b(un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|\d+)\b/gi, ' | $1');
+
+  // 3. Insérer '|' devant les produits connus successifs s'ils ne sont pas précédés d'un déterminant de liaison
+  const KNOWN_PRODUCTS = [
+    'lait', 'tomate', 'tomates', 'riz', 'coca', 'eau', 'pain', 'oeuf', 'oeufs', 'œuf', 'œufs', 'beurre',
+    'pomme', 'pommes', 'banane', 'bananes', 'orange', 'oranges', 'poire', 'poires', 'oignon', 'oignons',
+    'pâte', 'pâtes', 'salade', 'carotte', 'carottes', 'courgette', 'courgettes', 'pomme de terre', 'pommes de terre',
+    'patate', 'patates', 'fraise', 'fraises', 'citron', 'citrons', 'avocat', 'avocats', 'ail', 'baguette', 
+    'baguettes', 'croissant', 'croissants', 'yaourt', 'yaourts', 'fromage', 'fromages', 'poulet',
+    'viande', 'steak', 'steaks', 'jambon', 'saumon', 'poisson', 'bœuf', 'boeuf', 'porc', 'merguez', 'chipolatas',
+    'pizza', 'pizzas', 'frite', 'frites', 'glace', 'glaces', 'jus', 'soda', 'sodas', 'bière', 'bières', 'vin',
+    'café', 'cafe', 'thé', 'the', 'shampoing', 'savon', 'dentifrice', 'lessive', 'éponge', 'éponges', 'eponge'
+  ];
+
+  let formattedText = textWithSplits;
+  for (const product of KNOWN_PRODUCTS) {
+    const regex = new RegExp(`(?<![|\\s])\\s+(?!(?:de|d'|d’|du|des|le|la|les|l')\\s+)\\b(${product})\\b`, 'gi');
+    formattedText = formattedText.replace(regex, ' | $1');
+  }
+
   // Découper la phrase vocale en sous-segments
-  // Connecteurs : " et ", ", ", " plus ", " puis "
-  const rawSegments = cleanText.split(/,|\bet\b|\bpuis\b|\bplus\b/);
+  const rawSegments = formattedText.split('|');
   const items: Omit<GroceryItem, 'id'>[] = [];
 
   const frenchNumbers: Record<string, number> = {
@@ -273,6 +297,11 @@ export const parseSmartNaturalSentence = (text: string, activeMemberName: string
         remainingName = remainingName.slice((uk.word + ' d\'').length).trim();
         foundUnit = true;
         break;
+      } else if (lowerName.startsWith(uk.word + ' d’')) {
+        unit = uk.norm;
+        remainingName = remainingName.slice((uk.word + ' d’').length).trim();
+        foundUnit = true;
+        break;
       } else if (lowerName.startsWith(uk.word + ' ')) {
         unit = uk.norm;
         remainingName = remainingName.slice(uk.word.length).trim();
@@ -289,7 +318,7 @@ export const parseSmartNaturalSentence = (text: string, activeMemberName: string
     }
 
     if (unit === 'pièces' && qty === 1) {
-      unit = 'pièces'; // ou pièces
+      unit = 'pièces';
     }
 
     // Formater le nom du produit

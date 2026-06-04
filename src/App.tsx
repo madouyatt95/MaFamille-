@@ -528,7 +528,7 @@ function App() {
 
   // Navigation and Sheets UI State
   const [activeTab, setActiveTab] = useState('accueil');
-  const [budgetActiveSubView, setBudgetActiveSubView] = useState<{ type: 'export' | 'import' | 'transaction_form', options?: any } | null>(null);
+  const [budgetActiveSubView, setBudgetActiveSubView] = useState<{ type: 'export' | 'import' | 'transaction_form' | 'tab', options?: any, tab?: string } | null>(null);
 
   const [activeModule, rawSetActiveModule] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -701,6 +701,8 @@ function App() {
   const [manualVoiceCommand, setManualVoiceCommand] = useState('');
   const [voiceAmbiguous, setVoiceAmbiguous] = useState(false);
   const [ambiguousChoices, setAmbiguousChoices] = useState<{ moduleSource: string; category: string; subCategory: string; label: string }[]>([]);
+  const [voiceAmbiguousTravel, setVoiceAmbiguousTravel] = useState(false);
+  const [ambiguousTravelChoices, setAmbiguousTravelChoices] = useState<{ id: string; destination: string; label: string; action: 'link' | 'create' | 'global' }[]>([]);
   const [pendingVoiceCommandData, setPendingVoiceCommandData] = useState<any | null>(null);
   const [voiceDebugInfo, setVoiceDebugInfo] = useState<{
     phrase: string;
@@ -1374,6 +1376,8 @@ function App() {
             categoryId: metadata.moduleSource || undefined,
             subCategoryId: t.sub_category || undefined,
             currency: 'EUR',
+            travelId: metadata.travelId || undefined,
+            travel_id: metadata.travelId || undefined,
             recurrenceInterval: metadata.recurrenceInterval ? Number(metadata.recurrenceInterval) : undefined,
             startDate: metadata.startDate || undefined,
             endDate: metadata.endDate || undefined,
@@ -2073,6 +2077,8 @@ function App() {
             categoryId: metadata.moduleSource || undefined,
             subCategoryId: t.sub_category || undefined,
             currency: 'EUR',
+            travelId: metadata.travelId || undefined,
+            travel_id: metadata.travelId || undefined,
             recurrenceInterval: metadata.recurrenceInterval ? Number(metadata.recurrenceInterval) : undefined,
             startDate: metadata.startDate || undefined,
             endDate: metadata.endDate || undefined,
@@ -2857,6 +2863,8 @@ function App() {
               categoryId: metadata.moduleSource || undefined,
               subCategoryId: t.sub_category || undefined,
               currency: 'EUR',
+              travelId: metadata.travelId || undefined,
+              travel_id: metadata.travelId || undefined,
               recurrenceInterval: metadata.recurrenceInterval ? Number(metadata.recurrenceInterval) : undefined,
               startDate: metadata.startDate || undefined,
               endDate: metadata.endDate || undefined,
@@ -3629,6 +3637,86 @@ function App() {
         amountVal = parseFloat(amountMatch[1].replace(',', '.'));
       }
 
+      // 0. DICtiONNAIRE DE NAVIGATION VOCALE GLOBALE
+      if (!hasExplicitAmount) {
+        const navVerbs = [
+          'ouvre-moi les', 'ouvre-moi le', 'ouvre-moi la', 'ouvre-moi l\'', 'ouvre-moi',
+          'ouvre moi les', 'ouvre moi le', 'ouvre moi la', 'ouvre moi l\'', 'ouvre moi',
+          'ouvre les', 'ouvre le', 'ouvre la', 'ouvre l\'', 'ouvre',
+          'montre-moi les', 'montre-moi le', 'montre-moi la', 'montre-moi l\'', 'montre-moi',
+          'montre moi les', 'montre moi le', 'montre moi la', 'montre moi l\'', 'montre moi',
+          'montre les', 'montre le', 'montre la', 'montre l\'', 'montre',
+          'affiche-moi les', 'affiche-moi le', 'affiche-moi la', 'affiche-moi l\'', 'affiche-moi',
+          'affiche moi les', 'affiche moi le', 'affiche moi la', 'affiche moi l\'', 'affiche moi',
+          'affiche les', 'affiche le', 'affiche la', 'affiche l\'', 'affiche',
+          'va dans les', 'va dans le', 'va dans la', 'va dans l\'', 'va dans',
+          'va au', 'va à', 'va a',
+          'lance les', 'lance le', 'lance la', 'lance l\'', 'lance',
+          'accède à les', 'accède à le', 'accède à la', 'accède à l\'', 'accède à',
+          'accéde a les', 'accéde a le', 'accéde a la', 'accéde a l\'', 'accéde a',
+          'accede a les', 'accede a le', 'accede a la', 'accede a l\'', 'accede a'
+        ];
+        
+        let targetText = promptLower;
+        let isNavCommand = false;
+        
+        for (const verb of navVerbs) {
+          if (promptLower.startsWith(verb + ' ')) {
+            targetText = promptLower.slice(verb.length).trim();
+            isNavCommand = true;
+            break;
+          } else if (promptLower === verb) {
+            targetText = '';
+            isNavCommand = true;
+            break;
+          }
+        }
+        
+        const navModules = [
+          { keywords: ['accueil', 'l\'accueil', 'ecran d\'accueil', 'le menu', 'le hub'], tab: 'accueil', module: '', message: '🏠 Navigation : J\'ouvre l\'accueil.' },
+          { keywords: ['agenda', 'l\'agenda', 'calendrier', 'le calendrier', 'planning', 'le planning'], tab: 'agenda', module: '', message: '📅 Navigation : J\'ouvre l\'agenda.' },
+          { keywords: ['budget', 'le budget', 'finances', 'les finances'], tab: 'budget', module: '', message: '💰 Navigation : J\'ouvre le cockpit financier Budget.' },
+          { keywords: ['dépenses', 'les dépenses', 'depenses', 'les depenses', 'les transactions', 'transactions', 'opérations', 'les opérations'], tab: 'budget', module: '', subView: 'transactions', message: '💸 Navigation : J\'ouvre vos dépenses de budget.' },
+          { keywords: ['courses', 'les courses', 'liste de courses', 'la liste de courses', 'liste des courses', 'la liste des courses'], tab: 'menu', module: 'courses', message: '🛒 Navigation : J\'ouvre la liste de courses.' },
+          { keywords: ['santé', 'la santé', 'sante', 'la sante', 'carnet de santé', 'carnet de sante', 'médical', 'medical'], tab: 'menu', module: 'sante', message: '🩺 Navigation : J\'ouvre le carnet de santé.' },
+          { keywords: ['documents', 'les documents', 'coffre-fort', 'le coffre-fort', 'coffre fort', 'le coffre fort', 'papiers', 'les papiers'], tab: 'menu', module: 'documents', message: '📂 Navigation : J\'ouvre le coffre-fort administratif.' },
+          { keywords: ['voyages', 'les voyages', 'voyage', 'le voyage', 'vacances', 'les vacances'], tab: 'menu', module: 'voyages', message: '✈️ Navigation : J\'ouvre l\'assistant voyage IA.' },
+          { keywords: ['véhicules', 'les véhicules', 'vehicules', 'les vehicules', 'véhicule', 'vehicule', 'le véhicule', 'voiture', 'la voiture', 'voitures'], tab: 'menu', module: 'vehicules', message: '🚗 Navigation : J\'ouvre le carnet d\'entretien véhicule.' },
+          { keywords: ['logement', 'le logement', 'maison', 'la maison', 'foyer', 'le foyer'], tab: 'menu', module: 'logement', message: '🏠 Navigation : J\'ouvre le module logement.' },
+          { keywords: ['école', 'l\'école', 'ecole', 'l\'ecole', 'devoirs', 'les devoirs', 'tuteur', 'le tuteur'], tab: 'menu', module: 'ecole', message: '🎓 Navigation : J\'ouvre l\'école et devoirs.' },
+          { keywords: ['démarches', 'les démarches', 'demarches', 'les demarches', 'administratif', 'les démarches administratives'], tab: 'menu', module: 'documents', message: '📂 Navigation : J\'ouvre vos démarches administratives.' },
+          { keywords: ['animaux', 'les animaux', 'animal', 'chien', 'chat', 'les chats', 'les chiens'], tab: 'menu', module: 'animaux', message: '🐶 Navigation : J\'ouvre le carnet animaux.' },
+          { keywords: ['argent de poche', 'l\'argent de poche', 'argent', 'l\'argent', 'tirelire', 'pocket money'], tab: 'menu', module: 'argent', message: '🪙 Navigation : J\'ouvre l\'argent de poche.' },
+          { keywords: ['tâches', 'les tâches', 'taches', 'les taches', 'ménage', 'le ménage', 'choses à faire'], tab: 'menu', module: 'taches', message: '🧹 Navigation : J\'ouvre les tâches ménagères.' },
+          { keywords: ['messagerie', 'la messagerie', 'messages', 'les messages', 'tchat', 'chat', 'discussions', 'discussion'], tab: 'menu', module: 'messagerie', message: '💬 Navigation : J\'ouvre la messagerie familiale.' },
+          { keywords: ['souvenirs', 'les souvenirs', 'mur des moments', 'moments', 'le mur des moments', 'capsule', 'capsule temporelle'], tab: 'menu', module: 'capsule', message: '🔒 Navigation : J\'ouvre la capsule temporelle des souvenirs.' },
+          { keywords: ['carte', 'la carte', 'carte familiale', 'la carte familiale', 'position', 'gps', 'itinéraires'], tab: 'menu', module: 'carte', message: '🧭 Navigation : J\'affiche la carte familiale.' },
+          { keywords: ['contacts', 'les contacts', 'contacts importants', 'les contacts importants'], tab: 'menu', module: 'contacts', message: '📞 Navigation : J\'affiche les contacts importants.' },
+          { keywords: ['paramètres', 'les paramètres', 'parametres', 'les parametres', 'réglages', 'reglages', 'settings'], tab: 'menu', module: 'settings', message: '⚙️ Navigation : J\'ouvre les paramètres.' }
+        ];
+
+        let matched = null;
+        if (isNavCommand) {
+          matched = navModules.find(m => m.keywords.some(kw => targetText === kw || targetText.includes(kw)));
+        } else {
+          matched = navModules.find(m => m.keywords.some(kw => promptLower === kw));
+        }
+
+        if (matched) {
+          setActiveTab(matched.tab);
+          setActiveModule(matched.module);
+          if (matched.subView === 'transactions') {
+            setBudgetActiveSubView({ type: 'tab', tab: 'transactions' });
+          } else {
+            setBudgetActiveSubView(null);
+          }
+          setVoiceFeedback(matched.message);
+          logVoiceCommandToSupabase("navigation", true, { target_module: matched.module || matched.tab });
+          closeVoiceAssistantAfterDelay(2500);
+          return;
+        }
+      }
+
       // CLASSIFY INTENT IN ORDER OF PRIORITY
 
       // 1. Courses (Grocery)
@@ -3732,12 +3820,15 @@ function App() {
         }
 
         if (parsedItems.length > 0) {
-          // Show confirmation UI
-          setPendingGroceryItems(parsedItems);
-          setIsEditingPendingGrocery(false);
-          setVoiceTranscript(`"${text}"`);
-          setVoiceFeedback("Articles reconnus, veuillez valider.");
+          // Insertion séquentielle directe de chaque article
+          for (let i = 0; i < parsedItems.length; i++) {
+            const item = parsedItems[i];
+            await handleAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, false);
+          }
+          feedback = `Ajouté à la liste de courses : ${parsedItems.map(item => item.name).join(', ')}`;
+          setVoiceFeedback(feedback);
           logVoiceCommandToSupabase(intent, true);
+          closeVoiceAssistantAfterDelay(3000);
         } else {
           feedback = "🤔 Je n'ai pas compris quel article ajouter à vos courses...";
           setVoiceFeedback(feedback);
@@ -4237,19 +4328,90 @@ function App() {
           isVoice: true
         };
 
-        if (matches.length >= 1) {
-          const choice = matches[0];
-          const finalTx = {
+        // DÉTECTION DU VOYAGE CIBLE
+        let travelId: string | null = null;
+        let matchingTravels: any[] = [];
+        let travelNameFound = '';
+        let requiresTravelResolution = false;
+
+        const travelMatch = promptLower.match(/(?:pour le|du|au|lié au|lié le|voyageant au)?\s*voyage\s+([a-z0-9éèàùçâêîôûäëïöü-]+)/i);
+        if (travelMatch) {
+          travelNameFound = travelMatch[1].trim();
+          const searchDest = travelNameFound.toLowerCase();
+          matchingTravels = trips.filter(t => t.destination.toLowerCase().includes(searchDest) || searchDest.includes(t.destination.toLowerCase()));
+          
+          if (matchingTravels.length === 1) {
+            travelId = matchingTravels[0].id;
+          } else {
+            requiresTravelResolution = true;
+          }
+        }
+
+        // Si la résolution de voyage est requise ou si aucun voyage n'a été trouvé mais mentionné :
+        if (travelMatch && (requiresTravelResolution || matchingTravels.length === 0)) {
+          const choices: { id: string; destination: string; label: string; action: 'link' | 'create' | 'global' }[] = [];
+          
+          if (matchingTravels.length > 1) {
+            matchingTravels.forEach(t => {
+              choices.push({ id: t.id, destination: t.destination, label: `✈️ Lier au voyage ${t.destination}`, action: 'link' });
+            });
+          }
+          
+          choices.push({ id: 'create', destination: travelNameFound, label: `➕ Créer le voyage "${travelNameFound.charAt(0).toUpperCase() + travelNameFound.slice(1)}"`, action: 'create' });
+          choices.push({ id: 'global', destination: travelNameFound, label: `💸 Dépense sans lier à un voyage`, action: 'global' });
+          
+          setPendingVoiceCommandData({
             ...parsedTxData,
-            moduleSource: choice.moduleSource,
-            category: choice.category,
-            subCategory: choice.subCategory,
-            title: title === 'Achat rapide' ? `${choice.label.split(' ')[1] || 'Dépense'} ${choice.subCategory}` : title
-          };
+            travelNameFound
+          });
+          
+          setAmbiguousTravelChoices(choices);
+          setVoiceAmbiguousTravel(true);
+          setVoiceTranscript(`"${text}"`);
+          setVoiceFeedback("Plusieurs voyages ou aucun voyage ne correspond. Que voulez-vous faire ?");
+          setVoiceState('confirmation');
+          return;
+        }
 
-          await handleAddTransaction(finalTx);
+        let categoryVal = 'Autres';
+        let subCategoryVal = 'Divers';
+        let moduleSourceVal = 'budget';
+        let titleVal = title;
 
-          if (choice.moduleSource === 'argent_de_poche' && finalTx.memberId) {
+        if (travelId) {
+          categoryVal = 'Voyages';
+          moduleSourceVal = 'voyages';
+          
+          let deducedSub = 'Repas';
+          if (/billet|vol|train|avion|transport/i.test(promptLower)) deducedSub = 'Billets';
+          else if (/hotel|hôtel|hebergement|hébergement|airbnb|booking/i.test(promptLower)) deducedSub = 'Hôtel';
+          else if (/activité|activite|visite|excursion|loisir/i.test(promptLower)) deducedSub = 'Activités';
+          else if (/restaurant|resto|manger|repas/i.test(promptLower)) deducedSub = 'Repas';
+          else deducedSub = 'Divers';
+          
+          subCategoryVal = deducedSub;
+          titleVal = title === 'Achat rapide' ? `Voyage : ${deducedSub}` : title;
+        } else if (matches.length >= 1) {
+          const choice = matches[0];
+          categoryVal = choice.category;
+          subCategoryVal = choice.subCategory;
+          moduleSourceVal = choice.moduleSource;
+          titleVal = title === 'Achat rapide' ? `${choice.label.split(' ')[1] || 'Dépense'} ${choice.subCategory}` : title;
+        }
+
+        const finalTx = {
+          ...parsedTxData,
+          moduleSource: moduleSourceVal,
+          category: categoryVal,
+          subCategory: subCategoryVal,
+          title: titleVal,
+          travelId: travelId || undefined,
+          travel_id: travelId || undefined
+        };
+
+        await handleAddTransaction(finalTx);
+
+          if (finalTx.moduleSource === 'argent_de_poche' && finalTx.memberId) {
             setPocketMoney(prev => prev.map(child => {
               if (child.id === finalTx.memberId) {
                 const newBal = child.balance + (type === 'income' ? finalTx.amount : -finalTx.amount);
@@ -4267,9 +4429,9 @@ function App() {
             phrase: text,
             type: type === 'expense' ? 'Dépense' : 'Revenu',
             amount: `${amountVal}€`,
-            category: choice.category,
-            subCategory: choice.subCategory,
-            module: choice.moduleSource === 'budget' ? 'Budget' : (choice.moduleSource === 'sante' ? 'Santé' : choice.moduleSource === 'vehicules' ? 'Véhicules' : choice.moduleSource === 'logement' ? 'Logement' : choice.moduleSource === 'ecole' ? 'École' : choice.moduleSource === 'documents' ? 'Démarches' : choice.moduleSource === 'courses' ? 'Courses' : choice.moduleSource === 'voyages' ? 'Voyages' : choice.moduleSource === 'animaux' ? 'Animaux' : choice.moduleSource === 'argent_de_poche' ? 'Argent de poche' : choice.moduleSource),
+            category: finalTx.category,
+            subCategory: finalTx.subCategory,
+            module: finalTx.moduleSource === 'budget' ? 'Budget' : (finalTx.moduleSource === 'sante' ? 'Santé' : finalTx.moduleSource === 'vehicules' ? 'Véhicules' : finalTx.moduleSource === 'logement' ? 'Logement' : finalTx.moduleSource === 'ecole' ? 'École' : finalTx.moduleSource === 'documents' ? 'Démarches' : finalTx.moduleSource === 'courses' ? 'Courses' : finalTx.moduleSource === 'voyages' ? 'Voyages' : finalTx.moduleSource === 'animaux' ? 'Animaux' : finalTx.moduleSource === 'argent_de_poche' ? 'Argent de poche' : finalTx.moduleSource),
             recurrence: recurrenceType !== 'none' ? (recurrenceType === 'monthly' ? 'Mensuelle' : recurrenceType === 'weekly' ? 'Hebdomadaire' : recurrenceType === 'daily' ? 'Quotidienne' : recurrenceType === 'yearly' ? 'Annuelle' : recurrenceType) : undefined,
             member: matchedMember ? matchedMember.name : undefined
           });
@@ -4282,27 +4444,45 @@ function App() {
             accountName: accounts.find(a => a.id === finalTx.accountId)?.name || 'Principal'
           });
 
-          feedback = `💰 Transaction "${finalTx.title}" de ${amountVal}€ enregistrée dans le module ${choice.label.split(' ')[1] || choice.label}.`;
+          // Trouver le label du module pour le feedback
+          const moduleLabels: Record<string, string> = {
+            budget: 'Cockpit financier Budget',
+            sante: 'Carnet de Santé',
+            vehicules: 'Entretien Véhicule',
+            logement: 'Logement',
+            ecole: 'École & Devoirs',
+            documents: 'Coffre-fort administratif',
+            courses: 'Courses',
+            voyages: 'Voyages',
+            animaux: 'Animaux',
+            argent_de_poche: 'Argent de poche'
+          };
+          const modLabel = moduleLabels[finalTx.moduleSource] || finalTx.moduleSource;
+
+          feedback = `💰 Transaction "${finalTx.title}" de ${amountVal}€ enregistrée dans le module ${modLabel}.`;
           isSuccess = true;
           
-          if (choice.moduleSource === 'sante') {
+          if (finalTx.moduleSource === 'sante') {
             setActiveTab('menu');
             setActiveModule('sante');
-          } else if (choice.moduleSource === 'vehicules') {
+          } else if (finalTx.moduleSource === 'vehicules') {
             setActiveTab('menu');
-            setActiveModule('vehicule');
-          } else if (choice.moduleSource === 'ecole') {
+            setActiveModule('vehicules'); // avec 's'
+          } else if (finalTx.moduleSource === 'ecole') {
             setActiveTab('menu');
-            setActiveModule('devoirs');
-          } else if (choice.moduleSource === 'documents') {
+            setActiveModule('ecole');
+          } else if (finalTx.moduleSource === 'documents') {
             setActiveTab('menu');
             setActiveModule('documents');
-          } else if (choice.moduleSource === 'courses') {
+          } else if (finalTx.moduleSource === 'courses') {
             setActiveTab('menu');
             setActiveModule('courses');
-          } else if (choice.moduleSource === 'voyages') {
+          } else if (finalTx.moduleSource === 'voyages') {
             setActiveTab('menu');
-            setActiveModule('voyage');
+            setActiveModule('voyages'); // avec 's'
+          } else if (finalTx.moduleSource === 'argent') {
+            setActiveTab('menu');
+            setActiveModule('argent');
           } else {
             setActiveTab('budget');
             setActiveModule('');
@@ -6227,6 +6407,7 @@ function App() {
           setArtisans={setArtisans}
           onUpdateMemberProfile={handleUpdateMemberProfile}
           goals={savingGoals}
+          transactions={transactions}
           alerts={filteredAlerts}
           currencySymbol={getCurrencySymbol()}
           formatMoney={formatMoney}
@@ -6774,6 +6955,135 @@ function App() {
                   >
                     Retour
                   </button>
+                </div>
+              </div>
+            )}
+
+            {voiceAmbiguousTravel && ambiguousTravelChoices.length > 0 && (
+              <div className="space-y-2 pt-2 animate-fade-in border-t border-white/5">
+                <span className="text-[10px] font-black text-white/50 uppercase tracking-wider block mb-1">
+                  À quel voyage correspond cette dépense ?
+                </span>
+                <div className="flex flex-col gap-2 max-h-48 overflow-y-auto p-1">
+                  {ambiguousTravelChoices.map((choice) => (
+                    <button
+                      key={choice.id}
+                      type="button"
+                      onClick={async () => {
+                        if (pendingVoiceCommandData) {
+                          let finalTravelId = choice.id;
+                          
+                          if (choice.action === 'create') {
+                            const newTripId = `t-${Date.now()}`;
+                            const newTripDest = choice.destination.charAt(0).toUpperCase() + choice.destination.slice(1);
+                            const newT = {
+                              id: newTripId,
+                              foyer_id: foyer?.id || '',
+                              destination: newTripDest,
+                              startDate: new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
+                              endDate: new Date(Date.now() + 7*24*3600*1000).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
+                              budget: pendingVoiceCommandData.amount * 3 || 1000,
+                              bookingRefs: ['hotel:non_defini', 'transport:non_defini', 'billets:non_defini', 'activite:non_defini'],
+                              checklist: []
+                            };
+                            
+                            setTrips(prev => [...prev, newT]);
+                            
+                            const client = getSupabaseClient();
+                            if (client && foyer?.id) {
+                              try {
+                                await client.from('trips').insert({
+                                  id: newTripId,
+                                  foyer_id: foyer.id,
+                                  destination: newTripDest,
+                                  start_date: newT.startDate,
+                                  end_date: newT.endDate,
+                                  budget: newT.budget,
+                                  booking_refs: newT.bookingRefs,
+                                  checklist: JSON.stringify(newT.checklist)
+                                });
+                              } catch (err) {
+                                console.error("Error creating trip in Supabase:", err);
+                              }
+                            }
+                            
+                            finalTravelId = newTripId;
+                          }
+                          
+                          const finalTx = {
+                            ...pendingVoiceCommandData,
+                            moduleSource: choice.action === 'global' ? 'budget' : 'voyages',
+                            category: choice.action === 'global' ? 'Autres' : 'Voyages',
+                            subCategory: choice.action === 'global' ? 'Divers' : 'Voyage',
+                            travelId: choice.action === 'global' ? undefined : finalTravelId,
+                            travel_id: choice.action === 'global' ? undefined : finalTravelId
+                          };
+                          
+                          await handleAddTransaction(finalTx);
+                          
+                          setVoiceDebugInfo({
+                            phrase: voiceTranscript.replace(/^"|"$/g, ''),
+                            type: finalTx.type === 'expense' ? 'Dépense' : 'Revenu',
+                            amount: `${finalTx.amount}€`,
+                            category: finalTx.category,
+                            subCategory: finalTx.subCategory,
+                            module: 'Voyages'
+                          });
+
+                          setVoiceTransactionAdded({
+                            type: finalTx.type as any,
+                            amount: finalTx.amount,
+                            category: finalTx.category,
+                            subCategory: finalTx.subCategory || undefined,
+                            accountName: accounts.find(a => a.id === finalTx.accountId)?.name || 'Principal'
+                          });
+                          
+                          const client = getSupabaseClient();
+                          if (client && foyer?.id) {
+                            try {
+                              await client.from('voice_commands').insert({
+                                id: crypto.randomUUID(),
+                                foyer_id: foyer.id,
+                                raw_text: voiceTranscript.replace(/^"|"$/g, ''),
+                                parsed_intent: pendingVoiceCommandData.intent || 'transaction_expense',
+                                is_success: true,
+                                module_source: finalTx.moduleSource,
+                                category_id: finalTx.category,
+                                subcategory_id: finalTx.subCategory,
+                                amount: finalTx.amount,
+                                currency: finalTx.currency || 'EUR',
+                                recurrence_type: finalTx.recurrence || 'none',
+                                recurrence_interval: finalTx.recurrenceInterval || 1
+                              });
+                            } catch (err) {
+                              console.warn("Log command error:", err);
+                            }
+                          }
+                          
+                          const actionMsg = choice.action === 'create' 
+                            ? `Le voyage "${choice.destination}" a été créé et la dépense y a été liée.` 
+                            : (choice.action === 'global' ? 'La dépense a été ajoutée au module Voyage global.' : 'La dépense a été liée au voyage.');
+                            
+                          setVoiceFeedback(`💰 ${actionMsg}`);
+                          setVoiceAmbiguousTravel(false);
+                          setAmbiguousTravelChoices([]);
+                          setPendingVoiceCommandData(null);
+                          
+                          if (choice.action !== 'global') {
+                            setActiveTab('menu');
+                            setActiveModule('voyages');
+                          } else {
+                            setActiveTab('budget');
+                            setActiveModule('');
+                          }
+                          closeVoiceAssistantAfterDelay(4000);
+                        }
+                      }}
+                      className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black text-white text-left cursor-pointer transition-all active:scale-95 hover:border-[#FF4D6D]"
+                    >
+                      {choice.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}

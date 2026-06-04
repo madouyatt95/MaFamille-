@@ -367,6 +367,9 @@ export const Budget: React.FC<BudgetProps> = ({
         setActiveTab('exports');
       } else if (activeSubView.type === 'import') {
         setActiveTab('imports');
+      } else if (activeSubView.type === 'tab' && activeSubView.tab) {
+        setActiveTab(activeSubView.tab as any);
+        onClearActiveSubView?.();
       } else if (activeSubView.type === 'transaction_form') {
         setActiveTab('transactions');
         setTxForm({
