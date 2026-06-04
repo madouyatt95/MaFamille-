@@ -247,6 +247,7 @@ export const Agenda: React.FC<AgendaProps> = ({
 
   const visibleEvents = useMemo(() => {
     const local = events.filter(e => {
+      if (e.type === 'vaccine') return false;
       if (!isChild) return true;
       if (e.memberId === activeMemberId) return true;
       if (e.type === 'school' || e.type === 'social') return true;
@@ -295,17 +296,22 @@ export const Agenda: React.FC<AgendaProps> = ({
       }
     });
 
-    const vacEvs = vaccines.map((v: any) => ({
-      id: `vac-${v.id}`,
-      title: `🏥 Vaccin : ${v.name}`,
-      dateTime: `${v.nextDate || v.date}T10:00:00`,
-      time: '10:00',
-      type: 'medical' as EventType,
-      memberId: v.memberId || 'Foyer',
-      notes: 'Rappel de vaccin',
-      done: false,
-      sourceModule: 'sante'
-    }));
+    const vacEvs = vaccines
+      .filter((v: any) => v.status !== 'Archivé')
+      .map((v: any) => ({
+        id: `vac-${v.id}`,
+        title: `🏥 Vaccin : ${v.name}`,
+        dateTime: v.time ? `${v.date}T${v.time}:00` : `${v.date}T00:00:00`,
+        time: v.time || '',
+        type: 'medical' as EventType,
+        memberId: v.memberId || 'Foyer',
+        notes: v.note || 'Rappel de vaccin',
+        done: v.status === 'Fait',
+        sourceModule: 'sante',
+        source_module: 'santé',
+        source_id: v.id,
+        event_type: 'vaccine'
+      }));
 
     const schoolEvs = schoolTasks.map((st: any) => ({
       id: `school-task-${st.id}`,

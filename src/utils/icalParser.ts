@@ -203,22 +203,40 @@ export const fetchExternalCalendar = async (
   memberId?: string
 ): Promise<ExternalEvent[]> => {
   try {
-    // Utilisation d'un proxy public transparent de contournement CORS extrêmement fiable
-    const proxiedUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-    
-    const response = await fetch(proxiedUrl);
-    if (!response.ok) {
-      throw new Error(`Erreur réseau lors de la récupération de l'iCal: ${response.status}`);
+    const apiRoute = import.meta.env.DEV 
+      ? 'https://ma-famille-nu.vercel.app/api/ical' 
+      : '/api/ical';
+
+    let text = '';
+    try {
+      const response = await fetch(apiRoute, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      if (response.ok) {
+        const json = await response.json();
+        text = json.data || '';
+      } else {
+        throw new Error();
+      }
+    } catch {
+      // Fallback in case of server route issues (e.g. localhost dev without vercel dev)
+      const proxiedUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+      const response = await fetch(proxiedUrl);
+      if (!response.ok) {
+        throw new Error();
+      }
+      text = await response.text();
     }
-    
-    const text = await response.text();
+
     if (!text || !text.includes('BEGIN:VCALENDAR')) {
-      throw new Error("Le fichier récupéré n'est pas un fichier de calendrier iCal valide.");
+      throw new Error();
     }
     
     return parseICSContent(text, sourceName, sourceColor, memberId);
   } catch (err) {
     console.error("Impossible de récupérer ou de parser le calendrier externe :", url, err);
-    throw err;
+    throw new Error("Impossible d’importer ce calendrier. Vérifiez l’URL ou réessayez.");
   }
 };

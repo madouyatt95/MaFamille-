@@ -105,6 +105,7 @@ export const Budget: React.FC<BudgetProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<FinanceTab>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [accountFilter, setAccountFilter] = useState('all');
 
@@ -1779,29 +1780,92 @@ export const Budget: React.FC<BudgetProps> = ({
                   </div>
 
                   {/* Subcategories list */}
-                  <div className="space-y-1.5">
-                    <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest block">Sous-catégories</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {cat.sub?.map(s => {
-                        const isArchived = archivedSubcategories.includes(`${cat.name}:${s}`);
-                        return (
-                          <button 
-                            key={s} 
-                            disabled={!isAuthorized}
-                            onClick={() => toggleArchiveSubcategory(cat.name, s)}
-                            className={`px-2.5 py-1 rounded-lg border text-[10px] transition-all duration-200 text-left flex items-center gap-1 cursor-pointer active:scale-95 ${
-                              isArchived 
-                                ? 'bg-amber-500/10 border-amber-500/20 text-amber-400/80 hover:bg-amber-500/20' 
-                                : 'bg-white/3 border-white/5 text-white/70 hover:bg-white/5 hover:border-white/10'
-                            }`}
-                            title={isArchived ? "Restaurer la sous-catégorie" : "Archiver la sous-catégorie"}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-[10px] text-white/40 font-bold uppercase tracking-wider">
+                      <span>Sous-catégories ({cat.sub?.length || 0})</span>
+                      <div className="flex items-center gap-3">
+                        {cat.sub && cat.sub.length > 3 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExpandedCategories(prev =>
+                                prev.includes(cat.name)
+                                  ? prev.filter(n => n !== cat.name)
+                                  : [...prev, cat.name]
+                              );
+                            }}
+                            className="text-[#6C5CFF] hover:text-[#5B4EFF] font-black cursor-pointer lowercase"
                           >
-                            <span>{s}</span>
-                            {isArchived && <span className="text-[8px] opacity-75 font-semibold">(Archivé)</span>}
+                            {expandedCategories.includes(cat.name) ? 'masquer' : 'voir tout'}
                           </button>
-                        );
-                      })}
+                        )}
+                        {isAuthorized && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const matchedCc = customCategories.find(c => c.name.toLowerCase() === cat.name.toLowerCase());
+                              setEditingCat(matchedCc || {
+                                id: `cat-override-${cat.name.toLowerCase()}`,
+                                name: cat.name,
+                                icon: cat.icon,
+                                color: cat.color,
+                                budget: 0,
+                                displayOrder: 0,
+                                subcategories: cat.sub || []
+                              });
+                              setCatForm({
+                                name: matchedCc ? matchedCc.name : cat.name,
+                                icon: matchedCc ? (matchedCc.icon || '✨') : cat.icon,
+                                color: matchedCc ? (matchedCc.color || '#3B82F6') : cat.color,
+                                budget: '',
+                                subcategories: matchedCc ? (matchedCc.subcategories || []) : (cat.sub || []),
+                                newSubInput: ''
+                              });
+                              setIsCatModalOpen(true);
+                            }}
+                            className="text-[#00D26A] hover:text-[#00B058] font-black cursor-pointer lowercase"
+                          >
+                            modifier
+                          </button>
+                        )}
+                      </div>
                     </div>
+                    
+                    {expandedCategories.includes(cat.name) ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {cat.sub?.map(s => {
+                          const isArchived = archivedSubcategories.includes(`${cat.name}:${s}`);
+                          return (
+                            <button 
+                              key={s} 
+                              disabled={!isAuthorized}
+                              type="button"
+                              onClick={() => toggleArchiveSubcategory(cat.name, s)}
+                              className={`px-2.5 py-1 rounded-lg border text-[10px] transition-all duration-200 text-left flex items-center gap-1 cursor-pointer active:scale-95 ${
+                                isArchived 
+                                  ? 'bg-amber-500/10 border-amber-500/20 text-amber-400/80 hover:bg-amber-500/20' 
+                                  : 'bg-white/3 border-white/5 text-white/70 hover:bg-white/5 hover:border-white/10'
+                              }`}
+                              title={isArchived ? "Restaurer la sous-catégorie" : "Archiver la sous-catégorie"}
+                            >
+                              <span>{s}</span>
+                              {isArchived && <span className="text-[8px] opacity-75 font-semibold">(Archivé)</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-white/70">
+                        {cat.sub && cat.sub.length > 0 ? (
+                          <span>
+                            {cat.sub.slice(0, 3).join(', ')}
+                            {cat.sub.length > 3 ? '...' : ''}
+                          </span>
+                        ) : (
+                          <span className="text-white/30 italic">Aucune sous-catégorie</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

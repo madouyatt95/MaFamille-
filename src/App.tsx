@@ -103,7 +103,7 @@ import { Paywall } from './components/Paywall';
 import { Onboarding } from './views/Onboarding';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
 import { foyerService } from './services/foyerService';
-import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction } from './utils/supabase';
+import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction, serializeEventDescription, deserializeEventDescription } from './utils/supabase';
 import { notificationService } from './services/notificationService';
 import type { Foyer, FoyerMember } from './types';
 
@@ -482,28 +482,44 @@ function App() {
   const vaccines = useMemo(() => {
     return events
       .filter(e => e.type === 'vaccine')
-      .map(e => ({
-        id: e.id,
-        memberId: e.memberId || '1',
-        name: e.title,
-        date: e.dateTime ? e.dateTime.split('T')[0] : '',
-        status: e.done ? 'Fait' : 'À faire',
-        doctor: e.description || 'Médecin traitant'
-      }));
+      .map(e => {
+        const { description, metadata } = deserializeEventDescription(e.description);
+        return {
+          id: e.id,
+          memberId: e.memberId || '1',
+          name: e.title,
+          date: e.dateTime ? e.dateTime.split('T')[0] : '',
+          status: metadata.isArchived ? 'Archivé' : (e.done ? 'Fait' : 'À faire'),
+          doctor: metadata.doctor || description || 'Médecin traitant',
+          time: e.time || '',
+          reminder: metadata.reminder || '',
+          note: metadata.note || '',
+          documentUrl: metadata.documentUrl || '',
+          isArchived: !!metadata.isArchived
+        };
+      });
   }, [events]);
 
   const setVaccines = async (actionOrUpdater: any) => {
     let nextVaccines: any[] = [];
     const currentVaccines = events
       .filter(e => e.type === 'vaccine')
-      .map(e => ({
-        id: e.id,
-        memberId: e.memberId || '1',
-        name: e.title,
-        date: e.dateTime ? e.dateTime.split('T')[0] : '',
-        status: e.done ? 'Fait' : 'À faire',
-        doctor: e.description || 'Médecin traitant'
-      }));
+      .map(e => {
+        const { description, metadata } = deserializeEventDescription(e.description);
+        return {
+          id: e.id,
+          memberId: e.memberId || '1',
+          name: e.title,
+          date: e.dateTime ? e.dateTime.split('T')[0] : '',
+          status: metadata.isArchived ? 'Archivé' : (e.done ? 'Fait' : 'À faire'),
+          doctor: metadata.doctor || description || 'Médecin traitant',
+          time: e.time || '',
+          reminder: metadata.reminder || '',
+          note: metadata.note || '',
+          documentUrl: metadata.documentUrl || '',
+          isArchived: !!metadata.isArchived
+        };
+      });
 
     if (typeof actionOrUpdater === 'function') {
       nextVaccines = actionOrUpdater(currentVaccines);
@@ -517,7 +533,17 @@ function App() {
     const deleted = currentVaccines.filter((cv: any) => !nextVaccines.some((nv: any) => nv.id === cv.id));
     const updated = nextVaccines.filter((nv: any) => {
       const cv = currentVaccines.find((c: any) => c.id === nv.id);
-      return cv && (cv.status !== nv.status || cv.date !== nv.date || cv.name !== nv.name || cv.doctor !== nv.doctor);
+      return cv && (
+        cv.status !== nv.status ||
+        cv.date !== nv.date ||
+        cv.name !== nv.name ||
+        cv.doctor !== nv.doctor ||
+        cv.time !== nv.time ||
+        cv.reminder !== nv.reminder ||
+        cv.note !== nv.note ||
+        cv.documentUrl !== nv.documentUrl ||
+        cv.memberId !== nv.memberId
+      );
     });
 
     const client = getSupabaseClient();
@@ -527,12 +553,18 @@ function App() {
         id: v.id,
         title: v.name,
         type: 'vaccine',
-        dateTime: `${v.date}T10:00:00`,
-        time: '10:00',
+        dateTime: v.time ? `${v.date}T${v.time}:00` : `${v.date}T00:00:00`,
+        time: v.time || '',
         memberId: v.memberId,
         memberName: members.find(m => m.id === v.memberId)?.name || 'Membre',
         done: v.status === 'Fait',
-        description: v.doctor
+        description: serializeEventDescription(v.doctor || '', {
+          doctor: v.doctor || '',
+          reminder: v.reminder || '',
+          note: v.note || '',
+          documentUrl: v.documentUrl || '',
+          isArchived: v.status === 'Archivé'
+        })
       };
       setEvents(prev => [newEvent, ...prev]);
       sendLocalNotification(
@@ -572,24 +604,37 @@ function App() {
     }
 
     for (const v of updated) {
+      const updatedDescription = serializeEventDescription(v.doctor || '', {
+        doctor: v.doctor || '',
+        reminder: v.reminder || '',
+        note: v.note || '',
+        documentUrl: v.documentUrl || '',
+        isArchived: v.status === 'Archivé'
+      });
+      const updatedTime = v.time || '';
+      const updatedDateTime = v.time ? `${v.date}T${v.time}:00` : `${v.date}T00:00:00`;
+
       setEvents(prev => prev.map(e => e.id === v.id ? {
         ...e,
         title: v.name,
-        dateTime: `${v.date}T10:00:00`,
+        dateTime: updatedDateTime,
+        time: updatedTime,
         memberId: v.memberId,
         memberName: members.find(m => m.id === v.memberId)?.name || 'Membre',
         done: v.status === 'Fait',
-        description: v.doctor
+        description: updatedDescription
       } : e));
+
       if (client && foyer) {
         try {
           await client.from('events').update({
             title: v.name,
-            date_time: `${v.date}T10:00:00`,
+            date_time: updatedDateTime,
+            time: updatedTime,
             member_id: v.memberId,
             member_name: members.find(m => m.id === v.memberId)?.name || 'Membre',
             done: v.status === 'Fait',
-            description: v.doctor
+            description: updatedDescription
           }).eq('foyer_id', foyer.id).eq('id', v.id);
         } catch (err) {
           console.error("Error updating vaccine event:", err);
@@ -597,6 +642,7 @@ function App() {
       }
     }
   };
+
 
   const [memberMoods, setMemberMoods] = useState<Record<string, string>>(() => {
     return safeGetLocalStorage('mf_moods', { '1': '☀️', '2': '☀️', '3': '🌈', '4': '☁️' });
@@ -4414,36 +4460,72 @@ function App() {
       }
     }
     
-    let dateText = "";
-    const dateMatch = text.match(/(?:pour le|le|du|au|partir du|dès le)\s+(\d{1,2}\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i);
-    if (dateMatch) {
-      dateText = dateMatch[1].trim();
+    let startDateVal = "";
+    let endDateVal = "";
+    
+    // Pattern 1: "du 22 au 26 juin"
+    const rangeSameMonthMatch = text.match(/du\s+(\d{1,2})\s+au\s+(\d{1,2})\s+(janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)/i);
+    if (rangeSameMonthMatch) {
+      const startDay = rangeSameMonthMatch[1];
+      const endDay = rangeSameMonthMatch[2];
+      const month = rangeSameMonthMatch[3];
+      startDateVal = `${startDay} ${month}`;
+      endDateVal = `${endDay} ${month}`;
+    } else {
+      // Pattern 2: "du 22 juin au 3 juillet"
+      const rangeDiffMonthMatch = text.match(/du\s+(\d{1,2}\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))\s+au\s+(\d{1,2}\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i);
+      if (rangeDiffMonthMatch) {
+        startDateVal = rangeDiffMonthMatch[1];
+        endDateVal = rangeDiffMonthMatch[2];
+      } else {
+        // Pattern 3: single date "le 22 juin"
+        const singleDateMatch = text.match(/(?:pour le|le|du|au|partir du|dès le)\s+(\d{1,2}\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i);
+        if (singleDateMatch) {
+          startDateVal = singleDateMatch[1];
+        }
+      }
     }
     
+    const isoStart = startDateVal ? parseFrenchDate(startDateVal) : (textLower.includes('demain') ? parseFrenchDate('demain') : undefined);
+    const isoEnd = endDateVal ? parseFrenchDate(endDateVal) : undefined;
+    
+    // Parse budget first
+    let budgetAmount = 0;
+    const budgetMatch = text.match(/(?:budget\s*(?:de)?\s*(\d+[\.,]?\d*))|(\d+[\.,]?\d*)\s*(?:euros?|€|eur)?\s*(?:de\s+)?budget/i);
+    if (budgetMatch) {
+      budgetAmount = parseFloat((budgetMatch[1] || budgetMatch[2]).replace(',', '.'));
+    }
+    
+    // Remove budget phrase to avoid double counting it as an expense
+    let textWithoutBudget = text;
+    if (budgetMatch) {
+      textWithoutBudget = text.replace(budgetMatch[0], '');
+    }
+    
+    // Parse expense only if explicitly requested in remaining text
     let expenseAmount = 0;
-    const amountMatch = text.match(/(\d+[\.,]?\d*)\s*(?:euros?|€|eur)/i);
-    if (amountMatch) {
-      expenseAmount = parseFloat(amountMatch[1].replace(',', '.'));
+    const expenseKeywords = ['billet', 'billets', 'vol', 'vols', 'hotel', 'hôtel', 'hotels', 'hôtels', 'airbnb', 'activite', 'activité', 'activités', 'activites', 'hébergement', 'hebergement', 'repas', 'restaurant', 'resto', 'essence', 'location', 'dépense', 'depense', 'dépenses', 'depenses', 'frais'];
+    const hasExpenseKeywords = expenseKeywords.some(kw => textWithoutBudget.toLowerCase().includes(kw));
+    
+    if (hasExpenseKeywords) {
+      const amountMatch = textWithoutBudget.match(/(\d+[\.,]?\d*)\s*(?:euros?|€|eur)/i);
+      if (amountMatch) {
+        expenseAmount = parseFloat(amountMatch[1].replace(',', '.'));
+      }
     }
     
     let expenseTitle = "";
-    const expenseKeywords = ['billet', 'billets', 'vol', 'vols', 'hotel', 'hôtel', 'hotels', 'hôtels', 'airbnb', 'activite', 'activité', 'activités', 'activites', 'hébergement', 'hebergement', 'repas', 'restaurant', 'resto', 'essence', 'location'];
     for (const kw of expenseKeywords) {
-      if (textLower.includes(kw)) {
+      if (textWithoutBudget.toLowerCase().includes(kw)) {
         expenseTitle = kw.charAt(0).toUpperCase() + kw.slice(1);
         break;
       }
     }
     
-    let budgetAmount = 0;
-    const budgetMatch = text.match(/budget\s*(?:de)?\s*(\d+[\.,]?\d*)/i);
-    if (budgetMatch) {
-      budgetAmount = parseFloat(budgetMatch[1].replace(',', '.'));
-    }
-    
     return {
       destination,
-      dateText,
+      startDate: isoStart,
+      endDate: isoEnd,
       expenseAmount,
       expenseTitle,
       budgetAmount
@@ -4456,12 +4538,13 @@ function App() {
 
     // 1. VOYAGE
     if (promptLower.includes('voyage') || promptLower.includes('vacance') || promptLower.includes('vacances')) {
-      const voyageDetails = parseVoyageCommand(promptLower);
+      const voyageDetails = parseVoyageCommand(text);
       return {
         pendingAction: 'create_trip',
         destination: voyageDetails.destination || undefined,
         budget: voyageDetails.budgetAmount || undefined,
-        startDate: voyageDetails.dateText || (promptLower.includes('demain') ? 'demain' : undefined),
+        startDate: voyageDetails.startDate,
+        endDate: voyageDetails.endDate || undefined,
         expenseAmount: voyageDetails.expenseAmount,
         expenseTitle: voyageDetails.expenseTitle || undefined
       };
@@ -6361,16 +6444,21 @@ function App() {
       };
 
       // Determine explicit financial amount first
-      const hasExplicitAmount = /(\d+[\.,]?\d*)\s*(?:euros?|€|dollars?|\$|eur|usd)/i.test(promptLower) || 
-                               /(?:dépense de|revenu de|salaire de|montant de|payé|coûte|couté) (\d+[\.,]?\d*)/i.test(promptLower) ||
-                               /(?:^|\s)(\d+[\.,]?\d*)\s*(?:euros?|€|dollars?|\$|eur|usd)?\s+pour\s+/i.test(promptLower);
-      
+      const explicitAmountRegexes = [
+        /(\d+[\.,]?\d*)\s*(?:euros?|€|dollars?|\$|eur|usd)/i,
+        /(?:dépense|revenu|salaire|montant|payé|paye|coûte|coute|couté|somme)\s+(?:de\s+|de\s+l'|de\s+l’|d')?(\d+[\.,]?\d*)/i,
+        /^(?:ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|crée|creer|créer)?\s*(\d+[\.,]?\d*)\b/i
+      ];
+
       let amountVal = 0;
-      const amountMatch = promptLower.match(/(\d+[\.,]?\d*)\s*(?:euros?|€|dollars?|\$|eur|usd)/i) || 
-                          promptLower.match(/(?:dépense de|revenu de|salaire de|montant de|payé|coûte|couté) (\d+[\.,]?\d*)/i) ||
-                          promptLower.match(/(?:^|\s)(\d+[\.,]?\d*)\s*(?:euros?|€|dollars?|\$|eur|usd)?\s+pour\s+/i);
-      if (amountMatch) {
-        amountVal = parseFloat(amountMatch[1].replace(',', '.'));
+      let hasExplicitAmount = false;
+      for (const rx of explicitAmountRegexes) {
+        const m = promptLower.match(rx);
+        if (m) {
+          amountVal = parseFloat(m[1].replace(',', '.'));
+          hasExplicitAmount = true;
+          break;
+        }
       }
 
       // Priorité Course si dans le module Courses
@@ -7137,7 +7225,7 @@ function App() {
 
         const cleanLabel = (lbl: string): string => {
           let s = lbl.trim();
-          s = s.replace(/^(?:le\s+|la\s+|les\s+|l'|l’|de\s+la\s+|de\s+l'|de\s+l’|du\s+|des\s+|d'|d’)/i, '');
+          s = s.replace(/^(?:pour\s+l'|pour\s+l’|pour\s+le\s+|pour\s+la\s+|pour\s+les\s+|pour\s+|de\s+la\s+|de\s+l'|de\s+l’|de\s+|du\s+|des\s+|d'|d’|le\s+|la\s+|les\s+|l'|l’|en\s+)/i, '');
           return s.trim();
         };
 

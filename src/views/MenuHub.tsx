@@ -422,6 +422,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     }
   });
   const [showArchivedTrips, setShowArchivedTrips] = useState(false);
+  const [showArchivedVac, setShowArchivedVac] = useState(false);
 
   const toggleArchiveTrip = (tripId: string) => {
     const foyerId = foyer?.id || localStorage.getItem('mf_cloud_foyer_id') || 'default';
@@ -540,6 +541,42 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newVacName, setNewVacName] = useState('');
   const [newVacDate, setNewVacDate] = useState('');
   const [newVacDoctor, setNewVacDoctor] = useState('');
+  const [newVacTime, setNewVacTime] = useState('');
+  const [newVacReminder, setNewVacReminder] = useState('');
+  const [newVacNote, setNewVacNote] = useState('');
+  const [newVacDoc, setNewVacDoc] = useState('');
+
+  const [editingVaccine, setEditingVaccine] = useState<any | null>(null);
+  const [editVacName, setEditVacName] = useState('');
+  const [editVacDate, setEditVacDate] = useState('');
+  const [editVacTime, setEditVacTime] = useState('');
+  const [editVacDoctor, setEditVacDoctor] = useState('');
+  const [editVacReminder, setEditVacReminder] = useState('');
+  const [editVacNote, setEditVacNote] = useState('');
+  const [editVacDoc, setEditVacDoc] = useState('');
+  const [editVacMemberId, setEditVacMemberId] = useState('');
+  const [editVacStatus, setEditVacStatus] = useState('');
+
+  const handleSaveVac = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingVaccine || !editVacName.trim() || !editVacDate) return;
+    if (setVaccines) {
+      setVaccines((prev: any[]) => prev.map(v => v.id === editingVaccine.id ? {
+        ...v,
+        memberId: editVacMemberId,
+        name: editVacName.trim(),
+        date: editVacDate,
+        time: editVacTime,
+        doctor: editVacDoctor.trim() || 'Médecin traitant',
+        reminder: editVacReminder,
+        note: editVacNote.trim(),
+        documentUrl: editVacDoc.trim(),
+        status: editVacStatus,
+        isArchived: editVacStatus === 'Archivé'
+      } : v));
+    }
+    setEditingVaccine(null);
+  };
 
   const [editingEmergencyMemberId, setEditingEmergencyMemberId] = useState<string | null>(null);
   const [editBlood, setEditBlood] = useState('O+');
@@ -1610,6 +1647,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           {/* 2. Vaccins */}
           {healthSubTab === 'vaccins' && (() => {
             const activeVaccines = (vaccines || []).filter(v => v.memberId === selectedHealthMemberId);
+            const filteredVaccines = activeVaccines.filter(v => 
+              showArchivedVac ? (v.status === 'Archivé' || v.isArchived) : (v.status !== 'Archivé' && !v.isArchived)
+            );
             const selectedMemberName = members.find(m => m.id === selectedHealthMemberId)?.name || 'Membre';
 
             const handleToggleVac = (id: string) => {
@@ -1619,9 +1659,24 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             };
 
             const handleDeleteVac = (id: string) => {
-              if (setVaccines) {
-                setVaccines(prev => prev.filter(v => v.id !== id));
+              if (window.confirm("Supprimer ce vaccin ?")) {
+                if (setVaccines) {
+                  setVaccines(prev => prev.filter(v => v.id !== id));
+                }
               }
+            };
+
+            const handleStartEditVac = (vac: any) => {
+              setEditingVaccine(vac);
+              setEditVacName(vac.name);
+              setEditVacDate(vac.date);
+              setEditVacTime(vac.time || '');
+              setEditVacDoctor(vac.doctor || '');
+              setEditVacReminder(vac.reminder || '');
+              setEditVacNote(vac.note || '');
+              setEditVacDoc(vac.documentUrl || '');
+              setEditVacMemberId(vac.memberId);
+              setEditVacStatus(vac.status);
             };
 
             const handleAddVac = (e: React.FormEvent) => {
@@ -1633,7 +1688,11 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 name: newVacName.trim(),
                 date: newVacDate,
                 status: 'À faire',
-                doctor: newVacDoctor.trim() || 'Médecin traitant'
+                doctor: newVacDoctor.trim() || 'Médecin traitant',
+                time: newVacTime,
+                reminder: newVacReminder,
+                note: newVacNote.trim(),
+                documentUrl: newVacDoc.trim()
               };
               if (setVaccines) {
                 setVaccines(prev => [...prev, newVac]);
@@ -1641,21 +1700,61 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               setNewVacName('');
               setNewVacDate('');
               setNewVacDoctor('');
+              setNewVacTime('');
+              setNewVacReminder('');
+              setNewVacNote('');
+              setNewVacDoc('');
             };
 
             return (
               <div className="space-y-4">
                 <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-3">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-                    <span>Statut des Vaccinations ({selectedMemberName})</span>
-                  </h3>
+                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                      {showArchivedVac ? "Vaccins Archivés" : "Statut des Vaccinations"} ({selectedMemberName})
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowArchivedVac(prev => !prev)}
+                      className="text-[10px] text-[#FF4D6D] hover:underline font-bold transition-all cursor-pointer"
+                    >
+                      {showArchivedVac ? "📁 Voir les vaccins actifs" : "📦 Voir l'archivage"}
+                    </button>
+                  </div>
                   <div className="space-y-1">
-                    {activeVaccines.length > 0 ? (
-                      activeVaccines.map((vac) => (
-                        <div key={vac.id} className="flex items-center justify-between py-2.5 border-b border-white/5 last:border-b-0 text-xs">
-                          <div>
-                            <h4 className="font-bold text-white">{vac.name}</h4>
-                            <p className="text-[9px] text-white/40 mt-0.5">{vac.doctor}</p>
+                    {filteredVaccines.length > 0 ? (
+                      filteredVaccines.map((vac) => (
+                        <div key={vac.id} className="flex items-start justify-between py-2.5 border-b border-white/5 last:border-b-0 text-xs">
+                          <div className="space-y-1">
+                            <h4 className="font-bold text-white flex items-center gap-1.5 flex-wrap">
+                              {vac.name}
+                              {vac.time && (
+                                <span className="text-[9px] bg-white/10 px-1.5 py-0.5 rounded text-white/70 font-mono">
+                                  {vac.time}
+                                </span>
+                              )}
+                            </h4>
+                            <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-white/40">
+                              <span>👨‍⚕️ {vac.doctor}</span>
+                              {vac.reminder && <span>• 🔔 Rappel : {vac.reminder}</span>}
+                            </div>
+                            {vac.note && (
+                              <p className="text-[10px] text-white/60 italic bg-white/5 px-2 py-1 rounded-lg inline-block mt-1">
+                                {vac.note}
+                              </p>
+                            )}
+                            {vac.documentUrl && (
+                              <div className="mt-1">
+                                <a 
+                                  href={vac.documentUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="inline-flex items-center space-x-1 text-[10px] text-[#FF4D6D] hover:underline font-semibold"
+                                >
+                                  <span>📄 Voir le document</span>
+                                </a>
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center space-x-3 text-right">
                             <div>
@@ -1665,6 +1764,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                                 className={`px-2.5 py-1 rounded-full text-[9px] font-black border transition-all cursor-pointer ${
                                   vac.status === 'Fait'
                                     ? 'bg-[#00D26A]/10 border-[#00D26A]/30 text-[#00D26A]'
+                                    : vac.status === 'Archivé'
+                                    ? 'bg-white/10 border-white/20 text-white/60'
                                     : 'bg-[#FFB020]/10 border-[#FFB020]/30 text-[#FFB020]'
                                 }`}
                               >
@@ -1672,13 +1773,24 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                               </button>
                               <p className="text-[9px] text-white/40 mt-0.5">{new Date(vac.date).toLocaleDateString('fr-FR')}</p>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteVac(vac.id)}
-                              className="p-1 hover:text-red-400 text-white/20 transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex flex-col space-y-1">
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditVac(vac)}
+                                className="p-1 hover:text-[#00D26A] text-white/20 transition-colors cursor-pointer"
+                                title="Modifier"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteVac(vac.id)}
+                                className="p-1 hover:text-red-400 text-white/20 transition-colors cursor-pointer"
+                                title="Supprimer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))
@@ -1704,6 +1816,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                         className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
                       />
                     </div>
+                    
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
                         <label className="text-[9px] font-bold text-white/40 uppercase block">Date d'échéance</label>
@@ -1715,6 +1828,18 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                         />
                       </div>
                       <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-white/40 uppercase block">Heure</label>
+                        <input 
+                          type="time"
+                          value={newVacTime}
+                          onChange={(e) => setNewVacTime(e.target.value)}
+                          className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
                         <label className="text-[9px] font-bold text-white/40 uppercase block">Médecin / Lieu</label>
                         <input 
                           type="text"
@@ -1724,6 +1849,44 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                           className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
                         />
                       </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-white/40 uppercase block">Rappel</label>
+                        <select
+                          value={newVacReminder}
+                          onChange={(e) => setNewVacReminder(e.target.value)}
+                          className="w-full bg-[#07111F] text-white border border-white/10 rounded-xl px-2.5 py-1.5 text-xs"
+                        >
+                          <option value="">Aucun</option>
+                          <option value="1 heure avant">1 heure avant</option>
+                          <option value="2 heures avant">2 heures avant</option>
+                          <option value="1 jour avant">1 jour avant</option>
+                          <option value="2 jours avant">2 jours avant</option>
+                          <option value="3 jours avant">3 jours avant</option>
+                          <option value="1 semaine avant">1 semaine avant</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-white/40 uppercase block">Note</label>
+                      <input 
+                        type="text"
+                        placeholder="Consignes, fièvre, rappel à faire, etc."
+                        value={newVacNote}
+                        onChange={(e) => setNewVacNote(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-white/40 uppercase block">Document lié (URL)</label>
+                      <input 
+                        type="text"
+                        placeholder="https://lien-vers-ordonnance.pdf"
+                        value={newVacDoc}
+                        onChange={(e) => setNewVacDoc(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                      />
                     </div>
                   </div>
                   <button
@@ -4614,9 +4777,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               {(() => {
                 const tripExpenses = (transactions || []).filter(tx => 
                   tx.type === 'expense' && 
-                  (tx.travelId === t.id || tx.travel_id === t.id ||
-                   ((tx.moduleSource === 'voyages' || tx.category === 'Voyages') && 
-                    (tx.title.toLowerCase().includes(t.destination.toLowerCase()) || (tx.comment && tx.comment.toLowerCase().includes(t.destination.toLowerCase())))))
+                  (tx.travelId === t.id || tx.travel_id === t.id)
                 );
                 const totalTripSpent = tripExpenses.reduce((sum, tx) => sum + tx.amount, 0);
                 const matchingGoal = goals?.find(g => 
@@ -6011,6 +6172,168 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 Valider
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {editingVaccine && (
+        <div className="fixed inset-0 bg-[#07111F]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-panel border border-white/10 rounded-[28px] w-full max-w-md p-6 space-y-4 shadow-2xl animate-scale-up">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+              <h3 className="text-xs font-black uppercase tracking-wider text-white">Modifier le Vaccin</h3>
+              <button 
+                type="button"
+                onClick={() => setEditingVaccine(null)}
+                className="p-1 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveVac} className="space-y-3 text-xs">
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-white/40 uppercase block">Membre concerné</label>
+                <select
+                  value={editVacMemberId}
+                  onChange={(e) => setEditVacMemberId(e.target.value)}
+                  className="w-full bg-[#07111F] text-white border border-white/10 rounded-xl px-2.5 py-1.5 font-bold text-xs"
+                >
+                  {members.map(m => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-white/40 uppercase block">Nom du vaccin</label>
+                <input 
+                  type="text"
+                  value={editVacName}
+                  onChange={(e) => setEditVacName(e.target.value)}
+                  className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase block">Date d'échéance</label>
+                  <input 
+                    type="date"
+                    value={editVacDate}
+                    onChange={(e) => setEditVacDate(e.target.value)}
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase block">Heure</label>
+                  <input 
+                    type="time"
+                    value={editVacTime}
+                    onChange={(e) => setEditVacTime(e.target.value)}
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase block">Médecin / Lieu</label>
+                  <input 
+                    type="text"
+                    value={editVacDoctor}
+                    onChange={(e) => setEditVacDoctor(e.target.value)}
+                    className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase block">Rappel</label>
+                  <select
+                    value={editVacReminder}
+                    onChange={(e) => setEditVacReminder(e.target.value)}
+                    className="w-full bg-[#07111F] text-white border border-white/10 rounded-xl px-2.5 py-1.5 text-xs"
+                  >
+                    <option value="">Aucun</option>
+                    <option value="1 heure avant">1 heure avant</option>
+                    <option value="2 heures avant">2 heures avant</option>
+                    <option value="1 jour avant">1 jour avant</option>
+                    <option value="2 jours avant">2 jours avant</option>
+                    <option value="3 jours avant">3 jours avant</option>
+                    <option value="1 semaine avant">1 semaine avant</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-white/40 uppercase block">Note</label>
+                <input 
+                  type="text"
+                  value={editVacNote}
+                  onChange={(e) => setEditVacNote(e.target.value)}
+                  placeholder="Notes ou consignes particulières"
+                  className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-white/40 uppercase block">Document lié (URL)</label>
+                <input 
+                  type="text"
+                  value={editVacDoc}
+                  onChange={(e) => setEditVacDoc(e.target.value)}
+                  placeholder="Lien vers l'ordonnance ou le document"
+                  className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-white/40 uppercase block">Statut</label>
+                <select
+                  value={editVacStatus}
+                  onChange={(e) => setEditVacStatus(e.target.value)}
+                  className="w-full bg-[#07111F] text-white border border-white/10 rounded-xl px-2.5 py-1.5 text-xs font-bold"
+                >
+                  <option value="À faire">À faire</option>
+                  <option value="Fait">Fait</option>
+                  <option value="Archivé">Archivé</option>
+                </select>
+              </div>
+
+              <div className="flex items-center space-x-2 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-[#00D26A] text-white font-extrabold text-[10px] uppercase tracking-wider flex items-center justify-center space-x-1 cursor-pointer active:scale-97 transition-all"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Enregistrer</span>
+                </button>
+                
+                {editVacStatus !== 'Archivé' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditVacStatus('Archivé');
+                    }}
+                    className="px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white font-bold cursor-pointer transition-colors text-[10px] uppercase tracking-wider"
+                  >
+                    🚀 Archiver
+                  </button>
+                )}
+                
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("Supprimer ce vaccin définitivement ?")) {
+                      if (setVaccines) {
+                        setVaccines((prev: any[]) => prev.filter(v => v.id !== editingVaccine.id));
+                      }
+                      setEditingVaccine(null);
+                    }
+                  }}
+                  className="px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-400 font-bold cursor-pointer transition-colors text-[10px] uppercase tracking-wider"
+                >
+                  Supprimer
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -374,7 +374,8 @@ export const Accueil: React.FC<AccueilProps> = ({
   const agendaUnified = (isChild
     ? events.filter(e => e.memberName === activeMember.name || e.type === 'school')
     : events
-  ).map(e => {
+  ).filter(e => e.type !== 'vaccine')
+  .map(e => {
     const eventDate = e.dateTime.split('T')[0];
     return {
       id: `agenda-${e.id}`,
@@ -476,21 +477,27 @@ export const Accueil: React.FC<AccueilProps> = ({
       sourceModule: 'taches'
     }));
 
-  const vaccinesUnified = vaccines.map(v => {
-    const vDate = v.nextDate || v.date;
-    return {
-      id: `vaccine-${v.id}`,
-      title: `Vaccin : ${v.name}`,
-      type: 'vaccine',
-      date: vDate,
-      time: '10:00',
-      description: 'Rappel de vaccin',
-      iconType: 'vaccine',
-      memberId: v.memberId,
-      done: false,
-      sourceModule: 'sante'
-    };
-  });
+  const vaccinesUnified = vaccines
+    .filter(v => v.status !== 'Archivé')
+    .map(v => {
+      const vDate = v.nextDate || v.date;
+      return {
+        id: `vaccine-${v.id}`,
+        title: `Vaccin : ${v.name}`,
+        type: 'vaccine',
+        date: vDate,
+        time: v.time || '',
+        description: v.note || 'Rappel de vaccin',
+        iconType: 'vaccine',
+        memberId: v.memberId,
+        done: v.status === 'Fait',
+        sourceModule: 'sante',
+        source_module: 'santé',
+        source_id: v.id,
+        event_type: 'vaccine'
+      };
+    });
+
 
   const petsUnified: any[] = [];
   (pets || []).forEach(p => {

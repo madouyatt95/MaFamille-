@@ -186,4 +186,47 @@ export function getModuleIdFromTransaction(t: any): string | null {
   return null;
 }
 
+export interface EventDescriptionMetadata {
+  doctor?: string;
+  reminder?: string;
+  note?: string;
+  documentUrl?: string;
+  isArchived?: boolean;
+  [key: string]: any;
+}
+
+export function serializeEventDescription(descriptionText: string | null | undefined, metadata: EventDescriptionMetadata): string {
+  const cleanDesc = descriptionText || '';
+  const cleanMeta: EventDescriptionMetadata = {};
+  for (const k in metadata) {
+    if (metadata[k] !== undefined && metadata[k] !== null) {
+      cleanMeta[k] = metadata[k];
+    }
+  }
+  if (Object.keys(cleanMeta).length === 0) {
+    return cleanDesc;
+  }
+  return `__METADATA__:${JSON.stringify(cleanMeta)}__DESCRIPTION__:${cleanDesc}`;
+}
+
+export function deserializeEventDescription(serialized: string | null | undefined): { description: string; metadata: EventDescriptionMetadata } {
+  if (!serialized) {
+    return { description: '', metadata: {} };
+  }
+  const str = serialized.trim();
+  if (str.startsWith('__METADATA__:') && str.includes('__DESCRIPTION__:')) {
+    const idx = str.indexOf('__DESCRIPTION__:');
+    const metaStr = str.substring('__METADATA__:'.length, idx);
+    const description = str.substring(idx + '__DESCRIPTION__:'.length);
+    try {
+      const metadata = JSON.parse(metaStr);
+      return { description, metadata };
+    } catch {
+      // ignore
+    }
+  }
+  return { description: serialized, metadata: { doctor: serialized } };
+}
+
+
 
