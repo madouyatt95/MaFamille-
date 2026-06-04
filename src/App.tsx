@@ -970,6 +970,10 @@ function App() {
   }, [myMemberProfile]);
 
   useEffect(() => {
+    safeSetLocalStorage('mf_custom_categories', JSON.stringify(customCategories));
+  }, [customCategories]);
+
+  useEffect(() => {
     if (!foyer) return;
     const checkExpiringItems = async () => {
       try {
@@ -4475,7 +4479,20 @@ function App() {
       const timeMatch = promptLower.match(/\b(\d+h\d*|\d+:\d+)\b/i);
       const time = timeMatch ? timeMatch[1] : undefined;
 
-      const matchedMember = findAllMemberMatches(promptLower, members, activeMemberId)[0];
+      let matchedMember = undefined;
+      const pourMoi = /\bpour\s+moi\b/i.test(promptLower) || /\bc'est\s+pour\s+moi\b/i.test(promptLower) || /\bmoi\b/i.test(promptLower);
+      if (pourMoi) {
+        matchedMember = members.find(m => m.id === activeMemberId);
+      } else {
+        const found = findAllMemberMatches(promptLower, members, activeMemberId);
+        if (found.length === 1) {
+          const name = found[0].name.toLowerCase();
+          const role = found[0].role ? found[0].role.toLowerCase() : '';
+          if (promptLower.includes(name) || (role && promptLower.includes(role))) {
+            matchedMember = found[0];
+          }
+        }
+      }
       
       let title = 'Vaccin';
       const ror = promptLower.includes('ror');
@@ -4491,7 +4508,7 @@ function App() {
         pendingAction: 'create_vaccine',
         title,
         date,
-        time: time || 'à définir',
+        time: time || undefined,
         memberId: matchedMember?.id || undefined
       };
     }
@@ -4780,10 +4797,19 @@ function App() {
       if (!ctx.memberId) {
         ctx.missingField = 'memberId';
         setVoiceContext(ctx);
-        setVoiceFeedback("Pour quel membre de la famille ?");
+        setVoiceFeedback("Pour qui ?");
         setVoiceState('confirmation');
         setVoiceTranscript('');
         closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (!ctx.time && !ctx.timeAsked) {
+        ctx.missingField = 'time';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Souhaitez-vous préciser une heure ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3500, 'ecoute');
         return;
       }
     }
@@ -5751,6 +5777,7 @@ function App() {
       if (!ctx.date) missing.push('date');
       if (!ctx.title) missing.push('title');
       if (!ctx.memberId) missing.push('memberId');
+      if (!ctx.time && !ctx.timeAsked) missing.push('time');
     } else if (ctx.pendingAction === 'create_pocket_money') {
       if (!ctx.memberId) missing.push('memberId');
       if (!ctx.amount) missing.push('amount');
@@ -6039,8 +6066,18 @@ function App() {
             }
           } else if (voiceContext.missingField === 'time') {
             const lowerVal = text.toLowerCase().trim();
-            if (lowerVal.includes('sais pas') || lowerVal.includes('pas encore') || lowerVal.includes('non défini') || lowerVal.includes('non defini') || lowerVal.includes('aucune') || lowerVal.includes('aucun')) {
+            const isSkip = lowerVal.includes('sais pas') || 
+                           lowerVal.includes('pas encore') || 
+                           lowerVal.includes('non défini') || 
+                           lowerVal.includes('non defini') || 
+                           lowerVal.includes('aucune') || 
+                           lowerVal.includes('aucun') || 
+                           lowerVal.includes('plus tard') || 
+                           lowerVal === 'non' || 
+                           lowerVal === 'non merci';
+            if (isSkip) {
               updatedCtx.time = 'horaire à définir';
+              updatedCtx.timeAsked = true;
               delete updatedCtx.missingField;
               resolved = true;
             } else if (text.trim()) {
@@ -6053,6 +6090,7 @@ function App() {
               } else {
                 updatedCtx.time = text.trim();
               }
+              updatedCtx.timeAsked = true;
               delete updatedCtx.missingField;
               resolved = true;
             }
@@ -7097,29 +7135,72 @@ function App() {
         const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
         const matchedAccount = accounts.find(a => promptLower.includes(a.name.toLowerCase()));
 
-        let title = 'Achat rapide';
-        let pourKeyword = '';
-        const pourMatch = promptLower.match(/(?:^|\s)(?:\d+[\.,]?\d*)\s*(?:euros?|€|eur|dollars?|\$)?\s+pour\s+(?:le\s+|la\s+|l'\s+|les\s+)?([a-z0-9éèàùçâêîôûäëïöü\s-]+)/i);
-        if (pourMatch) {
-          pourKeyword = pourMatch[1].trim();
-          title = pourKeyword.charAt(0).toUpperCase() + pourKeyword.slice(1);
-        } else {
-          const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€|eur)/i;
-          let cleanTitle = textWithDigits.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|dépense|depense|pour/gi, '').trim();
-          cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[\.,]?\d*)/, '').trim();
-          cleanTitle = cleanTitle.replace(/tous les mois|chaque mois|mensuel|mensuelle|tous les jours|chaque jour|quotidien|quotidienne|chaque semaine|toutes les semaines|hebdomadaire|chaque (lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)|chaque samedi|tous les ans|chaque année|chaque annee/gi, '').trim();
-          if (matchedMember) {
-            const memberRegex = new RegExp(`\\b${matchedMember.name}\\b`, 'gi');
-            cleanTitle = cleanTitle.replace(memberRegex, '').trim();
-          }
-          // Clean leading prepositions from description
-          cleanTitle = cleanTitle.replace(/^(?:dans\s+le|dans\s+la|dans\s+l'|dans\s+|pour\s+l'|pour\s+la|pour\s+le|pour\s+les|pour\s+|en\s+|au\s+|aux\s+|à\s+|a\s+|de\s+l'|de\s+la|de\s+le|de\s+les|de\s+|du\s+|d'|l')/i, '');
-          cleanTitle = cleanTitle.replace(/\s+/g, ' ').trim();
+        const cleanLabel = (lbl: string): string => {
+          let s = lbl.trim();
+          s = s.replace(/^(?:le\s+|la\s+|les\s+|l'|l’|de\s+la\s+|de\s+l'|de\s+l’|du\s+|des\s+|d'|d’)/i, '');
+          return s.trim();
+        };
 
-          if (cleanTitle) {
-            title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
+        const getDynamicVoiceMapping = () => {
+          const mapping: Record<string, { category: string; subCategory: string; moduleSource: string }> = {
+            'taxi': { category: 'Transport', subCategory: 'Taxi', moduleSource: 'budget' },
+            'uber': { category: 'Transport', subCategory: 'Uber', moduleSource: 'budget' },
+            'vtc': { category: 'Transport', subCategory: 'VTC', moduleSource: 'budget' },
+            'essence': { category: 'Véhicules', subCategory: 'Carburant', moduleSource: 'vehicules' },
+            'carburant': { category: 'Véhicules', subCategory: 'Carburant', moduleSource: 'vehicules' },
+            'pharmacie': { category: 'Santé', subCategory: 'Pharmacie', moduleSource: 'sante' },
+            'médecin': { category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante' },
+            'medecin': { category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante' },
+            'dentiste': { category: 'Santé', subCategory: 'Dentiste', moduleSource: 'sante' },
+            'internet': { category: 'Logement', subCategory: 'Internet', moduleSource: 'logement' },
+            'loyer': { category: 'Logement', subCategory: 'Loyer', moduleSource: 'logement' },
+            'électricité': { category: 'Logement', subCategory: 'Électricité', moduleSource: 'logement' },
+            'electricite': { category: 'Logement', subCategory: 'Électricité', moduleSource: 'logement' },
+            'cantine': { category: 'Éducation', subCategory: 'Cantine', moduleSource: 'ecole' },
+            'passeport': { category: 'Administratif', subCategory: 'Passeport', moduleSource: 'documents' },
+            'navigo': { category: 'Transport', subCategory: 'Pass Navigo', moduleSource: 'budget' },
+            'pass navigo': { category: 'Transport', subCategory: 'Pass Navigo', moduleSource: 'budget' }
+          };
+
+          const merged = getMergedCategories();
+          for (const cat of merged) {
+            if (cat.isArchived) continue;
+            
+            let moduleSource = 'budget';
+            if (cat.name === 'Santé') moduleSource = 'sante';
+            else if (cat.name === 'Véhicules') moduleSource = 'vehicules';
+            else if (cat.name === 'Logement') moduleSource = 'logement';
+            else if (cat.name === 'Éducation' || cat.name === 'École') moduleSource = 'ecole';
+            else if (cat.name === 'Alimentation' || cat.name === 'Courses') moduleSource = 'courses';
+            else if (cat.name === 'Voyages') moduleSource = 'voyages';
+            else if (cat.name === 'Animaux') moduleSource = 'animaux';
+            else if (cat.name === 'Argent de poche') moduleSource = 'argent_de_poche';
+
+            const catKey = cat.name.toLowerCase().trim();
+            if (!mapping[catKey]) {
+              mapping[catKey] = {
+                category: cat.name,
+                subCategory: cat.subcategories && cat.subcategories.length > 0 ? cat.subcategories[0] : 'Divers',
+                moduleSource
+              };
+            }
+
+            if (cat.subcategories) {
+              for (const sub of cat.subcategories) {
+                const subKey = sub.toLowerCase().trim();
+                if (!mapping[subKey]) {
+                  mapping[subKey] = {
+                    category: cat.name,
+                    subCategory: sub,
+                    moduleSource
+                  };
+                }
+              }
+            }
           }
-        }
+          
+          return mapping;
+        };
 
         const keywordRules = [
           // TRANSPORT
@@ -7167,37 +7248,49 @@ function App() {
           { keywords: ['cinema', 'cinéma', 'concert', 'musee', 'musée', 'cadeau', 'cadeaux', 'sport', 'match', 'loisir', 'loisirs'], category: 'Loisirs', subCategory: 'Cinéma', moduleSource: 'budget', label: '🎨 Loisirs' }
         ];
 
-        const EXACT_VOICE_MAPPING: Record<string, { category: string; subCategory: string; moduleSource: string }> = {
-          'taxi': { category: 'Transport', subCategory: 'Taxi', moduleSource: 'budget' },
-          'uber': { category: 'Transport', subCategory: 'Uber', moduleSource: 'budget' },
-          'vtc': { category: 'Transport', subCategory: 'VTC', moduleSource: 'budget' },
-          'essence': { category: 'Véhicules', subCategory: 'Carburant', moduleSource: 'vehicules' },
-          'carburant': { category: 'Véhicules', subCategory: 'Carburant', moduleSource: 'vehicules' },
-          'pharmacie': { category: 'Santé', subCategory: 'Pharmacie', moduleSource: 'sante' },
-          'médecin': { category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante' },
-          'medecin': { category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante' },
-          'dentiste': { category: 'Santé', subCategory: 'Dentiste', moduleSource: 'sante' },
-          'internet': { category: 'Logement', subCategory: 'Internet', moduleSource: 'logement' },
-          'loyer': { category: 'Logement', subCategory: 'Loyer', moduleSource: 'logement' },
-          'électricité': { category: 'Logement', subCategory: 'Électricité', moduleSource: 'logement' },
-          'electricite': { category: 'Logement', subCategory: 'Électricité', moduleSource: 'logement' },
-          'cantine': { category: 'Éducation', subCategory: 'Cantine', moduleSource: 'ecole' },
-          'passeport': { category: 'Administratif', subCategory: 'Passeport', moduleSource: 'documents' },
-          'navigo': { category: 'Transport', subCategory: 'Pass Navigo', moduleSource: 'budget' },
-          'pass navigo': { category: 'Transport', subCategory: 'Pass Navigo', moduleSource: 'budget' }
-        };
+        let title = 'Achat rapide';
+        let pourKeyword = '';
+        const pourMatch = promptLower.match(/(?:^|\s)(?:\d+[\.,]?\d*)\s*(?:euros?|€|eur|dollars?|\$)?\s+pour\s+(?:le\s+|la\s+|l'\s+|l’\s+|les\s+|l'|l’)?([a-z0-9éèàùçâêîôûäëïöü’'\s-]+)/i);
+        if (pourMatch) {
+          const rawPour = pourMatch[1].trim();
+          pourKeyword = cleanLabel(rawPour);
+          title = pourKeyword.charAt(0).toUpperCase() + pourKeyword.slice(1);
+        } else {
+          const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€|eur)/i;
+          let cleanTitle = textWithDigits.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|dépense|depense|pour/gi, '').trim();
+          cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[\.,]?\d*)/, '').trim();
+          cleanTitle = cleanTitle.replace(/tous les mois|chaque mois|mensuel|mensuelle|tous les jours|chaque jour|quotidien|quotidienne|chaque semaine|toutes les semaines|hebdomadaire|chaque (lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)|chaque samedi|tous les ans|chaque année|chaque annee/gi, '').trim();
+          if (matchedMember) {
+            const memberRegex = new RegExp(`\\b${matchedMember.name}\\b`, 'gi');
+            cleanTitle = cleanTitle.replace(memberRegex, '').trim();
+          }
+          cleanTitle = cleanLabel(cleanTitle);
+          if (cleanTitle) {
+            title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
+          }
+        }
 
         let matches: any[] = [];
-        const cleanKwd = pourKeyword.toLowerCase().trim();
         
-        if (cleanKwd && EXACT_VOICE_MAPPING[cleanKwd]) {
-          const map = EXACT_VOICE_MAPPING[cleanKwd];
+        // Dynamic mapping first
+        const dynamicMapping = getDynamicVoiceMapping();
+        const sortedKeys = Object.keys(dynamicMapping).sort((a, b) => b.length - a.length);
+        
+        let dynamicMatch = null;
+        for (const key of sortedKeys) {
+          if (promptLower.includes(key)) {
+            dynamicMatch = dynamicMapping[key];
+            break;
+          }
+        }
+
+        if (dynamicMatch) {
           matches.push({
             keywords: [],
-            category: map.category,
-            subCategory: map.subCategory,
-            moduleSource: map.moduleSource,
-            label: `💸 ${map.category}`
+            category: dynamicMatch.category,
+            subCategory: dynamicMatch.subCategory,
+            moduleSource: dynamicMatch.moduleSource,
+            label: `💸 ${dynamicMatch.category}`
           });
         } else {
           // Standard matches lookup

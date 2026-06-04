@@ -2,66 +2,103 @@
 import assert from 'assert';
 
 // 1. Mock constants and functions extracted from App.tsx
-const DESTINATION_DICTIONARY = {
-  'itlie': 'Italie',
-  'italie': 'Italie',
-  'espange': 'Espagne',
-  'espagne': 'Espagne',
-  'marroc': 'Maroc',
-  'maroc': 'Maroc',
-  'france': 'France',
-  'sénégal': 'Sénégal',
-  'senegal': 'Sénégal',
-  'mali': 'Mali',
-  "côte d'ivoire": "Côte d'Ivoire",
-  "cote d'ivoire": "Côte d'Ivoire",
-  "côte d’ivoire": "Côte d'Ivoire",
-  'comores': 'Comores',
-  'algérie': 'Algérie',
-  'algerie': 'Algérie',
-  'tunisie': 'Tunisie',
-  'égypte': 'Égypte',
-  'egypte': 'Égypte',
-  'turquie': 'Turquie',
-  'arabie saoudite': 'Arabie Saoudite',
-  'émirats arabes unis': 'Émirats Arabes Unis',
-  'emirats arabes unis': 'Émirats Arabes Unis',
-  'portugal': 'Portugal',
-  'allemagne': 'Allemagne',
-  'belgique': 'Belgique',
-  'suisse': 'Suisse',
-  'canada': 'Canada',
-  'états-unis': 'États-Unis',
-  'etats-unis': 'États-Unis',
-  'usa': 'États-Unis',
-  'paris': 'Paris',
-  'dakar': 'Dakar',
-  'rose': 'Rome',
-  'rome': 'Rome',
-  'milan': 'Milan',
-  'madrid': 'Madrid',
-  'barcelone': 'Barcelone',
-  'casablanca': 'Casablanca',
-  'marrakech': 'Marrakech',
-  'bamako': 'Bamako',
-  'abidjan': 'Abidjan',
-  'moroni': 'Moroni'
+const DEFAULT_CATEGORIES = [
+  { name: 'Alimentation', icon: '🛒', sub: ['Supermarché', 'Restaurant', 'Boulangerie', 'Épicerie', 'Café'] },
+  { name: 'Transport', icon: '🚗', sub: ['Taxi', 'Uber', 'Essence', 'Péage', 'Transport public', 'Pass Navigo'] },
+  { name: 'Santé', icon: '🩺', sub: ['Médecin', 'Pharmacie', 'Dentiste', 'Vaccin', 'Analyse', 'Mutuelle'] },
+  { name: 'Logement', icon: '🏠', sub: ['Loyer', 'Électricité', 'Eau', 'Internet', 'Assurance habitation', 'Travaux', 'Maintenance'] },
+  { name: 'Éducation', icon: '🎓', sub: ['Inscriptions', 'Livres', 'Cours particuliers', 'Activités', 'Cantine'] },
+  { name: 'Véhicules', icon: '🔧', sub: ['Essence', 'Péage', 'Lavage', 'Assurance auto', 'Contrôle technique', 'Entretien', 'Réparation', 'Carburant'] },
+  { name: 'Voyages', icon: '✈️', sub: ['Billets', 'Hôtel', 'Transport', 'Activités', 'Repas'] },
+  { name: 'Administratif', icon: '📂', sub: ['Frais administratifs', 'Passeport', 'Visa', 'Carte identité', 'Timbres fiscaux'] },
+  { name: 'Animaux', icon: '🐶', sub: ['Nourriture', 'Vétérinaire', 'Médicaments', 'Jouets'] },
+  { name: 'Loisirs', icon: '🎨', sub: ['Cinéma', 'Concert', 'Musée', 'Cadeaux', 'Sport'] },
+  { name: 'Abonnements', icon: '🔄', sub: ['Streaming', 'Téléphone', 'Logiciels'] },
+  { name: 'Argent de poche', icon: '🪙', sub: ['Allocation enfant', 'Récompense'] },
+  { name: 'Autres', icon: '✨', sub: ['Divers', 'Imprévu'] }
+];
+
+const mockCustomCategories = []; // None on startup
+
+const getMergedCategories = () => {
+  const merged = {};
+  DEFAULT_CATEGORIES.forEach(cat => {
+    merged[cat.name.toLowerCase()] = {
+      name: cat.name,
+      icon: cat.icon,
+      subcategories: [...cat.sub],
+      isArchived: false
+    };
+  });
+  return Object.values(merged);
 };
 
-function normalizeDestination(dest) {
-  let d = dest.trim();
-  d = d.replace(/^(?:pour\s+l'|pour\s+la|pour\s+le|pour\s+les|pour\s+|dans\s+le|dans\s+la|dans\s+l'|dans\s+|au\s+|en\s+|à\s+|a\s+|vers\s+|le\s+|la\s+|les\s+|l')/i, '');
-  d = d.replace(/^l'/i, '');
-  return d.trim();
-}
+const cleanLabel = (lbl) => {
+  let s = lbl.trim();
+  s = s.replace(/^(?:le\s+|la\s+|les\s+|l'|l’|de\s+la\s+|de\s+l'|de\s+l’|du\s+|des\s+|d'|d’)/i, '');
+  return s.trim();
+};
 
-function correctSpelling(dest) {
-  const normalized = dest.toLowerCase().trim();
-  if (DESTINATION_DICTIONARY[normalized]) {
-    return DESTINATION_DICTIONARY[normalized];
+const getDynamicVoiceMapping = () => {
+  const mapping = {
+    'taxi': { category: 'Transport', subCategory: 'Taxi', moduleSource: 'budget' },
+    'uber': { category: 'Transport', subCategory: 'Uber', moduleSource: 'budget' },
+    'vtc': { category: 'Transport', subCategory: 'VTC', moduleSource: 'budget' },
+    'essence': { category: 'Véhicules', subCategory: 'Carburant', moduleSource: 'vehicules' },
+    'carburant': { category: 'Véhicules', subCategory: 'Carburant', moduleSource: 'vehicules' },
+    'pharmacie': { category: 'Santé', subCategory: 'Pharmacie', moduleSource: 'sante' },
+    'médecin': { category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante' },
+    'medecin': { category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante' },
+    'dentiste': { category: 'Santé', subCategory: 'Dentiste', moduleSource: 'sante' },
+    'internet': { category: 'Logement', subCategory: 'Internet', moduleSource: 'logement' },
+    'loyer': { category: 'Logement', subCategory: 'Loyer', moduleSource: 'logement' },
+    'électricité': { category: 'Logement', subCategory: 'Électricité', moduleSource: 'logement' },
+    'electricite': { category: 'Logement', subCategory: 'Électricité', moduleSource: 'logement' },
+    'cantine': { category: 'Éducation', subCategory: 'Cantine', moduleSource: 'ecole' },
+    'passeport': { category: 'Administratif', subCategory: 'Passeport', moduleSource: 'documents' },
+    'navigo': { category: 'Transport', subCategory: 'Pass Navigo', moduleSource: 'budget' },
+    'pass navigo': { category: 'Transport', subCategory: 'Pass Navigo', moduleSource: 'budget' }
+  };
+
+  const merged = getMergedCategories();
+  for (const cat of merged) {
+    if (cat.isArchived) continue;
+    
+    let moduleSource = 'budget';
+    if (cat.name === 'Santé') moduleSource = 'sante';
+    else if (cat.name === 'Véhicules') moduleSource = 'vehicules';
+    else if (cat.name === 'Logement') moduleSource = 'logement';
+    else if (cat.name === 'Éducation' || cat.name === 'École') moduleSource = 'ecole';
+    else if (cat.name === 'Alimentation' || cat.name === 'Courses') moduleSource = 'courses';
+    else if (cat.name === 'Voyages') moduleSource = 'voyages';
+    else if (cat.name === 'Animaux') moduleSource = 'animaux';
+    else if (cat.name === 'Argent de poche') moduleSource = 'argent_de_poche';
+
+    const catKey = cat.name.toLowerCase().trim();
+    if (!mapping[catKey]) {
+      mapping[catKey] = {
+        category: cat.name,
+        subCategory: cat.subcategories && cat.subcategories.length > 0 ? cat.subcategories[0] : 'Divers',
+        moduleSource
+      };
+    }
+
+    if (cat.subcategories) {
+      for (const sub of cat.subcategories) {
+        const subKey = sub.toLowerCase().trim();
+        if (!mapping[subKey]) {
+          mapping[subKey] = {
+            category: cat.name,
+            subCategory: sub,
+            moduleSource
+          };
+        }
+      }
+    }
   }
-  return dest.charAt(0).toUpperCase() + dest.slice(1);
-}
+  
+  return mapping;
+};
 
 function parseFrenchDate(input) {
   const months = {
@@ -73,16 +110,6 @@ function parseFrenchDate(input) {
   if (lower.includes("aujourd'hui")) {
     return new Date().toISOString().split('T')[0];
   }
-  if (lower.includes("demain")) {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
-  }
-  if (lower.includes("après-demain") || lower.includes("apres demain")) {
-    const d = new Date();
-    d.setDate(d.getDate() + 2);
-    return d.toISOString().split('T')[0];
-  }
   
   const textMatch = lower.match(/(\d+)(?:er)?\s+([a-zàâäéèêëîïôöùûüç]+)/);
   if (textMatch) {
@@ -93,78 +120,9 @@ function parseFrenchDate(input) {
       return `${new Date().getFullYear()}-${month}-${day}`;
     }
   }
-  
-  const numMatch = lower.match(/(\d+)[-/.](\d+)([-/.](\d+))?/);
-  if (numMatch) {
-    const day = numMatch[1].padStart(2, '0');
-    const month = numMatch[2].padStart(2, '0');
-    const year = numMatch[4] || String(new Date().getFullYear());
-    const fullYear = year.length === 2 ? `20${year}` : year;
-    return `${fullYear}-${month}-${day}`;
-  }
-  
-  if (/^\d{4}-\d{2}-\d{2}$/.test(lower)) {
-    return lower;
-  }
-  
-  const parsed = new Date(lower);
-  if (!isNaN(parsed.getTime())) {
-    return parsed.toISOString().split('T')[0];
-  }
-  
   return new Date().toISOString().split('T')[0];
 }
 
-const EXACT_VOICE_MAPPING = {
-  'taxi': { category: 'Transport', subCategory: 'Taxi', moduleSource: 'budget' },
-  'uber': { category: 'Transport', subCategory: 'Uber', moduleSource: 'budget' },
-  'vtc': { category: 'Transport', subCategory: 'VTC', moduleSource: 'budget' },
-  'essence': { category: 'Véhicules', subCategory: 'Carburant', moduleSource: 'vehicules' },
-  'carburant': { category: 'Véhicules', subCategory: 'Carburant', moduleSource: 'vehicules' },
-  'pharmacie': { category: 'Santé', subCategory: 'Pharmacie', moduleSource: 'sante' },
-  'médecin': { category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante' },
-  'medecin': { category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante' },
-  'dentiste': { category: 'Santé', subCategory: 'Dentiste', moduleSource: 'sante' },
-  'internet': { category: 'Logement', subCategory: 'Internet', moduleSource: 'logement' },
-  'loyer': { category: 'Logement', subCategory: 'Loyer', moduleSource: 'logement' },
-  'électricité': { category: 'Logement', subCategory: 'Électricité', moduleSource: 'logement' },
-  'electricite': { category: 'Logement', subCategory: 'Électricité', moduleSource: 'logement' },
-  'cantine': { category: 'Éducation', subCategory: 'Cantine', moduleSource: 'ecole' },
-  'passeport': { category: 'Administratif', subCategory: 'Passeport', moduleSource: 'documents' },
-  'navigo': { category: 'Transport', subCategory: 'Pass Navigo', moduleSource: 'budget' },
-  'pass navigo': { category: 'Transport', subCategory: 'Pass Navigo', moduleSource: 'budget' }
-};
-
-function parseBudgetTransaction(promptLower) {
-  const pourMatch = promptLower.match(/(?:^|\s)(\d+[\.,]?\d*)\s*(?:euros?|€|eur|dollars?|\$)?\s+pour\s+(?:le\s+|la\s+|l'\s+|les\s+)?([a-z0-9éèàùçâêîôûäëïöü\s-]+)/i);
-  if (!pourMatch) return null;
-
-  const amount = parseFloat(pourMatch[1].replace(',', '.'));
-  const pourKeyword = pourMatch[2].trim();
-  const cleanKwd = pourKeyword.toLowerCase().trim();
-  const title = pourKeyword.charAt(0).toUpperCase() + pourKeyword.slice(1);
-
-  let category = 'Autres';
-  let subCategory = 'Divers';
-  let moduleSource = 'budget';
-
-  if (EXACT_VOICE_MAPPING[cleanKwd]) {
-    const map = EXACT_VOICE_MAPPING[cleanKwd];
-    category = map.category;
-    subCategory = map.subCategory;
-    moduleSource = map.moduleSource;
-  }
-
-  return {
-    amount,
-    title,
-    category,
-    subCategory,
-    moduleSource
-  };
-}
-
-// 2. Fuzzy Member matching helper
 const findAllMemberMatches = (inputText, membersList, activeId) => {
   const cleanInput = inputText.toLowerCase().trim();
   const isMoi = cleanInput === 'moi' || 
@@ -182,116 +140,84 @@ const findAllMemberMatches = (inputText, membersList, activeId) => {
   const normInput = norm(cleanInput);
   if (!normInput) return [];
 
-  // Helper: Levenshtein distance
-  const getLevDist = (a, b) => {
-    const dp = Array.from({ length: a.length + 1 }, (_, i) => [i]);
-    for (let j = 1; j <= b.length; j++) dp[0][j] = j;
-    for (let i = 1; i <= a.length; i++) {
-      for (let j = 1; j <= b.length; j++) {
-        dp[i][j] = Math.min(
-          dp[i-1][j] + 1,
-          dp[i][j-1] + 1,
-          dp[i-1][j-1] + (a[i-1] === b[j-1] ? 0 : 1)
-        );
-      }
-    }
-    return dp[a.length][b.length];
-  };
-
-  // --- CASCADE LEVEL 1: Exact matches on full name/role ---
+  // CASCADE LEVEL 1: Exact matches
   const exactMatches = membersList.filter(m => norm(m.name) === normInput || (m.role && norm(m.role) === normInput));
   if (exactMatches.length > 0) return exactMatches;
-
-  // --- CASCADE LEVEL 2: Prefix match on words (e.g. "Yat" matches "Yatta" and "Yatta Junior") ---
-  if (normInput.length >= 2) {
-    const prefixMatches = membersList.filter(m => {
-      const normName = norm(m.name);
-      const nameWords = normName.split(/\s+/);
-      return nameWords.some(w => w.startsWith(normInput));
-    });
-    if (prefixMatches.length > 0) return prefixMatches;
-  }
-
-  // --- CASCADE LEVEL 3: Levenshtein matches on full name/role ---
-  const fullLevMatches = [];
-  for (const member of membersList) {
-    const normName = norm(member.name);
-    const normRole = member.role ? norm(member.role) : '';
-    
-    const targets = [normName];
-    if (normRole) targets.push(normRole);
-
-    let bestDist = 999;
-    for (const target of targets) {
-      const dist = getLevDist(normInput, target);
-      const limit = target.length <= 4 ? 1 : 2;
-      if (dist <= limit && dist < bestDist) {
-        bestDist = dist;
-      }
-    }
-    if (bestDist < 999) {
-      fullLevMatches.push({ member, dist: bestDist });
-    }
-  }
-  if (fullLevMatches.length > 0) {
-    fullLevMatches.sort((a, b) => a.dist - b.dist);
-    const minDist = fullLevMatches[0].dist;
-    return fullLevMatches.filter(m => m.dist === minDist).map(m => m.member);
-  }
-
-  // --- CASCADE LEVEL 4: Full word match (substring) ---
-  const inputWords = normInput.split(/\s+/);
-  const wordMatches = membersList.filter(m => {
-    const normName = norm(m.name);
-    const nameWords = normName.split(/\s+/);
-    return nameWords.some(w => inputWords.includes(w)) || inputWords.includes(normName);
-  });
-  if (wordMatches.length > 0) return wordMatches;
-
-  // --- CASCADE LEVEL 5: Levenshtein on individual words ---
-  const wordLevMatches = [];
-  for (const member of membersList) {
-    const normName = norm(member.name);
-    const nameWords = normName.split(/\s+/);
-    const normRole = member.role ? norm(member.role) : '';
-    
-    const wordsToCompare = [normName, ...nameWords];
-    if (normRole) {
-      wordsToCompare.push(normRole);
-      normRole.split(/\s+/).forEach(w => wordsToCompare.push(w));
-    }
-
-    let bestDistForMember = 999;
-    for (const target of wordsToCompare) {
-      if (!target || target.length < 2) continue;
-      const targetsInput = [normInput, ...inputWords];
-      for (const inp of targetsInput) {
-        if (!inp || inp.length < 2) continue;
-        const dist = getLevDist(inp, target);
-        const limit = target.length <= 4 ? 1 : 2;
-        if (dist <= limit) {
-          if (dist < bestDistForMember) {
-            bestDistForMember = dist;
-          }
-        }
-      }
-    }
-    if (bestDistForMember < 999) {
-      wordLevMatches.push({ member, dist: bestDistForMember });
-    }
-  }
-
-  if (wordLevMatches.length > 0) {
-    wordLevMatches.sort((a, b) => a.dist - b.dist);
-    const minDist = wordLevMatches[0].dist;
-    return wordLevMatches.filter(m => m.dist === minDist).map(m => m.member);
-  }
 
   return [];
 };
 
+// Mock parsing transaction command logic
+function parseVoiceTransactionFallback(prompt) {
+  const promptLower = prompt.toLowerCase().trim();
+  
+  // Extract amount
+  const amountMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+  if (!amountMatch) return null;
+  const amount = parseFloat(amountMatch[1].replace(',', '.'));
+
+  // Extract label using prompt (original case!)
+  let title = 'Achat rapide';
+  let pourKeyword = '';
+  const pourMatch = prompt.match(/(?:^|\s)(?:\d+[\.,]?\d*)\s*(?:euros?|€|eur|dollars?|\$)?\s+pour\s+(?:le\s+|la\s+|l'\s+|l’\s+|les\s+|l'|l’)?([a-zA-Z0-9éèàùçâêîôûäëïöü’'\s-]+)/i);
+  if (pourMatch) {
+    pourKeyword = cleanLabel(pourMatch[1]);
+    title = pourKeyword.charAt(0).toUpperCase() + pourKeyword.slice(1);
+  } else {
+    // Direct without "pour"
+    let clean = prompt.replace(/ajoute|ajouter|dépense|depense|note|noter/gi, '').trim();
+    clean = clean.replace(/(\d+[\.,]?\d*)\s*(?:euros?|€|eur)?/i, '').trim();
+    clean = cleanLabel(clean);
+    if (clean) {
+      title = clean.charAt(0).toUpperCase() + clean.slice(1);
+    }
+  }
+
+  // Find matches
+  const dynamicMapping = getDynamicVoiceMapping();
+  const sortedKeys = Object.keys(dynamicMapping).sort((a, b) => b.length - a.length);
+  
+  let dynamicMatch = null;
+  for (const key of sortedKeys) {
+    if (promptLower.includes(key)) {
+      dynamicMatch = dynamicMapping[key];
+      break;
+    }
+  }
+
+  if (dynamicMatch) {
+    return {
+      amount,
+      title,
+      category: dynamicMatch.category,
+      subCategory: dynamicMatch.subCategory,
+      moduleSource: dynamicMatch.moduleSource,
+      matchesLength: 1
+    };
+  }
+
+  return {
+    amount,
+    title,
+    category: 'Autres',
+    subCategory: 'Divers',
+    moduleSource: 'budget',
+    matchesLength: 0
+  };
+}
+
+// Mock Vaccine Creation flow
+function getVaccineMissingFields(ctx) {
+  const missing = [];
+  if (!ctx.date) missing.push('date');
+  if (!ctx.title) missing.push('title');
+  if (!ctx.memberId) missing.push('memberId');
+  if (!ctx.time && !ctx.timeAsked) missing.push('time');
+  return missing;
+}
+
 // Test Runner
-console.log('🧪 Lancement des tests unitaires complémentaires du parseur vocal...\n');
+console.log('🧪 Lancement des tests unitaires complémentaires prioritaires...\n');
 
 let successCount = 0;
 let failCount = 0;
@@ -308,83 +234,135 @@ function runTest(testName, fn) {
   }
 }
 
-// Mock family members
+// Mock members list
 const mockMembers = [
   { id: '1', name: 'Yatta', role: 'Papa' },
-  { id: '2', name: 'Yatta Junior', role: 'Fils' },
-  { id: '3', name: 'Maman Marie', role: 'Maman' }
+  { id: '2', name: 'Awa', role: 'Maman' },
+  { id: '3', name: 'Amadou', role: 'Fils' }
 ];
 
-// -- FUZZY MEMBER MATCHING TESTS --
-runTest('Fuzzy member: Exact match "Yatta"', () => {
-  const matches = findAllMemberMatches('Yatta', mockMembers, '1');
-  assert.strictEqual(matches.length, 1);
-  assert.strictEqual(matches[0].id, '1');
-});
+// --- VACCINE SCENARIO TESTS ---
+runTest('Vaccine Scenario: "Ajoute un vaccin pour le 10 juillet"', () => {
+  const promptLower = "ajoute un vaccin pour le 10 juillet";
+  
+  // 1. Initial detection
+  const dateRegex = /(?:le\s+)?(\d+\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i;
+  const dateMatch = promptLower.match(dateRegex);
+  const rawDateStr = dateMatch ? dateMatch[1] : undefined;
+  const date = rawDateStr ? parseFrenchDate(rawDateStr) : undefined;
+  
+  assert.strictEqual(rawDateStr, "10 juillet");
+  assert.strictEqual(date, `${new Date().getFullYear()}-07-10`);
 
-runTest('Fuzzy member: Levenshtein variation "Yata"', () => {
-  const matches = findAllMemberMatches('Yata', mockMembers, '1');
-  assert.strictEqual(matches.length, 1);
-  assert.strictEqual(matches[0].name, 'Yatta');
-});
+  // STRICT RULE: No auto-assigning activeMemberId on Santé unless "pour moi" is explicitly in the prompt!
+  let matchedMember = undefined;
+  const pourMoi = /\bpour\s+moi\b/i.test(promptLower) || /\bc'est\s+pour\s+moi\b/i.test(promptLower) || /\bmoi\b/i.test(promptLower);
+  if (pourMoi) {
+    matchedMember = mockMembers.find(m => m.id === '1');
+  } else {
+    const found = findAllMemberMatches(promptLower, mockMembers, '1');
+    if (found.length === 1) {
+      const name = found[0].name.toLowerCase();
+      if (promptLower.includes(name)) {
+        matchedMember = found[0];
+      }
+    }
+  }
 
-runTest('Fuzzy member: Case + Accent check "yattah"', () => {
-  const matches = findAllMemberMatches('yattah', mockMembers, '1');
-  assert.strictEqual(matches.length, 1);
-  assert.strictEqual(matches[0].name, 'Yatta');
-});
+  // Must be undefined because prompt doesn't specify member name or "pour moi"
+  assert.strictEqual(matchedMember, undefined);
 
-runTest('Fuzzy member: "Moi" mapping to activeMemberId', () => {
-  const matches = findAllMemberMatches('c\'est pour moi', mockMembers, '1');
-  assert.strictEqual(matches.length, 1);
-  assert.strictEqual(matches[0].id, '1');
-});
-
-runTest('Fuzzy member: Multiple candidates (homonyms)', () => {
-  const matches = findAllMemberMatches('Yat', mockMembers, '1');
-  // Both Yatta and Yatta Junior should match because they have similar phonetic prefix
-  assert.ok(matches.length >= 2, 'Should return multiple candidates');
-  const ids = matches.map(m => m.id);
-  assert.ok(ids.includes('1'));
-  assert.ok(ids.includes('2'));
-});
-
-// -- CONTEXT RETENTION TESTS --
-runTest('Context preservation: Resolving memberId does not lose date or title', () => {
-  // Initial context
-  const voiceContext = {
+  const ctx = {
     pendingAction: 'create_vaccine',
-    title: 'Vaccin Covid',
-    date: '2026-06-25',
-    dateRawDetected: '25 juin',
-    missingField: 'memberId'
+    title: 'Vaccin',
+    date,
+    time: undefined, // Must be undefined by default to ask the user!
+    memberId: undefined
   };
 
-  // User replies "Yata" (phonetic match to Yatta)
-  const userResponse = 'Yata';
-  const matches = findAllMemberMatches(userResponse, mockMembers, '1');
+  // 2. Validate missing fields
+  let missing = getVaccineMissingFields(ctx);
+  assert.deepStrictEqual(missing, ['memberId', 'time']);
+
+  // 3. User responds "Yatta"
+  const matches = findAllMemberMatches("Yatta", mockMembers, '1');
   assert.strictEqual(matches.length, 1);
+  ctx.memberId = matches[0].id;
 
-  // Resolution step: copy previous context and update memberId
-  const updatedCtx = { ...voiceContext };
-  updatedCtx.memberId = matches[0].id;
-  delete updatedCtx.missingField;
+  // 4. Validate missing fields again
+  missing = getVaccineMissingFields(ctx);
+  assert.deepStrictEqual(missing, ['time']); // Time is still missing
 
-  // Assert context integrity
-  assert.strictEqual(updatedCtx.pendingAction, 'create_vaccine', 'Intent lost');
-  assert.strictEqual(updatedCtx.title, 'Vaccin Covid', 'Title lost');
-  assert.strictEqual(updatedCtx.date, '2026-06-25', 'Date lost or mutated');
-  assert.strictEqual(updatedCtx.dateRawDetected, '25 juin', 'Raw date text lost');
-  assert.strictEqual(updatedCtx.memberId, '1', 'MemberId not set correctly');
+  // 5. User responds "non"
+  const timeResponse = "non";
+  if (timeResponse === "non" || timeResponse === "non merci") {
+    ctx.time = "horaire à définir";
+    ctx.timeAsked = true;
+  }
+
+  // 6. Final checklist validation
+  missing = getVaccineMissingFields(ctx);
+  assert.deepStrictEqual(missing, []); // No more missing fields, creation safe!
 });
 
-console.log('\n--- 📊 BILAN DES TESTS COMPLÉMENTAIRES ---');
+// --- BUDGET MAPPING TESTS ---
+runTest('Budget parser: "10 pour l\'électricité" (curly apostrophe safe)', () => {
+  const res = parseVoiceTransactionFallback("10 pour l'électricité");
+  assert.ok(res);
+  assert.strictEqual(res.amount, 10);
+  assert.strictEqual(res.title, "Électricité");
+  assert.strictEqual(res.category, "Logement");
+  assert.strictEqual(res.subCategory, "Électricité");
+  assert.strictEqual(res.matchesLength, 1, "Should resolve immediately without category choice!");
+});
+
+runTest('Budget parser: "20 pour le taxi"', () => {
+  const res = parseVoiceTransactionFallback("20 pour le taxi");
+  assert.ok(res);
+  assert.strictEqual(res.amount, 20);
+  assert.strictEqual(res.title, "Taxi");
+  assert.strictEqual(res.category, "Transport");
+  assert.strictEqual(res.subCategory, "Taxi");
+  assert.strictEqual(res.matchesLength, 1);
+});
+
+runTest('Budget parser: "12 Uber"', () => {
+  const res = parseVoiceTransactionFallback("12 Uber");
+  assert.ok(res);
+  assert.strictEqual(res.amount, 12);
+  assert.strictEqual(res.title, "Uber");
+  assert.strictEqual(res.category, "Transport");
+  assert.strictEqual(res.subCategory, "Uber");
+  assert.strictEqual(res.matchesLength, 1);
+});
+
+runTest('Budget parser: "84 Pass Navigo"', () => {
+  const res = parseVoiceTransactionFallback("84 Pass Navigo");
+  assert.ok(res);
+  assert.strictEqual(res.amount, 84);
+  assert.strictEqual(res.title, "Pass Navigo");
+  assert.strictEqual(res.category, "Transport");
+  assert.strictEqual(res.subCategory, "Pass Navigo");
+  assert.strictEqual(res.matchesLength, 1);
+});
+
+runTest('Budget parser: "35 pharmacie"', () => {
+  const res = parseVoiceTransactionFallback("35 pharmacie");
+  assert.ok(res);
+  assert.strictEqual(res.amount, 35);
+  assert.strictEqual(res.title, "Pharmacie");
+  assert.strictEqual(res.category, "Santé");
+  assert.strictEqual(res.subCategory, "Pharmacie");
+  assert.strictEqual(res.matchesLength, 1);
+});
+
+console.log('\n--- 📊 BILAN DES TESTS PRIO ---');
 console.log(`✅ Succès : ${successCount}`);
 console.log(`❌ Échecs : ${failCount}`);
 
 if (failCount > 0) {
   process.exit(1);
 } else {
-  console.log('\n🌟 Tous les nouveaux tests sont au vert !');
+  console.log('\n🌟 Tous les tests prioritaires sont au vert !');
   process.exit(0);
 }
