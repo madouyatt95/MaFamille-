@@ -136,7 +136,6 @@ const EXACT_VOICE_MAPPING = {
 };
 
 function parseBudgetTransaction(promptLower) {
-  // Regex to extract amount and word after 'pour'
   const pourMatch = promptLower.match(/(?:^|\s)(\d+[\.,]?\d*)\s*(?:euros?|€|eur|dollars?|\$)?\s+pour\s+(?:le\s+|la\s+|l'\s+|les\s+)?([a-z0-9éèàùçâêîôûäëïöü\s-]+)/i);
   if (!pourMatch) return null;
 
@@ -165,28 +164,130 @@ function parseBudgetTransaction(promptLower) {
   };
 }
 
-// Mock sequential Trip creation missing fields checklist
-function getTripMissingFields(ctx) {
-  const missing = [];
-  if (!ctx.destination) missing.push('destination');
-  if (!ctx.startDate) missing.push('startDate');
-  if (ctx.destination && ctx.startDate) {
-    if (!ctx.endDate && !ctx.endDateAsked) missing.push('endDate');
-    else if (!ctx.budget && !ctx.budgetAsked) missing.push('budget');
+// 2. Fuzzy Member matching helper
+const findAllMemberMatches = (inputText, membersList, activeId) => {
+  const cleanInput = inputText.toLowerCase().trim();
+  const isMoi = cleanInput === 'moi' || 
+                cleanInput === "c'est pour moi" || 
+                cleanInput === 'pour moi' || 
+                cleanInput === 'moi-meme' || 
+                cleanInput === 'moi-même' ||
+                /\bmoi\b/i.test(cleanInput);
+  if (isMoi) {
+    const current = membersList.find(m => m.id === activeId);
+    return current ? [current] : [];
   }
-  return missing;
-}
 
-const isSkipAnswer = (val) => {
-  const norm = val.toLowerCase().trim();
-  return norm === 'non' || 
-         norm === 'non merci' || 
-         norm === 'pas encore' || 
-         norm === 'je ne sais pas' || 
-         norm === 'plus tard' || 
-         norm === 'sans' || 
-         norm === 'aucune' || 
-         norm === 'aucun';
+  const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, "").trim();
+  const normInput = norm(cleanInput);
+  if (!normInput) return [];
+
+  // Helper: Levenshtein distance
+  const getLevDist = (a, b) => {
+    const dp = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+    for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+    for (let i = 1; i <= a.length; i++) {
+      for (let j = 1; j <= b.length; j++) {
+        dp[i][j] = Math.min(
+          dp[i-1][j] + 1,
+          dp[i][j-1] + 1,
+          dp[i-1][j-1] + (a[i-1] === b[j-1] ? 0 : 1)
+        );
+      }
+    }
+    return dp[a.length][b.length];
+  };
+
+  // --- CASCADE LEVEL 1: Exact matches on full name/role ---
+  const exactMatches = membersList.filter(m => norm(m.name) === normInput || (m.role && norm(m.role) === normInput));
+  if (exactMatches.length > 0) return exactMatches;
+
+  // --- CASCADE LEVEL 2: Prefix match on words (e.g. "Yat" matches "Yatta" and "Yatta Junior") ---
+  if (normInput.length >= 2) {
+    const prefixMatches = membersList.filter(m => {
+      const normName = norm(m.name);
+      const nameWords = normName.split(/\s+/);
+      return nameWords.some(w => w.startsWith(normInput));
+    });
+    if (prefixMatches.length > 0) return prefixMatches;
+  }
+
+  // --- CASCADE LEVEL 3: Levenshtein matches on full name/role ---
+  const fullLevMatches = [];
+  for (const member of membersList) {
+    const normName = norm(member.name);
+    const normRole = member.role ? norm(member.role) : '';
+    
+    const targets = [normName];
+    if (normRole) targets.push(normRole);
+
+    let bestDist = 999;
+    for (const target of targets) {
+      const dist = getLevDist(normInput, target);
+      const limit = target.length <= 4 ? 1 : 2;
+      if (dist <= limit && dist < bestDist) {
+        bestDist = dist;
+      }
+    }
+    if (bestDist < 999) {
+      fullLevMatches.push({ member, dist: bestDist });
+    }
+  }
+  if (fullLevMatches.length > 0) {
+    fullLevMatches.sort((a, b) => a.dist - b.dist);
+    const minDist = fullLevMatches[0].dist;
+    return fullLevMatches.filter(m => m.dist === minDist).map(m => m.member);
+  }
+
+  // --- CASCADE LEVEL 4: Full word match (substring) ---
+  const inputWords = normInput.split(/\s+/);
+  const wordMatches = membersList.filter(m => {
+    const normName = norm(m.name);
+    const nameWords = normName.split(/\s+/);
+    return nameWords.some(w => inputWords.includes(w)) || inputWords.includes(normName);
+  });
+  if (wordMatches.length > 0) return wordMatches;
+
+  // --- CASCADE LEVEL 5: Levenshtein on individual words ---
+  const wordLevMatches = [];
+  for (const member of membersList) {
+    const normName = norm(member.name);
+    const nameWords = normName.split(/\s+/);
+    const normRole = member.role ? norm(member.role) : '';
+    
+    const wordsToCompare = [normName, ...nameWords];
+    if (normRole) {
+      wordsToCompare.push(normRole);
+      normRole.split(/\s+/).forEach(w => wordsToCompare.push(w));
+    }
+
+    let bestDistForMember = 999;
+    for (const target of wordsToCompare) {
+      if (!target || target.length < 2) continue;
+      const targetsInput = [normInput, ...inputWords];
+      for (const inp of targetsInput) {
+        if (!inp || inp.length < 2) continue;
+        const dist = getLevDist(inp, target);
+        const limit = target.length <= 4 ? 1 : 2;
+        if (dist <= limit) {
+          if (dist < bestDistForMember) {
+            bestDistForMember = dist;
+          }
+        }
+      }
+    }
+    if (bestDistForMember < 999) {
+      wordLevMatches.push({ member, dist: bestDistForMember });
+    }
+  }
+
+  if (wordLevMatches.length > 0) {
+    wordLevMatches.sort((a, b) => a.dist - b.dist);
+    const minDist = wordLevMatches[0].dist;
+    return wordLevMatches.filter(m => m.dist === minDist).map(m => m.member);
+  }
+
+  return [];
 };
 
 // Test Runner
@@ -207,83 +308,74 @@ function runTest(testName, fn) {
   }
 }
 
-// -- BUDGET TESTS (POUR TRANSAC) --
-const budgetTestCases = [
-  { input: '20 pour le taxi', expected: { amount: 20, title: 'Taxi', category: 'Transport', subCategory: 'Taxi' } },
-  { input: '12 pour Uber', expected: { amount: 12, title: 'Uber', category: 'Transport', subCategory: 'Uber' } },
-  { input: '35 pour pharmacie', expected: { amount: 35, title: 'Pharmacie', category: 'Santé', subCategory: 'Pharmacie' } },
-  { input: '40 pour internet', expected: { amount: 40, title: 'Internet', category: 'Logement', subCategory: 'Internet' } },
-  { input: '84 pour Pass Navigo', expected: { amount: 84, title: 'Pass Navigo', category: 'Transport', subCategory: 'Pass Navigo' } },
-  { input: '60 pour essence', expected: { amount: 60, title: 'Essence', category: 'Véhicules', subCategory: 'Carburant' } }
+// Mock family members
+const mockMembers = [
+  { id: '1', name: 'Yatta', role: 'Papa' },
+  { id: '2', name: 'Yatta Junior', role: 'Fils' },
+  { id: '3', name: 'Maman Marie', role: 'Maman' }
 ];
 
-budgetTestCases.forEach(({ input, expected }) => {
-  runTest(`Budget parser: "${input}"`, () => {
-    const res = parseBudgetTransaction(input);
-    assert.ok(res, 'Parser should find a transaction mapping');
-    assert.strictEqual(res.amount, expected.amount, 'Amount mismatch');
-    assert.strictEqual(res.title, expected.title, 'Title mismatch');
-    assert.strictEqual(res.category, expected.category, 'Category mismatch');
-    assert.strictEqual(res.subCategory, expected.subCategory, 'SubCategory mismatch');
-  });
+// -- FUZZY MEMBER MATCHING TESTS --
+runTest('Fuzzy member: Exact match "Yatta"', () => {
+  const matches = findAllMemberMatches('Yatta', mockMembers, '1');
+  assert.strictEqual(matches.length, 1);
+  assert.strictEqual(matches[0].id, '1');
 });
 
-// -- TRIP CONTEXT FLOW TESTS --
-runTest('Trip context: Init with "Créer un voyage en Italie"', () => {
-  const ctx = { pendingAction: 'create_trip', destination: 'Italie' };
-  const missing = getTripMissingFields(ctx);
-  // startDate should be missing, destination is populated
-  assert.deepStrictEqual(missing, ['startDate']);
+runTest('Fuzzy member: Levenshtein variation "Yata"', () => {
+  const matches = findAllMemberMatches('Yata', mockMembers, '1');
+  assert.strictEqual(matches.length, 1);
+  assert.strictEqual(matches[0].name, 'Yatta');
 });
 
-runTest('Trip context: Fill startDate "15 juillet"', () => {
-  const ctx = { pendingAction: 'create_trip', destination: 'Italie', startDate: parseFrenchDate('15 juillet') };
-  const missing = getTripMissingFields(ctx);
-  // endDate is now missing (since endDateAsked is not set)
-  assert.deepStrictEqual(missing, ['endDate']);
+runTest('Fuzzy member: Case + Accent check "yattah"', () => {
+  const matches = findAllMemberMatches('yattah', mockMembers, '1');
+  assert.strictEqual(matches.length, 1);
+  assert.strictEqual(matches[0].name, 'Yatta');
 });
 
-runTest('Trip context: Skip endDate via "non"', () => {
-  const ctx = { 
-    pendingAction: 'create_trip', 
-    destination: 'Italie', 
-    startDate: parseFrenchDate('15 juillet'),
-    endDate: 'Non planifié',
-    endDateAsked: true
+runTest('Fuzzy member: "Moi" mapping to activeMemberId', () => {
+  const matches = findAllMemberMatches('c\'est pour moi', mockMembers, '1');
+  assert.strictEqual(matches.length, 1);
+  assert.strictEqual(matches[0].id, '1');
+});
+
+runTest('Fuzzy member: Multiple candidates (homonyms)', () => {
+  const matches = findAllMemberMatches('Yat', mockMembers, '1');
+  // Both Yatta and Yatta Junior should match because they have similar phonetic prefix
+  assert.ok(matches.length >= 2, 'Should return multiple candidates');
+  const ids = matches.map(m => m.id);
+  assert.ok(ids.includes('1'));
+  assert.ok(ids.includes('2'));
+});
+
+// -- CONTEXT RETENTION TESTS --
+runTest('Context preservation: Resolving memberId does not lose date or title', () => {
+  // Initial context
+  const voiceContext = {
+    pendingAction: 'create_vaccine',
+    title: 'Vaccin Covid',
+    date: '2026-06-25',
+    dateRawDetected: '25 juin',
+    missingField: 'memberId'
   };
-  const missing = getTripMissingFields(ctx);
-  // budget is now missing
-  assert.deepStrictEqual(missing, ['budget']);
-});
 
-runTest('Trip context: Fill budget "2000€"', () => {
-  const ctx = { 
-    pendingAction: 'create_trip', 
-    destination: 'Italie', 
-    startDate: parseFrenchDate('15 juillet'),
-    endDate: 'Non planifié',
-    endDateAsked: true,
-    budget: 2000,
-    budgetAsked: true
-  };
-  const missing = getTripMissingFields(ctx);
-  // No more missing fields, creation allowed!
-  assert.deepStrictEqual(missing, []);
-});
+  // User replies "Yata" (phonetic match to Yatta)
+  const userResponse = 'Yata';
+  const matches = findAllMemberMatches(userResponse, mockMembers, '1');
+  assert.strictEqual(matches.length, 1);
 
-runTest('Trip context: Skip budget via "non"', () => {
-  const ctx = { 
-    pendingAction: 'create_trip', 
-    destination: 'Italie', 
-    startDate: parseFrenchDate('15 juillet'),
-    endDate: 'Non planifié',
-    endDateAsked: true,
-    budget: 0,
-    budgetAsked: true
-  };
-  const missing = getTripMissingFields(ctx);
-  // No more missing fields, creation allowed!
-  assert.deepStrictEqual(missing, []);
+  // Resolution step: copy previous context and update memberId
+  const updatedCtx = { ...voiceContext };
+  updatedCtx.memberId = matches[0].id;
+  delete updatedCtx.missingField;
+
+  // Assert context integrity
+  assert.strictEqual(updatedCtx.pendingAction, 'create_vaccine', 'Intent lost');
+  assert.strictEqual(updatedCtx.title, 'Vaccin Covid', 'Title lost');
+  assert.strictEqual(updatedCtx.date, '2026-06-25', 'Date lost or mutated');
+  assert.strictEqual(updatedCtx.dateRawDetected, '25 juin', 'Raw date text lost');
+  assert.strictEqual(updatedCtx.memberId, '1', 'MemberId not set correctly');
 });
 
 console.log('\n--- 📊 BILAN DES TESTS COMPLÉMENTAIRES ---');

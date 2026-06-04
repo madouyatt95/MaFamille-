@@ -4177,6 +4177,131 @@ function App() {
     return dest.charAt(0).toUpperCase() + dest.slice(1);
   };
 
+  const findAllMemberMatches = (inputText: string, membersList: any[], activeId: string): any[] => {
+    const cleanInput = inputText.toLowerCase().trim();
+    const isMoi = cleanInput === 'moi' || 
+                  cleanInput === "c'est pour moi" || 
+                  cleanInput === 'pour moi' || 
+                  cleanInput === 'moi-meme' || 
+                  cleanInput === 'moi-même' ||
+                  /\bmoi\b/i.test(cleanInput);
+    if (isMoi) {
+      const current = membersList.find(m => m.id === activeId);
+      return current ? [current] : [];
+    }
+
+    const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, "").trim();
+    const normInput = norm(cleanInput);
+    if (!normInput) return [];
+
+    // Helper: Levenshtein distance
+    const getLevDist = (a: string, b: string) => {
+      const dp = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+      for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+      for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+          dp[i][j] = Math.min(
+            dp[i-1][j] + 1,
+            dp[i][j-1] + 1,
+            dp[i-1][j-1] + (a[i-1] === b[j-1] ? 0 : 1)
+          );
+        }
+      }
+      return dp[a.length][b.length];
+    };
+
+    // --- CASCADE LEVEL 1: Exact matches on full name/role ---
+    const exactMatches = membersList.filter(m => norm(m.name) === normInput || (m.role && norm(m.role) === normInput));
+    if (exactMatches.length > 0) return exactMatches;
+
+    // --- CASCADE LEVEL 2: Prefix match on words (e.g. "Yat" matches "Yatta" and "Yatta Junior") ---
+    if (normInput.length >= 2) {
+      const prefixMatches = membersList.filter(m => {
+        const normName = norm(m.name);
+        const nameWords = normName.split(/\s+/);
+        return nameWords.some(w => w.startsWith(normInput));
+      });
+      if (prefixMatches.length > 0) return prefixMatches;
+    }
+
+    // --- CASCADE LEVEL 3: Levenshtein matches on full name/role ---
+    const fullLevMatches: { member: any; dist: number }[] = [];
+    for (const member of membersList) {
+      const normName = norm(member.name);
+      const normRole = member.role ? norm(member.role) : '';
+      
+      const targets = [normName];
+      if (normRole) targets.push(normRole);
+
+      let bestDist = 999;
+      for (const target of targets) {
+        const dist = getLevDist(normInput, target);
+        const limit = target.length <= 4 ? 1 : 2;
+        if (dist <= limit && dist < bestDist) {
+          bestDist = dist;
+        }
+      }
+      if (bestDist < 999) {
+        fullLevMatches.push({ member, dist: bestDist });
+      }
+    }
+    if (fullLevMatches.length > 0) {
+      fullLevMatches.sort((a, b) => a.dist - b.dist);
+      const minDist = fullLevMatches[0].dist;
+      return fullLevMatches.filter(m => m.dist === minDist).map(m => m.member);
+    }
+
+    // --- CASCADE LEVEL 4: Full word match (substring) ---
+    const inputWords = normInput.split(/\s+/);
+    const wordMatches = membersList.filter(m => {
+      const normName = norm(m.name);
+      const nameWords = normName.split(/\s+/);
+      return nameWords.some(w => inputWords.includes(w)) || inputWords.includes(normName);
+    });
+    if (wordMatches.length > 0) return wordMatches;
+
+    // --- CASCADE LEVEL 5: Levenshtein on individual words ---
+    const wordLevMatches: { member: any; dist: number }[] = [];
+    for (const member of membersList) {
+      const normName = norm(member.name);
+      const nameWords = normName.split(/\s+/);
+      const normRole = member.role ? norm(member.role) : '';
+      
+      const wordsToCompare = [normName, ...nameWords];
+      if (normRole) {
+        wordsToCompare.push(normRole);
+        normRole.split(/\s+/).forEach(w => wordsToCompare.push(w));
+      }
+
+      let bestDistForMember = 999;
+      for (const target of wordsToCompare) {
+        if (!target || target.length < 2) continue;
+        const targetsInput = [normInput, ...inputWords];
+        for (const inp of targetsInput) {
+          if (!inp || inp.length < 2) continue;
+          const dist = getLevDist(inp, target);
+          const limit = target.length <= 4 ? 1 : 2;
+          if (dist <= limit) {
+            if (dist < bestDistForMember) {
+              bestDistForMember = dist;
+            }
+          }
+        }
+      }
+      if (bestDistForMember < 999) {
+        wordLevMatches.push({ member, dist: bestDistForMember });
+      }
+    }
+
+    if (wordLevMatches.length > 0) {
+      wordLevMatches.sort((a, b) => a.dist - b.dist);
+      const minDist = wordLevMatches[0].dist;
+      return wordLevMatches.filter(m => m.dist === minDist).map(m => m.member);
+    }
+
+    return [];
+  };
+
   const findCategoryAndSubcategory = (
     promptLower: string,
     titleText: string,
@@ -4342,12 +4467,15 @@ function App() {
     if (promptLower.includes('vaccin')) {
       const dateRegex = /(?:le\s+)?(\d+\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i;
       const dateMatch = promptLower.match(dateRegex);
-      const date = dateMatch ? dateMatch[1] : (promptLower.includes('demain') ? 'demain' : undefined);
+      const rawDateStr = dateMatch ? dateMatch[1] : (promptLower.includes('demain') ? 'demain' : undefined);
+      const date = rawDateStr ? parseFrenchDate(rawDateStr) : undefined;
       
+      console.log("DEBUG DATE 1: Date détectée dans le prompt:", rawDateStr, "-> parsed to:", date);
+
       const timeMatch = promptLower.match(/\b(\d+h\d*|\d+:\d+)\b/i);
       const time = timeMatch ? timeMatch[1] : undefined;
 
-      const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
+      const matchedMember = findAllMemberMatches(promptLower, members, activeMemberId)[0];
       
       let title = 'Vaccin';
       const ror = promptLower.includes('ror');
@@ -4370,7 +4498,7 @@ function App() {
 
     // 3. ARGENT DE POCHE
     if (promptLower.includes('argent de poche') || promptLower.includes('pocket money')) {
-      const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
+      const matchedMember = findAllMemberMatches(promptLower, members, activeMemberId)[0];
       const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
       const amount = numMatch ? parseFloat(numMatch[1].replace(',', '.')) : undefined;
 
@@ -4415,10 +4543,11 @@ function App() {
 
     // 6. DÉMARCHES
     if (promptLower.includes('renouvellement') || promptLower.includes('passeport') || promptLower.includes('cni') || promptLower.includes('démarche') || promptLower.includes('demarche')) {
-      const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
+      const matchedMember = findAllMemberMatches(promptLower, members, activeMemberId)[0];
       const dateRegex = /(?:le\s+)?(\d+\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i;
       const dateMatch = promptLower.match(dateRegex);
-      const date = dateMatch ? dateMatch[1] : (promptLower.includes('demain') ? 'demain' : undefined);
+      const rawDateStr = dateMatch ? dateMatch[1] : (promptLower.includes('demain') ? 'demain' : undefined);
+      const date = rawDateStr ? parseFrenchDate(rawDateStr) : undefined;
 
       let title = 'Démarche administrative';
       if (promptLower.includes('passeport')) title = 'Renouvellement passeport';
@@ -4434,10 +4563,11 @@ function App() {
 
     // 7. ÉCOLE / DEVOIRS
     if (promptLower.includes('devoir') || promptLower.includes('devoirs') || promptLower.includes('devoir de')) {
-      const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
+      const matchedMember = findAllMemberMatches(promptLower, members, activeMemberId)[0];
       const dateRegex = /(?:le\s+)?(\d+\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i;
       const dateMatch = promptLower.match(dateRegex);
-      const date = dateMatch ? dateMatch[1] : (promptLower.includes('demain') ? 'demain' : undefined);
+      const rawDateStr = dateMatch ? dateMatch[1] : (promptLower.includes('demain') ? 'demain' : undefined);
+      const date = rawDateStr ? parseFrenchDate(rawDateStr) : undefined;
 
       let category = undefined;
       const subjects = ['maths', 'mathématiques', 'français', 'francais', 'histoire', 'géo', 'géographie', 'anglais', 'sciences', 'physique', 'chimie'];
@@ -4456,7 +4586,8 @@ function App() {
     if (promptLower.includes('rendez-vous') || promptLower.includes('rendez vous') || promptLower.includes('rdv') || promptLower.includes('événement') || promptLower.includes('evenement')) {
       const dateRegex = /(?:le\s+)?(\d+\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i;
       const dateMatch = promptLower.match(dateRegex);
-      const date = dateMatch ? dateMatch[1] : (promptLower.includes('demain') ? 'demain' : undefined);
+      const rawDateStr = dateMatch ? dateMatch[1] : (promptLower.includes('demain') ? 'demain' : undefined);
+      const date = rawDateStr ? parseFrenchDate(rawDateStr) : undefined;
 
       const timeMatch = promptLower.match(/\b(\d+h\d*|\d+:\d+)\b/i);
       const time = timeMatch ? timeMatch[1] : undefined;
@@ -4475,7 +4606,7 @@ function App() {
 
     // 9. DOCUMENTS
     if (promptLower.includes('document') || promptLower.includes('papier')) {
-      const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
+      const matchedMember = findAllMemberMatches(promptLower, members, activeMemberId)[0];
       
       let category = undefined;
       if (promptLower.includes('identité') || promptLower.includes('identite')) category = 'identity';
@@ -4553,6 +4684,8 @@ function App() {
   };
 
   const processVoiceContext = async (ctx: any) => {
+    console.log("DEBUG DATE 2: Date stockée dans le contexte:", ctx.date);
+
     const missing = getMissingFields(ctx);
     const entities = getEntities(ctx);
     const hasMissing = missing.length > 0;
@@ -4560,13 +4693,21 @@ function App() {
       ? `Question complémentaire : demande de ${missing[0]}` 
       : `Enregistrement en base de données de l'intention : ${ctx.pendingAction}`;
 
+    const dateAuditObj = ctx.date ? {
+      detected: ctx.dateRawDetected || ctx.dateText || ctx.date,
+      context: ctx.date || '',
+      creation: ctx.date || '',
+      supabase: ctx.date || ''
+    } : undefined;
+
     setVoiceDebugTrace((prev: any) => ({
       intention: ctx.pendingAction || 'unknown',
       entities,
       missingFields: missing,
       contextActive: true,
       actionExecuted: actionStr,
-      contextFlow: prev?.contextFlow || null
+      contextFlow: prev?.contextFlow || null,
+      dateAudit: dateAuditObj
     }));
 
     // Acquire voiceActionStatus lock to prevent duplicate runs
@@ -5023,6 +5164,8 @@ function App() {
         done: false
       };
 
+      console.log("DEBUG DATE 3: Date envoyée à la création:", newEvent.dateTime);
+
       setEvents(prev => [newEvent, ...prev]);
 
       // Envoi de la notification
@@ -5034,6 +5177,7 @@ function App() {
       );
 
       if (client && foyer?.id) {
+        console.log("DEBUG DATE 4: Date enregistrée dans Supabase:", newEvent.dateTime);
         try {
           await client.from('events').insert({
             id: newEvent.id,
@@ -5706,9 +5850,9 @@ function App() {
 
           let resolvedValue: any = text.trim();
           if (voiceContext.missingField === 'memberId') {
-            const matchedMember = members.find(m => textLower.includes(m.name.toLowerCase()) || textLower.includes(m.role.toLowerCase()));
-            if (matchedMember) {
-              resolvedValue = matchedMember.name;
+            const matchesList = findAllMemberMatches(text, members, activeMemberId);
+            if (matchesList.length > 0) {
+              resolvedValue = matchesList[0].name;
             } else {
               resolvedValue = text.trim();
             }
@@ -5721,7 +5865,7 @@ function App() {
             }
           }
 
-          const waitingForFriendly: string = voiceContext.missingField === 'memberId' ? 'member' : (voiceContext.missingField || 'unknown');
+          const waitingForFriendly: string = voiceContext.missingField === 'memberId' ? 'personne' : (voiceContext.missingField || 'unknown');
           
           const contextFlowObj: any = {
             context_active: true,
@@ -5825,11 +5969,19 @@ function App() {
               resolved = true;
             }
           } else if (voiceContext.missingField === 'memberId') {
-            const matchedMember = members.find(m => textLower.includes(m.name.toLowerCase()) || textLower.includes(m.role.toLowerCase()));
-            if (matchedMember) {
-              updatedCtx.memberId = matchedMember.id;
+            const matchesList = findAllMemberMatches(text, members, activeMemberId);
+            if (matchesList.length === 1) {
+              updatedCtx.memberId = matchesList[0].id;
               delete updatedCtx.missingField;
               resolved = true;
+            } else if (matchesList.length > 1) {
+              const namesList = matchesList.map(m => `• ${m.name}`).join('\n');
+              const voicePrompt = `Voulez-vous dire :\n${namesList}`;
+              setVoiceFeedback(voicePrompt);
+              setVoiceState('confirmation');
+              setVoiceTranscript('');
+              closeVoiceAssistantAfterDelay(4500, 'ecoute');
+              return;
             }
           } else if (voiceContext.missingField === 'petId') {
             const matchedPet = pets.find(p => textLower.includes(p.name.toLowerCase()));
@@ -10186,13 +10338,13 @@ function App() {
                   )}
                 </div>
                 
-                <div>
+                 <div>
                   <span className="text-white/40 uppercase block text-[8px] font-bold tracking-wider">Champs Manquants</span>
                   {voiceDebugTrace.missingFields && voiceDebugTrace.missingFields.length > 0 ? (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {voiceDebugTrace.missingFields.map((field: string) => (
                         <span key={field} className="bg-rose-500/20 text-rose-400 border border-rose-500/30 px-1.5 py-0.5 rounded font-extrabold text-[9px] uppercase tracking-wider">
-                          {field}
+                          {field === 'memberId' ? 'personne' : field}
                         </span>
                       ))}
                     </div>
@@ -10200,6 +10352,30 @@ function App() {
                     <span className="text-emerald-400 font-bold">Aucun</span>
                   )}
                 </div>
+                
+                {voiceDebugTrace.dateAudit && (
+                  <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-2.5 space-y-1 text-orange-200 mt-2">
+                    <div className="text-orange-400 font-extrabold uppercase text-[8px] tracking-wider mb-1 flex items-center gap-1">
+                      <span>📅</span> Audit de la date (Temporaire)
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/40">1. Détectée:</span>
+                      <span className="text-orange-300 font-mono">{voiceDebugTrace.dateAudit.detected}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/40">2. Contexte:</span>
+                      <span className="text-orange-300 font-mono">{voiceDebugTrace.dateAudit.context}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/40">3. Création:</span>
+                      <span className="text-orange-300 font-mono">{voiceDebugTrace.dateAudit.creation}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/40">4. Supabase:</span>
+                      <span className="text-orange-300 font-mono">{voiceDebugTrace.dateAudit.supabase}</span>
+                    </div>
+                  </div>
+                )}
                 
                 <div>
                   <span className="text-white/40 uppercase block text-[8px] font-bold tracking-wider">Contexte Actif</span>
