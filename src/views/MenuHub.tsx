@@ -411,6 +411,28 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   // Clean list modal state
   const [cleanModalOpen, setCleanModalOpen] = useState(false);
   
+  // Trip Archiving states
+  const [archivedTripIds, setArchivedTripIds] = useState<string[]>(() => {
+    try {
+      const foyerId = foyer?.id || localStorage.getItem('mf_cloud_foyer_id') || 'default';
+      const key = `mf_archived_trips_${foyerId}`;
+      return JSON.parse(localStorage.getItem(key) || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [showArchivedTrips, setShowArchivedTrips] = useState(false);
+
+  const toggleArchiveTrip = (tripId: string) => {
+    const foyerId = foyer?.id || localStorage.getItem('mf_cloud_foyer_id') || 'default';
+    const isCurrentlyArchived = archivedTripIds.includes(tripId);
+    const updated = isCurrentlyArchived
+      ? archivedTripIds.filter(id => id !== tripId)
+      : [...archivedTripIds, tripId];
+    setArchivedTripIds(updated);
+    localStorage.setItem(`mf_archived_trips_${foyerId}`, JSON.stringify(updated));
+  };
+  
   // ChoreTask inline edit states
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editTaskTitle, setEditTaskTitle] = useState('');
@@ -4487,12 +4509,20 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       {/* 8. Voyages */}
       {activeModule === 'voyages' && (
         <div className="space-y-6">
-          <div>
-            <h2 className="text-lg font-extrabold text-white">Carnet de Voyages</h2>
-            <p className="text-xs text-white/50">Listes de bagages et réservations</p>
+          <div className="flex items-center justify-between border-b border-white/5 pb-2">
+            <div>
+              <h2 className="text-lg font-extrabold text-white">Carnet de Voyages</h2>
+              <p className="text-xs text-white/50">Listes de bagages et réservations</p>
+            </div>
+            <button
+              onClick={() => setShowArchivedTrips(prev => !prev)}
+              className="px-3 py-1.5 rounded-xl border border-white/10 text-[10px] font-bold text-white bg-white/5 hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+            >
+              {showArchivedTrips ? "📁 Voir les voyages actifs" : "📦 Voir les voyages archivés"}
+            </button>
           </div>
 
-          {trips.map((t) => (
+          {trips.filter(t => showArchivedTrips ? archivedTripIds.includes(t.id) : !archivedTripIds.includes(t.id)).map((t) => (
             <div key={t.id} className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
               <div className="flex items-start justify-between border-b border-white/5 pb-3">
                 <div className="flex items-center space-x-3">
@@ -4522,12 +4552,28 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     <div className="flex space-x-1 bg-white/5 p-1 rounded-xl border border-white/5">
                       <button 
                         type="button"
+                        onClick={() => toggleArchiveTrip(t.id)}
+                        className="p-1 hover:bg-white/10 rounded text-[10px] font-bold"
+                        title={archivedTripIds.includes(t.id) ? "Désarchiver" : "Archiver"}
+                      >
+                        {archivedTripIds.includes(t.id) ? "📁" : "📦"}
+                      </button>
+                      <button 
+                        type="button"
                         onClick={() => {
-                      const newDest = window.prompt("Modifier la destination :", t.destination);
+                          const newDest = window.prompt("Modifier la destination :", t.destination);
                           if (!newDest) return;
                           const newBudget = window.prompt("Modifier le budget (€) :", String(t.budget));
                           if (newBudget === null) return;
+                          
                           setTrips(prev => prev.map(item => item.id === t.id ? { ...item, destination: newDest, budget: Number(newBudget) } : item));
+                          
+                          const client = getSupabaseClient();
+                          if (client) {
+                            client.from('trips').update({ destination: newDest, budget: Number(newBudget) }).eq('id', t.id).then(({ error }) => {
+                              if (error) console.error("Error updating trip in Supabase:", error);
+                            });
+                          }
                         }}
                         className="p-1 hover:bg-white/10 rounded text-[10px] font-bold"
                         title="Modifier"
@@ -4537,8 +4583,15 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                       <button 
                         type="button"
                         onClick={() => {
-                          if (window.confirm("Supprimer ce projet de voyage ?")) {
+                          if (window.confirm("Supprimer ce projet de voyage ainsi que ses dépenses associées ?")) {
                             setTrips(prev => prev.filter(item => item.id !== t.id));
+                            
+                            const client = getSupabaseClient();
+                            if (client) {
+                              client.from('trips').delete().eq('id', t.id).then(({ error }) => {
+                                if (error) console.error("Error deleting trip in Supabase:", error);
+                              });
+                            }
                           }
                         }}
                         className="p-1 hover:bg-red-500/10 rounded text-[10px] text-red-400 font-bold"

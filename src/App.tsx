@@ -758,6 +758,9 @@ function App() {
 
   const [lastCreatedTrip, setLastCreatedTrip] = useState<{ id: string; destination: string } | null>(null);
 
+  const parseVoiceCommandRef = useRef<any>(null);
+  const voiceActionStatusRef = useRef<'waiting' | 'processing' | 'completed'>('waiting');
+
   const [foyer, setFoyer] = useState<Foyer | null>(() => {
     return safeGetLocalStorage<Foyer | null>('mf_cached_foyer', null);
   });
@@ -774,6 +777,7 @@ function App() {
   useEffect(() => {
     setVoiceContext(null);
     setLastCreatedTrip(null);
+    voiceActionStatusRef.current = 'waiting';
   }, [foyer?.id, activeMemberId]);
   const [myMemberProfile, setMyMemberProfile] = useState<FoyerMember | null>(() => {
     return safeGetLocalStorage<FoyerMember | null>('mf_cached_member_profile', null);
@@ -3592,6 +3596,8 @@ function App() {
       }
       setVoiceState('inactif');
       setVoiceActive(false);
+      setVoiceContext(null);
+      voiceActionStatusRef.current = 'waiting';
       return;
     }
 
@@ -3623,7 +3629,11 @@ function App() {
         
         // Parse Voice Command
         const timer = setTimeout(() => {
-          parseVoiceCommand(transcript);
+          if (parseVoiceCommandRef.current) {
+            parseVoiceCommandRef.current(transcript);
+          } else {
+            parseVoiceCommand(transcript);
+          }
         }, 1000);
         voiceTimeoutRef.current = timer;
       };
@@ -3863,6 +3873,24 @@ function App() {
       return;
     }
     
+    // 4. Execution Lock & Anti-Doublon checks
+    if (voiceActionStatusRef.current === 'processing' || voiceActionStatusRef.current === 'completed') {
+      console.log("processVoiceContext: execution locked, ignoring duplicate run.");
+      return;
+    }
+
+    const duplicateExists = trips.some(t => 
+      t.destination.toLowerCase() === ctx.destination.toLowerCase() &&
+      t.startDate === ctx.startDate &&
+      t.budget === Number(ctx.budget)
+    );
+    if (duplicateExists) {
+      console.log("processVoiceContext: duplicate trip detected, aborting creation.");
+      return;
+    }
+
+    voiceActionStatusRef.current = 'processing';
+
     const client = getSupabaseClient();
     const newTripId = `t-${Date.now()}`;
     const newTrip = {
@@ -3971,6 +3999,7 @@ function App() {
         toastMessage
       });
     }
+    voiceActionStatusRef.current = 'completed';
   };
 
   const parseVoiceCommand = async (rawInputText: string) => {
@@ -4008,6 +4037,7 @@ function App() {
       if (voiceContext && voiceContext.pendingAction !== 'none') {
         if (!isContextActive) {
           setVoiceContext(null);
+          voiceActionStatusRef.current = 'waiting';
           if (isShortAnswer) {
             feedback = "Je n'ai plus assez d'informations pour terminer l'action. Pouvez-vous recommencer ?";
             setVoiceFeedback(feedback);
@@ -4051,12 +4081,13 @@ function App() {
             await processVoiceContext(updatedCtx);
             return;
           } else {
-            const actionVerbs = ['ajoute', 'ajouter', 'crée', 'creer', 'créer', 'cree', 'ouvre', 'montre', 'va', 'affiche', 'coche', 'décoche', 'supprime'];
+            const actionVerbs = ['ajoute', 'ajouter', 'crée', 'creer', 'créer', 'cree', 'ouvre', 'montre', 'va', 'affiche', 'coche', 'décoche', 'supprime', 'annuler', 'annule'];
             const firstWord = promptLower.split(/\s+/)[0];
             const isInterrupt = actionVerbs.some(v => firstWord.startsWith(v) || v.startsWith(firstWord)) || promptLower.includes('voyage');
             
             if (isInterrupt) {
               setVoiceContext(null);
+              voiceActionStatusRef.current = 'waiting';
             } else {
               setVoiceFeedback("Je n'ai pas compris votre réponse. " + (
                 voiceContext.missingField === 'budget' ? "Quel budget souhaitez-vous prévoir ?" :
@@ -4067,6 +4098,8 @@ function App() {
             }
           }
         }
+      } else {
+        voiceActionStatusRef.current = 'waiting';
       }
 
       // 2. Split multi-action command
@@ -5427,6 +5460,10 @@ function App() {
       closeVoiceAssistantAfterDelay(2500);
     }
   };
+
+  useEffect(() => {
+    parseVoiceCommandRef.current = parseVoiceCommand;
+  }, [parseVoiceCommand]);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -8106,6 +8143,8 @@ function App() {
                 }
                 setVoiceState('inactif');
                 setVoiceActive(false);
+                setVoiceContext(null);
+                voiceActionStatusRef.current = 'waiting';
                 setPendingGroceryItems(null);
                 setIsEditingPendingGrocery(false);
               }}
