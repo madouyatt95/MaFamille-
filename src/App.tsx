@@ -757,6 +757,7 @@ function App() {
   } | null>(null);
 
   const [lastCreatedTrip, setLastCreatedTrip] = useState<{ id: string; destination: string } | null>(null);
+  const [showGroceryPopup, setShowGroceryPopup] = useState(false);
 
   const parseVoiceCommandRef = useRef<any>(null);
   const voiceActionStatusRef = useRef<'waiting' | 'processing' | 'completed'>('waiting');
@@ -3842,116 +3843,753 @@ function App() {
     };
   };
 
+  const detectCreationContext = (promptLower: string, text: string) => {
+    const isCreation = /ajoute|ajouter|crée|creer|créer|cree|planifie|planifier|enregistre|enregistrer|note|noter/i.test(promptLower);
+    if (!isCreation) return null;
+
+    // 1. VOYAGE
+    if (promptLower.includes('voyage') || promptLower.includes('vacance') || promptLower.includes('vacances')) {
+      const voyageDetails = parseVoyageCommand(promptLower);
+      return {
+        pendingAction: 'create_trip',
+        destination: voyageDetails.destination || undefined,
+        budget: voyageDetails.budgetAmount || undefined,
+        startDate: voyageDetails.dateText || (promptLower.includes('demain') ? 'demain' : undefined),
+        expenseAmount: voyageDetails.expenseAmount,
+        expenseTitle: voyageDetails.expenseTitle || undefined
+      };
+    }
+
+    // 2. SANTÉ / VACCIN
+    if (promptLower.includes('vaccin')) {
+      const dateRegex = /(?:le\s+)?(\d+\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i;
+      const dateMatch = promptLower.match(dateRegex);
+      const date = dateMatch ? dateMatch[1] : (promptLower.includes('demain') ? 'demain' : undefined);
+      
+      const timeMatch = promptLower.match(/\b(\d+h\d*|\d+:\d+)\b/i);
+      const time = timeMatch ? timeMatch[1] : undefined;
+
+      const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
+      
+      let title = 'Vaccin';
+      const ror = promptLower.includes('ror');
+      const grippe = promptLower.includes('grippe');
+      const covid = promptLower.includes('covid');
+      const hepatite = promptLower.includes('hépatite') || promptLower.includes('hepatite');
+      if (ror) title = 'Vaccin ROR';
+      else if (grippe) title = 'Vaccin Grippe';
+      else if (covid) title = 'Vaccin Covid';
+      else if (hepatite) title = 'Vaccin Hépatite';
+
+      return {
+        pendingAction: 'create_vaccine',
+        title,
+        date,
+        time: time || 'à définir',
+        memberId: matchedMember?.id || undefined
+      };
+    }
+
+    // 3. ARGENT DE POCHE
+    if (promptLower.includes('argent de poche') || promptLower.includes('pocket money')) {
+      const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
+      const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+      const amount = numMatch ? parseFloat(numMatch[1].replace(',', '.')) : undefined;
+
+      return {
+        pendingAction: 'create_pocket_money',
+        memberId: matchedMember?.id || undefined,
+        amount
+      };
+    }
+
+    // 4. VÉHICULES
+    if (promptLower.includes('plein') || promptLower.includes('essence') || promptLower.includes('révision') || promptLower.includes('revision') || promptLower.includes('vidange')) {
+      const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+      const amount = numMatch ? parseFloat(numMatch[1].replace(',', '.')) : undefined;
+      const matchedVehicle = vehicles.find(v => promptLower.includes(v.name.toLowerCase()));
+
+      return {
+        pendingAction: 'create_vehicle_expense',
+        vehicleId: matchedVehicle?.id || undefined,
+        vehicleName: matchedVehicle?.name || undefined,
+        amount,
+        category: promptLower.includes('plein') || promptLower.includes('essence') ? 'Essence' : 'Entretien'
+      };
+    }
+
+    // 5. LOGEMENT / FACTURE
+    if (promptLower.includes('facture') || promptLower.includes('loyer') || promptLower.includes('edf')) {
+      const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+      const amount = numMatch ? parseFloat(numMatch[1].replace(',', '.')) : undefined;
+      
+      let category = undefined;
+      if (promptLower.includes('loyer')) category = 'Loyer';
+      else if (promptLower.includes('internet') || promptLower.includes('wifi')) category = 'Internet';
+      else if (promptLower.includes('edf') || promptLower.includes('électricité') || promptLower.includes('electricite')) category = 'Charges';
+
+      return {
+        pendingAction: 'create_bill',
+        amount,
+        category
+      };
+    }
+
+    // 6. DÉMARCHES
+    if (promptLower.includes('renouvellement') || promptLower.includes('passeport') || promptLower.includes('cni') || promptLower.includes('démarche') || promptLower.includes('demarche')) {
+      const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
+      const dateRegex = /(?:le\s+)?(\d+\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i;
+      const dateMatch = promptLower.match(dateRegex);
+      const date = dateMatch ? dateMatch[1] : (promptLower.includes('demain') ? 'demain' : undefined);
+
+      let title = 'Démarche administrative';
+      if (promptLower.includes('passeport')) title = 'Renouvellement passeport';
+      else if (promptLower.includes('cni') || promptLower.includes('carte d\'identité') || promptLower.includes('carte identite')) title = 'Renouvellement CNI';
+
+      return {
+        pendingAction: 'create_demarche',
+        title,
+        memberId: matchedMember?.id || undefined,
+        date
+      };
+    }
+
+    // 7. ÉCOLE / DEVOIRS
+    if (promptLower.includes('devoir') || promptLower.includes('devoirs') || promptLower.includes('devoir de')) {
+      const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
+      const dateRegex = /(?:le\s+)?(\d+\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i;
+      const dateMatch = promptLower.match(dateRegex);
+      const date = dateMatch ? dateMatch[1] : (promptLower.includes('demain') ? 'demain' : undefined);
+
+      let category = undefined;
+      const subjects = ['maths', 'mathématiques', 'français', 'francais', 'histoire', 'géo', 'géographie', 'anglais', 'sciences', 'physique', 'chimie'];
+      const matchedSubject = subjects.find(s => promptLower.includes(s));
+      if (matchedSubject) category = matchedSubject.charAt(0).toUpperCase() + matchedSubject.slice(1);
+
+      return {
+        pendingAction: 'create_school_task',
+        memberId: matchedMember?.id || undefined,
+        title: category,
+        date
+      };
+    }
+
+    // 8. AGENDA / EVENT
+    if (promptLower.includes('rendez-vous') || promptLower.includes('rendez vous') || promptLower.includes('rdv') || promptLower.includes('événement') || promptLower.includes('evenement')) {
+      const dateRegex = /(?:le\s+)?(\d+\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i;
+      const dateMatch = promptLower.match(dateRegex);
+      const date = dateMatch ? dateMatch[1] : (promptLower.includes('demain') ? 'demain' : undefined);
+
+      const timeMatch = promptLower.match(/\b(\d+h\d*|\d+:\d+)\b/i);
+      const time = timeMatch ? timeMatch[1] : undefined;
+
+      let title = 'Rendez-vous';
+      const restText = text.replace(/ajoute|ajouter|crée|creer|créer|cree|un|le|rdv|rendez-vous|rendez vous/gi, '').replace(/\b(\d+h\d*|\d+:\d+)\b/g, '').replace(dateRegex, '').trim();
+      if (restText) title = restText.charAt(0).toUpperCase() + restText.slice(1);
+
+      return {
+        pendingAction: 'create_event',
+        title,
+        date,
+        time
+      };
+    }
+
+    // 9. DOCUMENTS
+    if (promptLower.includes('document') || promptLower.includes('papier')) {
+      const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
+      
+      let category = undefined;
+      if (promptLower.includes('identité') || promptLower.includes('identite')) category = 'identity';
+      else if (promptLower.includes('santé') || promptLower.includes('sante')) category = 'health';
+      else if (promptLower.includes('école') || promptLower.includes('ecole')) category = 'school';
+      else if (promptLower.includes('assurance')) category = 'insurance';
+
+      return {
+        pendingAction: 'create_document',
+        memberId: matchedMember?.id || undefined,
+        category
+      };
+    }
+
+    // 10. ANIMAUX
+    if (promptLower.includes('animal') || promptLower.includes('compagnon') || pets.some(p => promptLower.includes(p.name.toLowerCase()))) {
+      const matchedPet = pets.find(p => promptLower.includes(p.name.toLowerCase()));
+      const dateRegex = /(?:le\s+)?(\d+\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i;
+      const dateMatch = promptLower.match(dateRegex);
+      const date = dateMatch ? dateMatch[1] : (promptLower.includes('demain') ? 'demain' : undefined);
+
+      return {
+        pendingAction: 'create_pet_action',
+        petId: matchedPet?.id || undefined,
+        petName: matchedPet?.name || undefined,
+        date
+      };
+    }
+
+    // 11. MENUS
+    if (promptLower.includes('repas') || promptLower.includes('menu') || promptLower.includes('dîner') || promptLower.includes('diner') || promptLower.includes('déjeuner') || promptLower.includes('dejeuner')) {
+      let day = undefined;
+      const days = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+      const matchedDay = days.find(d => promptLower.includes(d));
+      if (matchedDay) day = matchedDay.charAt(0).toUpperCase() + matchedDay.slice(1);
+
+      let mealType = undefined;
+      if (promptLower.includes('midi') || promptLower.includes('déjeuner') || promptLower.includes('dejeuner')) mealType = 'lunch';
+      else if (promptLower.includes('soir') || promptLower.includes('dîner') || promptLower.includes('diner')) mealType = 'dinner';
+
+      return {
+        pendingAction: 'create_meal',
+        day,
+        mealType
+      };
+    }
+
+    // 12. OBJECTIFS D'ÉPARGNE
+    if (promptLower.includes('objectif') || promptLower.includes('cagnotte') || promptLower.includes('épargne')) {
+      const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+      const amount = numMatch ? parseFloat(numMatch[1].replace(',', '.')) : undefined;
+
+      let title = undefined;
+      const titleMatch = promptLower.match(/(?:nommé|nommée|appelé|appelée|intitulé|intitulée)\s+([a-z0-9éèàùçâêîôûäëïöü\s]+)/i);
+      if (titleMatch) title = titleMatch[1].trim();
+
+      return {
+        pendingAction: 'create_saving_goal',
+        title,
+        amount
+      };
+    }
+
+    // 13. BUDGET GENERAL FALLBACK
+    const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+    const amount = numMatch ? parseFloat(numMatch[1].replace(',', '.')) : undefined;
+    if (amount) {
+      return {
+        pendingAction: 'create_transaction',
+        amount
+      };
+    }
+
+    return null;
+  };
+
   const processVoiceContext = async (ctx: any) => {
-    if (!ctx.destination) {
-      ctx.missingField = 'destination';
-      setVoiceContext(ctx);
-      setVoiceFeedback("Pour quelle destination souhaitez-vous créer ce voyage ?");
-      setVoiceState('confirmation');
-      setVoiceTranscript('');
-      closeVoiceAssistantAfterDelay(3000, 'ecoute');
-      return;
-    }
-    
-    if (!ctx.budget) {
-      ctx.missingField = 'budget';
-      setVoiceContext(ctx);
-      setVoiceFeedback(`✈️ Voyage détecté : ${ctx.destination}\nQuel budget souhaitez-vous prévoir pour ce voyage ?`);
-      setVoiceState('confirmation');
-      setVoiceTranscript('');
-      closeVoiceAssistantAfterDelay(3000, 'ecoute');
-      return;
-    }
-    
-    if (!ctx.startDate) {
-      ctx.missingField = 'date';
-      setVoiceContext(ctx);
-      setVoiceFeedback(`✈️ Voyage : ${ctx.destination} (Budget: ${ctx.budget}€)\nÀ quelle date prévoyez-vous ce voyage ?`);
-      setVoiceState('confirmation');
-      setVoiceTranscript('');
-      closeVoiceAssistantAfterDelay(3000, 'ecoute');
-      return;
-    }
-    
-    // 4. Execution Lock & Anti-Doublon checks
+    // Acquire voiceActionStatus lock to prevent duplicate runs
     if (voiceActionStatusRef.current === 'processing' || voiceActionStatusRef.current === 'completed') {
       console.log("processVoiceContext: execution locked, ignoring duplicate run.");
       return;
     }
 
-    const duplicateExists = trips.some(t => 
-      t.destination.toLowerCase() === ctx.destination.toLowerCase() &&
-      t.startDate === ctx.startDate &&
-      t.budget === Number(ctx.budget)
-    );
-    if (duplicateExists) {
-      console.log("processVoiceContext: duplicate trip detected, aborting creation.");
-      return;
-    }
-
-    voiceActionStatusRef.current = 'processing';
-
-    const client = getSupabaseClient();
-    const newTripId = `t-${Date.now()}`;
-    const newTrip = {
-      id: newTripId,
-      foyer_id: foyer?.id || '',
-      destination: ctx.destination,
-      startDate: ctx.startDate,
-      endDate: ctx.endDate || ctx.startDate,
-      budget: Number(ctx.budget),
-      bookingRefs: ['hotel:non_defini', 'transport:non_defini', 'billets:non_defini', 'activite:non_defini'],
-      checklist: []
-    };
-    
-    setTrips(prev => [...prev, newTrip]);
-    if (client && foyer?.id) {
-      try {
-        await client.from('trips').insert({
-          id: newTrip.id,
-          foyer_id: foyer.id,
-          destination: newTrip.destination,
-          start_date: newTrip.startDate,
-          end_date: newTrip.endDate,
-          budget: newTrip.budget,
-          booking_refs: JSON.stringify(newTrip.bookingRefs),
-          checklist: JSON.stringify([])
-        });
-      } catch (err) {
-        console.error("Error creating trip in Supabase:", err);
+    // 1. Check Missing Fields (1 question at a time)
+    // 1a. create_trip
+    if (ctx.pendingAction === 'create_trip') {
+      if (!ctx.destination) {
+        ctx.missingField = 'destination';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Pour quelle destination souhaitez-vous créer ce voyage ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (ctx.expenseAmount > 0 && !ctx.budget) {
+        ctx.missingField = 'budget';
+        setVoiceContext(ctx);
+        setVoiceFeedback(`✈️ Voyage détecté : ${ctx.destination}\nQuel budget souhaitez-vous prévoir pour ce voyage ?`);
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
       }
     }
-    
-    setLastCreatedTrip({ id: newTripId, destination: ctx.destination });
-    
-    let toastMessage = `Voyage ${ctx.destination} créé`;
-    let feedback = `✈️ Voyage au ${ctx.destination} créé avec un budget de ${ctx.budget}€ pour le ${ctx.startDate}.`;
-    
-    if (ctx.expenseAmount > 0) {
-      const expenseTitle = ctx.expenseTitle || 'Billets';
+
+    // 1b. create_vaccine
+    if (ctx.pendingAction === 'create_vaccine') {
+      if (!ctx.date) {
+        ctx.missingField = 'date';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Pour quelle date souhaitez-vous planifier ce vaccin ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (!ctx.title) {
+        ctx.missingField = 'title';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Quel est le nom du vaccin ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (!ctx.memberId) {
+        ctx.missingField = 'memberId';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Pour quel membre de la famille ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+    }
+
+    // 1c. create_pocket_money
+    if (ctx.pendingAction === 'create_pocket_money') {
+      if (!ctx.memberId) {
+        ctx.missingField = 'memberId';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Pour quel enfant souhaitez-vous ajouter cet argent de poche ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (!ctx.amount) {
+        ctx.missingField = 'amount';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Quel montant d'argent de poche souhaitez-vous ajouter ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+    }
+
+    // 1d. create_vehicle_expense
+    if (ctx.pendingAction === 'create_vehicle_expense') {
+      if (!ctx.vehicleId) {
+        ctx.missingField = 'vehicleId';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Pour quel véhicule s'agit-il ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (!ctx.amount) {
+        ctx.missingField = 'amount';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Quel est le montant de la dépense véhicule ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+    }
+
+    // 1e. create_bill
+    if (ctx.pendingAction === 'create_bill') {
+      if (!ctx.category) {
+        ctx.missingField = 'category';
+        setVoiceContext(ctx);
+        setVoiceFeedback("De quel type de facture s'agit-il (EDF, loyer, internet...) ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (!ctx.amount) {
+        ctx.missingField = 'amount';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Quel est le montant de la facture ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+    }
+
+    // 1f. create_demarche
+    if (ctx.pendingAction === 'create_demarche') {
+      if (!ctx.memberId) {
+        ctx.missingField = 'memberId';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Pour quel membre de la famille ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (!ctx.date) {
+        ctx.missingField = 'date';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Pour quelle date souhaitez-vous planifier cette démarche ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+    }
+
+    // 1g. create_school_task
+    if (ctx.pendingAction === 'create_school_task') {
+      if (!ctx.memberId) {
+        ctx.missingField = 'memberId';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Pour quel enfant ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (!ctx.title) {
+        ctx.missingField = 'title';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Quelle matière ? (Maths, Français...)");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (!ctx.date) {
+        ctx.missingField = 'date';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Quelle est la date limite ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+    }
+
+    // 1h. create_event
+    if (ctx.pendingAction === 'create_event') {
+      if (!ctx.date) {
+        ctx.missingField = 'date';
+        setVoiceContext(ctx);
+        setVoiceFeedback("À quelle date prévoyez-vous ce rendez-vous ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (!ctx.time) {
+        ctx.missingField = 'time';
+        setVoiceContext(ctx);
+        setVoiceFeedback("À quelle heure ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+    }
+
+    // 1i. create_document
+    if (ctx.pendingAction === 'create_document') {
+      if (!ctx.category) {
+        ctx.missingField = 'category';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Quelle catégorie de document souhaitez-vous ajouter (identité, santé, école, assurance) ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (!ctx.memberId) {
+        ctx.missingField = 'memberId';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Pour quel membre de la famille ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+    }
+
+    // 1j. create_pet_action
+    if (ctx.pendingAction === 'create_pet_action') {
+      if (!ctx.petId) {
+        ctx.missingField = 'petId';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Pour quel animal ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (!ctx.date) {
+        ctx.missingField = 'date';
+        setVoiceContext(ctx);
+        setVoiceFeedback("À quelle date ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+    }
+
+    // 1k. create_meal
+    if (ctx.pendingAction === 'create_meal') {
+      if (!ctx.day) {
+        ctx.missingField = 'day';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Pour quel jour de la semaine (Lundi, Mardi...) ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (!ctx.mealType) {
+        ctx.missingField = 'mealType';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Est-ce pour le midi ou pour le soir ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+    }
+
+    // 1l. create_saving_goal
+    if (ctx.pendingAction === 'create_saving_goal') {
+      if (!ctx.title) {
+        ctx.missingField = 'title';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Quel est le nom de cet objectif d'épargne ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+      if (!ctx.amount) {
+        ctx.missingField = 'amount';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Quel est le montant cible ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+    }
+
+    // 1m. create_transaction
+    if (ctx.pendingAction === 'create_transaction') {
+      if (!ctx.category) {
+        ctx.missingField = 'category';
+        setVoiceContext(ctx);
+        setVoiceFeedback("Dans quelle catégorie / type de dépense (Alimentation, Loisirs...) ?");
+        setVoiceState('confirmation');
+        setVoiceTranscript('');
+        closeVoiceAssistantAfterDelay(3000, 'ecoute');
+        return;
+      }
+    }
+
+    // 2. Lock Execution
+    voiceActionStatusRef.current = 'processing';
+    const client = getSupabaseClient();
+    let toastMessage = "";
+    let feedback = "";
+    let redirectPayload: any = undefined;
+
+    // 3. Perform actions
+    // 3a. create_trip
+    if (ctx.pendingAction === 'create_trip') {
+      const duplicateExists = trips.some(t => 
+        t.destination.toLowerCase() === ctx.destination.toLowerCase() &&
+        t.startDate === ctx.startDate &&
+        t.budget === Number(ctx.budget || 0)
+      );
+      if (duplicateExists) {
+        console.log("processVoiceContext: duplicate trip detected, aborting creation.");
+        voiceActionStatusRef.current = 'completed';
+        return;
+      }
+
+      const newTripId = `t-${Date.now()}`;
+      const newTrip = {
+        id: newTripId,
+        foyer_id: foyer?.id || '',
+        destination: ctx.destination,
+        startDate: ctx.startDate || 'Non planifié',
+        endDate: ctx.endDate || ctx.startDate || 'Non planifié',
+        budget: Number(ctx.budget || 0),
+        bookingRefs: ['hotel:non_defini', 'transport:non_defini', 'billets:non_defini', 'activite:non_defini'],
+        checklist: []
+      };
+      
+      setTrips(prev => [...prev, newTrip]);
+      if (client && foyer?.id) {
+        try {
+          await client.from('trips').insert({
+            id: newTrip.id,
+            foyer_id: foyer.id,
+            destination: newTrip.destination,
+            start_date: newTrip.startDate,
+            end_date: newTrip.endDate,
+            budget: newTrip.budget,
+            booking_refs: JSON.stringify(newTrip.bookingRefs),
+            checklist: JSON.stringify([])
+          });
+        } catch (err) {
+          console.error("Error creating trip in Supabase:", err);
+        }
+      }
+      
+      setLastCreatedTrip({ id: newTripId, destination: ctx.destination });
+      feedback = `✈️ Voyage au ${ctx.destination} créé.`;
+      toastMessage = `Voyage ${ctx.destination} créé`;
+      
+      if (ctx.expenseAmount > 0) {
+        const expenseTitle = ctx.expenseTitle || 'Billets';
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        const dateStr = now.toISOString().split('T')[0];
+        
+        const newTx = {
+          id: crypto.randomUUID(),
+          foyer_id: foyer?.id || '',
+          title: `${expenseTitle} (Voyage ${ctx.destination})`,
+          amount: ctx.expenseAmount,
+          type: 'expense' as const,
+          category: 'Voyages',
+          subCategory: expenseTitle,
+          date: dateStr,
+          member_id: activeMemberId,
+          member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
+          comment: serializeTransactionComment(`Lié au voyage ${ctx.destination}`, {
+            moduleSource: 'voyages',
+            entryTime: timeStr,
+            entryDate: dateStr,
+            travelId: newTripId
+          })
+        };
+        
+        setTransactions(prev => [newTx, ...prev]);
+        if (client && foyer?.id) {
+          try {
+            await client.from('transactions').insert({
+              id: newTx.id,
+              foyer_id: foyer.id,
+              amount: newTx.amount,
+              type: newTx.type,
+              category: newTx.category,
+              date: newTx.date,
+              title: newTx.title,
+              member_id: newTx.member_id,
+              member_name: newTx.member_name,
+              comment: newTx.comment
+            });
+          } catch (err) {
+            console.error("Error inserting transaction in Supabase:", err);
+          }
+        }
+        feedback += ` Dépense de ${ctx.expenseAmount}€ pour ${expenseTitle} ajoutée.`;
+        toastMessage = `Voyage ${ctx.destination} mis à jour`;
+      }
+
+      redirectPayload = { tab: 'menu', module: 'voyages', toastMessage };
+    }
+
+    // 3b. create_vaccine
+    else if (ctx.pendingAction === 'create_vaccine') {
+      const newEventId = `ev-${Date.now()}`;
+      const memberObj = members.find(m => m.id === ctx.memberId);
+      const newEvent = {
+        id: newEventId,
+        title: ctx.title,
+        type: 'vaccine' as const,
+        dateTime: ctx.date,
+        time: ctx.time || 'à définir',
+        memberId: ctx.memberId,
+        memberName: memberObj?.name || 'Membre',
+        description: 'Médecin traitant',
+        done: false
+      };
+
+      setEvents(prev => [newEvent, ...prev]);
+      if (client && foyer?.id) {
+        try {
+          await client.from('events').insert({
+            id: newEvent.id,
+            foyer_id: foyer.id,
+            title: newEvent.title,
+            type: newEvent.type,
+            date_time: newEvent.dateTime,
+            time: newEvent.time,
+            member_id: newEvent.memberId,
+            member_name: newEvent.memberName,
+            description: newEvent.description,
+            done: newEvent.done
+          });
+        } catch (err) {
+          console.error("Error inserting vaccine event in Supabase:", err);
+        }
+      }
+
+      feedback = `🩺 Vaccin ${ctx.title} enregistré pour ${newEvent.memberName} le ${ctx.date} (heure: ${ctx.time}).`;
+      toastMessage = `${ctx.title} enregistré dans Santé`;
+      redirectPayload = { tab: 'menu', module: 'sante', toastMessage };
+    }
+
+    // 3c. create_pocket_money
+    else if (ctx.pendingAction === 'create_pocket_money') {
+      const child = pocketMoney.find(c => c.id === ctx.memberId);
+      if (child) {
+        const newBal = child.balance + ctx.amount;
+        setPocketMoney(prev => prev.map(c => c.id === ctx.memberId ? { ...c, balance: newBal } : c));
+        if (client && foyer?.id) {
+          try {
+            await client.from('pocket_money').update({ balance: newBal }).eq('id', child.id);
+            
+            // Add transaction log
+            const now = new Date();
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            const dateStr = now.toISOString().split('T')[0];
+            await client.from('transactions').insert({
+              id: crypto.randomUUID(),
+              foyer_id: foyer.id,
+              title: `Allocation : ${child.name}`,
+              amount: ctx.amount,
+              type: 'expense',
+              category: 'Argent de poche',
+              date: dateStr,
+              member_id: activeMemberId,
+              member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
+              comment: serializeTransactionComment('Généré par commande vocale', {
+                moduleSource: 'argent_de_poche',
+                entryTime: timeStr,
+                entryDate: dateStr
+              })
+            });
+          } catch (err) {
+            console.error("Error updating pocket money in Supabase:", err);
+          }
+        }
+        feedback = `🪙 Allocation de ${ctx.amount}€ enregistrée pour ${child.name}.`;
+        toastMessage = `Argent de poche mis à jour`;
+      }
+      redirectPayload = { tab: 'menu', module: 'argent', toastMessage };
+    }
+
+    // 3d. create_vehicle_expense
+    else if (ctx.pendingAction === 'create_vehicle_expense') {
+      const v = vehicles.find(item => item.id === ctx.vehicleId);
+      const category = ctx.category || 'Entretien';
       const now = new Date();
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const dateStr = now.toISOString().split('T')[0];
-      
+
       const newTx = {
         id: crypto.randomUUID(),
         foyer_id: foyer?.id || '',
-        title: `${expenseTitle} (Voyage ${ctx.destination})`,
-        amount: ctx.expenseAmount,
+        title: `Voiture (${v?.name || 'Véhicule'}) : ${category}`,
+        amount: ctx.amount,
         type: 'expense' as const,
-        category: 'Voyages',
-        subCategory: expenseTitle,
+        category: 'Véhicules',
+        subCategory: category,
         date: dateStr,
         member_id: activeMemberId,
         member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
-        comment: serializeTransactionComment(`Lié au voyage ${ctx.destination}`, {
-          moduleSource: 'voyages',
+        comment: serializeTransactionComment(`Dépense véhicule pour ${v?.name || 'Véhicule'}`, {
+          moduleSource: 'vehicules',
           entryTime: timeStr,
-          entryDate: dateStr,
-          travelId: newTripId
+          entryDate: dateStr
         })
       };
-      
+
       setTransactions(prev => [newTx, ...prev]);
       if (client && foyer?.id) {
         try {
@@ -3968,14 +4606,358 @@ function App() {
             comment: newTx.comment
           });
         } catch (err) {
-          console.error("Error inserting transaction in Supabase:", err);
+          console.error("Error creating vehicle transaction in Supabase:", err);
         }
       }
-      
-      feedback += ` Dépense de ${ctx.expenseAmount}€ pour ${expenseTitle} ajoutée.`;
-      toastMessage = `Voyage ${ctx.destination} créé et dépenses ajoutées`;
+
+      feedback = `🚗 Dépense véhicule de ${ctx.amount}€ enregistrée pour ${v?.name || 'Véhicule'}.`;
+      toastMessage = `Dépense véhicule enregistrée`;
+      redirectPayload = { tab: 'menu', module: 'vehicule', toastMessage };
     }
-    
+
+    // 3e. create_bill
+    else if (ctx.pendingAction === 'create_bill') {
+      const category = ctx.category || 'Charges';
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const dateStr = now.toISOString().split('T')[0];
+
+      const newTx = {
+        id: crypto.randomUUID(),
+        foyer_id: foyer?.id || '',
+        title: `Facture : ${category}`,
+        amount: ctx.amount,
+        type: 'expense' as const,
+        category: 'Logement',
+        subCategory: category,
+        date: dateStr,
+        member_id: activeMemberId,
+        member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
+        comment: serializeTransactionComment(`Facture de logement ${category}`, {
+          moduleSource: 'logement',
+          entryTime: timeStr,
+          entryDate: dateStr
+        })
+      };
+
+      setTransactions(prev => [newTx, ...prev]);
+      if (client && foyer?.id) {
+        try {
+          await client.from('transactions').insert({
+            id: newTx.id,
+            foyer_id: foyer.id,
+            amount: newTx.amount,
+            type: newTx.type,
+            category: newTx.category,
+            date: newTx.date,
+            title: newTx.title,
+            member_id: newTx.member_id,
+            member_name: newTx.member_name,
+            comment: newTx.comment
+          });
+        } catch (err) {
+          console.error("Error inserting bill transaction in Supabase:", err);
+        }
+      }
+
+      feedback = `🏠 Facture de ${ctx.amount}€ pour ${category} enregistrée.`;
+      toastMessage = `Facture ${category} enregistrée`;
+      redirectPayload = { tab: 'menu', module: 'logement', toastMessage };
+    }
+
+    // 3f. create_demarche
+    else if (ctx.pendingAction === 'create_demarche') {
+      const memberObj = members.find(m => m.id === ctx.memberId);
+      const newDem = {
+        id: `dem-${Date.now()}`,
+        title: ctx.title || 'Démarche administrative',
+        icon: '📄',
+        status: 'todo' as const,
+        assignedMemberId: ctx.memberId,
+        assignedMemberName: memberObj?.name || 'Famille',
+        steps: [{ id: 'step-1', title: 'Prendre rendez-vous', done: false }],
+        pieces: [],
+        createdAt: ctx.date || 'Non spécifié',
+        notes: ''
+      };
+
+      setDemarches(prev => [...prev, newDem]);
+      if (client && foyer?.id) {
+        try {
+          await client.from('demarches').insert({
+            id: newDem.id,
+            foyer_id: foyer.id,
+            title: newDem.title,
+            icon: newDem.icon,
+            status: newDem.status,
+            assigned_member_id: newDem.assignedMemberId,
+            assigned_member_name: newDem.assignedMemberName,
+            steps: JSON.stringify(newDem.steps),
+            pieces: JSON.stringify([]),
+            created_at_text: newDem.createdAt
+          });
+        } catch (err) {
+          console.error("Error inserting demarche in Supabase:", err);
+        }
+      }
+
+      feedback = `📂 Démarche "${newDem.title}" enregistrée pour ${newDem.assignedMemberName}.`;
+      toastMessage = `Démarche administrative créée`;
+      redirectPayload = { tab: 'menu', module: 'documents', toastMessage };
+    }
+
+    // 3g. create_school_task
+    else if (ctx.pendingAction === 'create_school_task') {
+      const memberObj = members.find(m => m.id === ctx.memberId);
+      const newTask = {
+        id: `sch-${Date.now()}`,
+        subject: ctx.title || 'Matière générale',
+        title: 'Devoir de classe',
+        dueDate: ctx.date || 'Non planifié',
+        done: false,
+        assignedMemberId: ctx.memberId || '',
+        difficulty: 'medium' as const,
+        grade: ''
+      };
+
+      setSchoolTasks(prev => [...prev, newTask]);
+      if (client && foyer?.id) {
+        try {
+          await client.from('school_tasks').insert({
+            id: newTask.id,
+            foyer_id: foyer.id,
+            subject: newTask.subject,
+            title: newTask.title,
+            due_date: newTask.dueDate,
+            done: newTask.done,
+            assigned_member_id: newTask.assignedMemberId,
+            difficulty: newTask.difficulty
+          });
+        } catch (err) {
+          console.error("Error inserting school task in Supabase:", err);
+        }
+      }
+
+      feedback = `🎓 Devoir de ${newTask.subject} enregistré pour ${memberObj?.name || 'Enfant'} le ${ctx.date}.`;
+      toastMessage = `Devoir de ${newTask.subject} enregistré`;
+      redirectPayload = { tab: 'menu', module: 'ecole', toastMessage };
+    }
+
+    // 3h. create_event
+    else if (ctx.pendingAction === 'create_event') {
+      const newEventId = `ev-${Date.now()}`;
+      const newEvent = {
+        id: newEventId,
+        title: ctx.title || 'Rendez-vous',
+        type: 'other' as const,
+        dateTime: ctx.date,
+        time: ctx.time || '12:00',
+        memberId: activeMemberId,
+        memberName: members.find(m => m.id === activeMemberId)?.name || 'Famille',
+        done: false
+      };
+
+      setEvents(prev => [newEvent, ...prev]);
+      if (client && foyer?.id) {
+        try {
+          await client.from('events').insert({
+            id: newEvent.id,
+            foyer_id: foyer.id,
+            title: newEvent.title,
+            type: newEvent.type,
+            date_time: newEvent.dateTime,
+            time: newEvent.time,
+            member_id: newEvent.memberId,
+            member_name: newEvent.memberName,
+            done: newEvent.done
+          });
+        } catch (err) {
+          console.error("Error inserting event in Supabase:", err);
+        }
+      }
+
+      feedback = `📅 Rendez-vous "${newEvent.title}" enregistré pour le ${ctx.date} à ${ctx.time}.`;
+      toastMessage = `Rendez-vous enregistré`;
+      redirectPayload = { tab: 'agenda', toastMessage };
+    }
+
+    // 3i. create_document
+    else if (ctx.pendingAction === 'create_document') {
+      const memberObj = members.find(m => m.id === ctx.memberId);
+      const newDoc = {
+        id: `doc-${Date.now()}`,
+        name: `Nouveau document - ${ctx.category}`,
+        category: ctx.category as any,
+        memberId: ctx.memberId,
+        memberName: memberObj?.name || 'Famille',
+        tags: [ctx.category],
+        uploadDate: new Date().toISOString().split('T')[0],
+        fileSize: '0.1 MB',
+        isExpired: false
+      };
+
+      setDocuments(prev => [newDoc, ...prev]);
+      if (client && foyer?.id) {
+        try {
+          await client.from('documents').insert({
+            id: newDoc.id,
+            foyer_id: foyer.id,
+            name: newDoc.name,
+            category: newDoc.category,
+            member_id: newDoc.memberId,
+            member_name: newDoc.memberName,
+            upload_date: newDoc.uploadDate,
+            file_size: newDoc.fileSize,
+            is_expired: newDoc.isExpired
+          });
+        } catch (err) {
+          console.error("Error inserting document in Supabase:", err);
+        }
+      }
+
+      feedback = `📂 Document de type ${ctx.category} ajouté pour ${newDoc.memberName}.`;
+      toastMessage = `Document enregistré`;
+      redirectPayload = { tab: 'menu', module: 'documents', toastMessage };
+    }
+
+    // 3j. create_pet_action
+    else if (ctx.pendingAction === 'create_pet_action') {
+      const p = pets.find(pet => pet.id === ctx.petId);
+      if (p) {
+        const nextVaccine = ctx.date;
+        setPets(prev => prev.map(pet => pet.id === ctx.petId ? { ...pet, nextVaccine } : pet));
+        if (client && foyer?.id) {
+          try {
+            await client.from('pets').update({ next_vaccine: nextVaccine }).eq('id', p.id);
+          } catch (err) {
+            console.error("Error updating pet record in Supabase:", err);
+          }
+        }
+        feedback = `🐶 Suivi mis à jour : Prochain vaccin pour ${p.name} planifié le ${ctx.date}.`;
+        toastMessage = `Vaccin de ${p.name} planifié`;
+      }
+      redirectPayload = { tab: 'menu', module: 'animaux', toastMessage };
+    }
+
+    // 3k. create_meal
+    else if (ctx.pendingAction === 'create_meal') {
+      const newDish = {
+        id: `dish-${Date.now()}`,
+        day: ctx.day,
+        mealType: ctx.mealType,
+        name: 'Plat à définir',
+        image: 'utensils',
+        ingredients: []
+      };
+
+      setDishes(prev => [...prev, newDish]);
+      if (client && foyer?.id) {
+        try {
+          await client.from('dishes').insert({
+            id: newDish.id,
+            foyer_id: foyer.id,
+            day: newDish.day,
+            meal_type: newDish.mealType,
+            name: newDish.name,
+            image: newDish.image,
+            ingredients: []
+          });
+        } catch (err) {
+          console.error("Error inserting dish in Supabase:", err);
+        }
+      }
+
+      feedback = `🍳 Repas du ${ctx.day} (${ctx.mealType === 'lunch' ? 'Midi' : 'Soir'}) ajouté aux menus.`;
+      toastMessage = `Menu du ${ctx.day} mis à jour`;
+      redirectPayload = { tab: 'menu', module: 'menus', toastMessage };
+    }
+
+    // 3l. create_saving_goal
+    else if (ctx.pendingAction === 'create_saving_goal') {
+      const newGoal = {
+        id: `sg-${Date.now()}`,
+        title: ctx.title || "Nouvel objectif",
+        targetAmount: Number(ctx.amount || 100),
+        currentAmount: 0,
+        targetDate: new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString().split('T')[0],
+        category: 'Projet',
+        contributions: []
+      };
+
+      setSavingGoals(prev => [...prev, newGoal]);
+      if (client && foyer?.id) {
+        try {
+          await client.from('saving_goals').insert({
+            id: newGoal.id,
+            foyer_id: foyer.id,
+            title: newGoal.title,
+            target_amount: newGoal.targetAmount,
+            current_amount: newGoal.currentAmount,
+            target_date: newGoal.targetDate,
+            category: newGoal.category,
+            contributions: JSON.stringify([])
+          });
+        } catch (err) {
+          console.error("Error inserting saving goal in Supabase:", err);
+        }
+      }
+
+      feedback = `🎯 Objectif d'épargne "${newGoal.title}" créé avec une cible de ${newGoal.targetAmount}€.`;
+      toastMessage = `Objectif ${newGoal.title} créé`;
+      redirectPayload = { tab: 'budget', subView: { type: 'tab', tab: 'cagnottes' }, toastMessage };
+    }
+
+    // 3m. create_transaction (fallback general budget)
+    else if (ctx.pendingAction === 'create_transaction') {
+      const category = ctx.category || 'Autres';
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const dateStr = now.toISOString().split('T')[0];
+
+      const newTx = {
+        id: crypto.randomUUID(),
+        foyer_id: foyer?.id || '',
+        title: 'Achat vocal',
+        amount: ctx.amount,
+        type: 'expense' as const,
+        category: category,
+        subCategory: 'Divers',
+        date: dateStr,
+        member_id: activeMemberId,
+        member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
+        comment: serializeTransactionComment('Généré par commande vocale', {
+          moduleSource: 'budget',
+          entryTime: timeStr,
+          entryDate: dateStr
+        })
+      };
+
+      setTransactions(prev => [newTx, ...prev]);
+      if (client && foyer?.id) {
+        try {
+          await client.from('transactions').insert({
+            id: newTx.id,
+            foyer_id: foyer.id,
+            amount: newTx.amount,
+            type: newTx.type,
+            category: newTx.category,
+            date: newTx.date,
+            title: newTx.title,
+            member_id: newTx.member_id,
+            member_name: newTx.member_name,
+            comment: newTx.comment
+          });
+        } catch (err) {
+          console.error("Error inserting fallback transaction in Supabase:", err);
+        }
+      }
+
+      feedback = `💸 Achat de ${ctx.amount}€ dans la catégorie ${category} enregistré.`;
+      toastMessage = `${category} : transaction enregistrée`;
+      redirectPayload = { tab: 'budget', subView: { type: 'tab', tab: 'transactions' }, toastMessage };
+    }
+
+    // 4. Wrap up execution
     setVoiceFeedback(feedback);
     
     const remainingSegments = ctx.remainingSegments || [];
@@ -3986,18 +4968,22 @@ function App() {
         remainingSegments: remainingSegments.slice(1)
       });
       setTimeout(() => {
-        parseVoiceCommand(remainingSegments[0]);
+        if (parseVoiceCommandRef.current) {
+          parseVoiceCommandRef.current(remainingSegments[0]);
+        } else {
+          parseVoiceCommand(remainingSegments[0]);
+        }
       }, 2500);
     } else {
       setVoiceContext({
         pendingAction: 'none',
         lastActiveTime: Date.now()
       });
-      closeVoiceAssistantAfterDelay(2500, 'inactif', {
-        tab: 'menu',
-        module: 'voyages',
-        toastMessage
-      });
+      if (redirectPayload) {
+        closeVoiceAssistantAfterDelay(2500, 'inactif', redirectPayload);
+      } else {
+        closeVoiceAssistantAfterDelay(2500);
+      }
     }
     voiceActionStatusRef.current = 'completed';
   };
@@ -4047,7 +5033,8 @@ function App() {
           }
         } else {
           let resolved = false;
-          const updatedCtx = { ...voiceContext, lastActiveTime: now };
+          const updatedCtx = { ...voiceContext, lastActiveTime: now } as any;
+          const textLower = promptLower.trim();
           
           if (voiceContext.missingField === 'budget') {
             const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
@@ -4071,6 +5058,74 @@ function App() {
             if (dateVal) {
               updatedCtx.startDate = dateVal;
               updatedCtx.endDate = dateVal;
+              updatedCtx.date = dateVal;
+              delete updatedCtx.missingField;
+              resolved = true;
+            }
+          } else if (voiceContext.missingField === 'memberId') {
+            const matchedMember = members.find(m => textLower.includes(m.name.toLowerCase()));
+            if (matchedMember) {
+              updatedCtx.memberId = matchedMember.id;
+              delete updatedCtx.missingField;
+              resolved = true;
+            }
+          } else if (voiceContext.missingField === 'petId') {
+            const matchedPet = pets.find(p => textLower.includes(p.name.toLowerCase()));
+            if (matchedPet) {
+              updatedCtx.petId = matchedPet.id;
+              updatedCtx.petName = matchedPet.name;
+              delete updatedCtx.missingField;
+              resolved = true;
+            }
+          } else if (voiceContext.missingField === 'vehicleId') {
+            const matchedVehicle = vehicles.find(v => textLower.includes(v.name.toLowerCase()));
+            if (matchedVehicle) {
+              updatedCtx.vehicleId = matchedVehicle.id;
+              updatedCtx.vehicleName = matchedVehicle.name;
+              delete updatedCtx.missingField;
+              resolved = true;
+            }
+          } else if (voiceContext.missingField === 'day') {
+            const days = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+            const matchedDay = days.find(d => textLower.includes(d));
+            if (matchedDay) {
+              updatedCtx.day = matchedDay.charAt(0).toUpperCase() + matchedDay.slice(1);
+              delete updatedCtx.missingField;
+              resolved = true;
+            }
+          } else if (voiceContext.missingField === 'mealType') {
+            if (textLower.includes('midi') || textLower.includes('déjeuner') || textLower.includes('dejeuner') || textLower.includes('lunch')) {
+              updatedCtx.mealType = 'lunch';
+              delete updatedCtx.missingField;
+              resolved = true;
+            } else if (textLower.includes('soir') || textLower.includes('dîner') || textLower.includes('diner') || textLower.includes('dinner')) {
+              updatedCtx.mealType = 'dinner';
+              delete updatedCtx.missingField;
+              resolved = true;
+            }
+          } else if (voiceContext.missingField === 'category') {
+            if (textLower) {
+              updatedCtx.category = text.trim();
+              delete updatedCtx.missingField;
+              resolved = true;
+            }
+          } else if (voiceContext.missingField === 'amount') {
+            const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+            if (numMatch) {
+              updatedCtx.amount = parseFloat(numMatch[1].replace(',', '.'));
+              updatedCtx.expenseAmount = updatedCtx.amount;
+              delete updatedCtx.missingField;
+              resolved = true;
+            }
+          } else if (voiceContext.missingField === 'title') {
+            if (text.trim()) {
+              updatedCtx.title = text.trim();
+              delete updatedCtx.missingField;
+              resolved = true;
+            }
+          } else if (voiceContext.missingField === 'time') {
+            if (text.trim()) {
+              updatedCtx.time = text.trim();
               delete updatedCtx.missingField;
               resolved = true;
             }
@@ -4089,10 +5144,21 @@ function App() {
               setVoiceContext(null);
               voiceActionStatusRef.current = 'waiting';
             } else {
-              setVoiceFeedback("Je n'ai pas compris votre réponse. " + (
-                voiceContext.missingField === 'budget' ? "Quel budget souhaitez-vous prévoir ?" :
-                voiceContext.missingField === 'destination' ? "Pour quelle destination ?" : "À quelle date ?"
-              ));
+              let question = "Je n'ai pas compris votre réponse.";
+              if (voiceContext.missingField === 'budget') question = "Quel budget souhaitez-vous prévoir ?";
+              else if (voiceContext.missingField === 'destination') question = "Pour quelle destination ?";
+              else if (voiceContext.missingField === 'date') question = "Pour quelle date ?";
+              else if (voiceContext.missingField === 'memberId') question = "Pour quel membre de la famille ?";
+              else if (voiceContext.missingField === 'petId') question = "Pour quel animal ?";
+              else if (voiceContext.missingField === 'vehicleId') question = "Pour quel véhicule ?";
+              else if (voiceContext.missingField === 'day') question = "Pour quel jour de la semaine ?";
+              else if (voiceContext.missingField === 'mealType') question = "Est-ce pour le midi ou pour le soir ?";
+              else if (voiceContext.missingField === 'category') question = "Dans quelle catégorie / type ?";
+              else if (voiceContext.missingField === 'amount') question = "Quel montant ?";
+              else if (voiceContext.missingField === 'title') question = "Quel est l'intitulé ?";
+              else if (voiceContext.missingField === 'time') question = "À quelle heure ?";
+              
+              setVoiceFeedback(question);
               closeVoiceAssistantAfterDelay(3000, 'ecoute');
               return;
             }
@@ -4109,26 +5175,15 @@ function App() {
       text = currentSegmentText;
       promptLower = convertFrenchNumbersToDigits(text).toLowerCase().trim();
 
-      // 3. Intercept Voyage Creation for Conversational Memory
-      const voyageDetails = parseVoyageCommand(promptLower);
-      const isVoyageCreate = /crée|creer|créer|cree|planifie|planifier/i.test(promptLower) && (promptLower.includes('voyage') || promptLower.includes('vacances'));
-      
-      if (isVoyageCreate && voyageDetails) {
-        intent = "voyage_create";
-        
-        const initialCtx = {
-          pendingAction: 'create_trip',
-          destination: voyageDetails.destination || undefined,
-          startDate: voyageDetails.dateText || undefined,
-          endDate: voyageDetails.dateText || undefined,
-          budget: voyageDetails.budgetAmount || undefined,
-          expenseTitle: voyageDetails.expenseTitle || undefined,
-          expenseAmount: voyageDetails.expenseAmount || undefined,
+      // 3. Intercept Creation for Conversational Memory
+      const creationCtx = detectCreationContext(promptLower, text);
+      if (creationCtx) {
+        intent = creationCtx.pendingAction;
+        await processVoiceContext({
+          ...creationCtx,
           remainingSegments: segments.slice(1),
           lastActiveTime: Date.now()
-        };
-        
-        await processVoiceContext(initialCtx);
+        });
         return;
       }
 
@@ -4258,17 +5313,13 @@ function App() {
             localSuccess = true;
             break;
           }
-          
           case 'summary_remaining': {
-            const remaining = groceries.filter(g => !g.checked);
             setExternalGroceryFilter('pending');
-            if (remaining.length === 0) {
-              localFeedback = "🛒 Il ne reste aucun article à acheter dans votre liste !";
-            } else {
-              localFeedback = `📋 Il reste ${remaining.length} article(s) à acheter : ${remaining.map(g => `${getGroceryItemEmoji(g.name)} ${g.name} (${formatGroceryQty(g.quantity)})`).join(', ')}`;
-            }
-            localSuccess = true;
-            break;
+            setShowGroceryPopup(true);
+            setVoiceActive(false);
+            setVoiceState('inactif');
+            logVoiceCommandToSupabase("grocery_summary_remaining", true);
+            return;
           }
           
           case 'count_remaining': {
@@ -8152,6 +9203,86 @@ function App() {
             >
               Annuler
             </button>
+          </div>
+        </div>
+      )}
+
+      {showGroceryPopup && (
+        <div 
+          onClick={() => {
+            setShowGroceryPopup(false);
+            setActiveTab('menu');
+            setActiveModule('courses');
+            setExternalGroceryFilter('pending');
+          }}
+          className="fixed inset-0 bg-[#07111F]/90 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-fade-in"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="glass-panel border border-white/15 rounded-[40px] p-6 sm:p-8 max-w-md w-full relative shadow-[0_20px_50px_rgba(255,77,109,0.25)] flex flex-col max-h-[85vh]"
+          >
+            {/* Close button X */}
+            <button
+              onClick={() => {
+                setShowGroceryPopup(false);
+                setActiveTab('menu');
+                setActiveModule('courses');
+                setExternalGroceryFilter('pending');
+              }}
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-white/60 hover:text-white text-xs font-bold flex items-center justify-center border border-white/10 cursor-pointer"
+            >
+              ✕
+            </button>
+
+            {/* Header */}
+            <div className="text-center space-y-2 pb-4 border-b border-white/5">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF4D6D] bg-[#FF4D6D]/10 px-3 py-1 rounded-full">
+                Courses
+              </span>
+              <h2 className="text-xl font-extrabold text-white">Articles restants</h2>
+              <p className="text-xs text-white/50 font-bold uppercase tracking-wider">
+                {groceries.filter(g => !g.checked).length} articles à acheter
+              </p>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto py-4 space-y-2 pr-1 no-scrollbar min-h-[150px]">
+              {groceries.filter(g => !g.checked).length === 0 ? (
+                <div className="text-center py-8 text-white/40 text-xs italic">
+                  🛒 Aucun article restant à acheter !
+                </div>
+              ) : (
+                groceries.filter(g => !g.checked).map(g => (
+                  <div 
+                    key={g.id}
+                    className="flex justify-between items-center bg-white/5 border border-white/5 px-4 py-3 rounded-2xl transition hover:bg-white/8 hover:border-white/10"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">{getGroceryItemEmoji(g.name)}</span>
+                      <span className="text-xs font-bold text-white">{g.name}</span>
+                    </div>
+                    <span className="text-[10px] font-extrabold text-white/40 bg-white/5 border border-white/8 px-2.5 py-1 rounded-lg">
+                      {formatGroceryQty(g.quantity)}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="pt-4 border-t border-white/5">
+              <button
+                onClick={() => {
+                  setShowGroceryPopup(false);
+                  setActiveTab('menu');
+                  setActiveModule('courses');
+                  setExternalGroceryFilter('pending');
+                }}
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#FF4D6D] to-[#FFB020] text-white text-xs font-bold tracking-wider uppercase shadow-lg active:scale-98 transition-all cursor-pointer"
+              >
+                Ouvrir la Liste
+              </button>
+            </div>
           </div>
         </div>
       )}
