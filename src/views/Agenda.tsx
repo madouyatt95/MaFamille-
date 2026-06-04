@@ -928,10 +928,12 @@ export const Agenda: React.FC<AgendaProps> = ({
                       
                       // Calculate position based on time (assuming time is format "HH:MM")
                       let topOffset = 0;
-                      if (event.time) {
+                      if (event.time && event.time.includes(':')) {
                         const [hours, minutes] = event.time.split(':').map(Number);
-                        const decimalHour = hours + (minutes / 60);
-                        topOffset = Math.max(0, (decimalHour - 7) * 60); // 60px per hour, starting at 7h
+                        if (!isNaN(hours) && !isNaN(minutes)) {
+                          const decimalHour = hours + (minutes / 60);
+                          topOffset = Math.max(0, (decimalHour - 7) * 60); // 60px per hour, starting at 7h
+                        }
                       }
                       
                       return (
@@ -1018,10 +1020,12 @@ export const Agenda: React.FC<AgendaProps> = ({
                       const member = !event.isExternal ? members.find(m => m.id === event.memberId) : null;
                       
                       let topOffset = 0;
-                      if (event.time) {
+                      if (event.time && event.time.includes(':')) {
                         const [hours, minutes] = event.time.split(':').map(Number);
-                        const decimalHour = hours + (minutes / 60);
-                        topOffset = Math.max(0, (decimalHour - 7) * 60);
+                        if (!isNaN(hours) && !isNaN(minutes)) {
+                          const decimalHour = hours + (minutes / 60);
+                          topOffset = Math.max(0, (decimalHour - 7) * 60);
+                        }
                       }
                       
                       return (
