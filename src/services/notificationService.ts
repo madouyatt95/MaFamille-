@@ -3,6 +3,7 @@ import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { getSupabaseClient } from '../utils/supabase';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { FCM } from '@capacitor-community/fcm';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDZE7aW6Yv9XGadcRxwXWD75tI_KDhh84c",
@@ -115,13 +116,23 @@ export const notificationService = {
             clearTimeout(timeoutId);
             if (resolved) return;
             resolved = true;
-            console.log('[FCM Native] Token d\'enregistrement natif obtenu:', token.value);
+            console.log('[FCM Native] Token d\'enregistrement APNs obtenu:', token.value);
+            
+            let fcmTokenValue = token.value;
+            try {
+              // Convertir le token APNs en token FCM via le plugin FCM
+              const fcmTokenRes = await FCM.getToken();
+              fcmTokenValue = fcmTokenRes.token;
+              console.log('[FCM Native] Token FCM obtenu via le plugin community FCM:', fcmTokenValue);
+            } catch (e) {
+              console.warn('[FCM Native] Échec de la récupération du token FCM, utilisation du token APNs brut:', e);
+            }
             
             const supabase = getSupabaseClient();
             if (supabase) {
               const { error } = await supabase
                 .from('foyer_members')
-                .update({ fcm_token: token.value })
+                .update({ fcm_token: fcmTokenValue })
                 .eq('id', memberId);
 
               if (error) {
@@ -132,8 +143,8 @@ export const notificationService = {
             }
             
             localStorage.setItem('mf_fcm_active', 'true');
-            localStorage.setItem('mf_fcm_token', token.value);
-            resolve(token.value);
+            localStorage.setItem('mf_fcm_token', fcmTokenValue);
+            resolve(fcmTokenValue);
           });
 
           // Écouteur d'erreur d'enregistrement
