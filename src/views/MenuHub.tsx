@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { detectGroceryCategory, parseSmartNaturalSentence } from '../utils/groceryParser';
+import { detectGroceryCategory, parseSmartNaturalSentence, getGroceryItemEmoji, formatGroceryQty, POPULAR_GROCERIES } from '../utils/groceryParser';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
 import { 
@@ -415,13 +415,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   // Suggestions d'articles de courses intelligentes
   const grocerySuggestions = React.useMemo(() => {
     if (!newGroceryName.trim()) return [];
-    const popularGroceries = [
-      "Lait", "Œufs", "Pain", "Beurre", "Farine", "Sucre", "Sel", "Poivre",
-      "Pâtes", "Riz", "Pommes de terre", "Oignons", "Ail", "Tomates", "Salade",
-      "Pommes", "Bananes", "Fraises", "Poulet", "Jambon", "Steak haché", "Saumon",
-      "Fromage", "Yaourt", "Crème fraîche", "Café", "Thé", "Jus d'orange", "Eau minérale",
-      "Sodas", "Dentifrice", "Gel douche", "Papier toilette", "Essuie-tout", "Lessive"
-    ];
+    const popularGroceries = POPULAR_GROCERIES;
     const existingNames = groceries ? groceries.map(g => g.name) : [];
     const allCandidates = Array.from(new Set([...existingNames, ...popularGroceries]));
     const query = newGroceryName.toLowerCase().trim();
@@ -2240,11 +2234,16 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                       >
                         <option value="Épicerie">Épicerie</option>
                         <option value="Fruits & Légumes">Fruits & Légumes</option>
-                        <option value="Produits Frais">Produits Frais</option>
-                        <option value="Boucherie">Boucherie</option>
+                        <option value="Produits laitiers">Produits laitiers</option>
+                        <option value="Viandes & poissons">Viandes & poissons</option>
+                        <option value="Boulangerie">Boulangerie</option>
                         <option value="Boissons">Boissons</option>
-                        <option value="Hygiène">Hygiène & Beauté</option>
-                        <option value="Entretien">Entretien Maison</option>
+                        <option value="Surgelés">Surgelés</option>
+                        <option value="Hygiène">Hygiène</option>
+                        <option value="Maison">Maison</option>
+                        <option value="Bébé">Bébé</option>
+                        <option value="Animaux">Animaux</option>
+                        <option value="Pharmacie">Pharmacie</option>
                       </select>
                     </div>
                   </div>
@@ -2421,14 +2420,17 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     const normalized = catName.trim().toLowerCase();
                     if (normalized.includes('fruit') || normalized.includes('légume') || normalized.includes('legume')) return 1;
                     if (normalized.includes('boulangerie') || normalized.includes('pain')) return 2;
-                    if (normalized.includes('frais') || normalized.includes('lait') || normalized.includes('yaourt') || normalized.includes('crème') || normalized.includes('creme')) return 3;
+                    if (normalized.includes('frais') || normalized.includes('lait') || normalized.includes('yaourt') || normalized.includes('crème') || normalized.includes('creme') || normalized.includes('laitier')) return 3;
                     if (normalized.includes('viande') || normalized.includes('poisson') || normalized.includes('boucherie') || normalized.includes('charcuterie')) return 4;
                     if (normalized.includes('épicerie') || normalized.includes('epicerie')) return 5;
                     if (normalized.includes('surgelé') || normalized.includes('surgele')) return 6;
                     if (normalized.includes('boisson')) return 7;
                     if (normalized.includes('hygiène') || normalized.includes('hygiene') || normalized.includes('soin')) return 8;
                     if (normalized.includes('maison') || normalized.includes('entretien') || normalized.includes('nettoyage')) return 9;
-                    return 10;
+                    if (normalized.includes('bébé') || normalized.includes('bebe')) return 10;
+                    if (normalized.includes('animaux') || normalized.includes('animal')) return 11;
+                    if (normalized.includes('pharmacie') || normalized.includes('santé') || normalized.includes('sante')) return 12;
+                    return 13;
                   };
 
                   const filteredGroceries = groceries.filter(item => {
@@ -2475,17 +2477,29 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                                   ✓
                                 </span>
                                 <div>
-                                  <div className="flex items-center gap-1.5">
-                                    <h4 className={`text-xs sm:text-sm font-bold text-white ${item.checked ? 'line-through text-white/40' : ''}`}>
-                                      {item.name}
-                                    </h4>
-                                    <span className="text-[8px] font-extrabold px-1 rounded bg-white/5 text-white/40 uppercase">
-                                      {item.category}
-                                    </span>
-                                  </div>
-                                  <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider mt-0.5">
-                                    Qté: {item.quantity} • <span className={item.checked ? 'text-[#00D26A]' : (item.inStock ? 'text-[#00D26A]' : 'text-[#FF4D6D]')}>{item.checked ? 'Acheté' : (item.inStock ? 'En stock' : 'Rupture')}</span>
-                                  </p>
+                                  {(() => {
+                                    const emoji = getGroceryItemEmoji(item.name);
+                                    return (
+                                      <>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-base sm:text-lg shrink-0">{emoji}</span>
+                                          <h4 className={`text-xs sm:text-sm font-bold text-white ${item.checked ? 'line-through text-white/40' : ''}`}>
+                                            {item.name}
+                                          </h4>
+                                          <span className="text-[8px] font-extrabold px-1 rounded bg-white/5 text-white/40 uppercase">
+                                            {item.category}
+                                          </span>
+                                        </div>
+                                        <p className="text-xs text-white/70 font-semibold mt-0.5 flex items-center gap-1.5">
+                                          <span>{formatGroceryQty(item.quantity)}</span>
+                                          <span className="text-[9px] text-white/30 font-bold">•</span>
+                                          <span className={`text-[9px] font-bold uppercase tracking-wider ${item.checked ? 'text-[#00D26A]' : (item.inStock ? 'text-[#00D26A]' : 'text-[#FF4D6D]')}`}>
+                                            {item.checked ? 'Acheté' : (item.inStock ? 'En stock' : 'Rupture')}
+                                          </span>
+                                        </p>
+                                      </>
+                                    );
+                                  })()}
                                   
                                   <div className="flex flex-wrap gap-1 mt-1">
                                     {item.addedBy && (
@@ -2573,12 +2587,17 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     }
                     const categoryOrder = [
                       'Fruits & Légumes',
-                      'Boucherie',
-                      'Produits Frais',
+                      'Boulangerie',
+                      'Produits laitiers',
+                      'Viandes & poissons',
                       'Épicerie',
+                      'Surgelés',
                       'Boissons',
                       'Hygiène',
-                      'Entretien'
+                      'Maison',
+                      'Bébé',
+                      'Animaux',
+                      'Pharmacie'
                     ];
                     let indexA = categoryOrder.indexOf(a);
                     let indexB = categoryOrder.indexOf(b);
@@ -2640,12 +2659,26 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                                         ✓
                                       </span>
                                       <div>
-                                        <h4 className={`text-xs sm:text-sm font-bold text-white ${item.checked ? 'line-through text-white/40' : ''}`}>
-                                          {item.name}
-                                        </h4>
-                                        <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider mt-0.5">
-                                          Qté: {item.quantity} • <span className={item.checked ? 'text-[#00D26A]' : (item.inStock ? 'text-[#00D26A]' : 'text-[#FF4D6D]')}>{item.checked ? 'Acheté' : (item.inStock ? 'En stock' : 'Rupture')}</span>
-                                        </p>
+                                        {(() => {
+                                          const emoji = getGroceryItemEmoji(item.name);
+                                          return (
+                                            <>
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-base sm:text-lg shrink-0">{emoji}</span>
+                                                <h4 className={`text-xs sm:text-sm font-bold text-white ${item.checked ? 'line-through text-white/40' : ''}`}>
+                                                  {item.name}
+                                                </h4>
+                                              </div>
+                                              <p className="text-xs text-white/70 font-semibold mt-0.5 flex items-center gap-1.5">
+                                                <span>{formatGroceryQty(item.quantity)}</span>
+                                                <span className="text-[9px] text-white/30 font-bold">•</span>
+                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${item.checked ? 'text-[#00D26A]' : (item.inStock ? 'text-[#00D26A]' : 'text-[#FF4D6D]')}`}>
+                                                  {item.checked ? 'Acheté' : (item.inStock ? 'En stock' : 'Rupture')}
+                                                </span>
+                                              </p>
+                                            </>
+                                          );
+                                        })()}
                                         
                                         <div className="flex flex-wrap gap-1 mt-1">
                                           {item.addedBy && (

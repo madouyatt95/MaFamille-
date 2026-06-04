@@ -5,7 +5,220 @@
  */
 import type { GroceryItem } from '../types';
 
+export interface ProductInfo {
+  name: string;
+  category: string;
+  emoji: string;
+  keywords: string[];
+}
+
+export const PRODUCT_LIST: ProductInfo[] = [
+  // Fruits & légumes
+  { name: 'Tomates', category: 'Fruits & Légumes', emoji: '🍅', keywords: ['tomate', 'tomates'] },
+  { name: 'Oignons', category: 'Fruits & Légumes', emoji: '🧅', keywords: ['oignon', 'oignons'] },
+  { name: 'Pommes de terre', category: 'Fruits & Légumes', emoji: '🥔', keywords: ['pomme de terre', 'pommes de terre', 'patate', 'patates'] },
+  { name: 'Carottes', category: 'Fruits & Légumes', emoji: '🥕', keywords: ['carotte', 'carottes'] },
+  { name: 'Salade', category: 'Fruits & Légumes', emoji: '🥬', keywords: ['salade', 'salades', 'laitue', 'laitues'] },
+  { name: 'Concombre', category: 'Fruits & Légumes', emoji: '🥒', keywords: ['concombre', 'concombres'] },
+  { name: 'Poivrons', category: 'Fruits & Légumes', emoji: '🫑', keywords: ['poivron', 'poivrons', 'piment', 'piments'] },
+  { name: 'Courgettes', category: 'Fruits & Légumes', emoji: '🥒', keywords: ['courgette', 'courgettes'] },
+  { name: 'Aubergines', category: 'Fruits & Légumes', emoji: '🍆', keywords: ['aubergine', 'aubergines'] },
+  { name: 'Bananes', category: 'Fruits & Légumes', emoji: '🍌', keywords: ['banane', 'bananes'] },
+  { name: 'Pommes', category: 'Fruits & Légumes', emoji: '🍎', keywords: ['pomme', 'pommes'] },
+  { name: 'Oranges', category: 'Fruits & Légumes', emoji: '🍊', keywords: ['orange', 'oranges'] },
+  { name: 'Citrons', category: 'Fruits & Légumes', emoji: '🍋', keywords: ['citron', 'citrons'] },
+  { name: 'Fraises', category: 'Fruits & Légumes', emoji: '🍓', keywords: ['fraise', 'fraises'] },
+  { name: 'Raisins', category: 'Fruits & Légumes', emoji: '🍇', keywords: ['raisin', 'raisins'] },
+  { name: 'Mangues', category: 'Fruits & Légumes', emoji: '🥭', keywords: ['mangue', 'mangues'] },
+  { name: 'Pastèque', category: 'Fruits & Légumes', emoji: '🍉', keywords: ['pastèque', 'pasteque', 'pastèques', 'pasteques'] },
+  { name: 'Melon', category: 'Fruits & Légumes', emoji: '🍈', keywords: ['melon', 'melons'] },
+  { name: 'Avocats', category: 'Fruits & Légumes', emoji: '🥑', keywords: ['avocat', 'avocats'] },
+  { name: 'Ail', category: 'Fruits & Légumes', emoji: '🧄', keywords: ['ail'] },
+  { name: 'Persil', category: 'Fruits & Légumes', emoji: '🌿', keywords: ['persil'] },
+  { name: 'Coriandre', category: 'Fruits & Légumes', emoji: '🌿', keywords: ['coriandre'] },
+  { name: 'Menthe', category: 'Fruits & Légumes', emoji: '🌱', keywords: ['menthe'] },
+  { name: 'Épinards', category: 'Fruits & Légumes', emoji: '🥬', keywords: ['épinard', 'epinard', 'épinards', 'epinards'] },
+  { name: 'Brocolis', category: 'Fruits & Légumes', emoji: '🥦', keywords: ['brocoli', 'brocolis'] },
+  { name: 'Haricots verts', category: 'Fruits & Légumes', emoji: '🫘', keywords: ['haricot vert', 'haricots verts'] },
+
+  // Produits laitiers
+  { name: 'Lait', category: 'Produits laitiers', emoji: '🥛', keywords: ['lait', 'laits'] },
+  { name: 'Yaourts', category: 'Produits laitiers', emoji: '🥛', keywords: ['yaourt', 'yaourts'] },
+  { name: 'Fromage', category: 'Produits laitiers', emoji: '🧀', keywords: ['fromage', 'fromages'] },
+  { name: 'Beurre', category: 'Produits laitiers', emoji: '🧈', keywords: ['beurre', 'beurres'] },
+  { name: 'Crème fraîche', category: 'Produits laitiers', emoji: '🍶', keywords: ['crème fraîche', 'creme fraiche', 'crème', 'creme'] },
+  { name: 'Mozzarella', category: 'Produits laitiers', emoji: '🧀', keywords: ['mozzarella', 'mozza'] },
+  { name: 'Emmental', category: 'Produits laitiers', emoji: '🧀', keywords: ['emmental', 'gruyère', 'gruyere'] },
+  { name: 'Kiri', category: 'Produits laitiers', emoji: '🧀', keywords: ['kiri'] },
+  { name: 'Vache qui rit', category: 'Produits laitiers', emoji: '🧀', keywords: ['vache qui rit', 'la vache qui rit'] },
+  { name: 'Fromage blanc', category: 'Produits laitiers', emoji: '🥛', keywords: ['fromage blanc'] },
+
+  // Épicerie
+  { name: 'Riz', category: 'Épicerie', emoji: '🍚', keywords: ['riz'] },
+  { name: 'Pâtes', category: 'Épicerie', emoji: '🍝', keywords: ['pâte', 'pates', 'pâtes'] },
+  { name: 'Couscous', category: 'Épicerie', emoji: '🍛', keywords: ['couscous'] },
+  { name: 'Semoule', category: 'Épicerie', emoji: '🌾', keywords: ['semoule'] },
+  { name: 'Farine', category: 'Épicerie', emoji: '🌾', keywords: ['farine', 'farines'] },
+  { name: 'Sucre', category: 'Épicerie', emoji: '🍬', keywords: ['sucre', 'sucres'] },
+  { name: 'Sel', category: 'Épicerie', emoji: '🧂', keywords: ['sel'] },
+  { name: 'Poivre', category: 'Épicerie', emoji: '🧂', keywords: ['poivre'] },
+  { name: 'Huile', category: 'Épicerie', emoji: '🫗', keywords: ['huile', 'huiles'] },
+  { name: 'Huile d\'olive', category: 'Épicerie', emoji: '🫒', keywords: ['huile d\'olive', 'huile d’olive'] },
+  { name: 'Vinaigre', category: 'Épicerie', emoji: '🍶', keywords: ['vinaigre', 'vinaigres'] },
+  { name: 'Café', category: 'Épicerie', emoji: '☕', keywords: ['café', 'cafe', 'cafés', 'cafes'] },
+  { name: 'Thé', category: 'Épicerie', emoji: '🍵', keywords: ['thé', 'the', 'thés', 'thes'] },
+  { name: 'Chocolat', category: 'Épicerie', emoji: '🍫', keywords: ['chocolat', 'chocolats'] },
+  { name: 'Céréales', category: 'Épicerie', emoji: '🥣', keywords: ['céréale', 'cereale', 'céréales', 'cereales'] },
+  { name: 'Biscuits', category: 'Épicerie', emoji: '🍪', keywords: ['biscuit', 'biscuits', 'cookie', 'cookies', 'gâteau', 'gateau', 'gâteaux', 'gateaux'] },
+  { name: 'Pain de mie', category: 'Épicerie', emoji: '🍞', keywords: ['pain de mie'] },
+  { name: 'Confiture', category: 'Épicerie', emoji: '🍯', keywords: ['confiture', 'confitures'] },
+  { name: 'Miel', category: 'Épicerie', emoji: '🍯', keywords: ['miel', 'miels'] },
+  { name: 'Nutella', category: 'Épicerie', emoji: '🍫', keywords: ['nutella'] },
+  { name: 'Thon', category: 'Épicerie', emoji: '🐟', keywords: ['thon'] },
+  { name: 'Sardines', category: 'Épicerie', emoji: '🐟', keywords: ['sardine', 'sardines'] },
+  { name: 'Lentilles', category: 'Épicerie', emoji: '🫘', keywords: ['lentille', 'lentilles'] },
+  { name: 'Pois chiches', category: 'Épicerie', emoji: '🫘', keywords: ['pois chiche', 'pois chiches'] },
+  { name: 'Haricots rouges', category: 'Épicerie', emoji: '🫘', keywords: ['haricot rouge', 'haricots rouges'] },
+
+  // Boulangerie
+  { name: 'Pain', category: 'Boulangerie', emoji: '🍞', keywords: ['pain', 'pains'] },
+  { name: 'Baguette', category: 'Boulangerie', emoji: '🥖', keywords: ['baguette', 'baguettes'] },
+  { name: 'Croissants', category: 'Boulangerie', emoji: '🥐', keywords: ['croissant', 'croissants'] },
+  { name: 'Pains au chocolat', category: 'Boulangerie', emoji: '🥐', keywords: ['pain au chocolat', 'pains au chocolat', 'chocolatine', 'chocolatines'] },
+  { name: 'Brioche', category: 'Boulangerie', emoji: '🍞', keywords: ['brioche', 'brioches'] },
+  { name: 'Wraps', category: 'Boulangerie', emoji: '🫓', keywords: ['wrap', 'wraps'] },
+  { name: 'Tortillas', category: 'Boulangerie', emoji: '🫓', keywords: ['tortilla', 'tortillas'] },
+
+  // Viandes & poissons
+  { name: 'Poulet', category: 'Viandes & poissons', emoji: '🍗', keywords: ['poulet', 'poulets', 'dinde', 'dindes', 'escalope', 'escalopes'] },
+  { name: 'Viande hachée', category: 'Viandes & poissons', emoji: '🥩', keywords: ['viande hachée', 'viande hachee'] },
+  { name: 'Bœuf', category: 'Viandes & poissons', emoji: '🥩', keywords: ['bœuf', 'boeuf', 'bœufs', 'boeufs'] },
+  { name: 'Agneau', category: 'Viandes & poissons', emoji: '🥩', keywords: ['agneau', 'agneaux'] },
+  { name: 'Merguez', category: 'Viandes & poissons', emoji: '🌭', keywords: ['merguez'] },
+  { name: 'Steak', category: 'Viandes & poissons', emoji: '🥩', keywords: ['steak', 'steaks'] },
+  { name: 'Poisson', category: 'Viandes & poissons', emoji: '🐟', keywords: ['poisson', 'poissons'] },
+  { name: 'Saumon', category: 'Viandes & poissons', emoji: '🐟', keywords: ['saumon', 'saumons'] },
+  { name: 'Thon frais', category: 'Viandes & poissons', emoji: '🐟', keywords: ['thon frais'] },
+  { name: 'Crevettes', category: 'Viandes & poissons', emoji: '🍤', keywords: ['crevette', 'crevettes'] },
+  { name: 'Œufs', category: 'Viandes & poissons', emoji: '🥚', keywords: ['œuf', 'oeuf', 'œufs', 'oeufs'] },
+
+  // Boissons
+  { name: 'Eau', category: 'Boissons', emoji: '💧', keywords: ['eau', 'eaux', 'eau minérale', 'eau minerale'] },
+  { name: 'Bouteilles d\'eau', category: 'Boissons', emoji: '💧', keywords: ['bouteille d\'eau', 'bouteilles d\'eau', 'bouteille d’eau', 'bouteilles d’eau', 'pack d\'eau', 'pack d’eau'] },
+  { name: 'Coca-Cola', category: 'Boissons', emoji: '🥤', keywords: ['coca', 'coca-cola', 'cocacola', 'coca cola'] },
+  { name: 'Fanta', category: 'Boissons', emoji: '🥤', keywords: ['fanta'] },
+  { name: 'Oasis', category: 'Boissons', emoji: '🥤', keywords: ['oasis'] },
+  { name: 'Jus d\'orange', category: 'Boissons', emoji: '🥤', keywords: ['jus d\'orange', 'jus d’orange'] },
+  { name: 'Jus de pomme', category: 'Boissons', emoji: '🥤', keywords: ['jus de pomme', 'jus de pommes'] },
+  { name: 'Lait chocolaté', category: 'Boissons', emoji: '🥛', keywords: ['lait chocolaté', 'lait chocolate'] },
+
+  // Surgelés
+  { name: 'Frites', category: 'Surgelés', emoji: '🍟', keywords: ['frite', 'frites'] },
+  { name: 'Pizzas', category: 'Surgelés', emoji: '🍕', keywords: ['pizza', 'pizzas'] },
+  { name: 'Légumes surgelés', category: 'Surgelés', emoji: '❄️', keywords: ['légumes surgelés', 'legumes surgeles', 'légume surgelé', 'legume surgele'] },
+  { name: 'Glaces', category: 'Surgelés', emoji: '🍦', keywords: ['glace', 'glaces', 'sorbet', 'sorbets'] },
+  { name: 'Nuggets', category: 'Surgelés', emoji: '🍗', keywords: ['nugget', 'nuggets'] },
+  { name: 'Poissons panés', category: 'Surgelés', emoji: '🐟', keywords: ['poisson pané', 'poissons panés', 'poisson pane', 'poissons panes'] },
+
+  // Hygiène
+  { name: 'Dentifrice', category: 'Hygiène', emoji: '🪥', keywords: ['dentifrice', 'dentifrices'] },
+  { name: 'Brosse à dents', category: 'Hygiène', emoji: '🪥', keywords: ['brosse à dents', 'brosses à dents'] },
+  { name: 'Savon', category: 'Hygiène', emoji: '🧼', keywords: ['savon', 'savons'] },
+  { name: 'Gel douche', category: 'Hygiène', emoji: '🧼', keywords: ['gel douche', 'gels douche'] },
+  { name: 'Shampoing', category: 'Hygiène', emoji: '🧴', keywords: ['shampoing', 'shampoings', 'après-shampoing', 'apres-shampoing'] },
+  { name: 'Déodorant', category: 'Hygiène', emoji: '🧴', keywords: ['déodorant', 'deodorant', 'déodorants', 'deodorants'] },
+  { name: 'Papier toilette', category: 'Hygiène', emoji: '🧻', keywords: ['papier toilette', 'pq'] },
+  { name: 'Mouchoirs', category: 'Hygiène', emoji: '🤧', keywords: ['mouchoir', 'mouchoirs'] },
+  { name: 'Couches', category: 'Hygiène', emoji: '👶', keywords: ['couche', 'couches'] },
+  { name: 'Lingettes', category: 'Hygiène', emoji: '🧻', keywords: ['lingette', 'lingettes'] },
+  { name: 'Serviettes hygiéniques', category: 'Hygiène', emoji: '🩸', keywords: ['serviette hygiénique', 'serviettes hygiéniques', 'tampon', 'tampons'] },
+
+  // Maison
+  { name: 'Lessive', category: 'Maison', emoji: '🧼', keywords: ['lessive', 'lessives'] },
+  { name: 'Liquide vaisselle', category: 'Maison', emoji: '🧼', keywords: ['liquide vaisselle'] },
+  { name: 'Éponges', category: 'Maison', emoji: '🧽', keywords: ['éponge', 'eponge', 'éponges', 'eponges'] },
+  { name: 'Sacs poubelle', category: 'Maison', emoji: '🗑️', keywords: ['sac poubelle', 'sacs poubelle', 'sac poubelles', 'sacs poubelles'] },
+  { name: 'Nettoyant sol', category: 'Maison', emoji: '🧹', keywords: ['nettoyant sol', 'nettoyant'] },
+  { name: 'Javel', category: 'Maison', emoji: '🧴', keywords: ['javel', 'eau de javel'] },
+  { name: 'Essuie-tout', category: 'Maison', emoji: '🧻', keywords: ['essuie-tout', 'sopalin'] },
+  { name: 'Aluminium', category: 'Maison', emoji: '🪙', keywords: ['aluminium', 'alu', 'papier alu', 'papier aluminium'] },
+  { name: 'Film alimentaire', category: 'Maison', emoji: '🛡️', keywords: ['film alimentaire', 'cellophane'] },
+
+  // Bébé
+  { name: 'Lait bébé', category: 'Bébé', emoji: '🍼', keywords: ['lait bébé', 'lait bebe'] },
+  { name: 'Petits pots', category: 'Bébé', emoji: '👶', keywords: ['petit pot', 'petits pots', 'pot bébé', 'pots bebe'] },
+  { name: 'Compotes bébé', category: 'Bébé', emoji: '🍏', keywords: ['compote bébé', 'compotes bébé', 'compote bebe', 'compotes bebe'] },
+  { name: 'Biscuits bébé', category: 'Bébé', emoji: '🍪', keywords: ['biscuit bébé', 'biscuits bébé', 'biscuit bebe', 'biscuits bebe'] },
+
+  // Animaux
+  { name: 'Croquettes', category: 'Animaux', emoji: '🥩', keywords: ['croquettes', 'croquette', 'croquettes chat', 'croquettes chien'] },
+  { name: 'Pâtée', category: 'Animaux', emoji: '🥫', keywords: ['pâtée', 'patee', 'pâtées', 'patees'] },
+  { name: 'Litière', category: 'Animaux', emoji: '🐱', keywords: ['litière', 'litiere'] },
+  { name: 'Friandises animaux', category: 'Animaux', emoji: '🦴', keywords: ['friandise', 'friandises'] },
+
+  // Pharmacie
+  { name: 'Doliprane', category: 'Pharmacie', emoji: '💊', keywords: ['doliprane'] },
+  { name: 'Paracétamol', category: 'Pharmacie', emoji: '💊', keywords: ['paracétamol', 'paracetamol'] },
+  { name: 'Ibuprofène', category: 'Pharmacie', emoji: '💊', keywords: ['ibuprofène', 'ibuprofene'] },
+  { name: 'Pansements', category: 'Pharmacie', emoji: '🩹', keywords: ['pansement', 'pansements'] },
+  { name: 'Sérum physiologique', category: 'Pharmacie', emoji: '🧪', keywords: ['sérum physiologique', 'serum physiologique', 'sérum physio', 'serum physio'] },
+  { name: 'Vitamines', category: 'Pharmacie', emoji: '💊', keywords: ['vitamine', 'vitamines'] }
+];
+
+export const POPULAR_GROCERIES = PRODUCT_LIST.map(p => p.name);
+
+export const getProductInfo = (name: string): ProductInfo | undefined => {
+  const lower = name.toLowerCase().trim();
+  
+  // 1. Recherche exacte sur le nom standard
+  let found = PRODUCT_LIST.find(p => p.name.toLowerCase() === lower);
+  if (found) return found;
+
+  // 2. Recherche exacte sur les mots-clés
+  found = PRODUCT_LIST.find(p => p.keywords.includes(lower));
+  if (found) return found;
+
+  // 3. Recherche de mot-clé entier à l'intérieur
+  found = PRODUCT_LIST.find(p => 
+    p.keywords.some(kw => {
+      const regex = new RegExp(`\\b${kw}\\b`, 'i');
+      return regex.test(lower);
+    })
+  );
+  return found;
+};
+
+export const getGroceryItemEmoji = (itemName: string): string => {
+  const prodInfo = getProductInfo(itemName);
+  if (prodInfo) return prodInfo.emoji;
+
+  const itemLower = itemName.toLowerCase();
+  if (itemLower.includes('coca')) return '🥤';
+  if (itemLower.includes('lait')) return '🥛';
+  if (itemLower.includes('eau')) return '💧';
+  if (itemLower.includes('jus')) return '🥤';
+  if (itemLower.includes('pain') || itemLower.includes('baguette') || itemLower.includes('croissant')) return '🥖';
+  if (itemLower.includes('tomate')) return '🍅';
+  if (itemLower.includes('riz')) return '🍚';
+  if (itemLower.includes('pâte')) return '🍝';
+  if (itemLower.includes('œuf') || itemLower.includes('oeuf')) return '🥚';
+  if (itemLower.includes('fromage')) return '🧀';
+  if (itemLower.includes('yaourt')) return '🥛';
+  if (itemLower.includes('poulet') || itemLower.includes('viande')) return '🍗';
+  if (itemLower.includes('poisson') || itemLower.includes('saumon')) return '🐟';
+  if (itemLower.includes('pizza')) return '🍕';
+  if (itemLower.includes('glace')) return '🍦';
+  if (itemLower.includes('doliprane') || itemLower.includes('paracétamol') || itemLower.includes('ibuprofène') || itemLower.includes('vitamine')) return '💊';
+  if (itemLower.includes('croquette') || itemLower.includes('pâtée')) return '🐱';
+  if (itemLower.includes('bébé')) return '👶';
+  if (itemLower.includes('lessive') || itemLower.includes('savon')) return '🧼';
+  return '🛒';
+};
+
 export const detectGroceryCategory = (itemName: string): string => {
+  const prodInfo = getProductInfo(itemName);
+  if (prodInfo) return prodInfo.category;
+
   const itemLower = itemName.toLowerCase();
   
   if (
@@ -50,7 +263,7 @@ export const detectGroceryCategory = (itemName: string): string => {
     itemLower.includes('crêpe') || itemLower.includes('crepe') ||
     itemLower.includes('dessert')
   ) {
-    return 'Produits Frais';
+    return 'Produits laitiers';
   } 
   
   if (
@@ -65,7 +278,7 @@ export const detectGroceryCategory = (itemName: string): string => {
     itemLower.includes('merguez') || itemLower.includes('chipolatas') ||
     itemLower.includes('côtelette') || itemLower.includes('lardons')
   ) {
-    return 'Boucherie';
+    return 'Viandes & poissons';
   } 
 
   if (
@@ -117,8 +330,15 @@ export const detectGroceryCategory = (itemName: string): string => {
     return 'Maison';
   }
   
-  // Par défaut tout le reste (pâtes, riz, chocolat, sel, poivre etc.) va en épicerie
   return 'Épicerie';
+};
+
+export const formatGroceryQty = (qty: string): string => {
+  if (!qty) return '';
+  if (qty.endsWith(' pièces')) {
+    return qty.replace(' pièces', '').trim();
+  }
+  return qty;
 };
 
 // Analyseur de phrase naturelle ultra intelligent
@@ -129,9 +349,9 @@ export const parseSmartNaturalSentence = (text: string, activeMemberName: string
   if (normalized.includes('petit-déjeuner') || normalized.includes('petit dejeuner')) {
     if (normalized.includes('prépare') || normalized.includes('prepare') || normalized.includes('fait les courses') || normalized.includes('faire les courses')) {
       return [
-        { name: 'Lait', category: 'Produits Frais', quantity: '1 L', checked: false, inStock: true, meal: 'Petit-déjeuner', addedBy: activeMemberName },
-        { name: 'Pain de mie', category: 'Boulangerie', quantity: '1 paquets', checked: false, inStock: true, meal: 'Petit-déjeuner', addedBy: activeMemberName },
-        { name: 'Beurre', category: 'Produits Frais', quantity: '1 pièces', checked: false, inStock: true, meal: 'Petit-déjeuner', addedBy: activeMemberName },
+        { name: 'Lait', category: 'Produits laitiers', quantity: '1 L', checked: false, inStock: true, meal: 'Petit-déjeuner', addedBy: activeMemberName },
+        { name: 'Pain de mie', category: 'Épicerie', quantity: '1 paquets', checked: false, inStock: true, meal: 'Petit-déjeuner', addedBy: activeMemberName },
+        { name: 'Beurre', category: 'Produits laitiers', quantity: '1 pièces', checked: false, inStock: true, meal: 'Petit-déjeuner', addedBy: activeMemberName },
         { name: 'Jus d\'orange', category: 'Boissons', quantity: '1 bouteilles', checked: false, inStock: true, meal: 'Petit-déjeuner', addedBy: activeMemberName },
         { name: 'Café', category: 'Boissons', quantity: '1 paquets', checked: false, inStock: true, meal: 'Petit-déjeuner', addedBy: activeMemberName }
       ];
@@ -141,8 +361,8 @@ export const parseSmartNaturalSentence = (text: string, activeMemberName: string
   if (normalized.includes('barbecue')) {
     if (normalized.includes('prépare') || normalized.includes('prepare') || normalized.includes('fait les courses') || normalized.includes('faire les courses')) {
       return [
-        { name: 'Chipolatas', category: 'Boucherie', quantity: '6 pièces', checked: false, inStock: true, meal: 'Déjeuner', addedBy: activeMemberName },
-        { name: 'Merguez', category: 'Boucherie', quantity: '6 pièces', checked: false, inStock: true, meal: 'Déjeuner', addedBy: activeMemberName },
+        { name: 'Chipolatas', category: 'Viandes & poissons', quantity: '6 pièces', checked: false, inStock: true, meal: 'Déjeuner', addedBy: activeMemberName },
+        { name: 'Merguez', category: 'Viandes & poissons', quantity: '6 pièces', checked: false, inStock: true, meal: 'Déjeuner', addedBy: activeMemberName },
         { name: 'Baguette', category: 'Boulangerie', quantity: '2 pièces', checked: false, inStock: true, meal: 'Déjeuner', addedBy: activeMemberName },
         { name: 'Chips', category: 'Épicerie', quantity: '2 paquets', checked: false, inStock: true, meal: 'Déjeuner', addedBy: activeMemberName },
         { name: 'Charbon de bois', category: 'Maison', quantity: '1 pièces', checked: false, inStock: true, meal: 'Déjeuner', addedBy: activeMemberName }
@@ -161,7 +381,6 @@ export const parseSmartNaturalSentence = (text: string, activeMemberName: string
   }
 
   // 2. Traitement standard des phrases multi-produits
-  // Détecter et extraire le repas (meal)
   let meal: string | undefined = undefined;
   let cleanText = normalized;
 
@@ -203,28 +422,20 @@ export const parseSmartNaturalSentence = (text: string, activeMemberName: string
     .replace(/\s*(?:dans les courses|dans la liste|au panier|à la liste|aux courses|de courses)\s*/gi, ' ')
     .trim();
 
-  // 1. Remplacer les connecteurs explicites par '|'
+  // Remplacer les connecteurs explicites par '|'
   let textWithSplits = cleanText.replace(/,|\bet\b|\bplus\b|\bpuis\b|\bavec\b/g, '|');
 
-  // 2. Insérer '|' devant les répétitions de quantités (chiffres ou mots-nombres)
-  // s'ils sont précédés d'un espace et pas déjà précédés d'un séparateur '|'
-  textWithSplits = textWithSplits.replace(/(?<![|])\s+\b(un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|\d+)\b/gi, ' | $1');
+  // Insérer '|' devant les répétitions de quantités (chiffres ou mots-nombres)
+  textWithSplits = textWithSplits.replace(/(?<![|])\s+\b(un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze|treize|quatorze|quinze|seize|dix-sept|dix-huit|dix-neuf|vingt|\d+)\b/gi, ' | $1');
 
-  // 3. Insérer '|' devant les produits connus successifs s'ils ne sont pas précédés d'un déterminant de liaison
-  const KNOWN_PRODUCTS = [
-    'lait', 'tomate', 'tomates', 'riz', 'coca', 'eau', 'pain', 'oeuf', 'oeufs', 'œuf', 'œufs', 'beurre',
-    'pomme', 'pommes', 'banane', 'bananes', 'orange', 'oranges', 'poire', 'poires', 'oignon', 'oignons',
-    'pâte', 'pâtes', 'salade', 'carotte', 'carottes', 'courgette', 'courgettes', 'pomme de terre', 'pommes de terre',
-    'patate', 'patates', 'fraise', 'fraises', 'citron', 'citrons', 'avocat', 'avocats', 'ail', 'baguette', 
-    'baguettes', 'croissant', 'croissants', 'yaourt', 'yaourts', 'fromage', 'fromages', 'poulet',
-    'viande', 'steak', 'steaks', 'jambon', 'saumon', 'poisson', 'bœuf', 'boeuf', 'porc', 'merguez', 'chipolatas',
-    'pizza', 'pizzas', 'frite', 'frites', 'glace', 'glaces', 'jus', 'soda', 'sodas', 'bière', 'bières', 'vin',
-    'café', 'cafe', 'thé', 'the', 'shampoing', 'savon', 'dentifrice', 'lessive', 'éponge', 'éponges', 'eponge'
-  ];
+  // Insérer '|' devant les produits connus successifs s'ils ne sont pas précédés d'un déterminant de liaison
+  const KNOWN_PRODUCTS = Array.from(new Set(
+    PRODUCT_LIST.flatMap(p => [p.name.toLowerCase(), ...p.keywords])
+  )).sort((a, b) => b.length - a.length);
 
   let formattedText = textWithSplits;
   for (const product of KNOWN_PRODUCTS) {
-    const regex = new RegExp(`(?<![|\\s])\\s+(?!(?:de|d'|d’|du|des|le|la|les|l')\\s+)\\b(${product})\\b`, 'gi');
+    const regex = new RegExp(`(?<!\\b(?:de|du|des|d'|d’|le|la|les|l'|l’|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze|treize|quatorze|quinze|seize|dix-sept|dix-huit|dix-neuf|vingt|\\d+))\\s+\\b(${product})\\b`, 'gi');
     formattedText = formattedText.replace(regex, ' | $1');
   }
 
@@ -234,15 +445,17 @@ export const parseSmartNaturalSentence = (text: string, activeMemberName: string
 
   const frenchNumbers: Record<string, number> = {
     'un': 1, 'une': 1, 'deux': 2, 'trois': 3, 'quatre': 4, 'cinq': 5,
-    'six': 6, 'sept': 7, 'huit': 8, 'neuf': 9, 'dix': 10
+    'six': 6, 'sept': 7, 'huit': 8, 'neuf': 9, 'dix': 10, 'onze': 11,
+    'douze': 12, 'treize': 13, 'quatorze': 14, 'quinze': 15, 'seize': 16,
+    'dix-sept': 17, 'dix-huit': 18, 'dix-neuf': 19, 'vingt': 20
   };
 
   const unitKeywords = [
     { word: 'bouteilles', norm: 'bouteilles' },
     { word: 'bouteille', norm: 'bouteilles' },
-    { word: 'kilos', norm: 'kg' },
-    { word: 'kilo', norm: 'kg' },
-    { word: 'kg', norm: 'kg' },
+    { word: 'kilos', norm: 'kilos' },
+    { word: 'kilo', norm: 'kilos' },
+    { word: 'kg', norm: 'kilos' },
     { word: 'grammes', norm: 'g' },
     { word: 'gramme', norm: 'g' },
     { word: 'g', norm: 'g' },
@@ -253,12 +466,18 @@ export const parseSmartNaturalSentence = (text: string, activeMemberName: string
     { word: 'l', norm: 'L' },
     { word: 'boîtes', norm: 'boîtes' },
     { word: 'boîte', norm: 'boîtes' },
-    { word: 'paquets', norm: 'paquets' },
-    { word: 'paquet', norm: 'paquets' },
+    { word: 'paquets', norm: 'paquet' },
+    { word: 'paquet', norm: 'paquet' },
     { word: 'pots', norm: 'pots' },
     { word: 'pot', norm: 'pots' },
     { word: 'canettes', norm: 'canettes' },
     { word: 'canette', norm: 'canettes' }
+  ];
+
+  const parasiteWords = [
+    'de', 'du', 'des', 'd\'', 'd’', 'le', 'la', 'les',
+    'un', 'une', 'deux', 'trois', 'quatre', 'cinq',
+    'six', 'sept', 'huit', 'neuf', 'dix'
   ];
 
   for (const seg of rawSegments) {
@@ -270,65 +489,103 @@ export const parseSmartNaturalSentence = (text: string, activeMemberName: string
     const words = trimmedSeg.split(/\s+/);
     const firstWord = words[0].toLowerCase();
     let remainingName = trimmedSeg;
+    let hasParsedQty = false;
 
-    // Détection de la quantité numérique ou écrite en français
+    // Détection de la quantité numérique ou écrite en français (Priorité quantité)
     if (firstWord in frenchNumbers) {
       qty = frenchNumbers[firstWord];
       remainingName = words.slice(1).join(' ');
+      hasParsedQty = true;
     } else {
       const parsedNumber = parseInt(firstWord);
       if (!isNaN(parsedNumber)) {
         qty = parsedNumber;
         remainingName = words.slice(1).join(' ');
+        hasParsedQty = true;
       }
     }
 
-    // Détection de l'unité
-    let foundUnit = false;
-    for (const uk of unitKeywords) {
+    // Détection de l'unité si quantité présente
+    if (hasParsedQty) {
+      let foundUnit = false;
       const lowerName = remainingName.toLowerCase();
-      if (lowerName.startsWith(uk.word + ' de ')) {
-        unit = uk.norm;
-        remainingName = remainingName.slice((uk.word + ' de ').length).trim();
-        foundUnit = true;
-        break;
-      } else if (lowerName.startsWith(uk.word + ' d\'')) {
-        unit = uk.norm;
-        remainingName = remainingName.slice((uk.word + ' d\'').length).trim();
-        foundUnit = true;
-        break;
-      } else if (lowerName.startsWith(uk.word + ' d’')) {
-        unit = uk.norm;
-        remainingName = remainingName.slice((uk.word + ' d’').length).trim();
-        foundUnit = true;
-        break;
-      } else if (lowerName.startsWith(uk.word + ' ')) {
-        unit = uk.norm;
-        remainingName = remainingName.slice(uk.word.length).trim();
-        foundUnit = true;
-        break;
+      for (const uk of unitKeywords) {
+        if (lowerName.startsWith(uk.word + ' de ')) {
+          unit = uk.norm;
+          remainingName = remainingName.slice((uk.word + ' de ').length).trim();
+          foundUnit = true;
+          break;
+        } else if (lowerName.startsWith(uk.word + ' d\'')) {
+          unit = uk.norm;
+          remainingName = remainingName.slice((uk.word + ' d\'').length).trim();
+          foundUnit = true;
+          break;
+        } else if (lowerName.startsWith(uk.word + ' d’')) {
+          unit = uk.norm;
+          remainingName = remainingName.slice((uk.word + ' d’').length).trim();
+          foundUnit = true;
+          break;
+        } else if (lowerName === uk.word || lowerName.startsWith(uk.word + ' ')) {
+          unit = uk.norm;
+          remainingName = remainingName.slice(uk.word.length).trim();
+          foundUnit = true;
+          break;
+        }
       }
-    }
 
-    if (!foundUnit) {
-      // Nettoyer les déterminants restants en début de nom
+      if (!foundUnit) {
+        // Enlever les liaisons restantes si pas d'unité (ex: "de Coca" -> "Coca")
+        remainingName = remainingName
+          .replace(/^(du\s+|de\s+la\s+|des\s+|de\s+|d\'|d’|l\'|le\s+|la\s+|les\s+)/i, '')
+          .trim();
+      }
+    } else {
+      // Pas de quantité explicitée, enlever les déterminants au début
       remainingName = remainingName
-        .replace(/^(du\s+|de\s+la\s+|des\s+|de\s+|l\'|le\s+|la\s+|un\s+|une\s+)/, '')
+        .replace(/^(du\s+|de\s+la\s+|des\s+|de\s+|d\'|d’|l\'|le\s+|la\s+|les\s+)/i, '')
         .trim();
     }
 
-    if (unit === 'pièces' && qty === 1) {
-      unit = 'pièces';
+    // Gestion des variantes intelligentes et standardisation
+    let standardName = remainingName.trim();
+    if (!standardName) continue;
+    
+    const lowerName = standardName.toLowerCase();
+
+    if (lowerName === 'coca') {
+      standardName = 'Coca-Cola';
+    } else if (lowerName === 'eau') {
+      if (qty > 1 || unit !== 'pièces') {
+        standardName = 'Bouteilles d\'eau';
+      } else {
+        standardName = 'Eau';
+      }
+    } else if (lowerName === 'yaourt') {
+      standardName = 'Yaourts';
+    } else if (lowerName === 'tomate') {
+      standardName = 'Tomates';
+    } else if (lowerName === 'oeuf' || lowerName === 'œuf') {
+      standardName = 'Œufs';
+    } else if (lowerName === 'pates' || lowerName === 'pâte') {
+      standardName = 'Pâtes';
+    } else {
+      const prodInfo = getProductInfo(standardName);
+      if (prodInfo) {
+        standardName = prodInfo.name;
+      } else {
+        standardName = standardName.charAt(0).toUpperCase() + standardName.slice(1);
+      }
     }
 
-    // Formater le nom du produit
-    if (!remainingName) continue;
-    remainingName = remainingName.charAt(0).toUpperCase() + remainingName.slice(1);
+    // Filtrage strict de la liste noire de mots parasites (jamais créés seuls)
+    if (parasiteWords.includes(standardName.toLowerCase().trim()) || standardName.length <= 1) {
+      continue;
+    }
 
-    const category = detectGroceryCategory(remainingName);
+    const category = detectGroceryCategory(standardName);
 
     items.push({
-      name: remainingName,
+      name: standardName,
       category,
       quantity: `${qty} ${unit}`,
       checked: false,

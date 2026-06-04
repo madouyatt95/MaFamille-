@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
-import { parseSmartNaturalSentence, detectGroceryCategory } from './utils/groceryParser';
+import { parseSmartNaturalSentence, detectGroceryCategory, getGroceryItemEmoji } from './utils/groceryParser';
 
 
 import type { 
@@ -6801,20 +6801,7 @@ function App() {
                 </div>
                 <div className="space-y-3 max-h-40 overflow-y-auto pr-1">
                   {pendingGroceryItems.map((item, idx) => {
-                    let emoji = '🛒';
-                    const nameLower = item.name.toLowerCase();
-                    if (nameLower.includes('coca')) emoji = '🥤';
-                    else if (nameLower.includes('lait')) emoji = '🥛';
-                    else if (nameLower.includes('tomate')) emoji = '🍅';
-                    else if (nameLower.includes('pomme') && !nameLower.includes('pomme de terre')) emoji = '🍎';
-                    else if (nameLower.includes('banane')) emoji = '🍌';
-                    else if (nameLower.includes('eau')) emoji = '💧';
-                    else if (nameLower.includes('oignon')) emoji = '🧅';
-                    else if (nameLower.includes('pain') || nameLower.includes('baguette')) emoji = '🥖';
-                    else if (nameLower.includes('beurre')) emoji = '🧈';
-                    else if (nameLower.includes('fromage')) emoji = '🧀';
-                    else if (nameLower.includes('yaourt')) emoji = '🥛';
-                    else if (nameLower.includes('viande') || nameLower.includes('poulet')) emoji = '🍗';
+                    const emoji = getGroceryItemEmoji(item.name);
                     
                     return (
                       <div key={idx} className="flex flex-col space-y-1 bg-white/5 p-2.5 rounded-xl border border-white/5">
