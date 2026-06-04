@@ -49,7 +49,7 @@ interface BudgetProps {
   setAbonnements: React.Dispatch<React.SetStateAction<Abonnement[]>>;
   debts: Debt[];
   setDebts: React.Dispatch<React.SetStateAction<Debt[]>>;
-  activeSubView?: { type: 'export' | 'import' | 'transaction_form', options?: any } | null;
+  activeSubView?: { type: 'export' | 'import' | 'transaction_form' | 'tab', options?: any, tab?: string } | null;
   onClearActiveSubView?: () => void;
   moduleBudgets: Record<string, { budget: number; recurrence: string }>;
   setModuleBudgets: React.Dispatch<React.SetStateAction<Record<string, { budget: number; recurrence: string }>>>;
