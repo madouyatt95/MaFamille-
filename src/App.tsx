@@ -4373,12 +4373,13 @@ function App() {
           return;
         }
 
-        let categoryVal = 'Autres';
-        let subCategoryVal = 'Divers';
-        let moduleSourceVal = 'budget';
-        let titleVal = title;
+        if (travelId || matches.length >= 1) {
+          let categoryVal = 'Autres';
+          let subCategoryVal = 'Divers';
+          let moduleSourceVal = 'budget';
+          let titleVal = title;
 
-        if (travelId) {
+          if (travelId) {
           categoryVal = 'Voyages';
           moduleSourceVal = 'voyages';
           
