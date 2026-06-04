@@ -721,6 +721,8 @@ function App() {
   } | null>(null);
   const [devModeActive, setDevModeActive] = useState(() => localStorage.getItem('mf_dev_mode') === 'true');
   const devClicks = useRef(0);
+  const [voiceState, setVoiceState] = useState<'inactif' | 'ecoute' | 'traitement' | 'confirmation' | 'termine' | 'erreur'>('inactif');
+  const voiceTimeoutRef = useRef<any>(null);
   const voiceRecognitionRef = useRef<any>(null);
   const [pendingGroceryItems, setPendingGroceryItems] = useState<any[] | null>(null);
   const [isEditingPendingGrocery, setIsEditingPendingGrocery] = useState(false);
@@ -3445,6 +3447,27 @@ function App() {
     justificatifPacks, vehicles, maintenance, trips, pets, pocketMoney, artisans
   ]);
 
+  const closeVoiceAssistantAfterDelay = (delayMs: number = 2500, nextState: 'inactif' | 'ecoute' = 'inactif') => {
+    if (voiceTimeoutRef.current) {
+      clearTimeout(voiceTimeoutRef.current);
+    }
+    
+    if (nextState === 'inactif') {
+      setVoiceState('termine');
+    }
+    
+    voiceTimeoutRef.current = setTimeout(() => {
+      if (nextState === 'inactif') {
+        setVoiceActive(false);
+        setVoiceState('inactif');
+      } else {
+        // Redémarrer le micro immédiatement
+        setVoiceState('inactif');
+        startVoiceAssistant();
+      }
+    }, delayMs);
+  };
+
   const startVoiceAssistant = () => {
     if (!isPremium) {
       setPaywallOpen(true);
@@ -3456,15 +3479,29 @@ function App() {
       return;
     }
 
-    if (voiceActive) {
+    if (voiceTimeoutRef.current) {
+      clearTimeout(voiceTimeoutRef.current);
+      voiceTimeoutRef.current = null;
+    }
+
+    if (voiceState !== 'inactif') {
       if (voiceRecognitionRef.current) {
-        voiceRecognitionRef.current.stop();
+        try {
+          voiceRecognitionRef.current.onresult = null;
+          voiceRecognitionRef.current.onerror = null;
+          voiceRecognitionRef.current.onend = null;
+          voiceRecognitionRef.current.stop();
+        } catch (e) {
+          console.warn("Error stopping SpeechRecognition:", e);
+        }
       }
+      setVoiceState('inactif');
       setVoiceActive(false);
       return;
     }
 
     setVoiceActive(true);
+    setVoiceState('ecoute');
     setVoiceTranscript('Je vous écoute...');
     setVoiceFeedback('');
     setVoiceWave(true);
@@ -3476,34 +3513,43 @@ function App() {
     setPendingGroceryItems(null);
     setIsEditingPendingGrocery(false);
 
-    const recognition = new SpeechRecognition();
-    voiceRecognitionRef.current = recognition;
-    recognition.lang = 'fr-FR';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
+    try {
+      const recognition = new SpeechRecognition();
+      voiceRecognitionRef.current = recognition;
+      recognition.lang = 'fr-FR';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
 
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setVoiceTranscript(`"${transcript}"`);
-      setVoiceWave(false);
-      
-      // Parse Voice Command
-      setTimeout(() => {
-        parseVoiceCommand(transcript);
-      }, 1000);
-    };
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setVoiceTranscript(`"${transcript}"`);
+        setVoiceWave(false);
+        setVoiceState('traitement');
+        
+        // Parse Voice Command
+        const timer = setTimeout(() => {
+          parseVoiceCommand(transcript);
+        }, 1000);
+        voiceTimeoutRef.current = timer;
+      };
 
-    recognition.onerror = (event: any) => {
-      console.error("Vocal search error", event.error);
-      setVoiceTranscript("🎙️ Micro non autorisé ou inactif. Saisissez votre commande ci-dessous :");
-      setVoiceWave(false);
-    };
+      recognition.onerror = (event: any) => {
+        console.error("Vocal search error", event.error);
+        setVoiceTranscript("🎙️ Impossible d'écouter votre commande. Réessayer.");
+        setVoiceWave(false);
+        setVoiceState('erreur');
+      };
 
-    recognition.onend = () => {
-      setVoiceWave(false);
-    };
+      recognition.onend = () => {
+        setVoiceWave(false);
+      };
 
-    recognition.start();
+      recognition.start();
+    } catch (err) {
+      console.error("Failed to start SpeechRecognition:", err);
+      setVoiceState('erreur');
+      setVoiceTranscript("🎙️ Impossible d'écouter votre commande. Réessayer.");
+    }
   };
 
   const convertFrenchNumbersToDigits = (txt: string): string => {
@@ -3696,7 +3742,7 @@ function App() {
           feedback = "🤔 Je n'ai pas compris quel article ajouter à vos courses...";
           setVoiceFeedback(feedback);
           logVoiceCommandToSupabase(intent, false);
-          setTimeout(() => setVoiceActive(false), 2500);
+          closeVoiceAssistantAfterDelay(2500);
         }
         return;
       }
@@ -3723,7 +3769,7 @@ function App() {
         feedback = "📅 Navigation : J'ouvre l'Agenda Familial.";
         setVoiceFeedback(feedback);
         logVoiceCommandToSupabase("agenda_nav", true);
-        setTimeout(() => setVoiceActive(false), 2500);
+        closeVoiceAssistantAfterDelay(2500);
         return;
       }
 
@@ -3758,7 +3804,7 @@ function App() {
           feedback = "🩺 Navigation : J'ouvre le Carnet de Santé.";
           setVoiceFeedback(feedback);
           logVoiceCommandToSupabase("sante_nav", true);
-          setTimeout(() => setVoiceActive(false), 2500);
+          closeVoiceAssistantAfterDelay(2500);
           return;
         }
       }
@@ -3783,7 +3829,7 @@ function App() {
         feedback = "🎓 Navigation : J'ouvre le Tuteur Scolaire IA.";
         setVoiceFeedback(feedback);
         logVoiceCommandToSupabase("ecole_nav", true);
-        setTimeout(() => setVoiceActive(false), 2500);
+        closeVoiceAssistantAfterDelay(2500);
         return;
       }
 
@@ -3808,7 +3854,7 @@ function App() {
         feedback = "📂 Navigation : J'ouvre vos Démarches Administratives.";
         setVoiceFeedback(feedback);
         logVoiceCommandToSupabase("demarches_nav", true);
-        setTimeout(() => setVoiceActive(false), 2500);
+        closeVoiceAssistantAfterDelay(2500);
         return;
       }
 
@@ -3833,7 +3879,7 @@ function App() {
         feedback = "✈️ Navigation : Je lance l'Assistant Voyage IA.";
         setVoiceFeedback(feedback);
         logVoiceCommandToSupabase("voyages_nav", true);
-        setTimeout(() => setVoiceActive(false), 2500);
+        closeVoiceAssistantAfterDelay(2500);
         return;
       }
 
@@ -3860,7 +3906,7 @@ function App() {
         feedback = "🚗 Navigation : J'ouvre le carnet d'entretien Véhicule.";
         setVoiceFeedback(feedback);
         logVoiceCommandToSupabase("vehicules_nav", true);
-        setTimeout(() => setVoiceActive(false), 2500);
+        closeVoiceAssistantAfterDelay(2500);
         return;
       }
 
@@ -3881,7 +3927,7 @@ function App() {
         feedback = "📂 Navigation : J'ouvre le Coffre-Fort administratif.";
         setVoiceFeedback(feedback);
         logVoiceCommandToSupabase("documents_nav", true);
-        setTimeout(() => setVoiceActive(false), 2500);
+        closeVoiceAssistantAfterDelay(2500);
         return;
       }
 
@@ -3902,7 +3948,7 @@ function App() {
         feedback = "💬 Navigation : J'ouvre la messagerie familiale.";
         setVoiceFeedback(feedback);
         logVoiceCommandToSupabase("messagerie_nav", true);
-        setTimeout(() => setVoiceActive(false), 2500);
+        closeVoiceAssistantAfterDelay(2500);
         return;
       }
 
@@ -3974,7 +4020,7 @@ function App() {
           setActiveTab('budget');
           setVoiceFeedback(feedback);
           logVoiceCommandToSupabase(intent, isSuccess);
-          setTimeout(() => setVoiceActive(false), 2500);
+          closeVoiceAssistantAfterDelay(2500);
           return;
         }
 
@@ -4010,7 +4056,7 @@ function App() {
           setActiveTab('budget');
           setVoiceFeedback(feedback);
           logVoiceCommandToSupabase(intent, isSuccess);
-          setTimeout(() => setVoiceActive(false), 2500);
+          closeVoiceAssistantAfterDelay(2500);
           return;
         }
 
@@ -4074,7 +4120,7 @@ function App() {
           setActiveTab('budget');
           setVoiceFeedback(feedback);
           logVoiceCommandToSupabase(intent, isSuccess);
-          setTimeout(() => setVoiceActive(false), 2500);
+          closeVoiceAssistantAfterDelay(2500);
           return;
         }
 
@@ -4264,7 +4310,7 @@ function App() {
 
           setVoiceFeedback(feedback);
           logVoiceCommandToSupabase(intent, isSuccess);
-          setTimeout(() => setVoiceActive(false), 4000);
+          closeVoiceAssistantAfterDelay(4000);
           return;
         } else {
           const allCandidates = [
@@ -4279,6 +4325,7 @@ function App() {
           setAmbiguousChoices(allCandidates);
           setVoiceTranscript(`"${text}"`);
           setVoiceFeedback("À quoi correspond cette dépense ?");
+          setVoiceState('confirmation');
           return;
         }
       }
@@ -4351,10 +4398,7 @@ function App() {
       setVoiceFeedback(feedback);
     } catch (err: any) {
       console.error("Critical error in parseVoiceCommand:", err);
-      setVoiceFeedback("❌ Erreur lors du traitement de la commande vocale.");
-      setTimeout(() => {
-        setVoiceActive(false);
-      }, 2500);
+      closeVoiceAssistantAfterDelay(2500);
     }
   };
 
@@ -6482,10 +6526,57 @@ function App() {
                 Contrôle Vocal Global
               </span>
               <p className="text-lg font-bold text-white leading-snug">{voiceTranscript}</p>
+              
+              {/* Indicateur visuel d'état */}
+              <div className="text-[11px] font-bold text-white/50 uppercase tracking-widest pt-1 flex items-center justify-center gap-1.5 select-none">
+                {voiceState === 'ecoute' && (
+                  <span className="text-blue-400 animate-pulse flex items-center gap-1">
+                    <span>🎤</span> Écoute en cours...
+                  </span>
+                )}
+                {voiceState === 'traitement' && (
+                  <span className="text-[#FFB020] animate-pulse flex items-center gap-1">
+                    <span>⏳</span> Traitement...
+                  </span>
+                )}
+                {voiceState === 'confirmation' && (
+                  <span className="text-purple-400 flex items-center gap-1 animate-pulse">
+                    <span>⚙️</span> Confirmation requise...
+                  </span>
+                )}
+                {voiceState === 'termine' && (
+                  <span className="text-emerald-400 flex items-center gap-1">
+                    <span>✓</span> Commande enregistrée
+                  </span>
+                )}
+                {voiceState === 'erreur' && (
+                  <span className="text-rose-400 flex items-center gap-1">
+                    <span>❌</span> Erreur
+                  </span>
+                )}
+              </div>
             </div>
 
+            {voiceState === 'erreur' && (
+              <div className="space-y-3 pt-2 w-full animate-fade-in">
+                <p className="text-xs text-white/60">
+                  Impossible d'écouter votre commande. Réessayer.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVoiceState('inactif');
+                    setTimeout(() => startVoiceAssistant(), 100);
+                  }}
+                  className="w-full py-2.5 bg-gradient-to-r from-[#6C5CFF] to-purple-600 hover:brightness-110 active:scale-95 text-white font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <span>🎤</span> Réécouter
+                </button>
+              </div>
+            )}
+
             {/* Formulaire de saisie manuelle de secours */}
-            {!pendingGroceryItems && (
+            {!pendingGroceryItems && voiceState !== 'erreur' && !voiceTransactionAdded && (
               <form 
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -6567,7 +6658,7 @@ function App() {
                       setPendingGroceryItems(null);
                       setActiveTab('menu');
                       setActiveModule('courses');
-                      setTimeout(() => setVoiceActive(false), 2000);
+                      closeVoiceAssistantAfterDelay(2000);
                     }}
                     className="flex-1 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:brightness-110 active:scale-95 text-black font-extrabold uppercase text-[10px] tracking-wider transition-all cursor-pointer text-center animate-pulse"
                   >
@@ -6669,7 +6760,7 @@ function App() {
                       setIsEditingPendingGrocery(false);
                       setActiveTab('menu');
                       setActiveModule('courses');
-                      setTimeout(() => setVoiceActive(false), 2000);
+                      closeVoiceAssistantAfterDelay(2000);
                     }}
                     className="flex-1 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:brightness-110 active:scale-95 text-black font-extrabold uppercase text-[10px] tracking-wider transition-all cursor-pointer text-center"
                   >
@@ -6774,7 +6865,7 @@ function App() {
                           setPendingVoiceCommandData(null);
                           setActiveTab('budget');
                           setActiveModule('');
-                          setTimeout(() => setVoiceActive(false), 4000);
+                          closeVoiceAssistantAfterDelay(4000);
                         }
                       }}
                       className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black text-white text-center cursor-pointer transition-all active:scale-95 hover:border-[#6C5CFF]"
@@ -6829,7 +6920,19 @@ function App() {
 
             <button 
               onClick={() => {
-                if (voiceRecognitionRef.current) voiceRecognitionRef.current.stop();
+                if (voiceRecognitionRef.current) {
+                  try {
+                    voiceRecognitionRef.current.onresult = null;
+                    voiceRecognitionRef.current.onerror = null;
+                    voiceRecognitionRef.current.onend = null;
+                    voiceRecognitionRef.current.stop();
+                  } catch(e){}
+                }
+                if (voiceTimeoutRef.current) {
+                  clearTimeout(voiceTimeoutRef.current);
+                  voiceTimeoutRef.current = null;
+                }
+                setVoiceState('inactif');
                 setVoiceActive(false);
                 setPendingGroceryItems(null);
                 setIsEditingPendingGrocery(false);
