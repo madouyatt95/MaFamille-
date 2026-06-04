@@ -258,7 +258,14 @@ export const Agenda: React.FC<AgendaProps> = ({
 
     const tripEvs: any[] = [];
     trips.forEach((t: any) => {
-      if (t.startDate) {
+      const isValidDate = (dStr: string) => {
+        if (!dStr) return false;
+        const lower = dStr.toLowerCase();
+        if (lower.includes('invalid') || lower.includes('non') || lower.includes('planifi')) return false;
+        const d = new Date(dStr);
+        return !isNaN(d.getTime());
+      };
+      if (t.startDate && isValidDate(t.startDate)) {
         tripEvs.push({
           id: `trip-dep-${t.id}`,
           title: `✈️ Départ : ${t.destination}`,
@@ -272,7 +279,7 @@ export const Agenda: React.FC<AgendaProps> = ({
           sourceModule: 'voyages'
         });
       }
-      if (t.endDate) {
+      if (t.endDate && isValidDate(t.endDate)) {
         tripEvs.push({
           id: `trip-ret-${t.id}`,
           title: `🛬 Retour : ${t.destination}`,

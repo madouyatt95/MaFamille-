@@ -171,7 +171,7 @@ export const Accueil: React.FC<AccueilProps> = ({
 }) => {
   const [selectedMealDay, setSelectedMealDay] = useState<string>('Lun');
   const [hiddenEventIds, setHiddenEventIds] = useState<string[]>([]);
-  const [openMenuEventId, setOpenMenuEventId] = useState<string | null>(null);
+  const [selectedEventForMenu, setSelectedEventForMenu] = useState<any | null>(null);
 
   const activeMember = members.find(m => m.id === activeMemberId) || members[0] || {
     id: activeMemberId || '1',
@@ -393,7 +393,14 @@ export const Accueil: React.FC<AccueilProps> = ({
 
   const tripsUnified: any[] = [];
   trips.forEach(t => {
-    if (t.startDate) {
+    const isValidDate = (dStr: string) => {
+      if (!dStr) return false;
+      const lower = dStr.toLowerCase();
+      if (lower.includes('invalid') || lower.includes('non') || lower.includes('planifi')) return false;
+      const d = new Date(dStr);
+      return !isNaN(d.getTime());
+    };
+    if (t.startDate && isValidDate(t.startDate)) {
       tripsUnified.push({
         id: `trip-dep-${t.id}`,
         title: `✈️ Départ : ${t.destination}`,
@@ -406,7 +413,7 @@ export const Accueil: React.FC<AccueilProps> = ({
         sourceModule: 'voyages'
       });
     }
-    if (t.endDate) {
+    if (t.endDate && isValidDate(t.endDate)) {
       tripsUnified.push({
         id: `trip-ret-${t.id}`,
         title: `🛬 Retour : ${t.destination}`,
@@ -1047,71 +1054,13 @@ export const Accueil: React.FC<AccueilProps> = ({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setOpenMenuEventId(openMenuEventId === event.id ? null : event.id);
+                          setSelectedEventForMenu(event);
                         }}
                         className="p-1.5 hover:bg-white/10 rounded-full cursor-pointer text-white/60 hover:text-white transition-colors"
                         title="Options"
                       >
                         <MoreHorizontal className="w-4 h-4" />
                       </button>
-
-                      {openMenuEventId === event.id && (
-                        <>
-                          <div 
-                            className="fixed inset-0 z-20"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenuEventId(null);
-                            }}
-                          />
-                          <div className="absolute right-0 top-full mt-2 w-40 glass-panel border border-white/15 rounded-2xl py-1.5 shadow-2xl z-30 text-left">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuEventId(null);
-                                handleEventClick(event);
-                              }}
-                              className="w-full text-left px-4 py-2 hover:bg-white/10 text-xs font-medium text-white flex items-center gap-2 cursor-pointer"
-                            >
-                              📖 Détails
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuEventId(null);
-                                setHiddenEventIds(prev => [...prev, event.id]);
-                              }}
-                              className="w-full text-left px-4 py-2 hover:bg-white/10 text-xs font-medium text-white flex items-center gap-2 cursor-pointer"
-                            >
-                              🙈 Masquer
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuEventId(null);
-                                if (window.confirm(`Archiver "${event.title}" ?`)) {
-                                  if (onArchiveUnifiedEvent) onArchiveUnifiedEvent(event.id, event.sourceModule);
-                                }
-                              }}
-                              className="w-full text-left px-4 py-2 hover:bg-white/10 text-xs font-medium text-white flex items-center gap-2 cursor-pointer"
-                            >
-                              📦 Archiver
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuEventId(null);
-                                if (window.confirm(`Supprimer définitivement "${event.title}" ?`)) {
-                                  if (onDeleteUnifiedEvent) onDeleteUnifiedEvent(event.id, event.sourceModule);
-                                }
-                              }}
-                              className="w-full text-left px-4 py-2 hover:bg-red-500/20 text-xs font-semibold text-red-400 flex items-center gap-2 cursor-pointer"
-                            >
-                              🗑️ Supprimer
-                            </button>
-                          </div>
-                        </>
-                      )}
                     </div>
                   </div>
                 );
@@ -1178,71 +1127,13 @@ export const Accueil: React.FC<AccueilProps> = ({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setOpenMenuEventId(openMenuEventId === event.id ? null : event.id);
+                          setSelectedEventForMenu(event);
                         }}
                         className="p-1.5 hover:bg-white/10 rounded-full cursor-pointer text-white/60 hover:text-white transition-colors"
                         title="Options"
                       >
                         <MoreHorizontal className="w-4 h-4" />
                       </button>
-
-                      {openMenuEventId === event.id && (
-                        <>
-                          <div 
-                            className="fixed inset-0 z-20"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenuEventId(null);
-                            }}
-                          />
-                          <div className="absolute right-0 top-full mt-2 w-40 glass-panel border border-white/15 rounded-2xl py-1.5 shadow-2xl z-30 text-left">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuEventId(null);
-                                handleEventClick(event);
-                              }}
-                              className="w-full text-left px-4 py-2 hover:bg-white/10 text-xs font-medium text-white flex items-center gap-2 cursor-pointer"
-                            >
-                              📖 Détails
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuEventId(null);
-                                setHiddenEventIds(prev => [...prev, event.id]);
-                              }}
-                              className="w-full text-left px-4 py-2 hover:bg-white/10 text-xs font-medium text-white flex items-center gap-2 cursor-pointer"
-                            >
-                              🙈 Masquer
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuEventId(null);
-                                if (window.confirm(`Archiver "${event.title}" ?`)) {
-                                  if (onArchiveUnifiedEvent) onArchiveUnifiedEvent(event.id, event.sourceModule);
-                                }
-                              }}
-                              className="w-full text-left px-4 py-2 hover:bg-white/10 text-xs font-medium text-white flex items-center gap-2 cursor-pointer"
-                            >
-                              📦 Archiver
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuEventId(null);
-                                if (window.confirm(`Supprimer définitivement "${event.title}" ?`)) {
-                                  if (onDeleteUnifiedEvent) onDeleteUnifiedEvent(event.id, event.sourceModule);
-                                }
-                              }}
-                              className="w-full text-left px-4 py-2 hover:bg-red-500/20 text-xs font-semibold text-red-400 flex items-center gap-2 cursor-pointer"
-                            >
-                              🗑️ Supprimer
-                            </button>
-                          </div>
-                        </>
-                      )}
                     </div>
                   </div>
                 );
@@ -1433,6 +1324,76 @@ export const Accueil: React.FC<AccueilProps> = ({
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Event context menu bottom sheet */}
+      {selectedEventForMenu && (
+        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-end justify-center animate-fade-in" onClick={() => setSelectedEventForMenu(null)}>
+          <div 
+            className="w-full max-w-md bg-[#07111F] border-t border-white/15 rounded-t-[32px] p-6 space-y-4 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] transform translate-y-0 transition-transform duration-300 animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-2"></div>
+            
+            <div className="text-center space-y-1">
+              <h4 className="text-base font-extrabold text-white">{selectedEventForMenu.title}</h4>
+              <p className="text-xs text-white/55 font-medium">{selectedEventForMenu.description || selectedEventForMenu.date}</p>
+            </div>
+            
+            <div className="space-y-2 pt-2">
+              <button
+                onClick={() => {
+                  handleEventClick(selectedEventForMenu);
+                  setSelectedEventForMenu(null);
+                }}
+                className="w-full py-3.5 px-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer border border-white/5"
+              >
+                📖 Voir les détails
+              </button>
+              
+              <button
+                onClick={() => {
+                  setHiddenEventIds(prev => [...prev, selectedEventForMenu.id]);
+                  setSelectedEventForMenu(null);
+                }}
+                className="w-full py-3.5 px-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer border border-white/5"
+              >
+                🙈 Masquer temporairement
+              </button>
+              
+              <button
+                onClick={() => {
+                  if (window.confirm(`Archiver "${selectedEventForMenu.title}" ?`)) {
+                    if (onArchiveUnifiedEvent) onArchiveUnifiedEvent(selectedEventForMenu.id, selectedEventForMenu.sourceModule);
+                    setSelectedEventForMenu(null);
+                  }
+                }}
+                className="w-full py-3.5 px-4 bg-[#6C5CFF]/15 hover:bg-[#6C5CFF]/25 text-[#6C5CFF] rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer border border-[#6C5CFF]/30"
+              >
+                📦 Archiver
+              </button>
+              
+              <button
+                onClick={() => {
+                  if (window.confirm(`Supprimer définitivement "${selectedEventForMenu.title}" ?`)) {
+                    if (onDeleteUnifiedEvent) onDeleteUnifiedEvent(selectedEventForMenu.id, selectedEventForMenu.sourceModule);
+                    setSelectedEventForMenu(null);
+                  }
+                }}
+                className="w-full py-3.5 px-4 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-2xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer border border-red-500/15"
+              >
+                🗑️ Supprimer définitivement
+              </button>
+            </div>
+            
+            <button
+              onClick={() => setSelectedEventForMenu(null)}
+              className="w-full py-3 text-white/40 hover:text-white text-xs font-bold uppercase tracking-wider text-center pt-2 cursor-pointer transition-colors"
+            >
+              Annuler
+            </button>
           </div>
         </div>
       )}

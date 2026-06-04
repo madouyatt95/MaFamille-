@@ -4067,18 +4067,174 @@ function App() {
     return result;
   };
 
+  const DESTINATION_DICTIONARY: Record<string, string> = {
+    // Pays
+    'itlie': 'Italie',
+    'italie': 'Italie',
+    'espange': 'Espagne',
+    'espagne': 'Espagne',
+    'marroc': 'Maroc',
+    'maroc': 'Maroc',
+    'france': 'France',
+    'sénégal': 'Sénégal',
+    'senegal': 'Sénégal',
+    'mali': 'Mali',
+    "côte d'ivoire": "Côte d'Ivoire",
+    "cote d'ivoire": "Côte d'Ivoire",
+    "côte d’ivoire": "Côte d'Ivoire",
+    'comores': 'Comores',
+    'algérie': 'Algérie',
+    'algerie': 'Algérie',
+    'tunisie': 'Tunisie',
+    'égypte': 'Égypte',
+    'egypte': 'Égypte',
+    'turquie': 'Turquie',
+    'arabie saoudite': 'Arabie Saoudite',
+    'émirats arabes unis': 'Émirats Arabes Unis',
+    'emirats arabes unis': 'Émirats Arabes Unis',
+    'portugal': 'Portugal',
+    'allemagne': 'Allemagne',
+    'belgique': 'Belgique',
+    'suisse': 'Suisse',
+    'canada': 'Canada',
+    'états-unis': 'États-Unis',
+    'etats-unis': 'États-Unis',
+    'usa': 'États-Unis',
+    // Villes
+    'paris': 'Paris',
+    'dakar': 'Dakar',
+    'rome': 'Rome',
+    'milan': 'Milan',
+    'madrid': 'Madrid',
+    'barcelone': 'Barcelone',
+    'casablanca': 'Casablanca',
+    'marrakech': 'Marrakech',
+    'bamako': 'Bamako',
+    'abidjan': 'Abidjan',
+    'moroni': 'Moroni'
+  };
+
+  const normalizeDestination = (dest: string): string => {
+    let d = dest.trim();
+    // Remove "pour l'", "pour la", "pour le", "pour les", "pour", "dans le", "dans la", "dans l'", "dans"
+    // Remove "au", "en", "à", "a", "vers", "le", "la", "les", "l'" at the beginning of the string
+    d = d.replace(/^(?:pour\s+l'|pour\s+la|pour\s+le|pour\s+les|pour\s+|dans\s+le|dans\s+la|dans\s+l'|dans\s+|au\s+|en\s+|à\s+|a\s+|vers\s+|le\s+|la\s+|les\s+|l')/i, '');
+    d = d.replace(/^l'/i, '');
+    return d.trim();
+  };
+
+  const correctSpelling = (dest: string): string => {
+    const normalized = dest.toLowerCase().trim();
+    if (DESTINATION_DICTIONARY[normalized]) {
+      return DESTINATION_DICTIONARY[normalized];
+    }
+    return dest.charAt(0).toUpperCase() + dest.slice(1);
+  };
+
+  const findCategoryAndSubcategory = (
+    promptLower: string,
+    titleText: string,
+    customCats: CustomCategory[],
+    pastTx: any[]
+  ) => {
+    const textLower = promptLower.toLowerCase();
+    const titleLower = titleText.toLowerCase();
+
+    // 1. Search in custom categories & subcategories
+    for (const cat of customCats) {
+      if (cat.subcategories && cat.subcategories.length > 0) {
+        for (const sub of cat.subcategories) {
+          const subLower = sub.toLowerCase();
+          if (textLower.includes(subLower) || (titleText && titleLower.includes(subLower))) {
+            let moduleSource = 'budget';
+            if (cat.name === 'Santé') moduleSource = 'sante';
+            else if (cat.name === 'Véhicules') moduleSource = 'vehicules';
+            else if (cat.name === 'Logement') moduleSource = 'logement';
+            else if (cat.name === 'Éducation' || cat.name === 'École') moduleSource = 'ecole';
+            else if (cat.name === 'Alimentation' || cat.name === 'Courses') moduleSource = 'courses';
+            else if (cat.name === 'Voyages') moduleSource = 'voyages';
+            else if (cat.name === 'Animaux') moduleSource = 'animaux';
+            else if (cat.name === 'Argent de poche') moduleSource = 'argent_de_poche';
+            
+            return {
+              category: cat.name,
+              subCategory: sub,
+              moduleSource,
+              found: true
+            };
+          }
+        }
+      }
+      
+      // Also match parent category name itself if no subcategory matched
+      if (textLower.includes(cat.name.toLowerCase())) {
+        let moduleSource = 'budget';
+        if (cat.name === 'Santé') moduleSource = 'sante';
+        else if (cat.name === 'Véhicules') moduleSource = 'vehicules';
+        else if (cat.name === 'Logement') moduleSource = 'logement';
+        else if (cat.name === 'Éducation' || cat.name === 'École') moduleSource = 'ecole';
+        else if (cat.name === 'Alimentation' || cat.name === 'Courses') moduleSource = 'courses';
+        else if (cat.name === 'Voyages') moduleSource = 'voyages';
+        else if (cat.name === 'Animaux') moduleSource = 'animaux';
+        else if (cat.name === 'Argent de poche') moduleSource = 'argent_de_poche';
+
+        return {
+          category: cat.name,
+          subCategory: cat.subcategories && cat.subcategories.length > 0 ? cat.subcategories[0] : 'Divers',
+          moduleSource,
+          found: true
+        };
+      }
+    }
+
+    // 2. Search in past transactions (look for matching title)
+    if (titleText && titleText.length > 2) {
+      const matchTx = pastTx.find(tx => 
+        tx.title && tx.title.toLowerCase().includes(titleLower)
+      );
+      if (matchTx && matchTx.category) {
+        let moduleSource = 'budget';
+        if (matchTx.comment && matchTx.comment.includes('moduleSource')) {
+          try {
+            const parsed = JSON.parse(matchTx.comment);
+            if (parsed.moduleSource) moduleSource = parsed.moduleSource;
+          } catch(e){}
+        } else {
+          const catName = matchTx.category;
+          if (catName === 'Santé') moduleSource = 'sante';
+          else if (catName === 'Véhicules') moduleSource = 'vehicules';
+          else if (catName === 'Logement') moduleSource = 'logement';
+          else if (catName === 'Éducation' || catName === 'École') moduleSource = 'ecole';
+          else if (catName === 'Alimentation' || catName === 'Courses') moduleSource = 'courses';
+          else if (catName === 'Voyages') moduleSource = 'voyages';
+          else if (catName === 'Animaux') moduleSource = 'animaux';
+          else if (catName === 'Argent de poche') moduleSource = 'argent_de_poche';
+        }
+        return {
+          category: matchTx.category,
+          subCategory: matchTx.subCategory || 'Divers',
+          moduleSource,
+          found: true
+        };
+      }
+    }
+
+    return null;
+  };
+
   const parseVoyageCommand = (text: string) => {
     const textLower = text.toLowerCase();
     
     let destination = "";
-    const destMatch = text.match(/(?:voyage|vacances)\s+(?:au|en|à|a|vers)\s+([a-zA-Z0-9éèàùçâêîôûäëïöü\s-]+)/i);
+    // Match destination following keywords
+    const destMatch = text.match(/(?:voyage|vacances|voyager)\s+(?:au|en|à|a|vers|pour\s+l'|pour\s+la|pour\s+le|pour\s+les|pour|de|du|d'|dans\s+le|dans\s+la|dans\s+l')\s+([a-zA-Z0-9éèàùçâêîôûäëïöü\s-]+)/i);
     if (destMatch) {
       let rawDest = destMatch[1].trim();
       const cleanMatch = rawDest.split(/\b(?:pour|et|le|la|de|du|avec|à\b|a\b|en\b|au\b|vers\b)/i)[0].trim();
       if (cleanMatch) {
-        const cleanLower = cleanMatch.toLowerCase();
-        if (!['au', 'en', 'à', 'a', 'vers', 'le', 'la', 'un', 'une'].includes(cleanLower)) {
-          destination = cleanMatch.charAt(0).toUpperCase() + cleanMatch.slice(1);
+        const normalized = normalizeDestination(cleanMatch);
+        if (normalized) {
+          destination = correctSpelling(normalized);
         }
       }
     }
@@ -5409,13 +5565,13 @@ function App() {
             }
           } else if (voiceContext.missingField === 'destination') {
             let destVal = text.trim();
-            destVal = destVal.replace(/voyage au|voyage en|voyage à|voyage a|voyage vers/gi, '').trim();
-            destVal = destVal.replace(/au|en|à|a|vers/gi, '').trim();
             if (destVal) {
-              destVal = destVal.charAt(0).toUpperCase() + destVal.slice(1);
-              updatedCtx.destination = destVal;
-              delete updatedCtx.missingField;
-              resolved = true;
+              const clean = normalizeDestination(destVal);
+              if (clean) {
+                updatedCtx.destination = correctSpelling(clean);
+                delete updatedCtx.missingField;
+                resolved = true;
+              }
             }
           } else if (voiceContext.missingField === 'date') {
             let dateVal = text.trim();
@@ -6536,8 +6692,9 @@ function App() {
           const memberRegex = new RegExp(`\\b${matchedMember.name}\\b`, 'gi');
           cleanTitle = cleanTitle.replace(memberRegex, '').trim();
         }
-        cleanTitle = cleanTitle.replace(/^\b(?:dans|pour|en|le|la|les|de|du|d'|l')\b/gi, '').trim();
-        cleanTitle = cleanTitle.replace(/\s+/g, ' ');
+        // Clean leading prepositions from description
+        cleanTitle = cleanTitle.replace(/^(?:dans\s+le|dans\s+la|dans\s+l'|dans\s+|pour\s+l'|pour\s+la|pour\s+le|pour\s+les|pour\s+|en\s+|au\s+|aux\s+|à\s+|a\s+|de\s+l'|de\s+la|de\s+le|de\s+les|de\s+|du\s+|d'|l')/i, '');
+        cleanTitle = cleanTitle.replace(/\s+/g, ' ').trim();
 
         if (cleanTitle) {
           title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
@@ -6592,6 +6749,19 @@ function App() {
         const matches = keywordRules.filter(rule => 
           rule.keywords.some(kw => promptLower.includes(kw))
         );
+
+        if (matches.length === 0) {
+          const searchMatch = findCategoryAndSubcategory(promptLower, title, customCategories, transactions);
+          if (searchMatch) {
+            matches.push({
+              keywords: [],
+              category: searchMatch.category,
+              subCategory: searchMatch.subCategory,
+              moduleSource: searchMatch.moduleSource,
+              label: `💸 ${searchMatch.category}`
+            });
+          }
+        }
 
         const parsedTxData = {
           amount: amountVal,
