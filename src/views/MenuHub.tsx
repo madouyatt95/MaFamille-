@@ -158,6 +158,7 @@ interface MenuHubProps {
   setDocuments: React.Dispatch<React.SetStateAction<DocumentFile[]>>;
   tasks: ChoreTask[];
   groceries: GroceryItem[];
+  externalGroceryFilter?: 'all' | 'pending' | 'checked';
   members: Member[];
   vehicles: Vehicle[];
   setVehicles: React.Dispatch<React.SetStateAction<Vehicle[]>>;
@@ -352,6 +353,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   onDeleteArchivedList,
   onCleanGroceryList,
   onToggleFavoriteGrocery,
+  externalGroceryFilter,
   
   activeMemberId = '1',
   memories,
@@ -392,6 +394,12 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newGroceryUnit, setNewGroceryUnit] = useState('pièces');
   const [grocerySubTab, setGrocerySubTab] = useState<'liste' | 'ecochef' | 'menus' | 'archives'>('liste');
   const [groceryFilter, setGroceryFilter] = useState<'all' | 'pending' | 'checked'>('all');
+
+  React.useEffect(() => {
+    if (externalGroceryFilter) {
+      setGroceryFilter(externalGroceryFilter);
+    }
+  }, [externalGroceryFilter]);
   const [showGrocerySuggestions, setShowGrocerySuggestions] = useState(false);
   const [grocerySort, setGrocerySort] = useState<'custom' | 'alphabetical' | 'parcours'>('custom');
   

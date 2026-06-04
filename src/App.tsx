@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
-import { parseSmartNaturalSentence, detectGroceryCategory, getGroceryItemEmoji } from './utils/groceryParser';
+import { parseSmartNaturalSentence, detectGroceryCategory, getGroceryItemEmoji, parseGroceryAction, formatGroceryQty } from './utils/groceryParser';
 
 
 import type { 
@@ -245,6 +245,7 @@ function App() {
   const [groceries, setGroceries] = useState<GroceryItem[]>(() => {
     return safeGetLocalStorage('mf_groceries', []);
   });
+  const [externalGroceryFilter, setExternalGroceryFilter] = useState<'all' | 'pending' | 'checked'>('all');
 
   const [archivedLists, setArchivedLists] = useState<ArchivedList[]>([]);
   const [initialChatGroupId, setInitialChatGroupId] = useState<string | undefined>(undefined);
@@ -3626,6 +3627,170 @@ function App() {
         }
       };
 
+      const executeGroceryVoiceAction = async (actionResult: any) => {
+        const client = getSupabaseClient();
+        const activeMemberObj = members.find(m => m.id === activeMemberId);
+        const activeMemberName = activeMemberObj?.name || 'Foyer';
+        
+        let localFeedback = "";
+        let localSuccess = false;
+        
+        switch (actionResult.action) {
+          case 'check': {
+            const updatedIds = actionResult.items.map((i: any) => i.item.id);
+            setGroceries(prev => prev.map(g => {
+              if (updatedIds.includes(g.id)) {
+                return { ...g, checked: true, inStock: true };
+              }
+              return g;
+            }));
+            
+            if (foyer && client) {
+              await client.from('groceries').update({ checked: true, in_stock: true }).eq('foyer_id', foyer.id).in('id', updatedIds);
+            }
+            
+            localFeedback = `✓ Cochés dans la liste : ${actionResult.items.map((i: any) => i.item.name).join(', ')}`;
+            localSuccess = true;
+            break;
+          }
+          
+          case 'uncheck': {
+            const updatedIds = actionResult.items.map((i: any) => i.item.id);
+            setGroceries(prev => prev.map(g => {
+              if (updatedIds.includes(g.id)) {
+                return { ...g, checked: false, inStock: true };
+              }
+              return g;
+            }));
+            
+            if (foyer && client) {
+              await client.from('groceries').update({ checked: false, in_stock: true }).eq('foyer_id', foyer.id).in('id', updatedIds);
+            }
+            
+            localFeedback = `⟲ Décochés dans la liste : ${actionResult.items.map((i: any) => i.item.name).join(', ')}`;
+            localSuccess = true;
+            break;
+          }
+          
+          case 'out_of_stock': {
+            const updatedIds = actionResult.items.map((i: any) => i.item.id);
+            setGroceries(prev => prev.map(g => {
+              if (updatedIds.includes(g.id)) {
+                return { ...g, checked: false, inStock: false };
+              }
+              return g;
+            }));
+            
+            if (foyer && client) {
+              await client.from('groceries').update({ checked: false, in_stock: false }).eq('foyer_id', foyer.id).in('id', updatedIds);
+            }
+            
+            localFeedback = `❌ Rupture signalée pour : ${actionResult.items.map((i: any) => i.item.name).join(', ')}`;
+            localSuccess = true;
+            break;
+          }
+          
+          case 'delete': {
+            const updatedIds = actionResult.items.map((i: any) => i.item.id);
+            setGroceries(prev => prev.filter(g => !updatedIds.includes(g.id)));
+            
+            if (foyer && client) {
+              await client.from('groceries').delete().eq('foyer_id', foyer.id).in('id', updatedIds);
+            }
+            
+            localFeedback = `🗑️ Supprimés de la liste : ${actionResult.items.map((i: any) => i.item.name).join(', ')}`;
+            localSuccess = true;
+            break;
+          }
+          
+          case 'update_qty': {
+            const { item } = actionResult.items[0];
+            const newQty = actionResult.items[0].details.newQty;
+            
+            setGroceries(prev => prev.map(g => {
+              if (g.id === item.id) {
+                return { ...g, quantity: newQty };
+              }
+              return g;
+            }));
+            
+            if (foyer && client) {
+              await client.from('groceries').update({ quantity: newQty }).eq('foyer_id', foyer.id).eq('id', item.id);
+            }
+            
+            localFeedback = `📋 Quantité de ${item.name} mise à jour : ${newQty}`;
+            localSuccess = true;
+            break;
+          }
+          
+          case 'replace': {
+            const { item } = actionResult.items[0];
+            const replaceWithName = actionResult.items[0].details.replaceWith;
+            
+            // Delete old
+            setGroceries(prev => prev.filter(g => g.id !== item.id));
+            if (foyer && client) {
+              await client.from('groceries').delete().eq('foyer_id', foyer.id).eq('id', item.id);
+            }
+            
+            // Add new
+            const parsedDetails = parseSmartNaturalSentence(replaceWithName, activeMemberName);
+            let finalName = replaceWithName.charAt(0).toUpperCase() + replaceWithName.slice(1);
+            let finalQty = item.quantity;
+            let finalCategory = detectGroceryCategory(finalName);
+            
+            if (parsedDetails.length > 0) {
+              finalName = parsedDetails[0].name;
+              finalCategory = parsedDetails[0].category;
+              if (parsedDetails[0].quantity && parsedDetails[0].quantity !== '1 pièces') {
+                finalQty = parsedDetails[0].quantity;
+              }
+            }
+            
+            await handleAddGroceryItem(finalName, finalCategory, finalQty, item.meal, activeMemberName, !!item.isFavorite);
+            
+            localFeedback = `🔄 Remplacé ${item.name} par ${finalName} (${finalQty})`;
+            localSuccess = true;
+            break;
+          }
+          
+          case 'summary_remaining': {
+            const remaining = groceries.filter(g => !g.checked);
+            setExternalGroceryFilter('pending');
+            if (remaining.length === 0) {
+              localFeedback = "🛒 Il ne reste aucun article à acheter dans votre liste !";
+            } else {
+              localFeedback = `📋 Il reste ${remaining.length} article(s) à acheter : ${remaining.map(g => `${getGroceryItemEmoji(g.name)} ${g.name} (${formatGroceryQty(g.quantity)})`).join(', ')}`;
+            }
+            localSuccess = true;
+            break;
+          }
+          
+          case 'count_remaining': {
+            const remaining = groceries.filter(g => !g.checked);
+            localFeedback = `📋 Il reste ${remaining.length} article(s) à acheter dans votre liste.`;
+            localSuccess = true;
+            break;
+          }
+          
+          case 'summary_bought': {
+            const bought = groceries.filter(g => g.checked);
+            setExternalGroceryFilter('checked');
+            if (bought.length === 0) {
+              localFeedback = "🛒 Vous n'avez encore acheté aucun article de la liste.";
+            } else {
+              localFeedback = `✓ Déjà acheté(s) (${bought.length}) : ${bought.map(g => `${getGroceryItemEmoji(g.name)} ${g.name}`).join(', ')}`;
+            }
+            localSuccess = true;
+            break;
+          }
+        }
+        
+        setVoiceFeedback(localFeedback);
+        logVoiceCommandToSupabase(`grocery_${actionResult.action}`, localSuccess);
+        closeVoiceAssistantAfterDelay(4000);
+      };
+
       // Determine explicit financial amount first
       const hasExplicitAmount = /(\d+[\.,]?\d*)\s*(?:euros?|€|dollars?|\$|eur|usd)/i.test(promptLower) || 
                                /(?:dépense de|revenu de|salaire de|montant de|payé|coûte|couté) (\d+[\.,]?\d*)/i.test(promptLower);
@@ -3635,6 +3800,16 @@ function App() {
                           promptLower.match(/(?:dépense de|revenu de|salaire de|montant de|payé|coûte|couté) (\d+[\.,]?\d*)/i);
       if (amountMatch) {
         amountVal = parseFloat(amountMatch[1].replace(',', '.'));
+      }
+
+      // Priorité Course si dans le module Courses
+      const isInCoursesModule = activeTab === 'menu' && activeModule === 'courses';
+      if (isInCoursesModule) {
+        const actionResult = parseGroceryAction(promptLower, groceries);
+        if (actionResult) {
+          await executeGroceryVoiceAction(actionResult);
+          return;
+        }
       }
 
       // 0. DICtiONNAIRE DE NAVIGATION VOCALE GLOBALE
@@ -3713,6 +3888,15 @@ function App() {
           setVoiceFeedback(matched.message);
           logVoiceCommandToSupabase("navigation", true, { target_module: matched.module || matched.tab });
           closeVoiceAssistantAfterDelay(2500);
+          return;
+        }
+      }
+
+      // Nouvelle couche : Actions vocales avancées sur éléments existants de courses
+      if (!isInCoursesModule) {
+        const actionResult = parseGroceryAction(promptLower, groceries);
+        if (actionResult) {
+          await executeGroceryVoiceAction(actionResult);
           return;
         }
       }
@@ -6392,6 +6576,7 @@ function App() {
           setDocuments={setDocuments}
           tasks={tasks}
           groceries={groceries}
+          externalGroceryFilter={externalGroceryFilter}
           members={members}
           setMembers={setMembers}
           vehicles={vehicles}

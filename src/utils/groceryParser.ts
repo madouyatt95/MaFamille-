@@ -612,3 +612,224 @@ export const parseGroceryNameAndQty = (text: string) => {
     qtyString: '1 pièces'
   };
 };
+
+export const findMatchingGroceryItem = (searchText: string, list: GroceryItem[]): GroceryItem | null => {
+  const cleanSearch = searchText.toLowerCase().trim()
+    .replace(/^(le|la|les|l'|l’|du|de\s+la|des|un|une|de|d'|d’)\s+/i, '')
+    .trim();
+
+  if (!cleanSearch) return null;
+
+  // Obtenir le nom standardisé du dictionnaire s'il existe
+  const prodInfo = getProductInfo(cleanSearch);
+  const searchStandardName = prodInfo ? prodInfo.name.toLowerCase() : cleanSearch;
+
+  // 1. Recherche exacte sur le nom propre de la liste
+  let matched = list.find(item => item.name.toLowerCase() === cleanSearch);
+  if (matched) return matched;
+
+  // 2. Recherche exacte sur le nom standardisé
+  matched = list.find(item => item.name.toLowerCase() === searchStandardName);
+  if (matched) return matched;
+
+  // 3. Recherche de correspondance partielle (contient)
+  matched = list.find(item => {
+    const itemNameLower = item.name.toLowerCase();
+    return itemNameLower.includes(cleanSearch) || cleanSearch.includes(itemNameLower);
+  });
+  if (matched) return matched;
+
+  // 4. Recherche via les mots-clés du dictionnaire
+  if (prodInfo) {
+    matched = list.find(item => {
+      const itemProdInfo = getProductInfo(item.name);
+      return itemProdInfo && itemProdInfo.name === prodInfo.name;
+    });
+    if (matched) return matched;
+  }
+
+  // 5. Recherche par sous-mot tolérante
+  matched = list.find(item => {
+    const nameLower = item.name.toLowerCase();
+    const searchWords = cleanSearch.split(/\s+/).filter(w => w.length > 2);
+    return searchWords.some(w => nameLower.includes(w));
+  });
+
+  return matched || null;
+};
+
+export interface VoiceGroceryActionResult {
+  action: 'check' | 'uncheck' | 'out_of_stock' | 'delete' | 'replace' | 'update_qty' | 'summary_remaining' | 'summary_bought' | 'count_remaining';
+  items: { item: GroceryItem; details?: any }[];
+}
+
+const splitSegmentsAndFind = (text: string, list: GroceryItem[]): GroceryItem[] => {
+  const segments = text.split(/,|\bet\b|\bplus\b|\bpuis\b/gi);
+  const result: GroceryItem[] = [];
+  for (const seg of segments) {
+    const cleaned = seg.trim();
+    if (!cleaned) continue;
+    const item = findMatchingGroceryItem(cleaned, list);
+    if (item && !result.some(r => r.id === item.id)) {
+      result.push(item);
+    }
+  }
+  return result;
+};
+
+export const parseGroceryAction = (prompt: string, list: GroceryItem[]): VoiceGroceryActionResult | null => {
+  const lower = prompt.toLowerCase().trim();
+
+  // Commandes vocales de résumés/comptages
+  if (lower === 'que reste-t-il' || lower === 'que reste t il' || lower.includes('reste-t-il') || lower.includes('reste t il') || lower.includes('qu\'est-ce qu\'il reste') || lower.includes('qu\'est ce qu\'il reste')) {
+    if (lower.includes('combien')) {
+      return { action: 'count_remaining', items: [] };
+    }
+    return { action: 'summary_remaining', items: [] };
+  }
+  if (lower.includes('combien reste') && (lower.includes('article') || lower.includes('produit'))) {
+    return { action: 'count_remaining', items: [] };
+  }
+  if (lower.includes('qu\'ai-je déjà acheté') || lower.includes('qu\'ai je deja achete') || lower.includes('déjà acheté') || lower.includes('deja achete') || lower.includes('ce que j\'ai acheté') || lower.includes('ce que j\'ai achete')) {
+    return { action: 'summary_bought', items: [] };
+  }
+
+  // Remplacer : "remplace [produit1] par [produit2]" ou "substitue [produit1] par [produit2]"
+  const replaceMatch = lower.match(/(?:remplace|substitue)\s+(.+?)\s+par\s+(.+)/i);
+  if (replaceMatch) {
+    const item1 = findMatchingGroceryItem(replaceMatch[1], list);
+    if (item1) {
+      return {
+        action: 'replace',
+        items: [{ item: item1, details: { replaceWith: replaceMatch[2].trim() } }]
+      };
+    }
+  }
+
+  // Modifier quantité : "passe [produit] à [quantité]" ou "mets [produit] à [quantité]"
+  const qtyMatch1 = lower.match(/(?:passe|mets)\s+(.+?)\s+à\s+(.+)/i);
+  if (qtyMatch1) {
+    const item = findMatchingGroceryItem(qtyMatch1[1], list);
+    if (item) {
+      return {
+        action: 'update_qty',
+        items: [{ item, details: { newQty: qtyMatch1[2].trim() } }]
+      };
+    }
+  }
+  // "finalement [quantité] [produit]"
+  if (lower.startsWith('finalement ')) {
+    const rawText = lower.slice('finalement '.length).trim();
+    const numRegex = /^(un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze|treize|quatorze|quinze|seize|dix-sept|dix-huit|dix-neuf|vingt|\d+)\s*(?:bouteilles?|kilos?|kg|grammes?|g|packs?|litres?|l|boîtes?|paquets?|pots?|canettes?)?\s*(?:de|du|des|d'|d’)?\s*(.+)/i;
+    const match = rawText.match(numRegex);
+    if (match) {
+      const item = findMatchingGroceryItem(match[2], list);
+      if (item) {
+        const qtyStr = rawText.slice(0, rawText.length - match[2].length).trim();
+        return {
+          action: 'update_qty',
+          items: [{ item, details: { newQty: qtyStr } }]
+        };
+      }
+    }
+  }
+
+  // Décocher : décoche, remets, retire de mon panier, finalement non, je ne l'ai pas pris
+  const uncheckTriggers = [
+    'décoche le', 'décoche la', 'décoche les', 'décoche l\'', 'décoche',
+    'decoche le', 'decoche la', 'decoche les', 'decoche l\'', 'decoche',
+    'remets le', 'remets la', 'remets les', 'remets l\'', 'remets',
+    'remet le', 'remet la', 'remet les', 'remet l\'', 'remet',
+    'retire de mon panier le', 'retire de mon panier la', 'retire de mon panier les', 'retire de mon panier l\'', 'retire de mon panier',
+    'finalement non pour les', 'finalement non pour le', 'finalement non pour la', 'finalement non pour l\'', 'finalement non pour', 'finalement non',
+    'je ne l\'ai pas pris pour les', 'je ne l\'ai pas pris pour le', 'je ne l\'ai pas pris pour la', 'je ne l\'ai pas pris pour l\'', 'je ne l\'ai pas pris pour', 'je ne l\'ai pas pris', 'je ne l\'ai pas prise'
+  ];
+  for (const trig of uncheckTriggers) {
+    if (lower.startsWith(trig + ' ')) {
+      const remainder = lower.slice(trig.length + 1).trim();
+      const itemsToUncheck = splitSegmentsAndFind(remainder, list);
+      if (itemsToUncheck.length > 0) {
+        return { action: 'uncheck', items: itemsToUncheck.map(item => ({ item })) };
+      }
+    }
+  }
+
+  // Marquer introuvable : je n'ai pas trouvé, introuvable, absent, rupture
+  const outOfStockTriggers = [
+    'je n\'ai pas trouvé les', 'je n\'ai pas trouvé le', 'je n\'ai pas trouvé la', 'je n\'ai pas trouvé l\'', 'je n\'ai pas trouvé',
+    'je n\'ai pas trouve les', 'je n\'ai pas trouve le', 'je n\'ai pas trouve la', 'je n\'ai pas trouve l\'', 'je n\'ai pas trouve',
+    'je n\'ai pas trouvé de', 'je n\'ai pas trouvé d\'', 'je n\'ai pas trouve de', 'je n\'ai pas trouve d\'',
+    'rupture de', 'rupture de les', 'rupture de le', 'rupture de la', 'rupture de l\'', 'rupture',
+    'absent les', 'absent le', 'absent la', 'absent l\'', 'absent',
+    'absents les', 'absents le', 'absents la', 'absents l\'', 'absents'
+  ];
+  for (const trig of outOfStockTriggers) {
+    if (lower.startsWith(trig + ' ')) {
+      const remainder = lower.slice(trig.length + 1).trim();
+      const itemsOutOfStock = splitSegmentsAndFind(remainder, list);
+      if (itemsOutOfStock.length > 0) {
+        return { action: 'out_of_stock', items: itemsOutOfStock.map(item => ({ item })) };
+      }
+    }
+  }
+  const suffixOutOfStock = lower.match(/(.+?)\s+(?:est introuvable|sont introuvables|est absent|sont absents|en rupture)$/i);
+  if (suffixOutOfStock) {
+    const itemsOutOfStock = splitSegmentsAndFind(suffixOutOfStock[1], list);
+    if (itemsOutOfStock.length > 0) {
+      return { action: 'out_of_stock', items: itemsOutOfStock.map(item => ({ item })) };
+    }
+  }
+
+  // Supprimer : supprime, retire, enlève, enleve
+  const deleteTriggers = [
+    'supprime les', 'supprime le', 'supprime la', 'supprime l\'', 'supprime',
+    'retire les', 'retire le', 'retire la', 'retire l\'', 'retire',
+    'enlève les', 'enlève le', 'enlève la', 'enlève l\'', 'enlève',
+    'enleve les', 'enleve le', 'enleve la', 'enleve l\'', 'enleve'
+  ];
+  for (const trig of deleteTriggers) {
+    if (lower.startsWith(trig + ' ')) {
+      const remainder = lower.slice(trig.length + 1).trim();
+      const itemsToDelete = splitSegmentsAndFind(remainder, list);
+      if (itemsToDelete.length > 0) {
+        return { action: 'delete', items: itemsToDelete.map(item => ({ item })) };
+      }
+    }
+  }
+
+  // Cocher : j'ai pris, j'ai acheté, j'ai trouvé, coche, valide, récupéré, pris
+  const checkTriggers = [
+    'j\'ai pris les', 'j\'ai pris le', 'j\'ai pris la', 'j\'ai pris l\'', 'j\'ai pris',
+    'j\'ai acheté les', 'j\'ai acheté le', 'j\'ai acheté la', 'j\'ai acheté l\'', 'j\'ai acheté',
+    'j\'ai achete les', 'j\'ai achete le', 'j\'ai achete la', 'j\'ai achete l\'', 'j\'ai achete',
+    'j\'ai trouvé les', 'j\'ai trouvé le', 'j\'ai trouvé la', 'j\'ai trouvé l\'', 'j\'ai trouvé',
+    'j\'ai trouve les', 'j\'ai trouve le', 'j\'ai trouve la', 'j\'ai trouve l\'', 'j\'ai trouve',
+    'coche les', 'coche le', 'coche la', 'coche l\'', 'coche',
+    'valide les', 'valide le', 'valide la', 'valide l\'', 'valide',
+    'récupéré les', 'récupéré le', 'récupéré la', 'récupéré l\'', 'récupéré',
+    'recupere les', 'recupere le', 'recupere la', 'recupere l\'', 'recupere',
+    'pris les', 'pris le', 'pris la', 'pris l\'', 'pris',
+    'acheté les', 'acheté le', 'acheté la', 'acheté l\'', 'acheté',
+    'achete les', 'achete le', 'achete la', 'achete l\'', 'achete',
+    'trouvé les', 'trouvé le', 'trouvé la', 'trouvé l\'', 'trouvé',
+    'trouve les', 'trouve le', 'trouve la', 'trouve l\'', 'trouve'
+  ];
+  for (const trig of checkTriggers) {
+    if (lower.startsWith(trig + ' ')) {
+      const remainder = lower.slice(trig.length + 1).trim();
+      const itemsToCheck = splitSegmentsAndFind(remainder, list);
+      if (itemsToCheck.length > 0) {
+        return { action: 'check', items: itemsToCheck.map(item => ({ item })) };
+      }
+    }
+  }
+  const suffixCheck = lower.match(/(.+?)\s+(?:pris|recupere|récupéré|achete|acheté|trouve|trouvé|coche|coché)$/i);
+  if (suffixCheck) {
+    const itemsToCheck = splitSegmentsAndFind(suffixCheck[1], list);
+    if (itemsToCheck.length > 0) {
+      return { action: 'check', items: itemsToCheck.map(item => ({ item })) };
+    }
+  }
+
+  return null;
+};
