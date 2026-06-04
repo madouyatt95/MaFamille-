@@ -33,7 +33,8 @@ import {
   Wrench,
   RefreshCw
 } from 'lucide-react';
-import type { Member, FamilyEvent, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog } from '../types';
+import type { Member, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog } from '../types';
+import type { UnifiedEvent } from '../utils/agendaHelper';
 
 const compressImage = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
   return new Promise((resolve) => {
@@ -100,10 +101,9 @@ export const DishImage: React.FC<{ src: string | undefined; alt: string; classNa
 
 interface AccueilProps {
   members: Member[];
-  events: FamilyEvent[];
+  events: UnifiedEvent[];
   dishes: Dish[];
   alerts: NotificationAlert[];
-  formatMoney: (amount: number) => string;
   setActiveTab: (tab: string) => void;
   setActiveModule: (moduleName: string) => void;
   onMenuClick: () => void;
@@ -120,16 +120,7 @@ interface AccueilProps {
   onDeleteMemory: (id: string) => void;
   onLikeMemory: (id: string, newLikesCount: number) => void;
 
-  trips?: any[];
-  demarches?: any[];
-  schoolTasks?: any[];
-  tasks?: any[];
-  vehicles?: any[];
-  maintenance?: any[];
-  abonnements?: any[];
-  vaccines?: any[];
   savingGoals?: any[];
-  pets?: any[];
   onDeleteUnifiedEvent?: (id: string, moduleName: string) => Promise<void>;
   onArchiveUnifiedEvent?: (id: string, moduleName: string) => Promise<void>;
 }
@@ -139,7 +130,6 @@ export const Accueil: React.FC<AccueilProps> = ({
   events,
   dishes,
   alerts,
-  formatMoney,
   setActiveTab,
   setActiveModule,
   onMenuClick,
@@ -156,16 +146,7 @@ export const Accueil: React.FC<AccueilProps> = ({
   onDeleteMemory,
   onLikeMemory,
 
-  trips = [],
-  demarches = [],
-  schoolTasks = [],
-  tasks = [],
-  vehicles = [],
-  maintenance = [],
-  abonnements = [],
-  vaccines = [],
   savingGoals: _savingGoals = [],
-  pets = [],
   onDeleteUnifiedEvent,
   onArchiveUnifiedEvent
 }) => {
@@ -330,26 +311,6 @@ export const Accueil: React.FC<AccueilProps> = ({
     return !m.readBy.includes(activeMemberId);
   }).length;
 
-  // Helper to compute next birthday
-  const getNextBirthday = (birthDateStr: string, sysDate: Date) => {
-    if (!birthDateStr) return null;
-    const parts = birthDateStr.split('-');
-    if (parts.length !== 3) return null;
-    const birthMonth = parseInt(parts[1], 10) - 1;
-    const birthDay = parseInt(parts[2], 10);
-    
-    const currentYear = sysDate.getFullYear();
-    const bdayThisYear = new Date(currentYear, birthMonth, birthDay);
-    
-    const normalizedToday = new Date(sysDate.getFullYear(), sysDate.getMonth(), sysDate.getDate());
-    const normalizedBdayThisYear = new Date(bdayThisYear.getFullYear(), bdayThisYear.getMonth(), bdayThisYear.getDate());
-    
-    if (normalizedBdayThisYear >= normalizedToday) {
-      return normalizedBdayThisYear;
-    } else {
-      return new Date(currentYear + 1, birthMonth, birthDay);
-    }
-  };
 
   const systemDate = new Date();
   
@@ -371,302 +332,18 @@ export const Accueil: React.FC<AccueilProps> = ({
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const agendaUnified = (isChild
-    ? events.filter(e => e.memberName === activeMember.name || e.type === 'school')
+  const allUnifiedEvents = (isChild
+    ? events.filter(e => e.member_id === activeMember.id || e.event_type === 'school')
     : events
-  ).filter(e => e.type !== 'vaccine')
-  .map(e => {
-    const eventDate = e.dateTime.split('T')[0];
-    return {
-      id: `agenda-${e.id}`,
-      title: e.title,
-      type: 'agenda',
-      date: eventDate,
-      time: e.time || '00:00',
-      description: e.description || e.location || 'Événement familial',
-      iconType: e.type,
-      memberId: e.memberId,
-      memberName: e.memberName,
-      done: e.done,
-      sourceModule: 'agenda'
-    };
-  });
-
-  const tripsUnified: any[] = [];
-  trips.forEach(t => {
-    const isValidDate = (dStr: string) => {
-      if (!dStr) return false;
-      const lower = dStr.toLowerCase();
-      if (lower.includes('invalid') || lower.includes('non') || lower.includes('planifi')) return false;
-      const d = new Date(dStr);
-      return !isNaN(d.getTime());
-    };
-    if (t.startDate && isValidDate(t.startDate)) {
-      tripsUnified.push({
-        id: `trip-dep-${t.id}`,
-        title: `✈️ Départ : ${t.destination}`,
-        type: 'trip',
-        date: t.startDate,
-        time: '09:00',
-        description: `Départ pour le voyage à ${t.destination}. Budget : ${t.budget}€`,
-        iconType: 'trip',
-        done: false,
-        sourceModule: 'voyages'
-      });
-    }
-    if (t.endDate && isValidDate(t.endDate)) {
-      tripsUnified.push({
-        id: `trip-ret-${t.id}`,
-        title: `🛬 Retour : ${t.destination}`,
-        type: 'trip',
-        date: t.endDate,
-        time: '18:00',
-        description: `Retour du voyage à ${t.destination}.`,
-        iconType: 'trip',
-        done: false,
-        sourceModule: 'voyages'
-      });
-    }
-  });
-
-  const demarchesUnified = demarches
-    .filter(d => d.status !== 'completed')
-    .map(d => {
-      const dDate = d.dueDate || d.createdAt?.split('T')[0] || todayStr;
-      return {
-        id: `demarche-${d.id}`,
-        title: `Démarche : ${d.title}`,
-        type: 'demarche',
-        date: dDate,
-        time: '11:00',
-        description: `Statut : ${d.status}`,
-        iconType: 'demarche',
-        memberId: d.assignedMemberId,
-        done: false,
-        sourceModule: 'demarches'
-      };
-    });
-
-  const schoolTasksUnified = schoolTasks
-    .filter(st => !st.done)
-    .map(st => ({
-      id: `school-${st.id}`,
-      title: `Devoir : ${st.title} (${st.subject})`,
-      type: 'schoolTask',
-      date: st.dueDate,
-      time: '17:00',
-      description: `Difficulté : ${st.difficulty}`,
-      iconType: 'school',
-      memberId: st.assignedMemberId,
-      done: false,
-      sourceModule: 'ecole'
-    }));
-
-  const tasksUnified = tasks
-    .filter(tk => !tk.done)
-    .map(tk => ({
-      id: `task-${tk.id}`,
-      title: `Tâche : ${tk.title}`,
-      type: 'task',
-      date: tk.dueDate,
-      time: '18:00',
-      description: `Points : ${tk.rewardPoints}`,
-      iconType: 'task',
-      memberId: tk.assignedMemberId,
-      done: false,
-      sourceModule: 'taches'
-    }));
-
-  const vaccinesUnified = vaccines
-    .filter(v => v.status !== 'Archivé')
-    .map(v => {
-      const vDate = v.nextDate || v.date;
-      return {
-        id: `vaccine-${v.id}`,
-        title: `Vaccin : ${v.name}`,
-        type: 'vaccine',
-        date: vDate,
-        time: v.time || '',
-        description: v.note || 'Rappel de vaccin',
-        iconType: 'vaccine',
-        memberId: v.memberId,
-        done: v.status === 'Fait',
-        sourceModule: 'sante',
-        source_module: 'santé',
-        source_id: v.id,
-        event_type: 'vaccine'
-      };
-    });
-
-
-  const petsUnified: any[] = [];
-  (pets || []).forEach(p => {
-    if (p.nextVaccine) {
-      petsUnified.push({
-        id: `pet-vac-${p.id}`,
-        title: `🐱 Vaccin de ${p.name}`,
-        type: 'pet_vac',
-        date: p.nextVaccine,
-        time: '10:00',
-        description: `Vaccin de rappel pour ${p.name} (${p.species})`,
-        iconType: 'medical',
-        done: false,
-        sourceModule: 'animaux'
-      });
-    }
-    if (p.vetAppointment) {
-      petsUnified.push({
-        id: `pet-vet-${p.id}`,
-        title: `🏥 RDV Vétérinaire : ${p.name}`,
-        type: 'pet_vet',
-        date: p.vetAppointment,
-        time: '14:00',
-        description: `Rendez-vous vétérinaire pour ${p.name}`,
-        iconType: 'medical',
-        done: false,
-        sourceModule: 'animaux'
-      });
-    }
-  });
-
-  const abonnementsUnified = abonnements.map(a => ({
-    id: `abonnement-${a.id}`,
-    title: `Abonnement : ${a.name}`,
-    type: 'abonnement',
-    date: a.nextBillingDate,
-    time: '08:00',
-    description: `Montant : ${formatMoney(a.amount)}`,
-    iconType: 'abonnement',
-    done: false,
-    sourceModule: 'budget',
-    amount: a.amount
-  }));
-
-  const vehiclesUnified: any[] = [];
-  vehicles.forEach(v => {
-    if (v.technicalControl) {
-      vehiclesUnified.push({
-        id: `vehicle-tc-${v.id}`,
-        title: `Contrôle Technique : ${v.name}`,
-        type: 'vehicle_tc',
-        date: v.technicalControl,
-        time: '09:00',
-        description: `Plaque : ${v.plate}`,
-        iconType: 'vehicle',
-        done: false,
-        sourceModule: 'vehicules'
-      });
-    }
-    if (v.insuranceExpiry) {
-      vehiclesUnified.push({
-        id: `vehicle-ins-${v.id}`,
-        title: `Exp. Assurance : ${v.name}`,
-        type: 'vehicle_ins',
-        date: v.insuranceExpiry,
-        time: '09:00',
-        description: `Plaque : ${v.plate}`,
-        iconType: 'vehicle',
-        done: false,
-        sourceModule: 'vehicules'
-      });
-    }
-  });
-
-  const maintenanceUnified = maintenance
-    .filter(m => m.status !== 'completed')
-    .map(m => ({
-      id: `maintenance-${m.id}`,
-      title: `Entretien : ${m.title}`,
-      type: 'maintenance',
-      date: m.date,
-      time: '14:00',
-      description: `Prestataire : ${m.provider}`,
-      iconType: 'maintenance',
-      done: false,
-      sourceModule: 'logement'
-    }));
-
-  const birthdaysUnified = members
-    .map(m => {
-      if (!m.birthDate) return null;
-      const nextBday = getNextBirthday(m.birthDate, systemDate);
-      if (!nextBday) return null;
-      const bdayStr = getLocalDateString(nextBday);
-      return {
-        id: `birthday-${m.id}`,
-        title: `Anniversaire de ${m.name} !`,
-        type: 'birthday',
-        date: bdayStr,
-        time: '00:00',
-        description: `Joyeux anniversaire ${m.name} !`,
-        iconType: 'birthday',
-        memberId: m.id,
-        done: false,
-        sourceModule: 'membres'
-      };
-    })
-    .filter((b): b is any => b !== null);
-
-  // Deduplication: filter out agenda events that are already represented
-  // by their module-specific cards (trips, vehicles, maintenance)
-  const deduplicatedAgenda = agendaUnified.filter(ae => {
-    // Check if the event description contains JSON metadata with sourceModule
-    let sourceMeta: { sourceModule?: string; sourceId?: string } | null = null;
-    try {
-      if (ae.description && ae.description.trim().startsWith('{')) {
-        sourceMeta = JSON.parse(ae.description);
-      }
-    } catch { /* not JSON metadata */ }
-
-    // If metadata says it comes from a module, check if that module's card exists
-    if (sourceMeta?.sourceModule) {
-      const mod = sourceMeta.sourceModule;
-      if (mod === 'voyages' && tripsUnified.length > 0) return false;
-      if (mod === 'vehicules' && vehiclesUnified.length > 0) return false;
-      if (mod === 'logement' && maintenanceUnified.length > 0) return false;
-    }
-
-    // Title-based heuristic deduplication for events created by MenuHub
-    const titleLower = ae.title.toLowerCase();
-    // Trip events: "✈️ Départ : X" or "🛬 Retour : X"
-    if (titleLower.includes('départ :') || titleLower.includes('retour :')) {
-      const dest = ae.title.split(':').slice(1).join(':').trim();
-      if (dest && tripsUnified.some(t => t.title.toLowerCase().includes(dest.toLowerCase()))) {
-        return false;
-      }
-    }
-    // Maintenance events: "🔧 Maintenance : X"
-    if (titleLower.includes('maintenance :')) {
-      const maintTitle = ae.title.split(':').slice(1).join(':').trim();
-      if (maintTitle && maintenanceUnified.some(m => m.title.toLowerCase().includes(maintTitle.toLowerCase()))) {
-        return false;
-      }
-    }
-
-    return true;
-  });
-
-  const allUnifiedEvents = [
-    ...deduplicatedAgenda,
-    ...tripsUnified,
-    ...demarchesUnified,
-    ...schoolTasksUnified,
-    ...tasksUnified,
-    ...vaccinesUnified,
-    ...petsUnified,
-    ...abonnementsUnified,
-    ...vehiclesUnified,
-    ...maintenanceUnified,
-    ...birthdaysUnified
-  ].filter(e => e && !hiddenEventIds.includes(e.id));
+  ).filter(e => e && !hiddenEventIds.includes(e.id));
 
   const todayUnifiedEvents = allUnifiedEvents
-    .filter(e => e.date === todayStr && !e.done)
-    .sort((a, b) => a.time.localeCompare(b.time));
+    .filter(e => e.start_date === todayStr && !e.done)
+    .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
   const upcomingUnifiedEvents = allUnifiedEvents
-    .filter(e => e.date > todayStr && !e.done)
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .filter(e => e.start_date > todayStr && !e.done)
+    .sort((a, b) => a.start_date.localeCompare(b.start_date));
 
   // Filtrer les plats du jour sélectionné
   const activeDishes = dishes.filter(d => d.day === selectedMealDay);
@@ -687,10 +364,13 @@ export const Accueil: React.FC<AccueilProps> = ({
   const unreadAlertsCount = alerts.filter(a => !a.read).length;
 
   const getEventIconAndColor = (e: any) => {
-    switch (e.type) {
+    const type = e.event_type || e.type;
+    switch (type) {
       case 'trip':
+      case 'social':
         return { Icon: Plane, cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20' };
       case 'demarche':
+      case 'other':
         return { Icon: FileText, cls: 'bg-purple-500/10 text-purple-400 border-purple-500/20' };
       case 'schoolTask':
       case 'school':
@@ -698,17 +378,23 @@ export const Accueil: React.FC<AccueilProps> = ({
       case 'task':
         return { Icon: Brush, cls: 'bg-[#00D26A]/10 text-[#00D26A] border-[#00D26A]/20' };
       case 'vaccine':
+      case 'medical':
       case 'pet_vac':
       case 'pet_vet':
         return { Icon: HeartPulse, cls: 'bg-red-500/10 text-red-400 border-red-500/20' };
       case 'abonnement':
+      case 'bill':
         return { Icon: RefreshCw, cls: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' };
       case 'vehicle_tc':
       case 'vehicle_ins':
+      case 'veh-tc':
+      case 'veh-ins':
         return { Icon: Car, cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20' };
       case 'maintenance':
+      case 'maint':
         return { Icon: Wrench, cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
       case 'birthday':
+      case 'bday':
         return { Icon: Gift, cls: 'bg-pink-500/10 text-pink-400 border-pink-500/20' };
       default:
         if (e.iconType === 'medical') {
@@ -723,7 +409,9 @@ export const Accueil: React.FC<AccueilProps> = ({
   };
 
   const handleEventClick = (event: any) => {
-    switch (event.sourceModule) {
+    const sourceModule = event.source_module || event.sourceModule;
+    const eventDate = event.start_date || event.date;
+    switch (sourceModule) {
       case 'voyages':
         setActiveTab('menu');
         setActiveModule('voyages');
@@ -761,7 +449,7 @@ export const Accueil: React.FC<AccueilProps> = ({
         break;
       case 'agenda':
       default:
-        onEventClick(event.date);
+        onEventClick(eventDate);
         break;
     }
   };
@@ -1032,7 +720,8 @@ export const Accueil: React.FC<AccueilProps> = ({
             {todayUnifiedEvents.length > 0 ? (
               todayUnifiedEvents.slice(0, 4).map((event) => {
                 const { Icon, cls } = getEventIconAndColor(event);
-                const linkedMember = event.memberId ? members.find(m => m.id === event.memberId) : null;
+                const memberId = event.member_id;
+                const linkedMember = memberId ? members.find(m => m.id === memberId) : null;
                 return (
                   <div 
                     key={event.id} 
@@ -1055,7 +744,7 @@ export const Accueil: React.FC<AccueilProps> = ({
                     </div>
                     <div className="shrink-0 ml-2 flex items-center space-x-2 relative">
                       <span className="text-xs font-bold text-white/70 bg-white/5 px-3 py-1.5 rounded-[12px] border border-white/5">
-                        {event.time}
+                        {event.start_time || 'Toute la journée'}
                       </span>
                       
                       <button
@@ -1093,8 +782,10 @@ export const Accueil: React.FC<AccueilProps> = ({
             {upcomingUnifiedEvents.length > 0 ? (
               upcomingUnifiedEvents.slice(0, 6).map((event) => {
                 const { Icon, cls } = getEventIconAndColor(event);
-                const linkedMember = event.memberId ? members.find(m => m.id === event.memberId) : null;
-                const daysDiff = getDaysDiff(event.date);
+                const memberId = event.member_id;
+                const linkedMember = memberId ? members.find(m => m.id === memberId) : null;
+                const eventDate = event.start_date;
+                const daysDiff = getDaysDiff(eventDate);
                 
                 let badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
                 if (daysDiff < 7) {
@@ -1104,7 +795,7 @@ export const Accueil: React.FC<AccueilProps> = ({
                 }
 
                 const daysStr = daysDiff === 1 ? "Demain" : `Dans ${daysDiff} jours`;
-                const dateFr = new Date(event.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+                const dateFr = new Date(eventDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 
                 return (
                   <div 

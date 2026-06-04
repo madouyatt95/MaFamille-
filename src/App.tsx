@@ -107,8 +107,61 @@ import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment
 import { notificationService } from './services/notificationService';
 import type { Foyer, FoyerMember } from './types';
 
-// Lucide icon for inline notifications
-import { Bell, X, ChevronRight, Mic, Volume2, Settings as SettingsIcon, Lock, Sparkles } from 'lucide-react';
+import { getUnifiedEvents } from './utils/agendaHelper';
+import type { ExternalEvent } from './utils/icalParser';
+import { Volume2, Mic, Bell, X, ChevronRight, Settings as SettingsIcon, Lock, Sparkles } from 'lucide-react';
+
+const keywordRules = [
+  // TRANSPORT
+  { keywords: ['uber', 'bolt'], category: 'Transport', subCategory: 'Uber', moduleSource: 'budget', label: '🚗 Transport' },
+  { keywords: ['taxi'], category: 'Transport', subCategory: 'Taxi', moduleSource: 'budget', label: '🚗 Transport' },
+  { keywords: ['transport public', 'bus', 'train', 'metro', 'métro', 'rer'], category: 'Transport', subCategory: 'Transport public', moduleSource: 'budget', label: '🚗 Transport' },
+  
+  // SANTÉ
+  { keywords: ['medecin', 'médecin', 'docteur', 'dentiste', 'pédiatre', 'pediatre', 'consultation', 'osteo', 'ostéopathe', 'visite medicale', 'sante', 'santé'], category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante', label: '🩺 Santé' },
+  { keywords: ['pharmacie', 'medicament', 'médicament', 'soin', 'analyses', 'analyse', 'mutuelle'], category: 'Santé', subCategory: 'Pharmacie', moduleSource: 'sante', label: '🩺 Santé' },
+  
+  // VÉHICULES
+  { keywords: ['essence', 'carburant', 'diesel', 'gazole', 'sans plomb'], category: 'Véhicules', subCategory: 'Essence', moduleSource: 'vehicules', label: '🚗 Véhicule' },
+  { keywords: ['peage', 'péage', 'parking', 'stationnement', 'lavage', 'garage', 'entretien voiture', 'réparation voiture', 'pneu', 'vidange'], category: 'Véhicules', subCategory: 'Entretien', moduleSource: 'vehicules', label: '🚗 Véhicule' },
+  
+  // LOGEMENT
+  { keywords: ['loyer'], category: 'Logement', subCategory: 'Loyer', moduleSource: 'logement', label: '🏠 Logement' },
+  { keywords: ['internet', 'wifi', 'box internet', 'fibre'], category: 'Logement', subCategory: 'Internet', moduleSource: 'logement', label: '🏠 Logement' },
+  { keywords: ['edf', 'electricite', 'électricité', 'eau', 'gaz', 'charges', 'assurance habitation', 'travaux', 'maintenance maison'], category: 'Logement', subCategory: 'Charges', moduleSource: 'logement', label: '🏠 Logement' },
+  
+  // ÉDUCATION
+  { keywords: ['cantine'], category: 'Éducation', subCategory: 'Cantine', moduleSource: 'ecole', label: '🎓 École' },
+  { keywords: ['ecole', 'école', 'scolarite', 'scolarité', 'fournitures scolaires', 'livres scolaires', 'cahier', 'stylo', 'inscriptions scolaires', 'cours particuliers', 'devoirs'], category: 'Éducation', subCategory: 'Scolarité', moduleSource: 'ecole', label: '🎓 École' },
+  
+  // ADMINISTRATIF
+  { keywords: ['passeport', 'visa', 'carte d\'identité', 'carte identite', 'cni', 'timbre fiscal', 'timbres fiscaux', 'démarche', 'demarche', 'frais administratif', 'administratif'], category: 'Administratif', subCategory: 'Passeport', moduleSource: 'documents', label: '📂 Démarches' },
+  
+  // ALIMENTATION
+  { keywords: ['course', 'courses', 'supermarche', 'supermarché', 'carrefour', 'lidl', 'auchan', 'leclerc', 'intermarche', 'intermarché', 'alimentation', 'nourriture', 'manger', 'coca', 'lait', 'tomate', 'tomates', 'pomme', 'pommes', 'banane', 'bananes', 'eau', 'oignon', 'oignons', 'pain', 'pâtes', 'beurre'], category: 'Alimentation', subCategory: 'Supermarché', moduleSource: 'courses', label: '🛒 Courses' },
+  { keywords: ['restaurant', 'resto', 'restau', 'mcdo', 'boulangerie', 'epicerie', 'épicerie', 'café', 'cafe', 'starbucks'], category: 'Alimentation', subCategory: 'Restaurant', moduleSource: 'courses', label: '🛒 Courses' },
+  
+  // VOYAGES
+  { keywords: ['voyage', 'voyages', 'vacance', 'vacances', 'hotel', 'hôtel', 'avion', 'vol', 'billet avion', 'train billet', 'airbnb', 'booking'], category: 'Voyages', subCategory: 'Voyage', moduleSource: 'voyages', label: '✈️ Voyage' },
+  
+  // ANIMAUX
+  { keywords: ['chien', 'chat', 'croquette', 'croquettes', 'veto', 'vétérinaire', 'litiere', 'litière', 'animaux', 'animal'], category: 'Animaux', subCategory: 'Nourriture', moduleSource: 'animaux', label: '🐶 Animaux' },
+  
+  // ARGENT DE POCHE
+  { keywords: ['argent de poche', 'argent-de-poche', 'tirelire', 'allocation', 'recompense', 'récompense'], category: 'Argent de poche', subCategory: 'Allocation enfant', moduleSource: 'argent_de_poche', label: '🪙 Argent de poche' },
+  
+  // ABONNEMENTS
+  { keywords: ['abonnement', 'abonnements', 'forfait', 'netflix', 'spotify', 'disney', 'amazon prime', 'canal', 'youtube premium', 'icloud', 'forfait mobile', 'forfait internet'], category: 'Abonnements', subCategory: 'Streaming', moduleSource: 'budget', label: '🔄 Abonnements' },
+  
+  // LOISIRS
+  { keywords: ['cinema', 'cinéma', 'concert', 'musee', 'musée', 'cadeau', 'cadeaux', 'sport', 'match', 'loisir', 'loisirs'], category: 'Loisirs', subCategory: 'Cinéma', moduleSource: 'budget', label: '🎨 Loisirs' }
+];
+
+const cleanLabel = (lbl: string): string => {
+  let s = lbl.trim();
+  s = s.replace(/^(?:pour\s+l'|pour\s+l’|pour\s+le\s+|pour\s+la\s+|pour\s+les\s+|pour\s+|de\s+la\s+|de\s+l'|de\s+l’|de\s+|du\s+|des\s+|d'|d’|le\s+|la\s+|les\s+|l'|l’|en\s+|a\s+|à\s+)/i, '');
+  return s.trim();
+};
 
 function App() {
   // Safe localStorage helper functions to prevent any corrupt cache startup crashes
@@ -226,6 +279,109 @@ function App() {
     const loaded = safeGetLocalStorage('mf_events', []);
     return loaded.filter((e: any) => !['e1', 'e2', 'e3', 'e4', 'e5', 'e6'].includes(e.id));
   });
+
+  const [calendarSources, setCalendarSources] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_external_calendar_sources');
+    if (saved) return JSON.parse(saved);
+    const isCloud = !!localStorage.getItem('mf_cloud_foyer_id');
+    if (isCloud) return [];
+    return [
+      {
+        id: 'src-google-papa',
+        name: 'Google Agenda Papa',
+        url: 'https://calendar.google.com/calendar/ical/papa/public/basic.ics',
+        color: '#2563EB',
+        isActive: true
+      },
+      {
+        id: 'src-school-awa',
+        name: 'École Awa (Emploi du temps)',
+        url: 'https://ecole.directe/awa/agenda.ics',
+        color: '#EC4899',
+        memberId: '4', // Awa
+        isActive: true
+      }
+    ];
+  });
+
+  const [externalEvents, setExternalEvents] = useState<ExternalEvent[]>(() => {
+    const saved = localStorage.getItem('mf_external_calendar_events');
+    if (saved) return JSON.parse(saved);
+    const isCloud = !!localStorage.getItem('mf_cloud_foyer_id');
+    if (isCloud) return [];
+    return [
+      {
+        id: 'ext-demo-1',
+        title: 'Réunion d\'affaires importante',
+        startDate: '2026-05-18',
+        endDate: '2026-05-18',
+        startTime: '10:00',
+        endTime: '12:00',
+        description: 'Point d\'étape sur les nouveaux projets de consulting.',
+        location: 'Paris Offices',
+        sourceName: 'Google Agenda Papa',
+        sourceColor: '#2563EB',
+        isAllDay: false
+      },
+      {
+        id: 'ext-demo-2',
+        title: 'Cours de Mathématiques',
+        startDate: '2026-05-19',
+        endDate: '2026-05-19',
+        startTime: '08:30',
+        endTime: '10:30',
+        description: 'Géométrie et algèbre linéaire.',
+        location: 'Salle 402 - Collège',
+        sourceName: 'École Awa (Emploi du temps)',
+        sourceColor: '#EC4899',
+        memberId: '4',
+        isAllDay: false
+      },
+      {
+        id: 'ext-demo-3',
+        title: 'Déjeuner client professionnel',
+        startDate: '2026-05-20',
+        endDate: '2026-05-20',
+        startTime: '12:30',
+        endTime: '14:00',
+        description: 'Signature de contrat de partenariat.',
+        location: 'L\'Atelier Bistrot',
+        sourceName: 'Google Agenda Papa',
+        sourceColor: '#2563EB',
+        isAllDay: false
+      },
+      {
+        id: 'ext-demo-4',
+        title: 'Cours d\'Anglais',
+        startDate: '2026-05-21',
+        endDate: '2026-05-21',
+        startTime: '14:00',
+        endTime: '16:00',
+        description: 'Préparation du brevet oral d\'anglais.',
+        location: 'Salle 105 - Collège',
+        sourceName: 'École Awa (Emploi du temps)',
+        sourceColor: '#EC4899',
+        memberId: '4',
+        isAllDay: false
+      }
+    ];
+  });
+
+  const [currentCalendarCountry, setCurrentCalendarCountry] = useState<string>(() => {
+    return localStorage.getItem('mf_calendar_country') || 'France';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('mf_external_calendar_sources', JSON.stringify(calendarSources));
+  }, [calendarSources]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_external_calendar_events', JSON.stringify(externalEvents));
+  }, [externalEvents]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_calendar_country', currentCalendarCountry);
+  }, [currentCalendarCountry]);
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     return safeGetLocalStorage('mf_transactions', []);
@@ -1014,6 +1170,40 @@ function App() {
       safeRemoveLocalStorage('mf_cached_member_profile');
     }
   }, [myMemberProfile]);
+
+  const unifiedEvents = useMemo(() => {
+    return getUnifiedEvents({
+      events,
+      members,
+      trips,
+      vaccines,
+      schoolTasks,
+      tasks,
+      demarches,
+      vehicles,
+      maintenance,
+      abonnements,
+      pets,
+      externalEvents,
+      country: currentCalendarCountry,
+      foyerId: foyer?.id
+    });
+  }, [
+    events,
+    members,
+    trips,
+    vaccines,
+    schoolTasks,
+    tasks,
+    demarches,
+    vehicles,
+    maintenance,
+    abonnements,
+    pets,
+    externalEvents,
+    currentCalendarCountry,
+    foyer?.id
+  ]);
 
   useEffect(() => {
     safeSetLocalStorage('mf_custom_categories', JSON.stringify(customCategories));
@@ -4532,6 +4722,67 @@ function App() {
     };
   };
 
+  const getDynamicVoiceMapping = () => {
+    const mapping: Record<string, { category: string; subCategory: string; moduleSource: string }> = {
+      'taxi': { category: 'Transport', subCategory: 'Taxi', moduleSource: 'budget' },
+      'uber': { category: 'Transport', subCategory: 'Uber', moduleSource: 'budget' },
+      'vtc': { category: 'Transport', subCategory: 'VTC', moduleSource: 'budget' },
+      'essence': { category: 'Véhicules', subCategory: 'Carburant', moduleSource: 'vehicules' },
+      'carburant': { category: 'Véhicules', subCategory: 'Carburant', moduleSource: 'vehicules' },
+      'pharmacie': { category: 'Santé', subCategory: 'Pharmacie', moduleSource: 'sante' },
+      'médecin': { category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante' },
+      'medecin': { category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante' },
+      'dentiste': { category: 'Santé', subCategory: 'Dentiste', moduleSource: 'sante' },
+      'internet': { category: 'Logement', subCategory: 'Internet', moduleSource: 'logement' },
+      'loyer': { category: 'Logement', subCategory: 'Loyer', moduleSource: 'logement' },
+      'électricité': { category: 'Logement', subCategory: 'Électricité', moduleSource: 'logement' },
+      'electricite': { category: 'Logement', subCategory: 'Électricité', moduleSource: 'logement' },
+      'cantine': { category: 'Éducation', subCategory: 'Cantine', moduleSource: 'ecole' },
+      'passeport': { category: 'Administratif', subCategory: 'Passeport', moduleSource: 'documents' },
+      'navigo': { category: 'Transport', subCategory: 'Pass Navigo', moduleSource: 'budget' },
+      'pass navigo': { category: 'Transport', subCategory: 'Pass Navigo', moduleSource: 'budget' }
+    };
+
+    const merged = getMergedCategories();
+    for (const cat of merged) {
+      if (cat.isArchived) continue;
+      
+      let moduleSource = 'budget';
+      if (cat.name === 'Santé') moduleSource = 'sante';
+      else if (cat.name === 'Véhicules') moduleSource = 'vehicules';
+      else if (cat.name === 'Logement') moduleSource = 'logement';
+      else if (cat.name === 'Éducation' || cat.name === 'École') moduleSource = 'ecole';
+      else if (cat.name === 'Alimentation' || cat.name === 'Courses') moduleSource = 'courses';
+      else if (cat.name === 'Voyages') moduleSource = 'voyages';
+      else if (cat.name === 'Animaux') moduleSource = 'animaux';
+      else if (cat.name === 'Argent de poche') moduleSource = 'argent_de_poche';
+
+      const catKey = cat.name.toLowerCase().trim();
+      if (!mapping[catKey]) {
+        mapping[catKey] = {
+          category: cat.name,
+          subCategory: cat.subcategories && cat.subcategories.length > 0 ? cat.subcategories[0] : 'Divers',
+          moduleSource
+        };
+      }
+
+      if (cat.subcategories) {
+        for (const sub of cat.subcategories) {
+          const subKey = sub.toLowerCase().trim();
+          if (!mapping[subKey]) {
+            mapping[subKey] = {
+              category: cat.name,
+              subCategory: sub,
+              moduleSource
+            };
+          }
+        }
+      }
+    }
+    
+    return mapping;
+  };
+
   const detectCreationContext = (promptLower: string, text: string) => {
     const isCreation = /ajoute|ajouter|crée|creer|créer|cree|planifie|planifier|enregistre|enregistrer|note|noter/i.test(promptLower);
     if (!isCreation) return null;
@@ -4774,9 +5025,73 @@ function App() {
     const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
     const amount = numMatch ? parseFloat(numMatch[1].replace(',', '.')) : undefined;
     if (amount) {
+      let title = 'Achat rapide';
+      let pourKeyword = '';
+      const pourMatch = promptLower.match(/(?:^|\s)(?:\d+[\.,]?\d*)\s*(?:euros?|€|eur|dollars?|\$)?\s+(?:pour\s+l'|pour\s+l’|pour\s+le\s+|pour\s+la\s+|pour\s+les\s+|pour\s+|de\s+la\s+|de\s+l'|de\s+l’|de\s+|du\s+|des\s+|d'|d’|le\s+|la\s+|les\s+|l'|l’|en\s+|a\s+|à\s+)?([a-z0-9éèàùçâêîôûäëïöü’'\s-]+)/i);
+      if (pourMatch) {
+        const rawPour = pourMatch[1].trim();
+        pourKeyword = cleanLabel(rawPour);
+        title = pourKeyword.charAt(0).toUpperCase() + pourKeyword.slice(1);
+      } else {
+        const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€|eur)/i;
+        let cleanTitle = text.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|dépense|depense|pour/gi, '').trim();
+        cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[\.,]?\d*)/, '').trim();
+        cleanTitle = cleanTitle.replace(/tous les mois|chaque mois|mensuel|mensuelle|tous les jours|chaque jour|quotidien|quotidienne|chaque semaine|toutes les semaines|hebdomadaire|chaque (lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)|chaque samedi|tous les ans|chaque année|chaque annee/gi, '').trim();
+        const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
+        if (matchedMember) {
+          const memberRegex = new RegExp(`\\b${matchedMember.name}\\b`, 'gi');
+          cleanTitle = cleanTitle.replace(memberRegex, '').trim();
+        }
+        cleanTitle = cleanLabel(cleanTitle);
+        if (cleanTitle) {
+          title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
+        }
+      }
+
+      let category = 'Autres';
+      let subCategory = 'Divers';
+      let moduleSource = 'budget';
+
+      const dynamicMapping = getDynamicVoiceMapping();
+      const sortedKeys = Object.keys(dynamicMapping).sort((a, b) => b.length - a.length);
+      
+      let dynamicMatch = null;
+      for (const key of sortedKeys) {
+        if (promptLower.includes(key)) {
+          dynamicMatch = dynamicMapping[key];
+          break;
+        }
+      }
+
+      if (dynamicMatch) {
+        category = dynamicMatch.category;
+        subCategory = dynamicMatch.subCategory;
+        moduleSource = dynamicMatch.moduleSource;
+      } else {
+        const matchedRule = keywordRules.find(rule => 
+          rule.keywords.some(kw => promptLower.includes(kw))
+        );
+        if (matchedRule) {
+          category = matchedRule.category;
+          subCategory = matchedRule.subCategory;
+          moduleSource = matchedRule.moduleSource;
+        } else {
+          const searchMatch = findCategoryAndSubcategory(promptLower, title, getMergedCategories(), transactions);
+          if (searchMatch) {
+            category = searchMatch.category;
+            subCategory = searchMatch.subCategory;
+            moduleSource = searchMatch.moduleSource;
+          }
+        }
+      }
+
       return {
         pendingAction: 'create_transaction',
-        amount
+        amount,
+        title,
+        category,
+        subCategory,
+        moduleSource
       };
     }
 
@@ -5718,16 +6033,16 @@ function App() {
       const newTx = {
         id: crypto.randomUUID(),
         foyer_id: foyer?.id || '',
-        title: 'Achat vocal',
+        title: ctx.title || 'Achat vocal',
         amount: ctx.amount,
         type: 'expense' as const,
         category: category,
-        subCategory: 'Divers',
+        subCategory: ctx.subCategory || 'Divers',
         date: dateStr,
         member_id: activeMemberId,
         member_name: members.find(m => m.id === activeMemberId)?.name || 'Système',
         comment: serializeTransactionComment('Généré par commande vocale', {
-          moduleSource: 'budget',
+          moduleSource: ctx.moduleSource || 'budget',
           entryTime: timeStr,
           entryDate: dateStr
         })
@@ -7223,125 +7538,13 @@ function App() {
         const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
         const matchedAccount = accounts.find(a => promptLower.includes(a.name.toLowerCase()));
 
-        const cleanLabel = (lbl: string): string => {
-          let s = lbl.trim();
-          s = s.replace(/^(?:pour\s+l'|pour\s+l’|pour\s+le\s+|pour\s+la\s+|pour\s+les\s+|pour\s+|de\s+la\s+|de\s+l'|de\s+l’|de\s+|du\s+|des\s+|d'|d’|le\s+|la\s+|les\s+|l'|l’|en\s+)/i, '');
-          return s.trim();
-        };
-
-        const getDynamicVoiceMapping = () => {
-          const mapping: Record<string, { category: string; subCategory: string; moduleSource: string }> = {
-            'taxi': { category: 'Transport', subCategory: 'Taxi', moduleSource: 'budget' },
-            'uber': { category: 'Transport', subCategory: 'Uber', moduleSource: 'budget' },
-            'vtc': { category: 'Transport', subCategory: 'VTC', moduleSource: 'budget' },
-            'essence': { category: 'Véhicules', subCategory: 'Carburant', moduleSource: 'vehicules' },
-            'carburant': { category: 'Véhicules', subCategory: 'Carburant', moduleSource: 'vehicules' },
-            'pharmacie': { category: 'Santé', subCategory: 'Pharmacie', moduleSource: 'sante' },
-            'médecin': { category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante' },
-            'medecin': { category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante' },
-            'dentiste': { category: 'Santé', subCategory: 'Dentiste', moduleSource: 'sante' },
-            'internet': { category: 'Logement', subCategory: 'Internet', moduleSource: 'logement' },
-            'loyer': { category: 'Logement', subCategory: 'Loyer', moduleSource: 'logement' },
-            'électricité': { category: 'Logement', subCategory: 'Électricité', moduleSource: 'logement' },
-            'electricite': { category: 'Logement', subCategory: 'Électricité', moduleSource: 'logement' },
-            'cantine': { category: 'Éducation', subCategory: 'Cantine', moduleSource: 'ecole' },
-            'passeport': { category: 'Administratif', subCategory: 'Passeport', moduleSource: 'documents' },
-            'navigo': { category: 'Transport', subCategory: 'Pass Navigo', moduleSource: 'budget' },
-            'pass navigo': { category: 'Transport', subCategory: 'Pass Navigo', moduleSource: 'budget' }
-          };
-
-          const merged = getMergedCategories();
-          for (const cat of merged) {
-            if (cat.isArchived) continue;
-            
-            let moduleSource = 'budget';
-            if (cat.name === 'Santé') moduleSource = 'sante';
-            else if (cat.name === 'Véhicules') moduleSource = 'vehicules';
-            else if (cat.name === 'Logement') moduleSource = 'logement';
-            else if (cat.name === 'Éducation' || cat.name === 'École') moduleSource = 'ecole';
-            else if (cat.name === 'Alimentation' || cat.name === 'Courses') moduleSource = 'courses';
-            else if (cat.name === 'Voyages') moduleSource = 'voyages';
-            else if (cat.name === 'Animaux') moduleSource = 'animaux';
-            else if (cat.name === 'Argent de poche') moduleSource = 'argent_de_poche';
-
-            const catKey = cat.name.toLowerCase().trim();
-            if (!mapping[catKey]) {
-              mapping[catKey] = {
-                category: cat.name,
-                subCategory: cat.subcategories && cat.subcategories.length > 0 ? cat.subcategories[0] : 'Divers',
-                moduleSource
-              };
-            }
-
-            if (cat.subcategories) {
-              for (const sub of cat.subcategories) {
-                const subKey = sub.toLowerCase().trim();
-                if (!mapping[subKey]) {
-                  mapping[subKey] = {
-                    category: cat.name,
-                    subCategory: sub,
-                    moduleSource
-                  };
-                }
-              }
-            }
-          }
-          
-          return mapping;
-        };
-
-        const keywordRules = [
-          // TRANSPORT
-          { keywords: ['uber', 'bolt'], category: 'Transport', subCategory: 'Uber', moduleSource: 'budget', label: '🚗 Transport' },
-          { keywords: ['taxi'], category: 'Transport', subCategory: 'Taxi', moduleSource: 'budget', label: '🚗 Transport' },
-          { keywords: ['transport public', 'bus', 'train', 'metro', 'métro', 'rer'], category: 'Transport', subCategory: 'Transport public', moduleSource: 'budget', label: '🚗 Transport' },
-          
-          // SANTÉ
-          { keywords: ['medecin', 'médecin', 'docteur', 'dentiste', 'pédiatre', 'pediatre', 'consultation', 'osteo', 'ostéopathe', 'visite medicale', 'sante', 'santé'], category: 'Santé', subCategory: 'Médecin', moduleSource: 'sante', label: '🩺 Santé' },
-          { keywords: ['pharmacie', 'medicament', 'médicament', 'soin', 'analyses', 'analyse', 'mutuelle'], category: 'Santé', subCategory: 'Pharmacie', moduleSource: 'sante', label: '🩺 Santé' },
-          
-          // VÉHICULES
-          { keywords: ['essence', 'carburant', 'diesel', 'gazole', 'sans plomb'], category: 'Véhicules', subCategory: 'Essence', moduleSource: 'vehicules', label: '🚗 Véhicule' },
-          { keywords: ['peage', 'péage', 'parking', 'stationnement', 'lavage', 'garage', 'entretien voiture', 'réparation voiture', 'pneu', 'vidange'], category: 'Véhicules', subCategory: 'Entretien', moduleSource: 'vehicules', label: '🚗 Véhicule' },
-          
-          // LOGEMENT
-          { keywords: ['loyer'], category: 'Logement', subCategory: 'Loyer', moduleSource: 'logement', label: '🏠 Logement' },
-          { keywords: ['internet', 'wifi', 'box internet', 'fibre'], category: 'Logement', subCategory: 'Internet', moduleSource: 'logement', label: '🏠 Logement' },
-          { keywords: ['edf', 'electricite', 'électricité', 'eau', 'gaz', 'charges', 'assurance habitation', 'travaux', 'maintenance maison'], category: 'Logement', subCategory: 'Charges', moduleSource: 'logement', label: '🏠 Logement' },
-          
-          // ÉDUCATION
-          { keywords: ['cantine'], category: 'Éducation', subCategory: 'Cantine', moduleSource: 'ecole', label: '🎓 École' },
-          { keywords: ['ecole', 'école', 'scolarite', 'scolarité', 'fournitures scolaires', 'livres scolaires', 'cahier', 'stylo', 'inscriptions scolaires', 'cours particuliers', 'devoirs'], category: 'Éducation', subCategory: 'Scolarité', moduleSource: 'ecole', label: '🎓 École' },
-          
-          // ADMINISTRATIF
-          { keywords: ['passeport', 'visa', 'carte d\'identité', 'carte identite', 'cni', 'timbre fiscal', 'timbres fiscaux', 'démarche', 'demarche', 'frais administratif', 'administratif'], category: 'Administratif', subCategory: 'Passeport', moduleSource: 'documents', label: '📂 Démarches' },
-          
-          // ALIMENTATION
-          { keywords: ['course', 'courses', 'supermarche', 'supermarché', 'carrefour', 'lidl', 'auchan', 'leclerc', 'intermarche', 'intermarché', 'alimentation', 'nourriture', 'manger', 'coca', 'lait', 'tomate', 'tomates', 'pomme', 'pommes', 'banane', 'bananes', 'eau', 'oignon', 'oignons', 'pain', 'pâtes', 'beurre'], category: 'Alimentation', subCategory: 'Supermarché', moduleSource: 'courses', label: '🛒 Courses' },
-          { keywords: ['restaurant', 'resto', 'restau', 'mcdo', 'boulangerie', 'epicerie', 'épicerie', 'café', 'cafe', 'starbucks'], category: 'Alimentation', subCategory: 'Restaurant', moduleSource: 'courses', label: '🛒 Courses' },
-          
-          // VOYAGES
-          { keywords: ['voyage', 'voyages', 'vacance', 'vacances', 'hotel', 'hôtel', 'avion', 'vol', 'billet avion', 'train billet', 'airbnb', 'booking'], category: 'Voyages', subCategory: 'Voyage', moduleSource: 'voyages', label: '✈️ Voyage' },
-          
-          // ANIMAUX
-          { keywords: ['chien', 'chat', 'croquette', 'croquettes', 'veto', 'vétérinaire', 'litiere', 'litière', 'animaux', 'animal'], category: 'Animaux', subCategory: 'Nourriture', moduleSource: 'animaux', label: '🐶 Animaux' },
-          
-          // ARGENT DE POCHE
-          { keywords: ['argent de poche', 'argent-de-poche', 'tirelire', 'allocation', 'recompense', 'récompense'], category: 'Argent de poche', subCategory: 'Allocation enfant', moduleSource: 'argent_de_poche', label: '🪙 Argent de poche' },
-          
-          // ABONNEMENTS
-          { keywords: ['abonnement', 'abonnements', 'forfait', 'netflix', 'spotify', 'disney', 'amazon prime', 'canal', 'youtube premium', 'icloud', 'forfait mobile', 'forfait internet'], category: 'Abonnements', subCategory: 'Streaming', moduleSource: 'budget', label: '🔄 Abonnements' },
-          
-          // LOISIRS
-          { keywords: ['cinema', 'cinéma', 'concert', 'musee', 'musée', 'cadeau', 'cadeaux', 'sport', 'match', 'loisir', 'loisirs'], category: 'Loisirs', subCategory: 'Cinéma', moduleSource: 'budget', label: '🎨 Loisirs' }
-        ];
-
         let title = 'Achat rapide';
         let pourKeyword = '';
-        const pourMatch = promptLower.match(/(?:^|\s)(?:\d+[\.,]?\d*)\s*(?:euros?|€|eur|dollars?|\$)?\s+pour\s+(?:le\s+|la\s+|l'\s+|l’\s+|les\s+|l'|l’)?([a-z0-9éèàùçâêîôûäëïöü’'\s-]+)/i);
+        const pourMatch = promptLower.match(/(?:^|\s)(?:\d+[\.,]?\d*)\s*(?:euros?|€|eur|dollars?|\$)?\s+(?:pour\s+l'|pour\s+l’|pour\s+le\s+|pour\s+la\s+|pour\s+les\s+|pour\s+|de\s+la\s+|de\s+l'|de\s+l’|de\s+|du\s+|des\s+|d'|d’|le\s+|la\s+|les\s+|l'|l’|en\s+|a\s+|à\s+)?([a-z0-9éèàùçâêîôûäëïöü’'\s-]+)/i);
         if (pourMatch) {
           const rawPour = pourMatch[1].trim();
           pourKeyword = cleanLabel(rawPour);
+          title = pourKeyword.charAt(0).toUpperCase() + pourKeyword.slice(1);
           title = pourKeyword.charAt(0).toUpperCase() + pourKeyword.slice(1);
         } else {
           const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€|eur)/i;
@@ -7395,6 +7598,14 @@ function App() {
                 subCategory: searchMatch.subCategory,
                 moduleSource: searchMatch.moduleSource,
                 label: `💸 ${searchMatch.category}`
+              });
+            } else {
+              matches.push({
+                keywords: [],
+                category: 'Autres',
+                subCategory: 'Divers',
+                moduleSource: 'budget',
+                label: '💸 Autres'
               });
             }
           }
@@ -8544,25 +8755,72 @@ function App() {
   };
 
   const handleToggleEventDone = async (id: string) => {
-    setEvents(prev => prev.map(e => e.id === id ? { ...e, done: !e.done } : e));
-
-    if (foyer) {
-      const client = getSupabaseClient();
+    const client = getSupabaseClient();
+    
+    // 1. Vaccine (in events table)
+    if (id.startsWith('vac-')) {
+      const rawId = id.replace('vac-', '');
+      setEvents(prev => prev.map(e => e.id === rawId ? { ...e, done: !e.done } : e));
+      if (client && foyer) {
+        const currentEvent = events.find(e => e.id === rawId);
+        if (currentEvent) {
+          await client.from('events').update({ done: !currentEvent.done }).eq('foyer_id', foyer.id).eq('id', rawId);
+        }
+      }
+    }
+    // 2. School Task (school_tasks table)
+    else if (id.startsWith('school-task-')) {
+      const rawId = id.replace('school-task-', '');
+      setSchoolTasksState(prev => prev.map(st => st.id === rawId ? { ...st, done: !st.done } : st));
       if (client) {
-        try {
-          const currentEvent = events.find(e => e.id === id);
-          if (currentEvent) {
-            const { error } = await client
-              .from('events')
-              .update({ done: !currentEvent.done })
-              .eq('foyer_id', foyer.id)
-              .eq('id', id);
-            if (error) {
-              console.error("Erreur lors de la mise à jour cloud du statut de l'événement :", error);
-            }
-          }
-        } catch (err) {
-          console.error("Erreur de modification de l'événement :", err);
+        const current = schoolTasks.find(st => st.id === rawId);
+        if (current) {
+          await client.from('school_tasks').update({ done: !current.done }).eq('id', rawId);
+        }
+      }
+    }
+    // 3. Chore Task (chore_tasks table)
+    else if (id.startsWith('task-')) {
+      const rawId = id.replace('task-', '');
+      setTasks(prev => prev.map(tk => tk.id === rawId ? { ...tk, done: !tk.done } : tk));
+      if (client) {
+        const current = tasks.find(tk => tk.id === rawId);
+        if (current) {
+          await client.from('chore_tasks').update({ done: !current.done }).eq('id', rawId);
+        }
+      }
+    }
+    // 4. Demarche (demarches table)
+    else if (id.startsWith('demarche-')) {
+      const rawId = id.replace('demarche-', '');
+      setDemarches(prev => prev.map(d => {
+        if (d.id === rawId) {
+          const nextStatus = d.status === 'completed' ? 'pending' : 'completed';
+          if (client) client.from('demarches').update({ status: nextStatus }).eq('id', rawId);
+          return { ...d, status: nextStatus as any };
+        }
+        return d;
+      }));
+    }
+    // 5. Maintenance (maintenance table)
+    else if (id.startsWith('maint-')) {
+      const rawId = id.replace('maint-', '');
+      setMaintenance(prev => prev.map(m => {
+        if (m.id === rawId) {
+          const nextStatus = m.status === 'completed' ? 'pending' : 'completed';
+          if (client) client.from('maintenance').update({ status: nextStatus }).eq('id', rawId);
+          return { ...m, status: nextStatus as any };
+        }
+        return m;
+      }));
+    }
+    // 6. Agenda standard event
+    else {
+      setEvents(prev => prev.map(e => e.id === id ? { ...e, done: !e.done } : e));
+      if (client && foyer) {
+        const currentEvent = events.find(e => e.id === id);
+        if (currentEvent) {
+          await client.from('events').update({ done: !currentEvent.done }).eq('foyer_id', foyer.id).eq('id', id);
         }
       }
     }
@@ -8607,33 +8865,133 @@ function App() {
   };
 
   const handleMoveEvent = async (id: string, newDate: string) => {
-    setEvents(prev => prev.map(e => {
-      if (e.id === id) {
-        const timePart = e.dateTime.split('T')[1];
-        return { ...e, dateTime: timePart ? `${newDate}T${timePart}` : newDate };
-      }
-      return e;
-    }));
+    const client = getSupabaseClient();
 
-    if (foyer) {
-      const client = getSupabaseClient();
+    // 1. Vaccine (in events table)
+    if (id.startsWith('vac-')) {
+      const rawId = id.replace('vac-', '');
+      setEvents(prev => prev.map(e => {
+        if (e.id === rawId) {
+          const timePart = e.dateTime.split('T')[1];
+          return { ...e, dateTime: timePart ? `${newDate}T${timePart}` : newDate };
+        }
+        return e;
+      }));
+      if (client && foyer) {
+        const currentEvent = events.find(e => e.id === rawId);
+        if (currentEvent) {
+          const timePart = currentEvent.dateTime.split('T')[1];
+          const newDateTime = timePart ? `${newDate}T${timePart}` : newDate;
+          await client.from('events').update({ date_time: newDateTime }).eq('foyer_id', foyer.id).eq('id', rawId);
+        }
+      }
+    }
+    // 2. School Task (school_tasks table)
+    else if (id.startsWith('school-task-')) {
+      const rawId = id.replace('school-task-', '');
+      setSchoolTasksState(prev => prev.map(st => st.id === rawId ? { ...st, dueDate: newDate } : st));
       if (client) {
-        try {
-          const currentEvent = events.find(e => e.id === id);
-          if (currentEvent) {
-            const timePart = currentEvent.dateTime.split('T')[1];
-            const newDateTime = timePart ? `${newDate}T${timePart}` : newDate;
-            const { error } = await client
-              .from('events')
-              .update({ date_time: newDateTime })
-              .eq('foyer_id', foyer.id)
-              .eq('id', id);
-            if (error) {
-              console.error("Erreur lors du déplacement cloud de l'événement :", error);
-            }
+        await client.from('school_tasks').update({ due_date: newDate }).eq('id', rawId);
+      }
+    }
+    // 3. Chore Task (chore_tasks table)
+    else if (id.startsWith('task-')) {
+      const rawId = id.replace('task-', '');
+      setTasks(prev => prev.map(tk => tk.id === rawId ? { ...tk, dueDate: newDate } : tk));
+      if (client) {
+        await client.from('chore_tasks').update({ due_date: newDate }).eq('id', rawId);
+      }
+    }
+    // 4. Demarche (demarches table)
+    else if (id.startsWith('demarche-')) {
+      const rawId = id.replace('demarche-', '');
+      setDemarches(prev => prev.map(d => d.id === rawId ? { ...d, dueDate: newDate } : d));
+      if (client) {
+        await client.from('demarches').update({ due_date: newDate }).eq('id', rawId);
+      }
+    }
+    // 5. Trip (trips table)
+    else if (id.startsWith('trip-dep-') || id.startsWith('trip-ret-')) {
+      const isDep = id.startsWith('trip-dep-');
+      const rawId = id.replace(isDep ? 'trip-dep-' : 'trip-ret-', '');
+      setTrips(prev => prev.map(t => {
+        if (t.id === rawId) {
+          const updated = isDep ? { ...t, startDate: newDate } : { ...t, endDate: newDate };
+          if (client) {
+            client.from('trips').update(isDep ? { start_date: newDate } : { end_date: newDate }).eq('id', rawId);
           }
-        } catch (err) {
-          console.error("Erreur de déplacement de l'événement :", err);
+          return updated;
+        }
+        return t;
+      }));
+    }
+    // 6. Vehicles (vehicles table)
+    else if (id.startsWith('veh-tc-') || id.startsWith('veh-ins-')) {
+      const isTc = id.startsWith('veh-tc-');
+      const rawId = id.replace(isTc ? 'veh-tc-' : 'veh-ins-', '');
+      setVehicles(prev => prev.map(v => {
+        if (v.id === rawId) {
+          const updated = isTc ? { ...v, technicalControl: newDate } : { ...v, insuranceExpiry: newDate };
+          if (client) {
+            client.from('vehicles').update(isTc ? { technical_control: newDate } : { insurance_expiry: newDate }).eq('id', rawId);
+          }
+          return updated;
+        }
+        return v;
+      }));
+    }
+    // 7. Maintenance (maintenance table)
+    else if (id.startsWith('maint-')) {
+      const rawId = id.replace('maint-', '');
+      setMaintenance(prev => prev.map(m => {
+        if (m.id === rawId) {
+          if (client) client.from('maintenance').update({ date: newDate }).eq('id', rawId);
+          return { ...m, date: newDate };
+        }
+        return m;
+      }));
+    }
+    // 8. Pet (pets table)
+    else if (id.startsWith('pet-vac-') || id.startsWith('pet-vet-')) {
+      const isVac = id.startsWith('pet-vac-');
+      const rawId = id.replace(isVac ? 'pet-vac-' : 'pet-vet-', '');
+      setPets(prev => prev.map(p => {
+        if (p.id === rawId) {
+          const updated = isVac ? { ...p, nextVaccine: newDate } : { ...p, vetAppointment: newDate };
+          if (client) {
+            client.from('pets').update(isVac ? { next_vaccine: newDate } : { vet_appointment: newDate }).eq('id', rawId);
+          }
+          return updated;
+        }
+        return p;
+      }));
+    }
+    // 9. Recurring Billing / Abonnement (abonnements table)
+    else if (id.startsWith('abo-')) {
+      const rawId = id.replace('abo-', '');
+      setAbonnements(prev => prev.map(a => {
+        if (a.id === rawId) {
+          if (client) client.from('abonnements').update({ next_billing_date: newDate }).eq('id', rawId);
+          return { ...a, nextBillingDate: newDate };
+        }
+        return a;
+      }));
+    }
+    // 10. Agenda standard event
+    else {
+      setEvents(prev => prev.map(e => {
+        if (e.id === id) {
+          const timePart = e.dateTime.split('T')[1];
+          return { ...e, dateTime: timePart ? `${newDate}T${timePart}` : newDate };
+        }
+        return e;
+      }));
+      if (client && foyer) {
+        const currentEvent = events.find(e => e.id === id);
+        if (currentEvent) {
+          const timePart = currentEvent.dateTime.split('T')[1];
+          const newDateTime = timePart ? `${newDate}T${timePart}` : newDate;
+          await client.from('events').update({ date_time: newDateTime }).eq('foyer_id', foyer.id).eq('id', id);
         }
       }
     }
@@ -9340,17 +9698,15 @@ function App() {
           />
         );
       }
-      
       return (
         <Accueil 
           members={members}
           activeMemberId={activeMemberId}
           onProfileSwitcherOpen={() => setProfileSwitcherOpen(true)}
           onAvatarClick={() => setProfileSwitcherOpen(true)}
-          events={events}
+          events={unifiedEvents}
           dishes={dishes}
           alerts={filteredAlerts}
-          formatMoney={formatMoney}
           setActiveTab={setActiveTab}
           setActiveModule={setActiveModule}
           onMenuClick={() => setSidebarOpen(true)}
@@ -9367,16 +9723,7 @@ function App() {
           onDeleteMemory={handleDeleteMemory}
           onLikeMemory={handleLikeMemory}
           
-          trips={trips}
-          demarches={demarches}
-          schoolTasks={schoolTasks}
-          tasks={tasks}
-          vehicles={vehicles}
-          maintenance={maintenance}
-          abonnements={abonnements}
           savingGoals={savingGoals}
-          vaccines={vaccines}
-          pets={pets}
           onDeleteUnifiedEvent={handleDeleteUnifiedEvent}
           onArchiveUnifiedEvent={handleArchiveUnifiedEvent}
         />
@@ -9386,7 +9733,7 @@ function App() {
     if (activeTab === 'agenda') {
       return (
         <Agenda 
-          events={events}
+          events={unifiedEvents}
           members={members}
           activeMemberId={activeMemberId}
           onAddEventClick={() => {
@@ -9396,15 +9743,12 @@ function App() {
           onToggleEventDone={handleToggleEventDone}
           onMoveEvent={handleMoveEvent}
           defaultSelectedDate={agendaSelectedDate}
-          trips={trips}
-          vaccines={vaccines}
-          schoolTasks={schoolTasks}
-          tasks={tasks}
-          demarches={demarches}
-          vehicles={vehicles}
-          maintenance={maintenance}
-          abonnements={abonnements}
-          pets={pets}
+          externalEvents={externalEvents}
+          setExternalEvents={setExternalEvents}
+          calendarSources={calendarSources}
+          setCalendarSources={setCalendarSources}
+          currentCalendarCountry={currentCalendarCountry}
+          setCurrentCalendarCountry={setCurrentCalendarCountry}
         />
       );
     }

@@ -28,16 +28,19 @@ export const parseIcsDate = (icsStr: string): Date | null => {
   const cleanStr = icsStr.replace(/[^0-9TZ]/g, '');
   
   try {
+    let dateObj: Date | null = null;
+    
     // Cas 1 : Date seule sans heure (YYYYMMDD)
     if (cleanStr.length === 8) {
       const y = parseInt(cleanStr.substring(0, 4));
       const m = parseInt(cleanStr.substring(4, 6)) - 1;
       const d = parseInt(cleanStr.substring(6, 8));
-      return new Date(y, m, d);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        dateObj = new Date(y, m, d);
+      }
     }
-    
     // Cas 2 : Date avec heure (YYYYMMDDTHHMMSS)
-    if (cleanStr.length >= 15 && cleanStr.includes('T')) {
+    else if (cleanStr.length >= 15 && cleanStr.includes('T')) {
       const y = parseInt(cleanStr.substring(0, 4));
       const m = parseInt(cleanStr.substring(4, 6)) - 1;
       const d = parseInt(cleanStr.substring(6, 8));
@@ -47,19 +50,23 @@ export const parseIcsDate = (icsStr: string): Date | null => {
       const mm = parseInt(cleanStr.substring(tIdx + 3, tIdx + 5));
       const ss = parseInt(cleanStr.substring(tIdx + 5, tIdx + 7));
       
-      if (icsStr.endsWith('Z')) {
-        // C'est de l'UTC, on crée la date en UTC
-        return new Date(Date.UTC(y, m, d, hh, mm, ss));
-      } else {
-        // C'est du local
-        return new Date(y, m, d, hh, mm, ss);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d) && !isNaN(hh) && !isNaN(mm) && !isNaN(ss)) {
+        if (icsStr.endsWith('Z')) {
+          dateObj = new Date(Date.UTC(y, m, d, hh, mm, ss));
+        } else {
+          dateObj = new Date(y, m, d, hh, mm, ss);
+        }
+      }
+    } else {
+      const parsed = new Date(icsStr);
+      if (!isNaN(parsed.getTime())) {
+        dateObj = parsed;
       }
     }
     
-    // Cas 3 : Si format ISO normal passé par erreur
-    const parsed = new Date(icsStr);
-    if (!isNaN(parsed.getTime())) return parsed;
-    
+    if (dateObj && !isNaN(dateObj.getTime())) {
+      return dateObj;
+    }
   } catch (err) {
     console.warn("Erreur de parsing de date iCal pour la valeur :", icsStr, err);
   }
@@ -85,6 +92,7 @@ export const parseICSContent = (
   memberId?: string
 ): ExternalEvent[] => {
   const events: ExternalEvent[] = [];
+  const warnings: string[] = [];
   if (!rawContent) return events;
 
   const unfolded = unfoldIcs(rawContent);
@@ -112,13 +120,18 @@ export const parseICSContent = (
 
     // Fin d'événement
     if (line.toUpperCase() === 'END:VEVENT') {
-      if (currentEvent && currentEvent.title && currentEvent.startDate) {
-        // Assurer une date de fin par défaut
-        if (!currentEvent.endDate) {
-          currentEvent.endDate = currentEvent.startDate;
-          currentEvent.endTime = currentEvent.startTime;
+      if (currentEvent) {
+        if (currentEvent.title && currentEvent.startDate) {
+          // Assurer une date de fin par défaut
+          if (!currentEvent.endDate) {
+            currentEvent.endDate = currentEvent.startDate;
+            currentEvent.endTime = currentEvent.startTime;
+          }
+          events.push(currentEvent as ExternalEvent);
+        } else {
+          const evTitle = currentEvent.title || "Sans titre";
+          warnings.push(`Événement "${evTitle}" ignoré : date ou titre manquant.`);
         }
-        events.push(currentEvent as ExternalEvent);
       }
       currentEvent = null;
       inVevent = false;
@@ -158,7 +171,7 @@ export const parseICSContent = (
 
         case 'DTSTART':
           const startDateObj = parseIcsDate(valuePart);
-          if (startDateObj) {
+          if (startDateObj && !isNaN(startDateObj.getTime())) {
             currentEvent.startDate = startDateObj.toISOString().split('T')[0];
             // Est-ce une journée complète ? (La valeur ne contient pas 'T' et fait 8 caractères)
             if (!valuePart.includes('T')) {
@@ -170,12 +183,14 @@ export const parseICSContent = (
                 hour12: false
               });
             }
+          } else {
+            warnings.push(`Date de début invalide pour l'événement "${currentEvent.title || 'Sans titre'}" (valeur: ${valuePart}).`);
           }
           break;
 
         case 'DTEND':
           const endDateObj = parseIcsDate(valuePart);
-          if (endDateObj) {
+          if (endDateObj && !isNaN(endDateObj.getTime())) {
             currentEvent.endDate = endDateObj.toISOString().split('T')[0];
             if (valuePart.includes('T')) {
               currentEvent.endTime = endDateObj.toLocaleTimeString('fr-FR', {
@@ -186,6 +201,19 @@ export const parseICSContent = (
             }
           }
           break;
+      }
+    }
+  }
+
+  // Enregistrer le rapport d'import s'il y a des warnings
+  if (typeof window !== 'undefined' && window.localStorage) {
+    if (warnings.length > 0) {
+      try {
+        const existingReports = JSON.parse(window.localStorage.getItem('mf_ical_import_report') || '[]');
+        const updated = [...existingReports, ...warnings].slice(-50);
+        window.localStorage.setItem('mf_ical_import_report', JSON.stringify(updated));
+      } catch (e) {
+        console.error("Erreur enregistrement rapport import:", e);
       }
     }
   }

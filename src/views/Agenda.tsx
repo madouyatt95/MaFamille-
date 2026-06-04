@@ -14,11 +14,11 @@ import {
   Trash2,
   Settings2
 } from 'lucide-react';
-import type { FamilyEvent, Member, EventType } from '../types';
+import type { FamilyEvent, Member } from '../types';
 import { fetchExternalCalendar, type ExternalEvent } from '../utils/icalParser';
 
 interface AgendaProps {
-  events: FamilyEvent[];
+  events: any[]; // UnifiedEvent[]
   members: Member[];
   onAddEventClick: () => void;
   onToggleEventDone: (id: string) => void;
@@ -26,15 +26,12 @@ interface AgendaProps {
   activeMemberId?: string;
   defaultSelectedDate?: string;
 
-  trips?: any[];
-  vaccines?: any[];
-  schoolTasks?: any[];
-  tasks?: any[];
-  demarches?: any[];
-  vehicles?: any[];
-  maintenance?: any[];
-  abonnements?: any[];
-  pets?: any[];
+  externalEvents: ExternalEvent[];
+  setExternalEvents: React.Dispatch<React.SetStateAction<ExternalEvent[]>>;
+  calendarSources: CalendarSource[];
+  setCalendarSources: React.Dispatch<React.SetStateAction<CalendarSource[]>>;
+  currentCalendarCountry: string;
+  setCurrentCalendarCountry: (country: string) => void;
 }
 
 export interface CalendarSource {
@@ -54,15 +51,12 @@ export const Agenda: React.FC<AgendaProps> = ({
   onMoveEvent,
   activeMemberId = '1',
   defaultSelectedDate,
-  trips = [],
-  vaccines = [],
-  schoolTasks = [],
-  tasks = [],
-  demarches = [],
-  vehicles = [],
-  maintenance = [],
-  abonnements = [],
-  pets = []
+  externalEvents,
+  setExternalEvents,
+  calendarSources,
+  setCalendarSources,
+  currentCalendarCountry,
+  setCurrentCalendarCountry
 }) => {
   const getLocalDateString = (d: Date = new Date()) => {
     const year = d.getFullYear();
@@ -89,94 +83,6 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [syncing, setSyncing] = useState(false);
 
   // Sources iCal et Événements Externes
-  const [calendarSources, setCalendarSources] = useState<CalendarSource[]>(() => {
-    const saved = localStorage.getItem('mf_external_calendar_sources');
-    if (saved) return JSON.parse(saved);
-    const isCloud = !!localStorage.getItem('mf_cloud_foyer_id');
-    if (isCloud) return [];
-    return [
-      {
-        id: 'src-google-papa',
-        name: 'Google Agenda Papa',
-        url: 'https://calendar.google.com/calendar/ical/papa/public/basic.ics',
-        color: '#2563EB',
-        isActive: true
-      },
-      {
-        id: 'src-school-awa',
-        name: 'École Awa (Emploi du temps)',
-        url: 'https://ecole.directe/awa/agenda.ics',
-        color: '#EC4899',
-        memberId: '4', // Awa
-        isActive: true
-      }
-    ];
-  });
-
-  const [externalEvents, setExternalEvents] = useState<ExternalEvent[]>(() => {
-    const saved = localStorage.getItem('mf_external_calendar_events');
-    if (saved) return JSON.parse(saved);
-    const isCloud = !!localStorage.getItem('mf_cloud_foyer_id');
-    if (isCloud) return [];
-    // Événements de démo pré-remplis pour Mai 2026 correspondants aux dates
-    return [
-      {
-        id: 'ext-demo-1',
-        title: 'Réunion d\'affaires importante',
-        startDate: '2026-05-18',
-        endDate: '2026-05-18',
-        startTime: '10:00',
-        endTime: '12:00',
-        description: 'Point d\'étape sur les nouveaux projets de consulting.',
-        location: 'Paris Offices',
-        sourceName: 'Google Agenda Papa',
-        sourceColor: '#2563EB',
-        isAllDay: false
-      },
-      {
-        id: 'ext-demo-2',
-        title: 'Cours de Mathématiques',
-        startDate: '2026-05-19',
-        endDate: '2026-05-19',
-        startTime: '08:30',
-        endTime: '10:30',
-        description: 'Géométrie et algèbre linéaire.',
-        location: 'Salle 402 - Collège',
-        sourceName: 'École Awa (Emploi du temps)',
-        sourceColor: '#EC4899',
-        memberId: '4',
-        isAllDay: false
-      },
-      {
-        id: 'ext-demo-3',
-        title: 'Déjeuner client professionnel',
-        startDate: '2026-05-20',
-        endDate: '2026-05-20',
-        startTime: '12:30',
-        endTime: '14:00',
-        description: 'Signature de contrat de partenariat.',
-        location: 'L\'Atelier Bistrot',
-        sourceName: 'Google Agenda Papa',
-        sourceColor: '#2563EB',
-        isAllDay: false
-      },
-      {
-        id: 'ext-demo-4',
-        title: 'Cours d\'Anglais',
-        startDate: '2026-05-21',
-        endDate: '2026-05-21',
-        startTime: '14:00',
-        endTime: '16:00',
-        description: 'Préparation du brevet oral d\'anglais.',
-        location: 'Salle 105 - Collège',
-        sourceName: 'École Awa (Emploi du temps)',
-        sourceColor: '#EC4899',
-        memberId: '4',
-        isAllDay: false
-      }
-    ];
-  });
-
   const [showSourcesModal, setShowSourcesModal] = useState(false);
   
   // États de saisie d'un nouveau calendrier
@@ -184,15 +90,6 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [newSourceUrl, setNewSourceUrl] = useState('');
   const [newSourceColor, setNewSourceColor] = useState('#6C5CFF');
   const [newSourceMember, setNewSourceMember] = useState('none');
-
-  // Sauvegarde persistante
-  useEffect(() => {
-    localStorage.setItem('mf_external_calendar_sources', JSON.stringify(calendarSources));
-  }, [calendarSources]);
-
-  useEffect(() => {
-    localStorage.setItem('mf_external_calendar_events', JSON.stringify(externalEvents));
-  }, [externalEvents]);
 
   // Invitation card states
   const [activeInvitationEvent, setActiveInvitationEvent] = useState<FamilyEvent | null>(null);
@@ -221,228 +118,41 @@ export const Agenda: React.FC<AgendaProps> = ({
     ? (activeMember.role !== 'child' || !!activeMember.hasExemption)
     : true;
 
-  // Convertit les événements externes en événements de format FamilyEvent
-  const mappedExternalEvents = useMemo(() => {
-    return externalEvents
-      .filter(ee => {
-        // Ne garder que les événements dont la source est active
-        const source = calendarSources.find(s => s.name === ee.sourceName);
-        return source ? source.isActive : true;
-      })
-      .map(ee => ({
-        id: ee.id,
-        title: ee.title,
-        dateTime: `${ee.startDate}T${ee.startTime || '00:00'}:00`,
-        time: ee.startTime || '00:00',
-        type: (ee.memberId ? 'school' : 'other') as EventType,
-        memberId: ee.memberId,
-        location: ee.location || '',
-        notes: ee.description || '',
-        done: false,
-        isExternal: true,
-        sourceName: ee.sourceName,
-        sourceColor: ee.sourceColor
-      }));
-  }, [externalEvents, calendarSources]);
 
   const visibleEvents = useMemo(() => {
-    const local = events.filter(e => {
-      if (e.type === 'vaccine') return false;
+    const list = (events || []).filter(e => {
       if (!isChild) return true;
-      if (e.memberId === activeMemberId) return true;
-      if (e.type === 'school' || e.type === 'social') return true;
-      if (!e.memberId) return true;
+      const memberId = e.member_id || e.memberId;
+      const type = e.event_type || e.type;
+      if (memberId === activeMemberId) return true;
+      if (type === 'school' || type === 'social') return true;
+      if (!memberId) return true;
       return false;
-    }).map(e => ({ ...e, sourceModule: 'agenda' }));
-    
-    const ext = mappedExternalEvents.map(e => ({ ...e, sourceModule: 'external' }));
+    });
 
-    const tripEvs: any[] = [];
-    trips.forEach((t: any) => {
-      const isValidDate = (dStr: string) => {
-        if (!dStr) return false;
-        const lower = dStr.toLowerCase();
-        if (lower.includes('invalid') || lower.includes('non') || lower.includes('planifi')) return false;
-        const d = new Date(dStr);
-        return !isNaN(d.getTime());
+    return list.map(e => {
+      const eDate = e.start_date || e.date || '';
+      const eTime = e.start_time || e.time || '';
+      const eType = e.event_type || e.type || 'other';
+      const sourceModule = e.source_module || e.sourceModule || 'agenda';
+      const memberId = e.member_id || e.memberId;
+      return {
+        id: e.id,
+        title: e.title,
+        dateTime: eTime ? `${eDate}T${eTime}:00` : `${eDate}T00:00:00`,
+        time: eTime,
+        type: eType,
+        memberId: memberId,
+        location: e.location || '',
+        notes: e.description || e.notes || '',
+        done: !!e.done,
+        sourceModule: sourceModule,
+        isExternal: sourceModule === 'external',
+        sourceName: e.sourceName || (sourceModule === 'external' ? 'Calendrier externe' : ''),
+        sourceColor: e.sourceColor || e.color
       };
-      if (t.startDate && isValidDate(t.startDate)) {
-        tripEvs.push({
-          id: `trip-dep-${t.id}`,
-          title: `✈️ Départ : ${t.destination}`,
-          dateTime: `${t.startDate}T09:00:00`,
-          time: '09:00',
-          type: 'social' as EventType,
-          memberId: 'Foyer',
-          location: t.destination,
-          notes: `Départ pour le voyage à ${t.destination}. Budget : ${t.budget}€`,
-          done: false,
-          sourceModule: 'voyages'
-        });
-      }
-      if (t.endDate && isValidDate(t.endDate)) {
-        tripEvs.push({
-          id: `trip-ret-${t.id}`,
-          title: `🛬 Retour : ${t.destination}`,
-          dateTime: `${t.endDate}T18:00:00`,
-          time: '18:00',
-          type: 'social' as EventType,
-          memberId: 'Foyer',
-          location: t.destination,
-          notes: `Retour du voyage à ${t.destination}.`,
-          done: false,
-          sourceModule: 'voyages'
-        });
-      }
     });
-
-    const vacEvs = vaccines
-      .filter((v: any) => v.status !== 'Archivé')
-      .map((v: any) => ({
-        id: `vac-${v.id}`,
-        title: `🏥 Vaccin : ${v.name}`,
-        dateTime: v.time ? `${v.date}T${v.time}:00` : `${v.date}T00:00:00`,
-        time: v.time || '',
-        type: 'medical' as EventType,
-        memberId: v.memberId || 'Foyer',
-        notes: v.note || 'Rappel de vaccin',
-        done: v.status === 'Fait',
-        sourceModule: 'sante',
-        source_module: 'santé',
-        source_id: v.id,
-        event_type: 'vaccine'
-      }));
-
-    const schoolEvs = schoolTasks.map((st: any) => ({
-      id: `school-task-${st.id}`,
-      title: `📚 Devoir : ${st.title} (${st.subject})`,
-      dateTime: `${st.dueDate}T17:00:00`,
-      time: '17:00',
-      type: 'school' as EventType,
-      memberId: st.assignedMemberId,
-      notes: `Difficulté : ${st.difficulty}`,
-      done: st.done,
-      sourceModule: 'ecole'
-    }));
-
-    const choreEvs = tasks.map((tk: any) => ({
-      id: `task-${tk.id}`,
-      title: `🧹 Tâche : ${tk.title}`,
-      dateTime: `${tk.dueDate}T18:00:00`,
-      time: '18:00',
-      type: 'other' as EventType,
-      memberId: tk.assignedMemberId,
-      notes: `Points : ${tk.rewardPoints}`,
-      done: tk.done,
-      sourceModule: 'taches'
-    }));
-
-    const demEvs = demarches.map((d: any) => ({
-      id: `demarche-${d.id}`,
-      title: `${d.icon || '📄'} Démarche : ${d.title}`,
-      dateTime: `${d.dueDate || d.createdAt?.split('T')[0] || getLocalDateString()}T11:00:00`,
-      time: '11:00',
-      type: 'other' as EventType,
-      memberId: d.assignedMemberId,
-      notes: `Statut : ${d.status}`,
-      done: d.status === 'completed',
-      sourceModule: 'demarches'
-    }));
-
-    const vehEvs: any[] = [];
-    vehicles.forEach((v: any) => {
-      if (v.technicalControl) {
-        vehEvs.push({
-          id: `veh-tc-${v.id}`,
-          title: `🚗 Contrôle Technique : ${v.name}`,
-          dateTime: `${v.technicalControl}T09:00:00`,
-          time: '09:00',
-          type: 'other' as EventType,
-          notes: `Plaque : ${v.plate}`,
-          done: false,
-          sourceModule: 'vehicules'
-        });
-      }
-      if (v.insuranceExpiry) {
-        vehEvs.push({
-          id: `veh-ins-${v.id}`,
-          title: `📄 Exp. Assurance : ${v.name}`,
-          dateTime: `${v.insuranceExpiry}T09:00:00`,
-          time: '09:00',
-          type: 'other' as EventType,
-          notes: `Plaque : ${v.plate}`,
-          done: false,
-          sourceModule: 'vehicules'
-        });
-      }
-    });
-
-    const maintEvs = maintenance.map((m: any) => ({
-      id: `maint-${m.id}`,
-      title: `🏠 Entretien : ${m.title}`,
-      dateTime: `${m.date}T14:00:00`,
-      time: '14:00',
-      type: 'other' as EventType,
-      notes: `Prestataire : ${m.provider}`,
-      done: m.status === 'completed',
-      sourceModule: 'logement'
-    }));
-
-    const petEvs: any[] = [];
-    (pets || []).forEach((p: any) => {
-      if (p.nextVaccine) {
-        petEvs.push({
-          id: `pet-vac-${p.id}`,
-          title: `🐾 Vaccin de ${p.name}`,
-          dateTime: `${p.nextVaccine}T10:00:00`,
-          time: '10:00',
-          type: 'medical' as EventType,
-          memberId: 'Foyer',
-          notes: `Vaccin pour ${p.name} (${p.species})`,
-          done: false,
-          sourceModule: 'animaux'
-        });
-      }
-      if (p.vetAppointment) {
-        petEvs.push({
-          id: `pet-vet-${p.id}`,
-          title: `🏥 RDV Vétérinaire : ${p.name}`,
-          dateTime: `${p.vetAppointment}T14:00:00`,
-          time: '14:00',
-          type: 'medical' as EventType,
-          memberId: 'Foyer',
-          notes: `RDV vétérinaire pour ${p.name}`,
-          done: false,
-          sourceModule: 'animaux'
-        });
-      }
-    });
-
-    const aboEvs = (abonnements || []).map((a: any) => ({
-      id: `abo-${a.id}`,
-      title: `💸 Prélèvement : ${a.name}`,
-      dateTime: `${a.nextBillingDate || getLocalDateString()}T08:00:00`,
-      time: '08:00',
-      type: 'bill' as EventType,
-      notes: `Montant : ${a.amount}€ (${a.period === 'monthly' ? 'Mensuel' : a.period === 'yearly' ? 'Annuel' : a.period === 'weekly' ? 'Hebdomadaire' : a.period})`,
-      done: false,
-      sourceModule: 'budget'
-    }));
-
-    return [
-      ...local,
-      ...ext,
-      ...tripEvs,
-      ...vacEvs,
-      ...schoolEvs,
-      ...choreEvs,
-      ...demEvs,
-      ...vehEvs,
-      ...maintEvs,
-      ...aboEvs,
-      ...petEvs
-    ];
-  }, [events, mappedExternalEvents, isChild, activeMemberId, trips, vaccines, schoolTasks, tasks, demarches, vehicles, maintenance, abonnements, pets]);
+  }, [events, isChild, activeMemberId]);
 
   const calendarCells = useMemo(() => {
     const cells = [];
@@ -574,7 +284,7 @@ export const Agenda: React.FC<AgendaProps> = ({
       });
       alert(`✅ Source "${source.name}" synchronisée avec succès !`);
     } catch (err: any) {
-      alert(`⚠️ Erreur d'import : ${err.message || 'Lien invalide ou problème de connexion.'}`);
+      alert(err.message || "Impossible d’importer ce calendrier. Vérifiez l’URL ou réessayez.");
     } finally {
       setSyncing(false);
     }
@@ -742,18 +452,31 @@ export const Agenda: React.FC<AgendaProps> = ({
           </div>
         </div>
         
-        <button 
-          onClick={() => {
-            if (!isWritable) {
-              alert("🔒 Dérogation parentale requise pour modifier l'agenda familial !");
-              return;
-            }
-            onAddEventClick();
-          }}
-          className="p-3 rounded-2xl bg-[#6C5CFF] text-white hover:opacity-90 transition-all cursor-pointer shadow-[0_4px_12px_rgba(108,92,255,0.4)]"
-        >
-          <Plus className="w-5 h-5" />
-        </button>
+        <div className="flex items-center space-x-2">
+          {/* Pays Jours Fériés */}
+          <select
+            value={currentCalendarCountry}
+            onChange={(e) => setCurrentCalendarCountry(e.target.value)}
+            className="bg-white/5 text-white/90 border border-white/10 rounded-xl px-3 py-2.5 text-xs font-bold transition-all hover:bg-white/10 outline-none cursor-pointer"
+          >
+            <option value="France" className="bg-[#07111F]">🇫🇷 France</option>
+            <option value="Sénégal" className="bg-[#07111F]">🇸🇳 Sénégal</option>
+            <option value="Comores" className="bg-[#07111F]">🇰🇲 Comores</option>
+          </select>
+
+          <button 
+            onClick={() => {
+              if (!isWritable) {
+                alert("🔒 Dérogation parentale requise pour modifier l'agenda familial !");
+                return;
+              }
+              onAddEventClick();
+            }}
+            className="p-3 rounded-2xl bg-[#6C5CFF] text-white hover:opacity-90 transition-all cursor-pointer shadow-[0_4px_12px_rgba(108,92,255,0.4)]"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Panneau de Synchronisation Multi-Calendriers & ICS */}
@@ -843,6 +566,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                 const isSelected = cell.dateStr === selectedDate;
                 const hasEvents = cell.dateStr ? visibleEvents.some(e => e.dateTime.startsWith(cell.dateStr!)) : false;
                 const isToday = cell.dateStr === getLocalDateString(new Date());
+                const isHoliday = cell.dateStr ? visibleEvents.some(e => e.dateTime.startsWith(cell.dateStr!) && e.sourceModule === 'fetes') : false;
                 
                 return (
                   <button
@@ -857,8 +581,10 @@ export const Agenda: React.FC<AgendaProps> = ({
                         : isSelected
                           ? 'bg-[#6C5CFF] text-white font-extrabold shadow-[0_4px_10px_rgba(108,92,255,0.4)] cursor-pointer'
                           : isToday
-                            ? 'border border-[#6C5CFF]/50 text-white font-extrabold hover:bg-white/5 cursor-pointer'
-                            : 'text-white/80 hover:bg-white/5 hover:text-white cursor-pointer'
+                            ? 'border-2 border-[#6C5CFF] text-white font-extrabold hover:bg-white/5 cursor-pointer'
+                            : isHoliday
+                              ? 'border border-[#FFB020]/50 bg-[#FFB020]/5 text-white/90 hover:bg-[#FFB020]/10 cursor-pointer shadow-[inset_0_0_8px_rgba(255,176,32,0.1)]'
+                              : 'text-white/80 hover:bg-white/5 hover:text-white cursor-pointer'
                     }`}
                   >
                     <span className="text-xs font-semibold">{cell.day}</span>
@@ -960,14 +686,18 @@ export const Agenda: React.FC<AgendaProps> = ({
                              }
                              handleDragStart(e, event.id);
                            }}
-                           className={`absolute left-2 right-4 p-3 rounded-2xl border border-white/10 text-xs shadow-lg cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-all z-10 overflow-hidden ${
-                             event.done ? 'bg-[#112240]/50 opacity-60' : 'bg-[#1C2C4E]/90 backdrop-blur-md'
+                           className={`absolute left-2 right-4 p-3 rounded-2xl border text-xs shadow-lg cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-all z-10 overflow-hidden ${
+                             event.sourceModule === 'fetes'
+                               ? 'bg-[#FFB020]/25 border-[#FFB020]/40 text-[#FFB020] shadow-[0_4px_12px_rgba(255,176,32,0.15)] font-bold'
+                               : event.done 
+                                 ? 'bg-[#112240]/50 opacity-60 border-white/10' 
+                                 : 'bg-[#1C2C4E]/90 backdrop-blur-md border-white/10'
                            }`}
                            style={{ top: `${topOffset}px`, minHeight: '56px' }}
                          >
                            {/* Left color bar */}
                            <div 
-                             className={`absolute left-0 top-0 bottom-0 w-1 ${event.memberId && !event.isExternal ? memberColors[event.memberId] : 'bg-white/40'}`}
+                             className={`absolute left-0 top-0 bottom-0 w-1 ${event.sourceModule === 'fetes' ? 'bg-[#FFB020]' : event.memberId && !event.isExternal ? memberColors[event.memberId] : 'bg-white/40'}`}
                              style={event.isExternal && event.sourceColor ? { backgroundColor: event.sourceColor } : undefined}
                            ></div>
                            
@@ -1052,13 +782,17 @@ export const Agenda: React.FC<AgendaProps> = ({
                              }
                              handleDragStart(e, event.id);
                            }}
-                           className={`absolute left-2 right-4 p-3 rounded-2xl border border-white/10 text-xs shadow-lg cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-all z-10 overflow-hidden ${
-                             event.done ? 'bg-[#112240]/50 opacity-60' : 'bg-[#1C2C4E]/90 backdrop-blur-md'
+                           className={`absolute left-2 right-4 p-3 rounded-2xl border text-xs shadow-lg cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-all z-10 overflow-hidden ${
+                             event.sourceModule === 'fetes'
+                               ? 'bg-[#FFB020]/25 border-[#FFB020]/40 text-[#FFB020] shadow-[0_4px_12px_rgba(255,176,32,0.15)] font-bold'
+                               : event.done 
+                                 ? 'bg-[#112240]/50 opacity-60 border-white/10' 
+                                 : 'bg-[#1C2C4E]/90 backdrop-blur-md border-white/10'
                            }`}
                            style={{ top: `${topOffset}px`, minHeight: '56px' }}
                          >
                            <div 
-                             className={`absolute left-0 top-0 bottom-0 w-1 ${event.memberId && !event.isExternal ? memberColors[event.memberId] : 'bg-white/40'}`}
+                             className={`absolute left-0 top-0 bottom-0 w-1 ${event.sourceModule === 'fetes' ? 'bg-[#FFB020]' : event.memberId && !event.isExternal ? memberColors[event.memberId] : 'bg-white/40'}`}
                              style={event.isExternal && event.sourceColor ? { backgroundColor: event.sourceColor } : undefined}
                            ></div>
                            
@@ -1093,11 +827,16 @@ export const Agenda: React.FC<AgendaProps> = ({
                   const member = !event.isExternal ? members.find(m => m.id === event.memberId) : null;
                   const dotColor = event.memberId ? memberColors[event.memberId] : 'bg-white/40';
                   
+                  const isFete = event.sourceModule === 'fetes';
                   return (
                     <div 
                       key={event.id}
-                      className={`glass-panel rounded-2xl p-3 border border-white/6 flex items-start justify-between ${
-                        event.done ? 'opacity-50' : ''
+                      className={`glass-panel rounded-2xl p-3 border flex items-start justify-between ${
+                        isFete
+                          ? 'border-[#FFB020]/45 bg-[#FFB020]/5 text-[#FFB020] shadow-[0_0_15px_rgba(255,176,32,0.1)]'
+                          : event.done 
+                            ? 'opacity-50 border-white/6' 
+                            : 'border-white/6'
                       }`}
                     >
                       <div className="flex items-start space-x-3">
@@ -1109,7 +848,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                         <div className="space-y-1">
                           <div className="flex items-center space-x-2">
                             <span 
-                              className={`w-2.5 h-2.5 rounded-full ${event.memberId && !event.isExternal ? dotColor : 'bg-white/40'}`} 
+                              className={`w-2.5 h-2.5 rounded-full ${isFete ? 'bg-[#FFB020]' : event.memberId && !event.isExternal ? dotColor : 'bg-white/40'}`} 
                               style={event.isExternal && event.sourceColor ? { backgroundColor: event.sourceColor } : undefined}
                             />
                             <h4 className="text-xs font-bold text-white">
