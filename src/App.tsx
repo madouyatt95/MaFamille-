@@ -102,7 +102,7 @@ import { KidsDashboard } from './views/KidsDashboard';
 import { Paywall } from './components/Paywall';
 import { Onboarding } from './views/Onboarding';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
-import { DemoCommune, DemoEtablissement } from './views/DemoViews';
+import { DemoBottomNav, DemoKidsDashboard, DemoTeenDashboard, DemoSchoolSpace, DemoCommuneSpace } from './views/DemoViews';
 import { foyerService } from './services/foyerService';
 import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction, serializeEventDescription, deserializeEventDescription, logQueryVolume } from './utils/supabase';
 import { notificationService } from './services/notificationService';
@@ -553,6 +553,23 @@ function App() {
     ];
   });
 
+  const [demoTasks, setDemoTasks] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_tasks');
+    return saved ? JSON.parse(saved) : [
+      { id: 'dtk-1', title: 'Vider le lave-vaisselle', rewardPoints: 15, done: false, rotation: 'daily', assignedMemberId: 'demo_issa', assignedMemberName: 'Issa Diop', validatedByParent: false, dueDate: new Date().toISOString().split('T')[0] },
+      { id: 'dtk-2', title: 'Sortir la poubelle de tri', rewardPoints: 10, done: true, rotation: 'daily', assignedMemberId: 'demo_lyna', assignedMemberName: 'Lyna Diop', validatedByParent: false, dueDate: new Date().toISOString().split('T')[0] },
+      { id: 'dtk-3', title: 'Nettoyer la table du salon', rewardPoints: 5, done: false, rotation: 'daily', assignedMemberId: 'demo_issa', assignedMemberName: 'Issa Diop', validatedByParent: false, dueDate: new Date().toISOString().split('T')[0] }
+    ];
+  });
+
+  const [demoPocketMoney, setDemoPocketMoney] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_pocket_money');
+    return saved ? JSON.parse(saved) : [
+      { id: 'demo_issa', name: 'Issa Diop', balance: 25.00, points: 140, avatar: '👦' },
+      { id: 'demo_lyna', name: 'Lyna Diop', balance: 75.00, points: 320, avatar: '👧' }
+    ];
+  });
+
   const [demoNotifications, setDemoNotifications] = useState<any[]>(() => {
     const saved = localStorage.getItem('mf_demo_notifications');
     const todayStr = new Date().toISOString().split('T')[0];
@@ -610,6 +627,14 @@ function App() {
   useEffect(() => {
     localStorage.setItem('mf_demo_comms', JSON.stringify(demoSchoolComms));
   }, [demoSchoolComms]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_tasks', JSON.stringify(demoTasks));
+  }, [demoTasks]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_pocket_money', JSON.stringify(demoPocketMoney));
+  }, [demoPocketMoney]);
 
   useEffect(() => {
     localStorage.setItem('mf_demo_notifications', JSON.stringify(demoNotifications));
@@ -730,8 +755,54 @@ function App() {
       });
     });
 
+    // 6. Vaccines
+    demoVaccines.forEach((v: any) => {
+      list.push({
+        id: v.id,
+        title: `🩺 Vaccin : ${v.name} (Lyna)`,
+        date: v.date,
+        time: v.time || '10:00',
+        description: `Rappel de vaccin ${v.name} planifié. Statut : ${v.status}`,
+        notes: `Médecin : ${v.doctor}`,
+        category: 'Santé',
+        sourceModule: 'sante',
+        memberId: v.memberId,
+        completed: v.status === 'Fait'
+      });
+    });
+
+    // 7. Transactions (Paiement Cantine, etc.)
+    demoTransactions.forEach((t: any) => {
+      list.push({
+        id: t.id,
+        title: `💰 Dépense : ${t.title}`,
+        date: t.date,
+        time: t.time || '12:00',
+        description: `Montant : ${t.amount}€ • Catégorie : ${t.category}`,
+        notes: `Facturé sur le foyer`,
+        category: 'Finances',
+        sourceModule: 'budget',
+        completed: true
+      });
+    });
+
+    // 8. Trips (Vacances Marseille)
+    demoTrips.forEach((tr: any) => {
+      list.push({
+        id: tr.id,
+        title: `✈️ Voyage : Départ pour ${tr.destination}`,
+        date: tr.startDate,
+        time: '08:00',
+        description: `Vacances en famille à ${tr.destination}. Budget : ${tr.budget}€.`,
+        notes: `Checklist : ${tr.checklist.filter((c: any) => c.done).length}/${tr.checklist.length} tâches faites`,
+        category: 'Loisirs',
+        sourceModule: 'voyages',
+        completed: false
+      });
+    });
+
     return list;
-  }, [demoActive, demoSchoolPresence, demoSchoolCantine, demoCommuneAlerts, demoSchoolComms, demoSchoolHomework]);
+  }, [demoActive, demoSchoolPresence, demoSchoolCantine, demoCommuneAlerts, demoSchoolComms, demoSchoolHomework, demoVaccines, demoTransactions, demoTrips]);
 
   const triggerDemoNotification = (title: string, message: string, moduleName: string) => {
     const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -1198,6 +1269,16 @@ function App() {
   const [pinError, setPinError] = useState(false);
   const [sharedPackId, setSharedPackId] = useState<string | null>(null);
 
+  // Auto-switch profile when accessing commune or ecole modules as a parent in demo mode
+  useEffect(() => {
+    if (demoActive) {
+      if (activeModule === 'commune' && (demoProfileId === 'demo_papa' || demoProfileId === 'demo_maman')) {
+        setDemoProfileId('demo_commune_admin');
+      } else if (activeModule === 'ecole' && (demoProfileId === 'demo_papa' || demoProfileId === 'demo_maman')) {
+        setDemoProfileId('demo_school_admin');
+      }
+    }
+  }, [demoActive, activeModule, demoProfileId]);
 
   // React Refs to keep subscriptions updated and prevent stale closures
   const activeMemberIdRef = useRef(activeMemberId);
@@ -10378,11 +10459,6 @@ function App() {
       { id: 'dg-3', name: 'Pâtes Penne Rigate', category: 'Épicerie', quantity: '1 kg', checked: true, inStock: false, addedBy: 'Aminata Diop' }
     ];
 
-    const demoTasks: ChoreTask[] = [
-      { id: 'dtk-1', title: 'Vider le lave-vaisselle', rewardPoints: 15, done: false, rotation: 'daily', assignedMemberId: 'demo_issa', assignedMemberName: 'Issa Diop', validatedByParent: false, dueDate: new Date().toISOString().split('T')[0] },
-      { id: 'dtk-2', title: 'Sortir la poubelle de tri', rewardPoints: 10, done: true, rotation: 'daily', assignedMemberId: 'demo_lyna', assignedMemberName: 'Lyna Diop', validatedByParent: false, dueDate: new Date().toISOString().split('T')[0] },
-      { id: 'dtk-3', title: 'Nettoyer la table du salon', rewardPoints: 5, done: false, rotation: 'daily', assignedMemberId: 'demo_issa', assignedMemberName: 'Issa Diop', validatedByParent: false, dueDate: new Date().toISOString().split('T')[0] }
-    ];
 
     const demoDocuments: DocumentFile[] = [
       { id: 'dd-1', name: 'Livret de Famille.pdf', category: 'identity', tags: ['famille'], fileSize: '2.4 Mo', uploadDate: new Date().toISOString(), memberId: 'demo_papa', isExpired: false },
@@ -10436,10 +10512,6 @@ function App() {
       { id: 'dsg-1', title: 'Voyage Marseille', targetAmount: 1800, currentAmount: 1800, targetDate: '2026-07-01', category: 'Loisirs' }
     ];
 
-    const demoPocketMoney: { id: string; name: string; balance: number; points: number; avatar: string; }[] = [
-      { id: 'demo_issa', name: 'Issa Diop', balance: 25.00, points: 140, avatar: '👦' },
-      { id: 'demo_lyna', name: 'Lyna Diop', balance: 75.00, points: 320, avatar: '👧' }
-    ];
 
     const appFoyer = demoActive ? {
       id: 'demo_family',
@@ -10484,6 +10556,76 @@ function App() {
           </div>
         </div>
       );
+    }
+
+    if (demoActive) {
+      if (demoProfileId === 'demo_issa') {
+        return (
+          <DemoKidsDashboard 
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            demoTasks={demoTasks}
+            setDemoTasks={setDemoTasks}
+            demoPocketMoney={demoPocketMoney}
+            setDemoPocketMoney={setDemoPocketMoney}
+            demoSchoolPresence={demoSchoolPresence}
+            demoSchoolHomework={demoSchoolHomework}
+            setDemoSchoolHomework={setDemoSchoolHomework}
+            triggerDemoNotification={triggerDemoNotification}
+          />
+        );
+      }
+      if (demoProfileId === 'demo_lyna') {
+        return (
+          <DemoTeenDashboard 
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            demoSchoolHomework={demoSchoolHomework}
+            setDemoSchoolHomework={setDemoSchoolHomework}
+            demoSchoolComms={demoSchoolComms}
+            demoVaccines={demoVaccines}
+            triggerDemoNotification={triggerDemoNotification}
+          />
+        );
+      }
+      if (demoProfileId === 'demo_school_admin' || demoProfileId === 'demo_school_teacher') {
+        return (
+          <DemoSchoolSpace 
+            demoProfileId={demoProfileId}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            demoSchoolPresence={demoSchoolPresence}
+            setDemoSchoolPresence={setDemoSchoolPresence}
+            demoSchoolCantine={demoSchoolCantine}
+            setDemoSchoolCantine={setDemoSchoolCantine}
+            demoTransactions={demoTransactions}
+            setDemoTransactions={setDemoTransactions}
+            demoSchoolHomework={demoSchoolHomework}
+            setDemoSchoolHomework={setDemoSchoolHomework}
+            demoSchoolComms={demoSchoolComms}
+            setDemoSchoolComms={setDemoSchoolComms}
+            triggerDemoNotification={triggerDemoNotification}
+            onBack={() => handleSwitchDemoProfile('demo_papa')}
+          />
+        );
+      }
+      if (demoProfileId === 'demo_commune_admin' || demoProfileId === 'demo_commune_agent') {
+        return (
+          <DemoCommuneSpace 
+            demoProfileId={demoProfileId}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            demoCommuneAlerts={demoCommuneAlerts}
+            setDemoCommuneAlerts={setDemoCommuneAlerts}
+            demoCommunePoll={demoCommunePoll}
+            setDemoCommunePoll={setDemoCommunePoll}
+            demoSignalements={demoSignalements}
+            setDemoSignalements={setDemoSignalements}
+            triggerDemoNotification={triggerDemoNotification}
+            onBack={() => handleSwitchDemoProfile('demo_papa')}
+          />
+        );
+      }
     }
 
     if (activeTab === 'accueil') {
@@ -10594,16 +10736,23 @@ function App() {
       if (activeModule === 'commune') {
         if (demoActive) {
           return (
-            <DemoCommune 
+            <DemoCommuneSpace 
               demoProfileId={demoProfileId}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
               demoCommuneAlerts={demoCommuneAlerts}
               setDemoCommuneAlerts={setDemoCommuneAlerts}
               demoCommunePoll={demoCommunePoll}
               setDemoCommunePoll={setDemoCommunePoll}
               demoSignalements={demoSignalements}
               setDemoSignalements={setDemoSignalements}
-              onBack={() => setActiveModule('')}
               triggerDemoNotification={triggerDemoNotification}
+              onBack={() => {
+                setActiveModule('');
+                if (demoActive && (demoProfileId === 'demo_commune_admin' || demoProfileId === 'demo_commune_agent')) {
+                  handleSwitchDemoProfile('demo_papa');
+                }
+              }}
             />
           );
         } else {
@@ -10622,8 +10771,10 @@ function App() {
       if (activeModule === 'ecole') {
         if (demoActive) {
           return (
-            <DemoEtablissement 
+            <DemoSchoolSpace 
               demoProfileId={demoProfileId}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
               demoSchoolPresence={demoSchoolPresence}
               setDemoSchoolPresence={setDemoSchoolPresence}
               demoSchoolCantine={demoSchoolCantine}
@@ -10634,8 +10785,13 @@ function App() {
               setDemoSchoolHomework={setDemoSchoolHomework}
               demoSchoolComms={demoSchoolComms}
               setDemoSchoolComms={setDemoSchoolComms}
-              onBack={() => setActiveModule('')}
               triggerDemoNotification={triggerDemoNotification}
+              onBack={() => {
+                setActiveModule('');
+                if (demoActive && (demoProfileId === 'demo_school_admin' || demoProfileId === 'demo_school_teacher')) {
+                  handleSwitchDemoProfile('demo_papa');
+                }
+              }}
             />
           );
         } else {
@@ -11001,16 +11157,27 @@ function App() {
       />
 
       {/* Shared bottom iOS premium nav bar with quick actions central (+) trigger */}
-      <BottomNav 
-        activeTab={activeTab}
-        setActiveTab={(tab) => {
-          setActiveTab(tab);
-          setActiveModule('');
-        }}
-        onMicClick={() => startVoiceAssistant()}
-        activeMemberId={appActiveMemberId}
-        members={appMembers}
-      />
+      {demoActive && !['demo_papa', 'demo_maman'].includes(demoProfileId) ? (
+        <DemoBottomNav 
+          demoProfileId={demoProfileId}
+          activeTab={activeTab}
+          setActiveTab={(tab) => {
+            setActiveTab(tab);
+            setActiveModule('');
+          }}
+        />
+      ) : (
+        <BottomNav 
+          activeTab={activeTab}
+          setActiveTab={(tab) => {
+            setActiveTab(tab);
+            setActiveModule('');
+          }}
+          onMicClick={() => startVoiceAssistant()}
+          activeMemberId={appActiveMemberId}
+          members={appMembers}
+        />
+      )}
 
       <Paywall 
         isOpen={paywallOpen}
