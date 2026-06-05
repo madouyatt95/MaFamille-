@@ -1009,7 +1009,7 @@ function App() {
   }
 
   const handleDeleteUnifiedEvent = async (id: string, moduleName: string) => {
-    const rawId = id.replace(/^(agenda|trip-dep|trip-ret|trip|demarche|school-task|school|task|vac|pet-vac|pet-vet|abo|vehicle-tc|vehicle-ins|veh-tc|veh-ins|maint|maintenance)-/, '');
+    const rawId = id.replace(/^(agenda|trip-dep|trip-ret|trip|demarche|school-task|school|task|vac|pet-vac|pet-vet|abo|tx-rec|vehicle-tc|vehicle-ins|veh-tc|veh-ins|maint|maintenance)-/, '');
     const client = getSupabaseClient();
     
     if (moduleName === 'agenda') {
@@ -1067,8 +1067,13 @@ function App() {
       if (client) await client.from('maintenance').delete().eq('id', rawId);
     } else if (moduleName === 'budget') {
       const baseAboId = rawId.split('-')[0];
-      setAbonnements(prev => prev.filter(a => a.id !== baseAboId));
-      if (client) await client.from('abonnements').delete().eq('id', baseAboId);
+      if (id.startsWith('tx-rec-')) {
+        setTransactions(prev => prev.filter(t => t.id !== baseAboId));
+        if (client) await client.from('transactions').delete().eq('id', baseAboId);
+      } else {
+        setAbonnements(prev => prev.filter(a => a.id !== baseAboId));
+        if (client) await client.from('abonnements').delete().eq('id', baseAboId);
+      }
     } else if (moduleName === 'animaux') {
       const isVac = id.startsWith('pet-vac-');
       const isVet = id.startsWith('pet-vet-');
@@ -1254,7 +1259,8 @@ function App() {
       pets,
       externalEvents,
       country: currentCalendarCountry,
-      foyerId: foyer?.id
+      foyerId: foyer?.id,
+      transactions
     });
   }, [
     events,
@@ -1270,7 +1276,8 @@ function App() {
     pets,
     externalEvents,
     currentCalendarCountry,
-    foyer?.id
+    foyer?.id,
+    transactions
   ]);
 
   useEffect(() => {
@@ -5092,7 +5099,9 @@ function App() {
     // 13. BUDGET GENERAL FALLBACK
     const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
     const amount = numMatch ? parseFloat(numMatch[1].replace(',', '.')) : undefined;
-    if (amount) {
+    const hasBudgetKeyword = 
+      /€|euros?|dépense|depense|payé|paye|payer|coût|coûte|coute|cout|facture|abonnement|prélèvement|prelevement|dollars?|\$|eur|usd/i.test(promptLower);
+    if (amount && hasBudgetKeyword) {
       let title = 'Achat rapide';
       let pourKeyword = '';
       const pourMatch = promptLower.match(/(?:^|\s)(?:\d+[\.,]?\d*)\s*(?:euros?|€|eur|dollars?|\$)?\s+(?:pour\s+l'|pour\s+l’|pour\s+le\s+|pour\s+la\s+|pour\s+les\s+|pour\s+|de\s+la\s+|de\s+l'|de\s+l’|de\s+|du\s+|des\s+|d'|d’|le\s+|la\s+|les\s+|l'|l’|en\s+|a\s+|à\s+)?([a-z0-9éèàùçâêîôûäëïöü’'\s-]+)/i);
@@ -7115,7 +7124,18 @@ function App() {
         promptLower.includes('légumes') || 
         promptLower.includes('legumes') || 
         promptLower.includes('nourriture') || 
-        promptLower.includes('manger');
+        promptLower.includes('manger') ||
+        promptLower.includes('chips') ||
+        promptLower.includes('crème') ||
+        promptLower.includes('creme') ||
+        promptLower.includes('fraîche') ||
+        promptLower.includes('fraiche') ||
+        promptLower.includes('bouteille') ||
+        promptLower.includes('riz') ||
+        promptLower.includes('œuf') ||
+        promptLower.includes('oeuf') ||
+        promptLower.includes('pot') ||
+        promptLower.includes('paquet');
 
       const isFinancialTrigger = 
         promptLower.includes('dépense') || 
@@ -9048,6 +9068,16 @@ function App() {
           return { ...a, nextBillingDate: newDate };
         }
         return a;
+      }));
+    }
+    else if (id.startsWith('tx-rec-')) {
+      const rawId = id.replace('tx-rec-', '').split('-')[0];
+      setTransactions(prev => prev.map(t => {
+        if (t.id === rawId) {
+          if (client) client.from('transactions').update({ next_occurrence: newDate }).eq('id', rawId);
+          return { ...t, nextOccurrence: newDate };
+        }
+        return t;
       }));
     }
     // 10. Agenda standard event

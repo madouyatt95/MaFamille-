@@ -133,6 +133,7 @@ interface GetUnifiedEventsArgs {
   externalEvents: ExternalEvent[];
   country: string;
   foyerId?: string;
+  transactions?: any[];
 }
 
 function getNextBillingDate(currentDateStr: string, period: 'daily' | 'weekly' | 'monthly' | 'yearly'): string {
@@ -169,7 +170,8 @@ export function getUnifiedEvents({
   pets,
   externalEvents,
   country = 'France',
-  foyerId = 'default'
+  foyerId = 'default',
+  transactions = []
 }: GetUnifiedEventsArgs): UnifiedEvent[] {
   const unifiedList: UnifiedEvent[] = [];
 
@@ -408,7 +410,7 @@ export function getUnifiedEvents({
   // 9. ADD BUDGET (Abonnements récurrents / prélèvements)
   abonnements.forEach(a => {
     let aDate = a.nextBillingDate || todayStr;
-    const maxOccurrences = a.period === 'daily' ? 15 : a.period === 'weekly' ? 52 : a.period === 'monthly' ? 12 : a.period === 'yearly' ? 2 : 1;
+    const maxOccurrences = a.period === 'daily' ? 90 : a.period === 'weekly' ? 13 : a.period === 'monthly' ? 12 : a.period === 'yearly' ? 3 : 3;
     
     for (let i = 0; i < maxOccurrences; i++) {
       unifiedList.push({
@@ -429,6 +431,35 @@ export function getUnifiedEvents({
       aDate = getNextBillingDate(aDate, a.period);
     }
   });
+
+  // 9b. ADD RECURRING TRANSACTIONS (dépenses récurrentes)
+  if (transactions) {
+    transactions.forEach(t => {
+      if (t.recurrence && t.recurrence !== 'none') {
+        let tDate = t.nextOccurrence || t.date || todayStr;
+        const count = t.recurrence === 'daily' ? 90 : t.recurrence === 'weekly' ? 13 : t.recurrence === 'monthly' ? 12 : t.recurrence === 'yearly' ? 3 : 3;
+        
+        for (let i = 0; i < count; i++) {
+          unifiedList.push({
+            id: `tx-rec-${t.id}-${i}`,
+            family_id: foyerId,
+            title: `💸 Prélèvement : ${t.title}`,
+            description: `Montant : ${t.amount}€ (${t.recurrence === 'monthly' ? 'Mensuel' : t.recurrence === 'yearly' ? 'Annuel' : t.recurrence === 'weekly' ? 'Hebdomadaire' : t.recurrence})`,
+            start_date: tDate,
+            end_date: tDate,
+            start_time: '08:00',
+            end_time: '',
+            all_day: false,
+            source_module: 'budget',
+            source_id: t.id,
+            event_type: 'bill',
+            done: false
+          });
+          tDate = getNextBillingDate(tDate, t.recurrence);
+        }
+      }
+    });
+  }
 
   // 10. ADD PETS (RDV & vaccins animaux)
   pets.forEach(p => {

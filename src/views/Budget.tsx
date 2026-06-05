@@ -726,36 +726,69 @@ export const Budget: React.FC<BudgetProps> = ({
 
   const prelevementsAVenir = useMemo(() => {
     const list: any[] = [];
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const getNextBillingDateLocal = (currentDateStr: string, period: string): string => {
+      const date = new Date(currentDateStr);
+      if (isNaN(date.getTime())) return currentDateStr;
+      
+      if (period === 'daily') {
+        date.setDate(date.getDate() + 1);
+      } else if (period === 'weekly') {
+        date.setDate(date.getDate() + 7);
+      } else if (period === 'monthly') {
+        date.setMonth(date.getMonth() + 1);
+      } else if (period === 'yearly') {
+        date.setFullYear(date.getFullYear() + 1);
+      }
+      
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
     
     abonnements.forEach(a => {
-      list.push({
-        id: `abo-${a.id}`,
-        name: a.name,
-        amount: a.amount,
-        accountId: undefined,
-        category: a.category || 'Abonnements',
-        nextDate: a.nextBillingDate,
-        frequency: a.period === 'monthly' ? 'Mensuel' : a.period === 'yearly' ? 'Annuel' : a.period === 'weekly' ? 'Hebdomadaire' : a.period,
-        moduleSource: 'budget',
-        isSuspended: suspendedAboIds.includes(a.id),
-        rawAbo: a
-      });
+      let aDate = a.nextBillingDate || todayStr;
+      const count = a.period === 'daily' ? 90 : a.period === 'weekly' ? 13 : a.period === 'monthly' ? 3 : a.period === 'yearly' ? 3 : 3;
+      
+      for (let i = 0; i < count; i++) {
+        list.push({
+          id: `abo-${a.id}-${i}`,
+          name: a.name,
+          amount: a.amount,
+          accountId: undefined,
+          category: a.category || 'Abonnements',
+          nextDate: aDate,
+          frequency: a.period === 'monthly' ? 'Mensuel' : a.period === 'yearly' ? 'Annuel' : a.period === 'weekly' ? 'Hebdomadaire' : a.period,
+          moduleSource: 'budget',
+          isSuspended: suspendedAboIds.includes(a.id),
+          rawAbo: a
+        });
+        aDate = getNextBillingDateLocal(aDate, a.period || 'monthly');
+      }
     });
 
     transactions.forEach(t => {
       if (t.recurrence && t.recurrence !== 'none') {
-        list.push({
-          id: `tx-rec-${t.id}`,
-          name: t.title,
-          amount: t.amount,
-          accountId: t.accountId,
-          category: t.category,
-          nextDate: t.nextOccurrence || t.date,
-          frequency: t.recurrence === 'monthly' ? 'Mensuel' : t.recurrence === 'yearly' ? 'Annuel' : t.recurrence === 'weekly' ? 'Hebdomadaire' : t.recurrence === 'daily' ? 'Quotidien' : t.recurrence,
-          moduleSource: t.moduleSource || 'budget',
-          isSuspended: false,
-          rawTx: t
-        });
+        let tDate = t.nextOccurrence || t.date || todayStr;
+        const count = t.recurrence === 'daily' ? 90 : t.recurrence === 'weekly' ? 13 : t.recurrence === 'monthly' ? 3 : t.recurrence === 'yearly' ? 3 : 3;
+        
+        for (let i = 0; i < count; i++) {
+          list.push({
+            id: `tx-rec-${t.id}-${i}`,
+            name: t.title,
+            amount: t.amount,
+            accountId: t.accountId,
+            category: t.category,
+            nextDate: tDate,
+            frequency: t.recurrence === 'monthly' ? 'Mensuel' : t.recurrence === 'yearly' ? 'Annuel' : t.recurrence === 'weekly' ? 'Hebdomadaire' : t.recurrence === 'daily' ? 'Quotidien' : t.recurrence,
+            moduleSource: t.moduleSource || 'budget',
+            isSuspended: false,
+            rawTx: t
+          });
+          tDate = getNextBillingDateLocal(tDate, t.recurrence);
+        }
       }
     });
 
