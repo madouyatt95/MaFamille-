@@ -19,7 +19,7 @@ interface OnboardingProps {
   onSuccess: (foyerId: string, memberRole: string) => void;
   onLogout: () => void;
   userEmail: string;
-  onEnterDiscoverMode?: () => void;
+  onEnterDiscoverMode?: (profileId: string) => void;
 }
 
 export const Onboarding: React.FC<OnboardingProps> = ({ 
@@ -32,6 +32,19 @@ export const Onboarding: React.FC<OnboardingProps> = ({
   const [activeMode, setActiveMode] = useState<'login' | 'join' | 'create' | 'forgot'>(
     isInitiallyAuthenticated ? 'create' : 'login'
   );
+
+  const [showProfileSelection, setShowProfileSelection] = useState(false);
+
+  const demoProfiles = [
+    { id: 'demo_papa', name: 'Mamadou Diop', title: 'Papa - Chef de Famille', role: 'admin', emoji: '👨' },
+    { id: 'demo_maman', name: 'Aminata Diop', title: 'Maman - Gestionnaire', role: 'parent', emoji: '👩' },
+    { id: 'demo_issa', name: 'Issa Diop', title: 'Issa - Élève de CE2 (8 ans)', role: 'child', emoji: '👦' },
+    { id: 'demo_lyna', name: 'Lyna Diop', title: 'Lyna - Élève de Première (16 ans)', role: 'child', emoji: '👧' },
+    { id: 'demo_commune_admin', name: 'Cormeilles-en-Parisis', title: 'Administrateur Commune (Mairie)', role: 'commune_admin', emoji: '🏛️' },
+    { id: 'demo_commune_agent', name: 'Agent Municipal', title: 'Agent Technique & Signalements', role: 'commune_agent', emoji: '👷' },
+    { id: 'demo_school_admin', name: 'Direction École/Lycée', title: 'Direction - Statistiques & Comms', role: 'school_admin', emoji: '🏫' },
+    { id: 'demo_school_teacher', name: 'Enseignant CE2', title: 'Enseignant - Appel & Devoirs', role: 'school_teacher', emoji: '👨‍🏫' }
+  ];
   
   const [displayName, setDisplayName] = useState('');
   const [foyerName, setFoyerName] = useState('');
@@ -184,6 +197,53 @@ export const Onboarding: React.FC<OnboardingProps> = ({
       setLoading(false);
     }
   };
+  if (showProfileSelection) {
+    return (
+      <div className="min-h-screen bg-[#07111F] text-white flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden font-sans animate-fade-in w-full">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#FFB020]/10 blur-[120px] pointer-events-none" />
+        
+        <div className="w-full max-w-lg space-y-6 relative z-10 text-center">
+          <div className="inline-flex p-4 rounded-3xl bg-[#FFB020]/10 border border-[#FFB020]/20 text-[#FFB020] animate-pulse">
+            <span className="text-3xl">🎭</span>
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">Choisissez un profil</h1>
+            <p className="text-xs text-white/50">Sélectionnez un rôle pour tester la connexion interactive de MaFamille+</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
+            {demoProfiles.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => {
+                  if (onEnterDiscoverMode) {
+                    onEnterDiscoverMode(p.id);
+                  }
+                }}
+                className="glass-panel border-white/8 hover:border-[#FFB020]/45 p-4 rounded-2xl text-left bg-white/5 hover:bg-white/10 transition-all flex items-center space-x-3.5 cursor-pointer hover:scale-[1.01] active:scale-[0.99] w-full"
+              >
+                <div className="p-3 rounded-xl bg-white/5 border border-white/8 text-2xl flex items-center justify-center">
+                  {p.emoji}
+                </div>
+                <div>
+                  <h4 className="text-xs font-extrabold text-white">{p.name}</h4>
+                  <p className="text-[10px] text-white/50 font-sans mt-0.5 leading-tight">{p.title}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setShowProfileSelection(false)}
+            className="text-xs font-semibold text-white/40 hover:text-white transition-colors cursor-pointer pt-6 block mx-auto underline underline-offset-4"
+          >
+            Retour à l'écran de connexion
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#07111F] text-white flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden font-sans">
@@ -530,11 +590,10 @@ export const Onboarding: React.FC<OnboardingProps> = ({
             onEnterDiscoverMode && (
               <button
                 type="button"
-                onClick={onEnterDiscoverMode}
-                className="text-xs font-semibold text-white/50 hover:text-[#00D26A] transition-colors flex items-center space-x-1 cursor-pointer bg-white/5 px-4 py-2 rounded-full border border-white/5"
+                onClick={() => setShowProfileSelection(true)}
+                className="text-xs font-extrabold text-[#FFB020] hover:text-[#FFB020]/90 transition-all flex items-center space-x-1.5 cursor-pointer bg-[#FFB020]/10 hover:bg-[#FFB020]/20 px-6 py-3 rounded-2xl border border-[#FFB020]/30 shadow-md shadow-[#FFB020]/5 active:scale-[0.98] duration-300"
               >
-                <span>Découvrir l'application (Mode Démo)</span>
-                <span>➔</span>
+                <span>🎭 Découvrir MaFamille+</span>
               </button>
             )
           )}

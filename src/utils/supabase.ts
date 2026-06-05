@@ -43,6 +43,10 @@ const cleanInput = (val: string): string => {
 };
 
 export const getSupabaseClient = (customUrl?: string, customKey?: string): SupabaseClient | null => {
+  if (localStorage.getItem('mf_demo_active') === 'true') {
+    return null;
+  }
+
   const envUrl = cleanInput(import.meta.env.VITE_SUPABASE_URL || '');
   const envKey = cleanInput(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
 

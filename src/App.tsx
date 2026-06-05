@@ -102,6 +102,7 @@ import { KidsDashboard } from './views/KidsDashboard';
 import { Paywall } from './components/Paywall';
 import { Onboarding } from './views/Onboarding';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
+import { DemoCommune, DemoEtablissement } from './views/DemoViews';
 import { foyerService } from './services/foyerService';
 import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction, serializeEventDescription, deserializeEventDescription, logQueryVolume } from './utils/supabase';
 import { notificationService } from './services/notificationService';
@@ -371,6 +372,196 @@ function App() {
     return localStorage.getItem('mf_calendar_country') || 'France';
   });
 
+
+
+  const [demoActive, setDemoActive] = useState<boolean>(() => {
+    return localStorage.getItem('mf_demo_active') === 'true';
+  });
+
+  const [demoProfileId, setDemoProfileId] = useState<string>(() => {
+    return localStorage.getItem('mf_demo_profile_id') || 'demo_papa';
+  });
+
+  const demoProfiles = [
+    { id: 'demo_papa', name: 'Mamadou Diop', title: 'Papa - Chef de Famille', role: 'admin', emoji: '👨' },
+    { id: 'demo_maman', name: 'Aminata Diop', title: 'Maman - Gestionnaire', role: 'parent', emoji: '👩' },
+    { id: 'demo_issa', name: 'Issa Diop', title: 'Issa - Élève de CE2 (8 ans)', role: 'child', emoji: '👦' },
+    { id: 'demo_lyna', name: 'Lyna Diop', title: 'Lyna - Élève de Première (16 ans)', role: 'child', emoji: '👧' },
+    { id: 'demo_commune_admin', name: 'Cormeilles-en-Parisis', title: 'Administrateur Commune (Mairie)', role: 'commune_admin', emoji: '🏛️' },
+    { id: 'demo_commune_agent', name: 'Agent Municipal', title: 'Agent Technique & Signalements', role: 'commune_agent', emoji: '👷' },
+    { id: 'demo_school_admin', name: 'Direction École/Lycée', title: 'Direction - Statistiques & Comms', role: 'school_admin', emoji: '🏫' },
+    { id: 'demo_school_teacher', name: 'Enseignant CE2', title: 'Enseignant - Appel & Devoirs', role: 'school_teacher', emoji: '👨‍🏫' }
+  ];
+
+  const demoMembers: Member[] = [
+    {
+      id: 'demo_papa',
+      name: 'Mamadou Diop',
+      role: 'admin',
+      age: '40',
+      birthDate: '1986-04-12',
+      bloodGroup: 'A+',
+      allergies: [],
+      treatments: [],
+      emergencyContact: { name: 'Maman Aminata', phone: '0612345678', relation: 'Épouse' },
+      schoolOrEmployer: 'Diop Consulting',
+      photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
+      medicalHistory: []
+    },
+    {
+      id: 'demo_maman',
+      name: 'Aminata Diop',
+      role: 'parent',
+      age: '38',
+      birthDate: '1988-08-22',
+      bloodGroup: 'B+',
+      allergies: [],
+      treatments: [],
+      emergencyContact: { name: 'Mamadou Diop', phone: '0612345679', relation: 'Époux' },
+      schoolOrEmployer: 'Lycée Simone Veil',
+      photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
+      medicalHistory: []
+    },
+    {
+      id: 'demo_issa',
+      name: 'Issa Diop',
+      role: 'child',
+      age: '8',
+      birthDate: '2018-05-14',
+      bloodGroup: 'O+',
+      allergies: [],
+      treatments: [],
+      emergencyContact: { name: 'Papa Mamadou', phone: '0612345679', relation: 'Père' },
+      schoolOrEmployer: 'École Victor Hugo',
+      photoUrl: 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?w=120&auto=format&fit=crop&q=80',
+      medicalHistory: []
+    },
+    {
+      id: 'demo_lyna',
+      name: 'Lyna Diop',
+      role: 'child',
+      age: '16',
+      birthDate: '2010-10-18',
+      bloodGroup: 'AB+',
+      allergies: [],
+      treatments: [],
+      emergencyContact: { name: 'Papa Mamadou', phone: '0612345679', relation: 'Père' },
+      schoolOrEmployer: 'Lycée Simone Veil',
+      photoUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&auto=format&fit=crop&q=80',
+      medicalHistory: []
+    }
+  ];
+
+  const [demoSchoolPresence, setDemoSchoolPresence] = useState<any>(() => {
+    const saved = localStorage.getItem('mf_demo_presence');
+    return saved ? JSON.parse(saved) : { 
+      demo_issa: { status: 'Présent', time: '08:12' }, 
+      demo_lyna: { status: 'Présent', time: '08:05' } 
+    };
+  });
+
+  const [demoSchoolCantine, setDemoSchoolCantine] = useState<any>(() => {
+    const saved = localStorage.getItem('mf_demo_cantine');
+    return saved ? JSON.parse(saved) : { 
+      demo_issa: { confirmed: true, time: '12:00' }, 
+      demo_lyna: { confirmed: true, time: '12:15' } 
+    };
+  });
+
+  const [demoCommuneAlerts, setDemoCommuneAlerts] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_commune_alerts');
+    const todayStr = new Date().toISOString().split('T')[0];
+    return saved ? JSON.parse(saved) : [
+      { id: 'ca-1', title: '🚧 Travaux Avenue Foch', description: 'Circulation perturbée et stationnement interdit de 9h à 17h.', date: todayStr, time: '09:00', type: 'warning' },
+      { id: 'ca-2', title: '📢 Réunion publique', description: 'Présentation du projet d\'aménagement des pistes cyclables à 18h en mairie.', date: todayStr, time: '18:00', type: 'info' }
+    ];
+  });
+
+  const [demoCommunePoll, setDemoCommunePoll] = useState<any>(() => {
+    const saved = localStorage.getItem('mf_demo_commune_poll');
+    return saved ? JSON.parse(saved) : {
+      id: 'cp-1',
+      question: 'Réaménagement du parc municipal',
+      description: 'Quel projet souhaitez-vous voir en priorité pour le parc municipal ?',
+      options: [
+        { text: 'Aires de jeux pour enfants (CE2 / Ados)', votes: ['demo_maman'] },
+        { text: 'Pistes cyclables sécurisées', votes: [] },
+        { text: 'Espaces verts de détente', votes: [] }
+      ]
+    };
+  });
+
+  const [demoTransactions, setDemoTransactions] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_transactions');
+    const todayStr = new Date().toISOString().split('T')[0];
+    return saved ? JSON.parse(saved) : [
+      { id: 'dt-1', amount: -45.00, type: 'expense', category: 'Éducation', title: 'Paiement Cantine Issa', date: todayStr, time: '14:20', memberId: 'demo_papa' },
+      { id: 'dt-2', amount: -120.00, type: 'expense', category: 'Loisirs', title: 'Réservation train TGV Marseille', date: todayStr, time: '10:00', memberId: 'demo_papa' },
+      { id: 'dt-3', amount: -850.00, type: 'expense', category: 'Logement', title: 'Réservation hôtel Vieux-Port Marseille', date: todayStr, time: '10:05', memberId: 'demo_papa' },
+      { id: 'dt-4', amount: -60.00, type: 'expense', category: 'Loisirs', title: 'Activité Kayak Calanques Marseille', date: '2026-07-16', time: '14:00', memberId: 'demo_papa' }
+    ];
+  });
+
+  const [demoVaccines, _setDemoVaccines] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_vaccines');
+    return saved ? JSON.parse(saved) : [
+      { id: 'dv-1', name: 'Rappel ROR', status: 'À faire', doctor: 'Dr. Martin', date: '2026-06-20', time: '16:00', memberId: 'demo_lyna' }
+    ];
+  });
+
+  const [demoTrips, _setDemoTrips] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_trips');
+    return saved ? JSON.parse(saved) : [
+      {
+        id: 'dtr-1',
+        destination: 'Marseille',
+        startDate: '2026-07-15',
+        endDate: '2026-07-22',
+        budget: 1800,
+        checklist: [
+          { id: 'c1', text: 'Réserver train TGV', done: true },
+          { id: 'c2', text: 'Réserver hôtel Vieux-Port', done: true },
+          { id: 'c3', text: 'Planifier activités', done: false }
+        ]
+      }
+    ];
+  });
+
+  const [demoSignalements, setDemoSignalements] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_signalements');
+    const todayStr = new Date().toISOString().split('T')[0];
+    return saved ? JSON.parse(saved) : [
+      { id: 'sig-1', title: 'Nid de poule Rue de Paris', description: 'Gros nid de poule dangereux pour les vélos.', status: 'En cours', date: todayStr, time: '10:30', author: 'Mamadou Diop' }
+    ];
+  });
+
+  const [demoSchoolHomework, setDemoSchoolHomework] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_homework');
+    return saved ? JSON.parse(saved) : [
+      { id: 'dh-1', subject: 'Mathématiques', title: 'Exercices sur les tables de multiplication de 7 et 8', class: 'CE2', dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], done: false },
+      { id: 'dh-2', subject: 'Français', title: 'Lecture chapitres 3 et 4 du Petit Prince', class: 'CE2', dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], done: true },
+      { id: 'dh-3', subject: 'Français', title: 'Commentaire composé sur Phèdre de Racine', class: 'Première', dueDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0], done: false },
+      { id: 'dh-4', subject: 'Physique', title: 'Devoir maison sur la réfraction de la lumière', class: 'Première', dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], done: false }
+    ];
+  });
+
+  const [demoSchoolComms, setDemoSchoolComms] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_comms');
+    const todayStr = new Date().toISOString().split('T')[0];
+    return saved ? JSON.parse(saved) : [
+      { id: 'dcm-1', content: 'Réunion parents-professeurs le vendredi 12 juin à 18h00 en salle polyvalente.', date: todayStr, time: '08:00', sender: 'Direction de l\'Établissement' }
+    ];
+  });
+
+  const [demoNotifications, setDemoNotifications] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_notifications');
+    const todayStr = new Date().toISOString().split('T')[0];
+    return saved ? JSON.parse(saved) : [
+      { id: 'dn-1', title: '🏫 Appel École Victor Hugo', message: 'Issa Diop a été marqué Présent à 08h12.', read: false, time: '08:12', date: todayStr, module: 'ecole', createdAt: new Date().toISOString() },
+      { id: 'dn-2', title: '🏛️ Alerte Travaux', message: 'Travaux Avenue Foch : circulation perturbée de 9h à 17h.', read: false, time: '09:00', date: todayStr, module: 'commune', createdAt: new Date().toISOString() }
+    ];
+  });
+
   useEffect(() => {
     localStorage.setItem('mf_external_calendar_sources', JSON.stringify(calendarSources));
   }, [calendarSources]);
@@ -379,9 +570,185 @@ function App() {
     localStorage.setItem('mf_external_calendar_events', JSON.stringify(externalEvents));
   }, [externalEvents]);
 
+  // Persist demo states to localStorage
+  useEffect(() => {
+    localStorage.setItem('mf_demo_presence', JSON.stringify(demoSchoolPresence));
+  }, [demoSchoolPresence]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_cantine', JSON.stringify(demoSchoolCantine));
+  }, [demoSchoolCantine]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_commune_alerts', JSON.stringify(demoCommuneAlerts));
+  }, [demoCommuneAlerts]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_commune_poll', JSON.stringify(demoCommunePoll));
+  }, [demoCommunePoll]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_transactions', JSON.stringify(demoTransactions));
+  }, [demoTransactions]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_vaccines', JSON.stringify(demoVaccines));
+  }, [demoVaccines]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_trips', JSON.stringify(demoTrips));
+  }, [demoTrips]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_signalements', JSON.stringify(demoSignalements));
+  }, [demoSignalements]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_homework', JSON.stringify(demoSchoolHomework));
+  }, [demoSchoolHomework]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_comms', JSON.stringify(demoSchoolComms));
+  }, [demoSchoolComms]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_notifications', JSON.stringify(demoNotifications));
+  }, [demoNotifications]);
+
   useEffect(() => {
     localStorage.setItem('mf_calendar_country', currentCalendarCountry);
   }, [currentCalendarCountry]);
+
+  const demoEvents = useMemo(() => {
+    if (!demoActive) return [];
+    const list: any[] = [];
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // 1. School Presence
+    if (demoSchoolPresence.demo_issa) {
+      list.push({
+        id: 'demo-presence-issa',
+        title: `🏫 Issa présent en classe`,
+        date: todayStr,
+        time: demoSchoolPresence.demo_issa.time || '08:12',
+        description: `Appel enregistré à ${demoSchoolPresence.demo_issa.time || '08h12'} à l'école Victor Hugo (CE2).`,
+        notes: `Appel enregistré à ${demoSchoolPresence.demo_issa.time || '08h12'} à l'école Victor Hugo (CE2).`,
+        category: 'École',
+        sourceModule: 'ecole',
+        memberId: 'demo_issa',
+        completed: true
+      });
+    }
+    if (demoSchoolPresence.demo_lyna) {
+      list.push({
+        id: 'demo-presence-lyna',
+        title: `🏫 Lyna présente en classe`,
+        date: todayStr,
+        time: demoSchoolPresence.demo_lyna.time || '08:05',
+        description: `Appel enregistré à ${demoSchoolPresence.demo_lyna.time || '08h05'} au Lycée Simone Veil (Première).`,
+        notes: `Appel enregistré à ${demoSchoolPresence.demo_lyna.time || '08h05'} au Lycée Simone Veil (Première).`,
+        category: 'École',
+        sourceModule: 'ecole',
+        memberId: 'demo_lyna',
+        completed: true
+      });
+    }
+
+    // 2. School Cantine
+    if (demoSchoolCantine.demo_issa?.confirmed) {
+      list.push({
+        id: 'demo-cantine-issa',
+        title: `🏫 Cantine confirmée (Issa)`,
+        date: todayStr,
+        time: demoSchoolCantine.demo_issa.time || '12:00',
+        description: `Repas validé à la cantine scolaire Victor Hugo.`,
+        notes: `Repas validé à la cantine scolaire Victor Hugo.`,
+        category: 'École',
+        sourceModule: 'ecole',
+        memberId: 'demo_issa',
+        completed: true
+      });
+    }
+    if (demoSchoolCantine.demo_lyna?.confirmed) {
+      list.push({
+        id: 'demo-cantine-lyna',
+        title: `🏫 Cantine confirmée (Lyna)`,
+        date: todayStr,
+        time: demoSchoolCantine.demo_lyna.time || '12:15',
+        description: `Repas validé à la cantine scolaire Simone Veil.`,
+        notes: `Repas validé à la cantine scolaire Simone Veil.`,
+        category: 'École',
+        sourceModule: 'ecole',
+        memberId: 'demo_lyna',
+        completed: true
+      });
+    }
+
+    // 3. Commune Alerts
+    demoCommuneAlerts.forEach((alert: any) => {
+      list.push({
+        id: alert.id,
+        title: `🏛️ ${alert.title}`,
+        date: alert.date || todayStr,
+        time: alert.time || '09:00',
+        description: alert.description,
+        notes: alert.description,
+        category: 'Commune',
+        sourceModule: 'commune',
+        completed: true
+      });
+    });
+
+    // 4. School Comms
+    demoSchoolComms.forEach((comm: any) => {
+      list.push({
+        id: comm.id,
+        title: `🏫 Note École : ${comm.sender}`,
+        date: comm.date || todayStr,
+        time: comm.time || '08:00',
+        description: comm.content,
+        notes: comm.content,
+        category: 'École',
+        sourceModule: 'ecole',
+        completed: true
+      });
+    });
+
+    // 5. School Homework
+    demoSchoolHomework.forEach((hw: any) => {
+      list.push({
+        id: hw.id,
+        title: `📚 Devoir : ${hw.subject} - ${hw.title}`,
+        date: hw.dueDate,
+        time: '17:00',
+        description: hw.done ? "✓ Terminé par l'élève" : "⏳ À faire",
+        notes: hw.done ? "✓ Terminé par l'élève" : "⏳ À faire",
+        category: 'École',
+        sourceModule: 'ecole',
+        memberId: hw.class === 'CE2' ? 'demo_issa' : 'demo_lyna',
+        completed: hw.done
+      });
+    });
+
+    return list;
+  }, [demoActive, demoSchoolPresence, demoSchoolCantine, demoCommuneAlerts, demoSchoolComms, demoSchoolHomework]);
+
+  const triggerDemoNotification = (title: string, message: string, moduleName: string) => {
+    const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const todayStr = new Date().toISOString().split('T')[0];
+    const newNotif = {
+      id: `dn-dynamic-${Date.now()}`,
+      title,
+      message,
+      read: false,
+      time: timeStr,
+      date: todayStr,
+      module: moduleName,
+      createdAt: new Date().toISOString()
+    };
+    setDemoNotifications(prev => [newNotif, ...prev]);
+    setActiveToast({ title, description: message });
+  };
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     return safeGetLocalStorage('mf_transactions', []);
@@ -1407,9 +1774,65 @@ function App() {
     return params.get('demo') === 'true' || localStorage.getItem('mf_discover_mode') === 'true';
   });
 
-  const handleEnterDiscoverMode = () => {
+
+
+  // Persist demo states to localStorage
+  useEffect(() => {
+    localStorage.setItem('mf_demo_active', String(demoActive));
+    localStorage.setItem('mf_demo_profile_id', demoProfileId);
+    localStorage.setItem('mf_demo_presence', JSON.stringify(demoSchoolPresence));
+    localStorage.setItem('mf_demo_cantine', JSON.stringify(demoSchoolCantine));
+    localStorage.setItem('mf_demo_commune_alerts', JSON.stringify(demoCommuneAlerts));
+    localStorage.setItem('mf_demo_commune_poll', JSON.stringify(demoCommunePoll));
+    localStorage.setItem('mf_demo_transactions', JSON.stringify(demoTransactions));
+    localStorage.setItem('mf_demo_vaccines', JSON.stringify(demoVaccines));
+    localStorage.setItem('mf_demo_trips', JSON.stringify(demoTrips));
+    localStorage.setItem('mf_demo_signalements', JSON.stringify(demoSignalements));
+    localStorage.setItem('mf_demo_homework', JSON.stringify(demoSchoolHomework));
+    localStorage.setItem('mf_demo_comms', JSON.stringify(demoSchoolComms));
+  }, [
+    demoActive, demoProfileId, demoSchoolPresence, demoSchoolCantine, 
+    demoCommuneAlerts, demoCommunePoll, demoTransactions, demoVaccines, 
+    demoTrips, demoSignalements, demoSchoolHomework, demoSchoolComms
+  ]);
+
+  const handleEnterDiscoverMode = (profileId: string) => {
     localStorage.setItem('mf_discover_mode', 'true');
+    localStorage.setItem('mf_demo_active', 'true');
+    localStorage.setItem('mf_demo_profile_id', profileId);
+    setDemoActive(true);
+    setDemoProfileId(profileId);
     setDiscoverMode(true);
+    setIsPremium(true);
+    localStorage.setItem('mf_is_premium', 'true');
+  };
+
+  const handleSwitchDemoProfile = (profileId: string) => {
+    setDemoProfileId(profileId);
+    // Auto-routing depending on the chosen profile for better demo experience
+    if (profileId === 'demo_commune_admin' || profileId === 'demo_commune_agent') {
+      setActiveTab('menu');
+      setActiveModule('commune');
+    } else if (profileId === 'demo_school_admin' || profileId === 'demo_school_teacher') {
+      setActiveTab('menu');
+      setActiveModule('ecole');
+    } else {
+      // Return to main dashboard
+      setActiveTab('accueil');
+      setActiveModule('');
+    }
+  };
+
+  const handleQuitDemoMode = () => {
+    localStorage.removeItem('mf_demo_active');
+    localStorage.removeItem('mf_discover_mode');
+    localStorage.removeItem('mf_demo_profile_id');
+    setDemoActive(false);
+    setDiscoverMode(false);
+    setDemoProfileId('demo_papa');
+    clearAllStatesAndCache().then(() => {
+      window.location.reload();
+    });
   };
 
   const [isRecoveringPassword, setIsRecoveringPassword] = useState<boolean>(false);
@@ -9949,6 +10372,104 @@ function App() {
   // Dynamic Tab Router Panel
   // ----------------------------------------------------  // View rendering logic
   const renderContent = () => {
+    const demoGroceries: GroceryItem[] = [
+      { id: 'dg-1', name: 'Lait demi-écrémé', category: 'Laitages', quantity: '6 briques', checked: false, inStock: false, addedBy: 'Aminata Diop' },
+      { id: 'dg-2', name: 'Pain de mie complet', category: 'Boulangerie', quantity: '1 sachet', checked: false, inStock: false, addedBy: 'Mamadou Diop' },
+      { id: 'dg-3', name: 'Pâtes Penne Rigate', category: 'Épicerie', quantity: '1 kg', checked: true, inStock: false, addedBy: 'Aminata Diop' }
+    ];
+
+    const demoTasks: ChoreTask[] = [
+      { id: 'dtk-1', title: 'Vider le lave-vaisselle', rewardPoints: 15, done: false, rotation: 'daily', assignedMemberId: 'demo_issa', assignedMemberName: 'Issa Diop', validatedByParent: false, dueDate: new Date().toISOString().split('T')[0] },
+      { id: 'dtk-2', title: 'Sortir la poubelle de tri', rewardPoints: 10, done: true, rotation: 'daily', assignedMemberId: 'demo_lyna', assignedMemberName: 'Lyna Diop', validatedByParent: false, dueDate: new Date().toISOString().split('T')[0] },
+      { id: 'dtk-3', title: 'Nettoyer la table du salon', rewardPoints: 5, done: false, rotation: 'daily', assignedMemberId: 'demo_issa', assignedMemberName: 'Issa Diop', validatedByParent: false, dueDate: new Date().toISOString().split('T')[0] }
+    ];
+
+    const demoDocuments: DocumentFile[] = [
+      { id: 'dd-1', name: 'Livret de Famille.pdf', category: 'identity', tags: ['famille'], fileSize: '2.4 Mo', uploadDate: new Date().toISOString(), memberId: 'demo_papa', isExpired: false },
+      { id: 'dd-2', name: 'Attestation Assurance Scolaire - Issa.pdf', category: 'school', tags: ['assurance'], fileSize: '1.1 Mo', uploadDate: new Date().toISOString(), memberId: 'demo_issa', isExpired: false },
+      { id: 'dd-3', name: 'Justificatif Domicile - EDF.pdf', category: 'home', tags: ['edf'], fileSize: '850 Ko', uploadDate: new Date().toISOString(), memberId: 'demo_papa', isExpired: false }
+    ];
+
+    const demoVehicles: Vehicle[] = [
+      { id: 'dv-1', name: 'Peugeot 3008', plate: 'AB-123-CD', technicalControl: '2026-11-20', insuranceExpiry: '2027-01-15', lastService: '2025-11-20', nextService: '2026-11-20' }
+    ];
+
+    const demoMaintenance: HomeMaintenance[] = [
+      { id: 'dm-1', title: 'Entretien annuel de la chaudière', provider: 'Dalkia Home Services', cost: 145.00, date: new Date().toISOString().split('T')[0], status: 'completed' }
+    ];
+
+    const demoPets: PetRecord[] = [
+      { id: 'dp-1', name: 'Toby', species: 'Chien (Golden)', lastVaccine: '2025-09-12', nextVaccine: '2026-09-12', vetAppointment: '2026-06-15' }
+    ];
+
+    const demoDemarches: Demarche[] = [
+      { 
+        id: 'dem-1', 
+        title: 'Renouvellement Passeport Issa', 
+        status: 'in_progress', 
+        dueDate: '2026-06-30', 
+        steps: [
+          { id: 's1', title: 'Pré-demande en ligne', done: true },
+          { id: 's2', title: 'Rendez-vous en mairie', done: false }
+        ],
+        icon: '📄',
+        pieces: [],
+        createdAt: new Date().toISOString()
+      }
+    ];
+
+    const demoVotes: FamilyVote[] = [
+      { 
+        id: 'dvot-1', 
+        question: 'Quelle destination pour les vacances de la Toussaint ?', 
+        authorName: 'Mamadou Diop', 
+        dueDate: '2026-10-01', 
+        options: [
+          { text: 'Barcelone', votes: ['demo_papa', 'demo_issa'] },
+          { text: 'Londres', votes: ['demo_maman', 'demo_lyna'] }
+        ],
+        active: true
+      }
+    ];
+
+    const demoSavingGoals: SavingGoal[] = [
+      { id: 'dsg-1', title: 'Voyage Marseille', targetAmount: 1800, currentAmount: 1800, targetDate: '2026-07-01', category: 'Loisirs' }
+    ];
+
+    const demoPocketMoney: { id: string; name: string; balance: number; points: number; avatar: string; }[] = [
+      { id: 'demo_issa', name: 'Issa Diop', balance: 25.00, points: 140, avatar: '👦' },
+      { id: 'demo_lyna', name: 'Lyna Diop', balance: 75.00, points: 320, avatar: '👧' }
+    ];
+
+    const appFoyer = demoActive ? {
+      id: 'demo_family',
+      name: 'Famille Diop',
+      inviteCode: 'FAM-DIOP',
+      createdBy: 'demo_papa',
+      createdAt: new Date().toISOString(),
+      isPremium: true,
+      maxMembers: 6
+    } : foyer;
+
+    const appMembers = demoActive ? demoMembers : members;
+    const appActiveMemberId = demoActive ? demoProfileId : activeMemberId;
+    const appActiveMemberObj = appMembers.find(m => m.id === appActiveMemberId);
+    const appTransactions = demoActive ? demoTransactions : transactions;
+    const appVaccines = demoActive ? demoVaccines : vaccines;
+    const appTrips = demoActive ? demoTrips : trips;
+    const appGroceries = demoActive ? demoGroceries : groceries;
+    const appTasks = demoActive ? demoTasks : tasks;
+    const appDocuments = demoActive ? demoDocuments : documents;
+    const appVehicles = demoActive ? demoVehicles : vehicles;
+    const appMaintenance = demoActive ? demoMaintenance : maintenance;
+    const appPets = demoActive ? demoPets : pets;
+    const appDemarches = demoActive ? demoDemarches : demarches;
+    const appVotes = demoActive ? demoVotes : votes;
+    const appSavingGoals = demoActive ? demoSavingGoals : savingGoals;
+    const appPocketMoney = demoActive ? demoPocketMoney : pocketMoney;
+    const appFilteredAlerts = demoActive ? demoNotifications : filteredAlerts;
+    const appEvents = demoActive ? demoEvents : unifiedEvents;
+
     if (sharedPackId) {
       const pack = justificatifPacks.find(p => p.id === sharedPackId);
       if (pack) {
@@ -9966,37 +10487,34 @@ function App() {
     }
 
     if (activeTab === 'accueil') {
-      const activeMemberObj = members.find(m => m.id === activeMemberId);
-      const isKidMode = activeMemberObj && activeMemberObj.age && parseInt(activeMemberObj.age) < 11;
+      const isKidMode = appActiveMemberObj && appActiveMemberObj.age && parseInt(appActiveMemberObj.age) < 11;
       
-      if (isKidMode && activeMemberObj) {
+      if (isKidMode && appActiveMemberObj) {
         return (
           <KidsDashboard 
-            member={activeMemberObj}
-            tasks={tasks}
+            member={appActiveMemberObj}
+            tasks={appTasks}
             setTasks={setTasks}
-            pocketMoney={pocketMoney}
-            events={events}
+            pocketMoney={appPocketMoney}
+            events={appEvents}
             setActiveTab={setActiveTab}
             setActiveModule={setActiveModule}
-
           />
         );
       }
       return (
         <Accueil 
-          members={members}
-          activeMemberId={activeMemberId}
+          members={appMembers}
+          activeMemberId={appActiveMemberId}
           onProfileSwitcherOpen={() => setProfileSwitcherOpen(true)}
           onAvatarClick={() => setProfileSwitcherOpen(true)}
-          events={unifiedEvents}
+          events={appEvents}
           dishes={dishes}
-          alerts={filteredAlerts}
+          alerts={appFilteredAlerts}
           setActiveTab={setActiveTab}
           setActiveModule={setActiveModule}
           onMenuClick={() => setSidebarOpen(true)}
           onAlertsClick={() => setAlertsPanelOpen(true)}
-
           chatGroups={chatGroups}
           chatMessages={chatMessages}
           onEventClick={(dateStr) => {
@@ -10008,8 +10526,7 @@ function App() {
           onAddMemory={handleAddMemory}
           onDeleteMemory={handleDeleteMemory}
           onLikeMemory={handleLikeMemory}
-          
-          savingGoals={savingGoals}
+          savingGoals={appSavingGoals}
           onDeleteUnifiedEvent={handleDeleteUnifiedEvent}
           onArchiveUnifiedEvent={handleArchiveUnifiedEvent}
         />
@@ -10019,20 +10536,20 @@ function App() {
     if (activeTab === 'timeline') {
       return (
         <Timeline 
-          events={events}
-          transactions={transactions}
-          vaccines={vaccines}
-          trips={trips}
-          documents={documents}
-          groceries={groceries}
-          tasks={tasks}
-          demarches={demarches}
-          vehicles={vehicles}
-          maintenance={maintenance}
-          pets={pets}
-          votes={votes}
-          members={members}
-          activeMemberId={activeMemberId}
+          events={appEvents}
+          transactions={appTransactions}
+          vaccines={appVaccines}
+          trips={appTrips}
+          documents={appDocuments}
+          groceries={appGroceries}
+          tasks={appTasks}
+          demarches={appDemarches}
+          vehicles={appVehicles}
+          maintenance={appMaintenance}
+          pets={appPets}
+          votes={appVotes}
+          members={appMembers}
+          activeMemberId={appActiveMemberId}
           onBack={() => setActiveTab('accueil')}
         />
       );
@@ -10041,12 +10558,12 @@ function App() {
     if (activeTab === 'budget') {
       return (
         <Budget 
-          transactions={transactions}
+          transactions={appTransactions}
           setTransactions={setTransactions}
-          savingGoals={savingGoals}
+          savingGoals={appSavingGoals}
           setSavingGoals={setSavingGoals}
-          members={members}
-          activeMemberId={activeMemberId}
+          members={appMembers}
+          activeMemberId={appActiveMemberId}
           currencySymbol={getCurrencySymbol()}
           formatMoney={formatMoney}
           onAddTransactionClick={() => {
@@ -10074,12 +10591,72 @@ function App() {
     }
 
     if (activeTab === 'menu') {
+      if (activeModule === 'commune') {
+        if (demoActive) {
+          return (
+            <DemoCommune 
+              demoProfileId={demoProfileId}
+              demoCommuneAlerts={demoCommuneAlerts}
+              setDemoCommuneAlerts={setDemoCommuneAlerts}
+              demoCommunePoll={demoCommunePoll}
+              setDemoCommunePoll={setDemoCommunePoll}
+              demoSignalements={demoSignalements}
+              setDemoSignalements={setDemoSignalements}
+              onBack={() => setActiveModule('')}
+              triggerDemoNotification={triggerDemoNotification}
+            />
+          );
+        } else {
+          return (
+            <div className="min-h-screen bg-[#07111F] text-white flex flex-col items-center justify-center p-4">
+              <div className="glass-panel border-[#FF9F1C]/20 p-6 rounded-[28px] text-center max-w-sm">
+                <h2 className="text-lg font-bold text-[#FF9F1C] mb-2">Service Communal non connecté</h2>
+                <p className="text-xs text-white/50 mb-6 font-sans">Ce module nécessite la connexion de votre mairie ou commune à l'écosystème MaFamille+.</p>
+                <button onClick={() => setActiveModule('')} className="px-6 py-2.5 bg-[#FF9F1C] text-[#07111F] rounded-xl text-xs font-bold shadow-lg cursor-pointer">Retour</button>
+              </div>
+            </div>
+          );
+        }
+      }
+
+      if (activeModule === 'ecole') {
+        if (demoActive) {
+          return (
+            <DemoEtablissement 
+              demoProfileId={demoProfileId}
+              demoSchoolPresence={demoSchoolPresence}
+              setDemoSchoolPresence={setDemoSchoolPresence}
+              demoSchoolCantine={demoSchoolCantine}
+              setDemoSchoolCantine={setDemoSchoolCantine}
+              demoTransactions={demoTransactions}
+              setDemoTransactions={setDemoTransactions}
+              demoSchoolHomework={demoSchoolHomework}
+              setDemoSchoolHomework={setDemoSchoolHomework}
+              demoSchoolComms={demoSchoolComms}
+              setDemoSchoolComms={setDemoSchoolComms}
+              onBack={() => setActiveModule('')}
+              triggerDemoNotification={triggerDemoNotification}
+            />
+          );
+        } else {
+          return (
+            <div className="min-h-screen bg-[#07111F] text-white flex flex-col items-center justify-center p-4">
+              <div className="glass-panel border-[#00D26A]/20 p-6 rounded-[28px] text-center max-w-sm">
+                <h2 className="text-lg font-bold text-[#00D26A] mb-2">Établissement Scolaire non connecté</h2>
+                <p className="text-xs text-white/50 mb-6 font-sans">Ce module nécessite la connexion de l'école ou de l'établissement de votre enfant à l'écosystème MaFamille+.</p>
+                <button onClick={() => setActiveModule('')} className="px-6 py-2.5 bg-[#00D26A] text-[#07111F] rounded-xl text-xs font-bold shadow-lg cursor-pointer">Retour</button>
+              </div>
+            </div>
+          );
+        }
+      }
+
       if (activeModule === 'agenda') {
         return (
           <Agenda 
-            events={unifiedEvents}
-            members={members}
-            activeMemberId={activeMemberId}
+            events={appEvents}
+            members={appMembers}
+            activeMemberId={appActiveMemberId}
             onAddEventClick={() => {
               setActiveModule('');
               setQuickActionsOpen(true);
@@ -10107,95 +10684,39 @@ function App() {
         return null;
       }
 
-      // Si un module secondaire est ouvert
-      if (activeModule === 'membres') {
-        return (
-          <Membres 
-            members={members}
-            setMembers={setMembers}
-            activeMemberId={activeMemberId}
-            onAddMemberClick={() => setQuickActionsOpen(true)}
-            onAddMember={handleAddMember}
-            onUpdateMemberProfile={handleUpdateMemberProfile}
-            foyer={foyer}
-            myMemberProfile={myMemberProfile}
-            setActiveTab={setActiveTab}
-            setActiveModule={setActiveModule}
-            onLogout={handleLogout}
-            onLeaveFoyer={handleLeaveFoyer}
-          />
-        );
-      }
-
-
-      if (activeModule === 'settings') {
-        return (
-          <Settings 
-            currency={currency}
-            setCurrency={setCurrency}
-            onResetData={handleResetData}
-            onPurgeDemoData={handlePurgeDemoData}
-            onClearAllFoyerData={handleClearAllFoyerData}
-            onOpenPaywall={() => setPaywallOpen(true)}
-            user={user}
-            foyer={foyer}
-            myMemberProfile={myMemberProfile}
-            onRefreshFoyer={async () => {
-              if (foyer) {
-                await loadFoyerData(foyer.id);
-                const { member } = await foyerService.getMyFoyer();
-                if (member) setMyMemberProfile(member);
-              }
-            }}
-            onUpdateMemberProfile={handleUpdateMemberProfile}
-            members={members}
-            setMembers={setMembers}
-            activeMemberId={activeMemberId}
-            setActiveTab={setActiveTab}
-            setActiveModule={setActiveModule}
-            onOpenOnboarding={() => {
-              setOnboardingActive(true);
-              setDiscoverMode(false);
-            }}
-            onNotificationPrefsChange={(updatedPrefs) => setNotificationPrefs(updatedPrefs)}
-          />
-        );
-      }
-
-      // Rendu du hub modulaire avec tous les modules demandés
       return (
         <MenuHub 
-          foyer={foyer}
+          foyer={appFoyer}
           initialChatGroupId={initialChatGroupId}
-          documents={documents}
+          documents={appDocuments}
           setDocuments={setDocuments}
-          tasks={tasks}
-          groceries={groceries}
+          tasks={appTasks}
+          groceries={appGroceries}
           externalGroceryFilter={externalGroceryFilter}
-          members={members}
+          members={appMembers}
           setMembers={setMembers}
-          vehicles={vehicles}
+          vehicles={appVehicles}
           setVehicles={setVehicles}
-          maintenance={maintenance}
+          maintenance={appMaintenance}
           setMaintenance={setMaintenance}
-          trips={trips}
+          trips={appTrips}
           setTrips={setTrips}
-          pets={pets}
+          pets={appPets}
           setPets={setPets}
-          pocketMoney={pocketMoney}
+          pocketMoney={appPocketMoney}
           setPocketMoney={setPocketMoney}
           artisans={artisans}
           setArtisans={setArtisans}
           onUpdateMemberProfile={handleUpdateMemberProfile}
-          goals={savingGoals}
-          transactions={transactions}
+          goals={appSavingGoals}
+          transactions={appTransactions}
           setTransactions={setTransactions}
-          alerts={filteredAlerts}
+          alerts={appFilteredAlerts}
           currencySymbol={getCurrencySymbol()}
           formatMoney={formatMoney}
           activeModule={activeModule}
           setActiveModule={setActiveModule}
-          vaccines={vaccines}
+          vaccines={appVaccines}
           setVaccines={setVaccines}
           onAddTask={handleAddTask}
           onDeleteTask={handleDeleteTask}
@@ -10208,7 +10729,7 @@ function App() {
           onDeleteGroceryItem={handleDeleteGroceryItem}
           onEditGroceryItem={handleEditGroceryItem}
           setActiveTab={setActiveTab}
-          activeMemberId={activeMemberId}
+          activeMemberId={appActiveMemberId}
           archivedLists={archivedLists}
           onArchiveCurrentList={handleArchiveCurrentList}
           onReuseArchivedList={handleReuseArchivedList}
@@ -10219,7 +10740,7 @@ function App() {
           setChatGroups={setChatGroups}
           chatMessages={chatMessages}
           setChatMessages={setChatMessages}
-          demarches={demarches}
+          demarches={appDemarches}
           setDemarches={setDemarches}
           justificatifPacks={justificatifPacks}
           setJustificatifPacks={setJustificatifPacks}
@@ -10246,7 +10767,7 @@ function App() {
           }}
           memories={memories}
           setMemories={setMemories}
-          votes={votes}
+          votes={appVotes}
           setVotes={setVotes}
           schoolTasks={schoolTasks}
           setSchoolTasks={setSchoolTasks}
@@ -10260,7 +10781,6 @@ function App() {
           setIsPremium={setIsPremium}
           onTriggerPaywall={() => setPaywallOpen(true)}
           accounts={accounts}
-
         />
       );
     }
@@ -10376,12 +10896,68 @@ function App() {
     return renderContent();
   }
 
-  const activeMemberObj = members.find(m => m.id === activeMemberId);
+  const appFoyer = demoActive ? {
+    id: 'demo_family',
+    name: 'Famille Diop',
+    inviteCode: 'FAM-DIOP',
+    createdBy: 'demo_papa',
+    createdAt: new Date().toISOString(),
+    isPremium: true,
+    maxMembers: 6
+  } : foyer;
+
+  const appMembers = demoActive ? demoMembers : members;
+  const appActiveMemberId = demoActive 
+    ? (['demo_papa', 'demo_maman', 'demo_issa', 'demo_lyna'].includes(demoProfileId) ? demoProfileId : 'demo_papa')
+    : activeMemberId;
+  const activeMemberObj = appMembers.find(m => m.id === appActiveMemberId);
   const isKidMode = activeMemberObj && activeMemberObj.age && parseInt(activeMemberObj.age) < 11;
 
   return (
     <div className={`min-h-screen ${syncActive ? 'bg-[#1a2b4c]' : 'bg-[var(--family-bg)]'} text-[var(--family-text)] font-sans transition-colors duration-1000 relative ios-safe-container`}>
       
+      {/* Sticky Demo Profile Switcher */}
+      {demoActive && (
+        <div className="bg-[#112240] border-b border-[#FFB020]/25 text-white text-[11px] px-4 py-3 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-[100] backdrop-blur-md bg-opacity-95 shadow-md">
+          <div className="flex items-center space-x-2.5">
+            <span className="animate-pulse text-[#FFB020] text-sm">🎭</span>
+            <span className="font-black tracking-wider text-[#FFB020] uppercase text-[9px] bg-[#FFB020]/10 border border-[#FFB020]/20 px-1.5 py-0.5 rounded">MODE DÉMO PREMIUM</span>
+            <span className="text-white/20">|</span>
+            <span className="font-semibold text-white/90">
+              Profil : <strong className="text-white font-extrabold">{demoProfiles.find(p => p.id === demoProfileId)?.name}</strong> ({demoProfiles.find(p => p.id === demoProfileId)?.title})
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <select
+              value={demoProfileId}
+              onChange={(e) => handleSwitchDemoProfile(e.target.value)}
+              className="bg-white/5 text-white border border-white/10 rounded-lg px-2.5 py-1 text-xs font-bold outline-none cursor-pointer hover:bg-white/10"
+            >
+              <optgroup label="Famille Diop" className="bg-[#07111F]">
+                <option value="demo_papa">👨 Papa (Mamadou)</option>
+                <option value="demo_maman">👩 Maman (Aminata)</option>
+                <option value="demo_issa">👦 Issa (Enfant 8 ans)</option>
+                <option value="demo_lyna">👧 Lyna (Ado 16 ans)</option>
+              </optgroup>
+              <optgroup label="Mairie & Services" className="bg-[#07111F]">
+                <option value="demo_commune_admin">🏛️ Ville de Cormeilles (Admin)</option>
+                <option value="demo_commune_agent">👷 Agent Municipal</option>
+              </optgroup>
+              <optgroup label="Établissements Scolaires" className="bg-[#07111F]">
+                <option value="demo_school_admin">🏫 Direction Établissement</option>
+                <option value="demo_school_teacher">👨‍🏫 Enseignant (CE2)</option>
+              </optgroup>
+            </select>
+            <button
+              onClick={handleQuitDemoMode}
+              className="text-[10px] font-black uppercase tracking-wider text-red-400 hover:text-red-300 ml-2 border border-red-500/35 rounded-lg px-2 py-1 bg-red-500/10 cursor-pointer transition-all active:scale-95"
+            >
+              Quitter Démo
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Dynamic render active layout page views */}
       <main className="w-full pb-28 md:pb-32">
         {renderContent()}
@@ -10393,8 +10969,8 @@ function App() {
         onClose={() => setSidebarOpen(false)}
         setActiveTab={setActiveTab}
         setActiveModule={setActiveModule}
-        members={members}
-        activeMemberId={activeMemberId}
+        members={appMembers}
+        activeMemberId={appActiveMemberId}
         user={user}
         onLogout={handleLogout}
         onOpenOnboarding={() => {
@@ -10407,7 +10983,7 @@ function App() {
       <QuickActionsSheet 
         isOpen={quickActionsOpen}
         onClose={() => setQuickActionsOpen(false)}
-        members={members}
+        members={appMembers}
         onAddEvent={handleAddEvent}
         onAddTransaction={handleAddTransaction}
         onAddTask={handleAddTask}
@@ -10432,8 +11008,8 @@ function App() {
           setActiveModule('');
         }}
         onMicClick={() => startVoiceAssistant()}
-        activeMemberId={activeMemberId}
-        members={members}
+        activeMemberId={appActiveMemberId}
+        members={appMembers}
       />
 
       <Paywall 
@@ -11452,7 +12028,7 @@ function App() {
             <div className="flex items-center justify-between border-b border-white/5 pb-3">
               <div>
                 <h3 className="text-sm font-bold uppercase tracking-wider text-white">Changer de profil</h3>
-                <p className="text-[10px] text-white/40 mt-1">Basculez entre les membres de la famille {foyer?.name ? `"${foyer.name}"` : ''}</p>
+                <p className="text-[10px] text-white/40 mt-1">Basculez entre les membres de la famille {appFoyer?.name ? `"${appFoyer.name}"` : ''}</p>
               </div>
               <button 
                 onClick={() => setProfileSwitcherOpen(false)}
@@ -11462,53 +12038,102 @@ function App() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 py-1">
-              {members.filter(m => m.id !== '5').map((m) => {
-                const isParent = ['admin', 'parent', 'Chef de famille', 'Gestionnaire'].includes(m.role);
-                const isActive = m.id === activeMemberId;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => {
-                      if (isParent) {
-                        setPinTargetMemberId(m.id);
-                        setPinInput('');
-                        setPinError(false);
-                        setPinVerificationOpen(true);
-                      } else {
-                        setActiveMemberId(m.id);
+            <div className="grid grid-cols-2 gap-3 py-1 max-h-[60vh] overflow-y-auto pr-1">
+              {demoActive ? (
+                demoProfiles.map((p) => {
+                  const isActive = p.id === demoProfileId;
+                  const profileMember = demoMembers.find(dm => dm.id === p.id);
+                  const isParent = ['admin', 'parent'].includes(p.role);
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        handleSwitchDemoProfile(p.id);
                         setProfileSwitcherOpen(false);
-                        setActiveTab('accueil');
-                        setActiveModule('');
-                      }
-                    }}
-                    className={`p-4 rounded-[24px] border text-left transition-all relative cursor-pointer flex flex-col items-center justify-center text-center space-y-2.5 ${
-                      isActive 
-                        ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] shadow-[0_0_15px_rgba(108,92,255,0.25)]' 
-                        : 'bg-white/5 border-white/5 hover:border-white/10 hover:bg-white/8'
-                    }`}
-                  >
-                    <div className="relative">
-                      <img 
-                        src={m.photoUrl} 
-                        alt={m.name} 
-                        className="w-14 h-14 rounded-full object-cover border border-white/10"
-                      />
-                      <span className="absolute bottom-0 right-0 text-xs bg-[#07111F] rounded-full w-5 h-5 flex items-center justify-center border border-white/10">
-                        {memberMoods[m.id] || '☀️'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-xs font-extrabold text-white block">{m.name}</span>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full inline-block mt-1 ${
-                        isParent ? 'bg-[#6C5CFF]/20 text-[#6C5CFF]' : 'bg-[#FFB020]/20 text-[#FFB020]'
-                      }`}>
-                        {isParent ? 'Parent 👑' : 'Enfant ⭐️'}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+                      }}
+                      className={`p-3.5 rounded-[24px] border text-left transition-all relative cursor-pointer flex flex-col items-center justify-center text-center space-y-2.5 ${
+                        isActive 
+                          ? 'bg-[#FFB020]/15 border-[#FFB020] shadow-[0_0_15px_rgba(255,176,32,0.25)]' 
+                          : 'bg-white/5 border-white/5 hover:border-white/10 hover:bg-white/8'
+                      }`}
+                    >
+                      <div className="relative">
+                        {profileMember?.photoUrl ? (
+                          <img 
+                            src={profileMember.photoUrl} 
+                            alt={p.name} 
+                            className="w-14 h-14 rounded-full object-cover border border-white/10"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-2xl">
+                            {p.emoji}
+                          </div>
+                        )}
+                        {p.role !== 'commune_admin' && p.role !== 'commune_agent' && p.role !== 'school_admin' && p.role !== 'school_teacher' && (
+                          <span className="absolute bottom-0 right-0 text-xs bg-[#07111F] rounded-full w-5 h-5 flex items-center justify-center border border-white/10">
+                            {memberMoods[p.id] || '☀️'}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-xs font-extrabold text-white block leading-tight">{p.name}</span>
+                        <span className={`text-[8px] font-bold px-2 py-0.5 rounded-full inline-block mt-1 ${
+                          isParent ? 'bg-[#6C5CFF]/20 text-[#6C5CFF]' : 'bg-[#FFB020]/20 text-[#FFB020]'
+                        }`}>
+                          {p.title.split(' - ')[0]}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                members.filter(m => m.id !== '5').map((m) => {
+                  const isParent = ['admin', 'parent', 'Chef de famille', 'Gestionnaire'].includes(m.role);
+                  const isActive = m.id === activeMemberId;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => {
+                        if (isParent) {
+                          setPinTargetMemberId(m.id);
+                          setPinInput('');
+                          setPinError(false);
+                          setPinVerificationOpen(true);
+                        } else {
+                          setActiveMemberId(m.id);
+                          setProfileSwitcherOpen(false);
+                          setActiveTab('accueil');
+                          setActiveModule('');
+                        }
+                      }}
+                      className={`p-4 rounded-[24px] border text-left transition-all relative cursor-pointer flex flex-col items-center justify-center text-center space-y-2.5 ${
+                        isActive 
+                          ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] shadow-[0_0_15px_rgba(108,92,255,0.25)]' 
+                          : 'bg-white/5 border-white/5 hover:border-white/10 hover:bg-white/8'
+                      }`}
+                    >
+                      <div className="relative">
+                        <img 
+                          src={m.photoUrl} 
+                          alt={m.name} 
+                          className="w-14 h-14 rounded-full object-cover border border-white/10"
+                        />
+                        <span className="absolute bottom-0 right-0 text-xs bg-[#07111F] rounded-full w-5 h-5 flex items-center justify-center border border-white/10">
+                          {memberMoods[m.id] || '☀️'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-xs font-extrabold text-white block">{m.name}</span>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full inline-block mt-1 ${
+                          isParent ? 'bg-[#6C5CFF]/20 text-[#6C5CFF]' : 'bg-[#FFB020]/20 text-[#FFB020]'
+                        }`}>
+                          {isParent ? 'Parent 👑' : 'Enfant ⭐️'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
             </div>
 
             {/* Météo Mentale active check-in */}
