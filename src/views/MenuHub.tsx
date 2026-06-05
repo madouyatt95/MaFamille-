@@ -88,7 +88,6 @@ import { Messagerie } from '../components/modules/Messagerie';
 import { WidgetMeteo } from '../components/modules/WidgetMeteo';
 import { FamilyMap } from './FamilyMap';
 import { ConteurIA } from '../components/modules/ConteurIA';
-import { AtelierArtIA } from '../components/modules/AtelierArtIA';
 import { ContactsImportants } from '../components/modules/ContactsImportants';
 
 // Utility helper to parse French custom input dates (e.g. "12 Octobre 2027", "24/06/2026") into YYYY-MM-DD ISO strings.
@@ -695,7 +694,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     { id: 'contacts', title: 'Répertoire Important', desc: 'Numéros utiles & urgences directes', icon: Phone, color: 'text-red-500 bg-red-500/10' },
     { id: 'peacemaker', title: 'PeaceMaker IA', desc: 'Médiateur de conflits intelligents', icon: HeartHandshake, color: 'text-[#00D26A] bg-[#00D26A]/10' },
     { id: 'conteur', title: 'Histoires du Soir', desc: 'Contes IA personnalisés interactifs', icon: BookOpen, color: 'text-[#FFB020] bg-[#FFB020]/10' },
-    { id: 'atelier_art', title: 'Atelier d\'Art IA', desc: 'Dessine & Imagine avec l\'IA', icon: Paintbrush, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
     ...(isAmadou ? [{ id: 'mavie', title: 'MaVie 2.0 (Ado)', desc: 'Simulateur d\'avenir & de choix', icon: TrendingUp, color: 'text-[#FFB020] bg-[#FFB020]/10' }] : [])
   ];
 
@@ -1364,7 +1362,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   <button
                     key={mod.id}
                     onClick={() => {
-                      if (['conteur', 'atelier_art', 'peacemaker'].includes(mod.id) && !isPremium) {
+                      if (['conteur', 'peacemaker'].includes(mod.id) && !isPremium) {
                         onTriggerPaywall?.();
                         return;
                       }
@@ -5940,14 +5938,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
         />
       )}
 
-      {/* 16. Atelier d'Art Céleste IA */}
-      {activeModule === 'atelier_art' && (
-        <AtelierArtIA 
-          activeMemberId={activeMemberId}
-          onBack={() => setActiveModule('')}
-          setMemories={setMemories}
-        />
-      )}
+
 
       {/* 17. Répertoire Important (Contacts) */}
       {activeModule === 'contacts' && (

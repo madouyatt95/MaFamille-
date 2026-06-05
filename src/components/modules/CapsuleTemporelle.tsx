@@ -12,6 +12,7 @@ import {
 import type { MemoryLog } from '../../types';
 
 import { compressImage } from '../../utils/imageCompressor';
+import { getSupabaseClient } from '../../utils/supabase';
 
 interface CapsuleTemporelleProps {
   memories: MemoryLog[];
@@ -223,45 +224,81 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
     }
   };
 
-  const handleUploadMemory = (e: React.FormEvent) => {
+  const handleUploadMemory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle || !newDesc) return;
 
     setUploading(true);
-    setTimeout(() => {
-      const author = activeMember ? activeMember.name : (activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa');
-      const authorPic = activeMember ? activeMember.photoUrl : (activeMemberId === '1' 
-        ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80' 
-        : activeMemberId === '2' 
-          ? 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=150&auto=format&fit=crop&q=80'
-          : activeMemberId === '3'
-            ? 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150&auto=format&fit=crop&q=80'
-            : 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150&auto=format&fit=crop&q=80');
+    
+    const finalImages: string[] = [];
+    const supabase = getSupabaseClient();
+    const sourceImages = uploadedImages.length > 0 ? uploadedImages : [selectedPresetImage];
+    
+    for (const img of sourceImages) {
+      if (img.startsWith('data:')) {
+        try {
+          const arr = img.split(',');
+          const mime = arr[0].match(/:(.*?);/)![1];
+          const bstr = atob(arr[1]);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+          }
+          const blob = new Blob([u8arr], { type: mime });
+          const ext = mime.split('/').pop() || 'jpg';
+          const filePath = `memories/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+          
+          if (supabase) {
+            const { error: uploadError } = await supabase.storage
+              .from('avatars')
+              .upload(filePath, blob, { upsert: true, contentType: mime });
+              
+            if (!uploadError) {
+              const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+              if (urlData?.publicUrl) {
+                finalImages.push(urlData.publicUrl);
+                continue;
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Storage upload error for memory:", err);
+        }
+      }
+      finalImages.push(img);
+    }
+    
+    const author = activeMember ? activeMember.name : (activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa');
+    const authorPic = activeMember ? activeMember.photoUrl : (activeMemberId === '1' 
+      ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80' 
+      : activeMemberId === '2' 
+        ? 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=150&auto=format&fit=crop&q=80'
+        : activeMemberId === '3'
+          ? 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150&auto=format&fit=crop&q=80'
+          : 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150&auto=format&fit=crop&q=80');
 
-      const finalImages = uploadedImages.length > 0 ? uploadedImages : [selectedPresetImage];
+    const newMemory: MemoryLog = {
+      id: `mem-${Date.now()}`,
+      title: newTitle,
+      description: newDesc,
+      imageUrl: finalImages[0],
+      imageUrls: finalImages,
+      date: new Date(newDate).toLocaleDateString('fr-FR'),
+      authorName: author,
+      authorPhoto: authorPic,
+      likesCount: 0,
+      theme: newTheme,
+      isPrivate: isPrivate
+    };
 
-      const newMemory: MemoryLog = {
-        id: `mem-${Date.now()}`,
-        title: newTitle,
-        description: newDesc,
-        imageUrl: finalImages[0],
-        imageUrls: finalImages,
-        date: new Date(newDate).toLocaleDateString('fr-FR'),
-        authorName: author,
-        authorPhoto: authorPic,
-        likesCount: 0,
-        theme: newTheme,
-        isPrivate: isPrivate
-      };
-
-      setMemories(prev => [newMemory, ...prev]);
-      setNewTitle('');
-      setNewDesc('');
-      setUploadedImages([]);
-      setIsPrivate(false);
-      setUploading(false);
-      alert("Nouveau souvenir partagé dans la Capsule de la Famille ! 📸");
-    }, 1000);
+    setMemories(prev => [newMemory, ...prev]);
+    setNewTitle('');
+    setNewDesc('');
+    setUploadedImages([]);
+    setIsPrivate(false);
+    setUploading(false);
+    alert("Nouveau souvenir partagé dans la Capsule de la Famille ! 📸");
   };
 
   const handleLike = (id: string) => {

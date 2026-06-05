@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import type { Member, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog } from '../types';
 import type { UnifiedEvent } from '../utils/agendaHelper';
+import { getSupabaseClient } from '../utils/supabase';
 
 const compressImage = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
   return new Promise((resolve) => {
@@ -538,45 +539,75 @@ export const Accueil: React.FC<AccueilProps> = ({
                 const base64Url = await compressImage(file, 800, 800, 0.7);
                 if (!base64Url) return;
 
+                let finalImageUrl = base64Url;
+                const supabase = getSupabaseClient();
+                if (supabase) {
+                  try {
+                    const arr = base64Url.split(',');
+                    const mime = arr[0].match(/:(.*?);/)![1];
+                    const bstr = atob(arr[1]);
+                    let n = bstr.length;
+                    const u8arr = new Uint8Array(n);
+                    while (n--) {
+                      u8arr[n] = bstr.charCodeAt(n);
+                    }
+                    const blob = new Blob([u8arr], { type: mime });
+                    const ext = mime.split('/').pop() || 'jpg';
+                    const filePath = `memories/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+                    const { error: uploadError } = await supabase.storage
+                      .from('avatars')
+                      .upload(filePath, blob, { upsert: true, contentType: mime });
+
+                    if (!uploadError) {
+                      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+                      if (urlData?.publicUrl) {
+                        finalImageUrl = urlData.publicUrl;
+                      }
+                    }
+                  } catch (err) {
+                    console.error("Storage upload error for memory:", err);
+                  }
+                }
+
                 const caption = prompt("Quel souvenir ou moment marquant voulez-vous associer à cette photo ?");
                 if (!caption) return;
 
-                  const delayPrompt = prompt(
-                    "Dans combien de temps cette photo doit-elle disparaître automatiquement ?\n" +
-                    "Entrez un délai (ex: 24h, 12h, 2h, 30m) ou tapez 'jamais' pour un souvenir permanent :",
-                    "24h"
-                  );
+                const delayPrompt = prompt(
+                  "Dans combien de temps cette photo doit-elle disparaître automatiquement ?\n" +
+                  "Entrez un délai (ex: 24h, 12h, 2h, 30m) ou tapez 'jamais' pour un souvenir permanent :",
+                  "24h"
+                );
+                
+                let themeStr = "🏖️ Famille";
+                if (delayPrompt && delayPrompt.toLowerCase().trim() !== 'jamais') {
+                  const cleanDelay = delayPrompt.toLowerCase().trim();
+                  let durationMs = 24 * 60 * 60 * 1000; // 24h default
                   
-                  let themeStr = "🏖️ Famille";
-                  if (delayPrompt && delayPrompt.toLowerCase().trim() !== 'jamais') {
-                    const cleanDelay = delayPrompt.toLowerCase().trim();
-                    let durationMs = 24 * 60 * 60 * 1000; // 24h default
-                    
-                    if (cleanDelay.endsWith('h')) {
-                      const val = parseInt(cleanDelay.replace('h', ''));
-                      if (!isNaN(val)) durationMs = val * 60 * 60 * 1000;
-                    } else if (cleanDelay.endsWith('m')) {
-                      const val = parseInt(cleanDelay.replace('m', ''));
-                      if (!isNaN(val)) durationMs = val * 60 * 1000;
-                    }
-                    
-                    themeStr = `Exp: ${cleanDelay} | ${Date.now() + durationMs}`;
+                  if (cleanDelay.endsWith('h')) {
+                    const val = parseInt(cleanDelay.replace('h', ''));
+                    if (!isNaN(val)) durationMs = val * 60 * 60 * 1000;
+                  } else if (cleanDelay.endsWith('m')) {
+                    const val = parseInt(cleanDelay.replace('m', ''));
+                    if (!isNaN(val)) durationMs = val * 60 * 1000;
                   }
+                  
+                  themeStr = `Exp: ${cleanDelay} | ${Date.now() + durationMs}`;
+                }
 
-                  const newMemory: MemoryLog = {
-                    id: `mom-${Date.now()}`,
-                    title: caption,
-                    description: caption,
-                    imageUrl: base64Url,
-                    imageUrls: [base64Url],
-                    authorName: activeMember.name,
-                    authorPhoto: activeMember.photoUrl || '',
-                    date: "Aujourd'hui",
-                    likesCount: 0,
-                    isPrivate: false,
-                    theme: themeStr
-                  };
-                  onAddMemory(newMemory);
+                const newMemory: MemoryLog = {
+                  id: `mom-${Date.now()}`,
+                  title: caption,
+                  description: caption,
+                  imageUrl: finalImageUrl,
+                  imageUrls: [finalImageUrl],
+                  authorName: activeMember.name,
+                  authorPhoto: activeMember.photoUrl || '',
+                  date: "Aujourd'hui",
+                  likesCount: 0,
+                  isPrivate: false,
+                  theme: themeStr
+                };
+                onAddMemory(newMemory);
               }}
             />
             <button 

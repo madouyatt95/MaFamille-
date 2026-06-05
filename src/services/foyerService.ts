@@ -353,21 +353,34 @@ export const foyerService = {
   // ============================================
 
   /**
-   * Récupérer toutes les lignes d'une table pour un foyer donné
+   * Récupérer toutes les lignes d'une table pour un foyer donné (exclut le Base64 volumineux par défaut pour transactions/documents)
    */
   async fetchTableData(tableName: string, foyerId: string): Promise<any[]> {
     const supabase = getSupabaseClient();
     if (!supabase) return [];
 
+    let selectQuery = '*';
+    if (tableName === 'transactions') {
+      selectQuery = 'id, foyer_id, amount, type, category, date, title, member_id, member_name, sub_category, account_id, comment, modification_history, is_archived, recurrence, subscription_id, created_at';
+    } else if (tableName === 'documents') {
+      selectQuery = 'id, foyer_id, name, category, sub_category, member_id, member_name, tags, upload_date, expiry_date, file_size, is_expired, description, is_secure, created_at';
+    }
+
     const { data, error } = await supabase
       .from(tableName)
-      .select('*')
+      .select(selectQuery)
       .eq('foyer_id', foyerId);
 
     if (error) {
       console.error(`Erreur fetchTableData sur ${tableName} :`, error);
       return [];
     }
+
+    // Mesurer et logger le volume transféré
+    try {
+      const { logQueryVolume } = await import('../utils/supabase');
+      logQueryVolume(tableName, 'fetchTableData', data);
+    } catch (_) {}
 
     return data || [];
   },

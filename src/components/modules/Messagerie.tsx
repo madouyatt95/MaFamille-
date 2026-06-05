@@ -216,6 +216,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   const [typingMembers, setTypingMembers] = useState<{ [memberId: string]: string }>({});
 
   const lastTypingSentRef = useRef<number>(0);
+  const activeTypingChannelRef = useRef<any>(null);
 
   const togglePinGroup = (groupId: string) => {
     setPinnedGroupIds(prev => {
@@ -240,6 +241,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     if (!client || !foyerId || !activeGroupId) return;
 
     const channel = client.channel(`typing:${foyerId}:${activeGroupId}`);
+    activeTypingChannelRef.current = channel;
     
     channel
       .on('broadcast', { event: 'typing' }, ({ payload }) => {
@@ -260,6 +262,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
     return () => {
       channel.unsubscribe();
+      activeTypingChannelRef.current = null;
     };
   }, [activeGroupId, activeMemberId]);
 
@@ -508,10 +511,8 @@ Demande de l'utilisateur : "${userText}"`;
     }
 
     // Clear typing indicator
-    const client = getSupabaseClient();
-    const foyerId = localStorage.getItem('mf_cloud_foyer_id');
-    if (client && foyerId) {
-      const channel = client.channel(`typing:${foyerId}:${activeGroupId}`);
+    const channel = activeTypingChannelRef.current;
+    if (channel) {
       channel.send({
         type: 'broadcast',
         event: 'typing',
@@ -1668,24 +1669,24 @@ Demande de l'utilisateur : "${userText}"`;
               value={newMessage}
               onChange={(e) => {
                 setNewMessage(e.target.value);
-                const client = getSupabaseClient();
-                const foyerId = localStorage.getItem('mf_cloud_foyer_id');
-                if (client && foyerId && activeGroupId && activeUser) {
+                const channel = activeTypingChannelRef.current;
+                if (channel && activeUser) {
                   const now = Date.now();
                   if (now - lastTypingSentRef.current > 2000) {
                     lastTypingSentRef.current = now;
-                    const channel = client.channel(`typing:${foyerId}:${activeGroupId}`);
                     channel.send({
                       type: 'broadcast',
                       event: 'typing',
                       payload: { memberId: activeMemberId, name: activeUser.name, isTyping: true }
                     });
                     setTimeout(() => {
-                      channel.send({
-                        type: 'broadcast',
-                        event: 'typing',
-                        payload: { memberId: activeMemberId, name: activeUser.name, isTyping: false }
-                      });
+                      if (activeTypingChannelRef.current === channel) {
+                        channel.send({
+                          type: 'broadcast',
+                          event: 'typing',
+                          payload: { memberId: activeMemberId, name: activeUser.name, isTyping: false }
+                        });
+                      }
                     }, 3000);
                   }
                 }

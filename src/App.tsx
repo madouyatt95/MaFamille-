@@ -103,7 +103,7 @@ import { Paywall } from './components/Paywall';
 import { Onboarding } from './views/Onboarding';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
 import { foyerService } from './services/foyerService';
-import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction, serializeEventDescription, deserializeEventDescription } from './utils/supabase';
+import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction, serializeEventDescription, deserializeEventDescription, logQueryVolume } from './utils/supabase';
 import { notificationService } from './services/notificationService';
 import type { Foyer, FoyerMember } from './types';
 
@@ -1427,7 +1427,7 @@ function App() {
   const [paywallOpen, setPaywallOpen] = useState(false);
   
   const setActiveModule = (modName: string) => {
-    if (['conteur', 'atelier_art', 'peacemaker'].includes(modName) && !isPremium) {
+    if (['conteur', 'peacemaker'].includes(modName) && !isPremium) {
       setPaywallOpen(true);
       return;
     }
@@ -1860,8 +1860,8 @@ function App() {
       wrapQuery('events', client.from('events').select('*').eq('foyer_id', foyerId)),
       wrapQuery('groceries', client.from('groceries').select('*').eq('foyer_id', foyerId)),
       wrapQuery('archived_lists', client.from('archived_lists').select('*').eq('foyer_id', foyerId)),
-      wrapQuery('transactions', client.from('transactions').select('*').eq('foyer_id', foyerId)),
-      wrapQuery('documents', client.from('documents').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('transactions', client.from('transactions').select('id, foyer_id, amount, type, category, date, title, member_id, member_name, sub_category, account_id, comment, modification_history, is_archived, recurrence, subscription_id, created_at').eq('foyer_id', foyerId)),
+      wrapQuery('documents', client.from('documents').select('id, foyer_id, name, category, sub_category, member_id, member_name, tags, upload_date, expiry_date, file_size, is_expired, description, is_secure, created_at').eq('foyer_id', foyerId)),
       wrapQuery('dishes', client.from('dishes').select('*').eq('foyer_id', foyerId)),
       wrapQuery('chore_tasks', client.from('chore_tasks').select('*').eq('foyer_id', foyerId)),
       wrapQuery('saving_goals', client.from('saving_goals').select('*').eq('foyer_id', foyerId)),
@@ -1870,7 +1870,7 @@ function App() {
       wrapQuery('votes', client.from('votes').select('*').eq('foyer_id', foyerId)),
       wrapQuery('school_tasks', client.from('school_tasks').select('*').eq('foyer_id', foyerId)),
       wrapQuery('chat_groups', client.from('chat_groups').select('*').eq('foyer_id', foyerId)),
-      wrapQuery('chat_messages', client.from('chat_messages').select('*').eq('foyer_id', foyerId).order('created_at', { ascending: true })),
+      wrapQuery('chat_messages', client.from('chat_messages').select('*').eq('foyer_id', foyerId).order('created_at', { ascending: false }).limit(50)),
       wrapQuery('demarches', client.from('demarches').select('*').eq('foyer_id', foyerId)),
       wrapQuery('justificatif_packs', client.from('justificatif_packs').select('*').eq('foyer_id', foyerId)),
       wrapQuery('vehicles', client.from('vehicles').select('*').eq('foyer_id', foyerId)),
@@ -1913,6 +1913,12 @@ function App() {
       abonnementsRes,
       debtsRes
     ]) => {
+      // Log query volumes for optimization audit
+      logQueryVolume('transactions', 'loadFoyerData', transactionsRes?.data);
+      logQueryVolume('documents', 'loadFoyerData', documentsRes?.data);
+      logQueryVolume('chat_messages', 'loadFoyerData', chatMessagesRes?.data);
+      logQueryVolume('memories', 'loadFoyerData', memoriesRes?.data);
+
       // Set members
       setMembers(membersList.length > 0 ? membersList.map(mapFoyerMemberToMember) : []);
       
@@ -2224,7 +2230,8 @@ function App() {
 
       // Set chatMessages
       if (chatMessagesRes.success && chatMessagesRes.data) {
-        setChatMessages(chatMessagesRes.data.map((c: any) => ({
+        const sortedMessages = [...chatMessagesRes.data].reverse();
+        setChatMessages(sortedMessages.map((c: any) => ({
           id: c.id,
           groupId: c.group_id,
           senderId: c.sender_id,
@@ -2636,12 +2643,12 @@ function App() {
       ] = await Promise.all([
         client.from('events').select('*').eq('foyer_id', foyerId),
         client.from('groceries').select('*').eq('foyer_id', foyerId),
-        client.from('transactions').select('*').eq('foyer_id', foyerId),
-        client.from('documents').select('*').eq('foyer_id', foyerId),
+        client.from('transactions').select('id, foyer_id, amount, type, category, date, title, member_id, member_name, sub_category, account_id, comment, modification_history, is_archived, recurrence, subscription_id, created_at').eq('foyer_id', foyerId),
+        client.from('documents').select('id, foyer_id, name, category, sub_category, member_id, member_name, tags, upload_date, expiry_date, file_size, is_expired, description, is_secure, created_at').eq('foyer_id', foyerId),
         client.from('dishes').select('*').eq('foyer_id', foyerId),
         client.from('chore_tasks').select('*').eq('foyer_id', foyerId),
         client.from('saving_goals').select('*').eq('foyer_id', foyerId),
-        client.from('memories').select('*').eq('foyer_id', foyerId),
+        client.from('memories').select('id, foyer_id, date, title, description, author_name, author_photo, image_url, likes_count, is_private, theme, created_at').eq('foyer_id', foyerId),
         client.from('votes').select('*').eq('foyer_id', foyerId),
         client.from('school_tasks').select('*').eq('foyer_id', foyerId),
         client.from('chat_groups').select('*').eq('foyer_id', foyerId),
@@ -2658,6 +2665,11 @@ function App() {
         client.from('abonnements').select('*').eq('foyer_id', foyerId),
         client.from('debts').select('*').eq('foyer_id', foyerId)
       ]);
+
+      // Log query volumes for optimization audit
+      logQueryVolume('transactions', 'syncDataFromCloud', transactionsRes?.data);
+      logQueryVolume('documents', 'syncDataFromCloud', documentsRes?.data);
+      logQueryVolume('memories', 'syncDataFromCloud', memoriesRes?.data);
 
       // Map and set states conditionally to avoid unnecessary component renders and loops
       if (eventsRes.data) {
@@ -3009,15 +3021,29 @@ function App() {
     }
   };
 
-  // Timer loop for silent collaborative rehydration (runs every 20 seconds)
+  // Timer loop for silent collaborative rehydration & Focus Sync (every 5 minutes or on tab focus)
   useEffect(() => {
     if (!foyer || !isSyncReady) return;
 
+    // Passive polling every 5 minutes
     const syncTimer = setInterval(() => {
       syncDataFromCloud(foyer.id);
-    }, 20000);
+    }, 300000);
 
-    return () => clearInterval(syncTimer);
+    // Sync on tab active/refocus (Web best practice to stop idle background leakage)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log("[MaFamille+ Focus Sync] Tab focused, running immediate rehydration sync...");
+        syncDataFromCloud(foyer.id);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(syncTimer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [foyer, isSyncReady]);
 
   // 2. Realtime collaborative subscriptions

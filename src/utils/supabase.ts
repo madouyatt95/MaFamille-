@@ -228,5 +228,28 @@ export function deserializeEventDescription(serialized: string | null | undefine
   return { description: serialized, metadata: { doctor: serialized } };
 }
 
-
-
+/**
+ * Log the volume of data fetched from Supabase for a given table and action.
+ */
+export function logQueryVolume(tableName: string, action: string, data: any) {
+  if (!data) return;
+  try {
+    const jsonString = JSON.stringify(data);
+    const sizeInBytes = new Blob([jsonString]).size;
+    const sizeInKb = (sizeInBytes / 1024).toFixed(2);
+    
+    console.log(
+      `📊 [Supabase Network Log] Table: "${tableName}" | Action: ${action} | ` +
+      `Rows: ${Array.isArray(data) ? data.length : 1} | Est. Size: ${sizeInKb} KB`
+    );
+    
+    if (sizeInBytes > 500 * 1024) {
+      console.warn(
+        `⚠️ [ALERTE CHARGE UTILE] La table "${tableName}" a renvoyé une charge lourde de ${sizeInKb} KB ! ` +
+        `Contient probablement des fichiers Base64.`
+      );
+    }
+  } catch (e) {
+    console.warn("[Supabase Network Log] Failed to calculate size:", e);
+  }
+}
