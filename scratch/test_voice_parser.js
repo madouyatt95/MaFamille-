@@ -356,6 +356,163 @@ runTest('Budget parser: "35 pharmacie"', () => {
   assert.strictEqual(res.matchesLength, 1);
 });
 
+// --- SYNONYMS PREPROCESSOR TESTS ---
+const normalizeTextForSynonym = (txt) => {
+  return txt
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const getProductToCheck = (normalizedText) => {
+  const checkPrefixes = [
+    'retire le ', 'retire la ', 'retire les ', 'retire l\'', 'retire l’', 'retire ',
+    'enlève le ', 'enlève la ', 'enlève les ', 'enlève l\'', 'enlève l’', 'enlève ',
+    'enleve le ', 'enleve la ', 'enleve les ', 'enleve l\'', 'enleve l’', 'enleve ',
+    'coche le ', 'coche la ', 'coche les ', 'coche l\'', 'coche l’', 'coche ',
+    'termine pour le ', 'termine pour la ', 'termine pour les ', 'termine pour l\'', 'termine pour l’', 'termine pour ',
+    'terminé pour le ', 'terminé pour la ', 'terminé pour les ', 'terminé pour l\'', 'terminé pour l’', 'terminé pour '
+  ];
+
+  for (const prefix of checkPrefixes) {
+    const normPrefix = normalizeTextForSynonym(prefix);
+    if (normalizedText.startsWith(normPrefix)) {
+      return normalizedText.slice(normPrefix.length).trim();
+    }
+  }
+
+  if (normalizedText.startsWith('marque ')) {
+    let remainder = normalizedText.slice(7).trim();
+    remainder = remainder.replace(/^(le|la|les|l'|l’)\s+/i, '').trim();
+    const suffix = remainder.match(/(.+?)\s+comme\s+(?:achete|acheté|fait)$/i);
+    if (suffix) {
+      return suffix[1].trim();
+    }
+  }
+
+  const checkSuffixes = [
+    ' est achete', ' est acheté', ' sont achetes', ' sont achetés',
+    ' c\'est bon', ' c’est bon', ' c est bon',
+    ' c\'est fait', ' c’est fait', ' c est fait'
+  ];
+
+  for (const suffix of checkSuffixes) {
+    if (normalizedText.endsWith(suffix)) {
+      let prod = normalizedText.slice(0, normalizedText.length - suffix.length).trim();
+      prod = prod.replace(/^(le|la|les|l'|l’)\s+/i, '').trim();
+      return prod;
+    }
+  }
+
+  return null;
+};
+
+const preprocessVoiceCommandSynonyms = (rawInputText) => {
+  const normalizedForSynonym = normalizeTextForSynonym(rawInputText);
+
+  const coursesRemainingSynonyms = [
+    "que reste t il a acheter", "que reste-t-il a acheter", "que reste-t-il à acheter",
+    "qu est ce qu il reste a acheter", "qu'est-ce qu'il reste à acheter", "qu'est-ce qu'il reste a acheter",
+    "qu est ce qu il manque", "qu'est-ce qu'il manque", "il manque quoi", "il reste quoi",
+    "on doit acheter quoi", "qu est ce qu on doit acheter", "qu'est-ce qu'on doit acheter",
+    "montre les courses", "affiche les courses", "ouvre les courses", "fais voir les courses",
+    "affiche la liste", "fais voir la liste", "voir la liste des courses", "voir les articles restants",
+    "voir les achats restants", "courses restantes", "liste restante"
+  ];
+
+  const budgetSynonyms = [
+    "montre le budget", "affiche le budget", "fais voir le budget", "combien il me reste",
+    "ou j en suis", "ou j'en suis", "mes finances", "mes depenses", "mes dépenses",
+    "mes comptes", "combien j ai depense", "combien j'ai dépensé", "combien j'ai depense",
+    "etat des finances", "état des finances", "budget du mois"
+  ];
+
+  const travelSynonyms = [
+    "mes voyages", "affiche mes voyages", "ouvre mes voyages", "montre mon voyage",
+    "voyage italie", "voyage maroc", "voyage senegal", "voyage sénégal", "budget voyage",
+    "preparation voyage", "préparation voyage", "ou en est mon voyage", "où en est mon voyage"
+  ];
+
+  const healthSynonyms = [
+    "mes vaccins", "les vaccins", "vaccins a venir", "vaccins à venir", "mes rendez vous medicaux",
+    "mes rendez-vous médicaux", "sante", "santé", "carnet de sante", "carnet de santé",
+    "prochains vaccins", "sante de yatta", "santé de yatta", "sante de mariam", "santé de mariam"
+  ];
+
+  const agendaSynonyms = [
+    "mon agenda", "affiche mon agenda", "ouvre mon agenda", "mes rendez vous", "mes rendez-vous",
+    "mes rdv", "mon calendrier", "cette semaine", "ce mois ci", "ce mois-ci", "mes evenements",
+    "mes événements"
+  ];
+
+  const housingSynonyms = [
+    "mon logement", "la maison", "les depenses maison", "les dépenses maison", "les factures maison",
+    "mes factures"
+  ];
+
+  const vehicleSynonyms = [
+    "ma voiture", "mes vehicules", "mes véhicules", "controle technique", "contrôle technique",
+    "entretien voiture", "revision voiture", "révision voiture", "assurance voiture"
+  ];
+
+  const administrativeSynonyms = [
+    "mes demarches", "mes démarches", "mes papiers", "mes documents", "mes formalites",
+    "mes formalités", "mes demandes administratives"
+  ];
+
+  if (coursesRemainingSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+    return "que reste-t-il";
+  } else if (budgetSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+    return "ouvre le budget";
+  } else if (travelSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+    return "ouvre les voyages";
+  } else if (healthSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+    return "ouvre la santé";
+  } else if (agendaSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+    return "ouvre l'agenda";
+  } else if (housingSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+    return "ouvre le logement";
+  } else if (vehicleSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+    return "ouvre les véhicules";
+  } else if (administrativeSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+    return "ouvre les démarches";
+  } else {
+    const productToCheck = getProductToCheck(normalizedForSynonym);
+    if (productToCheck) {
+      return `j'ai acheté ${productToCheck}`;
+    }
+  }
+
+  return rawInputText;
+};
+
+runTest('Synonym preprocessor: Courses remaining', () => {
+  assert.strictEqual(preprocessVoiceCommandSynonyms("Qu'est-ce qu'il reste à acheter"), "que reste-t-il");
+  assert.strictEqual(preprocessVoiceCommandSynonyms("Il manque quoi"), "que reste-t-il");
+  assert.strictEqual(preprocessVoiceCommandSynonyms("Fais voir la liste"), "que reste-t-il");
+});
+
+runTest('Synonym preprocessor: Checking grocery items', () => {
+  assert.strictEqual(preprocessVoiceCommandSynonyms("Le lait est acheté"), "j'ai acheté lait");
+  assert.strictEqual(preprocessVoiceCommandSynonyms("Retire le lait"), "j'ai acheté lait");
+  assert.strictEqual(preprocessVoiceCommandSynonyms("Le lait c'est bon"), "j'ai acheté lait");
+  assert.strictEqual(preprocessVoiceCommandSynonyms("Marque le lait comme acheté"), "j'ai acheté lait");
+});
+
+runTest('Synonym preprocessor: Open modules', () => {
+  assert.strictEqual(preprocessVoiceCommandSynonyms("Mes finances"), "ouvre le budget");
+  assert.strictEqual(preprocessVoiceCommandSynonyms("Mes dépenses"), "ouvre le budget");
+  assert.strictEqual(preprocessVoiceCommandSynonyms("Mes voyages"), "ouvre les voyages");
+  assert.strictEqual(preprocessVoiceCommandSynonyms("Mes vaccins"), "ouvre la santé");
+  assert.strictEqual(preprocessVoiceCommandSynonyms("Cette semaine"), "ouvre l'agenda");
+  assert.strictEqual(preprocessVoiceCommandSynonyms("Les factures maison"), "ouvre le logement");
+  assert.strictEqual(preprocessVoiceCommandSynonyms("Ma voiture"), "ouvre les véhicules");
+  assert.strictEqual(preprocessVoiceCommandSynonyms("Mes démarches"), "ouvre les démarches");
+});
+
 console.log('\n--- 📊 BILAN DES TESTS PRIO ---');
 console.log(`✅ Succès : ${successCount}`);
 console.log(`❌ Échecs : ${failCount}`);

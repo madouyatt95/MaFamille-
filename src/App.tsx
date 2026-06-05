@@ -4493,7 +4493,10 @@ function App() {
   };
 
   const findAllMemberMatches = (inputText: string, membersList: any[], activeId: string): any[] => {
-    const cleanInput = inputText.toLowerCase().trim();
+    let cleanInput = inputText.toLowerCase().trim();
+    if (cleanInput === 'yata' || cleanInput === 'yattah') {
+      cleanInput = 'yatta';
+    }
     const isMoi = cleanInput === 'moi' || 
                   cleanInput === "c'est pour moi" || 
                   cleanInput === 'pour moi' || 
@@ -6304,6 +6307,159 @@ function App() {
 
   const parseVoiceCommand = async (rawInputText: string) => {
     try {
+      // Normalisation des synonymes
+      const normalizeTextForSynonym = (txt: string): string => {
+        return txt
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "") // Supprimer les accents
+          .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
+
+      const getProductToCheck = (normalizedText: string): string | null => {
+        const checkPrefixes = [
+          'retire le ', 'retire la ', 'retire les ', 'retire l\'', 'retire l’', 'retire ',
+          'enlève le ', 'enlève la ', 'enlève les ', 'enlève l\'', 'enlève l’', 'enlève ',
+          'enleve le ', 'enleve la ', 'enleve les ', 'enleve l\'', 'enleve l’', 'enleve ',
+          'coche le ', 'coche la ', 'coche les ', 'coche l\'', 'coche l’', 'coche ',
+          'termine pour le ', 'termine pour la ', 'termine pour les ', 'termine pour l\'', 'termine pour l’', 'termine pour ',
+          'terminé pour le ', 'terminé pour la ', 'terminé pour les ', 'terminé pour l\'', 'terminé pour l’', 'terminé pour '
+        ];
+
+        for (const prefix of checkPrefixes) {
+          const normPrefix = normalizeTextForSynonym(prefix);
+          if (normalizedText.startsWith(normPrefix)) {
+            return normalizedText.slice(normPrefix.length).trim();
+          }
+        }
+
+        if (normalizedText.startsWith('marque ')) {
+          let remainder = normalizedText.slice(7).trim();
+          remainder = remainder.replace(/^(le|la|les|l'|l’)\s+/i, '').trim();
+          const suffix = remainder.match(/(.+?)\s+comme\s+(?:achete|acheté|fait)$/i);
+          if (suffix) {
+            return suffix[1].trim();
+          }
+        }
+
+        const checkSuffixes = [
+          ' est achete', ' est acheté', ' sont achetes', ' sont achetés',
+          ' c\'est bon', ' c’est bon', ' c est bon',
+          ' c\'est fait', ' c’est fait', ' c est fait'
+        ];
+
+        for (const suffix of checkSuffixes) {
+          if (normalizedText.endsWith(suffix)) {
+            let prod = normalizedText.slice(0, normalizedText.length - suffix.length).trim();
+            prod = prod.replace(/^(le|la|les|l'|l’)\s+/i, '').trim();
+            return prod;
+          }
+        }
+
+        return null;
+      };
+
+      const normalizedForSynonym = normalizeTextForSynonym(rawInputText);
+
+      // Courses remaining synonyms
+      const coursesRemainingSynonyms = [
+        "que reste t il a acheter", "que reste-t-il a acheter", "que reste-t-il à acheter",
+        "qu est ce qu il reste a acheter", "qu'est-ce qu'il reste à acheter", "qu'est-ce qu'il reste a acheter",
+        "qu est ce qu il manque", "qu'est-ce qu'il manque", "il manque quoi", "il reste quoi",
+        "on doit acheter quoi", "qu est ce qu on doit acheter", "qu'est-ce qu'on doit acheter",
+        "montre les courses", "affiche les courses", "ouvre les courses", "fais voir les courses",
+        "affiche la liste", "fais voir la liste", "voir la liste des courses", "voir les articles restants",
+        "voir les achats restants", "courses restantes", "liste restante"
+      ];
+
+      // Budget open synonyms
+      const budgetSynonyms = [
+        "montre le budget", "affiche le budget", "fais voir le budget", "combien il me reste",
+        "ou j en suis", "ou j'en suis", "mes finances", "mes depenses", "mes dépenses",
+        "mes comptes", "combien j ai depense", "combien j'ai dépensé", "combien j'ai depense",
+        "etat des finances", "état des finances", "budget du mois"
+      ];
+
+      // Travel open synonyms
+      const travelSynonyms = [
+        "mes voyages", "affiche mes voyages", "ouvre mes voyages", "montre mon voyage",
+        "voyage italie", "voyage maroc", "voyage senegal", "voyage sénégal", "budget voyage",
+        "preparation voyage", "préparation voyage", "ou en est mon voyage", "où en est mon voyage"
+      ];
+
+      // Health open synonyms
+      const healthSynonyms = [
+        "mes vaccins", "les vaccins", "vaccins a venir", "vaccins à venir", "mes rendez vous medicaux",
+        "mes rendez-vous médicaux", "sante", "santé", "carnet de sante", "carnet de santé",
+        "prochains vaccins", "sante de yatta", "santé de yatta", "sante de mariam", "santé de mariam"
+      ];
+
+      // Agenda open synonyms
+      const agendaSynonyms = [
+        "mon agenda", "affiche mon agenda", "ouvre mon agenda", "mes rendez vous", "mes rendez-vous",
+        "mes rdv", "mon calendrier", "cette semaine", "ce mois ci", "ce mois-ci", "mes evenements",
+        "mes événements"
+      ];
+
+      // Housing open synonyms
+      const housingSynonyms = [
+        "mon logement", "la maison", "les depenses maison", "les dépenses maison", "les factures maison",
+        "mes factures"
+      ];
+
+      // Vehicle open synonyms
+      const vehicleSynonyms = [
+        "ma voiture", "mes vehicules", "mes véhicules", "controle technique", "contrôle technique",
+        "entretien voiture", "revision voiture", "révision voiture", "assurance voiture"
+      ];
+
+      // Administrative open synonyms
+      const administrativeSynonyms = [
+        "mes demarches", "mes démarches", "mes papiers", "mes documents", "mes formalites",
+        "mes formalités", "mes demandes administratives"
+      ];
+
+      let preprocessedText = rawInputText;
+      let matchedSynonym = false;
+
+      if (coursesRemainingSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+        preprocessedText = "que reste-t-il";
+        matchedSynonym = true;
+      } else if (budgetSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+        preprocessedText = "ouvre le budget";
+        matchedSynonym = true;
+      } else if (travelSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+        preprocessedText = "ouvre les voyages";
+        matchedSynonym = true;
+      } else if (healthSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+        preprocessedText = "ouvre la santé";
+        matchedSynonym = true;
+      } else if (agendaSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+        preprocessedText = "ouvre l'agenda";
+        matchedSynonym = true;
+      } else if (housingSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+        preprocessedText = "ouvre le logement";
+        matchedSynonym = true;
+      } else if (vehicleSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+        preprocessedText = "ouvre les véhicules";
+        matchedSynonym = true;
+      } else if (administrativeSynonyms.some(s => normalizeTextForSynonym(s) === normalizedForSynonym)) {
+        preprocessedText = "ouvre les démarches";
+        matchedSynonym = true;
+      } else {
+        const productToCheck = getProductToCheck(normalizedForSynonym);
+        if (productToCheck) {
+          preprocessedText = `j'ai acheté ${productToCheck}`;
+          matchedSynonym = true;
+        }
+      }
+
+      if (matchedSynonym) {
+        rawInputText = preprocessedText;
+      }
+
       const textWithDigits = convertFrenchNumbersToDigits(rawInputText);
       let promptLower = textWithDigits.toLowerCase().trim();
       let text = rawInputText;
