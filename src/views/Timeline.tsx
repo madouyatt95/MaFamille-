@@ -237,7 +237,7 @@ export const Timeline: React.FC<TimelineProps> = ({
           <div className="relative flex flex-col space-y-8 py-4">
             
             {/* Central glowing vertical line */}
-            <div className="absolute left-4 md:left-1/2 transform -translate-x-1/2 h-full w-[3px] bg-gradient-to-b from-[#6C5CFF] via-[#00D26A] to-[#FF4D6D] shadow-[0_0_15px_rgba(108,92,255,0.5)] z-0 rounded-full" />
+            <div className="absolute left-1/2 transform -translate-x-1/2 h-full w-[3px] bg-gradient-to-b from-[#6C5CFF] via-[#00D26A] to-[#FF4D6D] shadow-[0_0_15px_rgba(108,92,255,0.5)] z-0 rounded-full" />
 
             {/* Alternating Events */}
             {filteredEvents.map((event, idx) => {
@@ -253,27 +253,24 @@ export const Timeline: React.FC<TimelineProps> = ({
               return (
                 <div 
                   key={event.id}
-                  className={`relative flex flex-col md:flex-row items-center w-full z-10 ${
-                    isEven ? 'md:justify-start' : 'md:justify-end'
+                  className={`relative flex items-center w-full z-10 ${
+                    isEven ? 'justify-start' : 'justify-end'
                   }`}
                 >
                   
                   {/* Glowing dot on the timeline line */}
-                  <div className={`absolute left-4 md:left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4.5 h-4.5 rounded-full border-2 border-[#07111F] z-20 ${details.dotColor || 'bg-[#6C5CFF]'} ${details.shadowColor || ''}`} />
+                  <div className={`absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4.5 h-4.5 rounded-full border-2 border-[#07111F] z-20 ${details.dotColor || 'bg-[#6C5CFF]'} ${details.shadowColor || ''}`} />
 
-                  {/* Horizontal Segment Connector (Mobile) */}
-                  <div className={`absolute block md:hidden left-4 w-6 h-[2px] top-1/2 transform -translate-y-1/2 z-10 ${details.segmentColor || 'bg-[#6C5CFF]'}`} />
-
-                  {/* Horizontal Segment Connector (Desktop) */}
+                  {/* Horizontal Segment Connector */}
                   {isEven ? (
-                    <div className={`absolute hidden md:block left-[45%] w-[5%] h-[2px] top-1/2 transform -translate-y-1/2 z-10 ${details.segmentColor || 'bg-[#6C5CFF]'}`} />
+                    <div className={`absolute left-[45%] w-[5%] h-[2px] top-1/2 transform -translate-y-1/2 z-10 ${details.segmentColor || 'bg-[#6C5CFF]'}`} />
                   ) : (
-                    <div className={`absolute hidden md:block left-[50%] w-[5%] h-[2px] top-1/2 transform -translate-y-1/2 z-10 ${details.segmentColor || 'bg-[#6C5CFF]'}`} />
+                    <div className={`absolute left-[50%] w-[5%] h-[2px] top-1/2 transform -translate-y-1/2 z-10 ${details.segmentColor || 'bg-[#6C5CFF]'}`} />
                   )}
 
                   {/* Timeline card */}
                   <div 
-                    className={`w-[calc(100%-2.5rem)] ml-10 md:ml-0 md:w-[45%] glass-panel rounded-[24px] p-5 border transition-all duration-300 hover:scale-[1.01] hover:bg-white/8 relative ${details.borderColor || 'border-white/10'} ${details.shadowColor || ''}`}
+                    className={`w-[45%] glass-panel rounded-[24px] p-3 sm:p-5 border transition-all duration-300 hover:scale-[1.01] hover:bg-white/8 relative ${details.borderColor || 'border-white/10'} ${details.shadowColor || ''}`}
                   >
                     
                     {/* Header: Date | Category */}
