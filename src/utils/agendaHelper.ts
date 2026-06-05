@@ -17,6 +17,7 @@ export interface UnifiedEvent {
   member_id?: string;
   color?: string;
   done?: boolean;
+  category?: string;
 }
 
 // Meeus/Jones/Butcher algorithm to calculate Gregorian Easter date

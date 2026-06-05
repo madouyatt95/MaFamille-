@@ -511,7 +511,7 @@ export const Accueil: React.FC<AccueilProps> = ({
                 <>
                   <p className="text-xs text-[#FFB020] font-extrabold mt-0.5">Ville de Cormeilles-en-Parisis 🏛️</p>
                   <p className="text-[10px] text-white/50 mt-1 font-sans leading-relaxed">
-                    Dernières infos : travaux av. Foch, réunion publique ce soir
+                    Dernière alerte : {events.find(e => e.category === 'Commune')?.title.replace('🏛️ ', '') || 'Aucune alerte récente'}
                   </p>
                 </>
               ) : (
@@ -523,7 +523,7 @@ export const Accueil: React.FC<AccueilProps> = ({
             className="w-full py-2.5 px-4 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer"
             onClick={() => {
               if (demoActive) {
-                setActiveTab('menu');
+                setActiveTab('accueil');
                 setActiveModule('commune');
               } else {
                 alert("🏛️ Service Ma Commune bientôt disponible !");
@@ -547,7 +547,7 @@ export const Accueil: React.FC<AccueilProps> = ({
                 <>
                   <p className="text-xs text-[#4F8CFF] font-extrabold mt-0.5">École Victor Hugo & Lycée Simone Veil 🏫</p>
                   <p className="text-[10px] text-white/50 mt-1 font-sans leading-relaxed">
-                    Dernières infos : sortie scolaire d'Issa, devoirs de Lyna
+                    Dernière info : {events.find(e => e.category === 'École')?.title.replace('🏫 ', '').replace('📚 ', '') || 'Aucun message récent'}
                   </p>
                 </>
               ) : (
@@ -559,7 +559,7 @@ export const Accueil: React.FC<AccueilProps> = ({
             className="w-full py-2.5 px-4 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer"
             onClick={() => {
               if (demoActive) {
-                setActiveTab('menu');
+                setActiveTab('accueil');
                 setActiveModule('ecole');
               } else {
                 alert("🏫 Service Mon Établissement bientôt disponible !");

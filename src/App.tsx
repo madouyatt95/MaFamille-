@@ -164,6 +164,381 @@ const cleanLabel = (lbl: string): string => {
   return s.trim();
 };
 
+const ensureDemoDataInitialized = () => {
+  if (localStorage.getItem('mf_demo_data_initialized_v3') === 'true') {
+    return;
+  }
+  
+  const getRelativeDateStr = (daysAgo: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - daysAgo);
+    return d.toISOString().split('T')[0];
+  };
+
+  // 1. Presence History
+  const presenceHistory = [];
+  for (let i = 1; i <= 30; i++) {
+    const dateStr = getRelativeDateStr(i);
+    const d = new Date(dateStr);
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) { // Mon-Fri
+      let status = 'Présent';
+      let time = '08:12';
+      if (i === 12) {
+        status = 'Absent';
+        time = '08:00';
+      } else if (i === 5) {
+        status = 'Retard';
+        time = '08:35';
+      }
+      presenceHistory.push({
+        id: `pres-issa-${i}`,
+        studentId: 'demo_issa',
+        studentName: 'Issa Diop',
+        date: dateStr,
+        status,
+        time
+      });
+
+      let lStatus = 'Présent';
+      let lTime = '08:05';
+      if (i === 8) {
+        lStatus = 'Retard';
+        lTime = '08:20';
+      }
+      presenceHistory.push({
+        id: `pres-lyna-${i}`,
+        studentId: 'demo_lyna',
+        studentName: 'Lyna Diop',
+        date: dateStr,
+        status: lStatus,
+        time: lTime
+      });
+    }
+  }
+  localStorage.setItem('mf_demo_presence_history', JSON.stringify(presenceHistory));
+
+  // 2. Today's presence
+  localStorage.setItem('mf_demo_presence', JSON.stringify({ 
+    demo_issa: { status: 'Présent', time: '08:12' }, 
+    demo_lyna: { status: 'Présent', time: '08:05' } 
+  }));
+
+  // 3. Canteen History
+  const cantineHistory = [];
+  for (let i = 1; i <= 30; i++) {
+    const dateStr = getRelativeDateStr(i);
+    const d = new Date(dateStr);
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) {
+      if (i !== 12) {
+        cantineHistory.push({
+          id: `cant-issa-${i}`,
+          studentId: 'demo_issa',
+          date: dateStr,
+          confirmed: true,
+          time: '12:00'
+        });
+      }
+      cantineHistory.push({
+        id: `cant-lyna-${i}`,
+        studentId: 'demo_lyna',
+        date: dateStr,
+        confirmed: true,
+        time: '12:15'
+      });
+    }
+  }
+  localStorage.setItem('mf_demo_cantine_history', JSON.stringify(cantineHistory));
+
+  // 4. Today's canteen
+  localStorage.setItem('mf_demo_cantine', JSON.stringify({ 
+    demo_issa: { confirmed: true, time: '12:00' }, 
+    demo_lyna: { confirmed: true, time: '12:15' } 
+  }));
+
+  // 5. Homework
+  const homework = [
+    { id: 'dh-1', subject: 'Mathématiques', title: 'Exercices sur les tables de multiplication de 7 et 8', class: 'CE2', dueDate: getRelativeDateStr(-1), done: false },
+    { id: 'dh-2', subject: 'Français', title: 'Lecture chapitres 3 et 4 du Petit Prince', class: 'CE2', dueDate: getRelativeDateStr(-1), done: true },
+    { id: 'dh-3', subject: 'Français', title: 'Commentaire composé sur Phèdre de Racine', class: 'Première', dueDate: getRelativeDateStr(-3), done: false },
+    { id: 'dh-4', subject: 'Physique', title: 'Devoir maison sur la réfraction de la lumière', class: 'Première', dueDate: getRelativeDateStr(-2), done: false },
+    { id: 'dh-5', subject: 'Anglais', title: 'Essay on Climate Change impacts', class: 'Première', dueDate: getRelativeDateStr(-1), done: false },
+    { id: 'dh-6', subject: 'Histoire', title: 'Régimes totalitaires dans les années 1930', class: 'Première', dueDate: getRelativeDateStr(-4), done: false }
+  ];
+  const subjectsCE2 = ['Mathématiques', 'Français', 'Histoire', 'Sciences', 'Arts'];
+  const subjects1ere = ['Mathématiques', 'Français', 'Physique-Chimie', 'Histoire-Géo', 'Anglais', 'Espagnol'];
+  for (let i = 2; i <= 25; i++) {
+    const dateStr = getRelativeDateStr(i);
+    const d = new Date(dateStr);
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) {
+      if (i % 2 === 0) {
+        homework.push({
+          id: `dh-hist-ce2-${i}`,
+          subject: subjectsCE2[i % subjectsCE2.length],
+          title: `Exercice page ${15 + i} du manuel`,
+          class: 'CE2',
+          dueDate: dateStr,
+          done: true
+        });
+      }
+      if (i % 3 === 0) {
+        homework.push({
+          id: `dh-hist-1ere-${i}`,
+          subject: subjects1ere[i % subjects1ere.length],
+          title: `Préparation du chapitre ${1 + (i % 5)}`,
+          class: 'Première',
+          dueDate: dateStr,
+          done: true
+        });
+      }
+    }
+  }
+  localStorage.setItem('mf_demo_homework', JSON.stringify(homework));
+
+  // 6. Chores Tasks
+  const tasksList = [
+    { id: 'dtk-1', title: 'Vider le lave-vaisselle', rewardPoints: 15, done: false, rotation: 'daily', assignedMemberId: 'demo_issa', assignedMemberName: 'Issa Diop', validatedByParent: false, dueDate: getRelativeDateStr(0) },
+    { id: 'dtk-2', title: 'Sortir la poubelle de tri', rewardPoints: 10, done: true, rotation: 'daily', assignedMemberId: 'demo_lyna', assignedMemberName: 'Lyna Diop', validatedByParent: false, dueDate: getRelativeDateStr(0) },
+    { id: 'dtk-3', title: 'Nettoyer la table du salon', rewardPoints: 5, done: false, rotation: 'daily', assignedMemberId: 'demo_issa', assignedMemberName: 'Issa Diop', validatedByParent: false, dueDate: getRelativeDateStr(0) },
+    { id: 'dtk-4', title: 'Ranger sa chambre', rewardPoints: 20, done: false, rotation: 'weekly', assignedMemberId: 'demo_lyna', assignedMemberName: 'Lyna Diop', validatedByParent: false, dueDate: getRelativeDateStr(-2) }
+  ];
+  const choreTitles = ['Vider le lave-vaisselle', 'Sortir la poubelle de tri', 'Nettoyer la table', 'Passer l\'aspirateur', 'Nourrir le chien Toby', 'Arroser les plantes'];
+  for (let i = 1; i <= 30; i++) {
+    const dateStr = getRelativeDateStr(i);
+    tasksList.push({
+      id: `dtk-hist-issa-${i}`,
+      title: choreTitles[i % choreTitles.length],
+      rewardPoints: 10,
+      done: true,
+      rotation: 'daily',
+      assignedMemberId: 'demo_issa',
+      assignedMemberName: 'Issa Diop',
+      validatedByParent: true,
+      dueDate: dateStr
+    });
+    if (i % 2 === 0) {
+      tasksList.push({
+        id: `dtk-hist-lyna-${i}`,
+        title: choreTitles[(i + 2) % choreTitles.length],
+        rewardPoints: 15,
+        done: true,
+        rotation: 'daily',
+        assignedMemberId: 'demo_lyna',
+        assignedMemberName: 'Lyna Diop',
+        validatedByParent: true,
+        dueDate: dateStr
+      });
+    }
+  }
+  localStorage.setItem('mf_demo_tasks', JSON.stringify(tasksList));
+
+  // 7. News
+  const newsList = [
+    { id: 'cn-1', title: '🌳 Nouveau parc urbain et végétalisé', content: 'Le nouveau parc municipal ouvrira ses portes le mois prochain avec des aires de jeux et des zones de détente arborées.', date: getRelativeDateStr(2), time: '10:00' },
+    { id: 'cn-2', title: '📖 Modernisation de la Médiathèque', content: 'Des liseuses et 500 nouveaux ouvrages jeunesse ont été acquis pour la section enfants et adolescents.', date: getRelativeDateStr(7), time: '14:30' },
+    { id: 'cn-3', title: '🎒 Inscriptions périscolaires 2026-2027', content: 'Les dossiers d\'inscription pour la cantine et le centre de loisirs sont ouverts sur le portail citoyen.', date: getRelativeDateStr(12), time: '08:30' },
+    { id: 'cn-4', title: '🚲 Extension des pistes cyclables', content: 'Deux nouveaux kilomètres de pistes cyclables protégées reliant la mairie au lycée Simone Veil ont été inaugurés.', date: getRelativeDateStr(18), time: '11:15' },
+    { id: 'cn-5', title: '♻️ Distribution de composteurs gratuits', content: 'La mairie organise une distribution de composteurs individuels ce samedi sur présentation d\'un justificatif de domicile.', date: getRelativeDateStr(25), time: '09:00' }
+  ];
+  localStorage.setItem('mf_demo_commune_news', JSON.stringify(newsList));
+
+  // 8. Alerts
+  const alertsList = [
+    { id: 'ca-1', title: '🚧 Travaux Avenue Foch', description: 'Circulation perturbée et stationnement interdit de 9h à 17h.', date: getRelativeDateStr(0), time: '09:00', type: 'warning' },
+    { id: 'ca-2', title: '📢 Réunion publique', description: 'Présentation du projet d\'aménagement des pistes cyclables à 18h en mairie.', date: getRelativeDateStr(0), time: '18:00', type: 'info' },
+    { id: 'ca-3', title: '⚠️ Alerte Météo : Orages violents', description: 'Vigilance jaune orages ce soir. Mettez à l\'abri les objets extérieurs.', date: getRelativeDateStr(5), time: '16:00', type: 'warning' },
+    { id: 'ca-4', title: '🚧 Coupure d\'eau temporaire Rue Verte', description: 'En raison de travaux sur le réseau, l\'eau sera coupée le mardi 2 juin de 14h à 16h.', date: getRelativeDateStr(10), time: '08:00', type: 'warning' },
+    { id: 'ca-5', title: '📢 Collecte des déchets verts décalée', description: 'En raison du jour férié, la collecte est reportée au lendemain.', date: getRelativeDateStr(20), time: '17:00', type: 'info' }
+  ];
+  localStorage.setItem('mf_demo_commune_alerts', JSON.stringify(alertsList));
+
+  // 9. Events
+  const eventsList = [
+    { id: 'ce-1', title: '🎵 Fête de la Musique', description: 'Concerts gratuits sur la place de la mairie à partir de 18h00.', date: getRelativeDateStr(-15), time: '18:00' },
+    { id: 'ce-2', title: '🌳 Journée de l\'Environnement', description: 'Nettoyage citoyen de la forêt et ateliers de sensibilisation.', date: getRelativeDateStr(-8), time: '09:00' },
+    { id: 'ce-3', title: '🧸 Brocante de Printemps', description: 'Plus de 200 exposants dans le centre-ville historique toute la journée.', date: getRelativeDateStr(4), time: '07:00' },
+    { id: 'ce-4', title: '🎭 Théâtre en plein air', description: 'Représentation gratuite de Molière dans les jardins de la mairie.', date: getRelativeDateStr(14), time: '20:30' },
+    { id: 'ce-5', title: '⚽ Tournoi Sportif Inter-Quartiers', description: 'Tournoi amical de football et basket au complexe sportif.', date: getRelativeDateStr(22), time: '10:00' }
+  ];
+  localStorage.setItem('mf_demo_commune_events', JSON.stringify(eventsList));
+
+  // 10. Polls
+  const pollsList = [
+    {
+      id: 'cp-1',
+      question: 'Réaménagement du parc municipal',
+      description: 'Quel projet souhaitez-vous voir en priorité pour le parc municipal ?',
+      options: [
+        { text: 'Aires de jeux pour enfants (CE2 / Ados)', votes: ['demo_maman'] },
+        { text: 'Pistes cyclables sécurisées', votes: ['demo_papa'] },
+        { text: 'Espaces verts de détente', votes: [] }
+      ],
+      active: true,
+      dueDate: getRelativeDateStr(-10)
+    },
+    {
+      id: 'cp-2',
+      question: 'Choix des activités d\'été pour les jeunes',
+      description: 'Quel type d\'activité préférez-vous pour le centre aéré en juillet ?',
+      options: [
+        { text: 'Stages sportifs et piscines', votes: [] },
+        { text: 'Ateliers artistiques et de codage', votes: ['demo_maman'] },
+        { text: 'Sorties de pleine nature et accrobranche', votes: ['demo_papa'] }
+      ],
+      active: true,
+      dueDate: getRelativeDateStr(-5)
+    },
+    {
+      id: 'cp-3',
+      question: 'Nom de la nouvelle bibliothèque municipale',
+      description: 'Votez pour le nom de l\'Espace Culturel qui ouvrira en septembre.',
+      options: [
+        { text: 'Espace Victor Hugo', votes: ['demo_papa'] },
+        { text: 'Médiathèque Simone Veil', votes: ['demo_maman'] }
+      ],
+      active: false,
+      dueDate: getRelativeDateStr(5)
+    }
+  ];
+  localStorage.setItem('mf_demo_commune_polls', JSON.stringify(pollsList));
+
+  // 11. Teacher Messages
+  const msgList = [
+    { id: 'tm-1', senderId: 'demo_school_primary_teacher', senderName: 'M. Bernard', receiverId: 'demo_papa', receiverName: 'Mamadou Diop', content: 'Bonjour Monsieur, Issa a-t-il bien révisé ses tables de multiplication ? Il semblait un peu en difficulté aujourd\'hui.', timestamp: '16:15', date: getRelativeDateStr(5), read: true },
+    { id: 'tm-2', senderId: 'demo_papa', senderName: 'Mamadou Diop', receiverId: 'demo_school_primary_teacher', receiverName: 'M. Bernard', content: 'Bonjour M. Bernard, oui nous y travaillons tous les soirs avec son outil de calcul mental MaFamille+. Nous allons insister cette semaine.', timestamp: '18:30', date: getRelativeDateStr(5), read: true },
+    { id: 'tm-3', senderId: 'demo_school_primary_teacher', senderName: 'M. Bernard', receiverId: 'demo_papa', receiverName: 'Mamadou Diop', content: 'Très bien, j\'ai hâte de voir ses progrès demain lors du petit quiz de classe ! Bonsoir.', timestamp: '19:00', date: getRelativeDateStr(5), read: true },
+    { id: 'tm-4', senderId: 'demo_school_primary_teacher', senderName: 'M. Bernard', receiverId: 'demo_maman', receiverName: 'Aminata Diop', content: 'Bonjour, Issa a oublié sa veste rouge sous le préau ce midi. Je l\'ai mise de côté dans la classe.', timestamp: '15:45', date: getRelativeDateStr(2), read: true },
+    { id: 'tm-5', senderId: 'demo_maman', senderName: 'Aminata Diop', receiverId: 'demo_school_primary_teacher', receiverName: 'M. Bernard', content: 'Bonjour Mme/M. Bernard, merci beaucoup ! Issa la récupérera demain matin.', timestamp: '16:05', date: getRelativeDateStr(2), read: true },
+    
+    { id: 'tm-6', senderId: 'demo_school_high_teacher', senderName: 'Mme Leroy', receiverId: 'demo_maman', receiverName: 'Aminata Diop', content: 'Bonjour Madame Diop, je vous confirme que la réunion d\'information Parcoursup pour Lyna est fixée au vendredi 12 juin.', timestamp: '10:00', date: getRelativeDateStr(4), read: true },
+    { id: 'tm-7', senderId: 'demo_maman', senderName: 'Aminata Diop', receiverId: 'demo_school_high_teacher', receiverName: 'Mme Leroy', content: 'C\'est bien noté, nous serons présents avec son père. Lyna est très motivée par les spécialités scientifiques.', timestamp: '11:15', date: getRelativeDateStr(4), read: true },
+    { id: 'tm-8', senderId: 'demo_school_high_teacher', senderName: 'Mme Leroy', receiverId: 'demo_maman', receiverName: 'Aminata Diop', content: 'Parfait, c\'est en effet une excellente orientation au vu de ses derniers résultats en physique !', timestamp: '12:00', date: getRelativeDateStr(4), read: true }
+  ];
+  localStorage.setItem('mf_demo_teacher_messages', JSON.stringify(msgList));
+
+  // 12. School Trips
+  const tripsList = [
+    {
+      id: 'st-1',
+      school: 'École Victor Hugo (CE2)',
+      title: 'Sortie au Musée d\'Histoire Naturelle',
+      description: 'Découverte de la grande galerie de l\'évolution et atelier fossiles.',
+      date: getRelativeDateStr(-10),
+      cost: 12,
+      status: 'approved_parent',
+      parentPermission: true,
+      paid: true
+    },
+    {
+      id: 'st-2',
+      school: 'Lycée Simone Veil (1ère)',
+      title: 'Voyage d\'études à Londres',
+      description: 'Séjour linguistique de 5 jours en famille d\'accueil avec visites culturelles.',
+      date: getRelativeDateStr(-25),
+      cost: 320,
+      status: 'pending_parent',
+      parentPermission: false,
+      paid: false
+    },
+    {
+      id: 'st-3',
+      school: 'École Victor Hugo (CE2)',
+      title: 'Sortie Cinéma : Le Petit Prince',
+      description: 'Séance spéciale cinéma citoyen suivie d\'un débat en classe.',
+      date: getRelativeDateStr(12),
+      cost: 6,
+      status: 'validated_admin',
+      parentPermission: true,
+      paid: true
+    }
+  ];
+  localStorage.setItem('mf_demo_school_trips', JSON.stringify(tripsList));
+
+  // 13. Transactions
+  const categories = ['Alimentation', 'Éducation', 'Loisirs', 'Transport', 'Santé', 'Logement'];
+  const titles = [
+    'Supermarché Leclerc',
+    'Achat livres scolaires',
+    'Cinéma Pathé',
+    'Plein d’essence Total',
+    'Pharmacie de la Mairie',
+    'Facture électricité EDF',
+    'Boulangerie Banette',
+    'Abonnement Transports',
+    'Achat matériel de sport',
+    'Dentiste - Dr. Dupont'
+  ];
+  const txList = [
+    { id: 'dt-1', amount: -45.00, type: 'expense', category: 'Éducation', title: 'Paiement Cantine Issa', date: getRelativeDateStr(0), time: '14:20', memberId: 'demo_papa' },
+    { id: 'dt-2', amount: -120.00, type: 'expense', category: 'Loisirs', title: 'Réservation train TGV Marseille', date: getRelativeDateStr(0), time: '10:00', memberId: 'demo_papa' },
+    { id: 'dt-3', amount: -850.00, type: 'expense', category: 'Logement', title: 'Réservation hôtel Vieux-Port Marseille', date: getRelativeDateStr(0), time: '10:05', memberId: 'demo_papa' },
+    { id: 'dt-4', amount: -60.00, type: 'expense', category: 'Loisirs', title: 'Activité Kayak Calanques Marseille', date: getRelativeDateStr(-35), time: '14:00', memberId: 'demo_papa' },
+    { id: 'dt-5', amount: -12.00, type: 'expense', category: 'Éducation', title: 'Paiement Sortie Musée d\'Histoire Naturelle (CE2)', date: getRelativeDateStr(10), time: '18:15', memberId: 'demo_maman' }
+  ];
+  for (let i = 1; i <= 25; i++) {
+    txList.push({
+      id: `dt-hist-${i}`,
+      amount: -Math.floor(Math.random() * 80 + 5),
+      type: 'expense',
+      category: categories[i % categories.length],
+      title: titles[i % titles.length],
+      date: getRelativeDateStr(i),
+      time: `1${i % 10}:00`,
+      memberId: i % 2 === 0 ? 'demo_papa' : 'demo_maman'
+    });
+  }
+  localStorage.setItem('mf_demo_transactions', JSON.stringify(txList));
+
+  // 14. Vaccines
+  localStorage.setItem('mf_demo_vaccines', JSON.stringify([
+    { id: 'dv-1', name: 'Rappel ROR', status: 'À faire', doctor: 'Dr. Martin', date: getRelativeDateStr(-14), time: '16:00', memberId: 'demo_lyna' }
+  ]));
+
+  // 15. Trips
+  localStorage.setItem('mf_demo_trips', JSON.stringify([
+    {
+      id: 'dtr-1',
+      destination: 'Marseille',
+      startDate: getRelativeDateStr(-39),
+      endDate: getRelativeDateStr(-32),
+      budget: 1800,
+      checklist: [
+        { id: 'c1', text: 'Réserver train TGV', done: true },
+        { id: 'c2', text: 'Réserver hôtel Vieux-Port', done: true },
+        { id: 'c3', text: 'Planifier activités', done: false }
+      ]
+    }
+  ]));
+
+  // 16. Signalements
+  localStorage.setItem('mf_demo_signalements', JSON.stringify([
+    { id: 'sig-1', title: 'Nid de poule Rue de Paris', description: 'Gros nid de poule dangereux pour les vélos.', status: 'En cours', date: getRelativeDateStr(0), time: '10:30', author: 'Mamadou Diop' }
+  ]));
+
+  // 17. School Comms
+  localStorage.setItem('mf_demo_comms', JSON.stringify([
+    { id: 'dcm-1', content: 'Réunion parents-professeurs le vendredi 12 juin à 18h00 en salle polyvalente.', date: getRelativeDateStr(0), time: '08:00', sender: 'Direction de l\'Établissement' }
+  ]));
+
+  // 18. Pocket Money
+  localStorage.setItem('mf_demo_pocket_money', JSON.stringify([
+    { id: 'demo_issa', name: 'Issa Diop', balance: 25.00, points: 140, avatar: '👦' },
+    { id: 'demo_lyna', name: 'Lyna Diop', balance: 75.00, points: 320, avatar: '👧' }
+  ]));
+
+  // 19. Notifications
+  localStorage.setItem('mf_demo_notifications', JSON.stringify([
+    { id: 'dn-1', title: '🏫 Appel École Victor Hugo', message: 'Issa Diop a été marqué Présent à 08h12.', read: false, time: '08:12', date: getRelativeDateStr(0), module: 'ecole', createdAt: new Date().toISOString() },
+    { id: 'dn-2', title: '🏛️ Alerte Travaux', message: 'Travaux Avenue Foch : circulation perturbée de 9h à 17h.', read: false, time: '09:00', date: getRelativeDateStr(0), module: 'commune', createdAt: new Date().toISOString() }
+  ]));
+
+  localStorage.setItem('mf_demo_data_initialized_v3', 'true');
+};
+
+ensureDemoDataInitialized();
+
 function App() {
   // Safe localStorage helper functions to prevent any corrupt cache startup crashes
   const safeGetLocalStorage = <T,>(key: string, fallback: T): T => {
@@ -387,10 +762,12 @@ function App() {
     { id: 'demo_maman', name: 'Aminata Diop', title: 'Maman - Gestionnaire', role: 'parent', emoji: '👩' },
     { id: 'demo_issa', name: 'Issa Diop', title: 'Issa - Élève de CE2 (8 ans)', role: 'child', emoji: '👦' },
     { id: 'demo_lyna', name: 'Lyna Diop', title: 'Lyna - Élève de Première (16 ans)', role: 'child', emoji: '👧' },
-    { id: 'demo_commune_admin', name: 'Cormeilles-en-Parisis', title: 'Administrateur Commune (Mairie)', role: 'commune_admin', emoji: '🏛️' },
-    { id: 'demo_commune_agent', name: 'Agent Municipal', title: 'Agent Technique & Signalements', role: 'commune_agent', emoji: '👷' },
-    { id: 'demo_school_admin', name: 'Direction École/Lycée', title: 'Direction - Statistiques & Comms', role: 'school_admin', emoji: '🏫' },
-    { id: 'demo_school_teacher', name: 'Enseignant CE2', title: 'Enseignant - Appel & Devoirs', role: 'school_teacher', emoji: '👨‍🏫' }
+    { id: 'demo_commune_admin', name: 'M. Le Maire', title: 'Maire de Cormeilles-en-Parisis', role: 'commune_admin', emoji: '🏛️' },
+    { id: 'demo_commune_agent', name: 'Agent Municipal', title: 'Agent Technique Terrain', role: 'commune_agent', emoji: '👷' },
+    { id: 'demo_school_primary_admin', name: 'Mme Martin', title: 'Directrice - École Victor Hugo', role: 'school_primary_admin', emoji: '🏫' },
+    { id: 'demo_school_high_admin', name: 'Mme Dubois', title: 'Proviseure - Lycée Simone Veil', role: 'school_high_admin', emoji: '🏫' },
+    { id: 'demo_school_primary_teacher', name: 'M. Bernard', title: 'Enseignant CE2 - Victor Hugo', role: 'school_primary_teacher', emoji: '👨‍🏫' },
+    { id: 'demo_school_high_teacher', name: 'Mme Leroy', title: 'Prof. Principal 1ère - Simone Veil', role: 'school_high_teacher', emoji: '👩‍🏫' }
   ];
 
   const demoMembers: Member[] = [
@@ -454,129 +831,97 @@ function App() {
 
   const [demoSchoolPresence, setDemoSchoolPresence] = useState<any>(() => {
     const saved = localStorage.getItem('mf_demo_presence');
-    return saved ? JSON.parse(saved) : { 
-      demo_issa: { status: 'Présent', time: '08:12' }, 
-      demo_lyna: { status: 'Présent', time: '08:05' } 
-    };
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const [demoSchoolPresenceHistory, setDemoSchoolPresenceHistory] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_presence_history');
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [demoSchoolCantine, setDemoSchoolCantine] = useState<any>(() => {
     const saved = localStorage.getItem('mf_demo_cantine');
-    return saved ? JSON.parse(saved) : { 
-      demo_issa: { confirmed: true, time: '12:00' }, 
-      demo_lyna: { confirmed: true, time: '12:15' } 
-    };
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const [demoSchoolCantineHistory, setDemoSchoolCantineHistory] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_cantine_history');
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [demoCommuneAlerts, setDemoCommuneAlerts] = useState<any[]>(() => {
     const saved = localStorage.getItem('mf_demo_commune_alerts');
-    const todayStr = new Date().toISOString().split('T')[0];
-    return saved ? JSON.parse(saved) : [
-      { id: 'ca-1', title: '🚧 Travaux Avenue Foch', description: 'Circulation perturbée et stationnement interdit de 9h à 17h.', date: todayStr, time: '09:00', type: 'warning' },
-      { id: 'ca-2', title: '📢 Réunion publique', description: 'Présentation du projet d\'aménagement des pistes cyclables à 18h en mairie.', date: todayStr, time: '18:00', type: 'info' }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
-  const [demoCommunePoll, setDemoCommunePoll] = useState<any>(() => {
-    const saved = localStorage.getItem('mf_demo_commune_poll');
-    return saved ? JSON.parse(saved) : {
-      id: 'cp-1',
-      question: 'Réaménagement du parc municipal',
-      description: 'Quel projet souhaitez-vous voir en priorité pour le parc municipal ?',
-      options: [
-        { text: 'Aires de jeux pour enfants (CE2 / Ados)', votes: ['demo_maman'] },
-        { text: 'Pistes cyclables sécurisées', votes: [] },
-        { text: 'Espaces verts de détente', votes: [] }
-      ]
-    };
+  const [demoCommuneNews, setDemoCommuneNews] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_commune_news');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [demoCommuneEvents, setDemoCommuneEvents] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_commune_events');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [demoCommunePolls, setDemoCommunePolls] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_commune_polls');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [demoTeacherParentMessages, setDemoTeacherParentMessages] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_teacher_messages');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [demoSchoolTrips, setDemoSchoolTrips] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mf_demo_school_trips');
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [demoTransactions, setDemoTransactions] = useState<any[]>(() => {
     const saved = localStorage.getItem('mf_demo_transactions');
-    const todayStr = new Date().toISOString().split('T')[0];
-    return saved ? JSON.parse(saved) : [
-      { id: 'dt-1', amount: -45.00, type: 'expense', category: 'Éducation', title: 'Paiement Cantine Issa', date: todayStr, time: '14:20', memberId: 'demo_papa' },
-      { id: 'dt-2', amount: -120.00, type: 'expense', category: 'Loisirs', title: 'Réservation train TGV Marseille', date: todayStr, time: '10:00', memberId: 'demo_papa' },
-      { id: 'dt-3', amount: -850.00, type: 'expense', category: 'Logement', title: 'Réservation hôtel Vieux-Port Marseille', date: todayStr, time: '10:05', memberId: 'demo_papa' },
-      { id: 'dt-4', amount: -60.00, type: 'expense', category: 'Loisirs', title: 'Activité Kayak Calanques Marseille', date: '2026-07-16', time: '14:00', memberId: 'demo_papa' }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [demoVaccines, _setDemoVaccines] = useState<any[]>(() => {
     const saved = localStorage.getItem('mf_demo_vaccines');
-    return saved ? JSON.parse(saved) : [
-      { id: 'dv-1', name: 'Rappel ROR', status: 'À faire', doctor: 'Dr. Martin', date: '2026-06-20', time: '16:00', memberId: 'demo_lyna' }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [demoTrips, _setDemoTrips] = useState<any[]>(() => {
     const saved = localStorage.getItem('mf_demo_trips');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: 'dtr-1',
-        destination: 'Marseille',
-        startDate: '2026-07-15',
-        endDate: '2026-07-22',
-        budget: 1800,
-        checklist: [
-          { id: 'c1', text: 'Réserver train TGV', done: true },
-          { id: 'c2', text: 'Réserver hôtel Vieux-Port', done: true },
-          { id: 'c3', text: 'Planifier activités', done: false }
-        ]
-      }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [demoSignalements, setDemoSignalements] = useState<any[]>(() => {
     const saved = localStorage.getItem('mf_demo_signalements');
-    const todayStr = new Date().toISOString().split('T')[0];
-    return saved ? JSON.parse(saved) : [
-      { id: 'sig-1', title: 'Nid de poule Rue de Paris', description: 'Gros nid de poule dangereux pour les vélos.', status: 'En cours', date: todayStr, time: '10:30', author: 'Mamadou Diop' }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [demoSchoolHomework, setDemoSchoolHomework] = useState<any[]>(() => {
     const saved = localStorage.getItem('mf_demo_homework');
-    return saved ? JSON.parse(saved) : [
-      { id: 'dh-1', subject: 'Mathématiques', title: 'Exercices sur les tables de multiplication de 7 et 8', class: 'CE2', dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], done: false },
-      { id: 'dh-2', subject: 'Français', title: 'Lecture chapitres 3 et 4 du Petit Prince', class: 'CE2', dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], done: true },
-      { id: 'dh-3', subject: 'Français', title: 'Commentaire composé sur Phèdre de Racine', class: 'Première', dueDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0], done: false },
-      { id: 'dh-4', subject: 'Physique', title: 'Devoir maison sur la réfraction de la lumière', class: 'Première', dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], done: false }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [demoSchoolComms, setDemoSchoolComms] = useState<any[]>(() => {
     const saved = localStorage.getItem('mf_demo_comms');
-    const todayStr = new Date().toISOString().split('T')[0];
-    return saved ? JSON.parse(saved) : [
-      { id: 'dcm-1', content: 'Réunion parents-professeurs le vendredi 12 juin à 18h00 en salle polyvalente.', date: todayStr, time: '08:00', sender: 'Direction de l\'Établissement' }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [demoTasks, setDemoTasks] = useState<any[]>(() => {
     const saved = localStorage.getItem('mf_demo_tasks');
-    return saved ? JSON.parse(saved) : [
-      { id: 'dtk-1', title: 'Vider le lave-vaisselle', rewardPoints: 15, done: false, rotation: 'daily', assignedMemberId: 'demo_issa', assignedMemberName: 'Issa Diop', validatedByParent: false, dueDate: new Date().toISOString().split('T')[0] },
-      { id: 'dtk-2', title: 'Sortir la poubelle de tri', rewardPoints: 10, done: true, rotation: 'daily', assignedMemberId: 'demo_lyna', assignedMemberName: 'Lyna Diop', validatedByParent: false, dueDate: new Date().toISOString().split('T')[0] },
-      { id: 'dtk-3', title: 'Nettoyer la table du salon', rewardPoints: 5, done: false, rotation: 'daily', assignedMemberId: 'demo_issa', assignedMemberName: 'Issa Diop', validatedByParent: false, dueDate: new Date().toISOString().split('T')[0] }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [demoPocketMoney, setDemoPocketMoney] = useState<any[]>(() => {
     const saved = localStorage.getItem('mf_demo_pocket_money');
-    return saved ? JSON.parse(saved) : [
-      { id: 'demo_issa', name: 'Issa Diop', balance: 25.00, points: 140, avatar: '👦' },
-      { id: 'demo_lyna', name: 'Lyna Diop', balance: 75.00, points: 320, avatar: '👧' }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [demoNotifications, setDemoNotifications] = useState<any[]>(() => {
     const saved = localStorage.getItem('mf_demo_notifications');
-    const todayStr = new Date().toISOString().split('T')[0];
-    return saved ? JSON.parse(saved) : [
-      { id: 'dn-1', title: '🏫 Appel École Victor Hugo', message: 'Issa Diop a été marqué Présent à 08h12.', read: false, time: '08:12', date: todayStr, module: 'ecole', createdAt: new Date().toISOString() },
-      { id: 'dn-2', title: '🏛️ Alerte Travaux', message: 'Travaux Avenue Foch : circulation perturbée de 9h à 17h.', read: false, time: '09:00', date: todayStr, module: 'commune', createdAt: new Date().toISOString() }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   useEffect(() => {
@@ -597,12 +942,40 @@ function App() {
   }, [demoSchoolCantine]);
 
   useEffect(() => {
+    localStorage.setItem('mf_demo_presence', JSON.stringify(demoSchoolPresence));
+  }, [demoSchoolPresence]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_presence_history', JSON.stringify(demoSchoolPresenceHistory));
+  }, [demoSchoolPresenceHistory]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_cantine_history', JSON.stringify(demoSchoolCantineHistory));
+  }, [demoSchoolCantineHistory]);
+
+  useEffect(() => {
     localStorage.setItem('mf_demo_commune_alerts', JSON.stringify(demoCommuneAlerts));
   }, [demoCommuneAlerts]);
 
   useEffect(() => {
-    localStorage.setItem('mf_demo_commune_poll', JSON.stringify(demoCommunePoll));
-  }, [demoCommunePoll]);
+    localStorage.setItem('mf_demo_commune_news', JSON.stringify(demoCommuneNews));
+  }, [demoCommuneNews]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_commune_events', JSON.stringify(demoCommuneEvents));
+  }, [demoCommuneEvents]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_commune_polls', JSON.stringify(demoCommunePolls));
+  }, [demoCommunePolls]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_teacher_messages', JSON.stringify(demoTeacherParentMessages));
+  }, [demoTeacherParentMessages]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_demo_school_trips', JSON.stringify(demoSchoolTrips));
+  }, [demoSchoolTrips]);
 
   useEffect(() => {
     localStorage.setItem('mf_demo_transactions', JSON.stringify(demoTransactions));
@@ -649,45 +1022,65 @@ function App() {
     const list: any[] = [];
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // 1. School Presence
+    // 1. School Presence (Today)
     if (demoSchoolPresence.demo_issa) {
       list.push({
-        id: 'demo-presence-issa',
+        id: 'demo-presence-issa-today',
         title: `🏫 Issa présent en classe`,
         date: todayStr,
         time: demoSchoolPresence.demo_issa.time || '08:12',
-        description: `Appel enregistré à ${demoSchoolPresence.demo_issa.time || '08h12'} à l'école Victor Hugo (CE2).`,
-        notes: `Appel enregistré à ${demoSchoolPresence.demo_issa.time || '08h12'} à l'école Victor Hugo (CE2).`,
+        description: demoSchoolPresence.demo_issa.status === 'Présent'
+          ? `Appel enregistré à ${demoSchoolPresence.demo_issa.time || '08h12'} à l'école Victor Hugo (CE2).`
+          : `Marqué ${demoSchoolPresence.demo_issa.status} à ${demoSchoolPresence.demo_issa.time || '08h00'} à l'école Victor Hugo (CE2).`,
+        notes: `Classe de CE2 de M. Bernard.`,
         category: 'École',
         sourceModule: 'ecole',
         memberId: 'demo_issa',
-        completed: true
+        completed: demoSchoolPresence.demo_issa.status === 'Présent'
       });
     }
     if (demoSchoolPresence.demo_lyna) {
       list.push({
-        id: 'demo-presence-lyna',
+        id: 'demo-presence-lyna-today',
         title: `🏫 Lyna présente en classe`,
         date: todayStr,
         time: demoSchoolPresence.demo_lyna.time || '08:05',
-        description: `Appel enregistré à ${demoSchoolPresence.demo_lyna.time || '08h05'} au Lycée Simone Veil (Première).`,
-        notes: `Appel enregistré à ${demoSchoolPresence.demo_lyna.time || '08h05'} au Lycée Simone Veil (Première).`,
+        description: demoSchoolPresence.demo_lyna.status === 'Présent'
+          ? `Appel enregistré à ${demoSchoolPresence.demo_lyna.time || '08h05'} au Lycée Simone Veil (Première).`
+          : `Marquée ${demoSchoolPresence.demo_lyna.status} à ${demoSchoolPresence.demo_lyna.time || '08h00'} au Lycée Simone Veil (Première).`,
+        notes: `Classe de Première de Mme Leroy.`,
         category: 'École',
         sourceModule: 'ecole',
         memberId: 'demo_lyna',
-        completed: true
+        completed: demoSchoolPresence.demo_lyna.status === 'Présent'
       });
     }
 
-    // 2. School Cantine
+    // 1b. School Presence History
+    demoSchoolPresenceHistory.forEach((p: any) => {
+      list.push({
+        id: p.id,
+        title: `🏫 ${p.studentName} ${p.status.toLowerCase()} en classe`,
+        date: p.date,
+        time: p.time,
+        description: `Appel enregistré à ${p.time.replace(':', 'h')} (${p.studentId === 'demo_issa' ? 'CE2 Victor Hugo' : '1ère Simone Veil'}).`,
+        notes: `Enregistrement automatique démo.`,
+        category: 'École',
+        sourceModule: 'ecole',
+        memberId: p.studentId,
+        completed: p.status === 'Présent'
+      });
+    });
+
+    // 2. School Cantine (Today)
     if (demoSchoolCantine.demo_issa?.confirmed) {
       list.push({
-        id: 'demo-cantine-issa',
+        id: 'demo-cantine-issa-today',
         title: `🏫 Cantine confirmée (Issa)`,
         date: todayStr,
         time: demoSchoolCantine.demo_issa.time || '12:00',
         description: `Repas validé à la cantine scolaire Victor Hugo.`,
-        notes: `Repas validé à la cantine scolaire Victor Hugo.`,
+        notes: `Menu du jour : Émincé de volaille sauce crème, riz pilaf et compote de pommes.`,
         category: 'École',
         sourceModule: 'ecole',
         memberId: 'demo_issa',
@@ -696,7 +1089,7 @@ function App() {
     }
     if (demoSchoolCantine.demo_lyna?.confirmed) {
       list.push({
-        id: 'demo-cantine-lyna',
+        id: 'demo-cantine-lyna-today',
         title: `🏫 Cantine confirmée (Lyna)`,
         date: todayStr,
         time: demoSchoolCantine.demo_lyna.time || '12:15',
@@ -709,15 +1102,63 @@ function App() {
       });
     }
 
+    // 2b. School Cantine History
+    demoSchoolCantineHistory.forEach((c: any) => {
+      const studentName = c.studentId === 'demo_issa' ? 'Issa' : 'Lyna';
+      const schoolName = c.studentId === 'demo_issa' ? 'Victor Hugo' : 'Simone Veil';
+      list.push({
+        id: c.id,
+        title: `🏫 Cantine confirmée (${studentName})`,
+        date: c.date,
+        time: c.time,
+        description: `Repas validé à la cantine scolaire ${schoolName}.`,
+        notes: `Historique cantine.`,
+        category: 'École',
+        sourceModule: 'ecole',
+        memberId: c.studentId,
+        completed: true
+      });
+    });
+
     // 3. Commune Alerts
     demoCommuneAlerts.forEach((alert: any) => {
       list.push({
         id: alert.id,
-        title: `🏛️ ${alert.title}`,
+        title: `🏛️ Alerte Mairie : ${alert.title}`,
         date: alert.date || todayStr,
         time: alert.time || '09:00',
         description: alert.description,
-        notes: alert.description,
+        notes: `Publié par le secrétariat général de Cormeilles-en-Parisis.`,
+        category: 'Commune',
+        sourceModule: 'commune',
+        completed: true
+      });
+    });
+
+    // 3b. Commune News
+    demoCommuneNews.forEach((news: any) => {
+      list.push({
+        id: news.id,
+        title: `🏛️ Actualité Mairie : ${news.title}`,
+        date: news.date || todayStr,
+        time: news.time || '10:00',
+        description: news.content,
+        notes: `Actualité municipale.`,
+        category: 'Commune',
+        sourceModule: 'commune',
+        completed: true
+      });
+    });
+
+    // 3c. Commune Events
+    demoCommuneEvents.forEach((ev: any) => {
+      list.push({
+        id: ev.id,
+        title: `🏛️ Événement Mairie : ${ev.title}`,
+        date: ev.date || todayStr,
+        time: ev.time || '14:00',
+        description: ev.description,
+        notes: `Agenda de la ville de Cormeilles-en-Parisis.`,
         category: 'Commune',
         sourceModule: 'commune',
         completed: true
@@ -739,6 +1180,24 @@ function App() {
       });
     });
 
+    // 4b. School Trips
+    demoSchoolTrips.forEach((trip: any) => {
+      const studentName = trip.school.includes('CE2') ? 'Issa' : 'Lyna';
+      const memberId = trip.school.includes('CE2') ? 'demo_issa' : 'demo_lyna';
+      list.push({
+        id: trip.id,
+        title: `🏫 Sortie Scolaire : ${trip.title} (${studentName})`,
+        date: trip.date,
+        time: '09:00',
+        description: `${trip.description} • Statut: ${trip.status === 'approved_parent' || trip.status === 'validated_admin' ? 'Autorisé' : 'En attente d\'autorisation'}`,
+        notes: `Coût : ${trip.cost} €`,
+        category: 'École',
+        sourceModule: 'ecole',
+        memberId,
+        completed: trip.status === 'validated_admin' || trip.status === 'approved_parent'
+      });
+    });
+
     // 5. School Homework
     demoSchoolHomework.forEach((hw: any) => {
       list.push({
@@ -747,7 +1206,7 @@ function App() {
         date: hw.dueDate,
         time: '17:00',
         description: hw.done ? "✓ Terminé par l'élève" : "⏳ À faire",
-        notes: hw.done ? "✓ Terminé par l'élève" : "⏳ À faire",
+        notes: `Classe de ${hw.class}`,
         category: 'École',
         sourceModule: 'ecole',
         memberId: hw.class === 'CE2' ? 'demo_issa' : 'demo_lyna',
@@ -771,7 +1230,7 @@ function App() {
       });
     });
 
-    // 7. Transactions (Paiement Cantine, etc.)
+    // 7. Transactions
     demoTransactions.forEach((t: any) => {
       list.push({
         id: t.id,
@@ -801,8 +1260,31 @@ function App() {
       });
     });
 
+    // 9. Completed & Validated Chores
+    demoTasks.forEach((task: any) => {
+      if (task.done && task.validatedByParent) {
+        list.push({
+          id: task.id,
+          title: `🎯 Mission Ménagère : ${task.title} (${task.assignedMemberName.split(' ')[0]})`,
+          date: task.dueDate,
+          time: '18:00',
+          description: `Mission terminée et validée par les parents. +${task.rewardPoints} points Étoile.`,
+          notes: `Attribué à ${task.assignedMemberName}`,
+          category: 'Missions',
+          sourceModule: 'taches',
+          memberId: task.assignedMemberId,
+          completed: true
+        });
+      }
+    });
+
     return list;
-  }, [demoActive, demoSchoolPresence, demoSchoolCantine, demoCommuneAlerts, demoSchoolComms, demoSchoolHomework, demoVaccines, demoTransactions, demoTrips]);
+  }, [
+    demoActive, demoSchoolPresence, demoSchoolPresenceHistory, demoSchoolCantine, 
+    demoSchoolCantineHistory, demoCommuneAlerts, demoCommuneNews, demoCommuneEvents, 
+    demoSchoolComms, demoSchoolTrips, demoSchoolHomework, demoVaccines, demoTransactions, 
+    demoTrips, demoTasks
+  ]);
 
   const triggerDemoNotification = (title: string, message: string, moduleName: string) => {
     const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -1275,7 +1757,7 @@ function App() {
       if (activeModule === 'commune' && (demoProfileId === 'demo_papa' || demoProfileId === 'demo_maman')) {
         setDemoProfileId('demo_commune_admin');
       } else if (activeModule === 'ecole' && (demoProfileId === 'demo_papa' || demoProfileId === 'demo_maman')) {
-        setDemoProfileId('demo_school_admin');
+        setDemoProfileId('demo_school_primary_admin');
       }
     }
   }, [demoActive, activeModule, demoProfileId]);
@@ -1861,21 +2343,7 @@ function App() {
   useEffect(() => {
     localStorage.setItem('mf_demo_active', String(demoActive));
     localStorage.setItem('mf_demo_profile_id', demoProfileId);
-    localStorage.setItem('mf_demo_presence', JSON.stringify(demoSchoolPresence));
-    localStorage.setItem('mf_demo_cantine', JSON.stringify(demoSchoolCantine));
-    localStorage.setItem('mf_demo_commune_alerts', JSON.stringify(demoCommuneAlerts));
-    localStorage.setItem('mf_demo_commune_poll', JSON.stringify(demoCommunePoll));
-    localStorage.setItem('mf_demo_transactions', JSON.stringify(demoTransactions));
-    localStorage.setItem('mf_demo_vaccines', JSON.stringify(demoVaccines));
-    localStorage.setItem('mf_demo_trips', JSON.stringify(demoTrips));
-    localStorage.setItem('mf_demo_signalements', JSON.stringify(demoSignalements));
-    localStorage.setItem('mf_demo_homework', JSON.stringify(demoSchoolHomework));
-    localStorage.setItem('mf_demo_comms', JSON.stringify(demoSchoolComms));
-  }, [
-    demoActive, demoProfileId, demoSchoolPresence, demoSchoolCantine, 
-    demoCommuneAlerts, demoCommunePoll, demoTransactions, demoVaccines, 
-    demoTrips, demoSignalements, demoSchoolHomework, demoSchoolComms
-  ]);
+  }, [demoActive, demoProfileId]);
 
   const handleEnterDiscoverMode = (profileId: string) => {
     localStorage.setItem('mf_discover_mode', 'true');
@@ -1894,7 +2362,7 @@ function App() {
     if (profileId === 'demo_commune_admin' || profileId === 'demo_commune_agent') {
       setActiveTab('menu');
       setActiveModule('commune');
-    } else if (profileId === 'demo_school_admin' || profileId === 'demo_school_teacher') {
+    } else if (['demo_school_primary_admin', 'demo_school_high_admin', 'demo_school_primary_teacher', 'demo_school_high_teacher'].includes(profileId)) {
       setActiveTab('menu');
       setActiveModule('ecole');
     } else {
@@ -10571,6 +11039,8 @@ function App() {
             demoSchoolPresence={demoSchoolPresence}
             demoSchoolHomework={demoSchoolHomework}
             setDemoSchoolHomework={setDemoSchoolHomework}
+            demoSchoolTrips={demoSchoolTrips}
+            setDemoSchoolTrips={setDemoSchoolTrips}
             triggerDemoNotification={triggerDemoNotification}
           />
         );
@@ -10584,11 +11054,15 @@ function App() {
             setDemoSchoolHomework={setDemoSchoolHomework}
             demoSchoolComms={demoSchoolComms}
             demoVaccines={demoVaccines}
+            demoSchoolTrips={demoSchoolTrips}
+            setDemoSchoolTrips={setDemoSchoolTrips}
+            demoTeacherParentMessages={demoTeacherParentMessages}
+            setDemoTeacherParentMessages={setDemoTeacherParentMessages}
             triggerDemoNotification={triggerDemoNotification}
           />
         );
       }
-      if (demoProfileId === 'demo_school_admin' || demoProfileId === 'demo_school_teacher') {
+      if (['demo_school_primary_admin', 'demo_school_high_admin', 'demo_school_primary_teacher', 'demo_school_high_teacher'].includes(demoProfileId)) {
         return (
           <DemoSchoolSpace 
             demoProfileId={demoProfileId}
@@ -10596,14 +11070,22 @@ function App() {
             setActiveTab={setActiveTab}
             demoSchoolPresence={demoSchoolPresence}
             setDemoSchoolPresence={setDemoSchoolPresence}
+            demoSchoolPresenceHistory={demoSchoolPresenceHistory}
+            setDemoSchoolPresenceHistory={setDemoSchoolPresenceHistory}
             demoSchoolCantine={demoSchoolCantine}
             setDemoSchoolCantine={setDemoSchoolCantine}
+            demoSchoolCantineHistory={demoSchoolCantineHistory}
+            setDemoSchoolCantineHistory={setDemoSchoolCantineHistory}
             demoTransactions={demoTransactions}
             setDemoTransactions={setDemoTransactions}
             demoSchoolHomework={demoSchoolHomework}
             setDemoSchoolHomework={setDemoSchoolHomework}
             demoSchoolComms={demoSchoolComms}
             setDemoSchoolComms={setDemoSchoolComms}
+            demoTeacherParentMessages={demoTeacherParentMessages}
+            setDemoTeacherParentMessages={setDemoTeacherParentMessages}
+            demoSchoolTrips={demoSchoolTrips}
+            setDemoSchoolTrips={setDemoSchoolTrips}
             triggerDemoNotification={triggerDemoNotification}
             onBack={() => handleSwitchDemoProfile('demo_papa')}
           />
@@ -10617,8 +11099,12 @@ function App() {
             setActiveTab={setActiveTab}
             demoCommuneAlerts={demoCommuneAlerts}
             setDemoCommuneAlerts={setDemoCommuneAlerts}
-            demoCommunePoll={demoCommunePoll}
-            setDemoCommunePoll={setDemoCommunePoll}
+            demoCommuneNews={demoCommuneNews}
+            setDemoCommuneNews={setDemoCommuneNews}
+            demoCommuneEvents={demoCommuneEvents}
+            setDemoCommuneEvents={setDemoCommuneEvents}
+            demoCommunePolls={demoCommunePolls}
+            setDemoCommunePolls={setDemoCommunePolls}
             demoSignalements={demoSignalements}
             setDemoSignalements={setDemoSignalements}
             triggerDemoNotification={triggerDemoNotification}
@@ -10742,8 +11228,12 @@ function App() {
               setActiveTab={setActiveTab}
               demoCommuneAlerts={demoCommuneAlerts}
               setDemoCommuneAlerts={setDemoCommuneAlerts}
-              demoCommunePoll={demoCommunePoll}
-              setDemoCommunePoll={setDemoCommunePoll}
+              demoCommuneNews={demoCommuneNews}
+              setDemoCommuneNews={setDemoCommuneNews}
+              demoCommuneEvents={demoCommuneEvents}
+              setDemoCommuneEvents={setDemoCommuneEvents}
+              demoCommunePolls={demoCommunePolls}
+              setDemoCommunePolls={setDemoCommunePolls}
               demoSignalements={demoSignalements}
               setDemoSignalements={setDemoSignalements}
               triggerDemoNotification={triggerDemoNotification}
@@ -10777,18 +11267,26 @@ function App() {
               setActiveTab={setActiveTab}
               demoSchoolPresence={demoSchoolPresence}
               setDemoSchoolPresence={setDemoSchoolPresence}
+              demoSchoolPresenceHistory={demoSchoolPresenceHistory}
+              setDemoSchoolPresenceHistory={setDemoSchoolPresenceHistory}
               demoSchoolCantine={demoSchoolCantine}
               setDemoSchoolCantine={setDemoSchoolCantine}
+              demoSchoolCantineHistory={demoSchoolCantineHistory}
+              setDemoSchoolCantineHistory={setDemoSchoolCantineHistory}
               demoTransactions={demoTransactions}
               setDemoTransactions={setDemoTransactions}
               demoSchoolHomework={demoSchoolHomework}
               setDemoSchoolHomework={setDemoSchoolHomework}
               demoSchoolComms={demoSchoolComms}
               setDemoSchoolComms={setDemoSchoolComms}
+              demoTeacherParentMessages={demoTeacherParentMessages}
+              setDemoTeacherParentMessages={setDemoTeacherParentMessages}
+              demoSchoolTrips={demoSchoolTrips}
+              setDemoSchoolTrips={setDemoSchoolTrips}
               triggerDemoNotification={triggerDemoNotification}
               onBack={() => {
                 setActiveModule('');
-                if (demoActive && (demoProfileId === 'demo_school_admin' || demoProfileId === 'demo_school_teacher')) {
+                if (demoActive && ['demo_school_primary_admin', 'demo_school_high_admin', 'demo_school_primary_teacher', 'demo_school_high_teacher'].includes(demoProfileId)) {
                   handleSwitchDemoProfile('demo_papa');
                 }
               }}
@@ -11096,12 +11594,14 @@ function App() {
                 <option value="demo_lyna">👧 Lyna (Ado 16 ans)</option>
               </optgroup>
               <optgroup label="Mairie & Services" className="bg-[#07111F]">
-                <option value="demo_commune_admin">🏛️ Ville de Cormeilles (Admin)</option>
-                <option value="demo_commune_agent">👷 Agent Municipal</option>
+                <option value="demo_commune_admin">🏛️ M. Le Maire (Cormeilles)</option>
+                <option value="demo_commune_agent">👷 Agent Technique Terrain</option>
               </optgroup>
               <optgroup label="Établissements Scolaires" className="bg-[#07111F]">
-                <option value="demo_school_admin">🏫 Direction Établissement</option>
-                <option value="demo_school_teacher">👨‍🏫 Enseignant (CE2)</option>
+                <option value="demo_school_primary_admin">🏫 Mme Martin (Directrice Victor Hugo)</option>
+                <option value="demo_school_primary_teacher">👨‍🏫 M. Bernard (Enseignant CE2)</option>
+                <option value="demo_school_high_admin">🏫 Mme Dubois (Proviseure Simone Veil)</option>
+                <option value="demo_school_high_teacher">👩‍🏫 Mme Leroy (Prof. Principal 1ère)</option>
               </optgroup>
             </select>
             <button
