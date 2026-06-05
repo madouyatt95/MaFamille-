@@ -36,7 +36,6 @@ import {
   Edit3,
   Map as MapIcon,
   BookOpen,
-  Paintbrush,
   Save,
   X,
   Phone,

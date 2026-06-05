@@ -2701,7 +2701,7 @@ function App() {
       }
 
       if (transactionsRes.data) {
-        const mapped = transactionsRes.data.map(t => {
+        const mapped = transactionsRes.data.map((t: any) => {
           const { comment, metadata } = deserializeTransactionComment(t.comment);
           return {
             id: t.id, amount: Number(t.amount), type: t.type, category: t.category,
@@ -2742,7 +2742,7 @@ function App() {
       }
 
       if (documentsRes.data) {
-        const mapped = documentsRes.data.map(d => ({
+        const mapped = documentsRes.data.map((d: any) => ({
           id: d.id, name: d.name, category: d.category, subCategory: d.sub_category,
           memberId: d.member_id, memberName: d.member_name, tags: d.tags || [],
           uploadDate: d.upload_date, expiryDate: d.expiry_date, fileSize: d.file_size,
@@ -2798,7 +2798,7 @@ function App() {
       }
 
       if (memoriesRes.data) {
-        const mapped = memoriesRes.data.map(m => ({
+        const mapped = memoriesRes.data.map((m: any) => ({
           id: m.id, date: m.date, title: m.title, description: m.description,
           authorName: m.author_name, authorPhoto: m.author_photo, imageUrl: m.image_url,
           imageUrls: m.image_urls || [], likesCount: m.likes_count, isPrivate: m.is_private, theme: m.theme
