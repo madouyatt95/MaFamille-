@@ -239,6 +239,7 @@ interface MenuHubProps {
   foyer?: any;
   accounts?: Account[];
   transactions?: Transaction[];
+  setTransactions?: React.Dispatch<React.SetStateAction<Transaction[]>>;
 }
 
 const getTripDuration = (start: string, end: string) => {
@@ -386,7 +387,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   setMembers,
   initialChatGroupId,
   accounts = [],
-  transactions = []
+  transactions = [],
+  setTransactions
 }) => {
   const [newGroceryName, setNewGroceryName] = useState('');
   const [newGroceryCat, setNewGroceryCat] = useState('Épicerie');
@@ -4752,7 +4754,11 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                       <button 
                         type="button"
                         onClick={() => {
-                          if (window.confirm("Supprimer ce projet de voyage ainsi que ses dépenses associées ?")) {
+                          if (window.confirm("Voulez-vous supprimer ce projet de voyage ?")) {
+                            const deleteExpenses = window.confirm(
+                              "Voulez-vous également SUPPRIMER toutes les dépenses liées à ce voyage ?\n\n(Cliquez sur 'Annuler' pour CONSERVER les dépenses en retirant simplement leur lien avec ce voyage)"
+                            );
+                            
                             setTrips(prev => prev.filter(item => item.id !== t.id));
                             
                             const client = getSupabaseClient();
@@ -4760,6 +4766,38 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                               client.from('trips').delete().eq('id', t.id).then(({ error }) => {
                                 if (error) console.error("Error deleting trip in Supabase:", error);
                               });
+                            }
+                            
+                            if (setTransactions) {
+                              if (deleteExpenses) {
+                                setTransactions(prev => prev.filter(tx => tx.travel_id !== t.id && tx.travelId !== t.id));
+                                if (client) {
+                                  client.from('transactions').delete().eq('travel_id', t.id).then(({ error }) => {
+                                    if (error) console.error("Error deleting trip transactions in Supabase:", error);
+                                  });
+                                }
+                              } else {
+                                setTransactions(prev => prev.map(tx => {
+                                  if (tx.travel_id === t.id || tx.travelId === t.id) {
+                                    const cleanedComment = tx.comment ? tx.comment.replace(/__METADATA__:.*$/, '').trim() : '';
+                                    return { ...tx, travel_id: undefined, travelId: undefined, comment: cleanedComment };
+                                  }
+                                  return tx;
+                                }));
+                                if (client) {
+                                  client.from('transactions').select('*').eq('travel_id', t.id).then(({ data }) => {
+                                    if (data) {
+                                      data.forEach(async (row: any) => {
+                                        const cleanedComment = row.comment ? row.comment.replace(/__METADATA__:.*$/, '').trim() : '';
+                                        await client.from('transactions').update({
+                                          travel_id: null,
+                                          comment: cleanedComment
+                                        }).eq('id', row.id);
+                                      });
+                                    }
+                                  });
+                                }
+                              }
                             }
                           }
                         }}

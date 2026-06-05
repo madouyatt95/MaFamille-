@@ -186,7 +186,8 @@ export const Budget: React.FC<BudgetProps> = ({
 
   const saveModuleBudgets = (updated: typeof moduleBudgets) => {
     setModuleBudgets(updated);
-    localStorage.setItem(`mf_module_budgets_${foyerId}`, JSON.stringify(updated));
+    const key = foyerId ? `mf_module_budgets_${foyerId}` : 'mf_module_budgets_global';
+    localStorage.setItem(key, JSON.stringify(updated));
   };
 
   // Limit state modal
@@ -397,28 +398,65 @@ export const Budget: React.FC<BudgetProps> = ({
 
   // Categories resolution
   const allCategories = useMemo(() => {
-    const list = [...DEFAULT_CATEGORIES];
+    const categoryToModuleMap: Record<string, string> = {
+      'alimentation': 'courses',
+      'santé': 'sante',
+      'sante': 'sante',
+      'transport': 'vehicules',
+      'véhicules': 'vehicules',
+      'vehicules': 'vehicules',
+      'logement': 'logement',
+      'voyages': 'voyages',
+      'voyage': 'voyages',
+      'éducation': 'ecole',
+      'education': 'ecole',
+      'école': 'ecole',
+      'ecole': 'ecole',
+      'administratif': 'demarches',
+      'démarches': 'demarches',
+      'demarches': 'demarches',
+      'animaux': 'animaux',
+      'argent de poche': 'argent_de_poche',
+      'tâches': 'taches',
+      'taches': 'taches'
+    };
+
+    const getModuleLimit = (catName: string): number => {
+      const key = catName.toLowerCase().trim();
+      const moduleId = categoryToModuleMap[key];
+      if (moduleId) {
+        return moduleBudgets[moduleId]?.budget || 0;
+      }
+      return 0;
+    };
+
+    const list = DEFAULT_CATEGORIES.map(c => ({
+      ...c,
+      budget: getModuleLimit(c.name)
+    }));
+
     customCategories.forEach(cc => {
       const idx = list.findIndex(c => c.name.toLowerCase() === cc.name.toLowerCase());
+      const modLimit = getModuleLimit(cc.name);
       if (idx !== -1) {
         list[idx] = {
           ...list[idx],
           icon: cc.icon || list[idx].icon,
           color: cc.color || list[idx].color,
-          budget: 0
+          budget: modLimit
         };
       } else {
         list.push({
           name: cc.name,
           icon: cc.icon || '✨',
           color: cc.color || '#3B82F6',
-          budget: 0,
+          budget: modLimit,
           sub: cc.subcategories || ['Divers']
         } as any);
       }
     });
     return list;
-  }, [customCategories]);
+  }, [customCategories, moduleBudgets]);
 
   const activeSubcategories = useMemo(() => {
     const matched = allCategories.find(c => c.name === txForm.category);
@@ -1267,6 +1305,50 @@ export const Budget: React.FC<BudgetProps> = ({
           <span className="text-[9px] text-white/30 block">Cagnottes et projets</span>
         </div>
       </div>
+
+      {/* Cockpit Global Budgets Modules */}
+      {(() => {
+        const totalModuleLimit = Object.values(moduleBudgets).reduce((acc, b) => acc + (b?.budget || 0), 0);
+        if (totalModuleLimit === 0) return null;
+        const totalModuleSpent = Object.values(moduleDépenses).reduce((acc, s) => acc + s, 0);
+        const totalModuleRemaining = Math.max(0, totalModuleLimit - totalModuleSpent);
+        const totalModulePct = Math.min(100, Math.round((totalModuleSpent / totalModuleLimit) * 100));
+
+        return (
+          <div className="glass-panel border border-white/5 p-5 rounded-3xl space-y-3">
+            <div className="flex justify-between items-center text-xs">
+              <div>
+                <h4 className="font-extrabold text-white text-sm">Cockpit Global des Budgets Modules</h4>
+                <p className="text-[9px] text-white/40 mt-0.5">Consommation cumulée des limites définies par module</p>
+              </div>
+              <div className="text-right">
+                <span className="text-sm font-black text-white block">
+                  {formatMoney(totalModuleRemaining)} <span className="text-[9px] text-white/40 font-normal">disponibles</span>
+                </span>
+                <span className="text-[10px] text-white/50 block">
+                  Limite totale : {formatMoney(totalModuleLimit)}
+                </span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="relative h-2.5 bg-white/5 rounded-full overflow-hidden">
+                <div 
+                  className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${
+                    totalModulePct >= 100 ? 'bg-rose-500' : totalModulePct >= 80 ? 'bg-amber-500' : 'bg-purple-500'
+                  }`} 
+                  style={{ width: `${totalModulePct}%` }} 
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-white/40 font-semibold">
+                <span>Consommé : {formatMoney(totalModuleSpent)}</span>
+                <span className={totalModulePct >= 100 ? 'text-rose-400 font-bold animate-pulse' : ''}>
+                  {totalModulePct}% utilisé
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Over-expenditure Warnings */}
       {stats.alerts.length > 0 && (
@@ -2387,15 +2469,46 @@ export const Budget: React.FC<BudgetProps> = ({
                     const isHighlighted = selectedDonutSegment !== null && donutData.segments[selectedDonutSegment]?.category === cat.name;
 
                     return (
-                      <div 
-                        key={cat.name} 
-                        className={`p-2 rounded-xl border transition ${isHighlighted ? 'bg-white/5 border-purple-500/20' : 'bg-transparent border-transparent'}`}
-                      >
-                        <div className="flex justify-between text-[11px] items-center">
-                          <span className="font-extrabold text-white flex items-center gap-1">{cat.icon} {cat.name}</span>
-                          <span className="text-white/70 font-semibold">{formatMoney(totalDep)}</span>
-                        </div>
-                      </div>
+                      {(() => {
+                        const limit = cat.budget || 0;
+                        const pct = limit > 0 ? Math.min(100, Math.round((totalDep / limit) * 100)) : 0;
+                        const restant = Math.max(0, limit - totalDep);
+
+                        return (
+                          <div 
+                            key={cat.name} 
+                            className={`p-3 rounded-2xl border transition space-y-2 ${
+                              isHighlighted ? 'bg-white/5 border-purple-500/20' : 'bg-white/2 border-white/5'
+                            }`}
+                          >
+                            <div className="flex justify-between text-[11px] items-center font-sans">
+                              <span className="font-extrabold text-white flex items-center gap-1.5">{cat.icon} {cat.name}</span>
+                              <div className="text-right font-sans">
+                                <span className="text-white font-bold block">{formatMoney(totalDep)}</span>
+                                {limit > 0 && (
+                                  <span className="text-[9px] text-white/40 block">Limite : {formatMoney(limit)}</span>
+                                )}
+                              </div>
+                            </div>
+                            {limit > 0 && (
+                              <div className="space-y-1">
+                                <div className="relative h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${
+                                      pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-purple-500'
+                                    }`} 
+                                    style={{ width: `${pct}%` }} 
+                                  />
+                                </div>
+                                <div className="flex justify-between text-[9px] text-white/40 font-semibold font-sans">
+                                  <span>Restant : {formatMoney(restant)}</span>
+                                  <span className={pct >= 100 ? 'text-rose-400 font-bold' : ''}>{pct}%</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     );
                   })}
                 </div>

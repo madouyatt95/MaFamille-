@@ -1016,8 +1016,40 @@ function App() {
       setEvents(prev => prev.filter(e => e.id !== rawId));
       if (client) await client.from('events').delete().eq('id', rawId);
     } else if (moduleName === 'voyages') {
-      setTrips(prev => prev.filter(t => t.id !== rawId));
-      if (client) await client.from('trips').delete().eq('id', rawId);
+      if (window.confirm("Voulez-vous supprimer ce projet de voyage ?")) {
+        const deleteExpenses = window.confirm(
+          "Voulez-vous également SUPPRIMER toutes les dépenses liées à ce voyage ?\n\n(Cliquez sur 'Annuler' pour CONSERVER les dépenses en retirant simplement leur lien avec ce voyage)"
+        );
+        
+        setTrips(prev => prev.filter(t => t.id !== rawId));
+        if (client) await client.from('trips').delete().eq('id', rawId);
+        
+        if (deleteExpenses) {
+          setTransactions(prev => prev.filter(tx => tx.travel_id !== rawId && tx.travelId !== rawId));
+          if (client) await client.from('transactions').delete().eq('travel_id', rawId);
+        } else {
+          setTransactions(prev => prev.map(tx => {
+            if (tx.travel_id === rawId || tx.travelId === rawId) {
+              const cleanedComment = tx.comment ? tx.comment.replace(/__METADATA__:.*$/, '').trim() : '';
+              return { ...tx, travel_id: undefined, travelId: undefined, comment: cleanedComment };
+            }
+            return tx;
+          }));
+          if (client) {
+            client.from('transactions').select('*').eq('travel_id', rawId).then(({ data }) => {
+              if (data) {
+                data.forEach(async (row: any) => {
+                  const cleanedComment = row.comment ? row.comment.replace(/__METADATA__:.*$/, '').trim() : '';
+                  await client.from('transactions').update({
+                    travel_id: null,
+                    comment: cleanedComment
+                  }).eq('id', row.id);
+                });
+              }
+            });
+          }
+        }
+      }
     } else if (moduleName === 'demarches') {
       setDemarches(prev => prev.filter(d => d.id !== rawId));
       if (client) await client.from('demarches').delete().eq('id', rawId);
@@ -1034,8 +1066,9 @@ function App() {
       setMaintenance(prev => prev.filter(m => m.id !== rawId));
       if (client) await client.from('maintenance').delete().eq('id', rawId);
     } else if (moduleName === 'budget') {
-      setAbonnements(prev => prev.filter(a => a.id !== rawId));
-      if (client) await client.from('abonnements').delete().eq('id', rawId);
+      const baseAboId = rawId.split('-')[0];
+      setAbonnements(prev => prev.filter(a => a.id !== baseAboId));
+      if (client) await client.from('abonnements').delete().eq('id', baseAboId);
     } else if (moduleName === 'animaux') {
       const isVac = id.startsWith('pet-vac-');
       const isVet = id.startsWith('pet-vet-');
@@ -6802,12 +6835,17 @@ function App() {
 
       let amountVal = 0;
       let hasExplicitAmount = false;
-      for (const rx of explicitAmountRegexes) {
-        const m = promptLower.match(rx);
-        if (m) {
-          amountVal = parseFloat(m[1].replace(',', '.'));
-          hasExplicitAmount = true;
-          break;
+      const hasBudgetKeyword = 
+        /€|euros?|dépense|depense|payé|paye|payer|coût|coûte|coute|cout|facture|abonnement|prélèvement|prelevement|dollars?|\$|eur|usd/i.test(promptLower);
+
+      if (hasBudgetKeyword) {
+        for (const rx of explicitAmountRegexes) {
+          const m = promptLower.match(rx);
+          if (m) {
+            amountVal = parseFloat(m[1].replace(',', '.'));
+            hasExplicitAmount = true;
+            break;
+          }
         }
       }
 
@@ -9003,7 +9041,7 @@ function App() {
     }
     // 9. Recurring Billing / Abonnement (abonnements table)
     else if (id.startsWith('abo-')) {
-      const rawId = id.replace('abo-', '');
+      const rawId = id.replace('abo-', '').split('-')[0];
       setAbonnements(prev => prev.map(a => {
         if (a.id === rawId) {
           if (client) client.from('abonnements').update({ next_billing_date: newDate }).eq('id', rawId);
@@ -9915,6 +9953,7 @@ function App() {
           onUpdateMemberProfile={handleUpdateMemberProfile}
           goals={savingGoals}
           transactions={transactions}
+          setTransactions={setTransactions}
           alerts={filteredAlerts}
           currencySymbol={getCurrencySymbol()}
           formatMoney={formatMoney}

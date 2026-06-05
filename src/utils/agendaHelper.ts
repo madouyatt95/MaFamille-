@@ -135,6 +135,26 @@ interface GetUnifiedEventsArgs {
   foyerId?: string;
 }
 
+function getNextBillingDate(currentDateStr: string, period: 'daily' | 'weekly' | 'monthly' | 'yearly'): string {
+  const date = new Date(currentDateStr);
+  if (isNaN(date.getTime())) return currentDateStr;
+  
+  if (period === 'daily') {
+    date.setDate(date.getDate() + 1);
+  } else if (period === 'weekly') {
+    date.setDate(date.getDate() + 7);
+  } else if (period === 'monthly') {
+    date.setMonth(date.getMonth() + 1);
+  } else if (period === 'yearly') {
+    date.setFullYear(date.getFullYear() + 1);
+  }
+  
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function getUnifiedEvents({
   events,
   members,
@@ -387,22 +407,27 @@ export function getUnifiedEvents({
 
   // 9. ADD BUDGET (Abonnements récurrents / prélèvements)
   abonnements.forEach(a => {
-    const aDate = a.nextBillingDate || todayStr;
-    unifiedList.push({
-      id: `abo-${a.id}`,
-      family_id: foyerId,
-      title: `💸 Prélèvement : ${a.name}`,
-      description: `Montant : ${a.amount}€ (${a.period === 'monthly' ? 'Mensuel' : a.period === 'yearly' ? 'Annuel' : a.period === 'weekly' ? 'Hebdomadaire' : a.period})`,
-      start_date: aDate,
-      end_date: aDate,
-      start_time: '08:00',
-      end_time: '',
-      all_day: false,
-      source_module: 'budget',
-      source_id: a.id,
-      event_type: 'bill',
-      done: false
-    });
+    let aDate = a.nextBillingDate || todayStr;
+    const maxOccurrences = a.period === 'daily' ? 15 : a.period === 'weekly' ? 52 : a.period === 'monthly' ? 12 : a.period === 'yearly' ? 2 : 1;
+    
+    for (let i = 0; i < maxOccurrences; i++) {
+      unifiedList.push({
+        id: `abo-${a.id}-${i}`,
+        family_id: foyerId,
+        title: `💸 Prélèvement : ${a.name}`,
+        description: `Montant : ${a.amount}€ (${a.period === 'monthly' ? 'Mensuel' : a.period === 'yearly' ? 'Annuel' : a.period === 'weekly' ? 'Hebdomadaire' : a.period})`,
+        start_date: aDate,
+        end_date: aDate,
+        start_time: '08:00',
+        end_time: '',
+        all_day: false,
+        source_module: 'budget',
+        source_id: a.id,
+        event_type: 'bill',
+        done: false
+      });
+      aDate = getNextBillingDate(aDate, a.period);
+    }
   });
 
   // 10. ADD PETS (RDV & vaccins animaux)
