@@ -10,30 +10,187 @@ import {
   Search,
   ArrowLeft
 } from 'lucide-react';
-import type { Member } from '../types';
-import type { UnifiedEvent } from '../utils/agendaHelper';
+import type { 
+  Member, 
+  Transaction, 
+  Trip, 
+  DocumentFile, 
+  GroceryItem, 
+  ChoreTask, 
+  Demarche, 
+  Vehicle, 
+  HomeMaintenance, 
+  PetRecord, 
+  FamilyVote,
+  FamilyEvent
+} from '../types';
 
 interface TimelineProps {
-  events: UnifiedEvent[];
   members: Member[];
   onBack?: () => void;
   activeMemberId?: string;
+
+  // Real data sources
+  events: FamilyEvent[];
+  transactions: Transaction[];
+  vaccines: any[];
+  trips: Trip[];
+  documents: DocumentFile[];
+  groceries: GroceryItem[];
+  tasks: ChoreTask[];
+  demarches: Demarche[];
+  vehicles: Vehicle[];
+  maintenance: HomeMaintenance[];
+  pets: PetRecord[];
+  votes: FamilyVote[];
 }
 
 type TimelineCategory = 'Tous' | 'Famille' | 'École' | 'Santé' | 'Budget' | 'Voyages' | 'Commune';
 
-interface CategoryDetail {
+interface ModuleStyle {
   label: string;
-  icon?: any;
-  colorClass: string;
-  dotColor?: string;
-  shadowColor?: string;
-  borderColor?: string;
-  segmentColor?: string;
+  dotColor: string;
+  shadowColor: string;
+  borderColor: string;
+  segmentColor: string;
+  badgeBg: string;
+  badgeText: string;
 }
+
+const moduleConfig: Record<string, ModuleStyle> = {
+  sante: { 
+    label: 'Santé', 
+    dotColor: 'bg-[#FF4D6D]', 
+    shadowColor: 'shadow-[0_0_15px_rgba(255,77,109,0.6)]', 
+    borderColor: 'border-[#FF4D6D]/45 hover:border-[#FF4D6D]/85', 
+    segmentColor: 'bg-[#FF4D6D]',
+    badgeBg: 'bg-[#FF4D6D]/15',
+    badgeText: 'text-[#FF4D6D]'
+  },
+  budget: { 
+    label: 'Budget', 
+    dotColor: 'bg-[#FFD700]', 
+    shadowColor: 'shadow-[0_0_15px_rgba(255,215,0,0.6)]', 
+    borderColor: 'border-[#FFD700]/45 hover:border-[#FFD700]/85', 
+    segmentColor: 'bg-[#FFD700]',
+    badgeBg: 'bg-[#FFD700]/15',
+    badgeText: 'text-[#FFD700]'
+  },
+  voyages: { 
+    label: 'Voyages', 
+    dotColor: 'bg-[#4F8CFF]', 
+    shadowColor: 'shadow-[0_0_15px_rgba(79,140,255,0.6)]', 
+    borderColor: 'border-[#4F8CFF]/45 hover:border-[#4F8CFF]/85', 
+    segmentColor: 'bg-[#4F8CFF]',
+    badgeBg: 'bg-[#4F8CFF]/15',
+    badgeText: 'text-[#4F8CFF]'
+  },
+  courses: { 
+    label: 'Courses', 
+    dotColor: 'bg-[#00D26A]', 
+    shadowColor: 'shadow-[0_0_15px_rgba(0,210,106,0.6)]', 
+    borderColor: 'border-[#00D26A]/45 hover:border-[#00D26A]/85', 
+    segmentColor: 'bg-[#00D26A]',
+    badgeBg: 'bg-[#00D26A]/15',
+    badgeText: 'text-[#00D26A]'
+  },
+  demarches: { 
+    label: 'Démarches', 
+    dotColor: 'bg-[#6C5CFF]', 
+    shadowColor: 'shadow-[0_0_15px_rgba(108,92,255,0.6)]', 
+    borderColor: 'border-[#6C5CFF]/45 hover:border-[#6C5CFF]/85', 
+    segmentColor: 'bg-[#6C5CFF]',
+    badgeBg: 'bg-[#6C5CFF]/15',
+    badgeText: 'text-[#9d94ff]'
+  },
+  documents: { 
+    label: 'Documents', 
+    dotColor: 'bg-[#00F5FF]', 
+    shadowColor: 'shadow-[0_0_15px_rgba(0,245,255,0.6)]', 
+    borderColor: 'border-[#00F5FF]/45 hover:border-[#00F5FF]/85', 
+    segmentColor: 'bg-[#00F5FF]',
+    badgeBg: 'bg-[#00F5FF]/15',
+    badgeText: 'text-[#00F5FF]'
+  },
+  taches: { 
+    label: 'Tâches', 
+    dotColor: 'bg-[#FF8C00]', 
+    shadowColor: 'shadow-[0_0_15px_rgba(255,140,0,0.6)]', 
+    borderColor: 'border-[#FF8C00]/45 hover:border-[#FF8C00]/85', 
+    segmentColor: 'bg-[#FF8C00]',
+    badgeBg: 'bg-[#FF8C00]/15',
+    badgeText: 'text-[#FF8C00]'
+  },
+  agenda: { 
+    label: 'Agenda', 
+    dotColor: 'bg-[#6C5CFF]', 
+    shadowColor: 'shadow-[0_0_15px_rgba(108,92,255,0.6)]', 
+    borderColor: 'border-[#6C5CFF]/45 hover:border-[#6C5CFF]/85', 
+    segmentColor: 'bg-[#6C5CFF]',
+    badgeBg: 'bg-[#6C5CFF]/15',
+    badgeText: 'text-[#9d94ff]'
+  },
+  logement: { 
+    label: 'Logement', 
+    dotColor: 'bg-[#FF8C00]', 
+    shadowColor: 'shadow-[0_0_15px_rgba(255,140,0,0.6)]', 
+    borderColor: 'border-[#FF8C00]/45 hover:border-[#FF8C00]/85', 
+    segmentColor: 'bg-[#FF8C00]',
+    badgeBg: 'bg-[#FF8C00]/15',
+    badgeText: 'text-[#FF8C00]'
+  },
+  vehicules: { 
+    label: 'Véhicules', 
+    dotColor: 'bg-[#4F8CFF]', 
+    shadowColor: 'shadow-[0_0_15px_rgba(79,140,255,0.6)]', 
+    borderColor: 'border-[#4F8CFF]/45 hover:border-[#4F8CFF]/85', 
+    segmentColor: 'bg-[#4F8CFF]',
+    badgeBg: 'bg-[#4F8CFF]/15',
+    badgeText: 'text-[#4F8CFF]'
+  },
+  animaux: { 
+    label: 'Animaux', 
+    dotColor: 'bg-[#00D26A]', 
+    shadowColor: 'shadow-[0_0_15px_rgba(0,210,106,0.6)]', 
+    borderColor: 'border-[#00D26A]/45 hover:border-[#00D26A]/85', 
+    segmentColor: 'bg-[#00D26A]',
+    badgeBg: 'bg-[#00D26A]/15',
+    badgeText: 'text-[#00D26A]'
+  },
+  conseil: { 
+    label: 'Conseil', 
+    dotColor: 'bg-[#6C5CFF]', 
+    shadowColor: 'shadow-[0_0_15px_rgba(108,92,255,0.6)]', 
+    borderColor: 'border-[#6C5CFF]/45 hover:border-[#6C5CFF]/85', 
+    segmentColor: 'bg-[#6C5CFF]',
+    badgeBg: 'bg-[#6C5CFF]/15',
+    badgeText: 'text-[#9d94ff]'
+  }
+};
+
+const categoryDetails = {
+  Tous: { label: 'Tous', colorClass: 'bg-[#6C5CFF]/15 text-[#6C5CFF] border-[#6C5CFF]/30 hover:bg-[#6C5CFF]/25' },
+  Famille: { label: 'Famille', icon: Users, colorClass: 'bg-[#6C5CFF]/15 text-[#9d94ff] border-[#6C5CFF]/30 hover:bg-[#6C5CFF]/25' },
+  École: { label: 'École', icon: GraduationCap, colorClass: 'bg-[#00D26A]/15 text-[#00D26A] border-[#00D26A]/30 hover:bg-[#00D26A]/25' },
+  Santé: { label: 'Santé', icon: HeartPulse, colorClass: 'bg-[#FF4D6D]/15 text-[#FF4D6D] border-[#FF4D6D]/30 hover:bg-[#FF4D6D]/25' },
+  Budget: { label: 'Budget', icon: Wallet, colorClass: 'bg-[#FFD700]/15 text-[#FFD700] border-[#FFD700]/30 hover:bg-[#FFD700]/25' },
+  Voyages: { label: 'Voyages', icon: Plane, colorClass: 'bg-[#4F8CFF]/15 text-[#4F8CFF] border-[#4F8CFF]/30 hover:bg-[#4F8CFF]/25' },
+  Commune: { label: 'Commune', icon: Landmark, colorClass: 'bg-[#FF9F1C]/15 text-[#FF9F1C] border-[#FF9F1C]/30 hover:bg-[#FF9F1C]/25' }
+};
 
 export const Timeline: React.FC<TimelineProps> = ({
   events,
+  transactions,
+  vaccines,
+  trips,
+  documents,
+  groceries,
+  tasks,
+  demarches,
+  vehicles,
+  maintenance,
+  pets,
+  votes,
   members,
   onBack,
   activeMemberId: _activeMemberId
@@ -49,101 +206,283 @@ export const Timeline: React.FC<TimelineProps> = ({
     return `${year}-${month}-${day}`;
   }, []);
 
-  // Inject mock commune events to make the "Commune" tab lively
-  const allEventsWithCommune = useMemo(() => {
-    const mockCommuneEvents: UnifiedEvent[] = [
-      {
-        id: 'commune-mock-1',
-        family_id: 'default',
-        title: 'Réunion publique de quartier',
-        description: 'Présentation du projet d\'aménagement des pistes cyclables et espaces verts de la mairie.',
-        start_date: todayStr,
-        end_date: todayStr,
-        start_time: '18:00',
-        end_time: '',
-        all_day: false,
-        source_module: 'external',
-        source_id: 'mock-1',
-        event_type: 'other',
-        done: false
-      },
-      {
-        id: 'commune-mock-2',
-        family_id: 'default',
-        title: 'Alerte météo : Vigilance Orages',
-        description: 'Vigilance orange orages et vents violents de 20h à minuit. Restez à l\'abri.',
-        start_date: todayStr,
-        end_date: todayStr,
-        start_time: '20:00',
-        end_time: '',
-        all_day: false,
-        source_module: 'external',
-        source_id: 'mock-2',
-        event_type: 'other',
-        done: false
-      },
-      {
-        id: 'commune-mock-3',
-        family_id: 'default',
-        title: 'Collecte des déchets encombrants',
-        description: 'Passage mensuel de la benne de collecte à partir de 8h00 dans la rue principale.',
-        start_date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // tomorrow
-        end_date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-        start_time: '08:00',
-        end_time: '',
-        all_day: false,
-        source_module: 'external',
-        source_id: 'mock-3',
-        event_type: 'other',
-        done: false
-      }
-    ];
+  const getTimelineItems = (): any[] => {
+    const items: any[] = [];
 
-    // Combine standard events with Commune mock events
-    return [...events, ...mockCommuneEvents].sort((a, b) => {
-      const dateComp = a.start_date.localeCompare(b.start_date);
-      if (dateComp !== 0) return dateComp;
-      return a.start_time.localeCompare(b.start_time);
+    // 1. Budget (Transactions)
+    (transactions || []).forEach(t => {
+      if (t.isArchived) return;
+      const trans = t as any;
+      const date = trans.date || trans.entryDate || '';
+      if (!date) return;
+      items.push({
+        id: `budget-${trans.id}`,
+        source_module: 'budget',
+        source_id: trans.id,
+        title: trans.title || 'Dépense/Revenu',
+        description: `${trans.amount > 0 ? '+' : ''}${trans.amount} € • Catégorie: ${trans.category || 'Autre'}`,
+        date: date,
+        time: trans.time || trans.entryTime || '12:00',
+        icon: '💰',
+        member_id: trans.memberId
+      });
     });
-  }, [events, todayStr]);
 
-  // Map source_module / event_type to a category
-  const getEventCategory = (e: UnifiedEvent): TimelineCategory => {
-    if (e.id.startsWith('commune-mock')) return 'Commune';
+    // 2. Santé (Vaccines)
+    (vaccines || []).forEach(v => {
+      const date = v.date || '';
+      if (!date) return;
+      items.push({
+        id: `sante-${v.id}`,
+        source_module: 'sante',
+        source_id: v.id,
+        title: v.name || 'Suivi Santé',
+        description: `Statut: ${v.status || 'À faire'} • Médecin: ${v.doctor || 'Non spécifié'}`,
+        date: date,
+        time: v.time || '09:00',
+        icon: '❤️',
+        member_id: v.memberId
+      });
+    });
 
-    const module = e.source_module;
-    const type = e.event_type as string;
+    // 3. Voyages (Trips)
+    (trips || []).forEach(tr => {
+      const date = tr.startDate || '';
+      if (!date) return;
+      items.push({
+        id: `voyages-${tr.id}`,
+        source_module: 'voyages',
+        source_id: tr.id,
+        title: `Voyage à ${tr.destination}`,
+        description: `Départ prévu jusqu'au ${tr.endDate || 'fin inconnue'} • Budget: ${tr.budget} €`,
+        date: date,
+        time: '08:00',
+        icon: '✈️',
+        member_id: undefined
+      });
+    });
 
-    if (module === 'ecole' || type === 'school' || type === 'schoolTask') return 'École';
-    if (module === 'sante' || module === 'animaux' || type === 'vaccine' || type === 'pet_vac' || type === 'pet_vet') return 'Santé';
-    if (module === 'budget' || type === 'bill' || type === 'abonnement') return 'Budget';
-    if (module === 'voyages' || type === 'trip') return 'Voyages';
-    
-    // Everything else maps to family/home
-    return 'Famille';
+    // 4. Courses (Groceries)
+    (groceries || []).forEach(g => {
+      if (g.checked) return;
+      const date = g.expiryDate || new Date().toISOString().split('T')[0];
+      items.push({
+        id: `courses-${g.id}`,
+        source_module: 'courses',
+        source_id: g.id,
+        title: `Achat prévu : ${g.name}`,
+        description: `Quantité: ${g.quantity || '1'} • Rayon: ${g.category || 'Alimentation'}`,
+        date: date,
+        time: '10:00',
+        icon: '🛒',
+        member_id: g.addedBy
+      });
+    });
+
+    // 5. Démarches
+    (demarches || []).forEach(d => {
+      const date = d.dueDate || d.createdAt?.split('T')[0] || '';
+      if (!date) return;
+      items.push({
+        id: `demarches-${d.id}`,
+        source_module: 'demarches',
+        source_id: d.id,
+        title: `Démarche : ${d.title}`,
+        description: `Statut: ${d.status || 'À faire'} • ${d.steps?.length || 0} étapes`,
+        date: date,
+        time: '09:00',
+        icon: '📄',
+        member_id: d.assignedMemberId
+      });
+    });
+
+    // 6. Documents
+    (documents || []).forEach(doc => {
+      const date = doc.uploadDate || '';
+      if (!date) return;
+      items.push({
+        id: `documents-${doc.id}`,
+        source_module: 'documents',
+        source_id: doc.id,
+        title: `Document ajouté : ${doc.name}`,
+        description: `Catégorie: ${doc.category || 'Autre'} • Taille: ${doc.fileSize || 'Inconnue'}`,
+        date: date.split('T')[0],
+        time: '14:00',
+        icon: '📁',
+        member_id: doc.memberId
+      });
+    });
+
+    // 7. Agenda (Events) - Ignore holidays/fetes, ignore vaccines to avoid duplicates
+    (events || []).forEach(e => {
+      const ev = e as any;
+      if (ev.id?.startsWith('commune-mock') || ev.id?.startsWith('school-mock')) return;
+      if (ev.sourceModule === 'fetes' || ev.type === 'vaccine') return;
+      const date = ev.date || ev.dateTime?.split('T')[0] || '';
+      if (!date) return;
+      items.push({
+        id: `agenda-${ev.id}`,
+        source_module: 'agenda',
+        source_id: ev.id,
+        title: ev.title,
+        description: ev.description || ev.notes || 'Événement de l\'agenda',
+        date: date,
+        time: ev.time || '09:00',
+        icon: '📅',
+        member_id: ev.memberId
+      });
+    });
+
+    // 8. Tâches (Chore Tasks)
+    (tasks || []).forEach(t => {
+      const date = t.dueDate || '';
+      if (!date) return;
+      items.push({
+        id: `taches-${t.id}`,
+        source_module: 'taches',
+        source_id: t.id,
+        title: `Tâche : ${t.title}`,
+        description: `Attribué à: ${t.assignedMemberName || 'Tous'} • Points: ${t.rewardPoints || 0}`,
+        date: date,
+        time: '17:00',
+        icon: '🧹',
+        member_id: t.assignedMemberId
+      });
+    });
+
+    // 9. Logement (Maintenance)
+    (maintenance || []).forEach(hm => {
+      const date = hm.date || '';
+      if (!date) return;
+      items.push({
+        id: `logement-${hm.id}`,
+        source_module: 'logement',
+        source_id: hm.id,
+        title: `Entretien : ${hm.title}`,
+        description: `Prestataire: ${hm.provider || 'Non spécifié'} • Coût: ${hm.cost || 0} €`,
+        date: date,
+        time: '10:00',
+        icon: '🏠',
+        member_id: undefined
+      });
+    });
+
+    // 10. Véhicules
+    (vehicles || []).forEach(vh => {
+      if (vh.technicalControl) {
+        items.push({
+          id: `vehicules-ct-${vh.id}`,
+          source_module: 'vehicules',
+          source_id: `${vh.id}-ct`,
+          title: `CT : ${vh.name}`,
+          description: `Date limite de contrôle technique (${vh.plate || ''})`,
+          date: vh.technicalControl,
+          time: '09:00',
+          icon: '🚗',
+          member_id: undefined
+        });
+      }
+      if (vh.insuranceExpiry) {
+        items.push({
+          id: `vehicules-ins-${vh.id}`,
+          source_module: 'vehicules',
+          source_id: `${vh.id}-ins`,
+          title: `Assurance : ${vh.name}`,
+          description: `Date de renouvellement de l'assurance auto (${vh.plate || ''})`,
+          date: vh.insuranceExpiry,
+          time: '09:00',
+          icon: '🚗',
+          member_id: undefined
+        });
+      }
+    });
+
+    // 11. Animaux
+    (pets || []).forEach(p => {
+      if (p.nextVaccine) {
+        items.push({
+          id: `animaux-vac-${p.id}`,
+          source_module: 'animaux',
+          source_id: `${p.id}-vac`,
+          title: `Vaccin de ${p.name}`,
+          description: `Rappel de vaccin pour ${p.name} (${p.species || 'animal'})`,
+          date: p.nextVaccine,
+          time: '11:00',
+          icon: '🐶',
+          member_id: undefined
+        });
+      }
+      if (p.vetAppointment) {
+        items.push({
+          id: `animaux-vet-${p.id}`,
+          source_module: 'animaux',
+          source_id: `${p.id}-vet`,
+          title: `Vétérinaire : ${p.name}`,
+          description: `Rendez-vous vétérinaire pour ${p.name}`,
+          date: p.vetAppointment,
+          time: '14:00',
+          icon: '🐶',
+          member_id: undefined
+        });
+      }
+    });
+
+    // 12. Conseil de famille (Votes)
+    (votes || []).forEach(v => {
+      const date = v.dueDate || '';
+      if (!date) return;
+      items.push({
+        id: `conseil-${v.id}`,
+        source_module: 'conseil',
+        source_id: v.id,
+        title: `Conseil : ${v.question}`,
+        description: `Sondage familial actif. Auteur: ${v.authorName || 'Parent'}`,
+        date: date,
+        time: '19:00',
+        icon: '👨‍👩‍👧‍👦',
+        member_id: undefined
+      });
+    });
+
+    // Deduplicate items with: source_module + source_id + date
+    const uniqueItems: any[] = [];
+    const seen = new Set<string>();
+
+    items.forEach(item => {
+      const key = `${item.source_module}-${item.source_id}-${item.date}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueItems.push(item);
+      }
+    });
+
+    // Sort chronologically (date, then time)
+    return uniqueItems.sort((a, b) => {
+      const dateComp = a.date.localeCompare(b.date);
+      if (dateComp !== 0) return dateComp;
+      return a.time.localeCompare(b.time);
+    });
   };
 
-  const categoryDetails: Record<TimelineCategory, CategoryDetail> = {
-    Tous: { label: 'Tous', colorClass: 'bg-[#6C5CFF]/15 text-[#6C5CFF] border-[#6C5CFF]/30 hover:bg-[#6C5CFF]/25' },
-    Famille: { label: 'Famille', icon: Users, colorClass: 'bg-[#6C5CFF]/15 text-[#9d94ff] border-[#6C5CFF]/30 hover:bg-[#6C5CFF]/25', dotColor: 'bg-[#6C5CFF]', shadowColor: 'shadow-[0_0_15px_rgba(108,92,255,0.6)]', borderColor: 'border-[#6C5CFF]/45 hover:border-[#6C5CFF]/85', segmentColor: 'bg-[#6C5CFF]' },
-    École: { label: 'École', icon: GraduationCap, colorClass: 'bg-[#00D26A]/15 text-[#00D26A] border-[#00D26A]/30 hover:bg-[#00D26A]/25', dotColor: 'bg-[#00D26A]', shadowColor: 'shadow-[0_0_15px_rgba(0,210,106,0.6)]', borderColor: 'border-[#00D26A]/45 hover:border-[#00D26A]/85', segmentColor: 'bg-[#00D26A]' },
-    Santé: { label: 'Santé', icon: HeartPulse, colorClass: 'bg-[#FF4D6D]/15 text-[#FF4D6D] border-[#FF4D6D]/30 hover:bg-[#FF4D6D]/25', dotColor: 'bg-[#FF4D6D]', shadowColor: 'shadow-[0_0_15px_rgba(255,77,109,0.6)]', borderColor: 'border-[#FF4D6D]/45 hover:border-[#FF4D6D]/85', segmentColor: 'bg-[#FF4D6D]' },
-    Budget: { label: 'Budget', icon: Wallet, colorClass: 'bg-[#FFD700]/15 text-[#FFD700] border-[#FFD700]/30 hover:bg-[#FFD700]/25', dotColor: 'bg-[#FFD700]', shadowColor: 'shadow-[0_0_15px_rgba(255,215,0,0.6)]', borderColor: 'border-[#FFD700]/45 hover:border-[#FFD700]/85', segmentColor: 'bg-[#FFD700]' },
-    Voyages: { label: 'Voyages', icon: Plane, colorClass: 'bg-[#4F8CFF]/15 text-[#4F8CFF] border-[#4F8CFF]/30 hover:bg-[#4F8CFF]/25', dotColor: 'bg-[#4F8CFF]', shadowColor: 'shadow-[0_0_15px_rgba(79,140,255,0.6)]', borderColor: 'border-[#4F8CFF]/45 hover:border-[#4F8CFF]/85', segmentColor: 'bg-[#4F8CFF]' },
-    Commune: { label: 'Commune', icon: Landmark, colorClass: 'bg-[#FF9F1C]/15 text-[#FF9F1C] border-[#FF9F1C]/30 hover:bg-[#FF9F1C]/25', dotColor: 'bg-[#FF9F1C]', shadowColor: 'shadow-[0_0_15px_rgba(255,159,28,0.6)]', borderColor: 'border-[#FF9F1C]/45 hover:border-[#FF9F1C]/85', segmentColor: 'bg-[#FF9F1C]' }
+  const getTabCategory = (module: string): TimelineCategory => {
+    if (['sante', 'animaux'].includes(module)) return 'Santé';
+    if (['budget'].includes(module)) return 'Budget';
+    if (['voyages', 'vehicules'].includes(module)) return 'Voyages';
+    // Famille maps to family/home
+    return 'Famille';
   };
 
   // Filter and sort the events list
   const filteredEvents = useMemo(() => {
-    return allEventsWithCommune.filter(e => {
-      const cat = getEventCategory(e);
+    return getTimelineItems().filter(e => {
+      const cat = getTabCategory(e.source_module);
       const matchesCategory = activeFilter === 'Tous' || cat === activeFilter;
       const matchesSearch = searchQuery.trim() === '' || 
         e.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
         (e.description && e.description.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchesCategory && matchesSearch;
     });
-  }, [allEventsWithCommune, activeFilter, searchQuery]);
+  }, [events, transactions, vaccines, trips, documents, groceries, tasks, demarches, vehicles, maintenance, pets, votes, activeFilter, searchQuery]);
 
   const getTimelineDateLabel = (dateStr: string, timeStr: string) => {
     if (dateStr === todayStr) {
@@ -153,19 +492,6 @@ export const Timeline: React.FC<TimelineProps> = ({
     if (isNaN(d.getTime())) return dateStr;
     const monthsFr = ['Janv.', 'Févr.', 'Mars', 'Avril', 'Mai', 'Juin', 'Juil.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.'];
     return `${d.getDate()} ${monthsFr[d.getMonth()]}`;
-  };
-
-  const getCategoryEmoji = (cat: TimelineCategory) => {
-    switch (cat) {
-      case 'École': return '🏫';
-      case 'Santé': return '❤️';
-      case 'Budget': return '💰';
-      case 'Voyages': return '✈️';
-      case 'Commune': return '🏛️';
-      case 'Famille':
-      default:
-        return '👨‍👩‍👧‍👦';
-    }
   };
 
   return (
@@ -211,7 +537,7 @@ export const Timeline: React.FC<TimelineProps> = ({
           {(Object.keys(categoryDetails) as TimelineCategory[]).map((cat) => {
             const details = categoryDetails[cat];
             const isActive = activeFilter === cat;
-            const Icon = details.icon;
+            const Icon = (details as any).icon;
 
             return (
               <button
@@ -241,12 +567,10 @@ export const Timeline: React.FC<TimelineProps> = ({
 
             {/* Alternating Events */}
             {filteredEvents.map((event, idx) => {
-              const cat = getEventCategory(event);
+              const config = moduleConfig[event.source_module] || moduleConfig['agenda'];
               const isEven = idx % 2 === 0;
-              const details = categoryDetails[cat];
-              const emoji = getCategoryEmoji(cat);
-              const dateLabel = getTimelineDateLabel(event.start_date, event.start_time);
-              const linkedMember = event.member_id && event.member_id !== 'Foyer' 
+              const dateLabel = getTimelineDateLabel(event.date, event.time);
+              const linkedMember = event.member_id 
                 ? members.find(m => m.id === event.member_id) 
                 : null;
 
@@ -259,28 +583,28 @@ export const Timeline: React.FC<TimelineProps> = ({
                 >
                   
                   {/* Glowing dot on the timeline line */}
-                  <div className={`absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4.5 h-4.5 rounded-full border-2 border-[#07111F] z-20 ${details.dotColor || 'bg-[#6C5CFF]'} ${details.shadowColor || ''}`} />
+                  <div className={`absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4.5 h-4.5 rounded-full border-2 border-[#07111F] z-20 ${config.dotColor} ${config.shadowColor}`} />
 
                   {/* Horizontal Segment Connector */}
                   {isEven ? (
-                    <div className={`absolute left-[45%] w-[5%] h-[2px] top-1/2 transform -translate-y-1/2 z-10 ${details.segmentColor || 'bg-[#6C5CFF]'}`} />
+                    <div className={`absolute left-[45%] w-[5%] h-[2px] top-1/2 transform -translate-y-1/2 z-10 ${config.segmentColor}`} />
                   ) : (
-                    <div className={`absolute left-[50%] w-[5%] h-[2px] top-1/2 transform -translate-y-1/2 z-10 ${details.segmentColor || 'bg-[#6C5CFF]'}`} />
+                    <div className={`absolute left-[50%] w-[5%] h-[2px] top-1/2 transform -translate-y-1/2 z-10 ${config.segmentColor}`} />
                   )}
 
                   {/* Timeline card */}
                   <div 
-                    className={`w-[45%] glass-panel rounded-[24px] p-3 sm:p-5 border transition-all duration-300 hover:scale-[1.01] hover:bg-white/8 relative ${details.borderColor || 'border-white/10'} ${details.shadowColor || ''}`}
+                    className={`w-[45%] glass-panel rounded-[24px] p-3 sm:p-5 border transition-all duration-300 hover:scale-[1.01] hover:bg-white/8 relative ${config.borderColor} ${config.shadowColor}`}
                   >
                     
                     {/* Header: Date | Category */}
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2 text-[11px] font-black uppercase tracking-wider text-white/40">
+                      <div className="flex items-center space-x-2 text-[10px] font-black uppercase tracking-wider text-white/40">
                         <span>📍 {dateLabel}</span>
                         <span>•</span>
                         <span className="flex items-center space-x-1">
-                          <span>{emoji}</span>
-                          <span className="text-white/60">{cat}</span>
+                          <span>{event.icon}</span>
+                          <span className="text-white/60">{config.label}</span>
                         </span>
                       </div>
 
@@ -308,14 +632,6 @@ export const Timeline: React.FC<TimelineProps> = ({
                       </p>
                     )}
 
-                    {/* Done / Check Status if applicable */}
-                    {event.done && (
-                      <div className="mt-3 inline-flex items-center space-x-1 text-[10px] font-extrabold text-[#00D26A] bg-[#00D26A]/10 border border-[#00D26A]/20 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                        <span>✓</span>
-                        <span>Confirmé / Fait</span>
-                      </div>
-                    )}
-
                   </div>
                 </div>
               );
@@ -323,13 +639,13 @@ export const Timeline: React.FC<TimelineProps> = ({
           </div>
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 space-y-4">
-            <div className="p-4 rounded-3xl bg-white/5 border border-white/5 text-white/20">
+            <div className="p-5 rounded-[28px] bg-white/5 border border-white/5 text-white/20">
               <Clock className="w-12 h-12" />
             </div>
-            <div>
-              <h4 className="text-sm font-bold text-white">Aucun événement à afficher</h4>
-              <p className="text-xs text-white/40 mt-1">
-                Aucune activité ne correspond à vos filtres de recherche actuels.
+            <div className="space-y-1">
+              <h4 className="text-sm font-extrabold text-white">Votre Timeline est encore vide</h4>
+              <p className="text-xs text-white/40 max-w-sm mx-auto leading-relaxed">
+                Les actions importantes de votre famille apparaîtront ici automatiquement.
               </p>
             </div>
           </div>

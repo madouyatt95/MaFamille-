@@ -10019,7 +10019,18 @@ function App() {
     if (activeTab === 'timeline') {
       return (
         <Timeline 
-          events={unifiedEvents}
+          events={events}
+          transactions={transactions}
+          vaccines={vaccines}
+          trips={trips}
+          documents={documents}
+          groceries={groceries}
+          tasks={tasks}
+          demarches={demarches}
+          vehicles={vehicles}
+          maintenance={maintenance}
+          pets={pets}
+          votes={votes}
           members={members}
           activeMemberId={activeMemberId}
           onBack={() => setActiveTab('accueil')}
