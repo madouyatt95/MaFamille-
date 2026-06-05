@@ -29,6 +29,7 @@ interface CategoryDetail {
   dotColor?: string;
   shadowColor?: string;
   borderColor?: string;
+  segmentColor?: string;
 }
 
 export const Timeline: React.FC<TimelineProps> = ({
@@ -124,12 +125,12 @@ export const Timeline: React.FC<TimelineProps> = ({
 
   const categoryDetails: Record<TimelineCategory, CategoryDetail> = {
     Tous: { label: 'Tous', colorClass: 'bg-[#6C5CFF]/15 text-[#6C5CFF] border-[#6C5CFF]/30 hover:bg-[#6C5CFF]/25' },
-    Famille: { label: 'Famille', icon: Users, colorClass: 'bg-[#6C5CFF]/15 text-[#9d94ff] border-[#6C5CFF]/30 hover:bg-[#6C5CFF]/25', dotColor: 'bg-[#6C5CFF]', shadowColor: 'shadow-[0_0_15px_rgba(108,92,255,0.4)]', borderColor: 'border-[#6C5CFF]/40 hover:border-[#6C5CFF]/80' },
-    École: { label: 'École', icon: GraduationCap, colorClass: 'bg-[#00D26A]/15 text-[#00D26A] border-[#00D26A]/30 hover:bg-[#00D26A]/25', dotColor: 'bg-[#00D26A]', shadowColor: 'shadow-[0_0_15px_rgba(0,210,106,0.4)]', borderColor: 'border-[#00D26A]/40 hover:border-[#00D26A]/80' },
-    Santé: { label: 'Santé', icon: HeartPulse, colorClass: 'bg-[#FF4D6D]/15 text-[#FF4D6D] border-[#FF4D6D]/30 hover:bg-[#FF4D6D]/25', dotColor: 'bg-[#FF4D6D]', shadowColor: 'shadow-[0_0_15px_rgba(255,77,109,0.4)]', borderColor: 'border-[#FF4D6D]/40 hover:border-[#FF4D6D]/80' },
-    Budget: { label: 'Budget', icon: Wallet, colorClass: 'bg-[#FFB020]/15 text-[#FFB020] border-[#FFB020]/30 hover:bg-[#FFB020]/25', dotColor: 'bg-[#FFB020]', shadowColor: 'shadow-[0_0_15px_rgba(255,176,32,0.4)]', borderColor: 'border-[#FFB020]/40 hover:border-[#FFB020]/80' },
-    Voyages: { label: 'Voyages', icon: Plane, colorClass: 'bg-[#4F8CFF]/15 text-[#4F8CFF] border-[#4F8CFF]/30 hover:bg-[#4F8CFF]/25', dotColor: 'bg-[#4F8CFF]', shadowColor: 'shadow-[0_0_15px_rgba(79,140,255,0.4)]', borderColor: 'border-[#4F8CFF]/40 hover:border-[#4F8CFF]/80' },
-    Commune: { label: 'Commune', icon: Landmark, colorClass: 'bg-[#FFB020]/15 text-[#ffd78a] border-[#FFB020]/30 hover:bg-[#FFB020]/25', dotColor: 'bg-[#FFB020]', shadowColor: 'shadow-[0_0_15px_rgba(255,176,32,0.4)]', borderColor: 'border-[#FFB020]/40 hover:border-[#FFB020]/80' }
+    Famille: { label: 'Famille', icon: Users, colorClass: 'bg-[#6C5CFF]/15 text-[#9d94ff] border-[#6C5CFF]/30 hover:bg-[#6C5CFF]/25', dotColor: 'bg-[#6C5CFF]', shadowColor: 'shadow-[0_0_15px_rgba(108,92,255,0.6)]', borderColor: 'border-[#6C5CFF]/45 hover:border-[#6C5CFF]/85', segmentColor: 'bg-[#6C5CFF]' },
+    École: { label: 'École', icon: GraduationCap, colorClass: 'bg-[#00D26A]/15 text-[#00D26A] border-[#00D26A]/30 hover:bg-[#00D26A]/25', dotColor: 'bg-[#00D26A]', shadowColor: 'shadow-[0_0_15px_rgba(0,210,106,0.6)]', borderColor: 'border-[#00D26A]/45 hover:border-[#00D26A]/85', segmentColor: 'bg-[#00D26A]' },
+    Santé: { label: 'Santé', icon: HeartPulse, colorClass: 'bg-[#FF4D6D]/15 text-[#FF4D6D] border-[#FF4D6D]/30 hover:bg-[#FF4D6D]/25', dotColor: 'bg-[#FF4D6D]', shadowColor: 'shadow-[0_0_15px_rgba(255,77,109,0.6)]', borderColor: 'border-[#FF4D6D]/45 hover:border-[#FF4D6D]/85', segmentColor: 'bg-[#FF4D6D]' },
+    Budget: { label: 'Budget', icon: Wallet, colorClass: 'bg-[#FFD700]/15 text-[#FFD700] border-[#FFD700]/30 hover:bg-[#FFD700]/25', dotColor: 'bg-[#FFD700]', shadowColor: 'shadow-[0_0_15px_rgba(255,215,0,0.6)]', borderColor: 'border-[#FFD700]/45 hover:border-[#FFD700]/85', segmentColor: 'bg-[#FFD700]' },
+    Voyages: { label: 'Voyages', icon: Plane, colorClass: 'bg-[#4F8CFF]/15 text-[#4F8CFF] border-[#4F8CFF]/30 hover:bg-[#4F8CFF]/25', dotColor: 'bg-[#4F8CFF]', shadowColor: 'shadow-[0_0_15px_rgba(79,140,255,0.6)]', borderColor: 'border-[#4F8CFF]/45 hover:border-[#4F8CFF]/85', segmentColor: 'bg-[#4F8CFF]' },
+    Commune: { label: 'Commune', icon: Landmark, colorClass: 'bg-[#FF9F1C]/15 text-[#FF9F1C] border-[#FF9F1C]/30 hover:bg-[#FF9F1C]/25', dotColor: 'bg-[#FF9F1C]', shadowColor: 'shadow-[0_0_15px_rgba(255,159,28,0.6)]', borderColor: 'border-[#FF9F1C]/45 hover:border-[#FF9F1C]/85', segmentColor: 'bg-[#FF9F1C]' }
   };
 
   // Filter and sort the events list
@@ -252,17 +253,27 @@ export const Timeline: React.FC<TimelineProps> = ({
               return (
                 <div 
                   key={event.id}
-                  className={`relative flex flex-col md:flex-row items-start md:items-center w-full z-10 ${
+                  className={`relative flex flex-col md:flex-row items-center w-full z-10 ${
                     isEven ? 'md:justify-start' : 'md:justify-end'
                   }`}
                 >
                   
                   {/* Glowing dot on the timeline line */}
-                  <div className={`absolute left-4 md:left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full border-2 border-[#07111F] z-20 ${details.dotColor || 'bg-[#6C5CFF]'} ${details.shadowColor || ''}`} />
+                  <div className={`absolute left-4 md:left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4.5 h-4.5 rounded-full border-2 border-[#07111F] z-20 ${details.dotColor || 'bg-[#6C5CFF]'} ${details.shadowColor || ''}`} />
+
+                  {/* Horizontal Segment Connector (Mobile) */}
+                  <div className={`absolute block md:hidden left-4 w-6 h-[2px] top-1/2 transform -translate-y-1/2 z-10 ${details.segmentColor || 'bg-[#6C5CFF]'}`} />
+
+                  {/* Horizontal Segment Connector (Desktop) */}
+                  {isEven ? (
+                    <div className={`absolute hidden md:block left-[45%] w-[5%] h-[2px] top-1/2 transform -translate-y-1/2 z-10 ${details.segmentColor || 'bg-[#6C5CFF]'}`} />
+                  ) : (
+                    <div className={`absolute hidden md:block left-[50%] w-[5%] h-[2px] top-1/2 transform -translate-y-1/2 z-10 ${details.segmentColor || 'bg-[#6C5CFF]'}`} />
+                  )}
 
                   {/* Timeline card */}
                   <div 
-                    className={`w-[calc(100%-2.5rem)] ml-10 md:ml-0 md:w-[45%] glass-panel rounded-[24px] p-5 border transition-all duration-300 hover:scale-[1.01] hover:bg-white/8 ${details.borderColor || 'border-white/10'} ${details.shadowColor || ''}`}
+                    className={`w-[calc(100%-2.5rem)] ml-10 md:ml-0 md:w-[45%] glass-panel rounded-[24px] p-5 border transition-all duration-300 hover:scale-[1.01] hover:bg-white/8 relative ${details.borderColor || 'border-white/10'} ${details.shadowColor || ''}`}
                   >
                     
                     {/* Header: Date | Category */}
