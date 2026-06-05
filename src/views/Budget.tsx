@@ -2468,47 +2468,43 @@ export const Budget: React.FC<BudgetProps> = ({
 
                     const isHighlighted = selectedDonutSegment !== null && donutData.segments[selectedDonutSegment]?.category === cat.name;
 
-                    return (
-                      {(() => {
-                        const limit = cat.budget || 0;
-                        const pct = limit > 0 ? Math.min(100, Math.round((totalDep / limit) * 100)) : 0;
-                        const restant = Math.max(0, limit - totalDep);
+                    const limit = cat.budget || 0;
+                    const pct = limit > 0 ? Math.min(100, Math.round((totalDep / limit) * 100)) : 0;
+                    const restant = Math.max(0, limit - totalDep);
 
-                        return (
-                          <div 
-                            key={cat.name} 
-                            className={`p-3 rounded-2xl border transition space-y-2 ${
-                              isHighlighted ? 'bg-white/5 border-purple-500/20' : 'bg-white/2 border-white/5'
-                            }`}
-                          >
-                            <div className="flex justify-between text-[11px] items-center font-sans">
-                              <span className="font-extrabold text-white flex items-center gap-1.5">{cat.icon} {cat.name}</span>
-                              <div className="text-right font-sans">
-                                <span className="text-white font-bold block">{formatMoney(totalDep)}</span>
-                                {limit > 0 && (
-                                  <span className="text-[9px] text-white/40 block">Limite : {formatMoney(limit)}</span>
-                                )}
-                              </div>
-                            </div>
+                    return (
+                      <div 
+                        key={cat.name} 
+                        className={`p-3 rounded-2xl border transition space-y-2 ${
+                          isHighlighted ? 'bg-white/5 border-purple-500/20' : 'bg-white/2 border-white/5'
+                        }`}
+                      >
+                        <div className="flex justify-between text-[11px] items-center font-sans">
+                          <span className="font-extrabold text-white flex items-center gap-1.5">{cat.icon} {cat.name}</span>
+                          <div className="text-right font-sans">
+                            <span className="text-white font-bold block">{formatMoney(totalDep)}</span>
                             {limit > 0 && (
-                              <div className="space-y-1">
-                                <div className="relative h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                  <div 
-                                    className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${
-                                      pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-purple-500'
-                                    }`} 
-                                    style={{ width: `${pct}%` }} 
-                                  />
-                                </div>
-                                <div className="flex justify-between text-[9px] text-white/40 font-semibold font-sans">
-                                  <span>Restant : {formatMoney(restant)}</span>
-                                  <span className={pct >= 100 ? 'text-rose-400 font-bold' : ''}>{pct}%</span>
-                                </div>
-                              </div>
+                              <span className="text-[9px] text-white/40 block">Limite : {formatMoney(limit)}</span>
                             )}
                           </div>
-                        );
-                      })()}
+                        </div>
+                        {limit > 0 && (
+                          <div className="space-y-1">
+                            <div className="relative h-1.5 bg-white/5 rounded-full overflow-hidden">
+                              <div 
+                                className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${
+                                  pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-purple-500'
+                                }`} 
+                                style={{ width: `${pct}%` }} 
+                              />
+                            </div>
+                            <div className="flex justify-between text-[9px] text-white/40 font-semibold font-sans">
+                              <span>Restant : {formatMoney(restant)}</span>
+                              <span className={pct >= 100 ? 'text-rose-400 font-bold' : ''}>{pct}%</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
