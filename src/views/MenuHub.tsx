@@ -8,9 +8,7 @@ import {
   ShoppingCart, 
   Brush, 
   GraduationCap, 
-  Wallet, 
   ShieldCheck, 
-  ChevronRight, 
   ArrowLeft,
   AlertCircle,
   Activity,
@@ -27,15 +25,14 @@ import {
   Camera,
   Users,
   HeartHandshake,
-  TrendingUp,
   Lock,
   UtensilsCrossed,
-  MessageCircle,
   Mic,
   Trash2,
   Edit3,
   Map as MapIcon,
   BookOpen,
+  Wrench,
   Save,
   X,
   Phone,
@@ -646,54 +643,30 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [allowanceIsRecurring, setAllowanceIsRecurring] = useState(false);
   const [allowanceRecurrenceType, setAllowanceRecurrenceType] = useState('weekly');
 
-  // Dynamically calculate unread messages from other members where the active member is in the group
-  const unreadMessagesCount = chatMessages.filter(m => {
-    if (!activeMemberId) return false;
-    if (m.senderId === activeMemberId) return false;
-    
-    // Find the chat group
-    const group = chatGroups?.find(g => g.id === m.groupId);
-    if (!group) return false;
-    
-    // Check if active member is in this group
-    if (!group.memberIds.includes(activeMemberId)) return false;
-    
-    // Check if not read yet by active member
-    return !m.readBy.includes(activeMemberId);
-  }).length;
-  
   // Dynamically calculate pending vaccines for the active member only
   const pendingVaccines = (vaccines || []).filter((v: any) => v.memberId === activeMemberId && v.status === 'À faire').length;
 
-  const modules = [
-    { id: 'carte', title: 'Carte Familiale', desc: 'Localisation sécurisée en temps réel', badge: 'En direct', icon: MapIcon, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
-    { id: 'messagerie', title: 'Messagerie', desc: 'Discussions & Groupes Familiaux', badge: unreadMessagesCount > 0 ? `${unreadMessagesCount} non lu${unreadMessagesCount > 1 ? 's' : ''}` : 'À jour ✓', icon: MessageCircle, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
-    { id: 'documents', title: 'Documents', desc: 'Coffre-fort sécurisé pour vos documents', badge: `${documents.length} fichiers`, icon: FolderLock, color: 'text-[#4F8CFF] bg-[#4F8CFF]/10 hover:border-[#4F8CFF]/30' },
-    { id: 'sante', title: 'Santé', desc: 'Carnet médical et rendez-vous', badge: pendingVaccines > 0 ? `${pendingVaccines} rdv vaccin${pendingVaccines > 1 ? 's' : ''}` : 'À jour ✓', icon: HeartPulse, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
-    { id: 'courses', title: 'Courses & Éco-Chef', desc: 'Liste de courses & Éco-Chef Anti-Gaspi', badge: `${groceries.filter(g => !g.checked).length} produits`, icon: ShoppingCart, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
-    { id: 'taches', title: 'Tâches', desc: 'Répartition des tâches et suivi', badge: `${tasks.filter(t => !t.done).length} tâches`, icon: Brush, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
-    { id: 'ecole', title: 'École & Devoirs', desc: 'Tuteur IA, devoirs & quizzes', badge: `${schoolTasks.filter(t => !t.done).length} devoirs`, icon: GraduationCap, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
-    { id: 'finances_hub', title: 'Budget', desc: 'Budget, comptes et objectifs', badge: `${goals.length} objectifs`, icon: Wallet, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' }
-  ];
-
   const activeMember = members.find(m => m.id === activeMemberId);
   const groceryDerogation = activeMember ? !!activeMember.hasExemption : false;
-  const isAmadou = activeMember 
-    ? (activeMember.name.toLowerCase().includes('amadou') || ['Enfant', 'child'].includes(activeMember.role))
-    : activeMemberId === '3';
 
-  const secondaryModules = [
-    { id: 'vehicules', title: 'Véhicules', desc: 'Assurances et entretiens', icon: Car, color: 'text-[#4F8CFF] bg-[#4F8CFF]/10' },
-    { id: 'logement', title: 'Logement', desc: 'Maintenance et garanties', icon: HomeIcon, color: 'text-[#FFB020] bg-[#FFB020]/10' },
-    { id: 'voyages', title: 'Voyages & Valise IA', desc: 'Activités & Valise IA personnalisée', icon: Plane, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10' },
-    { id: 'animaux', title: 'Animaux', desc: 'Vaccins et vétérinaire', icon: Dog, color: 'text-[#00D26A] bg-[#00D26A]/10' },
-    { id: 'argent', title: 'Argent de Poche', desc: 'Portefeuilles enfants', icon: Coins, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10' },
-    { id: 'capsule', title: 'Capsule Temporelle', desc: 'Album de souvenirs & Gazette', icon: Camera, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10' },
-    { id: 'conseil', title: 'Conseil de Famille', desc: 'Sondages actifs & Charte de vie', icon: Users, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10' },
-    { id: 'contacts', title: 'Répertoire Important', desc: 'Numéros utiles & urgences directes', icon: Phone, color: 'text-red-500 bg-red-500/10' },
-    { id: 'peacemaker', title: 'PeaceMaker IA', desc: 'Médiateur de conflits intelligents', icon: HeartHandshake, color: 'text-[#00D26A] bg-[#00D26A]/10' },
-    { id: 'conteur', title: 'Histoires du Soir', desc: 'Contes IA personnalisés interactifs', icon: BookOpen, color: 'text-[#FFB020] bg-[#FFB020]/10' },
-    ...(isAmadou ? [{ id: 'mavie', title: 'MaVie 2.0 (Ado)', desc: 'Simulateur d\'avenir & de choix', icon: TrendingUp, color: 'text-[#FFB020] bg-[#FFB020]/10' }] : [])
+  const modules = [
+    { id: 'conseil', title: 'Conseil de Famille', desc: 'Sondages actifs & Charte de vie', badge: 'Coopération', icon: Users, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
+    { id: 'conteur', title: 'Histoires du Soir', desc: 'Contes IA personnalisés interactifs', badge: 'Premium', icon: BookOpen, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
+    { id: 'taches', title: 'Tâches', desc: 'Répartition des tâches et suivi', badge: `${tasks.filter(t => !t.done).length} en cours`, icon: Brush, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
+    { id: 'ecole', title: 'École & Devoirs', desc: 'Tuteur IA, devoirs & quizzes', badge: `${schoolTasks.filter(t => !t.done).length} devoirs`, icon: GraduationCap, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
+    { id: 'logement', title: 'Logement', desc: 'Maintenance et garanties', badge: 'Équipements', icon: HomeIcon, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
+    { id: 'agenda', title: 'Agenda Familial', desc: 'Calendrier partagé de la maison', badge: 'Calendrier', icon: Calendar, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
+    { id: 'courses', title: 'Courses & Éco-Chef', desc: 'Liste de courses & Éco-Chef Anti-Gaspi', badge: `${groceries.filter(g => !g.checked).length} articles`, icon: ShoppingCart, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
+    { id: 'sante', title: 'Santé', desc: 'Carnet médical et rendez-vous', badge: pendingVaccines > 0 ? `${pendingVaccines} vaccin${pendingVaccines > 1 ? 's' : ''}` : 'À jour', icon: HeartPulse, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
+    { id: 'voyages', title: 'Voyages & Valise IA', desc: 'Activités & Valise IA personnalisée', badge: 'Préparation', icon: Plane, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
+    { id: 'documents', title: 'Documents', desc: 'Coffre-fort sécurisé pour vos documents', badge: `${documents.length} fichiers`, icon: FolderLock, color: 'text-[#4F8CFF] bg-[#4F8CFF]/10 hover:border-[#4F8CFF]/30' },
+    { id: 'vehicules', title: 'Véhicules', desc: 'Assurances et entretiens', badge: 'Garage', icon: Car, color: 'text-[#4F8CFF] bg-[#4F8CFF]/10 hover:border-[#4F8CFF]/30' },
+    { id: 'animaux', title: 'Animaux', desc: 'Vaccins et vétérinaire', badge: 'Compagnons', icon: Dog, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
+    { id: 'capsule', title: 'Capsule Temporelle', desc: 'Album de souvenirs & Gazette', badge: 'Souvenirs', icon: Camera, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
+    { id: 'contacts', title: 'Répertoire Important', desc: 'Numéros utiles & urgences directes', badge: 'Urgent', icon: Phone, color: 'text-red-500 bg-red-500/10 hover:border-red-500/30' },
+    { id: 'peacemaker', title: 'PeaceMaker IA', desc: 'Médiateur de conflits intelligents', badge: 'Médiation', icon: HeartHandshake, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
+    { id: 'settings', title: 'Réglages', desc: 'Configuration de l\'application', badge: 'Système', icon: Wrench, color: 'text-white/50 bg-white/5 hover:border-white/20' },
+    { id: 'carte', title: 'Carte Familiale', desc: 'Localisation sécurisée en temps réel', badge: 'En direct', icon: MapIcon, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' }
   ];
 
   const handleGrocerySubmit = (e: React.FormEvent) => {
@@ -1315,7 +1288,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             )}
           </div>
 
-          {/* Primary Cards Grid (Screen 4 pixel replica) */}
+          {/* Single Unified Modules Grid (17 modules) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {modules.map((mod) => {
               const Icon = mod.icon;
@@ -1323,66 +1296,33 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 <button
                   key={mod.id}
                   onClick={() => {
-                    if (mod.id === 'finances_hub' && !isParent && !authorizedModules.includes('finances_hub')) {
-                      setActiveModule('finances_hub');
-                    } else if (mod.id === 'finances_hub') {
-                      setActiveTab('budget');
-                    } else {
-                      setActiveModule(mod.id);
+                    // Check premium for specific modules
+                    if (['conteur', 'peacemaker'].includes(mod.id) && !isPremium) {
+                      onTriggerPaywall?.();
+                      return;
                     }
+                    setActiveModule(mod.id);
                   }}
-                  className={`glass-panel rounded-[28px] p-5 text-left border border-white/6 flex flex-col justify-between h-[180px] cursor-pointer transition-all hover:bg-white/8 hover:translate-y-[-2px] group`}
+                  className="glass-panel rounded-[28px] p-5 text-left border border-white/6 flex flex-col justify-between h-[150px] cursor-pointer transition-all hover:bg-white/8 hover:translate-y-[-2px] group"
                 >
                   <div className="flex items-center justify-between w-full">
                     <div className={`p-3 rounded-[18px] ${mod.color} border border-white/5 group-hover:scale-105 transition-transform`}>
                       <Icon className="w-5 h-5" />
                     </div>
-                    <span className="text-[10px] font-extrabold text-white/40 uppercase tracking-widest bg-white/5 px-2.5 py-1 rounded-[10px]">
-                      {mod.badge}
-                    </span>
+                    {mod.badge && (
+                      <span className="text-[9px] font-black text-[#6C5CFF] uppercase tracking-widest bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 px-2.5 py-1 rounded-[10px]">
+                        {mod.badge}
+                      </span>
+                    )}
                   </div>
                   
                   <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-white tracking-wide">{mod.title}</h3>
-                    <p className="text-[11px] text-white/50 leading-relaxed font-sans font-medium">{mod.desc}</p>
+                    <h3 className="text-xs sm:text-sm font-bold text-white tracking-wide">{mod.title}</h3>
+                    <p className="text-[11px] text-white/50 leading-relaxed font-sans font-medium line-clamp-2">{mod.desc}</p>
                   </div>
                 </button>
               );
             })}
-          </div>
-
-          {/* Secondary Modules Grid */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider px-1">Outils complémentaires</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {secondaryModules.map((mod) => {
-                const Icon = mod.icon;
-                return (
-                  <button
-                    key={mod.id}
-                    onClick={() => {
-                      if (['conteur', 'peacemaker'].includes(mod.id) && !isPremium) {
-                        onTriggerPaywall?.();
-                        return;
-                      }
-                      setActiveModule(mod.id);
-                    }}
-                    className="glass-panel rounded-[24px] p-4 flex items-center justify-between border border-white/5 hover:bg-white/8 transition-all cursor-pointer text-left"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className={`p-2.5 rounded-xl ${mod.color} border border-white/5`}>
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs sm:text-sm font-bold text-white">{mod.title}</h4>
-                        <p className="text-[11px] text-white/50 font-sans">{mod.desc}</p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-white/30" />
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
           {/* Security Shield Banner (Screen 4 pixel replica) */}

@@ -90,8 +90,8 @@ import { BottomNav } from './components/BottomNav';
 import { Sidebar } from './components/Sidebar';
 import { QuickActionsSheet } from './components/QuickActionsSheet';
 
-// Views imports
 import { Accueil } from './views/Accueil';
+import { Timeline } from './views/Timeline';
 import { Agenda } from './views/Agenda';
 import { Budget, DEFAULT_CATEGORIES } from './views/Budget';
 import { MenuHub } from './views/MenuHub';
@@ -7409,8 +7409,8 @@ function App() {
         !hasExplicitAmount;
 
       if (isAgendaIntent) {
-        setActiveTab('agenda');
-        setActiveModule('');
+        setActiveTab('menu');
+        setActiveModule('agenda');
         feedback = "📅 Navigation : J'ouvre l'Agenda Familial.";
         setVoiceFeedback(feedback);
         logVoiceCommandToSupabase("agenda_nav", true);
@@ -10001,7 +10001,8 @@ function App() {
           chatMessages={chatMessages}
           onEventClick={(dateStr) => {
             setAgendaSelectedDate(dateStr.split('T')[0]);
-            setActiveTab('agenda');
+            setActiveTab('menu');
+            setActiveModule('agenda');
           }}
           memories={memories}
           onAddMemory={handleAddMemory}
@@ -10014,26 +10015,14 @@ function App() {
         />
       );
     }
-    
-    if (activeTab === 'agenda') {
+
+    if (activeTab === 'timeline') {
       return (
-        <Agenda 
+        <Timeline 
           events={unifiedEvents}
           members={members}
           activeMemberId={activeMemberId}
-          onAddEventClick={() => {
-            setActiveModule('');
-            setQuickActionsOpen(true);
-          }}
-          onToggleEventDone={handleToggleEventDone}
-          onMoveEvent={handleMoveEvent}
-          defaultSelectedDate={agendaSelectedDate}
-          externalEvents={externalEvents}
-          setExternalEvents={setExternalEvents}
-          calendarSources={calendarSources}
-          setCalendarSources={setCalendarSources}
-          currentCalendarCountry={currentCalendarCountry}
-          setCurrentCalendarCountry={setCurrentCalendarCountry}
+          onBack={() => setActiveTab('accueil')}
         />
       );
     }
@@ -10074,6 +10063,30 @@ function App() {
     }
 
     if (activeTab === 'menu') {
+      if (activeModule === 'agenda') {
+        return (
+          <Agenda 
+            events={unifiedEvents}
+            members={members}
+            activeMemberId={activeMemberId}
+            onAddEventClick={() => {
+              setActiveModule('');
+              setQuickActionsOpen(true);
+            }}
+            onToggleEventDone={handleToggleEventDone}
+            onMoveEvent={handleMoveEvent}
+            defaultSelectedDate={agendaSelectedDate}
+            externalEvents={externalEvents}
+            setExternalEvents={setExternalEvents}
+            calendarSources={calendarSources}
+            setCalendarSources={setCalendarSources}
+            currentCalendarCountry={currentCalendarCountry}
+            setCurrentCalendarCountry={setCurrentCalendarCountry}
+            onBack={() => setActiveModule('')}
+          />
+        );
+      }
+
       if (activeModule === 'objectifs') {
         // Rediriger immédiatement vers le module Budget
         setTimeout(() => {
@@ -11325,7 +11338,7 @@ function App() {
                         updateAlertReadStatusInCloud(al.id, true);
                       }
                       if (targetModule) {
-                        const mainTabs = ['accueil', 'agenda', 'budget'];
+                        const mainTabs = ['accueil', 'timeline', 'budget'];
                         if (mainTabs.includes(targetModule)) {
                           setActiveTab(targetModule as any);
                           setActiveModule('');

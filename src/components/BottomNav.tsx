@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Calendar, Mic, Wallet, LayoutGrid } from 'lucide-react';
+import { Home, Clock, Mic, Wallet, Plus } from 'lucide-react';
 
 interface BottomNavProps {
   activeTab: string;
@@ -35,24 +35,24 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           }`}
         >
           <Home className="w-6 h-6" />
-          <span className="text-[10px] font-semibold tracking-wider">Accueil</span>
+          <span className="text-[10px] font-semibold tracking-wider font-sans">Accueil</span>
           {activeTab === 'accueil' && (
             <div className="w-1 h-1 rounded-full bg-[#6C5CFF] shadow-[0_0_8px_#6C5CFF]" />
           )}
         </button>
 
-        {/* Agenda */}
+        {/* Timeline */}
         <button 
-          onClick={() => setActiveTab('agenda')}
+          onClick={() => setActiveTab('timeline')}
           className={`flex flex-col items-center justify-center space-y-1 py-1 px-3 rounded-2xl transition-all duration-300 ${
-            activeTab === 'agenda' 
+            activeTab === 'timeline' 
               ? 'text-[#6C5CFF] scale-105' 
               : 'text-white/40 hover:text-white/70'
           }`}
         >
-          <Calendar className="w-6 h-6" />
-          <span className="text-[10px] font-semibold tracking-wider">Agenda</span>
-          {activeTab === 'agenda' && (
+          <Clock className="w-6 h-6" />
+          <span className="text-[10px] font-semibold tracking-wider font-sans">Timeline</span>
+          {activeTab === 'timeline' && (
             <div className="w-1 h-1 rounded-full bg-[#6C5CFF] shadow-[0_0_8px_#6C5CFF]" />
           )}
         </button>
@@ -63,7 +63,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             <div className="absolute w-16 h-16 rounded-full bg-red-500/20 blur-xl animate-pulse-slow"></div>
             <button 
               onClick={onMicClick}
-              className="relative flex items-center justify-center w-14 h-14 rounded-full bg-[var(--family-bg)] border-2 border-red-500 text-[var(--family-text)] hover:text-red-500 float-btn-halo cursor-pointer transition-all duration-300 hover:scale-110 active:scale-95 group"
+              className="relative flex items-center justify-center w-14 h-14 rounded-full bg-[var(--family-bg)] border-2 border-red-500 text-[var(--family-text)] hover:text-red-500 float-btn-halo cursor-pointer transition-all duration-300 hover:scale-110 active:scale-95 group animate-pulse-slow"
+              title="Micro principal"
             >
               <div className="absolute inset-0.5 rounded-full bg-gradient-to-tr from-red-500 to-pink-500 opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
               <Mic className="w-6 h-6 text-white group-hover:scale-110 transition-transform duration-300" />
@@ -81,7 +82,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           }`}
         >
           <Wallet className="w-6 h-6" />
-          <span className="text-[10px] font-semibold tracking-wider">
+          <span className="text-[10px] font-semibold tracking-wider font-sans">
             {isChild ? 'Cagnotte' : 'Budget'}
           </span>
           {activeTab === 'budget' && (
@@ -89,7 +90,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           )}
         </button>
 
-        {/* Menu Hub */}
+        {/* Plus */}
         <button 
           onClick={() => setActiveTab('menu')}
           className={`flex flex-col items-center justify-center space-y-1 py-1 px-3 rounded-2xl transition-all duration-300 ${
@@ -98,8 +99,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               : 'text-white/40 hover:text-white/70'
           }`}
         >
-          <LayoutGrid className="w-6 h-6" />
-          <span className="text-[10px] font-semibold tracking-wider">Menu</span>
+          <Plus className="w-6 h-6" />
+          <span className="text-[10px] font-semibold tracking-wider font-sans">Plus</span>
           {activeTab === 'menu' && (
             <div className="w-1 h-1 rounded-full bg-[#6C5CFF] shadow-[0_0_8px_#6C5CFF]" />
           )}

@@ -12,7 +12,8 @@ import {
   GripHorizontal,
   Globe,
   Trash2,
-  Settings2
+  Settings2,
+  ArrowLeft
 } from 'lucide-react';
 import type { FamilyEvent, Member } from '../types';
 import { fetchExternalCalendar, type ExternalEvent } from '../utils/icalParser';
@@ -25,6 +26,7 @@ interface AgendaProps {
   onMoveEvent: (eventId: string, newDate: string) => void;
   activeMemberId?: string;
   defaultSelectedDate?: string;
+  onBack?: () => void;
 
   externalEvents: ExternalEvent[];
   setExternalEvents: React.Dispatch<React.SetStateAction<ExternalEvent[]>>;
@@ -51,6 +53,7 @@ export const Agenda: React.FC<AgendaProps> = ({
   onMoveEvent,
   activeMemberId = '1',
   defaultSelectedDate,
+  onBack,
   externalEvents,
   setExternalEvents,
   calendarSources,
@@ -452,6 +455,15 @@ export const Agenda: React.FC<AgendaProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white transition-all cursor-pointer mr-1.5 flex items-center justify-center shrink-0"
+              title="Retour"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          )}
           <div className="p-3 rounded-2xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF]">
             <CalendarIcon className="w-6 h-6" />
           </div>
