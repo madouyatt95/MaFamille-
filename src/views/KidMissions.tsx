@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Star, Gift, CheckCircle2, ShieldCheck, PlusCircle, HelpCircle, History, Sparkles } from 'lucide-react';
-import type { Member, ChoreTask } from '../types';
+import type { Member, ChoreTask, NotificationAlert, Transaction, Foyer } from '../types';
+import { getSupabaseClient } from '../utils/supabase';
 
 interface KidMissionsProps {
   member: Member;
@@ -9,6 +10,10 @@ interface KidMissionsProps {
   pocketMoney: any[];
   setPocketMoney: React.Dispatch<React.SetStateAction<any[]>>;
   onBack: () => void;
+  defaultTab?: 'missions' | 'boutique' | 'argent';
+  setAlerts?: React.Dispatch<React.SetStateAction<NotificationAlert[]>>;
+  foyer?: Foyer | null;
+  transactions?: Transaction[];
 }
 
 interface RewardItem {
@@ -25,9 +30,13 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   setTasks,
   pocketMoney,
   setPocketMoney,
-  onBack
+  onBack,
+  defaultTab,
+  setAlerts,
+  foyer,
+  transactions = []
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'missions' | 'boutique' | 'argent'>('missions');
+  const [activeSubTab, setActiveSubTab] = useState<'missions' | 'boutique' | 'argent'>(defaultTab || 'missions');
   const [requestText, setRequestText] = useState('');
   const [requestPoints, setRequestPoints] = useState(20);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -37,13 +46,15 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   const myAccount = pocketMoney.find(p => p.id === member.id) || {
     id: member.id,
     name: member.name,
-    balance: 10.0,
-    points: 120,
-    transactions: [
-      { id: '1', date: '2026-06-05', amount: 5.0, description: 'Argent de poche hebdomadaire', type: 'credit' },
-      { id: '2', date: '2026-06-04', amount: -2.5, description: 'Achat bonbons', type: 'debit' }
-    ]
+    balance: 0.0,
+    points: 0
   };
+
+  // Filter the real transactions history for this kid
+  const myRealTransactions = transactions.filter(tx => 
+    (tx.category === 'Argent de poche' || tx.category === 'Argent de Poche') && 
+    (tx.memberName === member.name || tx.memberId === member.id)
+  );
 
   // Filter tasks assigned to this kid
   const myTasks = tasks.filter(t => t.assignedMemberId === member.id);
@@ -60,56 +71,66 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
     { id: 'rew-6', title: 'Nouveau jouet au choix 🧸', cost: 400, icon: '🎁', category: 'Cadeau' }
   ];
 
-  // Complete a task
+  // Complete a task (needs parental validation)
   const handleCompleteTask = (taskId: string, points: number) => {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, done: true } : t));
-    
-    // Add points to account
-    setPocketMoney(prev => prev.map(p => {
-      if (p.id === member.id) {
-        return {
-          ...p,
-          points: (p.points || 0) + points
-        };
-      }
-      return p;
-    }));
 
-    setConfettiMessage(`Super ! Mission accomplie. Tu as gagné +${points} points ! 🌟`);
+    setConfettiMessage(`Super ! Mission terminée. Tes parents ont été prévenus et vont bientôt la valider pour te donner +${points} points ! 🌟`);
     setShowConfetti(true);
     setTimeout(() => setShowConfetti(false), 4000);
   };
 
-  // Buy a reward
-  const handleRedeemReward = (reward: RewardItem) => {
+  // Buy a reward (requests validation from parent)
+  const handleRedeemReward = async (reward: RewardItem) => {
     if ((myAccount.points || 0) < reward.cost) {
       alert(`Oups ! Il te manque ${reward.cost - (myAccount.points || 0)} points pour acheter cette récompense. Continue tes missions ! 💪`);
       return;
     }
 
-    if (window.confirm(`Es-tu sûr de vouloir échanger ${reward.cost} points contre "${reward.title}" ?`)) {
-      setPocketMoney(prev => prev.map(p => {
-        if (p.id === member.id) {
-          const updatedTransactions = p.transactions || [];
-          return {
-            ...p,
-            points: (p.points || 0) - reward.cost,
-            transactions: [
-              {
-                id: `tx-${Date.now()}`,
-                date: new Date().toISOString().split('T')[0],
-                amount: 0,
-                description: `Achat récompense : ${reward.title}`,
-                type: 'debit'
-              },
-              ...updatedTransactions
-            ]
-          };
-        }
-        return p;
-      }));
+    if (window.confirm(`Es-tu sûr de vouloir demander cette récompense : "${reward.title}" pour ${reward.cost} points ?`)) {
+      const timestamp = Date.now();
+      const newAlert: NotificationAlert = {
+        id: `req-rew-${member.id}-${reward.id}-${timestamp}`,
+        title: `Demande de récompense : ${reward.title}`,
+        description: `${member.name} souhaite échanger ${reward.cost} points contre "${reward.title}".`,
+        time: new Date().toISOString(),
+        type: 'warning',
+        read: false,
+        module: 'argent',
+        senderMemberId: member.id,
+        senderName: member.name,
+        senderAvatar: member.photoUrl
+      };
 
-      setConfettiMessage(`Félicitations ! Tu as débloqué : ${reward.title} ! Demande à un parent d'activer ton bon. 🎉`);
+      // Save to state
+      if (setAlerts) {
+        setAlerts(prev => [newAlert, ...prev]);
+      }
+
+      // Save to Supabase
+      try {
+        const client = getSupabaseClient();
+        if (client && foyer) {
+          await client.from('alerts').insert({
+            id: newAlert.id,
+            foyer_id: foyer.id,
+            title: newAlert.title,
+            description: newAlert.description,
+            time: newAlert.time,
+            type: newAlert.type,
+            read: newAlert.read,
+            module: newAlert.module,
+            sender_member_id: newAlert.senderMemberId,
+            sender_name: newAlert.senderName,
+            sender_avatar: newAlert.senderAvatar
+          });
+          console.log("[KidMissions] Reward request successfully saved to cloud.");
+        }
+      } catch (err) {
+        console.error("[KidMissions] Failed to save reward request alert to cloud:", err);
+      }
+
+      setConfettiMessage(`Ta demande pour "${reward.title}" a bien été envoyée à tes parents. Ils vont la valider très vite ! 🚀✨`);
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 4000);
     }
@@ -153,7 +174,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between pt-4 mb-6">
+      <div className="flex items-center justify-between pt-[calc(1rem+env(safe-area-inset-top,0px))] mb-6">
         <div className="flex items-center space-x-3">
           <button 
             onClick={onBack}
@@ -403,15 +424,16 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
             </div>
             
             <div className="bg-white/5 border border-white/8 rounded-[32px] p-2 space-y-2">
-              {(!myAccount.transactions || myAccount.transactions.length === 0) ? (
-                <p className="text-xs text-center text-white/40 py-6 font-bold">Pas encore d'activité enregistrée !</p>
+              {(myRealTransactions.length === 0) ? (
+                <p className="text-xs text-center text-white/40 py-6 font-bold">Pas encore d'activité enregistrée dans ta tirelire ! 🪙</p>
               ) : (
-                myAccount.transactions.map((tx: any) => {
-                  const isCredit = tx.amount > 0 || tx.type === 'credit';
+                myRealTransactions.map((tx: any) => {
+                  const isCredit = tx.amount > 0 || tx.type === 'credit' || tx.type === 'income';
+                  const displayAmount = Math.abs(tx.amount);
                   return (
                     <div key={tx.id} className="bg-white/5 rounded-2xl p-4 flex items-center justify-between">
                       <div className="space-y-1">
-                        <h4 className="text-xs font-extrabold text-white leading-tight">{tx.description}</h4>
+                        <h4 className="text-xs font-extrabold text-white leading-tight">{tx.title}</h4>
                         <p className="text-[10px] text-white/35 font-bold">{tx.date}</p>
                       </div>
                       
@@ -419,7 +441,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
                         <span className={`text-xs font-black px-3 py-1.5 rounded-xl ${
                           isCredit ? 'text-[#00D26A] bg-[#00D26A]/10' : 'text-[#FF4D6D] bg-[#FF4D6D]/10'
                         }`}>
-                          {isCredit ? '+' : ''}{tx.amount.toFixed(2)} €
+                          {isCredit ? '+' : '-'}{displayAmount.toFixed(2)} €
                         </span>
                       ) : (
                         <span className="text-[10px] font-black text-[#FFB020] bg-[#FFB020]/10 px-3 py-1.5 rounded-xl uppercase tracking-wider flex items-center space-x-1">

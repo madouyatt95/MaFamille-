@@ -63,7 +63,7 @@ export const KidProfile: React.FC<KidProfileProps> = ({
       <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-[#FFB020]/10 blur-[120px] pointer-events-none" />
 
       {/* Header */}
-      <div className="flex items-center justify-between pt-4 mb-6">
+      <div className="flex items-center justify-between pt-[calc(1rem+env(safe-area-inset-top,0px))] mb-6">
         <div className="flex items-center space-x-3">
           <button 
             onClick={onBack}

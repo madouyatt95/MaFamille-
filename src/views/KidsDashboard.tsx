@@ -171,7 +171,7 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#6C5CFF]/10 blur-[100px] pointer-events-none" />
 
       {/* Top Bar Switcher */}
-      <div className="flex justify-between items-center w-full px-2 pt-2 relative z-20">
+      <div className="flex justify-between items-center w-full px-2 pt-[calc(1rem+env(safe-area-inset-top,0px))] relative z-20">
         <span className="text-[10px] font-black text-white/30 uppercase tracking-widest">ESPACE ENFANT 🧸</span>
         {onOpenProfileSwitcher && (
           <button
@@ -179,7 +179,7 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
             className="px-3.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[10px] font-extrabold text-[#FF4D6D] hover:bg-[#FF4D6D]/10 hover:text-white transition-all flex items-center space-x-1.5 cursor-pointer active:scale-95 shadow-md"
           >
             <span>🚪</span>
-            <span>Espace Parent</span>
+            <span>Revenir au profil parent</span>
           </button>
         )}
       </div>
@@ -208,7 +208,7 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
         <div 
           onClick={() => {
             setActiveTab('menu');
-            setActiveModule('taches');
+            setActiveModule('boutique');
           }}
           className="bg-gradient-to-br from-[#FFB020]/20 to-[#FFB020]/5 border border-[#FFB020]/30 rounded-[32px] p-5 flex flex-col items-center justify-center text-center space-y-2 cursor-pointer hover:scale-[1.02] active:scale-98 transition-all"
         >
@@ -222,7 +222,7 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
         <div 
           onClick={() => {
             setActiveTab('menu');
-            setActiveModule('taches');
+            setActiveModule('argent');
           }}
           className="bg-gradient-to-br from-[#00D26A]/20 to-[#00D26A]/5 border border-[#00D26A]/30 rounded-[32px] p-5 flex flex-col items-center justify-center text-center space-y-2 cursor-pointer hover:scale-[1.02] active:scale-98 transition-all"
         >

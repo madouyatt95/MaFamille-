@@ -14,7 +14,8 @@ import {
   Plus,
   Shield,
   Check,
-  RefreshCw
+  RefreshCw,
+  X
 } from 'lucide-react';
 import { aiQuotaService } from '../../services/aiQuotaService';
 
@@ -318,6 +319,7 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
   // Story state
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [genStep, setGenStep] = useState<number>(0);
+  const [fallbackNotice, setFallbackNotice] = useState<boolean>(false);
   const [activeStory, setActiveStory] = useState<any | null>(null);
   const [currentChapterIndex, setCurrentChapterIndex] = useState<number>(0);
   const [storyImage, setStoryImage] = useState<string>('');
@@ -620,6 +622,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
         }
       } catch (err) {
         console.warn("[ConteurIA] Erreur lors de la génération avec Gemini Flash, repli automatique sur le conteur local :", err);
+        setFallbackNotice(true);
       }
     }
 
@@ -745,6 +748,23 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
   return (
     <div className="relative glass-panel border border-white/10 rounded-[40px] p-6 md:p-8 overflow-hidden min-h-[660px] w-full flex flex-col justify-between transition-all duration-700 shadow-[0_25px_60px_rgba(0,0,0,0.5)] bg-[#070e17]/80">
       
+      {/* Fallback notification toast / banner */}
+      {fallbackNotice && (
+        <div className="relative z-50 mb-4 bg-gradient-to-r from-amber-500/90 to-orange-500/90 border border-amber-400/40 p-4 rounded-3xl flex items-center justify-between shadow-lg text-white font-sans text-xs font-bold animate-fade-in animate-bounce-slow">
+          <div className="flex items-center space-x-3">
+            <span className="text-xl">✨</span>
+            <span>Oups, la connexion magique est un peu lente ce soir ! Ne t'inquiète pas, ton conteur a préparé une magnifique histoire de secours juste pour toi ! ✨</span>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setFallbackNotice(false)}
+            className="p-1.5 hover:bg-white/10 rounded-full text-white cursor-pointer ml-3 shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Dynamic ambient glowing background circles */}
       <div className={`absolute -top-32 -left-32 w-96 h-96 rounded-full bg-gradient-to-tr filter blur-[120px] opacity-20 transition-all duration-1000 ${
         activeStory ? activeStory.bgGlow : 
@@ -845,7 +865,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
 
       {/* Header Bar */}
       {activeStory && (
-        <div className="relative z-10 flex items-center justify-between w-full pb-4 border-b border-white/8">
+        <div className="relative z-10 flex items-center justify-between w-full pt-[calc(1rem+env(safe-area-inset-top,0px))] pb-4 border-b border-white/8">
           <button 
             onClick={handleReset}
             className="flex items-center space-x-2 text-xs font-bold text-white/50 hover:text-white transition-colors cursor-pointer"
@@ -872,7 +892,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-72 h-16 bg-[#7C3AED]/10 filter blur-[40px] rounded-full"></div>
               
               {/* Back button and title badge wrapper */}
-              <div className="flex items-center justify-between w-full relative z-10 px-1">
+              <div className="flex items-center justify-between w-full relative z-10 px-1 pt-[calc(1rem+env(safe-area-inset-top,0px))]">
                 <button 
                   onClick={onBack}
                   className="p-2.5 rounded-2xl bg-white/3 border border-white/6 hover:bg-white/8 text-white/70 hover:text-white transition-all duration-300 cursor-pointer flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest"

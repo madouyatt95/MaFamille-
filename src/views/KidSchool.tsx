@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { ArrowLeft, GraduationCap, Calendar, Sparkles, BookOpen, AlertCircle, MessageSquare, CheckSquare, Award, Clock, ArrowRight } from 'lucide-react';
-import type { Member, SchoolTask } from '../types';
+import type { Member, SchoolTask, Dish } from '../types';
 
-interface KidSchoolProps {
+export interface KidSchoolProps {
   member: Member;
   schoolTasks: SchoolTask[];
   setSchoolTasks: React.Dispatch<React.SetStateAction<SchoolTask[]>>;
-  dishes?: any[];
+  dishes: Dish[];
+  grades?: any[];
   onBack: () => void;
 }
 
@@ -31,23 +32,47 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
   member,
   schoolTasks,
   setSchoolTasks,
-  dishes = [],
+  dishes,
+  grades = [],
   onBack
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'devoirs' | 'tuteur' | 'cantine' | 'vie'>('devoirs');
-  
-  // Filter school tasks for this kid
-  const mySchoolTasks = schoolTasks.filter(t => t.assignedMemberId === member.id);
-  const pendingTasks = mySchoolTasks.filter(t => !t.done);
-  const completedTasks = mySchoolTasks.filter(t => t.done);
+  const [tutorNotice, setTutorNotice] = useState<boolean>(false);
 
-  // Cantine Menu mock (merged with week menus if available, or static delicious options)
-  const cantineMenu = [
-    { day: 'Lundi', starter: 'Salade de tomates 🍅', main: 'Lasagnes à la bolognaise 🍝', dessert: 'Compote de pommes 🍎' },
-    { day: 'Mardi', starter: 'Velouté de légumes 🥣', main: 'Poulet rôti et frites dorées 🍗🍟', dessert: 'Mousse au chocolat 🍫' },
-    { day: 'Jeudi', starter: 'Carottes râpées 🥕', main: 'Filet de poisson blanc et riz pilaf 🐟🍚', dessert: 'Fruit de saison 🍌' },
-    { day: 'Vendredi', starter: 'Tarte au fromage 🧀', main: 'Burger maison de la cantine et purée 🍔🥔', dessert: 'Glace vanille 🍦' }
-  ];
+  // Devoirs / Tasks filtered for this member
+  const pendingTasks = schoolTasks.filter(t => t.assignedMemberId === member.id);
+
+  // Real grades filtered for this student
+  const myRealGrades = grades.filter(g => g.studentId === member.id);
+
+  // Canteen Menu mapped from foyer dishes
+  const weekdays = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
+  const cantineMenu = weekdays.map(day => {
+    // Find lunch dish for this day in family dishes
+    const lunchDish = dishes.find(d => d.day === day && d.mealType === 'lunch');
+    if (lunchDish) {
+      return {
+        day,
+        starter: "Salade de saison bio 🥗",
+        main: lunchDish.name,
+        dessert: "Fruit frais ou yaourt local 🍏"
+      };
+    }
+
+    // Default kid-friendly fallback canteen menu
+    const defaultMenus: Record<string, { starter: string; main: string; dessert: string }> = {
+      'Lundi': { starter: 'Carottes râpées bio 🥕', main: 'Pâtes fraîche Carbonara 🍝', dessert: 'Compote de pommes maison 🍏' },
+      'Mardi': { starter: 'Salade de tomates & mozzarella 🍅', main: 'Poulet rôti croustillant & Frites dorées 🍗🍟', dessert: 'Yaourt crémeux aux fraises 🍓' },
+      'Mercredi': { starter: 'Potage aux légumes magiques 🍲', main: 'Filet de poisson pané croustillant & Purée de pommes de terre 🐟🥔', dessert: 'Moelleux au chocolat intense 🍫' },
+      'Jeudi': { starter: 'Salade coleslaw croquante 🥗', main: 'Lasagnes au boeuf de la maîtresse 🥩', dessert: 'Salade de fruits frais de saison 🍌' },
+      'Vendredi': { starter: 'Salade de riz niçoise 🍚', main: 'Boulettes de boeuf gourmandes & sauce tomate provençale 🧆', dessert: 'Flan nappé de caramel fondant 🍮' }
+    };
+
+    return {
+      day,
+      ...(defaultMenus[day] || defaultMenus['Lundi'])
+    };
+  });
 
   // Teacher messages
   const teacherMessages: TeacherMessage[] = [
@@ -55,8 +80,8 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
       id: 'msg-1', 
       sender: 'Mme. Mercier (Maîtresse)', 
       subject: 'Poésie à réciter 📖', 
-      body: "Bonjour Issa ! N'oublie pas d'apprendre les deux premières strophes de ta poésie pour lundi prochain. Excellent travail en classe cette semaine !", 
-      date: 'Aujourd\'hui',
+      body: `Bonjour ${member.name} ! N'oublie pas d'apprendre les deux premières strophes de ta poésie pour lundi prochain. Excellent travail en classe cette semaine !`, 
+      date: "Aujourd'hui",
       avatar: '👩‍🏫'
     },
     { 
@@ -69,7 +94,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
     }
   ];
 
-  // Mock evaluations
+  // Mock evaluations (upcoming exams)
   const schoolExams: ExamItem[] = [
     { id: 'ex-1', subject: 'Mathématiques 📐', topic: 'Les tables de multiplication (6 à 9)', date: 'Mardi 9 Juin', difficulty: 'medium' },
     { id: 'ex-2', subject: 'Histoire 🏺', topic: 'Les Pharaons et la construction des pyramides', date: 'Vendredi 12 Juin', difficulty: 'hard' }
@@ -82,7 +107,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
   const [userInput, setUserInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userInput.trim()) return;
 
@@ -90,8 +115,50 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
     setChatMessages(prev => [...prev, { sender: 'user', text: query }]);
     setUserInput('');
     setIsTyping(true);
+    setTutorNotice(false);
 
-    // AI logic simulation
+    try {
+      const prompt = `Tu es un super Tuteur IA drôle et pédagogue pour un enfant de 8 à 11 ans nommé ${member.name}.
+Réponds à sa question de manière simple, ludique, claire et encourageante, en utilisant des émojis.
+Garde ta réponse concise (maximum 4-5 phrases) et adaptée à son niveau scolaire (primaire).
+Question de l'enfant : "${query}"`;
+
+      const useProxy = !import.meta.env.DEV || !import.meta.env.VITE_GEMINI_API_KEY;
+      const geminiEndpoint = useProxy
+        ? (import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini')
+        : `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (!useProxy && import.meta.env.VITE_GEMINI_API_KEY) {
+        headers['Authorization'] = `Bearer ${import.meta.env.VITE_GEMINI_API_KEY}`;
+      }
+
+      const response = await fetch(geminiEndpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7 }
+        })
+      });
+
+      if (!response.ok) throw new Error('Gemini API call failed');
+      const data = await response.json();
+      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      if (aiResponse.trim()) {
+        setChatMessages(prev => [...prev, { sender: 'ai', text: aiResponse.trim() }]);
+        setIsTyping(false);
+        return;
+      } else {
+        throw new Error('Reponse vide de Gemini');
+      }
+    } catch (err) {
+      console.warn("[KidSchool IA Tutor] Erreur lors de l'appel Gemini, repli sur le simulateur local :", err);
+      setTutorNotice(true);
+    }
+
+    // AI logic simulation fallback
     setTimeout(() => {
       let aiResponse = '';
       const cleanQuery = query.toLowerCase();
@@ -114,6 +181,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
       setIsTyping(false);
     }, 1200);
   };
+
 
   const toggleTaskDone = (taskId: string) => {
     setSchoolTasks(prev => prev.map(t => {
@@ -140,7 +208,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#FF4D6D]/10 blur-[100px] pointer-events-none" />
 
       {/* Header */}
-      <div className="flex items-center justify-between pt-4 mb-6">
+      <div className="flex items-center justify-between pt-[calc(1rem+env(safe-area-inset-top,0px))] mb-6">
         <div className="flex items-center space-x-3">
           <button 
             onClick={onBack}
@@ -276,12 +344,52 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
               ))}
             </div>
           </div>
+
+          {/* Notes Récentes Section */}
+          <div className="space-y-3">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block">Mes Notes Récentes :</span>
+            <div className="bg-white/5 border border-white/8 rounded-[32px] p-4 space-y-3">
+              {myRealGrades.length > 0 ? (
+                myRealGrades.map((grade, idx) => {
+                  const getStatus = (val: number, max: number) => {
+                    const ratio = val / max;
+                    if (ratio >= 0.8) return 'Excellent 🌟';
+                    if (ratio >= 0.7) return 'Très Bien ✨';
+                    if (ratio >= 0.6) return 'Bien 👍';
+                    if (ratio >= 0.5) return 'Moyen 🧐';
+                    return 'À travailler 📚';
+                  };
+                  return (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-white/5 rounded-2xl text-xs">
+                      <div>
+                        <h4 className="font-bold text-white">{grade.subject}</h4>
+                        <p className="text-[10px] text-white/40 mt-0.5">{grade.examTitle} • Coef {grade.coef}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-extrabold text-[#00D26A] text-sm">{grade.value} / {grade.max}</span>
+                        <p className="text-[9px] text-white/45 mt-0.5">{getStatus(grade.value, grade.max)}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-xs text-white/30 text-center py-4">Aucune note enregistrée dans ton bulletin pour le moment. 📝</p>
+              )}
+            </div>
+          </div>
+
         </div>
       )}
 
       {/* CONTENT: AI Tutor Chat */}
       {activeSubTab === 'tuteur' && (
         <div className="space-y-4 flex flex-col min-h-[400px]">
+          {tutorNotice && (
+            <div className="bg-amber-500/20 border border-amber-500/30 rounded-2xl p-3 text-[10px] text-amber-200 font-bold flex items-center space-x-2 animate-pulse">
+              <span className="text-sm">⚡️</span>
+              <span>Connexion magique perturbée. Le Tuteur IA utilise sa mémoire locale ! ✨</span>
+            </div>
+          )}
           {/* Chat box */}
           <div className="flex-1 bg-white/5 border border-white/10 rounded-[32px] p-4 space-y-4 overflow-y-auto max-h-[350px] min-h-[250px] flex flex-col justify-end">
             <div className="space-y-3">

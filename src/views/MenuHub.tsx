@@ -169,6 +169,7 @@ interface MenuHubProps {
   setPocketMoney: React.Dispatch<React.SetStateAction<PocketMoneyChild[]>>;
   goals: SavingGoal[];
   alerts: NotificationAlert[];
+  setAlerts?: React.Dispatch<React.SetStateAction<NotificationAlert[]>>;
   currencySymbol: string;
   formatMoney: (amount: number) => string;
   activeModule: string;
@@ -409,6 +410,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   accounts = [],
   transactions = [],
   setTransactions,
+  alerts = [],
+  setAlerts,
 }) => {
   const activePermissions = useMemo(() => {
     if (memberPermissions && activeMemberId && memberPermissions[activeMemberId]) {
@@ -5533,6 +5536,129 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             <h2 className="text-lg font-extrabold text-white">Argent de Poche</h2>
             <p className="text-xs text-white/50">Missions rémunérées et cagnottes des enfants</p>
           </div>
+
+          {/* Demandes de Récompenses en Attente (Parent-only validation workflow) */}
+          {isParent && setAlerts && (
+            <div className="glass-panel rounded-[28px] border-2 border-amber-500/20 bg-amber-500/5 p-5 space-y-4">
+              <div className="flex items-center space-x-2">
+                <span className="text-lg">🛍️</span>
+                <h3 className="text-sm font-extrabold text-white">Demandes de Récompenses en Attente</h3>
+                <span className="text-[9px] font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                  {alerts.filter(a => a.id.startsWith('req-rew-')).length} en attente
+                </span>
+              </div>
+
+              {alerts.filter(a => a.id.startsWith('req-rew-')).length > 0 ? (
+                <div className="space-y-3">
+                  {alerts.filter(a => a.id.startsWith('req-rew-')).map((alertItem) => {
+                    const parts = alertItem.id.split('-');
+                    const memberId = parts[2];
+                    const rewardId = `${parts[3]}-${parts[4]}`; // rew-1
+                    
+                    const child = pocketMoney.find(p => p.id === memberId);
+                    
+                    const rewardsList = [
+                      { id: 'rew-1', title: '30 min de console 🎮', cost: 50 },
+                      { id: 'rew-2', title: 'Choisir le menu du dîner 🍕', cost: 80 },
+                      { id: 'rew-3', title: 'Coucher tardif (+30 min) 🌙', cost: 100 },
+                      { id: 'rew-4', title: 'Double boule de glace 🍦', cost: 120 },
+                      { id: 'rew-5', title: 'Cinéma en famille 🎬', cost: 250 },
+                      { id: 'rew-6', title: 'Nouveau jouet au choix 🧸', cost: 400 }
+                    ];
+                    const reward = rewardsList.find(r => r.id === rewardId);
+                    
+                    const handleApprove = async () => {
+                      if (!child || !reward) return;
+                      
+                      if (child.points < reward.cost) {
+                        alert(`Désolé, ${child.name} n'a plus assez de points (${child.points} pts) pour débloquer cette récompense (${reward.cost} pts).`);
+                        return;
+                      }
+                      
+                      // 1. Deduct points from child pocket money
+                      setPocketMoney(prev => prev.map(c => c.id === child.id ? { ...c, points: c.points - reward.cost } : c));
+                      
+                      // 2. Add points debit transaction
+                      if (onAddTransaction) {
+                        onAddTransaction({
+                          amount: 0,
+                          type: 'expense',
+                          category: 'Argent de Poche',
+                          date: new Date().toISOString().split('T')[0],
+                          title: `Récompense validée : ${reward.title}`,
+                          memberName: child.name
+                        });
+                      }
+                      
+                      // 3. Delete alert from local state
+                      setAlerts(prev => prev.filter(a => a.id !== alertItem.id));
+                      
+                      // 4. Delete alert from Supabase
+                      try {
+                        const client = getSupabaseClient();
+                        if (client) {
+                          await client.from('alerts').delete().eq('id', alertItem.id);
+                        }
+                      } catch (err) {
+                        console.error("[MenuHub Validation] Failed to delete alert from cloud:", err);
+                      }
+                      
+                      alert(`🎉 Récompense "${reward.title}" validée avec succès pour ${child.name} !`);
+                    };
+                    
+                    const handleRefuse = async () => {
+                      // 1. Delete alert from local state
+                      setAlerts(prev => prev.filter(a => a.id !== alertItem.id));
+                      
+                      // 2. Delete alert from Supabase
+                      try {
+                        const client = getSupabaseClient();
+                        if (client) {
+                          await client.from('alerts').delete().eq('id', alertItem.id);
+                        }
+                      } catch (err) {
+                        console.error("[MenuHub Validation] Failed to delete alert from cloud:", err);
+                      }
+                      
+                      alert(`Récompense refusée. La demande a été supprimée.`);
+                    };
+
+                    return (
+                      <div key={alertItem.id} className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+                        <div className="space-y-1">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-extrabold text-white">{alertItem.title}</span>
+                            <span className="text-[10px] text-[#FFB020] font-black">({reward?.cost || 0} pts)</span>
+                          </div>
+                          <p className="text-white/60">{alertItem.description}</p>
+                          <p className="text-[9px] text-white/35">Solde actuel de l'enfant : {child?.points || 0} pts</p>
+                        </div>
+                        
+                        <div className="flex space-x-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleApprove}
+                            className="px-3 py-1.5 bg-[#00D26A] text-[#07111F] rounded-xl font-extrabold transition-all hover:scale-105 cursor-pointer"
+                          >
+                            Valider
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRefuse}
+                            className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-xl font-extrabold hover:bg-red-500/30 transition-all cursor-pointer"
+                          >
+                            Refuser
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-white/30 text-center py-2 font-bold">Aucune demande de récompense en attente. 👍</p>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {(isParent ? pocketMoney : pocketMoney.filter(c => c.id === activeMemberId)).map((child) => (

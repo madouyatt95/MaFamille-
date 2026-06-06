@@ -111,6 +111,9 @@ import { KidSchool } from './views/KidSchool';
 import { KidStories } from './views/KidStories';
 import { KidProfile } from './views/KidProfile';
 import { Paywall } from './components/Paywall';
+import { PeaceMaker } from './components/modules/PeaceMaker';
+import { CapsuleTemporelle } from './components/modules/CapsuleTemporelle';
+import { ConseilFamille } from './components/modules/ConseilFamille';
 import { Onboarding } from './views/Onboarding';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
 import { foyerService } from './services/foyerService';
@@ -123,7 +126,7 @@ import { compressImageToBlob, uploadBlobToStorage } from './utils/imageCompresso
 
 import { getUnifiedEvents } from './utils/agendaHelper';
 import type { ExternalEvent } from './utils/icalParser';
-import { Volume2, Mic, Bell, X, ChevronRight, ChevronDown, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check, Star } from 'lucide-react';
+import { Volume2, Mic, Bell, X, ChevronRight, ChevronDown, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check, Star, ArrowLeft } from 'lucide-react';
 
 const keywordRules = [
   // TRANSPORT
@@ -10541,7 +10544,7 @@ function App() {
           <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-[#FF4D6D]/10 blur-[130px] pointer-events-none" />
 
           {/* Header bar */}
-          <header className="w-full max-w-4xl mx-auto px-6 pt-6 pb-2 flex items-center justify-between relative z-10">
+          <header className="w-full max-w-4xl mx-auto px-6 pt-[calc(1.5rem+env(safe-area-inset-top,0px))] pb-2 flex items-center justify-between relative z-10">
             <div className="flex items-center space-x-3">
               <button 
                 onClick={() => setSidebarOpen(true)}
@@ -10788,7 +10791,7 @@ function App() {
       }
 
       if (isKid) {
-        if (activeModule === 'taches') {
+        if (activeModule === 'taches' || activeModule === 'argent' || activeModule === 'boutique') {
           return (
             <KidMissions 
               member={appActiveMemberObj!}
@@ -10797,6 +10800,10 @@ function App() {
               pocketMoney={appPocketMoney}
               setPocketMoney={setPocketMoney}
               onBack={() => setActiveModule('')}
+              defaultTab={activeModule === 'argent' ? 'argent' : activeModule === 'boutique' ? 'boutique' : 'missions'}
+              setAlerts={setAlerts}
+              foyer={appFoyer}
+              transactions={appTransactions}
             />
           );
         }
@@ -10807,6 +10814,7 @@ function App() {
               schoolTasks={schoolTasks}
               setSchoolTasks={setSchoolTasks}
               dishes={dishes}
+              grades={grades}
               onBack={() => setActiveModule('')}
             />
           );
@@ -10836,6 +10844,105 @@ function App() {
               documents={documents}
               onBack={() => setActiveModule('')}
             />
+          );
+        }
+        if (activeModule === 'peacemaker') {
+          return (
+            <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32 relative overflow-hidden">
+              <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#FF4D6D]/10 blur-[100px] pointer-events-none" />
+              
+              {/* Kid Header */}
+              <div className="flex items-center justify-between pt-[calc(1rem+env(safe-area-inset-top,0px))] mb-6">
+                <div className="flex items-center space-x-3">
+                  <button 
+                    onClick={() => setActiveModule('')}
+                    className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white cursor-pointer"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div>
+                    <h1 className="text-2xl font-black tracking-tight text-white flex items-center space-x-2">
+                      <span>🕊️</span>
+                      <span>PeaceMaker</span>
+                    </h1>
+                    <p className="text-xs text-white/50 font-bold">Réglez vos disputes calmement avec l'IA !</p>
+                  </div>
+                </div>
+              </div>
+
+              <PeaceMaker 
+                isPremium={isPremium}
+                onTriggerPaywall={() => setPaywallOpen(true)}
+              />
+            </div>
+          );
+        }
+        if (activeModule === 'capsule') {
+          return (
+            <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32 relative overflow-hidden">
+              <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#FFB020]/10 blur-[100px] pointer-events-none" />
+              
+              {/* Kid Header */}
+              <div className="flex items-center justify-between pt-[calc(1rem+env(safe-area-inset-top,0px))] mb-6">
+                <div className="flex items-center space-x-3">
+                  <button 
+                    onClick={() => setActiveModule('')}
+                    className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white cursor-pointer"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div>
+                    <h1 className="text-2xl font-black tracking-tight text-white flex items-center space-x-2">
+                      <span>⏳</span>
+                      <span>Capsule Temporelle</span>
+                    </h1>
+                    <p className="text-xs text-white/50 font-bold">Tes souvenirs de famille magiques !</p>
+                  </div>
+                </div>
+              </div>
+
+              <CapsuleTemporelle 
+                memories={memories} 
+                setMemories={setMemories} 
+                activeMemberId={appActiveMemberId} 
+                isPremium={isPremium}
+                onTriggerPaywall={() => setPaywallOpen(true)}
+                members={appMembers}
+              />
+            </div>
+          );
+        }
+        if (activeModule === 'conseil') {
+          return (
+            <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32 relative overflow-hidden">
+              <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#6C5CFF]/10 blur-[100px] pointer-events-none" />
+              
+              {/* Kid Header */}
+              <div className="flex items-center justify-between pt-[calc(1rem+env(safe-area-inset-top,0px))] mb-6">
+                <div className="flex items-center space-x-3">
+                  <button 
+                    onClick={() => setActiveModule('')}
+                    className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white cursor-pointer"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div>
+                    <h1 className="text-2xl font-black tracking-tight text-white flex items-center space-x-2">
+                      <span>🗳️</span>
+                      <span>Conseil de Famille</span>
+                    </h1>
+                    <p className="text-xs text-white/50 font-bold">Participe aux choix de ta famille !</p>
+                  </div>
+                </div>
+              </div>
+
+              <ConseilFamille 
+                votes={appVotes} 
+                setVotes={setVotes} 
+                activeMemberId={appActiveMemberId} 
+                members={appMembers}
+              />
+            </div>
           );
         }
       }
@@ -10986,6 +11093,7 @@ function App() {
           transactions={appTransactions}
           setTransactions={setTransactions}
           alerts={appFilteredAlerts}
+          setAlerts={setAlerts}
           currencySymbol={getCurrencySymbol()}
           formatMoney={formatMoney}
           activeModule={activeModule}
@@ -11440,7 +11548,7 @@ function App() {
           <div className="relative glass-panel border border-white/10 rounded-[32px] w-full max-w-md p-6 space-y-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] animate-fade-in pointer-events-auto z-10 bg-white/2 backdrop-blur-lg">
             
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+            <div className="flex items-center justify-between border-b border-white/5 pt-[env(safe-area-inset-top,0px)] pb-3">
               <div>
                 <h3 className="text-sm font-black uppercase tracking-wider text-white">Sélecteur d'Espaces</h3>
                 <p className="text-[10px] text-white/40 mt-1">Naviguez entre vos familles, écoles et communes actives</p>
