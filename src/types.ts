@@ -137,6 +137,7 @@ export interface Member {
   lastLocatedAt?: string;
   hasExemption?: boolean;
   approved?: boolean;
+  phone?: string;
 }
 
 export type EventType = 'medical' | 'school' | 'bill' | 'grocery' | 'social' | 'other' | 'vaccine';

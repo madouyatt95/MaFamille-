@@ -118,6 +118,7 @@ import { CommuneHub } from './components/modules/CommuneHub';
 import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction, serializeEventDescription, deserializeEventDescription, logQueryVolume } from './utils/supabase';
 import { notificationService } from './services/notificationService';
 import type { Foyer, FoyerMember } from './types';
+import { compressImageToBlob, uploadBlobToStorage } from './utils/imageCompressor';
 
 import { getUnifiedEvents } from './utils/agendaHelper';
 import type { ExternalEvent } from './utils/icalParser';
@@ -1449,6 +1450,61 @@ function App() {
           });
         }
 
+        // 3. Check member birthdays
+        if (Array.isArray(members)) {
+          members.forEach((m: any) => {
+            if (m.birthDate) {
+              try {
+                // Parse birthDate which can be YYYY-MM-DD, DD/MM/YYYY or DD-MM-YYYY
+                let bMonth = -1;
+                let bDay = -1;
+                
+                if (m.birthDate.includes('/')) {
+                  const parts = m.birthDate.split('/');
+                  if (parts.length === 3) {
+                    if (parts[2].length === 4) { // DD/MM/YYYY
+                      bDay = parseInt(parts[0]);
+                      bMonth = parseInt(parts[1]) - 1;
+                    } else if (parts[0].length === 4) { // YYYY/MM/DD
+                      bMonth = parseInt(parts[1]) - 1;
+                      bDay = parseInt(parts[2]);
+                    }
+                  }
+                } else if (m.birthDate.includes('-')) {
+                  const parts = m.birthDate.split('-');
+                  if (parts.length === 3) {
+                    if (parts[2].length === 4) { // DD-MM-YYYY
+                      bDay = parseInt(parts[0]);
+                      bMonth = parseInt(parts[1]) - 1;
+                    } else if (parts[0].length === 4) { // YYYY-MM-DD
+                      bMonth = parseInt(parts[1]) - 1;
+                      bDay = parseInt(parts[2]);
+                    }
+                  }
+                }
+
+                if (bMonth >= 0 && bDay > 0) {
+                  const today = new Date();
+                  const alertKey = `bday-${m.id}-${today.getFullYear()}-${bMonth}-${bDay}`;
+                  
+                  if (today.getMonth() === bMonth && today.getDate() === bDay && !alertedIds.includes(alertKey)) {
+                    sendLocalNotification(
+                      `🎂 Joyeux Anniversaire !`,
+                      `C'est aujourd'hui l'anniversaire de ${m.name} ! Souhaitez-lui une excellente journée ! 🎉`,
+                      "membres",
+                      "info"
+                    );
+                    newAlertedIds.push(alertKey);
+                    changed = true;
+                  }
+                }
+              } catch (e) {
+                console.warn("Failed to check birthday for member:", m.name, e);
+              }
+            }
+          });
+        }
+
         if (changed) {
           localStorage.setItem(storageKey, JSON.stringify(newAlertedIds));
         }
@@ -1460,7 +1516,7 @@ function App() {
     // Delay checking slightly to ensure sendLocalNotification is available and stable
     const t = setTimeout(checkExpiringItems, 2000);
     return () => clearTimeout(t);
-  }, [documents, vehicles, foyer]);
+  }, [documents, vehicles, members, foyer]);
 
   const [onboardingActive, setOnboardingActive] = useState(false);
   const isSessionCheckingRef = useRef(false);
@@ -1668,11 +1724,13 @@ function App() {
   const mapFoyerMemberToMember = (fm: FoyerMember): Member => {
     let preciseRole = fm.role as string;
     let bloodGroup = fm.bloodGroup || 'O+';
+    let phone = '';
     
     if (fm.bloodGroup && fm.bloodGroup.startsWith('ROLE:')) {
       const parts = fm.bloodGroup.substring(5).split('|');
       preciseRole = parts[0];
       bloodGroup = parts[1] || 'O+';
+      phone = parts[2] || '';
     } else {
       // Fallback inference if not yet serialized
       if (fm.role === 'admin') preciseRole = 'chef_famille';
@@ -1716,7 +1774,8 @@ function App() {
       photoUrl: fm.photoUrl || 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150',
       hasExemption: fm.hasExemption || false,
       approved: fm.approved !== false,
-      medicalHistory: []
+      medicalHistory: [],
+      phone: phone
     };
   };
 
@@ -3833,6 +3892,113 @@ function App() {
       if (!client) return;
 
       const currentSessionId = ++syncSessionIdRef.current;
+
+      // Pre-upload any base64 images in background
+      let hasUpdates = false;
+
+      // 1. Documents
+      const processedDocuments = await Promise.all(documents.map(async d => {
+        if (d.fileBase64 && d.fileBase64.startsWith('data:')) {
+          try {
+            console.log(`[Sync] Compressing & uploading document: ${d.name}`);
+            const { blob: docBlob } = await compressImageToBlob(d.fileBase64, 'document');
+            const publicUrl = await uploadBlobToStorage('documents', `${foyer.id}/${d.id}.webp`, docBlob);
+            
+            // Also generate a thumbnail
+            try {
+              const { blob: thumbBlob } = await compressImageToBlob(d.fileBase64, 'thumbnail');
+              await uploadBlobToStorage('documents', `${foyer.id}/thumb_${d.id}.webp`, thumbBlob);
+            } catch (err) {
+              console.warn("Failed to upload document thumbnail:", err);
+            }
+
+            hasUpdates = true;
+            return { ...d, fileBase64: publicUrl };
+          } catch (err) {
+            console.error("Failed to upload document image to Storage:", err);
+          }
+        }
+        return d;
+      }));
+      if (hasUpdates) {
+        setDocuments(processedDocuments);
+        return; // Let the state change trigger a new sync cycle
+      }
+
+      // 2. Transactions
+      let txUpdated = false;
+      const processedTxs = await Promise.all(transactions.map(async t => {
+        let updatedT = { ...t };
+        if (t.receiptBase64 && t.receiptBase64.startsWith('data:')) {
+          try {
+            console.log(`[Sync] Compressing & uploading receipt for transaction: ${t.title}`);
+            const { blob } = await compressImageToBlob(t.receiptBase64, 'classic');
+            const url = await uploadBlobToStorage('receipts', `${foyer.id}/${t.id}_receipt.webp`, blob);
+            updatedT.receiptBase64 = url;
+            txUpdated = true;
+          } catch (err) {
+            console.error("Failed to upload transaction receipt to Storage:", err);
+          }
+        }
+        if (t.attachmentBase64 && t.attachmentBase64.startsWith('data:')) {
+          try {
+            console.log(`[Sync] Compressing & uploading attachment for transaction: ${t.title}`);
+            const { blob } = await compressImageToBlob(t.attachmentBase64, 'classic');
+            const url = await uploadBlobToStorage('receipts', `${foyer.id}/${t.id}_attach.webp`, blob);
+            updatedT.attachmentBase64 = url;
+            txUpdated = true;
+          } catch (err) {
+            console.error("Failed to upload transaction attachment to Storage:", err);
+          }
+        }
+        return updatedT;
+      }));
+      if (txUpdated) {
+        setTransactions(processedTxs);
+        return;
+      }
+
+      // 3. Dishes
+      let dishUpdated = false;
+      const processedDishes = await Promise.all(dishes.map(async d => {
+        if (d.image && d.image.startsWith('data:')) {
+          try {
+            console.log(`[Sync] Compressing & uploading image for dish: ${d.name}`);
+            const { blob } = await compressImageToBlob(d.image, 'classic');
+            const url = await uploadBlobToStorage('dishes', `${foyer.id}/${d.id}.webp`, blob);
+            dishUpdated = true;
+            return { ...d, image: url };
+          } catch (err) {
+            console.error("Failed to upload dish image to Storage:", err);
+          }
+        }
+        return d;
+      }));
+      if (dishUpdated) {
+        setDishes(processedDishes);
+        return;
+      }
+
+      // 4. Chat Messages
+      let chatUpdated = false;
+      const processedChats = await Promise.all(chatMessages.map(async c => {
+        if (c.type === 'image' && c.content && c.content.startsWith('data:')) {
+          try {
+            console.log(`[Sync] Compressing & uploading image for chat message: ${c.id}`);
+            const { blob } = await compressImageToBlob(c.content, 'classic');
+            const url = await uploadBlobToStorage('chats', `${foyer.id}/${c.id}.webp`, blob);
+            chatUpdated = true;
+            return { ...c, content: url };
+          } catch (err) {
+            console.error("Failed to upload chat image to Storage:", err);
+          }
+        }
+        return c;
+      }));
+      if (chatUpdated) {
+        setChatMessages(processedChats);
+        return;
+      }
 
       // Helper function to sync a table cleanly
       const syncTable = async (tableName: string, localItems: any[], mapToDb: (item: any) => any, allowDelete: boolean = false) => {
@@ -9122,27 +9288,7 @@ function App() {
       try {
         const addedMem = await foyerService.addMemberToFoyer(foyer.id, newMem);
         // Traduire le membre retourné de Supabase au format UI frontend
-        const mappedMember = {
-          id: addedMem.id,
-          name: addedMem.displayName,
-          role: addedMem.role === 'admin' ? 'Chef de famille' :
-                addedMem.role === 'parent' ? 'Gestionnaire' :
-                addedMem.role === 'guest' ? 'Invité' : 'Enfant',
-          age: addedMem.age || 'Nouveau',
-          birthDate: addedMem.birthDate || 'Inconnue',
-          bloodGroup: addedMem.bloodGroup || 'A+',
-          allergies: addedMem.allergies || ['Aucune'],
-          treatments: addedMem.treatments || ['Aucun'],
-          emergencyContact: {
-            name: addedMem.emergencyContactName || 'Maman',
-            phone: addedMem.emergencyContactPhone || '',
-            relation: addedMem.emergencyContactRelation || 'Mère'
-          },
-          schoolOrEmployer: addedMem.schoolOrEmployer || 'Non renseigné',
-          photoUrl: addedMem.photoUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${addedMem.displayName}`,
-          hasExemption: addedMem.hasExemption || false,
-          medicalHistory: []
-        };
+        const mappedMember = mapFoyerMemberToMember(addedMem);
         setMembers(prev => [...prev, mappedMember]);
         alert(`🎉 Fiche membre de ${mappedMember.name} créée et enregistrée avec succès dans le Cloud ! ✨`);
       } catch (err: any) {
@@ -9374,23 +9520,37 @@ function App() {
   };
 
   const handleUpdateMemberProfile = async (memberId: string, updates: Partial<FoyerMember>) => {
+    let finalUpdates = { ...updates };
+    if (updates.photoUrl && updates.photoUrl.startsWith('data:')) {
+      try {
+        console.log(`[Profile] Compressing & uploading profile picture for member: ${memberId}`);
+        const { blob } = await compressImageToBlob(updates.photoUrl, 'profile');
+        const storagePath = foyer ? `${foyer.id}/profile_${memberId}.webp` : `profile_${memberId}.webp`;
+        const publicUrl = await uploadBlobToStorage('avatars', storagePath, blob);
+        finalUpdates.photoUrl = publicUrl;
+      } catch (err) {
+        console.error("Failed to upload profile image to Storage:", err);
+      }
+    }
+
     setMembers(prev => prev.map(m => {
       if (m.id === memberId) {
         const convertedUpdates: any = {};
-        if (updates.displayName !== undefined) convertedUpdates.name = updates.displayName;
-        if (updates.photoUrl !== undefined) convertedUpdates.photoUrl = updates.photoUrl;
-        if (updates.role !== undefined) {
+        if (finalUpdates.displayName !== undefined) convertedUpdates.name = finalUpdates.displayName;
+        if (finalUpdates.photoUrl !== undefined) convertedUpdates.photoUrl = finalUpdates.photoUrl;
+        if (finalUpdates.role !== undefined) {
           convertedUpdates.role = 
-            updates.role === 'admin' ? 'Chef de famille' :
-            updates.role === 'parent' ? 'Gestionnaire' :
-            updates.role === 'child' ? 'Enfant' :
+            finalUpdates.role === 'admin' ? 'Chef de famille' :
+            finalUpdates.role === 'parent' ? 'Gestionnaire' :
+            finalUpdates.role === 'child' ? 'Enfant' :
             'Invité';
         }
-        if (updates.age !== undefined) convertedUpdates.age = updates.age;
-        if (updates.birthDate !== undefined) convertedUpdates.birthDate = updates.birthDate;
-        if (updates.bloodGroup !== undefined) convertedUpdates.bloodGroup = updates.bloodGroup;
-        if (updates.schoolOrEmployer !== undefined) convertedUpdates.schoolOrEmployer = updates.schoolOrEmployer;
-        if (updates.hasExemption !== undefined) convertedUpdates.hasExemption = updates.hasExemption;
+        if (finalUpdates.age !== undefined) convertedUpdates.age = finalUpdates.age;
+        if (finalUpdates.birthDate !== undefined) convertedUpdates.birthDate = finalUpdates.birthDate;
+        if (finalUpdates.bloodGroup !== undefined) convertedUpdates.bloodGroup = finalUpdates.bloodGroup;
+        if (finalUpdates.schoolOrEmployer !== undefined) convertedUpdates.schoolOrEmployer = finalUpdates.schoolOrEmployer;
+        if (finalUpdates.hasExemption !== undefined) convertedUpdates.hasExemption = finalUpdates.hasExemption;
+        if (finalUpdates.userId !== undefined) convertedUpdates.userId = finalUpdates.userId;
         
         return { ...m, ...convertedUpdates };
       }
@@ -9399,12 +9559,12 @@ function App() {
     
     // Instant update of active user's own profile state if they edited their own profile
     if (myMemberProfile && memberId === myMemberProfile.id) {
-      setMyMemberProfile(prev => prev ? { ...prev, ...updates } : null);
+      setMyMemberProfile(prev => prev ? { ...prev, ...finalUpdates } : null);
     }
 
     if (foyer) {
       try {
-        await foyerService.updateMemberProfile(memberId, updates);
+        await foyerService.updateMemberProfile(memberId, finalUpdates);
       } catch (e) {
         console.error("Erreur lors de la mise à jour du profil membre :", e);
       }
@@ -10735,8 +10895,10 @@ function App() {
               foyer={appFoyer}
               activeMemberId={appActiveMemberId}
               onUpdateMemberProfile={handleUpdateMemberProfile}
+              onAddMember={handleAddMember}
               memberPermissions={memberPermissions}
               onUpdatePermissions={handleUpdateMemberPermissions}
+              myMemberProfile={myMemberProfile}
             />
           </div>
         );

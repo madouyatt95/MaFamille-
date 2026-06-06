@@ -205,7 +205,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                 </div>
                 <div className="min-w-0">
                   <h4 className="text-xs font-bold text-white truncate">{event.title}</h4>
-                  <p className="text-[9px] text-white/40 font-sans">{event.dateTime.split('T')[0]}</p>
+                  <p className="text-[9px] text-white/40 font-sans">{(event.dateTime || '').split('T')[0] || 'Toute la journée'}</p>
                 </div>
               </div>
             ))

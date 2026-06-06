@@ -14,7 +14,9 @@ import {
   Copy,
   Check,
   Camera,
-  LogOut
+  LogOut,
+  Link,
+  CheckCircle2
 } from 'lucide-react';
 import { foyerService } from '../services/foyerService';
 import { getSupabaseClient } from '../utils/supabase';
@@ -126,7 +128,7 @@ export const Membres: React.FC<MembresProps> = ({
         ['adolescent', 'enfant'].includes(addRole) ? 'child' :
         'guest';
 
-      const bloodGroupWithRole = `ROLE:${addRole}|${addBlood}`;
+      const bloodGroupWithRole = `ROLE:${addRole}|${addBlood}|${addPhone}`;
 
       const newMemberPayload = {
         name: addName.trim(),
@@ -153,6 +155,7 @@ export const Membres: React.FC<MembresProps> = ({
       setAddAge('');
       setAddBirth('');
       setAddBlood('A+');
+      setAddPhone('');
       setAddAllergies('');
       setAddTreatments('');
       setAddSchool('');
@@ -223,6 +226,68 @@ export const Membres: React.FC<MembresProps> = ({
   const [editBlood, setEditBlood] = useState('A+');
   const [editSchool, setEditSchool] = useState('');
   const [editHasExemption, setEditHasExemption] = useState(false);
+  const [editPhone, setEditPhone] = useState('');
+  const [addPhone, setAddPhone] = useState('');
+
+  const convertToYYYYMMDD = (dateStr: string): string => {
+    if (!dateStr) return '';
+    const partsSlash = dateStr.split('/');
+    if (partsSlash.length === 3) {
+      if (partsSlash[2].length === 4) { // DD/MM/YYYY
+        return `${partsSlash[2]}-${partsSlash[1].padStart(2, '0')}-${partsSlash[0].padStart(2, '0')}`;
+      }
+    }
+    const partsDash = dateStr.split('-');
+    if (partsDash.length === 3) {
+      if (partsDash[2].length === 4) { // DD-MM-YYYY
+        return `${partsDash[2]}-${partsDash[1].padStart(2, '0')}-${partsDash[0].padStart(2, '0')}`;
+      }
+      return dateStr; // Already YYYY-MM-DD
+    }
+    return dateStr;
+  };
+
+  const handleBirthDateChange = (dateVal: string, isEditingForm: boolean) => {
+    if (isEditingForm) {
+      setEditBirth(dateVal);
+    } else {
+      setAddBirth(dateVal);
+    }
+
+    if (!dateVal) return;
+
+    try {
+      const birth = new Date(dateVal);
+      if (isNaN(birth.getTime())) return;
+
+      const today = new Date();
+      let ageYears = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        ageYears--;
+      }
+
+      const ageStr = ageYears === 0 ? "Bébé" : ageYears === 1 ? "1 an" : `${ageYears} ans`;
+      
+      // Suggest role
+      let suggestedRole = 'enfant';
+      if (ageYears >= 18) {
+        suggestedRole = 'parent'; // Adulte (Default to Parent / Gestionnaire)
+      } else if (ageYears >= 11) {
+        suggestedRole = 'adolescent';
+      }
+
+      if (isEditingForm) {
+        setEditAge(ageStr);
+        setEditRole(suggestedRole);
+      } else {
+        setAddAge(ageStr);
+        setAddRole(suggestedRole);
+      }
+    } catch (e) {
+      console.warn("Failed to calculate age from birthdate:", e);
+    }
+  };
 
   const openDossier = (member: Member) => {
     setSelectedMember(member);
@@ -246,10 +311,11 @@ export const Membres: React.FC<MembresProps> = ({
     
     setEditRole(precise);
     setEditAge(member.age);
-    setEditBirth(member.birthDate);
+    setEditBirth(convertToYYYYMMDD(member.birthDate));
     setEditBlood(member.bloodGroup);
     setEditSchool(member.schoolOrEmployer);
     setEditHasExemption(!!member.hasExemption);
+    setEditPhone(member.phone || '');
     setIsEditing(true);
   };
 
@@ -276,7 +342,7 @@ export const Membres: React.FC<MembresProps> = ({
         'Invité';
 
       // Encode precise role inside bloodGroup
-      const bloodGroupWithRole = `ROLE:${editRole}|${editBlood}`;
+      const bloodGroupWithRole = `ROLE:${editRole}|${editBlood}|${editPhone}`;
 
       const updates = {
         displayName: editName.trim(),
@@ -339,7 +405,8 @@ export const Membres: React.FC<MembresProps> = ({
             birthDate: editBirth.trim(),
             bloodGroup: editBlood, // store raw blood group locally
             schoolOrEmployer: editSchool.trim(),
-            hasExemption: dbRole === 'child' ? editHasExemption : false
+            hasExemption: dbRole === 'child' ? editHasExemption : false,
+            phone: editPhone.trim()
           };
           setSelectedMember(updated);
           return updated;
@@ -720,7 +787,7 @@ export const Membres: React.FC<MembresProps> = ({
             <>
               {/* Close Button (mobile utility) */}
               <div className="absolute right-4 top-4 flex space-x-2">
-                {!isChild && (selectedMember.role !== 'Chef de famille' || myMemberProfile?.role === 'admin') && (
+                {(selectedMember.id === activeMemberId || (!isChild && (selectedMember.role !== 'Chef de famille' || myMemberProfile?.role === 'admin'))) && (
                   <button 
                     onClick={() => handleEditClick(selectedMember)}
                     className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors cursor-pointer border border-white/5"
@@ -798,6 +865,15 @@ export const Membres: React.FC<MembresProps> = ({
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Date de naissance</label>
+                      <input 
+                        type="date" 
+                        value={editBirth}
+                        onChange={(e) => handleBirthDateChange(e.target.value, true)}
+                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#6C5CFF]"
+                      />
+                    </div>
+                    <div className="space-y-2">
                       <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Âge</label>
                       <input 
                         type="text" 
@@ -806,15 +882,17 @@ export const Membres: React.FC<MembresProps> = ({
                         className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#6C5CFF]"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Date de naissance</label>
-                      <input 
-                        type="text" 
-                        value={editBirth}
-                        onChange={(e) => setEditBirth(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#6C5CFF]"
-                      />
-                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Numéro de téléphone (Optionnel)</label>
+                    <input 
+                      type="tel" 
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      placeholder="Ex: +33 6 12 34 56 78"
+                      className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#6C5CFF]"
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -1230,7 +1308,106 @@ export const Membres: React.FC<MembresProps> = ({
                         </div>
                         <p className="text-xs font-semibold text-white truncate">{selectedMember.schoolOrEmployer}</p>
                       </div>
+
+                      {selectedMember.phone && (
+                        <div className="space-y-1 col-span-2 pt-1">
+                          <div className="flex items-center space-x-1.5 text-white/40">
+                            <PhoneCall className="w-3.5 h-3.5 text-[#00D26A]" />
+                            <span className="text-[9px] font-bold uppercase tracking-wider">Téléphone</span>
+                          </div>
+                          <p className="text-xs font-semibold text-white">
+                            <a href={`tel:${selectedMember.phone}`} className="hover:underline hover:text-[#6C5CFF] transition-colors">{selectedMember.phone}</a>
+                          </p>
+                        </div>
+                      )}
                     </div>
+
+                    {/* Section Liaison de compte pour le Chef de famille / Admin */}
+                    {(myMemberProfile?.role === 'admin' || myMemberProfile?.role === 'chef_famille' || myMemberProfile?.role === 'parent') && foyer && (
+                      <div className="space-y-3 pt-3 border-t border-white/5">
+                        <h4 className="text-[10px] font-bold text-white/40 uppercase tracking-widest flex items-center space-x-1">
+                          <Link className="w-3.5 h-3.5 text-[#6C5CFF]" />
+                          <span>Liaison de compte</span>
+                        </h4>
+                        
+                        {selectedMember.userId ? (
+                          <div className="p-3 rounded-2xl bg-white/3 border border-white/5 flex flex-col space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-bold text-[#00D26A] flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Compte utilisateur lié
+                              </span>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (confirm("Voulez-vous vraiment délier ce compte ?")) {
+                                    try {
+                                      if (onUpdateMemberProfile) {
+                                        await onUpdateMemberProfile(selectedMember.id, { userId: null as any });
+                                      }
+                                      setSelectedMember(prev => prev ? { ...prev, userId: undefined } : null);
+                                      setMembers(prev => prev.map(m => m.id === selectedMember.id ? { ...m, userId: undefined } : m));
+                                      alert("Compte délié avec succès !");
+                                    } catch (err: any) {
+                                      alert("Erreur lors de la déliaison : " + err.message);
+                                    }
+                                  }
+                                }}
+                                className="text-[9px] font-bold text-[#FF4D6D] hover:underline cursor-pointer"
+                              >
+                                Délier
+                              </button>
+                            </div>
+                            <p className="text-[9px] text-white/50 font-mono select-all truncate">
+                              ID: {selectedMember.userId}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="p-3 rounded-2xl bg-white/3 border border-white/5 space-y-2">
+                            <p className="text-[9.5px] text-white/50 leading-normal">
+                              Associez ce profil local à un compte utilisateur Supabase (UUID ou e-mail).
+                            </p>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                placeholder="UUID de l'utilisateur ou Email"
+                                id="link-account-input"
+                                className="flex-1 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white text-[11px] focus:outline-none focus:border-[#6C5CFF]"
+                              />
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const input = (document.getElementById('link-account-input') as HTMLInputElement)?.value?.trim();
+                                  if (!input) return;
+                                  
+                                  // Valid UUID format check
+                                  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                                  if (uuidRegex.test(input)) {
+                                    try {
+                                      if (onUpdateMemberProfile) {
+                                        await onUpdateMemberProfile(selectedMember.id, { userId: input });
+                                      }
+                                      setSelectedMember(prev => prev ? { ...prev, userId: input } : null);
+                                      setMembers(prev => prev.map(m => m.id === selectedMember.id ? { ...m, userId: input } : m));
+                                      alert("🎉 Compte lié avec succès !");
+                                      (document.getElementById('link-account-input') as HTMLInputElement).value = '';
+                                    } catch (err: any) {
+                                      alert("Erreur lors de la liaison : " + err.message);
+                                    }
+                                  } else if (input.includes('@')) {
+                                    alert("ℹ️ Par mesure de sécurité RGPD et restrictions techniques de Supabase, la liaison par e-mail requiert de saisir directement l'UUID de l'utilisateur. Veuillez demander à l'utilisateur de vous transmettre son ID unique (disponible dans ses paramètres de profil).");
+                                  } else {
+                                    alert("⚠️ Format invalide. Veuillez saisir un UUID utilisateur Supabase valide (ex: 123e4567-e89b-12d3-a456-426614174000).");
+                                  }
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-[#6C5CFF] text-white text-[10px] font-extrabold cursor-pointer hover:bg-[#5b4eff] transition-colors"
+                              >
+                                Lier
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Medical Section Header & Confidential Lock */}
                     {isChild && selectedMember.id !== activeMemberId ? (
@@ -1800,10 +1977,9 @@ export const Membres: React.FC<MembresProps> = ({
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Date de naissance</label>
                       <input 
-                        type="text" 
-                        placeholder="JJ/MM/AAAA" 
+                        type="date" 
                         value={addBirth}
-                        onChange={(e) => setAddBirth(e.target.value)}
+                        onChange={(e) => handleBirthDateChange(e.target.value, false)}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs placeholder-white/20 focus:outline-none focus:border-[#6C5CFF]"
                       />
                     </div>
@@ -1818,6 +1994,17 @@ export const Membres: React.FC<MembresProps> = ({
                         className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs placeholder-white/20 focus:outline-none focus:border-[#6C5CFF]"
                       />
                     </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Numéro de téléphone (Optionnel)</label>
+                    <input 
+                      type="tel" 
+                      placeholder="Ex: +33 6 12 34 56 78" 
+                      value={addPhone}
+                      onChange={(e) => setAddPhone(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs placeholder-white/20 focus:outline-none focus:border-[#6C5CFF]"
+                    />
                   </div>
 
                   <div className="space-y-1.5">

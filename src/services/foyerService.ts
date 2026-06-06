@@ -344,6 +344,12 @@ export const foyerService = {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
+    if (updates.userId !== undefined) {
+      await supabase
+        .from('foyer_members')
+        .update({ user_id: updates.userId })
+        .eq('id', memberId);
+    }
 
     const runRpc = async (includeExemption: boolean) => {
       const rpcParams: any = { p_member_id: memberId };

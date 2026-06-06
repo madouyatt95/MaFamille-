@@ -505,11 +505,43 @@ export function getUnifiedEvents({
   members.forEach(m => {
     if (!m.birthDate) return;
     try {
-      // Find birthday this year
-      const parts = m.birthDate.split('-');
-      if (parts.length === 3) {
-        const bMonth = parseInt(parts[1]) - 1;
-        const bDay = parseInt(parts[2]);
+      let bMonth = -1;
+      let bDay = -1;
+      
+      const rawDate = m.birthDate.trim();
+      if (rawDate.includes('-')) {
+        const parts = rawDate.split('-');
+        if (parts.length === 3) {
+          if (parts[0].length === 4) {
+            bMonth = parseInt(parts[1]) - 1;
+            bDay = parseInt(parts[2]);
+          } else {
+            bMonth = parseInt(parts[1]) - 1;
+            bDay = parseInt(parts[0]);
+          }
+        }
+      } else if (rawDate.includes('/')) {
+        const parts = rawDate.split('/');
+        if (parts.length === 3) {
+          if (parts[0].length === 4) {
+            bMonth = parseInt(parts[1]) - 1;
+            bDay = parseInt(parts[2]);
+          } else {
+            bMonth = parseInt(parts[1]) - 1;
+            bDay = parseInt(parts[0]);
+          }
+        }
+      }
+
+      if (bMonth === -1 || bDay === -1) {
+        const parsed = new Date(rawDate);
+        if (!isNaN(parsed.getTime())) {
+          bMonth = parsed.getMonth();
+          bDay = parsed.getDate();
+        }
+      }
+
+      if (bMonth >= 0 && bMonth <= 11 && bDay >= 1 && bDay <= 31) {
         [currentYear - 1, currentYear, currentYear + 1].forEach(y => {
           const bdayDate = new Date(y, bMonth, bDay);
           const mm = String(bdayDate.getMonth() + 1).padStart(2, '0');
