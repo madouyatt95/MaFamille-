@@ -1,6 +1,45 @@
 // === FOYER SYSTEM ===
 
-export type MemberRole = 'admin' | 'parent' | 'child' | 'guest';
+export type MemberRole = 'chef_famille' | 'parent' | 'gestionnaire' | 'adulte' | 'adolescent' | 'enfant' | 'invite' | 'admin' | 'child' | 'guest';
+
+export interface ModulePermissions {
+  voir: boolean;
+  ajouter: boolean;
+  modifier: boolean;
+  supprimer: boolean;
+  valider: boolean;
+  archiver: boolean;
+  recevoir_notifications: boolean;
+}
+
+export type FamilyModule = 
+  | 'accueil'
+  | 'timeline'
+  | 'budget'
+  | 'agenda'
+  | 'courses'
+  | 'sante'
+  | 'voyages'
+  | 'documents'
+  | 'vehicules'
+  | 'logement'
+  | 'animaux'
+  | 'ecole'
+  | 'taches'
+  | 'conseil_famille'
+  | 'histoires_soir'
+  | 'messagerie'
+  | 'capsule_temporelle'
+  | 'repertoire_important'
+  | 'peacemaker'
+  | 'carte_familiale'
+  | 'menu_semaine'
+  | 'demarches'
+  | 'notifications'
+  | 'parametres'
+  | 'micro'
+  | 'commune'
+  | 'etablissement';
 
 export interface Foyer {
   id: string;
@@ -481,4 +520,66 @@ export interface PocketMoneyChild {
   avatar: string;
   goalTitle?: string;
   goalAmount?: number;
+}
+
+export const ALL_FAMILY_MODULES: FamilyModule[] = [
+  'accueil', 'timeline', 'budget', 'agenda', 'courses', 'sante', 'voyages', 'documents',
+  'vehicules', 'logement', 'animaux', 'ecole', 'taches', 'conseil_famille', 'histoires_soir',
+  'messagerie', 'capsule_temporelle', 'repertoire_important', 'peacemaker', 'carte_familiale',
+  'menu_semaine', 'demarches', 'notifications', 'parametres', 'micro', 'commune', 'etablissement'
+];
+
+export function getDefaultPermissions(role: string): Record<FamilyModule, ModulePermissions> {
+  const isAdultRole = ['chef_famille', 'parent', 'gestionnaire', 'adulte', 'admin'].includes(role);
+  const perms = {} as Record<FamilyModule, ModulePermissions>;
+  
+  for (const m of ALL_FAMILY_MODULES) {
+    if (isAdultRole) {
+      perms[m] = { voir: true, ajouter: true, modifier: true, supprimer: true, valider: true, archiver: true, recevoir_notifications: true };
+    } else if (role === 'adolescent') {
+      const allowedToSee = [
+        'accueil', 'timeline', 'agenda', 'courses', 'voyages', 'ecole', 'taches',
+        'conseil_famille', 'messagerie', 'capsule_temporelle', 'repertoire_important',
+        'peacemaker', 'carte_familiale', 'menu_semaine', 'notifications', 'etablissement'
+      ].includes(m);
+      
+      perms[m] = {
+        voir: allowedToSee,
+        ajouter: ['courses', 'taches', 'messagerie', 'ecole', 'conseil_famille', 'peacemaker', 'capsule_temporelle'].includes(m) && allowedToSee,
+        modifier: ['taches', 'messagerie', 'ecole', 'peacemaker'].includes(m) && allowedToSee,
+        supprimer: false,
+        valider: ['taches'].includes(m) && allowedToSee,
+        archiver: false,
+        recevoir_notifications: allowedToSee
+      };
+    } else if (role === 'enfant' || role === 'child') {
+      const allowedToSee = [
+        'accueil', 'agenda', 'courses', 'voyages', 'ecole', 'taches', 'conseil_famille',
+        'histoires_soir', 'capsule_temporelle', 'peacemaker', 'menu_semaine'
+      ].includes(m);
+      
+      perms[m] = {
+        voir: allowedToSee,
+        ajouter: ['courses', 'taches', 'peacemaker', 'capsule_temporelle'].includes(m) && allowedToSee,
+        modifier: ['taches', 'peacemaker'].includes(m) && allowedToSee,
+        supprimer: false,
+        valider: ['taches'].includes(m) && allowedToSee,
+        archiver: false,
+        recevoir_notifications: allowedToSee
+      };
+    } else {
+      // Invite or default
+      const allowedToSee = ['accueil', 'agenda', 'courses', 'voyages', 'menu_semaine', 'capsule_temporelle'].includes(m);
+      perms[m] = {
+        voir: allowedToSee,
+        ajouter: false,
+        modifier: false,
+        supprimer: false,
+        valider: false,
+        archiver: false,
+        recevoir_notifications: false
+      };
+    }
+  }
+  return perms;
 }

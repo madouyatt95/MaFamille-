@@ -5,6 +5,7 @@ import { parseSmartNaturalSentence, detectGroceryCategory, getGroceryItemEmoji, 
 import { DICTIONARIES } from './utils/dictionaries';
 
 
+import { getDefaultPermissions } from './types';
 import type { 
   Member, 
   FamilyEvent, 
@@ -31,7 +32,10 @@ import type {
   CustomCategory,
   Account,
   Abonnement,
-  Debt
+  Debt,
+  MemberRole,
+  ModulePermissions,
+  FamilyModule
 } from './types';
 
 const formatRelativeTime = (dateInput: string | Date | undefined, fallback: string): string => {
@@ -99,6 +103,7 @@ import { Settings } from './views/Settings';
 import { Membres } from './views/Membres';
 import { SharedPackView } from './components/modules/SharedPackView';
 import { KidsDashboard } from './views/KidsDashboard';
+import { TeenDashboard } from './views/TeenDashboard';
 import { Paywall } from './components/Paywall';
 import { Onboarding } from './views/Onboarding';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
@@ -774,10 +779,10 @@ function App() {
     {
       id: 'demo_papa',
       name: 'Mamadou Diop',
-      role: 'admin',
+      role: 'Chef de famille',
       age: '40',
       birthDate: '1986-04-12',
-      bloodGroup: 'A+',
+      bloodGroup: 'ROLE:chef_famille|A+',
       allergies: [],
       treatments: [],
       emergencyContact: { name: 'Maman Aminata', phone: '0612345678', relation: 'Épouse' },
@@ -788,10 +793,10 @@ function App() {
     {
       id: 'demo_maman',
       name: 'Aminata Diop',
-      role: 'parent',
+      role: 'Gestionnaire',
       age: '38',
       birthDate: '1988-08-22',
-      bloodGroup: 'B+',
+      bloodGroup: 'ROLE:gestionnaire|B+',
       allergies: [],
       treatments: [],
       emergencyContact: { name: 'Mamadou Diop', phone: '0612345679', relation: 'Époux' },
@@ -802,10 +807,10 @@ function App() {
     {
       id: 'demo_issa',
       name: 'Issa Diop',
-      role: 'child',
+      role: 'Enfant',
       age: '8',
       birthDate: '2018-05-14',
-      bloodGroup: 'O+',
+      bloodGroup: 'ROLE:enfant|O+',
       allergies: [],
       treatments: [],
       emergencyContact: { name: 'Papa Mamadou', phone: '0612345679', relation: 'Père' },
@@ -816,10 +821,10 @@ function App() {
     {
       id: 'demo_lyna',
       name: 'Lyna Diop',
-      role: 'child',
+      role: 'Adolescent',
       age: '16',
       birthDate: '2010-10-18',
-      bloodGroup: 'AB+',
+      bloodGroup: 'ROLE:adolescent|AB+',
       allergies: [],
       treatments: [],
       emergencyContact: { name: 'Papa Mamadou', phone: '0612345679', relation: 'Père' },
@@ -1313,6 +1318,10 @@ function App() {
 
   const [documents, setDocuments] = useState<DocumentFile[]>(() => {
     return safeGetLocalStorage('mf_documents', []);
+  });
+
+  const [memberPermissions, setMemberPermissions] = useState<Record<string, Record<FamilyModule, ModulePermissions>>>(() => {
+    return safeGetLocalStorage('mf_member_permissions', {} as Record<string, Record<FamilyModule, ModulePermissions>>);
   });
 
   const [tasks, setTasks] = useState<ChoreTask[]>(() => {
@@ -2550,27 +2559,60 @@ function App() {
   }, [activeMemberId]);
 
   // Helper map function from FoyerMember to UI Member
-  const mapFoyerMemberToMember = (fm: FoyerMember): Member => ({
-    id: fm.id,
-    userId: fm.userId,
-    name: fm.displayName,
-    role: fm.role === 'admin' ? 'Chef de famille' : fm.role === 'parent' ? 'Gestionnaire' : fm.role === 'child' ? 'Enfant' : 'Invité',
-    age: fm.age || '30 ans',
-    birthDate: fm.birthDate || '',
-    bloodGroup: fm.bloodGroup || 'O+',
-    allergies: fm.allergies || [],
-    treatments: fm.treatments || [],
-    emergencyContact: {
-      name: fm.emergencyContactName || '',
-      phone: fm.emergencyContactPhone || '',
-      relation: fm.emergencyContactRelation || ''
-    },
-    schoolOrEmployer: fm.schoolOrEmployer || '',
-    photoUrl: fm.photoUrl || 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150',
-    hasExemption: fm.hasExemption || false,
-    approved: fm.approved !== false,
-    medicalHistory: []
-  });
+  const mapFoyerMemberToMember = (fm: FoyerMember): Member => {
+    let preciseRole = fm.role as string;
+    let bloodGroup = fm.bloodGroup || 'O+';
+    
+    if (fm.bloodGroup && fm.bloodGroup.startsWith('ROLE:')) {
+      const parts = fm.bloodGroup.substring(5).split('|');
+      preciseRole = parts[0];
+      bloodGroup = parts[1] || 'O+';
+    } else {
+      // Fallback inference if not yet serialized
+      if (fm.role === 'admin') preciseRole = 'chef_famille';
+      else if (fm.role === 'parent') {
+        preciseRole = 'parent';
+      } else if (fm.role === 'child') {
+        const ageNum = parseInt(fm.age || '0');
+        if (ageNum >= 11 && ageNum < 18) preciseRole = 'adolescent';
+        else preciseRole = 'enfant';
+      } else {
+        preciseRole = 'invite';
+      }
+    }
+
+    const friendlyRole = 
+      preciseRole === 'chef_famille' ? 'Chef de famille' :
+      preciseRole === 'parent' ? 'Parent' :
+      preciseRole === 'gestionnaire' ? 'Gestionnaire' :
+      preciseRole === 'adulte' ? 'Membre adulte' :
+      preciseRole === 'adolescent' ? 'Adolescent' :
+      preciseRole === 'enfant' ? 'Enfant' :
+      preciseRole === 'invite' ? 'Invité' :
+      fm.role === 'admin' ? 'Chef de famille' : fm.role === 'parent' ? 'Parent' : fm.role === 'child' ? 'Enfant' : 'Invité';
+
+    return {
+      id: fm.id,
+      userId: fm.userId,
+      name: fm.displayName,
+      role: friendlyRole,
+      age: fm.age || '30 ans',
+      birthDate: fm.birthDate || '',
+      bloodGroup: bloodGroup,
+      allergies: fm.allergies || [],
+      treatments: fm.treatments || [],
+      emergencyContact: {
+        name: fm.emergencyContactName || '',
+        phone: fm.emergencyContactPhone || '',
+        relation: fm.emergencyContactRelation || ''
+      },
+      schoolOrEmployer: fm.schoolOrEmployer || '',
+      photoUrl: fm.photoUrl || 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150',
+      hasExemption: fm.hasExemption || false,
+      approved: fm.approved !== false,
+      medicalHistory: []
+    };
+  };
 
   // Check foyer session on startup or login
   const checkUserFoyerSession = async (currentUser: any) => {
@@ -9243,6 +9285,26 @@ function App() {
   }, [documents]);
 
   useEffect(() => {
+    safeSetLocalStorage('mf_member_permissions', JSON.stringify(memberPermissions));
+  }, [memberPermissions]);
+
+  useEffect(() => {
+    const permDoc = documents.find(d => d.name === '__foyer_permissions__.json');
+    if (permDoc && permDoc.fileBase64) {
+      try {
+        const decodedStr = atob(permDoc.fileBase64);
+        const parsed = JSON.parse(decodedStr);
+        if (JSON.stringify(parsed) !== JSON.stringify(memberPermissions)) {
+          console.log("[MaFamille+ Permissions] Syncing permissions from document:", parsed);
+          setMemberPermissions(parsed);
+        }
+      } catch (e) {
+        console.warn("Failed to parse __foyer_permissions__.json from documents", e);
+      }
+    }
+  }, [documents]);
+
+  useEffect(() => {
     safeSetLocalStorage('mf_tasks', JSON.stringify(tasks));
   }, [tasks]);
 
@@ -10062,6 +10124,76 @@ function App() {
         }
       }
     }
+  };
+
+  const handleUpdatePermissions = async (newPermissions: Record<string, Record<FamilyModule, ModulePermissions>>) => {
+    setMemberPermissions(newPermissions);
+    
+    const jsonStr = JSON.stringify(newPermissions);
+    const base64Str = btoa(unescape(encodeURIComponent(jsonStr)));
+    
+    const docId = '__foyer_permissions__';
+    const now = new Date().toISOString();
+    
+    const newDoc: DocumentFile = {
+      id: docId,
+      name: '__foyer_permissions__.json',
+      category: 'other',
+      tags: ['system'],
+      uploadDate: now.split('T')[0],
+      fileSize: `${jsonStr.length} B`,
+      isExpired: false,
+      fileBase64: base64Str,
+      isSecure: false
+    };
+
+    let updatedDocs: DocumentFile[];
+    if (documents.some(d => d.id === docId)) {
+      updatedDocs = documents.map(d => d.id === docId ? newDoc : d);
+    } else {
+      updatedDocs = [newDoc, ...documents];
+    }
+    
+    setDocuments(updatedDocs);
+
+    const client = getSupabaseClient();
+    if (client && foyer) {
+      try {
+        const { data: existing } = await client
+          .from('documents')
+          .select('id')
+          .eq('foyer_id', foyer.id)
+          .eq('name', '__foyer_permissions__.json')
+          .maybeSingle();
+
+        if (existing) {
+          await client.from('documents').update({
+            file_base_64: base64Str,
+            updated_at: now
+          }).eq('id', existing.id);
+        } else {
+          await client.from('documents').insert({
+            foyer_id: foyer.id,
+            name: '__foyer_permissions__.json',
+            category: 'other',
+            tags: ['system'],
+            upload_date: now.split('T')[0],
+            file_size: `${jsonStr.length} B`,
+            file_base_64: base64Str
+          });
+        }
+      } catch (err) {
+        console.error("Cloud permissions sync error:", err);
+      }
+    }
+  };
+
+  const handleUpdateMemberPermissions = async (memberId: string, modulePermissions: Record<FamilyModule, ModulePermissions>) => {
+    const updated = {
+      ...memberPermissions,
+      [memberId]: modulePermissions
+    };
+    await handleUpdatePermissions(updated);
   };
 
   const handleUpdateMemberProfile = async (memberId: string, updates: Partial<FoyerMember>) => {
@@ -11106,14 +11238,43 @@ function App() {
     }
 
     if (activeTab === 'accueil') {
-      const isKidMode = appActiveMemberObj && appActiveMemberObj.age && parseInt(appActiveMemberObj.age) < 11;
+      let isKid = false;
+      let isTeen = false;
+      if (appActiveMemberObj) {
+        const rClean = (appActiveMemberObj.role || '').toLowerCase();
+        if (rClean === 'adolescent' || rClean.includes('adolescent')) {
+          isTeen = true;
+        } else if (rClean === 'enfant' || rClean.includes('enfant')) {
+          isKid = true;
+        } else {
+          const ageNum = parseInt(appActiveMemberObj.age || '0');
+          if (ageNum > 0 && ageNum < 11) isKid = true;
+          else if (ageNum >= 11 && ageNum < 18) isTeen = true;
+        }
+      }
       
-      if (isKidMode && appActiveMemberObj) {
+      if (isKid && appActiveMemberObj) {
         return (
           <KidsDashboard 
             member={appActiveMemberObj}
             tasks={appTasks}
             setTasks={setTasks}
+            pocketMoney={appPocketMoney}
+            events={appEvents}
+            setActiveTab={setActiveTab}
+            setActiveModule={setActiveModule}
+          />
+        );
+      }
+
+      if (isTeen && appActiveMemberObj) {
+        return (
+          <TeenDashboard 
+            member={appActiveMemberObj}
+            tasks={appTasks}
+            setTasks={setTasks}
+            schoolTasks={schoolTasks}
+            setSchoolTasks={setSchoolTasks}
             pocketMoney={appPocketMoney}
             events={appEvents}
             setActiveTab={setActiveTab}
@@ -11370,9 +11531,34 @@ function App() {
         return null;
       }
 
+      if (activeModule === 'membres') {
+        return (
+          <div className="min-h-screen bg-[#07111F] text-white">
+            <div className="max-w-4xl mx-auto px-4 pt-6 flex items-center justify-between">
+              <button 
+                onClick={() => setActiveModule('')}
+                className="flex items-center space-x-2 text-white/60 hover:text-white font-bold text-xs cursor-pointer bg-white/5 border border-white/10 rounded-xl px-4 py-2"
+              >
+                <span>← Retour au hub</span>
+              </button>
+            </div>
+            <Membres 
+              members={appMembers}
+              setMembers={setMembers}
+              foyer={appFoyer}
+              activeMemberId={appActiveMemberId}
+              onUpdateMemberProfile={handleUpdateMemberProfile}
+              memberPermissions={memberPermissions}
+              onUpdatePermissions={handleUpdateMemberPermissions}
+            />
+          </div>
+        );
+      }
+
       return (
         <MenuHub 
           foyer={appFoyer}
+          memberPermissions={memberPermissions}
           initialChatGroupId={initialChatGroupId}
           documents={appDocuments}
           setDocuments={setDocuments}

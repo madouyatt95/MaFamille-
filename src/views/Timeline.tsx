@@ -22,13 +22,17 @@ import type {
   HomeMaintenance, 
   PetRecord, 
   FamilyVote,
-  FamilyEvent
+  FamilyEvent,
+  FamilyModule,
+  ModulePermissions
 } from '../types';
+import { getDefaultPermissions } from '../types';
 
 interface TimelineProps {
   members: Member[];
   onBack?: () => void;
   activeMemberId?: string;
+  memberPermissions?: Record<string, Record<FamilyModule, ModulePermissions>>;
 
   // Real data sources
   events: FamilyEvent[];
@@ -193,10 +197,57 @@ export const Timeline: React.FC<TimelineProps> = ({
   votes,
   members,
   onBack,
-  activeMemberId: _activeMemberId
+  activeMemberId,
+  memberPermissions
 }) => {
   const [activeFilter, setActiveFilter] = useState<TimelineCategory>('Tous');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const activePermissions = useMemo(() => {
+    if (memberPermissions && activeMemberId && memberPermissions[activeMemberId]) {
+      return memberPermissions[activeMemberId];
+    }
+    const activeMember = members.find(m => m.id === activeMemberId);
+    let roleClean = 'enfant';
+    if (activeMember) {
+      const r = (activeMember.role || '').toLowerCase();
+      if (r.includes('chef') || r.includes('admin')) roleClean = 'chef_famille';
+      else if (r.includes('gestionnaire')) roleClean = 'gestionnaire';
+      else if (r.includes('adulte') || r.includes('membre adulte')) roleClean = 'adulte';
+      else if (r.includes('parent')) roleClean = 'parent';
+      else if (r.includes('adolescent')) roleClean = 'adolescent';
+      else if (r.includes('enfant')) roleClean = 'enfant';
+      else if (r.includes('invit') || r.includes('guest')) roleClean = 'invite';
+    } else {
+      if (activeMemberId === 'demo_papa' || activeMemberId === '1') roleClean = 'chef_famille';
+      else if (activeMemberId === 'demo_maman' || activeMemberId === '2') roleClean = 'parent';
+      else if (activeMemberId === 'demo_issa' || activeMemberId === '3') roleClean = 'enfant';
+      else if (activeMemberId === 'demo_lyna' || activeMemberId === '4') roleClean = 'adolescent';
+    }
+    return getDefaultPermissions(roleClean);
+  }, [memberPermissions, activeMemberId, members]);
+
+  const hasVoirPermission = (modId: string): boolean => {
+    const modIdToFamilyModule: Record<string, FamilyModule> = {
+      'conseil': 'conseil_famille',
+      'taches': 'taches',
+      'ecole': 'ecole',
+      'logement': 'logement',
+      'agenda': 'agenda',
+      'courses': 'courses',
+      'sante': 'sante',
+      'voyages': 'voyages',
+      'documents': 'documents',
+      'vehicules': 'vehicules',
+      'animaux': 'animaux',
+      'demarches': 'demarches',
+      'budget': 'budget'
+    };
+    const familyModKey = modIdToFamilyModule[modId];
+    if (!familyModKey) return true;
+    const perm = activePermissions[familyModKey];
+    return perm ? perm.voir : true;
+  };
 
   const todayStr = useMemo(() => {
     const d = new Date();
@@ -210,239 +261,263 @@ export const Timeline: React.FC<TimelineProps> = ({
     const items: any[] = [];
 
     // 1. Budget (Transactions)
-    (transactions || []).forEach(t => {
-      if (t.isArchived) return;
-      const trans = t as any;
-      const date = trans.date || trans.entryDate || '';
-      if (!date) return;
-      items.push({
-        id: `budget-${trans.id}`,
-        source_module: 'budget',
-        source_id: trans.id,
-        title: trans.title || 'Dépense/Revenu',
-        description: `${trans.amount > 0 ? '+' : ''}${trans.amount} € • Catégorie: ${trans.category || 'Autre'}`,
-        date: date,
-        time: trans.time || trans.entryTime || '12:00',
-        icon: '💰',
-        member_id: trans.memberId
+    if (hasVoirPermission('budget')) {
+      (transactions || []).forEach(t => {
+        if (t.isArchived) return;
+        const trans = t as any;
+        const date = trans.date || trans.entryDate || '';
+        if (!date) return;
+        items.push({
+          id: `budget-${trans.id}`,
+          source_module: 'budget',
+          source_id: trans.id,
+          title: trans.title || 'Dépense/Revenu',
+          description: `${trans.amount > 0 ? '+' : ''}${trans.amount} € • Catégorie: ${trans.category || 'Autre'}`,
+          date: date,
+          time: trans.time || trans.entryTime || '12:00',
+          icon: '💰',
+          member_id: trans.memberId
+        });
       });
-    });
+    }
 
     // 2. Santé (Vaccines)
-    (vaccines || []).forEach(v => {
-      const date = v.date || '';
-      if (!date) return;
-      items.push({
-        id: `sante-${v.id}`,
-        source_module: 'sante',
-        source_id: v.id,
-        title: v.name || 'Suivi Santé',
-        description: `Statut: ${v.status || 'À faire'} • Médecin: ${v.doctor || 'Non spécifié'}`,
-        date: date,
-        time: v.time || '09:00',
-        icon: '❤️',
-        member_id: v.memberId
+    if (hasVoirPermission('sante')) {
+      (vaccines || []).forEach(v => {
+        const date = v.date || '';
+        if (!date) return;
+        items.push({
+          id: `sante-${v.id}`,
+          source_module: 'sante',
+          source_id: v.id,
+          title: v.name || 'Suivi Santé',
+          description: `Statut: ${v.status || 'À faire'} • Médecin: ${v.doctor || 'Non spécifié'}`,
+          date: date,
+          time: v.time || '09:00',
+          icon: '❤️',
+          member_id: v.memberId
+        });
       });
-    });
+    }
 
     // 3. Voyages (Trips)
-    (trips || []).forEach(tr => {
-      const date = tr.startDate || '';
-      if (!date) return;
-      items.push({
-        id: `voyages-${tr.id}`,
-        source_module: 'voyages',
-        source_id: tr.id,
-        title: `Voyage à ${tr.destination}`,
-        description: `Départ prévu jusqu'au ${tr.endDate || 'fin inconnue'} • Budget: ${tr.budget} €`,
-        date: date,
-        time: '08:00',
-        icon: '✈️',
-        member_id: undefined
+    if (hasVoirPermission('voyages')) {
+      (trips || []).forEach(tr => {
+        const date = tr.startDate || '';
+        if (!date) return;
+        items.push({
+          id: `voyages-${tr.id}`,
+          source_module: 'voyages',
+          source_id: tr.id,
+          title: `Voyage à ${tr.destination}`,
+          description: `Départ prévu jusqu'au ${tr.endDate || 'fin inconnue'} • Budget: ${tr.budget} €`,
+          date: date,
+          time: '08:00',
+          icon: '✈️',
+          member_id: undefined
+        });
       });
-    });
+    }
 
     // 4. Courses (Groceries)
-    (groceries || []).forEach(g => {
-      if (g.checked) return;
-      const date = g.expiryDate || new Date().toISOString().split('T')[0];
-      items.push({
-        id: `courses-${g.id}`,
-        source_module: 'courses',
-        source_id: g.id,
-        title: `Achat prévu : ${g.name}`,
-        description: `Quantité: ${g.quantity || '1'} • Rayon: ${g.category || 'Alimentation'}`,
-        date: date,
-        time: '10:00',
-        icon: '🛒',
-        member_id: g.addedBy
+    if (hasVoirPermission('courses')) {
+      (groceries || []).forEach(g => {
+        if (g.checked) return;
+        const date = g.expiryDate || new Date().toISOString().split('T')[0];
+        items.push({
+          id: `courses-${g.id}`,
+          source_module: 'courses',
+          source_id: g.id,
+          title: `Achat prévu : ${g.name}`,
+          description: `Quantité: ${g.quantity || '1'} • Rayon: ${g.category || 'Alimentation'}`,
+          date: date,
+          time: '10:00',
+          icon: '🛒',
+          member_id: g.addedBy
+        });
       });
-    });
+    }
 
     // 5. Démarches
-    (demarches || []).forEach(d => {
-      const date = d.dueDate || d.createdAt?.split('T')[0] || '';
-      if (!date) return;
-      items.push({
-        id: `demarches-${d.id}`,
-        source_module: 'demarches',
-        source_id: d.id,
-        title: `Démarche : ${d.title}`,
-        description: `Statut: ${d.status || 'À faire'} • ${d.steps?.length || 0} étapes`,
-        date: date,
-        time: '09:00',
-        icon: '📄',
-        member_id: d.assignedMemberId
+    if (hasVoirPermission('demarches')) {
+      (demarches || []).forEach(d => {
+        const date = d.dueDate || d.createdAt?.split('T')[0] || '';
+        if (!date) return;
+        items.push({
+          id: `demarches-${d.id}`,
+          source_module: 'demarches',
+          source_id: d.id,
+          title: `Démarche : ${d.title}`,
+          description: `Statut: ${d.status || 'À faire'} • ${d.steps?.length || 0} étapes`,
+          date: date,
+          time: '09:00',
+          icon: '📄',
+          member_id: d.assignedMemberId
+        });
       });
-    });
+    }
 
     // 6. Documents
-    (documents || []).forEach(doc => {
-      const date = doc.uploadDate || '';
-      if (!date) return;
-      items.push({
-        id: `documents-${doc.id}`,
-        source_module: 'documents',
-        source_id: doc.id,
-        title: `Document ajouté : ${doc.name}`,
-        description: `Catégorie: ${doc.category || 'Autre'} • Taille: ${doc.fileSize || 'Inconnue'}`,
-        date: date.split('T')[0],
-        time: '14:00',
-        icon: '📁',
-        member_id: doc.memberId
+    if (hasVoirPermission('documents')) {
+      (documents || []).forEach(doc => {
+        const date = doc.uploadDate || '';
+        if (!date) return;
+        items.push({
+          id: `documents-${doc.id}`,
+          source_module: 'documents',
+          source_id: doc.id,
+          title: `Document ajouté : ${doc.name}`,
+          description: `Catégorie: ${doc.category || 'Autre'} • Taille: ${doc.fileSize || 'Inconnue'}`,
+          date: date.split('T')[0],
+          time: '14:00',
+          icon: '📁',
+          member_id: doc.memberId
+        });
       });
-    });
+    }
 
-    // 7. Agenda (Events) - Ignore holidays/fetes, ignore vaccines to avoid duplicates
-    (events || []).forEach(e => {
-      const ev = e as any;
-      if (ev.id?.startsWith('commune-mock') || ev.id?.startsWith('school-mock')) return;
-      if (ev.sourceModule === 'fetes' || ev.type === 'vaccine') return;
-      const date = ev.date || ev.dateTime?.split('T')[0] || '';
-      if (!date) return;
-      items.push({
-        id: `agenda-${ev.id}`,
-        source_module: 'agenda',
-        source_id: ev.id,
-        title: ev.title,
-        description: ev.description || ev.notes || 'Événement de l\'agenda',
-        date: date,
-        time: ev.time || '09:00',
-        icon: '📅',
-        member_id: ev.memberId
+    // 7. Agenda (Events)
+    if (hasVoirPermission('agenda')) {
+      (events || []).forEach(e => {
+        const ev = e as any;
+        if (ev.id?.startsWith('commune-mock') || ev.id?.startsWith('school-mock')) return;
+        if (ev.sourceModule === 'fetes' || ev.type === 'vaccine') return;
+        const date = ev.date || ev.dateTime?.split('T')[0] || '';
+        if (!date) return;
+        items.push({
+          id: `agenda-${ev.id}`,
+          source_module: 'agenda',
+          source_id: ev.id,
+          title: ev.title,
+          description: ev.description || ev.notes || 'Événement de l\'agenda',
+          date: date,
+          time: ev.time || '09:00',
+          icon: '📅',
+          member_id: ev.memberId
+        });
       });
-    });
+    }
 
     // 8. Tâches (Chore Tasks)
-    (tasks || []).forEach(t => {
-      const date = t.dueDate || '';
-      if (!date) return;
-      items.push({
-        id: `taches-${t.id}`,
-        source_module: 'taches',
-        source_id: t.id,
-        title: `Tâche : ${t.title}`,
-        description: `Attribué à: ${t.assignedMemberName || 'Tous'} • Points: ${t.rewardPoints || 0}`,
-        date: date,
-        time: '17:00',
-        icon: '🧹',
-        member_id: t.assignedMemberId
+    if (hasVoirPermission('taches')) {
+      (tasks || []).forEach(t => {
+        const date = t.dueDate || '';
+        if (!date) return;
+        items.push({
+          id: `taches-${t.id}`,
+          source_module: 'taches',
+          source_id: t.id,
+          title: `Tâche : ${t.title}`,
+          description: `Attribué à: ${t.assignedMemberName || 'Tous'} • Points: ${t.rewardPoints || 0}`,
+          date: date,
+          time: '17:00',
+          icon: '🧹',
+          member_id: t.assignedMemberId
+        });
       });
-    });
+    }
 
     // 9. Logement (Maintenance)
-    (maintenance || []).forEach(hm => {
-      const date = hm.date || '';
-      if (!date) return;
-      items.push({
-        id: `logement-${hm.id}`,
-        source_module: 'logement',
-        source_id: hm.id,
-        title: `Entretien : ${hm.title}`,
-        description: `Prestataire: ${hm.provider || 'Non spécifié'} • Coût: ${hm.cost || 0} €`,
-        date: date,
-        time: '10:00',
-        icon: '🏠',
-        member_id: undefined
+    if (hasVoirPermission('logement')) {
+      (maintenance || []).forEach(hm => {
+        const date = hm.date || '';
+        if (!date) return;
+        items.push({
+          id: `logement-${hm.id}`,
+          source_module: 'logement',
+          source_id: hm.id,
+          title: `Entretien : ${hm.title}`,
+          description: `Prestataire: ${hm.provider || 'Non spécifié'} • Coût: ${hm.cost || 0} €`,
+          date: date,
+          time: '10:00',
+          icon: '🏠',
+          member_id: undefined
+        });
       });
-    });
+    }
 
     // 10. Véhicules
-    (vehicles || []).forEach(vh => {
-      if (vh.technicalControl) {
-        items.push({
-          id: `vehicules-ct-${vh.id}`,
-          source_module: 'vehicules',
-          source_id: `${vh.id}-ct`,
-          title: `CT : ${vh.name}`,
-          description: `Date limite de contrôle technique (${vh.plate || ''})`,
-          date: vh.technicalControl,
-          time: '09:00',
-          icon: '🚗',
-          member_id: undefined
-        });
-      }
-      if (vh.insuranceExpiry) {
-        items.push({
-          id: `vehicules-ins-${vh.id}`,
-          source_module: 'vehicules',
-          source_id: `${vh.id}-ins`,
-          title: `Assurance : ${vh.name}`,
-          description: `Date de renouvellement de l'assurance auto (${vh.plate || ''})`,
-          date: vh.insuranceExpiry,
-          time: '09:00',
-          icon: '🚗',
-          member_id: undefined
-        });
-      }
-    });
+    if (hasVoirPermission('vehicules')) {
+      (vehicles || []).forEach(vh => {
+        if (vh.technicalControl) {
+          items.push({
+            id: `vehicules-ct-${vh.id}`,
+            source_module: 'vehicules',
+            source_id: `${vh.id}-ct`,
+            title: `CT : ${vh.name}`,
+            description: `Date limite de contrôle technique (${vh.plate || ''})`,
+            date: vh.technicalControl,
+            time: '09:00',
+            icon: '🚗',
+            member_id: undefined
+          });
+        }
+        if (vh.insuranceExpiry) {
+          items.push({
+            id: `vehicules-ins-${vh.id}`,
+            source_module: 'vehicules',
+            source_id: `${vh.id}-ins`,
+            title: `Assurance : ${vh.name}`,
+            description: `Date de renouvellement de l'assurance auto (${vh.plate || ''})`,
+            date: vh.insuranceExpiry,
+            time: '09:00',
+            icon: '🚗',
+            member_id: undefined
+          });
+        }
+      });
+    }
 
     // 11. Animaux
-    (pets || []).forEach(p => {
-      if (p.nextVaccine) {
-        items.push({
-          id: `animaux-vac-${p.id}`,
-          source_module: 'animaux',
-          source_id: `${p.id}-vac`,
-          title: `Vaccin de ${p.name}`,
-          description: `Rappel de vaccin pour ${p.name} (${p.species || 'animal'})`,
-          date: p.nextVaccine,
-          time: '11:00',
-          icon: '🐶',
-          member_id: undefined
-        });
-      }
-      if (p.vetAppointment) {
-        items.push({
-          id: `animaux-vet-${p.id}`,
-          source_module: 'animaux',
-          source_id: `${p.id}-vet`,
-          title: `Vétérinaire : ${p.name}`,
-          description: `Rendez-vous vétérinaire pour ${p.name}`,
-          date: p.vetAppointment,
-          time: '14:00',
-          icon: '🐶',
-          member_id: undefined
-        });
-      }
-    });
+    if (hasVoirPermission('animaux')) {
+      (pets || []).forEach(p => {
+        if (p.nextVaccine) {
+          items.push({
+            id: `animaux-vac-${p.id}`,
+            source_module: 'animaux',
+            source_id: `${p.id}-vac`,
+            title: `Vaccin de ${p.name}`,
+            description: `Rappel de vaccin pour ${p.name} (${p.species || 'animal'})`,
+            date: p.nextVaccine,
+            time: '11:00',
+            icon: '🐶',
+            member_id: undefined
+          });
+        }
+        if (p.vetAppointment) {
+          items.push({
+            id: `animaux-vet-${p.id}`,
+            source_module: 'animaux',
+            source_id: `${p.id}-vet`,
+            title: `Vétérinaire : ${p.name}`,
+            description: `Rendez-vous vétérinaire pour ${p.name}`,
+            date: p.vetAppointment,
+            time: '14:00',
+            icon: '🐶',
+            member_id: undefined
+          });
+        }
+      });
+    }
 
     // 12. Conseil de famille (Votes)
-    (votes || []).forEach(v => {
-      const date = v.dueDate || '';
-      if (!date) return;
-      items.push({
-        id: `conseil-${v.id}`,
-        source_module: 'conseil',
-        source_id: v.id,
-        title: `Conseil : ${v.question}`,
-        description: `Sondage familial actif. Auteur: ${v.authorName || 'Parent'}`,
-        date: date,
-        time: '19:00',
-        icon: '👨‍👩‍👧‍👦',
-        member_id: undefined
+    if (hasVoirPermission('conseil')) {
+      (votes || []).forEach(v => {
+        const date = v.dueDate || '';
+        if (!date) return;
+        items.push({
+          id: `conseil-${v.id}`,
+          source_module: 'conseil',
+          source_id: v.id,
+          title: `Conseil : ${v.question}`,
+          description: `Sondage familial actif. Auteur: ${v.authorName || 'Parent'}`,
+          date: date,
+          time: '19:00',
+          icon: '👨‍👩‍👧‍👦',
+          member_id: undefined
+        });
       });
-    });
+    }
 
     // Deduplicate items with: source_module + source_id + date
     const uniqueItems: any[] = [];

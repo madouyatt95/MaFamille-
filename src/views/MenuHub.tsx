@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { detectGroceryCategory, parseSmartNaturalSentence, getGroceryItemEmoji, formatGroceryQty, POPULAR_GROCERIES } from '../utils/groceryParser';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
@@ -70,6 +70,8 @@ import type {
   Account,
   Transaction
 } from '../types';
+import { getDefaultPermissions } from '../types';
+import type { ModulePermissions, FamilyModule } from '../types';
 
 // Import newly built premium sub-modules
 import { EcoChef } from '../components/modules/EcoChef';
@@ -235,7 +237,29 @@ interface MenuHubProps {
   accounts?: Account[];
   transactions?: Transaction[];
   setTransactions?: React.Dispatch<React.SetStateAction<Transaction[]>>;
+  memberPermissions?: Record<string, Record<FamilyModule, ModulePermissions>>;
 }
+
+const modIdToFamilyModule: Record<string, FamilyModule> = {
+  'conseil': 'conseil_famille',
+  'conteur': 'histoires_soir',
+  'taches': 'taches',
+  'ecole': 'ecole',
+  'logement': 'logement',
+  'agenda': 'agenda',
+  'courses': 'courses',
+  'sante': 'sante',
+  'voyages': 'voyages',
+  'documents': 'documents',
+  'vehicules': 'vehicules',
+  'animaux': 'animaux',
+  'capsule': 'capsule_temporelle',
+  'contacts': 'repertoire_important',
+  'peacemaker': 'peacemaker',
+  'settings': 'parametres',
+  'carte': 'carte_familiale',
+  'menus': 'menu_semaine'
+};
 
 const getTripDuration = (start: string, end: string) => {
   const d1 = new Date(start);
@@ -311,6 +335,7 @@ const DishImage: React.FC<{ src: string | undefined; alt: string; className?: st
 
 export const MenuHub: React.FC<MenuHubProps> = ({
   foyer,
+  memberPermissions,
   documents,
   setDocuments,
   members,
@@ -383,8 +408,54 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   initialChatGroupId,
   accounts = [],
   transactions = [],
-  setTransactions
+  setTransactions,
 }) => {
+  const activePermissions = useMemo(() => {
+    if (memberPermissions && activeMemberId && memberPermissions[activeMemberId]) {
+      return memberPermissions[activeMemberId];
+    }
+    // Fallback based on inferred role
+    const activeMember = members.find(m => m.id === activeMemberId);
+    let roleClean = 'enfant';
+    if (activeMember) {
+      const r = (activeMember.role || '').toLowerCase();
+      if (r.includes('chef') || r.includes('admin')) roleClean = 'chef_famille';
+      else if (r.includes('gestionnaire')) roleClean = 'gestionnaire';
+      else if (r.includes('adulte') || r.includes('membre adulte')) roleClean = 'adulte';
+      else if (r.includes('parent')) roleClean = 'parent';
+      else if (r.includes('adolescent')) roleClean = 'adolescent';
+      else if (r.includes('enfant')) roleClean = 'enfant';
+      else if (r.includes('invit') || r.includes('guest')) roleClean = 'invite';
+    } else {
+      if (activeMemberId === 'demo_papa' || activeMemberId === '1') roleClean = 'chef_famille';
+      else if (activeMemberId === 'demo_maman' || activeMemberId === '2') roleClean = 'parent';
+      else if (activeMemberId === 'demo_issa' || activeMemberId === '3') roleClean = 'enfant';
+      else if (activeMemberId === 'demo_lyna' || activeMemberId === '4') roleClean = 'adolescent';
+    }
+    return getDefaultPermissions(roleClean);
+  }, [memberPermissions, activeMemberId, members]);
+
+  const getPermission = (modId: string, action: keyof ModulePermissions): boolean => {
+    if (!modId) return true;
+    const familyModKey = modIdToFamilyModule[modId];
+    if (!familyModKey) return true; // default true for non-managed or settings
+    const perm = activePermissions[familyModKey];
+    return perm ? perm[action] : true;
+  };
+
+  React.useEffect(() => {
+    if (activeModule) {
+      const familyModKey = modIdToFamilyModule[activeModule];
+      if (familyModKey) {
+        const perm = activePermissions[familyModKey];
+        if (perm && !perm.voir) {
+          // Access denied! Reset active module.
+          setActiveModule('');
+        }
+      }
+    }
+  }, [activeModule, activePermissions, setActiveModule]);
+
   const [newGroceryName, setNewGroceryName] = useState('');
   const [newGroceryCat, setNewGroceryCat] = useState('Épicerie');
   const [newGroceryQty, setNewGroceryQty] = useState(1);
@@ -668,6 +739,15 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     { id: 'settings', title: 'Réglages', desc: 'Configuration de l\'application', badge: 'Système', icon: Wrench, color: 'text-white/50 bg-white/5 hover:border-white/20' },
     { id: 'carte', title: 'Carte Familiale', desc: 'Localisation sécurisée en temps réel', badge: 'En direct', icon: MapIcon, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' }
   ];
+
+  const visibleModules = useMemo(() => {
+    return modules.filter(mod => {
+      const familyModKey = modIdToFamilyModule[mod.id];
+      if (!familyModKey) return true;
+      const perm = activePermissions[familyModKey];
+      return perm ? perm.voir : true;
+    });
+  }, [modules, activePermissions]);
 
   const handleGrocerySubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1274,7 +1354,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               </div>
               <div>
                 <h1 className="text-xl font-extrabold text-white tracking-tight">OS Familial</h1>
-                <p className="text-xs text-white/50 font-medium font-sans">11 modules connectés</p>
+                <p className="text-xs text-white/50 font-medium font-sans">{visibleModules.length} module{visibleModules.length > 1 ? 's' : ''} disponible{visibleModules.length > 1 ? 's' : ''}</p>
               </div>
             </div>
 
@@ -1290,7 +1370,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
           {/* Single Unified Modules Grid (17 modules) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {modules.map((mod) => {
+            {visibleModules.map((mod: any) => {
               const Icon = mod.icon;
               return (
                 <button
@@ -3212,7 +3292,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           </div>
 
           {/* Formulaire ajout Tâche avec récompense financière */}
-          {isParent && (
+          {isParent && getPermission('taches', 'ajouter') && (
             <form 
               onSubmit={(e) => {
                 e.preventDefault();
@@ -3317,7 +3397,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           )}
 
           {/* Gamified Parent Validation Alert */}
-          {isParent && tasks.some(t => t.done && !t.validatedByParent) && (
+          {isParent && getPermission('taches', 'valider') && tasks.some(t => t.done && !t.validatedByParent) && (
             <div className="p-4 rounded-[28px] bg-[#FFB020]/10 border border-[#FFB020]/20 space-y-3">
               <div className="flex items-center space-x-2 text-[#FFB020]">
                 <Sparkles className="w-5 h-5 text-[#FFB020]" />
@@ -3444,32 +3524,36 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     }`}
                   >
                     {/* Parent Hover/Group Quick Edit/Delete Actions */}
-                    {isParent && (
+                    {isParent && (getPermission('taches', 'modifier') || getPermission('taches', 'supprimer')) && (
                       <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1 z-20">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingTaskId(task.id);
-                            setEditTaskTitle(task.title);
-                            setEditTaskPoints(task.rewardPoints);
-                            setEditTaskRotation(task.rotation);
-                            setEditTaskAssigneeId(task.assignedMemberId);
-                          }}
-                          className="p-1.5 bg-white/5 hover:bg-[#6C5CFF]/20 border border-white/10 hover:border-[#6C5CFF]/30 text-white hover:text-[#9E94FF] rounded-lg transition active:scale-95 cursor-pointer"
-                          title="Modifier la tâche"
-                        >
-                          <Edit3 className="w-3 h-3" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteTask(task.id);
-                          }}
-                          className="p-1.5 bg-white/5 hover:bg-[#FF3B30]/25 border border-white/10 hover:border-[#FF3B30]/40 text-white hover:text-[#FF3B30] rounded-lg transition active:scale-95 cursor-pointer"
-                          title="Supprimer la tâche"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                        {getPermission('taches', 'modifier') && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingTaskId(task.id);
+                              setEditTaskTitle(task.title);
+                              setEditTaskPoints(task.rewardPoints);
+                              setEditTaskRotation(task.rotation);
+                              setEditTaskAssigneeId(task.assignedMemberId);
+                            }}
+                            className="p-1.5 bg-white/5 hover:bg-[#6C5CFF]/20 border border-white/10 hover:border-[#6C5CFF]/30 text-white hover:text-[#9E94FF] rounded-lg transition active:scale-95 cursor-pointer"
+                            title="Modifier la tâche"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                          </button>
+                        )}
+                        {getPermission('taches', 'supprimer') && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteTask(task.id);
+                            }}
+                            className="p-1.5 bg-white/5 hover:bg-[#FF3B30]/25 border border-white/10 hover:border-[#FF3B30]/40 text-white hover:text-[#FF3B30] rounded-lg transition active:scale-95 cursor-pointer"
+                            title="Supprimer la tâche"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -3489,13 +3573,15 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
                     <div className="flex items-center justify-between pt-3 border-t border-white/5 mt-2">
                       <span className="text-[10px] text-white/50">Assigné : <strong className="text-white">{task.assignedMemberName}</strong></span>
-                      {!task.done ? (
+                      {!task.done && getPermission('taches', 'modifier') ? (
                         <button 
                           onClick={() => onToggleTask(task.id)}
                           className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:text-white text-[10px] font-bold cursor-pointer"
                         >
                           Marquer fait
                         </button>
+                      ) : !task.done ? (
+                        <span className="text-[10px] text-white/30 italic">Non autorisé</span>
                       ) : (
                         <span className={`text-[10px] font-bold ${task.validatedByParent ? 'text-[#00D26A]' : 'text-[#FFB020]'}`}>
                           {task.validatedByParent ? 'Validé' : 'En attente'}

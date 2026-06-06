@@ -18,7 +18,8 @@ import {
 } from 'lucide-react';
 import { foyerService } from '../services/foyerService';
 import { getSupabaseClient } from '../utils/supabase';
-import type { Member, Foyer, FoyerMember, MemberRole } from '../types';
+import { ALL_FAMILY_MODULES, getDefaultPermissions } from '../types';
+import type { Member, Foyer, FoyerMember, MemberRole, ModulePermissions, FamilyModule } from '../types';
 
 interface MembresProps {
   members: Member[];
@@ -33,6 +34,8 @@ interface MembresProps {
   setActiveModule?: (module: string) => void;
   onLogout?: () => void;
   onLeaveFoyer?: () => Promise<void> | void;
+  memberPermissions?: Record<string, Record<FamilyModule, ModulePermissions>>;
+  onUpdatePermissions?: (memberId: string, modulePermissions: Record<FamilyModule, ModulePermissions>) => void;
 }
 
 export const Membres: React.FC<MembresProps> = ({ 
@@ -47,7 +50,9 @@ export const Membres: React.FC<MembresProps> = ({
   setActiveTab,
   setActiveModule,
   onLogout,
-  onLeaveFoyer
+  onLeaveFoyer,
+  memberPermissions,
+  onUpdatePermissions
 }) => {
   // Invitation réelle & Ajout unifié
   const [isAddingMember, setIsAddingMember] = useState(false);
@@ -62,7 +67,7 @@ export const Membres: React.FC<MembresProps> = ({
   
   // Create form states
   const [addName, setAddName] = useState('');
-  const [addRole, setAddRole] = useState<'parent' | 'child' | 'guest'>('child');
+  const [addRole, setAddRole] = useState<string>('enfant');
   const [addAge, setAddAge] = useState('');
   const [addBirth, setAddBirth] = useState('');
   const [addBlood, setAddBlood] = useState('A+');
@@ -76,7 +81,7 @@ export const Membres: React.FC<MembresProps> = ({
   const [submittingAdd, setSubmittingAdd] = useState(false);
 
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'parent' | 'child' | 'guest'>('child');
+  const [inviteRole, setInviteRole] = useState<string>('enfant');
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteMessage, setInviteMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -93,12 +98,20 @@ export const Membres: React.FC<MembresProps> = ({
     if (!onAddMember) return;
     setSubmittingAdd(true);
     try {
+      const dbRole: MemberRole = 
+        addRole === 'chef_famille' ? 'admin' :
+        ['parent', 'gestionnaire', 'adulte'].includes(addRole) ? 'parent' :
+        ['adolescent', 'enfant'].includes(addRole) ? 'child' :
+        'guest';
+
+      const bloodGroupWithRole = `ROLE:${addRole}|${addBlood}`;
+
       const newMemberPayload = {
         name: addName.trim(),
-        role: addRole,
+        role: dbRole,
         age: addAge.trim() || 'Nouveau',
         birthDate: addBirth.trim() || 'Inconnue',
-        bloodGroup: addBlood,
+        bloodGroup: bloodGroupWithRole,
         allergies: addAllergies.trim() ? addAllergies.split(',').map(a => a.trim()) : ['Aucune'],
         treatments: addTreatments.trim() ? addTreatments.split(',').map(t => t.trim()) : ['Aucun'],
         schoolOrEmployer: addSchool.trim() || 'Non renseigné',
@@ -107,14 +120,14 @@ export const Membres: React.FC<MembresProps> = ({
           phone: addEmergencyPhone.trim() || '',
           relation: addEmergencyRelation.trim() || 'Mère'
         },
-        hasExemption: addRole === 'child' ? addHasExemption : false
+        hasExemption: dbRole === 'child' ? addHasExemption : false
       };
 
       await onAddMember(newMemberPayload);
 
       // Reset form states
       setAddName('');
-      setAddRole('child');
+      setAddRole('enfant');
       setAddAge('');
       setAddBirth('');
       setAddBlood('A+');
@@ -140,7 +153,12 @@ export const Membres: React.FC<MembresProps> = ({
     setInviteLoading(true);
     setInviteMessage(null);
     try {
-      await foyerService.inviteByEmail(foyer.id, inviteEmail.trim(), inviteRole);
+      const dbRole: any = 
+        inviteRole === 'chef_famille' ? 'admin' :
+        ['parent', 'gestionnaire', 'adulte'].includes(inviteRole) ? 'parent' :
+        ['adolescent', 'enfant'].includes(inviteRole) ? 'child' :
+        'guest';
+      await foyerService.inviteByEmail(foyer.id, inviteEmail.trim(), dbRole);
       setInviteMessage({ text: `Invitation envoyée avec succès à ${inviteEmail} ! ✉️`, type: 'success' });
       setInviteEmail('');
     } catch (err: any) {
@@ -192,7 +210,19 @@ export const Membres: React.FC<MembresProps> = ({
 
   const handleEditClick = (member: Member) => {
     setEditName(member.name);
-    setEditRole(member.role);
+    
+    // map friendly role back to precise role key
+    const friendly = member.role || '';
+    let precise = 'enfant';
+    if (friendly.includes('Chef')) precise = 'chef_famille';
+    else if (friendly.includes('Gestionnaire')) precise = 'gestionnaire';
+    else if (friendly.includes('adulte') || friendly.includes('Adulte')) precise = 'adulte';
+    else if (friendly.includes('Parent')) precise = 'parent';
+    else if (friendly.includes('Adolescent')) precise = 'adolescent';
+    else if (friendly.includes('Enfant')) precise = 'enfant';
+    else if (friendly.includes('Invité') || friendly.includes('invite')) precise = 'invite';
+    
+    setEditRole(precise);
     setEditAge(member.age);
     setEditBirth(member.birthDate);
     setEditBlood(member.bloodGroup);
@@ -207,25 +237,31 @@ export const Membres: React.FC<MembresProps> = ({
     
     setSavingProfile(true);
     try {
-      // Map friendly UI roles to database-compatible roles
+      // Map precise UI roles to database-compatible roles
       const dbRole: MemberRole = 
-        editRole === 'Chef de famille' || editRole === 'Chef de famille (Admin)' || editRole === 'admin' ? 'admin' :
-        editRole === 'Gestionnaire' || editRole === 'Gestionnaire / Parent' || editRole === 'parent' ? 'parent' :
-        editRole === 'Enfant' || editRole === 'child' ? 'child' :
+        editRole === 'chef_famille' ? 'admin' :
+        ['parent', 'gestionnaire', 'adulte'].includes(editRole) ? 'parent' :
+        ['adolescent', 'enfant'].includes(editRole) ? 'child' :
         'guest';
 
       const friendlyUIRole = 
-        dbRole === 'admin' ? 'Chef de famille' :
-        dbRole === 'parent' ? 'Gestionnaire' :
-        dbRole === 'child' ? 'Enfant' :
+        editRole === 'chef_famille' ? 'Chef de famille' :
+        editRole === 'parent' ? 'Parent' :
+        editRole === 'gestionnaire' ? 'Gestionnaire' :
+        editRole === 'adulte' ? 'Membre adulte' :
+        editRole === 'adolescent' ? 'Adolescent' :
+        editRole === 'enfant' ? 'Enfant' :
         'Invité';
+
+      // Encode precise role inside bloodGroup
+      const bloodGroupWithRole = `ROLE:${editRole}|${editBlood}`;
 
       const updates = {
         displayName: editName.trim(),
         role: dbRole,
         age: editAge.trim(),
         birthDate: editBirth.trim(),
-        bloodGroup: editBlood,
+        bloodGroup: bloodGroupWithRole,
         schoolOrEmployer: editSchool.trim(),
         hasExemption: dbRole === 'child' ? editHasExemption : false
       };
@@ -279,7 +315,7 @@ export const Membres: React.FC<MembresProps> = ({
             role: friendlyUIRole,
             age: editAge.trim(),
             birthDate: editBirth.trim(),
-            bloodGroup: editBlood,
+            bloodGroup: editBlood, // store raw blood group locally
             schoolOrEmployer: editSchool.trim(),
             hasExemption: dbRole === 'child' ? editHasExemption : false
           };
@@ -559,21 +595,39 @@ export const Membres: React.FC<MembresProps> = ({
                             onClick={async (e) => {
                               e.stopPropagation();
                               const roleInput = prompt(
-                                `Approuver la demande de ${member.name}.\n\nQuel rôle souhaitez-vous lui attribuer ?\n- parent : Droits d'écriture complets\n- child : Enfant (droits restreints)\n- guest : Invité (lecture seule)\n- admin : Co-administrateur`,
-                                member.role || 'child'
+                                `Approuver la demande de ${member.name}.\n\nQuel rôle souhaitez-vous lui attribuer ?\n- chef_famille : Chef de famille\n- parent : Parent\n- gestionnaire : Gestionnaire\n- adulte : Membre adulte\n- adolescent : Adolescent\n- enfant : Enfant\n- invite : Invité`,
+                                'enfant'
                               );
                               if (roleInput === null) return; // Annulé
                               
-                              const finalRole = roleInput.trim().toLowerCase() as any;
-                              if (!['admin', 'parent', 'child', 'guest'].includes(finalRole)) {
-                                alert("Rôle invalide. Les rôles valides sont : admin, parent, child, guest");
+                              const preciseRole = roleInput.trim().toLowerCase();
+                              if (!['chef_famille', 'parent', 'gestionnaire', 'adulte', 'adolescent', 'enfant', 'invite'].includes(preciseRole)) {
+                                alert("Rôle invalide.");
                                 return;
                               }
 
+                              const dbRole: any = 
+                                preciseRole === 'chef_famille' ? 'admin' :
+                                ['parent', 'gestionnaire', 'adulte'].includes(preciseRole) ? 'parent' :
+                                ['adolescent', 'enfant'].includes(preciseRole) ? 'child' :
+                                'guest';
+
+                              const bloodGroupWithRole = `ROLE:${preciseRole}|O+`;
+
                               try {
-                                await foyerService.approveMember(member.id, finalRole);
-                                setMembers(prev => prev.map(m => m.id === member.id ? { ...m, approved: true, role: finalRole } : m));
-                                alert(`🎉 L'adhésion de ${member.name} a été approuvée avec le rôle : ${finalRole} !`);
+                                await foyerService.approveMember(member.id, dbRole);
+                                await foyerService.updateMemberProfile(member.id, { bloodGroup: bloodGroupWithRole });
+                                
+                                const friendlyRole = 
+                                  preciseRole === 'chef_famille' ? 'Chef de famille' :
+                                  preciseRole === 'parent' ? 'Parent' :
+                                  preciseRole === 'gestionnaire' ? 'Gestionnaire' :
+                                  preciseRole === 'adulte' ? 'Membre adulte' :
+                                  preciseRole === 'adolescent' ? 'Adolescent' :
+                                  preciseRole === 'enfant' ? 'Enfant' : 'Invité';
+
+                                setMembers(prev => prev.map(m => m.id === member.id ? { ...m, approved: true, role: friendlyRole, bloodGroup: 'O+' } : m));
+                                alert(`🎉 L'adhésion de ${member.name} a été approuvée avec le rôle : ${friendlyRole} !`);
                               } catch (err: any) {
                                 alert(`Erreur d'approbation : ${err.message}`);
                               }
@@ -727,25 +781,29 @@ export const Membres: React.FC<MembresProps> = ({
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Rôle / Droits dans la famille</label>
                     <select
-                      value={
-                        editRole === 'Chef de famille' || editRole === 'Chef de famille (Admin)' || editRole === 'admin' ? 'admin' :
-                        editRole === 'Gestionnaire' || editRole === 'Gestionnaire / Parent' || editRole === 'parent' ? 'parent' :
-                        editRole === 'Enfant' || editRole === 'child' ? 'child' :
-                        'guest'
-                      }
-                      onChange={(e) => setEditRole(e.target.value)}
+                      value={editRole}
+                      onChange={(e) => {
+                        const newRole = e.target.value;
+                        setEditRole(newRole);
+                        if (onUpdatePermissions) {
+                          onUpdatePermissions(selectedMember.id, getDefaultPermissions(newRole));
+                        }
+                      }}
                       disabled={savingProfile}
                       className="w-full px-4 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-sm focus:outline-none focus:border-[#6C5CFF] disabled:opacity-50"
                     >
-                      {myMemberProfile?.role === 'admin' && (
-                        <option value="admin">Chef de famille (Admin) 👑</option>
+                      {(!myMemberProfile || myMemberProfile.role === 'admin') && (
+                        <option value="chef_famille">👑 Chef de famille (Admin)</option>
                       )}
-                      <option value="parent">Gestionnaire / Parent (Écriture complète) 👨‍👩‍👧</option>
-                      <option value="child">Enfant (Droits d'écriture restreints) 🧒</option>
-                      <option value="guest">Invité (Lecture seule) 👥</option>
+                      <option value="parent">👨 Parent</option>
+                      <option value="gestionnaire">⚙️ Gestionnaire</option>
+                      <option value="adulte">🧑 Membre adulte (18 ans et +)</option>
+                      <option value="adolescent">👦 Adolescent (11-17 ans)</option>
+                      <option value="enfant">🧒 Enfant (-11 ans)</option>
+                      <option value="invite">👤 Invité</option>
                     </select>
 
-                    {(editRole === 'child' || editRole === 'Enfant') && (
+                    {(editRole === 'enfant' || editRole === 'adolescent' || editRole === 'child') && (
                       <div className="mt-2.5 p-3 rounded-2xl bg-white/3 border border-[#6C5CFF]/20 flex items-center justify-between animate-fade-in">
                         <div>
                           <span className="text-[10px] font-extrabold text-white block">🔓 Dérogation Spéciale Enfant</span>
@@ -812,6 +870,116 @@ export const Membres: React.FC<MembresProps> = ({
                       className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#6C5CFF]"
                     />
                   </div>
+
+                  {/* Droits & Permissions par Module */}
+                  {(!myMemberProfile || ['admin', 'parent'].includes(myMemberProfile.role)) && (
+                    <div className="space-y-3 pt-4 border-t border-white/10">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-[10px] font-bold text-white uppercase tracking-wider">🔒 Droits & Permissions par Module</h4>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onUpdatePermissions) {
+                              const defaults = getDefaultPermissions(editRole);
+                              onUpdatePermissions(selectedMember.id, defaults);
+                            }
+                          }}
+                          className="text-[9px] font-bold text-[#6C5CFF] hover:underline"
+                        >
+                          Réinitialiser par défaut
+                        </button>
+                      </div>
+                      
+                      <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1 select-none">
+                        {ALL_FAMILY_MODULES.map((modName) => {
+                          const modPerms = (memberPermissions?.[selectedMember.id]?.[modName]) || getDefaultPermissions(editRole)[modName];
+                          
+                          const togglePerm = (permKey: keyof ModulePermissions) => {
+                            if (!onUpdatePermissions) return;
+                            const currentMemberPerms = memberPermissions?.[selectedMember.id] || getDefaultPermissions(editRole);
+                            const updatedMemberPerms = {
+                              ...currentMemberPerms,
+                              [modName]: {
+                                ...currentMemberPerms[modName],
+                                [permKey]: !modPerms[permKey]
+                              }
+                            };
+                            onUpdatePermissions(selectedMember.id, updatedMemberPerms);
+                          };
+
+                          const moduleLabel = 
+                            modName === 'accueil' ? '🏠 Accueil' :
+                            modName === 'timeline' ? '🕒 Timeline' :
+                            modName === 'budget' ? '💰 Budget' :
+                            modName === 'agenda' ? '📅 Agenda' :
+                            modName === 'courses' ? '🛒 Courses' :
+                            modName === 'sante' ? '🏥 Santé' :
+                            modName === 'voyages' ? '✈️ Voyages' :
+                            modName === 'documents' ? '📂 Documents' :
+                            modName === 'vehicules' ? '🚗 Véhicules' :
+                            modName === 'logement' ? '🏠 Logement' :
+                            modName === 'animaux' ? '🐱 Animaux' :
+                            modName === 'ecole' ? '🎒 École & Devoirs' :
+                            modName === 'taches' ? '🧹 Tâches' :
+                            modName === 'conseil_famille' ? '👥 Conseil de famille' :
+                            modName === 'histoires_soir' ? '📖 Histoires du soir' :
+                            modName === 'messagerie' ? '💬 Messagerie' :
+                            modName === 'capsule_temporelle' ? '⏳ Capsule temporelle' :
+                            modName === 'repertoire_important' ? '📞 Répertoire important' :
+                            modName === 'peacemaker' ? '🕊️ PeaceMaker' :
+                            modName === 'carte_familiale' ? '🗺️ Carte familiale' :
+                            modName === 'menu_semaine' ? '🍳 Menu de la semaine' :
+                            modName === 'demarches' ? '📋 Démarches' :
+                            modName === 'notifications' ? '🔔 Notifications' :
+                            modName === 'parametres' ? '⚙️ Paramètres' :
+                            modName === 'micro' ? '🎤 Micro principal' :
+                            modName === 'commune' ? '🏛️ Ma Commune' :
+                            '🏫 Mon Établissement';
+
+                          return (
+                            <div key={modName} className="p-3 bg-white/3 border border-white/5 rounded-2xl space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold text-white">{moduleLabel}</span>
+                                <label className="relative inline-flex items-center cursor-pointer select-none">
+                                  <input 
+                                    type="checkbox"
+                                    checked={!!modPerms.voir}
+                                    onChange={() => togglePerm('voir')}
+                                    className="sr-only peer"
+                                  />
+                                  <div className="w-8 h-4 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#6C5CFF]"></div>
+                                  <span className="text-[9px] text-white/50 ml-1.5 font-bold uppercase">Voir</span>
+                                </label>
+                              </div>
+                              
+                              {modPerms.voir && (
+                                <div className="grid grid-cols-3 gap-2 pt-1 border-t border-white/5">
+                                  {[
+                                    { key: 'ajouter' as const, label: 'Ajouter' },
+                                    { key: 'modifier' as const, label: 'Modifier' },
+                                    { key: 'supprimer' as const, label: 'Suppr' },
+                                    { key: 'valider' as const, label: 'Valider' },
+                                    { key: 'archiver' as const, label: 'Archiver' },
+                                    { key: 'recevoir_notifications' as const, label: 'Notifs' }
+                                  ].map((action) => (
+                                    <label key={action.key} className="flex items-center space-x-1.5 cursor-pointer">
+                                      <input 
+                                        type="checkbox"
+                                        checked={!!modPerms[action.key]}
+                                        onChange={() => togglePerm(action.key)}
+                                        className="rounded bg-white/5 border-white/10 text-[#6C5CFF] focus:ring-0 focus:ring-offset-0 w-3 h-3 cursor-pointer"
+                                      />
+                                      <span className="text-[9px] text-white/40 font-semibold">{action.label}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex space-x-2 pt-2">
                     <button 
@@ -1274,17 +1442,21 @@ export const Membres: React.FC<MembresProps> = ({
                       <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Rôle / Droits</label>
                       <select 
                         value={addRole}
-                        onChange={(e) => setAddRole(e.target.value as any)}
+                        onChange={(e) => setAddRole(e.target.value)}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
                       >
-                        <option value="parent">Gestionnaire / Parent 👨‍👩‍👧</option>
-                        <option value="child">Enfant 🧒</option>
-                        <option value="guest">Invité (Lecture seule) 👥</option>
+                        <option value="chef_famille">👑 Chef de famille</option>
+                        <option value="parent">👨 Parent</option>
+                        <option value="gestionnaire">⚙️ Gestionnaire</option>
+                        <option value="adulte">🧑 Membre adulte (18 ans et +)</option>
+                        <option value="adolescent">👦 Adolescent (11-17 ans)</option>
+                        <option value="enfant">🧒 Enfant (-11 ans)</option>
+                        <option value="invite">👤 Invité</option>
                       </select>
                     </div>
                   </div>
 
-                  {addRole === 'child' && (
+                  {(addRole === 'enfant' || addRole === 'adolescent' || addRole === 'child') && (
                     <div className="p-3 rounded-2xl bg-[#6C5CFF]/5 border border-[#6C5CFF]/20 flex items-center justify-between animate-fade-in">
                       <div>
                         <span className="text-[10px] font-extrabold text-white block">🔓 Dérogation parentale d'écriture</span>
@@ -1434,9 +1606,13 @@ export const Membres: React.FC<MembresProps> = ({
                           onChange={(e: any) => setInviteRole(e.target.value)}
                           className="w-full px-3 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
                         >
-                          <option value="parent">Parent / Co-gestionnaire 👨‍👩‍👧</option>
-                          <option value="child">Enfant 🧒</option>
-                          <option value="guest">Invité (Lecture seule) 👥</option>
+                          <option value="chef_famille">👑 Chef de famille</option>
+                          <option value="parent">👨 Parent</option>
+                          <option value="gestionnaire">⚙️ Gestionnaire</option>
+                          <option value="adulte">🧑 Membre adulte (18 ans et +)</option>
+                          <option value="adolescent">👦 Adolescent (11-17 ans)</option>
+                          <option value="enfant">🧒 Enfant (-11 ans)</option>
+                          <option value="invite">👤 Invité</option>
                         </select>
                       </div>
 
