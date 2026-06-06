@@ -319,24 +319,8 @@ export const Timeline: React.FC<TimelineProps> = ({
       });
     }
 
-    // 4. Courses (Groceries)
-    if (hasVoirPermission('courses')) {
-      (groceries || []).forEach(g => {
-        if (g.checked) return;
-        const date = g.expiryDate || new Date().toISOString().split('T')[0];
-        items.push({
-          id: `courses-${g.id}`,
-          source_module: 'courses',
-          source_id: g.id,
-          title: `Achat prévu : ${g.name}`,
-          description: `Quantité: ${g.quantity || '1'} • Rayon: ${g.category || 'Alimentation'}`,
-          date: date,
-          time: '10:00',
-          icon: '🛒',
-          member_id: g.addedBy
-        });
-      });
-    }
+    // 4. Courses (Groceries) - Supprimé complètement de la Timeline
+
 
     // 5. Démarches
     if (hasVoirPermission('demarches')) {
@@ -531,11 +515,11 @@ export const Timeline: React.FC<TimelineProps> = ({
       }
     });
 
-    // Sort chronologically (date, then time)
+    // Sort chronologically reverse (newest to oldest)
     return uniqueItems.sort((a, b) => {
-      const dateComp = a.date.localeCompare(b.date);
+      const dateComp = b.date.localeCompare(a.date);
       if (dateComp !== 0) return dateComp;
-      return a.time.localeCompare(b.time);
+      return b.time.localeCompare(a.time);
     });
   };
 

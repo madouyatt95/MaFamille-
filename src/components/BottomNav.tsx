@@ -5,6 +5,7 @@ import type { MemberRole } from '../types';
 interface BottomNavProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  activeModule?: string;
   setActiveModule?: (module: string) => void;
   onMicClick: () => void;
   activeMemberId?: string;
@@ -14,6 +15,7 @@ interface BottomNavProps {
 export const BottomNav: React.FC<BottomNavProps> = ({ 
   activeTab, 
   setActiveTab, 
+  activeModule,
   setActiveModule,
   onMicClick,
   activeMemberId,
@@ -210,7 +212,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             <button 
               onClick={() => handleNavClick('menu', 'taches')}
               className={`flex flex-col items-center justify-center space-y-1 py-1 px-3 rounded-2xl transition-all duration-300 cursor-pointer ${
-                activeTab === 'menu' && !activeMember?.schoolOrEmployer ? 'text-[#FFB020] scale-105 font-bold' : 'text-white/40 hover:text-white/70'
+                activeTab === 'menu' && activeModule === 'taches' ? 'text-[#FFB020] scale-105 font-bold' : 'text-white/40 hover:text-white/70'
               }`}
             >
               <Star className="w-5.5 h-5.5" />
@@ -221,7 +223,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             <button 
               onClick={() => handleNavClick('menu', 'ecole')}
               className={`flex flex-col items-center justify-center space-y-1 py-1 px-3 rounded-2xl transition-all duration-300 cursor-pointer ${
-                activeTab === 'menu' && activeMember?.schoolOrEmployer ? 'text-[#FFB020] scale-105 font-bold' : 'text-white/40 hover:text-white/70'
+                activeTab === 'menu' && activeModule === 'ecole' ? 'text-[#FFB020] scale-105 font-bold' : 'text-white/40 hover:text-white/70'
               }`}
             >
               <GraduationCap className="w-5.5 h-5.5" />
@@ -232,7 +234,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             <button 
               onClick={() => handleNavClick('menu', 'conteur')}
               className={`flex flex-col items-center justify-center space-y-1 py-1 px-3 rounded-2xl transition-all duration-300 cursor-pointer ${
-                activeTab === 'menu' && !activeMember?.schoolOrEmployer ? 'text-[#FFB020] scale-105 font-bold' : 'text-white/40 hover:text-white/70'
+                activeTab === 'menu' && activeModule === 'conteur' ? 'text-[#FFB020] scale-105 font-bold' : 'text-white/40 hover:text-white/70'
               }`}
             >
               <BookOpen className="w-5.5 h-5.5" />
@@ -243,7 +245,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             <button 
               onClick={() => handleNavClick('menu', 'membres')}
               className={`flex flex-col items-center justify-center space-y-1 py-1 px-3 rounded-2xl transition-all duration-300 cursor-pointer ${
-                activeTab === 'menu' && !activeMember?.schoolOrEmployer ? 'text-[#FFB020] scale-105 font-bold' : 'text-white/40 hover:text-white/70'
+                activeTab === 'menu' && activeModule === 'membres' ? 'text-[#FFB020] scale-105 font-bold' : 'text-white/40 hover:text-white/70'
               }`}
             >
               <User className="w-5.5 h-5.5" />

@@ -105,6 +105,10 @@ import { Membres } from './views/Membres';
 import { SharedPackView } from './components/modules/SharedPackView';
 import { KidsDashboard } from './views/KidsDashboard';
 import { TeenDashboard } from './views/TeenDashboard';
+import { KidMissions } from './views/KidMissions';
+import { KidSchool } from './views/KidSchool';
+import { KidStories } from './views/KidStories';
+import { KidProfile } from './views/KidProfile';
 import { Paywall } from './components/Paywall';
 import { Onboarding } from './views/Onboarding';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
@@ -10424,6 +10428,13 @@ function App() {
             events={appEvents as any}
             setActiveTab={setActiveTab}
             setActiveModule={setActiveModule}
+            trips={appTrips}
+            schoolTasks={schoolTasks}
+            dishes={dishes}
+            votes={appVotes}
+            memories={memories}
+            members={appMembers}
+            foyer={appFoyer}
           />
         );
       }
@@ -10532,6 +10543,66 @@ function App() {
     }
 
     if (activeTab === 'menu') {
+      let isKid = false;
+      if (appActiveMemberObj) {
+        const rClean = (appActiveMemberObj.role || '').toLowerCase();
+        if (rClean === 'enfant' || rClean.includes('enfant')) {
+          isKid = true;
+        } else {
+          const ageNum = parseInt(appActiveMemberObj.age || '0');
+          if (ageNum > 0 && ageNum < 11) isKid = true;
+        }
+      }
+
+      if (isKid) {
+        if (activeModule === 'taches') {
+          return (
+            <KidMissions 
+              member={appActiveMemberObj!}
+              tasks={appTasks}
+              setTasks={setTasks}
+              pocketMoney={appPocketMoney}
+              setPocketMoney={setPocketMoney}
+              onBack={() => setActiveModule('')}
+            />
+          );
+        }
+        if (activeModule === 'ecole') {
+          return (
+            <KidSchool 
+              member={appActiveMemberObj!}
+              schoolTasks={schoolTasks}
+              setSchoolTasks={setSchoolTasks}
+              dishes={dishes}
+              onBack={() => setActiveModule('')}
+            />
+          );
+        }
+        if (activeModule === 'conteur') {
+          return (
+            <KidStories 
+              member={appActiveMemberObj!}
+              onBack={() => setActiveModule('')}
+            />
+          );
+        }
+        if (activeModule === 'membres') {
+          return (
+            <KidProfile 
+              member={appActiveMemberObj!}
+              pocketMoney={appPocketMoney}
+              tasks={appTasks}
+              schoolTasks={schoolTasks}
+              trips={appTrips}
+              pets={appPets}
+              members={appMembers}
+              foyer={appFoyer}
+              onBack={() => setActiveModule('')}
+            />
+          );
+        }
+      }
+
       if (activeModule === "commune") {
         return (
           <div className="min-h-screen bg-[#07111F] text-white flex flex-col items-center justify-center p-4">
@@ -11017,6 +11088,8 @@ function App() {
           setActiveTab(tab);
           setActiveModule("");
         }}
+        activeModule={activeModule}
+        setActiveModule={setActiveModule}
         onMicClick={() => startVoiceAssistant()}
         activeMemberId={appActiveMemberId}
         members={appMembers}
