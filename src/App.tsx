@@ -10808,45 +10808,175 @@ function App() {
   }
 
   if (user && foyer && myMemberProfile && myMemberProfile.approved === false) {
+    const isRejected = myMemberProfile.bloodGroup === 'STATUS:rejected';
+    const isExpired = myMemberProfile.bloodGroup === 'STATUS:expired';
+
+    // Handler to cancel/delete the request and redirect
+    const handleCancelAndRedirect = async (mode: 'select' | 'join') => {
+      try {
+        await foyerService.leaveFoyer(foyer.id);
+      } catch (err) {
+        console.error("Error leaving foyer:", err);
+      }
+      // Clear active foyer local state
+      localStorage.removeItem('mf_cloud_foyer_id');
+      localStorage.removeItem('mf_active_foyer_id');
+      localStorage.removeItem('mf_cached_foyer');
+      localStorage.removeItem('mf_cached_member_profile');
+      
+      setFoyer(null);
+      setMyMemberProfile(null);
+      
+      const list = await foyerService.getMyFoyers();
+      setMyFoyers(list);
+
+      setShowWelcomeScreen(true);
+      setWelcomeScreenMode(mode);
+    };
+
+    // Handler to go back to home dashboard (empty dashboard) keeping the request
+    const handleGoToEmptyDashboard = () => {
+      localStorage.removeItem('mf_cloud_foyer_id');
+      localStorage.removeItem('mf_active_foyer_id');
+      setFoyer(null);
+      setMyMemberProfile(null);
+      setShowWelcomeScreen(false);
+    };
+
     return (
-      <div className="min-h-screen bg-[#07111F] text-white flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden font-sans">
+      <div className="min-h-screen bg-[#07111F] text-white flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden font-sans animate-fade-in">
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#6C5CFF]/10 blur-[120px] pointer-events-none" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#FF4D6D]/10 blur-[120px] pointer-events-none" />
 
-        <div className="w-full max-w-md space-y-6 relative z-10 animate-fade-in text-center">
-          <div className="inline-flex p-4 rounded-3xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 animate-pulse">
-            <span className="text-3xl">🕒</span>
-          </div>
+        <div className="w-full max-w-md space-y-6 relative z-10 text-center">
+          {isRejected ? (
+            <>
+              {/* REJECTED SCREEN */}
+              <div className="inline-flex p-4 rounded-3xl bg-red-500/10 border border-red-500/20 text-[#FF4D6D] animate-bounce">
+                <span className="text-3xl">❌</span>
+              </div>
 
-          <div className="space-y-2">
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
-              Adhésion en Attente
-            </h1>
-            <p className="text-sm text-white/60">
-              Votre profil <span className="text-[#6C5CFF] font-semibold">{myMemberProfile.displayName}</span> est en cours de validation.
-            </p>
-          </div>
+              <div className="space-y-2">
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#FF4D6D]">
+                  Demande Refusée
+                </h1>
+                <p className="text-sm text-white/60">
+                  Votre demande pour rejoindre cette famille a été refusée.
+                </p>
+              </div>
 
-          <div className="glass-panel border border-white/8 rounded-[28px] p-6 space-y-4 text-left">
-            <p className="text-xs text-white/70 leading-relaxed">
-              Votre demande pour rejoindre le foyer <span className="text-white font-bold">{foyer.name}</span> (code d'invitation <span className="font-mono bg-white/10 px-1.5 py-0.5 rounded text-[#6C5CFF]">{foyer.inviteCode}</span>) a bien été enregistrée.
-            </p>
-            <p className="text-xs text-white/55 leading-relaxed">
-              Pour des raisons de sécurité, le Chef de famille ou un parent gestionnaire doit approuver votre accès depuis son tableau de bord.
-            </p>
-            
-            <div className="flex items-center space-x-2 p-3.5 rounded-xl bg-white/5 border border-white/5 text-[11px] text-white/40">
-              <span className="text-base">ℹ️</span>
-              <span>Une fois validé, cette page se mettra à jour automatiquement.</span>
-            </div>
-          </div>
+              <div className="glass-panel border border-white/8 rounded-[28px] p-6 space-y-4 text-left">
+                <p className="text-xs text-white/70 leading-relaxed">
+                  Le Chef de famille du foyer <span className="text-white font-bold">{foyer.name}</span> n'a pas validé votre demande d'intégration.
+                </p>
+                <p className="text-xs text-white/55 leading-relaxed font-medium">
+                  Vous pouvez choisir de saisir un autre code d'invitation ou de faire une nouvelle demande.
+                </p>
+              </div>
 
-          <button
-            onClick={handleCancelJoinRequest}
-            className="w-full py-3 rounded-xl bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 border border-[#FF4D6D]/20 text-[#FF4D6D] text-xs font-bold transition-all cursor-pointer"
-          >
-            Se déconnecter / Annuler la demande
-          </button>
+              <div className="flex flex-col space-y-3 pt-2">
+                <button
+                  onClick={() => handleCancelAndRedirect('join')}
+                  className="w-full py-3.5 rounded-xl bg-[#6C5CFF] text-white text-xs font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-md shadow-[#6C5CFF]/15"
+                >
+                  Saisir un autre code / Nouvelle demande ➔
+                </button>
+                <button
+                  onClick={handleGoToEmptyDashboard}
+                  className="w-full py-3.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Retour accueil
+                </button>
+              </div>
+            </>
+          ) : isExpired ? (
+            <>
+              {/* EXPIRED SCREEN */}
+              <div className="inline-flex p-4 rounded-3xl bg-amber-500/10 border border-amber-500/20 text-amber-500 animate-pulse">
+                <span className="text-3xl">⏳</span>
+              </div>
+
+              <div className="space-y-2">
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-amber-500">
+                  Demande Expirée
+                </h1>
+                <p className="text-sm text-white/60">
+                  Votre demande pour rejoindre cette famille a expiré.
+                </p>
+              </div>
+
+              <div className="glass-panel border border-white/8 rounded-[28px] p-6 space-y-4 text-left">
+                <p className="text-xs text-white/70 leading-relaxed">
+                  La demande d'invitation pour le foyer <span className="text-white font-bold">{foyer.name}</span> n'est plus valide.
+                </p>
+              </div>
+
+              <div className="flex flex-col space-y-3 pt-2">
+                <button
+                  onClick={() => handleCancelAndRedirect('join')}
+                  className="w-full py-3.5 rounded-xl bg-[#6C5CFF] text-white text-xs font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-md shadow-[#6C5CFF]/15"
+                >
+                  Saisir un autre code
+                </button>
+                <button
+                  onClick={handleGoToEmptyDashboard}
+                  className="w-full py-3.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Retour accueil
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* PENDING SCREEN */}
+              <div className="inline-flex p-4 rounded-3xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 animate-pulse">
+                <span className="text-3xl">🕒</span>
+              </div>
+
+              <div className="space-y-2">
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+                  Demande Envoyée
+                </h1>
+                <p className="text-sm text-white/60">
+                  Votre demande a été envoyée au chef de famille.
+                </p>
+              </div>
+
+              <div className="glass-panel border border-white/8 rounded-[28px] p-6 space-y-4 text-left">
+                <p className="text-xs text-white/70 leading-relaxed">
+                  Votre demande pour rejoindre le foyer <span className="text-white font-bold">{foyer.name}</span> (code d'invitation <span className="font-mono bg-white/10 px-1.5 py-0.5 rounded text-[#6C5CFF]">{foyer.inviteCode}</span>) a bien été enregistrée.
+                </p>
+                <p className="text-xs text-white/55 leading-relaxed font-medium">
+                  Pour des raisons de sécurité, le Chef de famille ou un parent gestionnaire doit approuver votre accès.
+                </p>
+                <div className="flex items-center space-x-2 p-3 rounded-xl bg-white/5 border border-white/5 text-[10px] text-white/40">
+                  <span className="text-base">ℹ️</span>
+                  <span>Une fois validée, l'application s'activera automatiquement.</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col space-y-3 pt-2">
+                <button
+                  onClick={() => handleCancelAndRedirect('select')}
+                  className="w-full py-3.5 rounded-xl bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 border border-[#FF4D6D]/20 text-[#FF4D6D] text-xs font-bold transition-all cursor-pointer"
+                >
+                  Annuler ma demande
+                </button>
+                <button
+                  onClick={() => handleCancelAndRedirect('join')}
+                  className="w-full py-3.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold transition-all cursor-pointer"
+                >
+                  Changer de code famille
+                </button>
+                <button
+                  onClick={handleGoToEmptyDashboard}
+                  className="w-full py-3.5 rounded-xl bg-transparent hover:bg-white/5 text-white/50 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Retour accueil
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );

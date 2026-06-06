@@ -631,6 +631,34 @@ export const foyerService = {
   },
 
   /**
+   * Refuser la demande d'adhésion d'un membre (passe le statut à rejected et supprime l'alerte)
+   */
+  async rejectMember(memberId: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Supabase n'est pas configuré");
+
+    console.log('[MaFamille+ DB] rejectMember -> memberId:', memberId);
+    const { error: memberError } = await supabase
+      .from('foyer_members')
+      .update({ blood_group: 'STATUS:rejected', approved: false })
+      .eq('id', memberId);
+
+    if (memberError) {
+      console.error("[MaFamille+ DB] Erreur rejet membre foyer :", memberError);
+      throw memberError;
+    }
+
+    const { error: alertError } = await supabase
+      .from('alerts')
+      .delete()
+      .eq('id', memberId);
+
+    if (alertError) {
+      console.warn("[MaFamille+ DB] Erreur suppression alerte rejet :", alertError);
+    }
+  },
+
+  /**
    * S'abonner aux changements temps réel sur une table pour un foyer
    */
   subscribeToChanges(tableName: string, foyerId: string, onEvent: (payload: any) => void) {

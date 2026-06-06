@@ -58,6 +58,11 @@ export const Membres: React.FC<MembresProps> = ({
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [addingTab, setAddingTab] = useState<'create' | 'invite'>('create');
 
+  // Approval states
+  const [memberToApprove, setMemberToApprove] = useState<Member | null>(null);
+  const [approveRole, setApproveRole] = useState<string>('enfant');
+  const [approveHasExemption, setApproveHasExemption] = useState(false);
+
   // No-foyer state variables
   const [noFoyerAction, setNoFoyerAction] = useState<'join' | 'create'>('join');
   const [foyerNameInput, setFoyerNameInput] = useState('');
@@ -406,7 +411,7 @@ export const Membres: React.FC<MembresProps> = ({
     }
   };
 
-  const pendingMembers = members.filter(m => m.approved === false);
+  const pendingMembers = members.filter(m => m.approved === false && m.bloodGroup !== 'STATUS:rejected' && m.bloodGroup !== 'STATUS:expired');
   const approvedMembers = members.filter(m => m.approved !== false);
 
   return (
@@ -564,7 +569,7 @@ export const Membres: React.FC<MembresProps> = ({
         <div className="space-y-3">
           {/* Pending Members Section */}
           {pendingMembers.length > 0 && (
-            <div className="space-y-2 mb-4 animate-fade-in bg-yellow-500/5 p-4 rounded-3xl border border-yellow-500/20 shadow-inner">
+            <div className="space-y-3 mb-4 animate-fade-in bg-yellow-500/5 p-4 rounded-3xl border border-yellow-500/20 shadow-inner">
               <h2 className="text-[10px] font-bold uppercase tracking-wider text-yellow-500 flex items-center space-x-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>
                 <span>Demandes d'adhésion en attente ({pendingMembers.length})</span>
@@ -575,90 +580,66 @@ export const Membres: React.FC<MembresProps> = ({
                   return (
                     <div 
                       key={member.id}
-                      className="w-full glass-panel rounded-2xl p-3 flex items-center justify-between border border-white/5 bg-white/2"
+                      className="w-full glass-panel rounded-2xl p-4 flex flex-col space-y-3 border border-white/5 bg-white/2"
                     >
                       <div className="flex items-center space-x-3">
                         <img 
                           src={member.photoUrl} 
                           alt={member.name} 
-                          className="w-9 h-9 rounded-full object-cover border border-white/10"
+                          className="w-10 h-10 rounded-full object-cover border border-white/10"
                         />
                         <div>
-                          <h3 className="text-xs font-bold text-white">{member.name}</h3>
-                          <p className="text-[9px] text-white/40">Rôle : {member.role}</p>
+                          <h3 className="text-xs font-bold text-white">
+                            <span className="text-[#6C5CFF]">{member.name}</span> souhaite rejoindre votre famille
+                          </h3>
+                          <p className="text-[9px] text-white/40 font-medium">Demande d'intégration en attente</p>
                         </div>
                       </div>
                       
                       {isManagingAllowed ? (
-                        <div className="flex items-center space-x-1.5">
+                        <div className="flex items-center space-x-2 pt-1 border-t border-white/5">
                           <button
-                            onClick={async (e) => {
+                            onClick={(e) => {
                               e.stopPropagation();
-                              const roleInput = prompt(
-                                `Approuver la demande de ${member.name}.\n\nQuel rôle souhaitez-vous lui attribuer ?\n- chef_famille : Chef de famille\n- parent : Parent\n- gestionnaire : Gestionnaire\n- adulte : Membre adulte\n- adolescent : Adolescent\n- enfant : Enfant\n- invite : Invité`,
-                                'enfant'
-                              );
-                              if (roleInput === null) return; // Annulé
-                              
-                              const preciseRole = roleInput.trim().toLowerCase();
-                              if (!['chef_famille', 'parent', 'gestionnaire', 'adulte', 'adolescent', 'enfant', 'invite'].includes(preciseRole)) {
-                                alert("Rôle invalide.");
-                                return;
-                              }
-
-                              const dbRole: any = 
-                                preciseRole === 'chef_famille' ? 'admin' :
-                                ['parent', 'gestionnaire', 'adulte'].includes(preciseRole) ? 'parent' :
-                                ['adolescent', 'enfant'].includes(preciseRole) ? 'child' :
-                                'guest';
-
-                              const bloodGroupWithRole = `ROLE:${preciseRole}|O+`;
-
-                              try {
-                                await foyerService.approveMember(member.id, dbRole);
-                                await foyerService.updateMemberProfile(member.id, { bloodGroup: bloodGroupWithRole });
-                                
-                                const friendlyRole = 
-                                  preciseRole === 'chef_famille' ? 'Chef de famille' :
-                                  preciseRole === 'parent' ? 'Parent' :
-                                  preciseRole === 'gestionnaire' ? 'Gestionnaire' :
-                                  preciseRole === 'adulte' ? 'Membre adulte' :
-                                  preciseRole === 'adolescent' ? 'Adolescent' :
-                                  preciseRole === 'enfant' ? 'Enfant' : 'Invité';
-
-                                setMembers(prev => prev.map(m => m.id === member.id ? { ...m, approved: true, role: friendlyRole, bloodGroup: 'O+' } : m));
-                                alert(`🎉 L'adhésion de ${member.name} a été approuvée avec le rôle : ${friendlyRole} !`);
-                              } catch (err: any) {
-                                alert(`Erreur d'approbation : ${err.message}`);
-                              }
+                              setSelectedMember(null);
+                              setIsAddingMember(false);
+                              setIsEditing(false);
+                              setMemberToApprove(member);
+                              setApproveRole('enfant');
+                              setApproveHasExemption(false);
                             }}
-                            className="p-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 transition-all cursor-pointer flex items-center justify-center"
-                            title="Accepter"
+                            className="flex-1 py-2 rounded-xl bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 transition-all cursor-pointer flex items-center justify-center space-x-1.5 font-sans text-[10px] font-bold"
                           >
                             <Check className="w-3.5 h-3.5" />
+                            <span>Accepter</span>
                           </button>
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
                               if (confirm(`Refuser la demande de ${member.name} ?`)) {
                                 try {
-                                  await foyerService.removeMember(member.id);
-                                  setMembers(prev => prev.filter(m => m.id !== member.id));
+                                  await foyerService.rejectMember(member.id);
+                                  setMembers(prev => prev.map(m => m.id === member.id ? { ...m, bloodGroup: 'STATUS:rejected' } : m));
+                                  if (memberToApprove?.id === member.id) {
+                                    setMemberToApprove(null);
+                                  }
                                 } catch (err: any) {
-                                  alert(`Erreur de suppression : ${err.message}`);
+                                  alert(`Erreur lors du rejet : ${err.message}`);
                                 }
                               }
                             }}
-                            className="p-1.5 rounded-lg bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 text-[#FF4D6D] border border-[#FF4D6D]/20 transition-all cursor-pointer flex items-center justify-center"
-                            title="Refuser"
+                            className="flex-1 py-2 rounded-xl bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 text-[#FF4D6D] border border-[#FF4D6D]/20 transition-all cursor-pointer flex items-center justify-center space-x-1.5 font-sans text-[10px] font-bold"
                           >
                             <X className="w-3.5 h-3.5" />
+                            <span>Refuser</span>
                           </button>
                         </div>
                       ) : (
-                        <span className="text-[8px] bg-yellow-500/10 border border-yellow-500/25 text-yellow-500 px-2 py-0.5 rounded-full font-bold">
-                          En attente
-                        </span>
+                        <div className="pt-2 border-t border-white/5">
+                          <span className="text-[8px] bg-yellow-500/10 border border-yellow-500/25 text-yellow-500 px-2 py-0.5 rounded-full font-bold">
+                            En attente de validation par le chef
+                          </span>
+                        </div>
                       )}
                     </div>
                   );
@@ -1377,6 +1358,238 @@ export const Membres: React.FC<MembresProps> = ({
                 </>
               )}
             </>
+          ) : memberToApprove ? (
+            /* Attribution du rôle et des permissions for memberToApprove */
+            <form 
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setSavingProfile(true);
+                try {
+                  const dbRole: any = 
+                    approveRole === 'chef_famille' ? 'admin' :
+                    ['parent', 'gestionnaire', 'adulte'].includes(approveRole) ? 'parent' :
+                    ['adolescent', 'enfant'].includes(approveRole) ? 'child' :
+                    'guest';
+
+                  const bloodGroupWithRole = `ROLE:${approveRole}|O+`;
+
+                  await foyerService.approveMember(memberToApprove.id, dbRole);
+                  await foyerService.updateMemberProfile(memberToApprove.id, { 
+                    bloodGroup: bloodGroupWithRole,
+                    hasExemption: ['child', 'enfant', 'adolescent'].includes(dbRole) ? approveHasExemption : false
+                  });
+
+                  const friendlyRole = 
+                    approveRole === 'chef_famille' ? 'Chef de famille' :
+                    approveRole === 'parent' ? 'Parent' :
+                    approveRole === 'gestionnaire' ? 'Gestionnaire' :
+                    approveRole === 'adulte' ? 'Membre adulte' :
+                    approveRole === 'adolescent' ? 'Adolescent' :
+                    approveRole === 'enfant' ? 'Enfant' : 'Invité';
+
+                  setMembers(prev => prev.map(m => m.id === memberToApprove.id ? { 
+                    ...m, 
+                    approved: true, 
+                    role: friendlyRole, 
+                    bloodGroup: 'O+',
+                    hasExemption: ['child', 'enfant', 'adolescent'].includes(dbRole) ? approveHasExemption : false
+                  } : m));
+                  
+                  alert(`🎉 L'adhésion de ${memberToApprove.name} a été validée avec succès !`);
+                  setMemberToApprove(null);
+                } catch (err: any) {
+                  alert(`Erreur d'approbation : ${err.message}`);
+                } finally {
+                  setSavingProfile(false);
+                }
+              }}
+              className="space-y-4 pt-4 animate-scale-up"
+            >
+              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                <div>
+                  <h3 className="text-sm font-extrabold text-white">Attribution du rôle et des permissions</h3>
+                  <p className="text-[9px] text-white/40 mt-0.5">Configurez l'accès de {memberToApprove.name} avant de l'accepter définitivement.</p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setMemberToApprove(null)}
+                  className="p-1.5 rounded-lg hover:bg-white/5 text-white/40 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Rôle select */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Rôle / Droits dans la famille</label>
+                <select
+                  value={approveRole}
+                  onChange={(e) => {
+                    const newRole = e.target.value;
+                    setApproveRole(newRole);
+                    if (onUpdatePermissions) {
+                      onUpdatePermissions(memberToApprove.id, getDefaultPermissions(newRole));
+                    }
+                  }}
+                  disabled={savingProfile}
+                  className="w-full px-4 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-sm focus:outline-none focus:border-[#6C5CFF] disabled:opacity-50"
+                >
+                  {(!myMemberProfile || myMemberProfile.role === 'admin') && (
+                    <option value="chef_famille">👑 Chef de famille (Admin)</option>
+                  )}
+                  <option value="parent">👨 Parent</option>
+                  <option value="gestionnaire">⚙️ Gestionnaire</option>
+                  <option value="adulte">🧑 Membre adulte (18 ans et +)</option>
+                  <option value="adolescent">👦 Adolescent (11-17 ans)</option>
+                  <option value="enfant">🧒 Enfant (-11 ans)</option>
+                  <option value="invite">👤 Invité</option>
+                </select>
+
+                {(approveRole === 'enfant' || approveRole === 'adolescent') && (
+                  <div className="mt-2.5 p-3 rounded-2xl bg-white/3 border border-[#6C5CFF]/20 flex items-center justify-between animate-fade-in animate-duration-300">
+                    <div>
+                      <span className="text-[10px] font-extrabold text-white block">🔓 Dérogation Spéciale Enfant</span>
+                      <span className="text-[8.5px] text-white/50 block mt-0.5 max-w-[200px]">Autoriser l'écriture sur les listes de courses, agenda et tâches ménagères.</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                      <input 
+                        type="checkbox"
+                        checked={approveHasExemption}
+                        onChange={(e) => setApproveHasExemption(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#00D26A]"></div>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* Permissions par Module Tree */}
+              <div className="space-y-3 pt-2 border-t border-white/10">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[10px] font-bold text-white uppercase tracking-wider">🔒 Droits & Permissions par Module</h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onUpdatePermissions) {
+                        const defaults = getDefaultPermissions(approveRole);
+                        onUpdatePermissions(memberToApprove.id, defaults);
+                      }
+                    }}
+                    className="text-[9px] font-bold text-[#6C5CFF] hover:underline"
+                  >
+                    Réinitialiser par défaut
+                  </button>
+                </div>
+                
+                <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1 select-none no-scrollbar">
+                  {ALL_FAMILY_MODULES.map((modName) => {
+                    const modPerms = (memberPermissions?.[memberToApprove.id]?.[modName]) || getDefaultPermissions(approveRole)[modName];
+                    
+                    const togglePerm = (permKey: keyof ModulePermissions) => {
+                      if (!onUpdatePermissions) return;
+                      const currentMemberPerms = memberPermissions?.[memberToApprove.id] || getDefaultPermissions(approveRole);
+                      const updatedMemberPerms = {
+                        ...currentMemberPerms,
+                        [modName]: {
+                          ...currentMemberPerms[modName],
+                          [permKey]: !modPerms[permKey]
+                        }
+                      };
+                      onUpdatePermissions(memberToApprove.id, updatedMemberPerms);
+                    };
+
+                    const moduleLabel = 
+                      modName === 'accueil' ? '🏠 Accueil' :
+                      modName === 'timeline' ? '🕒 Timeline' :
+                      modName === 'budget' ? '💰 Budget' :
+                      modName === 'agenda' ? '📅 Agenda' :
+                      modName === 'courses' ? '🛒 Courses' :
+                      modName === 'sante' ? '🏥 Santé' :
+                      modName === 'voyages' ? '✈️ Voyages' :
+                      modName === 'documents' ? '📂 Documents' :
+                      modName === 'vehicules' ? '🚗 Véhicules' :
+                      modName === 'logement' ? '🏠 Logement' :
+                      modName === 'animaux' ? '🐱 Animaux' :
+                      modName === 'ecole' ? '🎒 École & Devoirs' :
+                      modName === 'taches' ? '🧹 Tâches' :
+                      modName === 'conseil_famille' ? '👥 Conseil de famille' :
+                      modName === 'histoires_soir' ? '📖 Histoires du soir' :
+                      modName === 'messagerie' ? '💬 Messagerie' :
+                      modName === 'capsule_temporelle' ? '⏳ Capsule temporelle' :
+                      modName === 'repertoire_important' ? '📞 Répertoire important' :
+                      modName === 'peacemaker' ? '🕊️ PeaceMaker' :
+                      modName === 'carte_familiale' ? '🗺️ Carte familiale' :
+                      modName === 'menu_semaine' ? '🍳 Menu de la semaine' :
+                      modName === 'demarches' ? '📋 Démarches' :
+                      modName === 'notifications' ? '🔔 Notifications' :
+                      modName === 'parametres' ? '⚙️ Paramètres' :
+                      modName === 'micro' ? '🎤 Micro principal' :
+                      modName === 'commune' ? '🏛️ Ma Commune' :
+                      '🏫 Mon Établissement';
+
+                    return (
+                      <div key={modName} className="p-3 bg-white/3 border border-white/5 rounded-2xl space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-white">{moduleLabel}</span>
+                          <label className="relative inline-flex items-center cursor-pointer select-none">
+                            <input 
+                              type="checkbox"
+                              checked={!!modPerms.voir}
+                              onChange={() => togglePerm('voir')}
+                              className="sr-only peer"
+                            />
+                            <div className="w-8 h-4 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#6C5CFF]"></div>
+                            <span className="text-[9px] text-white/50 ml-1.5 font-bold uppercase">Voir</span>
+                          </label>
+                        </div>
+                        
+                        {modPerms.voir && (
+                          <div className="grid grid-cols-3 gap-2 pt-1 border-t border-white/5">
+                            {[
+                              { key: 'ajouter' as const, label: 'Ajouter' },
+                              { key: 'modifier' as const, label: 'Modifier' },
+                              { key: 'supprimer' as const, label: 'Suppr' },
+                              { key: 'valider' as const, label: 'Valider' },
+                              { key: 'archiver' as const, label: 'Archiver' },
+                              { key: 'recevoir_notifications' as const, label: 'Notifs' }
+                            ].map((action) => (
+                              <label key={action.key} className="flex items-center space-x-1.5 cursor-pointer">
+                                <input 
+                                  type="checkbox"
+                                  checked={!!modPerms[action.key]}
+                                  onChange={() => togglePerm(action.key)}
+                                  className="rounded bg-white/5 border-white/10 text-[#6C5CFF] focus:ring-0 focus:ring-offset-0 w-3 h-3 cursor-pointer"
+                                />
+                                <span className="text-[9px] text-white/40 font-semibold">{action.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex space-x-2 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setMemberToApprove(null)}
+                  disabled={savingProfile}
+                  className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium text-xs border border-white/5 disabled:opacity-50"
+                >
+                  Annuler
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={savingProfile}
+                  className="flex-1 py-2.5 rounded-xl bg-[#00D26A] text-white font-bold text-xs shadow-md disabled:opacity-50 flex items-center justify-center space-x-1.5 cursor-pointer"
+                >
+                  {savingProfile ? 'Enregistrement...' : 'Valider l’entrée dans la famille'}
+                </button>
+              </div>
+            </form>
           ) : isAddingMember ? (
             /* Unified Add & Invite Member Panel */
             <div className="glass-panel rounded-[32px] border border-white/10 p-5 space-y-6 animate-scale-up">
