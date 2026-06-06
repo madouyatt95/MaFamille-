@@ -103,6 +103,7 @@ import { MenuHub } from './views/MenuHub';
 import { Settings } from './views/Settings';
 import { Membres } from './views/Membres';
 import { SharedPackView } from './components/modules/SharedPackView';
+import { ConteurIA } from './components/modules/ConteurIA';
 import { KidsDashboard } from './views/KidsDashboard';
 import { TeenDashboard } from './views/TeenDashboard';
 import { KidMissions } from './views/KidMissions';
@@ -1824,7 +1825,12 @@ function App() {
         setIsSyncReady(false);
         setFoyer(myFoyer);
         setMyMemberProfile(myMember);
-        setActiveMemberId(myMember.id);
+        const savedActiveMemberId = localStorage.getItem('mf_active_member_id');
+        if (savedActiveMemberId) {
+          setActiveMemberId(savedActiveMemberId);
+        } else {
+          setActiveMemberId(myMember.id);
+        }
         
         const localPremium = localStorage.getItem('mf_is_premium');
         if (localPremium !== null) {
@@ -10659,6 +10665,7 @@ function App() {
             memories={memories}
             members={appMembers}
             foyer={appFoyer}
+            onOpenProfileSwitcher={() => setProfileSwitcherOpen(true)}
           />
         );
       }
@@ -10806,8 +10813,11 @@ function App() {
         }
         if (activeModule === 'conteur') {
           return (
-            <KidStories 
+            <ConteurIA 
               member={appActiveMemberObj!}
+              members={appMembers}
+              isPremium={isPremium}
+              onTriggerPaywall={() => setPaywallOpen(true)}
               onBack={() => setActiveModule('')}
             />
           );
@@ -10823,6 +10833,7 @@ function App() {
               pets={appPets}
               members={appMembers}
               foyer={appFoyer}
+              documents={documents}
               onBack={() => setActiveModule('')}
             />
           );

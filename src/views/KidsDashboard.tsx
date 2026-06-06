@@ -36,6 +36,7 @@ interface KidsDashboardProps {
   memories?: any[];
   members?: Member[];
   foyer?: any;
+  onOpenProfileSwitcher?: () => void;
 }
 
 export const KidsDashboard: React.FC<KidsDashboardProps> = ({ 
@@ -52,7 +53,8 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
   votes = [],
   memories = [],
   members = [],
-  foyer
+  foyer,
+  onOpenProfileSwitcher
 }) => {
   
   // 1. Tasks assigned to this kid that are not done
@@ -73,7 +75,17 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
   // 5. Menu of the day
   const daysOfWeekFr = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const currentDayFr = daysOfWeekFr[new Date().getDay()];
-  const todayDishes = (dishes || []).filter(d => d && d.day === currentDayFr);
+  const dayMap: Record<string, string> = {
+    'Lundi': 'Lun',
+    'Mardi': 'Mar',
+    'Mercredi': 'Mer',
+    'Jeudi': 'Jeu',
+    'Vendredi': 'Ven',
+    'Samedi': 'Sam',
+    'Dimanche': 'Dim'
+  };
+  const currentDayShort = dayMap[currentDayFr] || 'Lun';
+  const todayDishes = (dishes || []).filter(d => d && (d.day === currentDayShort || d.day === currentDayFr));
 
   // 6. Next family trip
   const nextTrip = (trips || [])
@@ -84,13 +96,36 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
   const calculateBirthdayCountdown = () => {
     if (!member.birthDate) return null;
     try {
-      const birth = new Date(member.birthDate);
+      let birth: Date;
+      if (member.birthDate.includes('/')) {
+        const parts = member.birthDate.split('/');
+        if (parts.length === 3) {
+          birth = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        } else {
+          return null;
+        }
+      } else if (member.birthDate.includes('-')) {
+        const parts = member.birthDate.split('-');
+        if (parts.length === 3) {
+          if (parts[0].length === 4) {
+            birth = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+          } else {
+            birth = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+          }
+        } else {
+          return null;
+        }
+      } else {
+        birth = new Date(member.birthDate);
+      }
+
+      if (isNaN(birth.getTime())) return null;
+
       const today = new Date();
       const currentYear = today.getFullYear();
-      
       const bdayThisYear = new Date(currentYear, birth.getMonth(), birth.getDate());
+      
       if (bdayThisYear.getTime() < today.getTime() - 24 * 60 * 60 * 1000) {
-        // Already passed this year, next year
         bdayThisYear.setFullYear(currentYear + 1);
       }
       
@@ -134,6 +169,20 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
       {/* Dynamic Background Glows */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#FFB020]/10 blur-[100px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#6C5CFF]/10 blur-[100px] pointer-events-none" />
+
+      {/* Top Bar Switcher */}
+      <div className="flex justify-between items-center w-full px-2 pt-2 relative z-20">
+        <span className="text-[10px] font-black text-white/30 uppercase tracking-widest">ESPACE ENFANT 🧸</span>
+        {onOpenProfileSwitcher && (
+          <button
+            onClick={onOpenProfileSwitcher}
+            className="px-3.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[10px] font-extrabold text-[#FF4D6D] hover:bg-[#FF4D6D]/10 hover:text-white transition-all flex items-center space-x-1.5 cursor-pointer active:scale-95 shadow-md"
+          >
+            <span>🚪</span>
+            <span>Espace Parent</span>
+          </button>
+        )}
+      </div>
 
       {/* Header Profile */}
       <div className="flex flex-col items-center justify-center pt-8 pb-4 space-y-4">

@@ -1,6 +1,6 @@
-import React from 'react';
-import { ArrowLeft, User, Star, Wallet, Award, Heart, Shield, Landmark, GraduationCap, FileText, PawPrint, Users } from 'lucide-react';
-import type { Member, ChoreTask, SchoolTask, Trip, PetRecord } from '../types';
+import React, { useState } from 'react';
+import { ArrowLeft, User, Star, Wallet, Award, Heart, Shield, Landmark, GraduationCap, FileText, PawPrint, Users, X } from 'lucide-react';
+import type { Member, ChoreTask, SchoolTask, Trip, PetRecord, DocumentFile } from '../types';
 
 interface KidProfileProps {
   member: Member;
@@ -11,6 +11,7 @@ interface KidProfileProps {
   pets: PetRecord[];
   members: Member[];
   foyer: any;
+  documents?: DocumentFile[];
   onBack: () => void;
 }
 
@@ -23,8 +24,12 @@ export const KidProfile: React.FC<KidProfileProps> = ({
   pets,
   members,
   foyer,
+  documents = [],
   onBack
 }) => {
+  const [previewDoc, setPreviewDoc] = useState<DocumentFile | null>(null);
+
+  const myRealDocs = documents.filter(d => d && d.memberId === member.id && !d.isSecure);
   // Find pocket money account
   const myAccount = pocketMoney.find(p => p.id === member.id) || { balance: 10.0, points: 120 };
 
@@ -211,20 +216,27 @@ export const KidProfile: React.FC<KidProfileProps> = ({
       <div className="space-y-3 mt-6">
         <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block">Mes Documents Autorisés :</span>
         <div className="bg-white/5 border border-white/8 rounded-[32px] p-2 space-y-2 text-left">
-          {authorizedDocs.map((doc, idx) => (
-            <div key={idx} className="flex items-center justify-between p-3 bg-white/5 rounded-2xl border border-white/5">
-              <div className="flex items-center space-x-3">
-                <FileText className="w-5 h-5 text-white/35" />
-                <div>
-                  <h4 className="text-xs font-extrabold text-white">{doc.name}</h4>
-                  <p className="text-[9px] text-white/30 font-bold">{doc.size} • Ajouté le {doc.date}</p>
+          {myRealDocs.length === 0 ? (
+            <p className="text-xs text-center text-white/30 py-6">Aucun document autorisé partagé pour le moment.</p>
+          ) : (
+            myRealDocs.map((doc) => (
+              <div key={doc.id} className="flex items-center justify-between p-3 bg-white/5 rounded-2xl border border-white/5">
+                <div className="flex items-center space-x-3">
+                  <FileText className="w-5 h-5 text-white/35 shrink-0" />
+                  <div className="max-w-[180px]">
+                    <h4 className="text-xs font-extrabold text-white truncate">{doc.name}</h4>
+                    <p className="text-[9px] text-white/30 font-bold">{doc.fileSize || 'N/A'} • Ajouté le {doc.uploadDate}</p>
+                  </div>
                 </div>
+                <button
+                  onClick={() => setPreviewDoc(doc)}
+                  className="text-[9.5px] font-black bg-[#6C5CFF]/15 hover:bg-[#6C5CFF]/30 text-[#9d94ff] px-2.5 py-1.5 rounded-xl uppercase tracking-wider cursor-pointer transition active:scale-95 border-none"
+                >
+                  Voir
+                </button>
               </div>
-              <span className="text-[9.5px] font-black bg-[#6C5CFF]/15 text-[#9d94ff] px-2.5 py-1 rounded-xl uppercase tracking-wider">
-                Voir
-              </span>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
@@ -247,6 +259,70 @@ export const KidProfile: React.FC<KidProfileProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Preview Modal */}
+      {previewDoc && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-fade-in font-sans">
+          <div className="bg-[#112240] w-full max-w-lg rounded-[32px] border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* Header */}
+            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+              <div className="flex items-center space-x-2">
+                <FileText className="w-4 h-4 text-[#6C5CFF]" />
+                <div className="text-left">
+                  <h3 className="text-xs font-bold truncate max-w-[200px] text-white">{previewDoc.name}</h3>
+                  <p className="text-[9px] text-white/40">{previewDoc.uploadDate} • {previewDoc.fileSize || 'N/A'}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setPreviewDoc(null)}
+                className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/60 hover:text-white transition cursor-pointer border-none"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content Preview */}
+            <div className="p-6 flex-1 overflow-y-auto flex items-center justify-center bg-black/10">
+              {previewDoc.fileBase64 ? (
+                previewDoc.fileBase64.startsWith('data:image/') || previewDoc.fileBase64.includes(';base64,') ? (
+                  <img src={previewDoc.fileBase64} alt={previewDoc.name} className="max-w-full h-auto max-h-[50vh] object-contain rounded-2xl shadow-lg border border-white/5" />
+                ) : (
+                  <div className="text-center p-6 space-y-3">
+                    <span className="text-5xl">📄</span>
+                    <p className="text-xs text-white/50">Ce document est un fichier ou PDF.</p>
+                  </div>
+                )
+              ) : (
+                <div className="text-center p-6 space-y-2 text-white/40">
+                  <span className="text-4xl">📂</span>
+                  <p className="text-xs">Aucun aperçu disponible pour ce document.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Actions Footer */}
+            <div className="p-4 border-t border-white/10 bg-white/5 flex space-x-3">
+              <button
+                onClick={() => setPreviewDoc(null)}
+                className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-xs font-black uppercase text-white/70 tracking-wider cursor-pointer border-none"
+              >
+                Fermer
+              </button>
+              {previewDoc.fileBase64 && (
+                <a 
+                  href={previewDoc.fileBase64} 
+                  download={previewDoc.name}
+                  className="flex-1 py-3 bg-[#6C5CFF] hover:bg-[#5b4eff] rounded-2xl text-xs font-black uppercase text-white tracking-wider cursor-pointer text-center flex items-center justify-center space-x-1.5 shadow-lg shadow-[#6C5CFF]/20 no-underline"
+                >
+                  <span>Télécharger</span>
+                </a>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

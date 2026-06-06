@@ -17,10 +17,11 @@ interface CoffreFortAvanceProps {
   onAddTransaction?: (newTrans: any) => void;
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
+  defaultTab?: 'docs' | 'demarches' | 'packs';
 }
 
-export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, setDocuments, members, demarches, setDemarches, packs, setPacks, onAddEvent, onAddTransaction, isPremium = false, onTriggerPaywall }) => {
-  const [mainTab, setMainTab] = useState<'docs' | 'demarches' | 'packs'>('docs');
+export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, setDocuments, members, demarches, setDemarches, packs, setPacks, onAddEvent, onAddTransaction, isPremium = false, onTriggerPaywall, defaultTab }) => {
+  const [mainTab, setMainTab] = useState<'docs' | 'demarches' | 'packs'>(defaultTab || 'docs');
   const [viewMode, setViewMode] = useState<'categories' | 'members' | 'expiring' | 'all'>('categories');
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);

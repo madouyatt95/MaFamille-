@@ -880,7 +880,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const isParent = activeMember 
     ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMember.role)
     : (activeMemberId === '1' || activeMemberId === '2');
-  const isLockedForChild = !isParent && ['documents', 'finances_hub', 'vehicules', 'logement'].includes(activeModule) && !authorizedModules.includes(activeModule);
+  const isLockedForChild = !isParent && ['documents', 'demarches', 'finances_hub', 'vehicules', 'logement'].includes(activeModule) && !authorizedModules.includes(activeModule);
 
   // Vehicles Form states
   const [newVehName, setNewVehName] = useState('');
@@ -1449,9 +1449,23 @@ export const MenuHub: React.FC<MenuHubProps> = ({
         <FamilyMap members={members} activeMemberId={activeMemberId} onUpdateMemberProfile={onUpdateMemberProfile} />
       )}
 
-      {/* SUB-MODULE 1: Documents Vault */}
-      {activeModule === 'documents' && !isLockedForChild && (
-        <CoffreFortAvance documents={documents} setDocuments={setDocuments} members={members} demarches={demarches} setDemarches={setDemarches} packs={justificatifPacks} setPacks={setJustificatifPacks} onAddEvent={onAddEvent} isPremium={isPremium} onTriggerPaywall={onTriggerPaywall} onAddTransaction={onAddTransaction} />
+      {/* SUB-MODULE 1: Documents Vault & Démarches */}
+      {(activeModule === 'documents' || activeModule === 'demarches') && !isLockedForChild && (
+        <CoffreFortAvance 
+          key={activeModule}
+          documents={documents} 
+          setDocuments={setDocuments} 
+          members={members} 
+          demarches={demarches} 
+          setDemarches={setDemarches} 
+          packs={justificatifPacks} 
+          setPacks={setJustificatifPacks} 
+          onAddEvent={onAddEvent} 
+          isPremium={isPremium} 
+          onTriggerPaywall={onTriggerPaywall} 
+          onAddTransaction={onAddTransaction} 
+          defaultTab={activeModule === 'demarches' ? 'demarches' : 'docs'}
+        />
       )}
 
       {/* SUB-MODULE 1.5: Messagerie */}
@@ -3958,7 +3972,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           {/* Dashboard Coût Annuel & Formulaire de Dépenses Véhicules */}
           {(() => {
             const annualVehiclesCost = (transactions || [])
-              .filter(t => t.type === 'expense' && (t.category === 'Transport' || t.moduleSource === 'vehicules') && (new Date().getTime() - new Date(t.date).getTime()) <= 365 * 24 * 60 * 60 * 1000)
+              .filter(t => t.type === 'expense' && (t.category === 'Véhicules' || t.moduleSource === 'vehicules') && (new Date().getTime() - new Date(t.date).getTime()) <= 365 * 24 * 60 * 60 * 1000)
               .reduce((sum, t) => sum + t.amount, 0);
 
             const handleAddVehExpense = (e: React.FormEvent) => {
@@ -3970,7 +3984,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 onAddTransaction({
                   amount: amt,
                   type: 'expense',
-                  category: 'Transport',
+                  category: 'Véhicules',
                   subCategory: newVehExpenseSubCategory,
                   title: `Véhicule : ${newVehExpenseSubCategory}`,
                   date: new Date().toISOString().split('T')[0],

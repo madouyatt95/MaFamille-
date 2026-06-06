@@ -23,6 +23,7 @@ interface ConteurIAProps {
   members: any[];
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
+  member?: any;
 }
 
 interface Universe {
@@ -291,7 +292,8 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
   onBack, 
   members, 
   isPremium = false, 
-  onTriggerPaywall 
+  onTriggerPaywall,
+  member
 }) => {
   // Dynamically build heroes list from real family members passed via props
   const defaultHeroes = (members && members.length > 0)
@@ -306,7 +308,7 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
       ];
 
   // Config state
-  const [selectedHero, setSelectedHero] = useState<string>('Awa'); // Default select Awa as in reference image
+  const [selectedHero, setSelectedHero] = useState<string>(member ? member.name : 'Awa'); // Default select Awa or member
   const [isCustomHero, setIsCustomHero] = useState<boolean>(false);
   const [customHeroName, setCustomHeroName] = useState<string>('');
 
@@ -366,7 +368,9 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
 
   // Set default hero based on family members
   useEffect(() => {
-    if (members && members.length > 0) {
+    if (member) {
+      setSelectedHero(member.name);
+    } else if (members && members.length > 0) {
       const kids = members.filter(m => m.id === '3' || m.id === '4');
       if (kids.length > 0) {
         setSelectedHero(kids[0].name);
@@ -376,7 +380,7 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
     } else {
       setSelectedHero('Amadou');
     }
-  }, [members]);
+  }, [members, member]);
 
   // Clean up sounds and speech on unmount
   useEffect(() => {
@@ -419,6 +423,75 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
       console.warn('[ConteurIA] Audio init failed:', err);
     }
   };
+  const balanceJSONBrackets = (str: string): string => {
+    const stack: string[] = [];
+    let inString = false;
+    let escaped = false;
+    let cleanStr = "";
+
+    for (let i = 0; i < str.length; i++) {
+      const char = str[i];
+      if (escaped) {
+        escaped = false;
+        cleanStr += char;
+        continue;
+      }
+      if (char === '\\') {
+        escaped = true;
+        cleanStr += char;
+        continue;
+      }
+      if (char === '"') {
+        inString = !inString;
+        cleanStr += char;
+        continue;
+      }
+
+      if (!inString) {
+        if (char === '{' || char === '[') {
+          stack.push(char);
+        } else if (char === '}' || char === ']') {
+          const expected = char === '}' ? '{' : '[';
+          if (stack.length > 0 && stack[stack.length - 1] === expected) {
+            stack.pop();
+          } else {
+            continue;
+          }
+        }
+      }
+      cleanStr += char;
+    }
+
+    while (stack.length > 0) {
+      const open = stack.pop();
+      if (open === '{') {
+        cleanStr += '}';
+      } else if (open === '[') {
+        cleanStr += ']';
+      }
+    }
+
+    return cleanStr;
+  };
+
+  const cleanAndParseJSON = (str: string): any => {
+    let cleaned = str.replace(/```json/g, '').replace(/```/g, '').trim();
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+    }
+
+    try {
+      return JSON.parse(cleaned);
+    } catch (e) {
+      console.warn("[ConteurIA] Parse standard échoué, essai d'équilibrage des crochets/accolades:", e);
+      const balanced = balanceJSONBrackets(cleaned);
+      return JSON.parse(balanced);
+    }
+  };
+
   const handleStartGeneration = async () => {
     const finalHeroName = isCustomHero ? customHeroName.trim() : selectedHero;
     if (!finalHeroName.trim()) return;
@@ -443,7 +516,7 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
       try {
         setGenStep(2);
         const prompt = `Tu es le Conteur Céleste IA de l'application MaFamille+.
-Génère une histoire merveilleuse, douce, poétique et apaisante pour endormir un enfant nommé ${finalHeroName}.
+Tu dois inventer une histoire merveilleuse, douce, poétique et apaisante pour endormir un enfant nommé ${finalHeroName}.
 L'univers de l'histoire est : "${universe.name} (${universe.desc})".
 La morale ou valeur à transmettre doucement à travers l'histoire est : "${moral.name} (${moral.desc})".
 
@@ -500,9 +573,8 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
         if (!response.ok) throw new Error('Gemini API call failed');
         const data = await response.json();
         let textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
 
-        const parsedStory = JSON.parse(textResult);
+        const parsedStory = cleanAndParseJSON(textResult);
         if (parsedStory.title && parsedStory.chapters && parsedStory.chapters.length === 3) {
           setGenStep(3);
           const remaining = aiQuotaService.getRemainingCalls(isPremium);
@@ -547,9 +619,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           throw new Error('Structure JSON de histoire incorrecte');
         }
       } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        console.warn("[ConteurIA] Erreur lors de la génération avec Gemini Flash, repli sur le conteur local :", err);
-        alert("[ConteurIA Gemini Error]: " + errMsg);
+        console.warn("[ConteurIA] Erreur lors de la génération avec Gemini Flash, repli automatique sur le conteur local :", err);
       }
     }
 
