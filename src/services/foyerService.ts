@@ -680,10 +680,9 @@ export const foyerService = {
     console.log("Code normalisé :", uniqueVariations);
 
     const { data: foyerList, error: foyerError } = await supabase
-      .from('foyers')
-      .select('id, name')
-      .in('invite_code', uniqueVariations)
-      .limit(1);
+      .rpc('get_foyer_by_invite_code', {
+        p_variations: uniqueVariations
+      });
 
     const foyerData = foyerList && foyerList.length > 0 ? foyerList[0] : null;
 
