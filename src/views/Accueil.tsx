@@ -287,7 +287,7 @@ export const Accueil: React.FC<AccueilProps> = ({
           <div>
             <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-1.5">
               {activeMember 
-                ? `Bonjour ${activeMember.name} ! ${['Chef de famille', 'Gestionnaire', 'admin', 'parent'].includes(activeMember.role) ? '👑' : '👋'}`
+                ? `Bonjour ${activeMember.name} ! ${['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMember.role) ? '👑' : '👋'}`
                 : 'Bonjour ! 👋'}
             </h1>
             <div className="flex items-center space-x-2 mt-1">

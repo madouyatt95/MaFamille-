@@ -1946,7 +1946,7 @@ function App() {
       const currentActiveId = activeMemberIdRef.current || activeMemberId;
       const selfMember = membersList.find((m: any) => (user && m.userId === user.id) || m.id === currentActiveId);
       let joinedAtDate: string | null = null;
-      if (selfMember && selfMember.role !== 'admin' && selfMember.role !== 'parent') {
+      if (selfMember) {
         joinedAtDate = selfMember.joinedAt;
       }
 
@@ -3465,7 +3465,7 @@ function App() {
       
       let query = client.from('alerts').select('*').eq('foyer_id', foyer.id);
       const selfMember = myMemberProfileRef.current || myMemberProfile;
-      const joinedAtVal = selfMember && selfMember.role !== 'admin' && selfMember.role !== 'parent' ? selfMember.joinedAt : null;
+      const joinedAtVal = selfMember ? selfMember.joinedAt : null;
       if (joinedAtVal) {
         query = query.gte('created_at', joinedAtVal);
       }
@@ -12141,7 +12141,7 @@ function App() {
 
             <div className="grid grid-cols-2 gap-3 py-1 max-h-[60vh] overflow-y-auto pr-1">
               {members.filter(m => m.id !== "5").map((m) => {
-                const isParent = ["admin", "parent", "Chef de famille", "Gestionnaire"].includes(m.role);
+                const isParent = ["admin", "parent", "Parent", "Chef de famille", "Gestionnaire"].includes(m.role);
                 const isActive = m.id === activeMemberId;
                 return (
                   <button

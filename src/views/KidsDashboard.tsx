@@ -56,29 +56,29 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
 }) => {
   
   // 1. Tasks assigned to this kid that are not done
-  const myTasks = tasks.filter(t => t.assignedMemberId === member.id && !t.done);
+  const myTasks = (tasks || []).filter(t => t && t.assignedMemberId === member.id && !t.done);
   
   // 2. School tasks (homework) assigned to this kid that are not done
-  const myHomework = schoolTasks.filter(t => t.assignedMemberId === member.id && !t.done);
+  const myHomework = (schoolTasks || []).filter(t => t && t.assignedMemberId === member.id && !t.done);
 
   // 3. Pocket money account
-  const myAccount = pocketMoney.find(p => p.id === member.id) || { balance: 10.0, points: 120 };
+  const myAccount = (pocketMoney || []).find(p => p && p.id === member.id) || { balance: 10.0, points: 120 };
 
   // 4. Closest upcoming family event
   const todayStr = new Date().toISOString().split('T')[0];
-  const nextFamilyEvent = events
-    .filter(e => e.dateTime >= todayStr)
-    .sort((a, b) => a.dateTime.localeCompare(b.dateTime))[0];
+  const nextFamilyEvent = (events || [])
+    .filter(e => e && e.dateTime && e.dateTime >= todayStr)
+    .sort((a, b) => (a.dateTime || '').localeCompare(b.dateTime || ''))[0];
 
   // 5. Menu of the day
   const daysOfWeekFr = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const currentDayFr = daysOfWeekFr[new Date().getDay()];
-  const todayDishes = dishes.filter(d => d.day === currentDayFr);
+  const todayDishes = (dishes || []).filter(d => d && d.day === currentDayFr);
 
   // 6. Next family trip
-  const nextTrip = trips
-    .filter(t => t.startDate >= todayStr)
-    .sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
+  const nextTrip = (trips || [])
+    .filter(t => t && t.startDate && t.startDate >= todayStr)
+    .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''))[0];
 
   // 7. Birthday Countdown
   const calculateBirthdayCountdown = () => {
@@ -104,11 +104,11 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
   const daysToBirthday = calculateBirthdayCountdown();
 
   // 8. Active Family Council (Votes)
-  const activeVote = votes.length > 0 ? votes[0] : null;
+  const activeVote = (votes || []).length > 0 ? votes[0] : null;
 
   // 9. Last activities (Timeline filtered for kids)
-  const recentActivities = events
-    .filter(e => !e.done && e.type !== 'vaccine' && !e.title.includes('mock'))
+  const recentActivities = (events || [])
+    .filter(e => e && !e.done && e.type !== 'vaccine' && !(e.title || '').includes('mock'))
     .slice(0, 3);
 
   // 10. Bedtime Story Recomended

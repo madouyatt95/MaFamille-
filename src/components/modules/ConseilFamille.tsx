@@ -21,7 +21,7 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<'sondages' | 'charte'>('sondages');
   const activeMember = members?.find(m => m.id === activeMemberId);
   const isParent = activeMember 
-    ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent'].includes(activeMember.role)
+    ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMember.role)
     : (activeMemberId === '1' || activeMemberId === '2');
   
   // Form states for adding new polls

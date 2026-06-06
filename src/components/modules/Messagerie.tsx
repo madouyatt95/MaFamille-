@@ -1200,7 +1200,7 @@ Demande de l'utilisateur : "${userText}"`;
 
                 {activeGroupId !== 'g_ai_assistant' && activeGroup && !activeGroup.id.startsWith('g_ai') && (() => {
                   const activeMemberRole = members.find(m => m.id === activeMemberId)?.role;
-                  const canDelete = activeMemberRole && ['Chef de famille', 'Gestionnaire', 'admin', 'parent'].includes(activeMemberRole);
+                  const canDelete = activeMemberRole && ['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMemberRole);
                   if (!canDelete) return null;
                   // Protect the default family group (first non-private, non-AI group)
                   const isSystemGroup = groups.findIndex(g => !g.isPrivate && !g.id.startsWith('g_ai')) === groups.indexOf(activeGroup) && activeGroup.id === groups.find(g => !g.isPrivate && !g.id.startsWith('g_ai'))?.id;

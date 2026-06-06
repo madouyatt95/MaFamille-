@@ -878,7 +878,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   };
 
   const isParent = activeMember 
-    ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent'].includes(activeMember.role)
+    ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMember.role)
     : (activeMemberId === '1' || activeMemberId === '2');
   const isLockedForChild = !isParent && ['documents', 'finances_hub', 'vehicules', 'logement'].includes(activeModule) && !authorizedModules.includes(activeModule);
 

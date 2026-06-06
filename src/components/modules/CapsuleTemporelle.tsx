@@ -194,7 +194,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
 
   const activeMember = members?.find(m => m.id === activeMemberId);
   const isParent = activeMember 
-    ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent'].includes(activeMember.role)
+    ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMember.role)
     : (activeMemberId === '1' || activeMemberId === '2');
 
   const PRESET_IMAGES = [

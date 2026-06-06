@@ -70,7 +70,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<'devoirs' | 'quizzes' | 'schedule' | 'grades'>('devoirs');
   const activeMember = members?.find(m => m.id === activeMemberId);
   const isParent = activeMember 
-    ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent'].includes(activeMember.role)
+    ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMember.role)
     : (activeMemberId === '1' || activeMemberId === '2');
 
   // Dynamically calculate the list of children/students from the foyer members
