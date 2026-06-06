@@ -102,7 +102,7 @@ import { KidsDashboard } from './views/KidsDashboard';
 import { Paywall } from './components/Paywall';
 import { Onboarding } from './views/Onboarding';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
-import { DemoBottomNav, DemoKidsDashboard, DemoTeenDashboard, DemoSchoolSpace, DemoCommuneSpace } from './views/DemoViews';
+import { DemoBottomNav, DemoKidsDashboard, DemoTeenDashboard, DemoSchoolSpace, DemoCommuneSpace, DemoCommuneCitizenPortal, DemoSchoolParentPortal } from './views/DemoViews';
 import { foyerService } from './services/foyerService';
 import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction, serializeEventDescription, deserializeEventDescription, logQueryVolume } from './utils/supabase';
 import { notificationService } from './services/notificationService';
@@ -1751,16 +1751,7 @@ function App() {
   const [pinError, setPinError] = useState(false);
   const [sharedPackId, setSharedPackId] = useState<string | null>(null);
 
-  // Auto-switch profile when accessing commune or ecole modules as a parent in demo mode
-  useEffect(() => {
-    if (demoActive) {
-      if (activeModule === 'commune' && (demoProfileId === 'demo_papa' || demoProfileId === 'demo_maman')) {
-        setDemoProfileId('demo_commune_admin');
-      } else if (activeModule === 'ecole' && (demoProfileId === 'demo_papa' || demoProfileId === 'demo_maman')) {
-        setDemoProfileId('demo_school_primary_admin');
-      }
-    }
-  }, [demoActive, activeModule, demoProfileId]);
+
 
   // React Refs to keep subscriptions updated and prevent stale closures
   const activeMemberIdRef = useRef(activeMemberId);
@@ -11221,6 +11212,22 @@ function App() {
     if (activeTab === 'menu') {
       if (activeModule === 'commune') {
         if (demoActive) {
+          if (demoProfileId === 'demo_papa' || demoProfileId === 'demo_maman') {
+            return (
+              <DemoCommuneCitizenPortal 
+                demoProfileId={demoProfileId}
+                demoCommuneAlerts={demoCommuneAlerts}
+                demoCommuneNews={demoCommuneNews}
+                demoCommuneEvents={demoCommuneEvents}
+                demoCommunePolls={demoCommunePolls}
+                setDemoCommunePolls={setDemoCommunePolls}
+                demoSignalements={demoSignalements}
+                setDemoSignalements={setDemoSignalements}
+                triggerDemoNotification={triggerDemoNotification}
+                onBack={() => setActiveModule('')}
+              />
+            );
+          }
           return (
             <DemoCommuneSpace 
               demoProfileId={demoProfileId}
@@ -11260,6 +11267,31 @@ function App() {
 
       if (activeModule === 'ecole') {
         if (demoActive) {
+          if (demoProfileId === 'demo_papa' || demoProfileId === 'demo_maman') {
+            return (
+              <DemoSchoolParentPortal 
+                demoProfileId={demoProfileId}
+                demoSchoolPresence={demoSchoolPresence}
+                demoSchoolPresenceHistory={demoSchoolPresenceHistory}
+                setDemoSchoolPresenceHistory={setDemoSchoolPresenceHistory}
+                demoSchoolCantine={demoSchoolCantine}
+                setDemoSchoolCantine={setDemoSchoolCantine}
+                demoSchoolCantineHistory={demoSchoolCantineHistory}
+                setDemoSchoolCantineHistory={setDemoSchoolCantineHistory}
+                demoTransactions={demoTransactions}
+                setDemoTransactions={setDemoTransactions}
+                demoSchoolHomework={demoSchoolHomework}
+                setDemoSchoolHomework={setDemoSchoolHomework}
+                demoSchoolComms={demoSchoolComms}
+                demoTeacherParentMessages={demoTeacherParentMessages}
+                setDemoTeacherParentMessages={setDemoTeacherParentMessages}
+                demoSchoolTrips={demoSchoolTrips}
+                setDemoSchoolTrips={setDemoSchoolTrips}
+                triggerDemoNotification={triggerDemoNotification}
+                onBack={() => setActiveModule('')}
+              />
+            );
+          }
           return (
             <DemoSchoolSpace 
               demoProfileId={demoProfileId}
