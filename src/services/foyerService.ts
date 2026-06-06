@@ -667,12 +667,26 @@ export const foyerService = {
 
     const normalizedInput = inviteCode.replace(/[\s-]/g, '').toUpperCase();
     const variations = [normalizedInput];
-    const match = normalizedInput.match(/^([A-Z]+)([A-Z0-9]+)$/);
-    if (match) {
-      const prefix = match[1];
-      const suffix = match[2];
+
+    // 1. If it has 8 chars and starts with 'FAM', split as 'FAM-' + 5 chars
+    if (normalizedInput.startsWith('FAM') && normalizedInput.length === 8) {
+      variations.push(`FAM-${normalizedInput.substring(3)}`);
+    }
+
+    // 2. If the original input had a hyphen or space, find where it was and split there
+    const originalMatch = inviteCode.match(/^([A-Za-z]+)[\s-]([A-Za-z0-9]+)$/);
+    if (originalMatch) {
+      const prefix = originalMatch[1].toUpperCase();
+      const suffix = originalMatch[2].toUpperCase();
       variations.push(`${prefix}-${suffix}`);
     }
+
+    // 3. General split of letters followed by digits (like YATTA4832 -> YATTA-4832)
+    const lettersDigitsMatch = normalizedInput.match(/^([A-Z]+)([0-9]+)$/);
+    if (lettersDigitsMatch) {
+      variations.push(`${lettersDigitsMatch[1]}-${lettersDigitsMatch[2]}`);
+    }
+
     const uniqueVariations = Array.from(new Set(variations));
 
     // Developer temporary logs
