@@ -8,6 +8,7 @@ import { DICTIONARIES } from './utils/dictionaries';
 import { getDefaultPermissions } from './types';
 import type { 
   Member, 
+  FamilyJoinRequest,
   FamilyEvent, 
   Transaction, 
   Dish, 
@@ -1246,6 +1247,8 @@ function App() {
   }, [myMemberProfile]);
 
   const [myFoyers, setMyFoyers] = useState<Array<{ foyer: Foyer; member: FoyerMember }>>([]);
+  const [myActiveRequest, setMyActiveRequest] = useState<FamilyJoinRequest | null>(null);
+  const [showRequestInterceptor, setShowRequestInterceptor] = useState(true);
   const [showWelcomeScreen, setShowWelcomeScreen] = useState(false);
   const [welcomeScreenMode, setWelcomeScreenMode] = useState<'select' | 'create' | 'join' | 'success'>('select');
   const [welcomeCreatedFoyer, setWelcomeCreatedFoyer] = useState<Foyer | null>(null);
@@ -1671,6 +1674,14 @@ function App() {
     }
 
     try {
+      console.log("[MaFamille+ Session] Fetching join requests...");
+      const joinRequests = await foyerService.getMyJoinRequests();
+      const activeReq = joinRequests.find(r => r.status === 'pending' || r.status === 'rejected');
+      setMyActiveRequest(activeReq || null);
+      if (activeReq) {
+        setShowRequestInterceptor(true);
+      }
+
       console.log("[MaFamille+ Session] Fetching user foyers...");
       const foyersList = await foyerService.getMyFoyers();
       setMyFoyers(foyersList);
@@ -10083,21 +10094,21 @@ function App() {
     setWelcomeLoading(true);
     setWelcomeError(null);
     try {
-      await foyerService.joinFoyer(welcomeInviteCode.trim(), welcomeDisplayName.trim(), welcomeRole);
+      const email = user?.email || '';
+      const avatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=${welcomeDisplayName.trim()}`;
+      
+      await foyerService.sendJoinRequest(
+        welcomeInviteCode.trim(), 
+        welcomeDisplayName.trim(), 
+        email, 
+        avatar,
+        false
+      );
       alert("🎉 Votre demande d'adhésion a été envoyée ! Elle sera soumise à validation du Chef de famille.");
       
-      const list = await foyerService.getMyFoyers();
-      setMyFoyers(list);
-      
-      if (list.length > 0) {
-        const lastJoined = list.find(f => f.foyer.inviteCode === welcomeInviteCode.trim().toUpperCase()) || list[0];
-        setFoyer(lastJoined.foyer);
-        setMyMemberProfile(lastJoined.member);
-        setActiveMemberId(lastJoined.member.id);
-        localStorage.setItem('mf_cloud_foyer_id', lastJoined.foyer.id);
-        localStorage.setItem('mf_active_foyer_id', lastJoined.foyer.id);
-        await loadFoyerData(lastJoined.foyer.id);
-      }
+      const joinRequests = await foyerService.getMyJoinRequests();
+      const activeReq = joinRequests.find(r => r.status === 'pending' || r.status === 'rejected');
+      setMyActiveRequest(activeReq || null);
       
       setShowWelcomeScreen(false);
     } catch (err: any) {
@@ -10807,18 +10818,19 @@ function App() {
     );
   }
 
-  if (user && foyer && myMemberProfile && myMemberProfile.approved === false) {
-    const isRejected = myMemberProfile.bloodGroup === 'STATUS:rejected';
-    const isExpired = myMemberProfile.bloodGroup === 'STATUS:expired';
+  if (user && myActiveRequest && showRequestInterceptor) {
+    const isRejected = myActiveRequest.status === 'rejected';
 
     // Handler to cancel/delete the request and redirect
     const handleCancelAndRedirect = async (mode: 'select' | 'join') => {
       try {
-        await foyerService.leaveFoyer(foyer.id);
+        await foyerService.cancelJoinRequest(myActiveRequest.id);
       } catch (err) {
-        console.error("Error leaving foyer:", err);
+        console.error("Error cancelling join request:", err);
       }
-      // Clear active foyer local state
+      
+      setMyActiveRequest(null);
+      
       localStorage.removeItem('mf_cloud_foyer_id');
       localStorage.removeItem('mf_active_foyer_id');
       localStorage.removeItem('mf_cached_foyer');
@@ -10836,10 +10848,7 @@ function App() {
 
     // Handler to go back to home dashboard (empty dashboard) keeping the request
     const handleGoToEmptyDashboard = () => {
-      localStorage.removeItem('mf_cloud_foyer_id');
-      localStorage.removeItem('mf_active_foyer_id');
-      setFoyer(null);
-      setMyMemberProfile(null);
+      setShowRequestInterceptor(false);
       setShowWelcomeScreen(false);
     };
 
@@ -10867,7 +10876,7 @@ function App() {
 
               <div className="glass-panel border border-white/8 rounded-[28px] p-6 space-y-4 text-left">
                 <p className="text-xs text-white/70 leading-relaxed">
-                  Le Chef de famille du foyer <span className="text-white font-bold">{foyer.name}</span> n'a pas validé votre demande d'intégration.
+                  Le Chef de famille du foyer <span className="text-white font-bold">{myActiveRequest.familyName}</span> n'a pas validé votre demande d'intégration.
                 </p>
                 <p className="text-xs text-white/55 leading-relaxed font-medium">
                   Vous pouvez choisir de saisir un autre code d'invitation ou de faire une nouvelle demande.
@@ -10880,43 +10889,6 @@ function App() {
                   className="w-full py-3.5 rounded-xl bg-[#6C5CFF] text-white text-xs font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-md shadow-[#6C5CFF]/15"
                 >
                   Saisir un autre code / Nouvelle demande ➔
-                </button>
-                <button
-                  onClick={handleGoToEmptyDashboard}
-                  className="w-full py-3.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
-                >
-                  Retour accueil
-                </button>
-              </div>
-            </>
-          ) : isExpired ? (
-            <>
-              {/* EXPIRED SCREEN */}
-              <div className="inline-flex p-4 rounded-3xl bg-amber-500/10 border border-amber-500/20 text-amber-500 animate-pulse">
-                <span className="text-3xl">⏳</span>
-              </div>
-
-              <div className="space-y-2">
-                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-amber-500">
-                  Demande Expirée
-                </h1>
-                <p className="text-sm text-white/60">
-                  Votre demande pour rejoindre cette famille a expiré.
-                </p>
-              </div>
-
-              <div className="glass-panel border border-white/8 rounded-[28px] p-6 space-y-4 text-left">
-                <p className="text-xs text-white/70 leading-relaxed">
-                  La demande d'invitation pour le foyer <span className="text-white font-bold">{foyer.name}</span> n'est plus valide.
-                </p>
-              </div>
-
-              <div className="flex flex-col space-y-3 pt-2">
-                <button
-                  onClick={() => handleCancelAndRedirect('join')}
-                  className="w-full py-3.5 rounded-xl bg-[#6C5CFF] text-white text-xs font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-md shadow-[#6C5CFF]/15"
-                >
-                  Saisir un autre code
                 </button>
                 <button
                   onClick={handleGoToEmptyDashboard}
@@ -10944,7 +10916,7 @@ function App() {
 
               <div className="glass-panel border border-white/8 rounded-[28px] p-6 space-y-4 text-left">
                 <p className="text-xs text-white/70 leading-relaxed">
-                  Votre demande pour rejoindre le foyer <span className="text-white font-bold">{foyer.name}</span> (code d'invitation <span className="font-mono bg-white/10 px-1.5 py-0.5 rounded text-[#6C5CFF]">{foyer.inviteCode}</span>) a bien été enregistrée.
+                  Votre demande pour rejoindre le foyer <span className="text-white font-bold">{myActiveRequest.familyName}</span> (code d'invitation <span className="font-mono bg-white/10 px-1.5 py-0.5 rounded text-[#6C5CFF]">{myActiveRequest.inviteCode}</span>) a bien été enregistrée.
                 </p>
                 <p className="text-xs text-white/55 leading-relaxed font-medium">
                   Pour des raisons de sécurité, le Chef de famille ou un parent gestionnaire doit approuver votre accès.

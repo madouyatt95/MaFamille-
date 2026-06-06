@@ -659,6 +659,231 @@ export const foyerService = {
   },
 
   /**
+   * Envoyer une demande d'adhésion pour rejoindre un foyer via code d'invitation
+   */
+  async sendJoinRequest(inviteCode: string, applicantName: string, applicantEmail: string, applicantAvatar?: string, byQr: boolean = false): Promise<any> {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Supabase n'est pas configuré");
+
+    const { data: foyerData, error: foyerError } = await supabase
+      .from('foyers')
+      .select('id, name')
+      .eq('invite_code', inviteCode.toUpperCase().trim())
+      .single();
+
+    if (foyerError || !foyerData) {
+      throw new Error("Code d'invitation invalide. Vérifiez le code et réessayez.");
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
+    if (!user) throw new Error("Non authentifié");
+
+    // Supprimer d'anciennes demandes éventuelles annulées ou rejetées pour cette famille pour éviter les conflits d'unicité
+    await supabase
+      .from('family_join_requests')
+      .delete()
+      .eq('family_id', foyerData.id)
+      .eq('applicant_user_id', user.id);
+
+    const { data: requestData, error: requestError } = await supabase
+      .from('family_join_requests')
+      .insert({
+        family_id: foyerData.id,
+        applicant_user_id: user.id,
+        applicant_name: applicantName,
+        applicant_email: applicantEmail,
+        applicant_avatar: applicantAvatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${applicantName}`,
+        status: 'pending',
+        requested_by_code: !byQr,
+        requested_by_qr: byQr
+      })
+      .select()
+      .single();
+
+    if (requestError) {
+      throw requestError;
+    }
+
+    return {
+      requestId: requestData.id,
+      familyId: foyerData.id,
+      familyName: foyerData.name,
+      status: requestData.status
+    };
+  },
+
+  /**
+   * Récupérer les demandes d'adhésion émises par l'utilisateur connecté
+   */
+  async getMyJoinRequests(): Promise<any[]> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return [];
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from('family_join_requests')
+      .select('*, foyers(*)')
+      .eq('applicant_user_id', user.id);
+
+    if (error) {
+      console.error("Erreur lors de la récupération des demandes d'adhésion :", error);
+      return [];
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      familyId: row.family_id,
+      familyName: row.foyers?.name || 'Famille inconnue',
+      inviteCode: row.foyers?.invite_code || '',
+      applicantUserId: row.applicant_user_id,
+      applicantName: row.applicant_name,
+      applicantEmail: row.applicant_email,
+      applicantAvatar: row.applicant_avatar,
+      createdAt: row.created_at,
+      status: row.status,
+      requestedByCode: row.requested_by_code,
+      requestedByQr: row.requested_by_qr
+    }));
+  },
+
+  /**
+   * Récupérer toutes les demandes d'adhésion en attente (pending) pour une famille donnée
+   */
+  async getPendingJoinRequests(familyId: string): Promise<any[]> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
+      .from('family_join_requests')
+      .select('*')
+      .eq('family_id', familyId)
+      .eq('status', 'pending');
+
+    if (error) {
+      console.error("Erreur lors de la récupération des demandes en attente :", error);
+      return [];
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      familyId: row.family_id,
+      applicantUserId: row.applicant_user_id,
+      applicantName: row.applicant_name,
+      applicantEmail: row.applicant_email,
+      applicantAvatar: row.applicant_avatar,
+      createdAt: row.created_at,
+      status: row.status,
+      requestedByCode: row.requested_by_code,
+      requestedByQr: row.requested_by_qr
+    }));
+  },
+
+  /**
+   * Annuler / supprimer une demande d'adhésion
+   */
+  async cancelJoinRequest(requestId: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Supabase n'est pas configuré");
+
+    const { error } = await supabase
+      .from('family_join_requests')
+      .delete()
+      .eq('id', requestId);
+
+    if (error) throw error;
+  },
+
+  /**
+   * Refuser une demande d'adhésion (status -> 'rejected')
+   */
+  async rejectJoinRequest(requestId: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Supabase n'est pas configuré");
+
+    const { error } = await supabase
+      .from('family_join_requests')
+      .update({ status: 'rejected' })
+      .eq('id', requestId);
+
+    if (error) throw error;
+  },
+
+  /**
+   * Finaliser l'intégration d'un membre accepté (insère dans foyer_members et met à jour status -> 'accepted')
+   */
+  async finalizeJoinRequest(requestId: string, role: string, hasExemption: boolean): Promise<any> {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Supabase n'est pas configuré");
+
+    // 1. Récupérer les informations de la demande
+    const { data: requestData, error: requestError } = await supabase
+      .from('family_join_requests')
+      .select('*')
+      .eq('id', requestId)
+      .single();
+
+    if (requestError || !requestData) {
+      throw new Error("Demande d'adhésion introuvable.");
+    }
+
+    // 2. Ajouter le membre dans le foyer
+    let dbRole = 'child';
+    const cleanRole = role.toLowerCase();
+    if (cleanRole.includes('admin') || cleanRole.includes('chef')) {
+      dbRole = 'admin';
+    } else if (cleanRole.includes('parent') || cleanRole.includes('gestionnaire')) {
+      dbRole = 'parent';
+    } else if (cleanRole.includes('invit')) {
+      dbRole = 'guest';
+    }
+
+    const bloodGroupWithRole = `ROLE:${role}|O+`;
+
+    const dbMember = {
+      foyer_id: requestData.family_id,
+      user_id: requestData.applicant_user_id,
+      display_name: requestData.applicant_name,
+      role: dbRole,
+      photo_url: requestData.applicant_avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${requestData.applicant_name}`,
+      blood_group: bloodGroupWithRole,
+      approved: true,
+      has_exemption: hasExemption,
+      allergies: ['Aucune'],
+      treatments: ['Aucun'],
+      emergency_contact_name: 'Maman',
+      emergency_contact_phone: '',
+      emergency_contact_relation: 'Mère',
+      school_or_employer: 'Non renseigné'
+    };
+
+    const { data: insertedMember, error: insertError } = await supabase
+      .from('foyer_members')
+      .insert(dbMember)
+      .select()
+      .single();
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    // 3. Mettre à jour le statut de la demande d'adhésion
+    const { error: updateError } = await supabase
+      .from('family_join_requests')
+      .update({ status: 'accepted' })
+      .eq('id', requestId);
+
+    if (updateError) {
+      console.warn("Erreur lors de la mise à jour du statut de la demande d'adhésion :", updateError);
+    }
+
+    return insertedMember;
+  },
+
+  /**
    * S'abonner aux changements temps réel sur une table pour un foyer
    */
   subscribeToChanges(tableName: string, foyerId: string, onEvent: (payload: any) => void) {

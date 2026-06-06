@@ -63,6 +63,23 @@ export const Membres: React.FC<MembresProps> = ({
   const [approveRole, setApproveRole] = useState<string>('enfant');
   const [approveHasExemption, setApproveHasExemption] = useState(false);
 
+  // Family join requests
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+
+  // Load pending join requests when foyer changes
+  React.useEffect(() => {
+    if (foyer) {
+      foyerService.getPendingJoinRequests(foyer.id).then((reqs: any) => {
+        setPendingRequests(reqs);
+      }).catch(err => {
+        console.error("Failed to fetch pending join requests:", err);
+      });
+    } else {
+      setPendingRequests([]);
+    }
+  }, [foyer]);
+
   // No-foyer state variables
   const [noFoyerAction, setNoFoyerAction] = useState<'join' | 'create'>('join');
   const [foyerNameInput, setFoyerNameInput] = useState('');
@@ -383,8 +400,19 @@ export const Membres: React.FC<MembresProps> = ({
     }
     setActionLoading(true);
     try {
-      const data = await foyerService.joinFoyer(inviteCodeInput.trim(), displayNameInput.trim(), 'child');
-      alert(`🎉 Demande envoyée ! Le Chef de famille du foyer "${data.foyer_name}" doit maintenant valider votre demande.`);
+      const supabase = getSupabaseClient();
+      const { data: { session } } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+      const email = session?.user?.email || '';
+      const avatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=${displayNameInput.trim()}`;
+      
+      const data = await foyerService.sendJoinRequest(
+        inviteCodeInput.trim(), 
+        displayNameInput.trim(), 
+        email, 
+        avatar,
+        false
+      );
+      alert(`🎉 Demande envoyée ! Le Chef de famille du foyer "${data.familyName}" doit maintenant valider votre demande.`);
       window.location.reload();
     } catch (err: any) {
       alert(`Erreur : ${err.message || err}`);
@@ -567,81 +595,46 @@ export const Membres: React.FC<MembresProps> = ({
         
         {/* Members List */}
         <div className="space-y-3">
-          {/* Pending Members Section */}
-          {pendingMembers.length > 0 && (
+          {/* Section: Demandes d'adhésion */}
+          {pendingRequests.length > 0 && (
             <div className="space-y-3 mb-4 animate-fade-in bg-yellow-500/5 p-4 rounded-3xl border border-yellow-500/20 shadow-inner">
               <h2 className="text-[10px] font-bold uppercase tracking-wider text-yellow-500 flex items-center space-x-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>
-                <span>Demandes d'adhésion en attente ({pendingMembers.length})</span>
+                <span>Demandes d'adhésion ({pendingRequests.length})</span>
               </h2>
               <div className="space-y-2 pt-1">
-                {pendingMembers.map((member) => {
-                  const isManagingAllowed = myMemberProfile?.role === 'admin' || myMemberProfile?.role === 'parent';
+                {pendingRequests.map((req) => {
                   return (
-                    <div 
-                      key={member.id}
-                      className="w-full glass-panel rounded-2xl p-4 flex flex-col space-y-3 border border-white/5 bg-white/2"
+                    <button 
+                      key={req.id}
+                      onClick={() => {
+                        setSelectedRequest(req);
+                        setSelectedMember(null);
+                        setMemberToApprove(null);
+                        setIsAddingMember(false);
+                        setIsEditing(false);
+                      }}
+                      className={`w-full glass-panel rounded-2xl p-4 flex items-center justify-between border transition-all text-left ${
+                        selectedRequest?.id === req.id 
+                          ? 'border-[#6C5CFF] bg-[#6C5CFF]/5 shadow-[0_0_15px_rgba(108,92,255,0.15)]' 
+                          : 'border-white/5 bg-white/2 hover:bg-white/5'
+                      }`}
                     >
                       <div className="flex items-center space-x-3">
                         <img 
-                          src={member.photoUrl} 
-                          alt={member.name} 
+                          src={req.applicantAvatar} 
+                          alt={req.applicantName} 
                           className="w-10 h-10 rounded-full object-cover border border-white/10"
                         />
                         <div>
                           <h3 className="text-xs font-bold text-white">
-                            <span className="text-[#6C5CFF]">{member.name}</span> souhaite rejoindre votre famille
+                            <span className="text-[#6C5CFF]">{req.applicantName}</span> souhaite rejoindre
                           </h3>
-                          <p className="text-[9px] text-white/40 font-medium">Demande d'intégration en attente</p>
+                          <p className="text-[9px] text-white/40 font-medium">Demandé le {new Date(req.createdAt).toLocaleDateString('fr-FR')}</p>
                         </div>
                       </div>
-                      
-                      {isManagingAllowed ? (
-                        <div className="flex items-center space-x-2 pt-1 border-t border-white/5">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedMember(null);
-                              setIsAddingMember(false);
-                              setIsEditing(false);
-                              setMemberToApprove(member);
-                              setApproveRole('enfant');
-                              setApproveHasExemption(false);
-                            }}
-                            className="flex-1 py-2 rounded-xl bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 transition-all cursor-pointer flex items-center justify-center space-x-1.5 font-sans text-[10px] font-bold"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                            <span>Accepter</span>
-                          </button>
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (confirm(`Refuser la demande de ${member.name} ?`)) {
-                                try {
-                                  await foyerService.rejectMember(member.id);
-                                  setMembers(prev => prev.map(m => m.id === member.id ? { ...m, bloodGroup: 'STATUS:rejected' } : m));
-                                  if (memberToApprove?.id === member.id) {
-                                    setMemberToApprove(null);
-                                  }
-                                } catch (err: any) {
-                                  alert(`Erreur lors du rejet : ${err.message}`);
-                                }
-                              }
-                            }}
-                            className="flex-1 py-2 rounded-xl bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 text-[#FF4D6D] border border-[#FF4D6D]/20 transition-all cursor-pointer flex items-center justify-center space-x-1.5 font-sans text-[10px] font-bold"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                            <span>Refuser</span>
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="pt-2 border-t border-white/5">
-                          <span className="text-[8px] bg-yellow-500/10 border border-yellow-500/25 text-yellow-500 px-2 py-0.5 rounded-full font-bold">
-                            En attente de validation par le chef
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                      <ChevronRight className="w-4 h-4 text-white/40" />
+                    </button>
                   );
                 })}
               </div>
@@ -1358,6 +1351,103 @@ export const Membres: React.FC<MembresProps> = ({
                 </>
               )}
             </>
+          ) : selectedRequest ? (
+            /* Fiche de Demande d'Adhésion */
+            <div className="space-y-6 animate-scale-up pt-4">
+              <div className="flex items-center justify-between border-b border-white/5 pb-3.5">
+                <div>
+                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">Fiche de Demande d'Adhésion</h3>
+                  <p className="text-[10px] text-white/40 mt-0.5">Détails de la demande de participation au foyer.</p>
+                </div>
+                <button 
+                  onClick={() => setSelectedRequest(null)}
+                  className="p-1.5 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-all cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Avatar & Identity */}
+              <div className="flex flex-col items-center text-center space-y-3 py-4">
+                <img 
+                  src={selectedRequest.applicantAvatar} 
+                  alt={selectedRequest.applicantName} 
+                  className="w-24 h-24 rounded-full object-cover border-4 border-[#6C5CFF]/20"
+                />
+                <div>
+                  <h2 className="text-lg font-extrabold text-white">{selectedRequest.applicantName}</h2>
+                  <p className="text-xs text-[#4F8CFF] font-semibold">Demandeur d'adhésion</p>
+                </div>
+              </div>
+
+              {/* Information Cards */}
+              <div className="space-y-3 pt-2 border-t border-white/5">
+                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/5 space-y-1">
+                  <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Adresse Email</span>
+                  <span className="text-xs font-semibold text-white select-all">{selectedRequest.applicantEmail}</span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/5 space-y-1">
+                  <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Date de la demande</span>
+                  <span className="text-xs font-semibold text-white">
+                    {new Date(selectedRequest.createdAt).toLocaleDateString('fr-FR')} à {new Date(selectedRequest.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/5 space-y-1">
+                  <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Méthode de demande</span>
+                  <span className="text-xs font-semibold text-white">
+                    {selectedRequest.requestedByQr ? '🔗 QR Code d\'invitation' : '✏️ Saisie du code d\'invitation'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex space-x-3 pt-4 border-t border-white/5">
+                <button
+                  onClick={async () => {
+                    if (confirm(`Refuser la demande de ${selectedRequest.applicantName} ?`)) {
+                      try {
+                        await foyerService.rejectJoinRequest(selectedRequest.id);
+                        setPendingRequests(prev => prev.filter(r => r.id !== selectedRequest.id));
+                        setSelectedRequest(null);
+                        alert("La demande a été refusée.");
+                      } catch (err: any) {
+                        alert(`Erreur lors du rejet : ${err.message}`);
+                      }
+                    }
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 border border-[#FF4D6D]/25 text-[#FF4D6D] text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-center"
+                >
+                  ❌ Refuser
+                </button>
+                <button
+                  onClick={() => {
+                    const tempMember: Member = {
+                      id: selectedRequest.id,
+                      name: selectedRequest.applicantName,
+                      photoUrl: selectedRequest.applicantAvatar || '',
+                      role: 'Invité',
+                      age: '30 ans',
+                      birthDate: '',
+                      bloodGroup: '',
+                      allergies: [],
+                      treatments: [],
+                      schoolOrEmployer: '',
+                      emergencyContact: { name: '', phone: '', relation: '' },
+                      medicalHistory: []
+                    };
+                    setMemberToApprove(tempMember);
+                    setApproveRole('enfant');
+                    setApproveHasExemption(false);
+                    setSelectedRequest(null);
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-green-500 hover:bg-green-600 text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-center shadow-md shadow-green-500/10"
+                >
+                  ✅ Accepter
+                </button>
+              </div>
+            </div>
           ) : memberToApprove ? (
             /* Attribution du rôle et des permissions for memberToApprove */
             <form 
@@ -1371,13 +1461,11 @@ export const Membres: React.FC<MembresProps> = ({
                     ['adolescent', 'enfant'].includes(approveRole) ? 'child' :
                     'guest';
 
-                  const bloodGroupWithRole = `ROLE:${approveRole}|O+`;
-
-                  await foyerService.approveMember(memberToApprove.id, dbRole);
-                  await foyerService.updateMemberProfile(memberToApprove.id, { 
-                    bloodGroup: bloodGroupWithRole,
-                    hasExemption: ['child', 'enfant', 'adolescent'].includes(dbRole) ? approveHasExemption : false
-                  });
+                  const insertedMember = await foyerService.finalizeJoinRequest(memberToApprove.id, approveRole, approveHasExemption);
+                  
+                  if (onUpdatePermissions && insertedMember) {
+                    onUpdatePermissions(insertedMember.id, getDefaultPermissions(approveRole));
+                  }
 
                   const friendlyRole = 
                     approveRole === 'chef_famille' ? 'Chef de famille' :
@@ -1387,13 +1475,34 @@ export const Membres: React.FC<MembresProps> = ({
                     approveRole === 'adolescent' ? 'Adolescent' :
                     approveRole === 'enfant' ? 'Enfant' : 'Invité';
 
-                  setMembers(prev => prev.map(m => m.id === memberToApprove.id ? { 
-                    ...m, 
-                    approved: true, 
-                    role: friendlyRole, 
+                  const newMember: Member = {
+                    id: insertedMember.id,
+                    userId: insertedMember.user_id,
+                    name: insertedMember.display_name,
+                    role: friendlyRole,
+                    age: insertedMember.age || '30 ans',
+                    birthDate: insertedMember.birth_date || '',
                     bloodGroup: 'O+',
-                    hasExemption: ['child', 'enfant', 'adolescent'].includes(dbRole) ? approveHasExemption : false
-                  } : m));
+                    allergies: insertedMember.allergies || [],
+                    treatments: insertedMember.treatments || [],
+                    emergencyContact: {
+                      name: insertedMember.emergency_contact_name || '',
+                      phone: insertedMember.emergency_contact_phone || '',
+                      relation: insertedMember.emergency_contact_relation || ''
+                    },
+                    schoolOrEmployer: insertedMember.school_or_employer || '',
+                    photoUrl: insertedMember.photo_url || 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150',
+                    hasExemption: insertedMember.has_exemption || false,
+                    approved: true,
+                    medicalHistory: []
+                  };
+
+                  setMembers(prev => [...prev.filter(m => m.id !== memberToApprove.id), newMember]);
+
+                  if (foyer) {
+                    const reqs = await foyerService.getPendingJoinRequests(foyer.id);
+                    setPendingRequests(reqs);
+                  }
                   
                   alert(`🎉 L'adhésion de ${memberToApprove.name} a été validée avec succès !`);
                   setMemberToApprove(null);

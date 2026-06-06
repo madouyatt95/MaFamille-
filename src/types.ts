@@ -88,6 +88,21 @@ export interface FoyerInvitation {
   accepted: boolean;
 }
 
+export interface FamilyJoinRequest {
+  id: string;
+  familyId: string;
+  applicantUserId: string;
+  applicantName: string;
+  applicantEmail: string;
+  applicantAvatar?: string;
+  createdAt: string;
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
+  requestedByCode?: boolean;
+  requestedByQr?: boolean;
+  familyName?: string;
+  inviteCode?: string;
+}
+
 // === DATA TYPES ===
 
 export interface MedicalLog {
