@@ -113,13 +113,15 @@ import { Paywall } from './components/Paywall';
 import { Onboarding } from './views/Onboarding';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
 import { foyerService } from './services/foyerService';
+import { spaceService, type Space } from './services/spaceService';
+import { CommuneHub } from './components/modules/CommuneHub';
 import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction, serializeEventDescription, deserializeEventDescription, logQueryVolume } from './utils/supabase';
 import { notificationService } from './services/notificationService';
 import type { Foyer, FoyerMember } from './types';
 
 import { getUnifiedEvents } from './utils/agendaHelper';
 import type { ExternalEvent } from './utils/icalParser';
-import { Volume2, Mic, Bell, X, ChevronRight, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check } from 'lucide-react';
+import { Volume2, Mic, Bell, X, ChevronRight, ChevronDown, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check, Star } from 'lucide-react';
 
 const keywordRules = [
   // TRANSPORT
@@ -589,6 +591,13 @@ function App() {
     return !!(envUrl && envKey && envKey.replace(/^['"]|['"]$/g, '').startsWith('eyJ'));
   });
 
+  // Universal space management states
+  const [establishments, setEstablishments] = useState<Space[]>([]);
+  const [activeEstablishmentId, setActiveEstablishmentId] = useState<string>('');
+  const [communes, setCommunes] = useState<Space[]>([]);
+  const [activeCommuneId, setActiveCommuneId] = useState<string>('');
+  const [spaceSelectorOpen, setSpaceSelectorOpen] = useState(false);
+
   // New modules states
   const [memories, setMemories] = useState<MemoryLog[]>(() => {
     return safeGetLocalStorage('mf_memories', []);
@@ -599,7 +608,8 @@ function App() {
   });
 
   const [schoolTasks, setSchoolTasksState] = useState<SchoolTask[]>(() => {
-    return safeGetLocalStorage('mf_school_tasks', []);
+    const activeEstId = localStorage.getItem('mf_active_establishment_id') || 'est-1';
+    return spaceService.getSchoolTasksForEstablishment(activeEstId);
   });
 
   const setSchoolTasks = (actionOrUpdater: SchoolTask[] | ((prev: SchoolTask[]) => SchoolTask[])) => {
@@ -618,26 +628,78 @@ function App() {
   };
 
   const [grades, setGrades] = useState<any[]>(() => {
-    const stored = localStorage.getItem('school_grades');
-    return stored ? JSON.parse(stored) : [];
+    const activeEstId = localStorage.getItem('mf_active_establishment_id') || 'est-1';
+    return spaceService.getGradesForEstablishment(activeEstId);
   });
-
-  useEffect(() => {
-    localStorage.setItem('school_grades', JSON.stringify(grades));
-  }, [grades]);
 
   const [schedule, setSchedule] = useState<any[]>(() => {
-    const stored = localStorage.getItem('school_schedule');
-    return stored ? JSON.parse(stored) : [
-      { id: 's-1', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Mathématiques', startTime: '08:30', endTime: '09:30', room: 'Salle 102' },
-      { id: 's-2', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Histoire-Géographie', startTime: '09:30', endTime: '10:30', room: 'Salle 204' },
-      { id: 's-3', studentId: '4', studentName: 'Awa', day: 'Mardi', subject: 'Français', startTime: '10:45', endTime: '11:45', room: 'Classe A2' }
-    ];
+    const activeEstId = localStorage.getItem('mf_active_establishment_id') || 'est-1';
+    return spaceService.getScheduleForEstablishment(activeEstId);
   });
 
+  const prevEstIdRef = useRef(activeEstablishmentId);
+
   useEffect(() => {
-    localStorage.setItem('school_schedule', JSON.stringify(schedule));
-  }, [schedule]);
+    if (activeEstablishmentId && activeEstablishmentId !== prevEstIdRef.current) {
+      if (prevEstIdRef.current) {
+        spaceService.saveGradesForEstablishment(prevEstIdRef.current, grades);
+        spaceService.saveScheduleForEstablishment(prevEstIdRef.current, schedule);
+        spaceService.saveSchoolTasksForEstablishment(prevEstIdRef.current, schoolTasks);
+      }
+
+      const nextGrades = spaceService.getGradesForEstablishment(activeEstablishmentId);
+      const nextSchedule = spaceService.getScheduleForEstablishment(activeEstablishmentId);
+      const nextTasks = spaceService.getSchoolTasksForEstablishment(activeEstablishmentId);
+
+      setGrades(nextGrades);
+      setSchedule(nextSchedule);
+      setSchoolTasksState(nextTasks);
+
+      prevEstIdRef.current = activeEstablishmentId;
+
+      const currentEst = establishments.find(e => e.id === activeEstablishmentId);
+      if (currentEst) {
+        setSchoolName(currentEst.name);
+      }
+    }
+  }, [activeEstablishmentId, establishments]);
+
+  useEffect(() => {
+    if (activeEstablishmentId) {
+      spaceService.saveGradesForEstablishment(activeEstablishmentId, grades);
+    }
+  }, [grades, activeEstablishmentId]);
+
+  useEffect(() => {
+    if (activeEstablishmentId) {
+      spaceService.saveScheduleForEstablishment(activeEstablishmentId, schedule);
+    }
+  }, [schedule, activeEstablishmentId]);
+
+  useEffect(() => {
+    if (activeEstablishmentId) {
+      spaceService.saveSchoolTasksForEstablishment(activeEstablishmentId, schoolTasks);
+    }
+  }, [schoolTasks, activeEstablishmentId]);
+
+  useEffect(() => {
+    spaceService.getEstablishments().then(setEstablishments);
+    const activeEstId = spaceService.getActiveEstablishmentId();
+    setActiveEstablishmentId(activeEstId);
+
+    spaceService.getCommunes().then(setCommunes);
+    const activeComId = spaceService.getActiveCommuneId();
+    setActiveCommuneId(activeComId);
+  }, []);
+
+  useEffect(() => {
+    if (activeCommuneId) {
+      const currentCom = communes.find(c => c.id === activeCommuneId);
+      if (currentCom) {
+        setCommuneName(currentCom.name);
+      }
+    }
+  }, [activeCommuneId, communes]);
 
 
   const vaccines = useMemo(() => {
@@ -1254,6 +1316,8 @@ function App() {
   const [myActiveRequest, setMyActiveRequest] = useState<FamilyJoinRequest | null>(null);
   const [showRequestInterceptor, setShowRequestInterceptor] = useState(true);
   const [showWelcomeScreen, setShowWelcomeScreen] = useState(false);
+
+  const [defaultFamilyId, setDefaultFamilyId] = useState<string | null>(() => localStorage.getItem('mf_default_family_id'));
   const [welcomeScreenMode, setWelcomeScreenMode] = useState<'select' | 'create' | 'join' | 'success'>('select');
   const [welcomeCreatedFoyer, setWelcomeCreatedFoyer] = useState<Foyer | null>(null);
   const [welcomeLoading, setWelcomeLoading] = useState(false);
@@ -1692,7 +1756,7 @@ function App() {
 
       if (foyersList.length > 0) {
         // Find active foyer ID
-        const activeFoyerId = localStorage.getItem('mf_active_foyer_id') || localStorage.getItem('mf_cloud_foyer_id');
+        const activeFoyerId = localStorage.getItem('mf_active_foyer_id') || localStorage.getItem('mf_cloud_foyer_id') || localStorage.getItem('mf_default_family_id');
         const activeMembership = foyersList.find(f => f.foyer.id === activeFoyerId) || foyersList[0];
         
         const myFoyer = activeMembership.foyer;
@@ -10481,6 +10545,8 @@ function App() {
           savingGoals={appSavingGoals}
           onDeleteUnifiedEvent={handleDeleteUnifiedEvent}
           onArchiveUnifiedEvent={handleArchiveUnifiedEvent}
+          activeFamilyName={appFoyer?.name}
+          onOpenSpaceSelector={() => setSpaceSelectorOpen(true)}
         />
       );
     }
@@ -10605,24 +10671,16 @@ function App() {
 
       if (activeModule === "commune") {
         return (
-          <div className="min-h-screen bg-[#07111F] text-white flex flex-col items-center justify-center p-4">
-            <div className="glass-panel border-[#FF9F1C]/20 p-6 rounded-[28px] text-center max-w-sm">
-              <h2 className="text-lg font-bold text-[#FF9F1C] mb-2">Service Communal non connecté</h2>
-              <p className="text-xs text-white/50 mb-6 font-sans">Ce module nécessite la connexion de votre mairie ou commune à l ecosystème MaFamille+.</p>
-              <button onClick={() => setActiveModule("")} className="px-6 py-2.5 bg-[#FF9F1C] text-[#07111F] rounded-xl text-xs font-bold shadow-lg cursor-pointer">Retour</button>
+          <div className="min-h-screen bg-[#07111F] text-white">
+            <div className="max-w-xl mx-auto px-4 pt-6 flex items-center justify-between">
+              <button 
+                onClick={() => setActiveModule('')}
+                className="flex items-center space-x-2 text-white/60 hover:text-white font-bold text-xs cursor-pointer bg-white/5 border border-white/10 rounded-xl px-4 py-2 font-sans"
+              >
+                <span>← Retour au hub</span>
+              </button>
             </div>
-          </div>
-        );
-      }
-
-      if (activeModule === "ecole") {
-        return (
-          <div className="min-h-screen bg-[#07111F] text-white flex flex-col items-center justify-center p-4">
-            <div className="glass-panel border-[#00D26A]/20 p-6 rounded-[28px] text-center max-w-sm">
-              <h2 className="text-lg font-bold text-[#00D26A] mb-2">Établissement Scolaire non connecté</h2>
-              <p className="text-xs text-white/50 mb-6 font-sans">Ce module nécessite la connexion de l école ou de l établissement de votre enfant à l ecosystème MaFamille+.</p>
-              <button onClick={() => setActiveModule("")} className="px-6 py-2.5 bg-[#00D26A] text-[#07111F] rounded-xl text-xs font-bold shadow-lg cursor-pointer">Retour</button>
-            </div>
+            <CommuneHub communeName={communeName} onBack={() => setActiveModule('')} />
           </div>
         );
       }
@@ -11035,6 +11093,144 @@ function App() {
   const activeMemberObj = appMembers.find(m => m.id === appActiveMemberId);
   const isKidMode = activeMemberObj && activeMemberObj.age && parseInt(activeMemberObj.age) < 11;
 
+  const forceOnboarding = user && myFoyers.length === 0;
+
+  if (forceOnboarding) {
+    return (
+      <div className="fixed inset-0 bg-[#07111F] z-[9999] flex items-center justify-center p-6 text-white overflow-y-auto">
+        <div className="max-w-md w-full glass-panel border border-white/10 rounded-[32px] p-6 sm:p-8 space-y-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] relative overflow-hidden bg-white/2 backdrop-blur-lg">
+          <div className="absolute top-[-20%] left-[-20%] w-60 h-60 rounded-full bg-[#6C5CFF]/15 blur-[60px] pointer-events-none" />
+          <div className="absolute bottom-[-20%] right-[-20%] w-60 h-60 rounded-full bg-[#FF4D6D]/15 blur-[60px] pointer-events-none" />
+
+          {welcomeScreenMode === 'select' && (
+            <div className="space-y-6 text-center relative z-10">
+              <div className="inline-flex p-4 rounded-3xl bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] text-white shadow-lg animate-bounce" style={{ animationDuration: '3s' }}>
+                <Home className="w-8 h-8" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-xl sm:text-2xl font-black bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Bienvenue sur MaFamille+</h2>
+                <p className="text-xs text-white/50 leading-relaxed font-sans">Associez votre compte à une famille pour commencer l'aventure.</p>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <button
+                  onClick={handleWelcomeCreateFoyer}
+                  disabled={welcomeLoading}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs tracking-wider uppercase transition-all shadow-[0_4px_15px_rgba(108,92,255,0.3)] flex items-center justify-center space-x-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                >
+                  <span>🏠 Créer une famille</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setWelcomeError(null);
+                    setWelcomeScreenMode('join');
+                  }}
+                  disabled={welcomeLoading}
+                  className="w-full py-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-extrabold text-xs tracking-wider uppercase transition-all flex items-center justify-center space-x-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                >
+                  <span>👨‍👩‍👧‍👦 Rejoindre une famille</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {welcomeScreenMode === 'create' && (
+            <div className="space-y-5 relative z-10 text-center">
+              <div className="space-y-1">
+                <h2 className="text-lg font-black">🏠 Créer une Famille</h2>
+                <p className="text-xs text-white/50">Créez votre propre espace familial sécurisé.</p>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <button
+                  onClick={handleWelcomeCreateFoyer}
+                  disabled={welcomeLoading}
+                  className="w-full py-3.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5b4eff] text-white font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  {welcomeLoading ? 'Création...' : 'Confirmer la création automatique'}
+                </button>
+
+                {welcomeError && (
+                  <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start space-x-2 text-left">
+                    <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{welcomeError}</span>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setWelcomeScreenMode('select')}
+                  disabled={welcomeLoading}
+                  className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Retour
+                </button>
+              </div>
+            </div>
+          )}
+
+          {welcomeScreenMode === 'join' && (
+            <div className="space-y-4 relative z-10 text-left">
+              <div className="space-y-1 text-center">
+                <h2 className="text-lg font-black">👨‍👩‍👧‍👦 Rejoindre une Famille</h2>
+                <p className="text-xs text-white/50">Saisissez le code d'invitation pour demander à rejoindre un foyer.</p>
+              </div>
+
+              <form onSubmit={handleWelcomeJoinFoyer} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-widest block">Code d'invitation (Ex: FAM-XXXX)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="FAM-W5ZP6"
+                    value={welcomeInviteCode}
+                    onChange={(e) => setWelcomeInviteCode(e.target.value.toUpperCase())}
+                    className="w-full bg-[#07111F] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white uppercase font-bold focus:outline-none focus:border-[#6C5CFF]"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-widest block">Votre Prénom / Nom d'affichage</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Mon prénom"
+                    value={welcomeDisplayName}
+                    onChange={(e) => setWelcomeDisplayName(e.target.value)}
+                    className="w-full bg-[#07111F] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                  />
+                </div>
+
+                {welcomeError && (
+                  <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start space-x-2">
+                    <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{welcomeError}</span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={welcomeLoading}
+                  className="w-full py-3.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5b4eff] text-white font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  {welcomeLoading ? 'Envoi...' : 'Envoyer la demande d\'intégration'}
+                </button>
+              </form>
+
+              <button
+                onClick={() => setWelcomeScreenMode('select')}
+                disabled={welcomeLoading}
+                className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 text-xs font-bold transition-all cursor-pointer text-center"
+              >
+                Retour
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen ${syncActive ? 'bg-[#1a2b4c]' : 'bg-[var(--family-bg)]'} text-[var(--family-text)] font-sans transition-colors duration-1000 relative ios-safe-container`}>
       
@@ -11056,9 +11252,218 @@ function App() {
         onLogout={handleLogout}
         onOpenOnboarding={() => {
           setOnboardingActive(true);
-          
         }}
+        activeFamilyName={appFoyer?.name}
+        onOpenSpaceSelector={() => setSpaceSelectorOpen(true)}
       />
+
+      {/* Universal Space Selector Modal */}
+      {spaceSelectorOpen && (
+        <div className="fixed inset-0 bg-[#07111F]/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div 
+            onClick={() => setSpaceSelectorOpen(false)} 
+            className="absolute inset-0"
+          />
+          <div className="relative glass-panel border border-white/10 rounded-[32px] w-full max-w-md p-6 space-y-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] animate-fade-in pointer-events-auto z-10 bg-white/2 backdrop-blur-lg">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-wider text-white">Sélecteur d'Espaces</h3>
+                <p className="text-[10px] text-white/40 mt-1">Naviguez entre vos familles, écoles et communes actives</p>
+              </div>
+              <button 
+                onClick={() => setSpaceSelectorOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content List */}
+            <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-1 no-scrollbar text-white">
+              
+              {/* 1. FAMILIES SECTION */}
+              <div className="space-y-2.5">
+                <span className="text-[9.5px] font-bold text-white/40 uppercase tracking-widest block px-1">🏠 Mes Familles</span>
+                <div className="space-y-1.5">
+                  {myFoyers.map((fItem) => {
+                    const isActive = fItem.foyer.id === foyer?.id;
+                    const isDefault = fItem.foyer.id === defaultFamilyId;
+                    return (
+                      <div 
+                        key={fItem.foyer.id}
+                        className={`p-3 rounded-2xl border transition-all flex items-center justify-between ${
+                          isActive 
+                            ? "bg-[#6C5CFF]/15 border-[#6C5CFF]/30 text-white" 
+                            : "bg-white/3 border-transparent hover:border-white/5 hover:bg-white/5 text-white/70"
+                        }`}
+                      >
+                        <button
+                          onClick={async () => {
+                            setSpaceSelectorOpen(false);
+                            setIsSyncReady(false);
+                            setFoyer(fItem.foyer);
+                            setMyMemberProfile(fItem.member);
+                            setActiveMemberId(fItem.member.id);
+                            localStorage.setItem('mf_cloud_foyer_id', fItem.foyer.id);
+                            localStorage.setItem('mf_active_foyer_id', fItem.foyer.id);
+                            await loadFoyerData(fItem.foyer.id);
+                          }}
+                          className="flex-1 text-left flex items-center space-x-2.5 cursor-pointer font-bold text-xs bg-transparent border-0 text-white focus:outline-none"
+                        >
+                          <span>👨‍👩‍👧‍👦</span>
+                          <span className="truncate">{fItem.foyer.name}</span>
+                          {isActive && <span className="text-[8px] bg-[#6C5CFF] text-white px-1.5 py-0.5 rounded-full font-black uppercase">Actif</span>}
+                        </button>
+                        
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={() => {
+                              const nextDefault = isDefault ? null : fItem.foyer.id;
+                              if (nextDefault) {
+                                localStorage.setItem('mf_default_family_id', nextDefault);
+                                setDefaultFamilyId(nextDefault);
+                              } else {
+                                localStorage.removeItem('mf_default_family_id');
+                                setDefaultFamilyId(null);
+                              }
+                            }}
+                            className={`p-1.5 rounded-lg hover:bg-white/5 transition-all cursor-pointer ${isDefault ? 'text-[#FFB020]' : 'text-white/20'} bg-transparent border-0`}
+                            title={isDefault ? "Famille par défaut" : "Définir comme famille par défaut"}
+                          >
+                            <Star className="w-3.5 h-3.5 fill-current" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={() => {
+                      setSpaceSelectorOpen(false);
+                      setWelcomeError(null);
+                      setWelcomeScreenMode('create');
+                      setShowWelcomeScreen(true);
+                    }}
+                    className="py-2.5 rounded-xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/20 text-[#6C5CFF] hover:bg-[#6C5CFF]/25 font-bold text-[10px] uppercase tracking-wider text-center cursor-pointer transition-all active:scale-95"
+                  >
+                    + Créer une famille
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSpaceSelectorOpen(false);
+                      setWelcomeError(null);
+                      setWelcomeScreenMode('join');
+                      setShowWelcomeScreen(true);
+                    }}
+                    className="py-2.5 rounded-xl bg-[#00D26A]/15 border border-[#00D26A]/20 text-[#00D26A] hover:bg-[#00D26A]/25 font-bold text-[10px] uppercase tracking-wider text-center cursor-pointer transition-all active:scale-95"
+                  >
+                    + Rejoindre
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. ESTABLISHMENTS SECTION */}
+              <div className="space-y-2.5 pt-2 border-t border-white/5">
+                <span className="text-[9.5px] font-bold text-white/40 uppercase tracking-widest block px-1">🎓 Mes Établissements</span>
+                <div className="space-y-1.5">
+                  {establishments.map((est) => {
+                    const isActive = est.id === activeEstablishmentId;
+                    return (
+                      <button
+                        key={est.id}
+                        onClick={() => {
+                          spaceService.setActiveEstablishmentId(est.id);
+                          setActiveEstablishmentId(est.id);
+                          setSpaceSelectorOpen(false);
+                        }}
+                        className={`w-full p-3 rounded-2xl border transition-all flex items-center justify-between text-left cursor-pointer ${
+                          isActive 
+                            ? "bg-[#6C5CFF]/15 border-[#6C5CFF]/30 text-white" 
+                            : "bg-white/3 border-transparent hover:border-white/5 hover:bg-white/5 text-white/70"
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2.5 font-bold text-xs">
+                          <span>🏫</span>
+                          <span className="truncate">{est.name}</span>
+                        </div>
+                        {isActive && <span className="text-[8px] bg-[#6C5CFF] text-white px-1.5 py-0.5 rounded-full font-black uppercase">Actif</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={async () => {
+                    const name = prompt("Saisir le nom du nouvel établissement scolaire :");
+                    if (name && name.trim()) {
+                      const newEst = await spaceService.addEstablishment(name);
+                      setEstablishments(prev => [...prev, newEst]);
+                      spaceService.setActiveEstablishmentId(newEst.id);
+                      setActiveEstablishmentId(newEst.id);
+                      setSpaceSelectorOpen(false);
+                    }
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-white/5 border border-white/8 hover:bg-white/8 text-white font-bold text-[10px] uppercase tracking-wider text-center cursor-pointer transition-all active:scale-95"
+                >
+                  + Ajouter un établissement
+                </button>
+              </div>
+
+              {/* 3. COMMUNES SECTION */}
+              <div className="space-y-2.5 pt-2 border-t border-white/5">
+                <span className="text-[9.5px] font-bold text-white/40 uppercase tracking-widest block px-1">🏛️ Mes Communes</span>
+                <div className="space-y-1.5">
+                  {communes.map((com) => {
+                    const isActive = com.id === activeCommuneId;
+                    return (
+                      <button
+                        key={com.id}
+                        onClick={() => {
+                          spaceService.setActiveCommuneId(com.id);
+                          setActiveCommuneId(com.id);
+                          setSpaceSelectorOpen(false);
+                        }}
+                        className={`w-full p-3 rounded-2xl border transition-all flex items-center justify-between text-left cursor-pointer ${
+                          isActive 
+                            ? "bg-[#FF9F1C]/15 border-[#FF9F1C]/30 text-white" 
+                            : "bg-white/3 border-transparent hover:border-white/5 hover:bg-white/5 text-white/70"
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2.5 font-bold text-xs">
+                          <span>🏛️</span>
+                          <span className="truncate">{com.name}</span>
+                        </div>
+                        {isActive && <span className="text-[8px] bg-[#FF9F1C] text-[#07111F] px-1.5 py-0.5 rounded-full font-black uppercase">Actif</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={async () => {
+                    const name = prompt("Saisir le nom de la nouvelle commune rattachée :");
+                    if (name && name.trim()) {
+                      const newCom = await spaceService.addCommune(name);
+                      setCommunes(prev => [...prev, newCom]);
+                      spaceService.setActiveCommuneId(newCom.id);
+                      setActiveCommuneId(newCom.id);
+                      setSpaceSelectorOpen(false);
+                    }
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-white/5 border border-white/8 hover:bg-white/8 text-white font-bold text-[10px] uppercase tracking-wider text-center cursor-pointer transition-all active:scale-95"
+                >
+                  + Ajouter une commune
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Bottom sheet dialog form (Quick Actions Sheet) */}
       <QuickActionsSheet 
@@ -12584,15 +12989,7 @@ function App() {
                     >
                       Annuler
                     </button>
-                  ) : (
-                    <button
-                      onClick={() => setShowWelcomeScreen(false)}
-                      disabled={welcomeLoading}
-                      className="w-full py-3.5 rounded-2xl bg-transparent text-white/40 hover:text-white/60 text-xs font-bold transition-all cursor-pointer underline decoration-dotted"
-                    >
-                      Continuer plus tard
-                    </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             )}

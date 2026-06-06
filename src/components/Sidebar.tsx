@@ -18,7 +18,8 @@ import {
   Target, 
   Coins, 
   Settings, 
-  Lock 
+  Lock,
+  ChevronDown 
 } from 'lucide-react';
 import type { Member } from '../types';
 
@@ -32,6 +33,8 @@ interface SidebarProps {
   user: any;
   onLogout: () => void;
   onOpenOnboarding?: () => void;
+  activeFamilyName?: string;
+  onOpenSpaceSelector?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
@@ -43,7 +46,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeMemberId,
   user,
   onLogout,
-  onOpenOnboarding
+  onOpenOnboarding,
+  activeFamilyName = 'Famille',
+  onOpenSpaceSelector
 }) => {
   const activeMember = members.find(m => m.id === activeMemberId) || {
     name: 'Papa',
@@ -98,28 +103,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* Header */}
-        <div className="p-6 border-b border-white/8 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+        {/* Header space selector */}
+        <div className="p-4 border-b border-white/8 flex flex-col space-y-3 bg-[#07111F]/30">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={onOpenSpaceSelector}
+              className="flex-1 flex items-center justify-between px-4 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/8 text-white text-xs font-extrabold shadow-sm active:scale-95 transition-all text-left select-none"
+            >
+              <span className="flex items-center gap-1.5">
+                <span className="text-sm">🏠</span>
+                <span>{activeFamilyName}</span>
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-white/40" />
+            </button>
+            <button 
+              onClick={onClose}
+              className="p-2.5 ml-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 hover:text-white transition-all cursor-pointer"
+              aria-label="Fermer le menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex items-center space-x-3 px-1 pt-1">
             <div className="relative">
               <img 
                 src={activeMember.photoUrl} 
                 alt={`${activeMember.name} Avatar`} 
-                className="w-10 h-10 rounded-full border border-[#6C5CFF] object-cover"
+                className="w-9 h-9 rounded-full border border-[#6C5CFF] object-cover"
               />
-              <span className="absolute bottom-0 right-0 w-3 h-3 bg-[#00D26A] border-2 border-[#07111F] rounded-full"></span>
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#00D26A] border border-[#07111F] rounded-full"></span>
             </div>
             <div>
-              <h3 className="font-semibold text-white text-sm">{activeMember.name}</h3>
-              <p className="text-xs text-white/50">{activeMember.role}</p>
+              <h3 className="font-semibold text-white text-xs leading-none">{activeMember.name}</h3>
+              <p className="text-[10px] text-white/50 mt-1 leading-none">{activeMember.role}</p>
             </div>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 hover:text-white transition-all cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         {/* Menu list */}

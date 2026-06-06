@@ -7,6 +7,7 @@ import {
   HeartPulse, 
   MoreHorizontal,
   ChevronRight,
+  ChevronDown,
   Wifi,
   BookOpen,
   ShoppingCart,
@@ -71,6 +72,8 @@ interface AccueilProps {
   savingGoals?: any[];
   onDeleteUnifiedEvent?: (id: string, moduleName: string) => Promise<void>;
   onArchiveUnifiedEvent?: (id: string, moduleName: string) => Promise<void>;
+  activeFamilyName?: string;
+  onOpenSpaceSelector?: () => void;
 }
 
 export const Accueil: React.FC<AccueilProps> = ({
@@ -96,7 +99,9 @@ export const Accueil: React.FC<AccueilProps> = ({
 
   savingGoals: _savingGoals = [],
   onDeleteUnifiedEvent,
-  onArchiveUnifiedEvent
+  onArchiveUnifiedEvent,
+  activeFamilyName = 'Famille',
+  onOpenSpaceSelector
 }) => {
   const [selectedMealDay, setSelectedMealDay] = useState<string>('Lun');
   const [hiddenEventIds, setHiddenEventIds] = useState<string[]>([]);
@@ -283,6 +288,13 @@ export const Accueil: React.FC<AccueilProps> = ({
             className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white transition-all cursor-pointer"
           >
             <Menu className="w-5 h-5" />
+          </button>
+          <button
+            onClick={onOpenSpaceSelector}
+            className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white font-extrabold text-xs flex items-center gap-1.5 cursor-pointer shadow-md transition-all active:scale-95 select-none"
+          >
+            <span>🏠 {activeFamilyName}</span>
+            <ChevronDown className="w-3.5 h-3.5 text-white/50" />
           </button>
           <div>
             <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-1.5">
