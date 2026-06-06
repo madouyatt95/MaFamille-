@@ -450,7 +450,7 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
                   <span className="text-xl">📅</span>
                   <div className="space-y-0.5">
                     <h4 className="text-xs font-bold text-white">{act.title}</h4>
-                    <p className="text-[9.5px] text-white/40 font-bold">{act.dateTime.split('T')[0]}</p>
+                    <p className="text-[9.5px] text-white/40 font-bold">{(act.dateTime || '').split('T')[0] || act.time || ''}</p>
                   </div>
                 </div>
               ))
