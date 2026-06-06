@@ -34,10 +34,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     else if (roleClean.includes('invit') || roleClean.includes('guest')) role = 'invite';
   } else {
     // Fallback mapping
-    if (activeMemberId === 'demo_papa' || activeMemberId === '1') role = 'chef_famille';
-    else if (activeMemberId === 'demo_maman' || activeMemberId === '2') role = 'parent';
-    else if (activeMemberId === 'demo_issa' || activeMemberId === '3') role = 'enfant';
-    else if (activeMemberId === 'demo_lyna' || activeMemberId === '4') role = 'adolescent';
+    if (activeMemberId === '1') role = 'chef_famille';
+    else if (activeMemberId === '2') role = 'parent';
+    else if (activeMemberId === '3') role = 'enfant';
+    else if (activeMemberId === '4') role = 'adolescent';
   }
 
   const isAdult = ['chef_famille', 'parent', 'gestionnaire', 'adulte'].includes(role);

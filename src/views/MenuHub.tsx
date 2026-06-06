@@ -427,10 +427,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       else if (r.includes('enfant')) roleClean = 'enfant';
       else if (r.includes('invit') || r.includes('guest')) roleClean = 'invite';
     } else {
-      if (activeMemberId === 'demo_papa' || activeMemberId === '1') roleClean = 'chef_famille';
-      else if (activeMemberId === 'demo_maman' || activeMemberId === '2') roleClean = 'parent';
-      else if (activeMemberId === 'demo_issa' || activeMemberId === '3') roleClean = 'enfant';
-      else if (activeMemberId === 'demo_lyna' || activeMemberId === '4') roleClean = 'adolescent';
+      if (activeMemberId === '1') roleClean = 'chef_famille';
+      else if (activeMemberId === '2') roleClean = 'parent';
+      else if (activeMemberId === '3') roleClean = 'enfant';
+      else if (activeMemberId === '4') roleClean = 'adolescent';
     }
     return getDefaultPermissions(roleClean);
   }, [memberPermissions, activeMemberId, members]);

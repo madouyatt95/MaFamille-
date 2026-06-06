@@ -71,7 +71,6 @@ interface AccueilProps {
   savingGoals?: any[];
   onDeleteUnifiedEvent?: (id: string, moduleName: string) => Promise<void>;
   onArchiveUnifiedEvent?: (id: string, moduleName: string) => Promise<void>;
-  demoActive?: boolean;
 }
 
 export const Accueil: React.FC<AccueilProps> = ({
@@ -97,8 +96,7 @@ export const Accueil: React.FC<AccueilProps> = ({
 
   savingGoals: _savingGoals = [],
   onDeleteUnifiedEvent,
-  onArchiveUnifiedEvent,
-  demoActive = false
+  onArchiveUnifiedEvent
 }) => {
   const [selectedMealDay, setSelectedMealDay] = useState<string>('Lun');
   const [hiddenEventIds, setHiddenEventIds] = useState<string[]>([]);
@@ -507,27 +505,13 @@ export const Accueil: React.FC<AccueilProps> = ({
             </div>
             <div>
               <h4 className="text-sm font-extrabold text-white">Ma Commune</h4>
-              {demoActive ? (
-                <>
-                  <p className="text-xs text-[#FFB020] font-extrabold mt-0.5">Ville de Cormeilles-en-Parisis 🏛️</p>
-                  <p className="text-[10px] text-white/50 mt-1 font-sans leading-relaxed">
-                    Dernière alerte : {events.find(e => e.category === 'Commune')?.title.replace('🏛️ ', '') || 'Aucune alerte récente'}
-                  </p>
-                </>
-              ) : (
-                <p className="text-xs text-white/50 mt-1 font-medium">Aucune commune associée</p>
-              )}
+              <p className="text-xs text-white/50 mt-1 font-medium">Aucune commune associée</p>
             </div>
           </div>
           <button 
             className="w-full py-2.5 px-4 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer"
             onClick={() => {
-              if (demoActive) {
-                setActiveTab('accueil');
-                setActiveModule('commune');
-              } else {
-                alert("🏛️ Service Ma Commune bientôt disponible !");
-              }
+              alert("🏛️ Service Ma Commune bientôt disponible !");
             }}
           >
             Découvrir
@@ -543,27 +527,13 @@ export const Accueil: React.FC<AccueilProps> = ({
             </div>
             <div>
               <h4 className="text-sm font-extrabold text-white">Mon Établissement</h4>
-              {demoActive ? (
-                <>
-                  <p className="text-xs text-[#4F8CFF] font-extrabold mt-0.5">École Victor Hugo & Lycée Simone Veil 🏫</p>
-                  <p className="text-[10px] text-white/50 mt-1 font-sans leading-relaxed">
-                    Dernière info : {events.find(e => e.category === 'École')?.title.replace('🏫 ', '').replace('📚 ', '') || 'Aucun message récent'}
-                  </p>
-                </>
-              ) : (
-                <p className="text-xs text-white/50 mt-1 font-medium">Aucun établissement associé</p>
-              )}
+              <p className="text-xs text-white/50 mt-1 font-medium">Aucun établissement associé</p>
             </div>
           </div>
           <button 
             className="w-full py-2.5 px-4 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer"
             onClick={() => {
-              if (demoActive) {
-                setActiveTab('accueil');
-                setActiveModule('ecole');
-              } else {
-                alert("🏫 Service Mon Établissement bientôt disponible !");
-              }
+              alert("🏫 Service Mon Établissement bientôt disponible !");
             }}
           >
             Découvrir
