@@ -41,7 +41,75 @@ export const foyerService = {
   },
 
   /**
-   * Récupérer le foyer auquel appartient l'utilisateur connecté
+   * Récupérer tous les foyers auxquels appartient l'utilisateur connecté
+   */
+  async getMyFoyers(): Promise<Array<{ foyer: Foyer; member: FoyerMember }>> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return [];
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
+    if (!user) return [];
+
+    const { data: membersData, error: membersError } = await supabase
+      .from('foyer_members')
+      .select('*, foyers(*)')
+      .eq('user_id', user.id);
+
+    if (membersError || !membersData) {
+      console.error("Erreur lors de la récupération des foyers :", membersError);
+      return [];
+    }
+
+    return membersData
+      .map((memberData: any) => {
+        const foyerData = memberData.foyers;
+        if (!foyerData) return null;
+
+        const foyer: Foyer = {
+          id: foyerData.id,
+          name: foyerData.name,
+          inviteCode: foyerData.invite_code,
+          inviteLink: foyerData.invite_link,
+          createdBy: foyerData.created_by,
+          createdAt: foyerData.created_at,
+          isPremium: foyerData.is_premium,
+          maxMembers: foyerData.max_members,
+          parentPin: foyerData.parent_pin
+        };
+
+        const member: FoyerMember = {
+          id: memberData.id,
+          foyerId: memberData.foyer_id,
+          userId: memberData.user_id,
+          displayName: memberData.display_name,
+          role: memberData.role,
+          photoUrl: memberData.photo_url,
+          age: memberData.age,
+          birthDate: memberData.birth_date,
+          bloodGroup: memberData.blood_group,
+          allergies: memberData.allergies,
+          treatments: memberData.treatments,
+          emergencyContactName: memberData.emergency_contact_name,
+          emergencyContactPhone: memberData.emergency_contact_phone,
+          emergencyContactRelation: memberData.emergency_contact_relation,
+          schoolOrEmployer: memberData.school_or_employer,
+          hasExemption: !!memberData.has_exemption,
+          joinedAt: memberData.joined_at,
+          latitude: memberData.latitude,
+          longitude: memberData.longitude,
+          locationStatus: memberData.location_status,
+          lastLocatedAt: memberData.last_located_at,
+          approved: memberData.approved !== false
+        };
+
+        return { foyer, member };
+      })
+      .filter((item): item is { foyer: Foyer; member: FoyerMember } => item !== null);
+  },
+
+  /**
+   * Récupérer le foyer auquel appartient l'utilisateur connecté (ou le foyer actif sélectionné)
    */
   async getMyFoyer(): Promise<{ foyer: Foyer | null; member: FoyerMember | null }> {
     const supabase = getSupabaseClient();
@@ -51,20 +119,41 @@ export const foyerService = {
     const user = session?.user;
     if (!user) return { foyer: null, member: null };
 
-    // 1. Fetch both member and foyer details in one query using relation join select
-    const { data: memberData, error: memberError } = await supabase
-      .from('foyer_members')
-      .select('*, foyers(*)')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    const activeFoyerId = localStorage.getItem('mf_active_foyer_id') || localStorage.getItem('mf_cloud_foyer_id');
 
-    if (memberError || !memberData) {
+    let query = supabase
+      .from('foyer_members')
+      .select('*, foyers(*)');
+
+    if (activeFoyerId) {
+      query = query.eq('user_id', user.id).eq('foyer_id', activeFoyerId);
+    } else {
+      query = query.eq('user_id', user.id);
+    }
+
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) {
+      if (activeFoyerId) {
+        // Fallback au premier foyer si le foyer actif n'est pas trouvé
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('foyer_members')
+          .select('*, foyers(*)')
+          .eq('user_id', user.id);
+        if (fallbackError || !fallbackData || fallbackData.length === 0) {
+          return { foyer: null, member: null };
+        }
+        return this.mapSingleMembership(fallbackData[0]);
+      }
       return { foyer: null, member: null };
     }
 
-    const foyerData = (memberData as any).foyers;
+    return this.mapSingleMembership(data[0]);
+  },
+
+  mapSingleMembership(memberData: any): { foyer: Foyer | null; member: FoyerMember | null } {
+    const foyerData = memberData.foyers;
     if (!foyerData) {
-      return { foyer: null, member: memberData as any };
+      return { foyer: null, member: null };
     }
 
     const foyer: Foyer = {

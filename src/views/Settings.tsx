@@ -39,6 +39,9 @@ interface SettingsProps {
   setActiveModule?: (moduleName: string) => void;
   onOpenOnboarding?: () => void;
   onNotificationPrefsChange?: (prefs: any) => void;
+  communeName?: string;
+  schoolName?: string;
+  onUpdateFoyerConfig?: (commune: string, school: string) => Promise<void> | void;
 }
 
 export const Settings: React.FC<SettingsProps> = ({
@@ -59,7 +62,10 @@ export const Settings: React.FC<SettingsProps> = ({
   setActiveTab,
   setActiveModule,
   onOpenOnboarding,
-  onNotificationPrefsChange
+  onNotificationPrefsChange,
+  communeName = '',
+  schoolName = '',
+  onUpdateFoyerConfig
 }) => {
   const [savingBackup, setSavingBackup] = useState(false);
 
@@ -80,6 +86,17 @@ export const Settings: React.FC<SettingsProps> = ({
     }
     alert("Code PIN parent enregistré avec succès !");
   };
+
+  const [localCommune, setLocalCommune] = useState(communeName);
+  const [localSchool, setLocalSchool] = useState(schoolName);
+
+  useEffect(() => {
+    setLocalCommune(communeName);
+  }, [communeName]);
+
+  useEffect(() => {
+    setLocalSchool(schoolName);
+  }, [schoolName]);
 
   // État des notifications push FCM
   const [pushEnabled, setPushEnabled] = useState(() => {
@@ -672,6 +689,55 @@ export const Settings: React.FC<SettingsProps> = ({
               Gérer les Membres, Rôles & Invitations ➔
             </button>
           </div>
+
+          <div className="pt-2"></div>
+
+          {/* Rattachements Card */}
+          {(!myMemberProfile || ['admin', 'parent'].includes(myMemberProfile.role)) && (
+            <div className="p-5 rounded-2xl bg-white/3 border border-white/5 space-y-4">
+              <div className="flex items-center space-x-2 text-[#6C5CFF]">
+                <Sparkles className="w-4 h-4 font-sans" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white">Rattachements Officiels</h4>
+              </div>
+              <p className="text-[10px] text-white/50 leading-relaxed font-sans">
+                Associez votre foyer à votre commune et à l'établissement scolaire de vos enfants pour configurer dynamiquement vos espaces.
+              </p>
+              <div className="space-y-3 font-sans">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Commune Rattachée</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Cormeilles-en-Parisis"
+                    value={localCommune}
+                    onChange={(e) => setLocalCommune(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Établissement Scolaire (École)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: École Awa"
+                    value={localSchool}
+                    onChange={(e) => setLocalSchool(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (onUpdateFoyerConfig) {
+                      await onUpdateFoyerConfig(localCommune, localSchool);
+                      alert("Rattachements officiels enregistrés avec succès ! ✨");
+                    }
+                  }}
+                  className="w-full py-3.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5b4eff] text-white font-extrabold text-[11px] uppercase tracking-wider transition-all active:scale-95 cursor-pointer text-center"
+                >
+                  Enregistrer les Rattachements
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="pt-2"></div>
 

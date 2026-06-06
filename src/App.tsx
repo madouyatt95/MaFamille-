@@ -114,7 +114,7 @@ import type { Foyer, FoyerMember } from './types';
 
 import { getUnifiedEvents } from './utils/agendaHelper';
 import type { ExternalEvent } from './utils/icalParser';
-import { Volume2, Mic, Bell, X, ChevronRight, Settings as SettingsIcon, Lock, Sparkles } from 'lucide-react';
+import { Volume2, Mic, Bell, X, ChevronRight, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check } from 'lucide-react';
 
 const keywordRules = [
   // TRANSPORT
@@ -1245,6 +1245,18 @@ function App() {
     }
   }, [myMemberProfile]);
 
+  const [myFoyers, setMyFoyers] = useState<Array<{ foyer: Foyer; member: FoyerMember }>>([]);
+  const [showWelcomeScreen, setShowWelcomeScreen] = useState(false);
+  const [welcomeScreenMode, setWelcomeScreenMode] = useState<'select' | 'create' | 'join' | 'success'>('select');
+  const [welcomeCreatedFoyer, setWelcomeCreatedFoyer] = useState<Foyer | null>(null);
+  const [welcomeLoading, setWelcomeLoading] = useState(false);
+  const [welcomeError, setWelcomeError] = useState<string | null>(null);
+  const [welcomeInviteCode, setWelcomeInviteCode] = useState("");
+  const [welcomeDisplayName, setWelcomeDisplayName] = useState("");
+  const [welcomeRole, setWelcomeRole] = useState<'parent' | 'child' | 'guest'>('parent');
+  const [communeName, setCommuneName] = useState("Cormeilles-en-Parisis");
+  const [schoolName, setSchoolName] = useState("Collège Victor Hugo");
+
   const unifiedEvents = useMemo(() => {
     return getUnifiedEvents({
       events,
@@ -1651,95 +1663,60 @@ function App() {
       setFoyer(null);
       setMyMemberProfile(null);
       setOnboardingActive(false);
+      setMyFoyers([]);
+      setShowWelcomeScreen(false);
       isSessionCheckingRef.current = false;
       setIsSessionChecking(false);
       return;
     }
 
     try {
-      const { foyer: myFoyer, member: myMember } = await foyerService.getMyFoyer();
-      if (myFoyer && myMember) {
-        setIsSyncReady(false);
+      console.log("[MaFamille+ Session] Fetching user foyers...");
+      const foyersList = await foyerService.getMyFoyers();
+      setMyFoyers(foyersList);
 
+      if (foyersList.length > 0) {
+        // Find active foyer ID
+        const activeFoyerId = localStorage.getItem('mf_active_foyer_id') || localStorage.getItem('mf_cloud_foyer_id');
+        const activeMembership = foyersList.find(f => f.foyer.id === activeFoyerId) || foyersList[0];
+        
+        const myFoyer = activeMembership.foyer;
+        const myMember = activeMembership.member;
+
+        setIsSyncReady(false);
         setFoyer(myFoyer);
         setMyMemberProfile(myMember);
         setActiveMemberId(myMember.id);
         
-        // Respect le choix de test manuel stocké localement s'il existe
         const localPremium = localStorage.getItem('mf_is_premium');
         if (localPremium !== null) {
           setIsPremium(localPremium === 'true');
         } else {
           setIsPremium(myFoyer.isPremium);
         }
+        
         setOnboardingActive(false);
-        // Mark that a cloud foyer is active (persists across reloads)
+        setShowWelcomeScreen(false);
         localStorage.setItem('mf_cloud_foyer_id', myFoyer.id);
-        // Hydrate all granular tables
+        localStorage.setItem('mf_active_foyer_id', myFoyer.id);
         await loadFoyerData(myFoyer.id);
       } else {
-        // Check for automatic onboarding inputs from signup
-        const pendingInviteCode = currentUser?.user_metadata?.invite_code || localStorage.getItem('pending_invite_code');
-        const pendingDisplayName = currentUser?.user_metadata?.display_name || localStorage.getItem('pending_display_name');
-        const pendingRole = currentUser?.user_metadata?.role || localStorage.getItem('pending_role') || 'child';
-        
-        if (pendingDisplayName) {
-          try {
-            if (pendingInviteCode) {
-              console.log("[MaFamille+ Sync] Automatic join triggered for code:", pendingInviteCode);
-              await foyerService.joinFoyer(pendingInviteCode.trim(), pendingDisplayName.trim(), pendingRole as any);
-              localStorage.removeItem('pending_invite_code');
-              localStorage.removeItem('pending_display_name');
-              localStorage.removeItem('pending_role');
-            } else {
-              console.log("[MaFamille+ Sync] Automatic foyer creation triggered for:", pendingDisplayName);
-              const defaultFoyerName = `Foyer ${pendingDisplayName}`;
-              await foyerService.createFoyer(defaultFoyerName, pendingDisplayName.trim(), false);
-              localStorage.removeItem('pending_display_name');
-            }
-            
-            // Re-fetch now that the foyer is linked
-            const { foyer: newFoyer, member: newMember } = await foyerService.getMyFoyer();
-            if (newFoyer && newMember) {
-              setFoyer(newFoyer);
-              setMyMemberProfile(newMember);
-              setActiveMemberId(newMember.id);
-              
-              // Respect le choix de test manuel stocké localement s'il existe
-              const localPremium = localStorage.getItem('mf_is_premium');
-              if (localPremium !== null) {
-                setIsPremium(localPremium === 'true');
-              } else {
-                setIsPremium(newFoyer.isPremium);
-              }
-              setOnboardingActive(false);
-              localStorage.setItem('mf_cloud_foyer_id', newFoyer.id);
-              await loadFoyerData(newFoyer.id);
-              isSessionCheckingRef.current = false;
-              return;
-            }
-          } catch (autoErr: any) {
-            console.error("[MaFamille+ Sync] Automatic onboarding failed:", autoErr);
-            localStorage.removeItem('pending_invite_code');
-            localStorage.removeItem('pending_display_name');
-            alert(`L'onboarding automatique a échoué : ${autoErr.message || autoErr}. Veuillez configurer votre foyer manuellement.`);
-          }
-        }
-        
-        console.log("[MaFamille+ Session] No foyer found in DB. Clearing stale cache and triggering onboarding.");
+        console.log("[MaFamille+ Session] No foyer found in DB for user. Showing welcome screen.");
         setFoyer(null);
         setMyMemberProfile(null);
         localStorage.removeItem('mf_cached_foyer');
         localStorage.removeItem('mf_cached_member_profile');
         localStorage.removeItem('mf_cloud_foyer_id');
-        setOnboardingActive(true);
+        localStorage.removeItem('mf_active_foyer_id');
+        setOnboardingActive(false);
+        setShowWelcomeScreen(true);
+        setWelcomeScreenMode('select');
       }
     } catch (err) {
       console.error("Erreur lors de la vérification de session foyer :", err);
       if (!foyerRef.current) {
-        setOnboardingActive(true);
-      } else {
-        console.warn("[MaFamille+ Session] checkUserFoyerSession error caught but user already has a foyer loaded. Maintaining active session.");
+        setShowWelcomeScreen(true);
+        setWelcomeScreenMode('select');
       }
     } finally {
       isSessionCheckingRef.current = false;
@@ -2196,7 +2173,8 @@ function App() {
           senderMemberId: a.sender_member_id,
           senderName: a.sender_name,
           senderAvatar: a.sender_avatar,
-          createdAt: a.created_at
+          createdAt: a.created_at,
+          foyerId: a.foyer_id
         })));
       }
 
@@ -8317,13 +8295,32 @@ function App() {
       try {
         const decodedStr = atob(permDoc.fileBase64);
         const parsed = JSON.parse(decodedStr);
-        if (JSON.stringify(parsed) !== JSON.stringify(memberPermissions)) {
-          console.log("[MaFamille+ Permissions] Syncing permissions from document:", parsed);
-          setMemberPermissions(parsed);
+        
+        if (parsed && parsed.__config__) {
+          if (parsed.__config__.communeName && parsed.__config__.communeName !== communeName) {
+            setCommuneName(parsed.__config__.communeName);
+          }
+          if (parsed.__config__.schoolName && parsed.__config__.schoolName !== schoolName) {
+            setSchoolName(parsed.__config__.schoolName);
+          }
+        } else {
+          setCommuneName("Cormeilles-en-Parisis");
+          setSchoolName("Collège Victor Hugo");
+        }
+
+        const cleanPerms = { ...parsed };
+        delete cleanPerms.__config__;
+
+        if (JSON.stringify(cleanPerms) !== JSON.stringify(memberPermissions)) {
+          console.log("[MaFamille+ Permissions] Syncing permissions from document:", cleanPerms);
+          setMemberPermissions(cleanPerms);
         }
       } catch (e) {
         console.warn("Failed to parse __foyer_permissions__.json from documents", e);
       }
+    } else {
+      setCommuneName("Cormeilles-en-Parisis");
+      setSchoolName("Collège Victor Hugo");
     }
   }, [documents]);
 
@@ -8655,7 +8652,8 @@ function App() {
             type: 'error',
             read: false,
             module: 'budget',
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            foyerId: foyer?.id
           });
         } else if (spent >= budgetLimit * 0.9) {
           generatedAlerts.push({
@@ -8666,7 +8664,8 @@ function App() {
             type: 'warning',
             read: false,
             module: 'budget',
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            foyerId: foyer?.id
           });
         }
       }
@@ -9152,7 +9151,15 @@ function App() {
   const handleUpdatePermissions = async (newPermissions: Record<string, Record<FamilyModule, ModulePermissions>>) => {
     setMemberPermissions(newPermissions);
     
-    const jsonStr = JSON.stringify(newPermissions);
+    const dataToSave = {
+      ...newPermissions,
+      __config__: {
+        communeName,
+        schoolName
+      }
+    };
+    
+    const jsonStr = JSON.stringify(dataToSave);
     const base64Str = btoa(unescape(encodeURIComponent(jsonStr)));
     
     const docId = '__foyer_permissions__';
@@ -9207,6 +9214,74 @@ function App() {
         }
       } catch (err) {
         console.error("Cloud permissions sync error:", err);
+      }
+    }
+  };
+
+  const handleUpdateFoyerConfig = async (newCommune: string, newSchool: string) => {
+    setCommuneName(newCommune);
+    setSchoolName(newSchool);
+
+    const dataToSave = {
+      ...memberPermissions,
+      __config__: {
+        communeName: newCommune,
+        schoolName: newSchool
+      }
+    };
+
+    const jsonStr = JSON.stringify(dataToSave);
+    const base64Str = btoa(unescape(encodeURIComponent(jsonStr)));
+    
+    const docId = '__foyer_permissions__';
+    const now = new Date().toISOString();
+    
+    const newDoc: DocumentFile = {
+      id: docId,
+      name: '__foyer_permissions__.json',
+      category: 'other',
+      tags: ['system'],
+      uploadDate: now.split('T')[0],
+      fileSize: `${jsonStr.length} B`,
+      isExpired: false,
+      fileBase64: base64Str,
+      isSecure: false
+    };
+
+    let updatedDocs = documents.some(d => d.id === docId)
+      ? documents.map(d => d.id === docId ? newDoc : d)
+      : [newDoc, ...documents];
+    
+    setDocuments(updatedDocs);
+
+    const client = getSupabaseClient();
+    if (client && foyer) {
+      try {
+        const { data: existing } = await client
+          .from('documents')
+          .select('id')
+          .eq('foyer_id', foyer.id)
+          .eq('name', '__foyer_permissions__.json')
+          .maybeSingle();
+
+        if (existing) {
+          await client.from('documents').update({
+            file_base_64: base64Str,
+            updated_at: now
+          }).eq('id', existing.id);
+        } else {
+          await client.from('documents').insert({
+            foyer_id: foyer.id,
+            name: '__foyer_permissions__.json',
+            category: 'other',
+            tags: ['system'],
+            upload_date: now.split('T')[0],
+            file_size: `${jsonStr.length} B`,
+            file_base_64: base64Str
+          });
+        }
+      } catch (err) {
+        console.error("Cloud config sync error:", err);
       }
     }
   };
@@ -9939,11 +10014,121 @@ function App() {
     if (confirm("⚠️ Attention : Êtes-vous sûr de vouloir quitter ce foyer ? Vous n'aurez plus accès aux données partagées de cette famille.")) {
       try {
         await foyerService.leaveFoyer(foyer.id);
-        await clearAllStatesAndCache();
-        alert("🎉 Vous avez quitté le foyer avec succès. Vous pouvez maintenant en créer un autre ou en rejoindre un existant !");
+        alert("🎉 Vous avez quitté le foyer avec succès.");
+        const list = await foyerService.getMyFoyers();
+        setMyFoyers(list);
+        if (list.length > 0) {
+          setFoyer(list[0].foyer);
+          setMyMemberProfile(list[0].member);
+          setActiveMemberId(list[0].member.id);
+          localStorage.setItem('mf_cloud_foyer_id', list[0].foyer.id);
+          localStorage.setItem('mf_active_foyer_id', list[0].foyer.id);
+          await loadFoyerData(list[0].foyer.id);
+        } else {
+          setFoyer(null);
+          setMyMemberProfile(null);
+          localStorage.removeItem('mf_cached_foyer');
+          localStorage.removeItem('mf_cached_member_profile');
+          localStorage.removeItem('mf_cloud_foyer_id');
+          localStorage.removeItem('mf_active_foyer_id');
+          setShowWelcomeScreen(true);
+          setWelcomeScreenMode('select');
+        }
       } catch (err: any) {
         alert(`Erreur lors du départ du foyer : ${err.message || err}`);
       }
+    }
+  };
+
+  const handleWelcomeCreateFoyer = async () => {
+    setWelcomeLoading(true);
+    setWelcomeError(null);
+    try {
+      const lastName = user?.user_metadata?.last_name || '';
+      const firstName = user?.user_metadata?.first_name || user?.user_metadata?.display_name || 'Utilisateur';
+      const familyName = lastName ? `Famille ${lastName}` : `Famille de ${firstName}`;
+      
+      const res = await foyerService.createFoyer(familyName, firstName, false);
+      
+      const newFoyerObj: Foyer = {
+        id: res.foyer_id,
+        name: familyName,
+        inviteCode: res.invite_code,
+        inviteLink: `mafamille.app/join/${res.invite_code}`,
+        createdBy: user?.id || '',
+        createdAt: new Date().toISOString(),
+        isPremium: false,
+        maxMembers: 3
+      };
+      
+      setWelcomeCreatedFoyer(newFoyerObj);
+      setWelcomeScreenMode('success');
+    } catch (err: any) {
+      console.error(err);
+      setWelcomeError(err.message || "Impossible de créer le foyer.");
+    } finally {
+      setWelcomeLoading(false);
+    }
+  };
+
+  const handleWelcomeJoinFoyer = async () => {
+    if (!welcomeInviteCode.trim()) {
+      setWelcomeError("Veuillez entrer un code d'invitation.");
+      return;
+    }
+    if (!welcomeDisplayName.trim()) {
+      setWelcomeError("Veuillez entrer votre nom d'affichage.");
+      return;
+    }
+    setWelcomeLoading(true);
+    setWelcomeError(null);
+    try {
+      await foyerService.joinFoyer(welcomeInviteCode.trim(), welcomeDisplayName.trim(), welcomeRole);
+      alert("🎉 Votre demande d'adhésion a été envoyée ! Elle sera soumise à validation du Chef de famille.");
+      
+      const list = await foyerService.getMyFoyers();
+      setMyFoyers(list);
+      
+      if (list.length > 0) {
+        const lastJoined = list.find(f => f.foyer.inviteCode === welcomeInviteCode.trim().toUpperCase()) || list[0];
+        setFoyer(lastJoined.foyer);
+        setMyMemberProfile(lastJoined.member);
+        setActiveMemberId(lastJoined.member.id);
+        localStorage.setItem('mf_cloud_foyer_id', lastJoined.foyer.id);
+        localStorage.setItem('mf_active_foyer_id', lastJoined.foyer.id);
+        await loadFoyerData(lastJoined.foyer.id);
+      }
+      
+      setShowWelcomeScreen(false);
+    } catch (err: any) {
+      console.error(err);
+      setWelcomeError(err.message || "Code invalide ou impossible de rejoindre.");
+    } finally {
+      setWelcomeLoading(false);
+    }
+  };
+
+  const handleWelcomeSuccessFinish = async () => {
+    if (!welcomeCreatedFoyer) return;
+    setWelcomeLoading(true);
+    try {
+      const list = await foyerService.getMyFoyers();
+      setMyFoyers(list);
+      
+      const newlyCreated = list.find(f => f.foyer.id === welcomeCreatedFoyer.id);
+      if (newlyCreated) {
+        setFoyer(newlyCreated.foyer);
+        setMyMemberProfile(newlyCreated.member);
+        setActiveMemberId(newlyCreated.member.id);
+        localStorage.setItem('mf_cloud_foyer_id', newlyCreated.foyer.id);
+        localStorage.setItem('mf_active_foyer_id', newlyCreated.foyer.id);
+        await loadFoyerData(newlyCreated.foyer.id);
+      }
+      setShowWelcomeScreen(false);
+    } catch (err) {
+      console.error("Error finalizing success screen:", err);
+    } finally {
+      setWelcomeLoading(false);
     }
   };
 
@@ -10099,6 +10284,105 @@ function App() {
             <p className="text-sm text-white/50 mb-6">Ce lien de partage est invalide ou le dossier a été supprimé par son propriétaire.</p>
             <button onClick={() => window.location.hash = ''} className="px-6 py-3 bg-[#6C5CFF] rounded-xl text-sm font-bold shadow-lg">Retour à l'accueil</button>
           </div>
+        </div>
+      );
+    }
+
+    if (!foyer) {
+      return (
+        <div className="min-h-screen bg-[#07111F] text-white flex flex-col font-sans relative overflow-hidden">
+          {/* Background decorative glows */}
+          <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-[#6C5CFF]/10 blur-[130px] pointer-events-none" />
+          <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-[#FF4D6D]/10 blur-[130px] pointer-events-none" />
+
+          {/* Header bar */}
+          <header className="w-full max-w-4xl mx-auto px-6 pt-6 pb-2 flex items-center justify-between relative z-10">
+            <div className="flex items-center space-x-3">
+              <button 
+                onClick={() => setSidebarOpen(true)}
+                className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white transition-all cursor-pointer"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              <h1 className="text-lg font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/70">
+                MaFamille+
+              </h1>
+            </div>
+            
+            <button
+              onClick={() => {
+                setActiveTab('menu');
+                setActiveModule('settings');
+              }}
+              className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white transition-all cursor-pointer font-sans"
+            >
+              <SettingsIcon className="w-5 h-5 text-white/70" />
+            </button>
+          </header>
+
+          {/* Main Empty State Content */}
+          <main className="flex-1 flex flex-col items-center justify-center p-6 max-w-md mx-auto relative z-10 text-center space-y-8">
+            <div className="space-y-4">
+              {/* Premium Icon Ring */}
+              <div className="inline-flex p-5 rounded-[32px] bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] text-white shadow-[0_10px_25px_rgba(108,92,255,0.3)] animate-pulse">
+                <span className="text-4xl">🏠</span>
+              </div>
+              
+              <div className="space-y-2 font-sans">
+                <h2 className="text-xl sm:text-2xl font-black bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                  Aucun foyer actif
+                </h2>
+                <p className="text-xs text-white/50 leading-relaxed max-w-xs mx-auto">
+                  Vous êtes connecté à votre compte unique MaFamille+, mais vous ne faites partie d'aucun foyer pour le moment.
+                </p>
+              </div>
+            </div>
+
+            {/* Actions Card */}
+            <div className="w-full glass-panel border border-white/8 rounded-[28px] p-6 space-y-4 shadow-2xl">
+              <span className="text-[10px] font-black text-[#6C5CFF] uppercase tracking-widest block font-sans">
+                Commencer l'aventure 🚀
+              </span>
+              
+              <div className="space-y-3 font-sans">
+                <button
+                  onClick={() => {
+                    setWelcomeError(null);
+                    setWelcomeScreenMode('create');
+                    setShowWelcomeScreen(true);
+                  }}
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-[#6C5CFF]/15 active:scale-97 hover:opacity-95 transition-all cursor-pointer"
+                >
+                  🏠 Créer une Famille
+                </button>
+
+                <button
+                  onClick={() => {
+                    setWelcomeError(null);
+                    setWelcomeScreenMode('join');
+                    setShowWelcomeScreen(true);
+                  }}
+                  className="w-full py-3.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white font-extrabold text-xs uppercase tracking-wider active:scale-97 transition-all cursor-pointer"
+                >
+                  👨‍👩‍👧‍👦 Rejoindre une Famille
+                </button>
+              </div>
+              
+              <p className="text-[9.5px] text-white/40 leading-normal max-w-[300px] mx-auto pt-1 font-sans">
+                La création d'un foyer vous nomme Chef de famille. Si vous rejoignez un foyer existant, une validation par un parent sera requise.
+              </p>
+            </div>
+
+            {/* Logout/Account button */}
+            <button
+              onClick={handleLogout}
+              className="py-2.5 px-6 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-white/60 hover:text-white font-bold text-xs transition-all cursor-pointer font-sans"
+            >
+              Se déconnecter / Autre compte
+            </button>
+          </main>
         </div>
       );
     }
@@ -10313,6 +10597,48 @@ function App() {
               onUpdateMemberProfile={handleUpdateMemberProfile}
               memberPermissions={memberPermissions}
               onUpdatePermissions={handleUpdateMemberPermissions}
+            />
+          </div>
+        );
+      }
+
+      if (activeModule === 'settings') {
+        return (
+          <div className="min-h-screen bg-[#07111F] text-white">
+            <div className="max-w-xl mx-auto px-4 pt-6 flex items-center justify-between">
+              <button 
+                onClick={() => setActiveModule('')}
+                className="flex items-center space-x-2 text-white/60 hover:text-white font-bold text-xs cursor-pointer bg-white/5 border border-white/10 rounded-xl px-4 py-2 font-sans"
+              >
+                <span>← Retour au hub</span>
+              </button>
+            </div>
+            <Settings 
+              currency={currency}
+              setCurrency={setCurrency}
+              onResetData={handleResetData}
+              onPurgeDemoData={handlePurgeDemoData}
+              onClearAllFoyerData={handleClearAllFoyerData}
+              onOpenPaywall={() => setPaywallOpen(true)}
+              user={user}
+              foyer={appFoyer}
+              myMemberProfile={myMemberProfile}
+              onRefreshFoyer={() => checkUserFoyerSession(user)}
+              onUpdateMemberProfile={handleUpdateMemberProfile}
+              members={appMembers}
+              setMembers={setMembers}
+              activeMemberId={appActiveMemberId}
+              setActiveTab={setActiveTab}
+              setActiveModule={setActiveModule}
+              onOpenOnboarding={() => setOnboardingActive(true)}
+              onNotificationPrefsChange={(prefs) => {
+                setNotificationPrefs(prefs);
+                const key = `mf_notif_prefs_${appFoyer?.id || 'simulated'}_${user?.id || 'guest'}`;
+                localStorage.setItem(key, JSON.stringify(prefs));
+              }}
+              communeName={communeName}
+              schoolName={schoolName}
+              onUpdateFoyerConfig={handleUpdateFoyerConfig}
             />
           </div>
         );
@@ -11532,6 +11858,24 @@ function App() {
                       </div>
                     )}
                     <div className="flex-1 min-w-0 space-y-1.5">
+                      {(() => {
+                        const alertFoyerId = al.foyerId || al.foyer_id || foyer?.id;
+                        const alertFoyerObj = myFoyers.find((f: any) => f.foyer.id === alertFoyerId)?.foyer;
+                        let originBadge = '';
+                        if (targetModule === 'commune') {
+                          originBadge = `🏛️ Ville de ${communeName || 'Ma Commune'}`;
+                        } else if (targetModule === 'ecole') {
+                          originBadge = `🎓 Établissement ${schoolName || 'Mon École'}`;
+                        } else if (alertFoyerObj) {
+                          originBadge = `👨‍👩‍👧‍👦 ${alertFoyerObj.name}`;
+                        }
+                        if (!originBadge) return null;
+                        return (
+                          <span className="text-[8px] font-black uppercase tracking-wider text-[#6C5CFF] bg-[#6C5CFF]/10 px-2 py-0.5 rounded-full inline-block font-sans">
+                            {originBadge}
+                          </span>
+                        );
+                      })()}
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-bold text-white flex items-center gap-2">
                           {al.title}
@@ -11667,6 +12011,78 @@ function App() {
                   </button>
                 );
               })}
+            </div>
+
+            {/* Space/Family selector (Slack/Discord style) */}
+            <div className="border-t border-white/10 pt-4 space-y-3">
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">🏢 Mes Espaces / Familles</span>
+              <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                {myFoyers.map((fItem) => {
+                  const isCurrent = fItem.foyer.id === foyer?.id;
+                  return (
+                    <button
+                      key={fItem.foyer.id}
+                      onClick={async () => {
+                        setProfileSwitcherOpen(false);
+                        setIsSyncReady(false);
+                        setFoyer(fItem.foyer);
+                        setMyMemberProfile(fItem.member);
+                        setActiveMemberId(fItem.member.id);
+                        localStorage.setItem('mf_cloud_foyer_id', fItem.foyer.id);
+                        localStorage.setItem('mf_active_foyer_id', fItem.foyer.id);
+                        await loadFoyerData(fItem.foyer.id);
+                        setActiveTab('accueil');
+                        setActiveModule('');
+                      }}
+                      className={`w-full p-3 rounded-2xl border text-left transition-all flex items-center justify-between cursor-pointer ${
+                        isCurrent 
+                          ? "bg-[#6C5CFF]/15 border-[#6C5CFF]/30 text-white" 
+                          : "bg-white/3 border-transparent hover:border-white/10 hover:bg-white/5 text-white/70"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <span className="text-xl">🏠</span>
+                        <div>
+                          <span className="text-xs font-bold block">{fItem.foyer.name}</span>
+                          <span className="text-[9px] text-white/40 block mt-0.5">Rôle : {
+                            fItem.member.role === 'admin' ? 'Chef de famille 👑' :
+                            fItem.member.role === 'parent' ? 'Parent 👨‍👩‍👧' :
+                            fItem.member.role === 'child' ? 'Enfant 🧒' : 'Invité 👥'
+                          }</span>
+                        </div>
+                      </div>
+                      {isCurrent && (
+                        <span className="text-xs bg-[#6C5CFF] text-white px-2 py-0.5 rounded-full font-black uppercase">Actif</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  onClick={() => {
+                    setProfileSwitcherOpen(false);
+                    setWelcomeInviteCode("");
+                    setWelcomeError(null);
+                    setWelcomeScreenMode('join');
+                    setShowWelcomeScreen(true);
+                  }}
+                  className="py-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white text-[10px] font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>Rejoindre</span>
+                </button>
+                <button
+                  onClick={async () => {
+                    setProfileSwitcherOpen(false);
+                    setWelcomeError(null);
+                    setWelcomeScreenMode('create');
+                    setShowWelcomeScreen(true);
+                  }}
+                  className="py-2.5 rounded-xl border border-[#6C5CFF]/30 bg-[#6C5CFF]/10 hover:bg-[#6C5CFF]/20 text-[#6C5CFF] text-[10px] font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>Créer</span>
+                </button>
+              </div>
             </div>
 
             {/* Météo Mentale active check-in */}
@@ -11945,6 +12361,220 @@ function App() {
       {voiceToast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-full bg-slate-900/95 backdrop-blur-md border border-emerald-500/30 text-emerald-400 text-xs font-bold shadow-[0_8px_32px_rgba(0,210,106,0.15)] flex items-center gap-2 animate-fade-in whitespace-nowrap">
           <span>✨</span> {voiceToast}
+        </div>
+      )}
+
+      {/* Welcome Screen Overlay Modal */}
+      {showWelcomeScreen && (
+        <div className="fixed inset-0 bg-[#07111F]/95 backdrop-blur-md z-[99] flex items-center justify-center p-6 animate-fade-in text-white overflow-y-auto">
+          <div className="max-w-md w-full glass-panel border border-white/10 rounded-[32px] p-6 sm:p-8 space-y-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] relative overflow-hidden bg-white/2 backdrop-blur-lg">
+            <div className="absolute top-[-20%] left-[-20%] w-60 h-60 rounded-full bg-[#6C5CFF]/15 blur-[60px] pointer-events-none" />
+            <div className="absolute bottom-[-20%] right-[-20%] w-60 h-60 rounded-full bg-[#FF4D6D]/15 blur-[60px] pointer-events-none" />
+
+            {welcomeScreenMode === 'select' && (
+              <div className="space-y-6 text-center relative z-10">
+                <div className="inline-flex p-4 rounded-3xl bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] text-white shadow-lg">
+                  <Home className="w-8 h-8" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-xl sm:text-2xl font-black bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Bienvenue sur MaFamille+</h2>
+                  <p className="text-xs text-white/50 leading-relaxed">Que souhaitez-vous faire pour commencer ?</p>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <button
+                    onClick={handleWelcomeCreateFoyer}
+                    disabled={welcomeLoading}
+                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs tracking-wider uppercase transition-all shadow-[0_4px_15px_rgba(108,92,255,0.3)] flex items-center justify-center space-x-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                  >
+                    <span>🏠 Créer une famille</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setWelcomeError(null);
+                      setWelcomeScreenMode('join');
+                    }}
+                    disabled={welcomeLoading}
+                    className="w-full py-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-extrabold text-xs tracking-wider uppercase transition-all flex items-center justify-center space-x-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                  >
+                    <span>👨‍👩‍👧‍👦 Rejoindre une famille</span>
+                  </button>
+
+                  {myFoyers.length > 0 ? (
+                    <button
+                      onClick={() => setShowWelcomeScreen(false)}
+                      disabled={welcomeLoading}
+                      className="w-full py-3.5 rounded-2xl bg-transparent text-white/40 hover:text-white/60 text-xs font-bold transition-all cursor-pointer animate-fade-in"
+                    >
+                      Annuler
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setShowWelcomeScreen(false)}
+                      disabled={welcomeLoading}
+                      className="w-full py-3.5 rounded-2xl bg-transparent text-white/40 hover:text-white/60 text-xs font-bold transition-all cursor-pointer underline decoration-dotted"
+                    >
+                      Continuer plus tard
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {welcomeScreenMode === 'create' && (
+              <div className="space-y-5 relative z-10 text-center">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-black">🏠 Créer une Famille</h2>
+                  <p className="text-xs text-white/50">Créez votre propre espace familial sécurisé.</p>
+                </div>
+
+                <div className="space-y-4 pt-2">
+                  <button
+                    onClick={handleWelcomeCreateFoyer}
+                    disabled={welcomeLoading}
+                    className="w-full py-3.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5b4eff] text-white font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 flex items-center justify-center space-x-2 cursor-pointer"
+                  >
+                    {welcomeLoading ? 'Création...' : 'Confirmer la création automatique'}
+                  </button>
+
+                  {welcomeError && (
+                    <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start space-x-2 text-left">
+                      <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{welcomeError}</span>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setWelcomeScreenMode('select')}
+                    disabled={welcomeLoading}
+                    className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    Retour
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {welcomeScreenMode === 'join' && (
+              <div className="space-y-4 relative z-10 text-left">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-black">👨‍👩‍👧‍👦 Rejoindre une Famille</h2>
+                  <p className="text-xs text-white/50">Saisissez le code d'invitation pour demander à rejoindre un foyer.</p>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Code d'Invitation (ex: FAM-XXXXX)</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="FAM-XXXXX"
+                      value={welcomeInviteCode}
+                      onChange={(e) => setWelcomeInviteCode(e.target.value.toUpperCase())}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-[#6C5CFF]"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Votre Nom d'affichage</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Votre nom"
+                      value={welcomeDisplayName}
+                      onChange={(e) => setWelcomeDisplayName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block font-sans">Rôle souhaité</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(['parent', 'child', 'guest'] as const).map((r) => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => setWelcomeRole(r)}
+                          className={`py-2 rounded-xl text-[10px] font-bold border transition-all cursor-pointer capitalize ${
+                            welcomeRole === r 
+                              ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] text-white' 
+                              : 'bg-[#07111F] border-transparent text-white/50 hover:text-white'
+                          }`}
+                        >
+                          {r === 'parent' ? 'Parent 👨‍👩‍👧' : r === 'child' ? 'Enfant 🧒' : 'Invité 👥'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {welcomeError && (
+                    <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start space-x-2">
+                      <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{welcomeError}</span>
+                    </div>
+                  )}
+
+                  <div className="pt-2 flex flex-col space-y-2">
+                    <button
+                      onClick={handleWelcomeJoinFoyer}
+                      disabled={welcomeLoading}
+                      className="w-full py-3 rounded-xl bg-[#6C5CFF] hover:bg-[#5b4eff] text-white font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
+                    >
+                      {welcomeLoading ? 'Envoi...' : 'Envoyer la demande'}
+                    </button>
+                    <button
+                      onClick={() => setWelcomeScreenMode('select')}
+                      disabled={welcomeLoading}
+                      className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 text-xs font-bold transition-all text-center cursor-pointer"
+                    >
+                      Retour
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {welcomeScreenMode === 'success' && welcomeCreatedFoyer && (
+              <div className="space-y-6 text-center relative z-10 animate-fade-in">
+                <div className="inline-flex p-4 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                  <Check className="w-8 h-8" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-lg font-black uppercase text-white">Foyer Créé !</h2>
+                  <p className="text-xs text-white/50">Votre foyer "{welcomeCreatedFoyer.name}" est prêt.</p>
+                </div>
+
+                <div className="bg-[#07111F]/70 border border-white/5 rounded-2xl p-5 text-left space-y-4 font-sans text-xs">
+                  <div>
+                    <span className="text-[9px] font-bold text-white/30 uppercase tracking-wider block">Code Foyer</span>
+                    <span className="text-sm font-mono font-bold text-white select-all block mt-0.5">{welcomeCreatedFoyer.inviteCode}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-white/30 uppercase tracking-wider block">Lien de Partage</span>
+                    <span className="text-[11px] font-mono text-[#6C5CFF] select-all block mt-0.5 break-all">{welcomeCreatedFoyer.inviteLink}</span>
+                  </div>
+                  <div className="flex flex-col items-center justify-center pt-2">
+                    <span className="text-[9px] font-bold text-white/30 uppercase tracking-wider block mb-2">QR Code d'Invitation</span>
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent("mafamille.app/join/" + welcomeCreatedFoyer.inviteCode)}`} 
+                      alt="QR Code" 
+                      className="w-36 h-36 border border-white/10 rounded-2xl p-2 bg-white" 
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleWelcomeSuccessFinish}
+                  disabled={welcomeLoading}
+                  className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-95 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg active:scale-95 transition-all cursor-pointer"
+                >
+                  {welcomeLoading ? 'Chargement...' : "Commencer l'aventure ➔"}
+                </button>
+              </div>
+            )}
+
+          </div>
         </div>
       )}
 

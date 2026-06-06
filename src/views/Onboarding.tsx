@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Home, 
   User, 
-  Key, 
   ArrowRight,
   ShieldAlert,
   Mail,
@@ -10,9 +9,9 @@ import {
   Sparkles,
   CheckCircle2,
   Eye,
-  EyeOff
+  EyeOff,
+  Camera
 } from 'lucide-react';
-import { foyerService } from '../services/foyerService';
 import { getSupabaseClient } from '../utils/supabase';
 
 interface OnboardingProps {
@@ -22,19 +21,14 @@ interface OnboardingProps {
 }
 
 export const Onboarding: React.FC<OnboardingProps> = ({ 
-  onSuccess, 
   onLogout, 
   userEmail
 }) => {
-  const isInitiallyAuthenticated = !!userEmail;
-  const [activeMode, setActiveMode] = useState<'login' | 'join' | 'create' | 'forgot'>(
-    isInitiallyAuthenticated ? 'create' : 'login'
-  );
+  const [activeMode, setActiveMode] = useState<'login' | 'create' | 'forgot'>('login');
   
-  const [displayName, setDisplayName] = useState('');
-  const [foyerName, setFoyerName] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
-  const [role, setRole] = useState<'parent' | 'child' | 'guest'>('child');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,12 +38,14 @@ export const Onboarding: React.FC<OnboardingProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Update default foyer name when user writes their prénom
-  useEffect(() => {
-    if (displayName && !foyerName) {
-      setFoyerName(`Foyer de ${displayName}`);
-    }
-  }, [displayName]);
+  const presetAvatars = [
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Felix',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Aneka',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Jack',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Sasha',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Buster',
+    'https://api.dicebear.com/7.x/adventurer/svg?seed=Cookie'
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,109 +76,73 @@ export const Onboarding: React.FC<OnboardingProps> = ({
     }
 
     // Field Validations
-    if (activeMode !== 'login' && !displayName.trim()) {
-      setErrorMessage("Veuillez saisir votre prénom.");
-      return;
-    }
-
-    if (activeMode === 'create' && !foyerName.trim()) {
-      setErrorMessage("Veuillez donner un nom à votre foyer.");
-      return;
-    }
-
-    if (activeMode === 'join' && !inviteCode.trim()) {
-      setErrorMessage("Veuillez entrer le code d'invitation.");
-      return;
-    }
-
-    if (!isInitiallyAuthenticated && activeMode !== 'login') {
-      if (!email.trim() || !password.trim()) {
-        setErrorMessage("Veuillez remplir les champs email et mot de passe.");
+    if (activeMode === 'create') {
+      if (!firstName.trim()) {
+        setErrorMessage("Veuillez saisir votre prénom.");
         return;
       }
-      if (password.length < 6) {
-        setErrorMessage("Le mot de passe doit faire au moins 6 caractères.");
+      if (!lastName.trim()) {
+        setErrorMessage("Veuillez saisir votre nom de famille.");
         return;
       }
+    }
+
+    if (!email.trim() || !password.trim()) {
+      setErrorMessage("Veuillez remplir les champs email et mot de passe.");
+      return;
+    }
+    if (activeMode === 'create' && password.length < 6) {
+      setErrorMessage("Le mot de passe doit faire au moins 6 caractères.");
+      return;
     }
 
     setLoading(true);
 
     try {
+      if (!supabase) throw new Error("Supabase n'est pas disponible.");
+
       if (activeMode === 'login') {
-        // Authenticate existing user
-        if (!supabase) throw new Error("Supabase n'est pas disponible.");
         const { error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password
         });
         if (error) throw error;
-        // The App component detects session changes, so it will update state
-      } else if (isInitiallyAuthenticated) {
-        // Already logged in - perform foyer actions immediately
-        if (activeMode === 'create') {
-          const data = await foyerService.createFoyer(foyerName.trim(), displayName.trim(), false);
-          onSuccess(data.foyer_id, 'admin');
-        } else {
-          // Join existing foyer (needs head-of-family approval)
-          const data = await foyerService.joinFoyer(inviteCode.trim(), displayName.trim(), role);
-          onSuccess(data.foyer_id, data.role);
-        }
       } else {
-        // Not logged in - register first, saving details to localStorage for post-auth trigger
-        if (!supabase) throw new Error("Supabase n'est pas disponible.");
-        
-        localStorage.setItem('pending_display_name', displayName.trim());
-        if (activeMode === 'join') {
-          localStorage.setItem('pending_invite_code', inviteCode.trim().toUpperCase());
-          localStorage.setItem('pending_role', role);
-        } else {
-          localStorage.removeItem('pending_invite_code');
-          localStorage.removeItem('pending_role');
-        }
-
+        // Register account only
         const { error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
           options: {
             data: {
-              display_name: displayName.trim(),
-              invite_code: activeMode === 'join' ? inviteCode.trim().toUpperCase() : null,
-              role: activeMode === 'join' ? role : 'admin'
+              first_name: firstName.trim(),
+              last_name: lastName.trim(),
+              display_name: `${firstName.trim()} ${lastName.trim()}`,
+              avatar_url: photoUrl.trim() || `https://api.dicebear.com/7.x/adventurer/svg?seed=${firstName.trim()}`
             }
           }
         });
 
         if (error) throw error;
 
-        setSuccessMessage(
-          activeMode === 'join' 
-            ? "Compte créé ! Votre demande d'adhésion a été enregistrée et sera soumise à validation du Chef de famille dès votre connexion."
-            : "Compte créé ! Votre foyer sera automatiquement créé lors de votre première connexion."
-        );
+        setSuccessMessage("Votre compte MaFamille+ a été créé avec succès ! Connectez-vous maintenant pour commencer.");
         
         // Reset fields
+        setFirstName('');
+        setLastName('');
+        setPhotoUrl('');
         setEmail('');
         setPassword('');
-        setDisplayName('');
-        setFoyerName('');
-        setInviteCode('');
         
         // Redirect to login tab
         setActiveMode('login');
       }
     } catch (err: any) {
       console.error("[Onboarding Error]", err);
-      // Clear localStorage on error
-      localStorage.removeItem('pending_display_name');
-      localStorage.removeItem('pending_invite_code');
-      localStorage.removeItem('pending_role');
       setErrorMessage(err.message || "Une erreur est survenue.");
     } finally {
       setLoading(false);
     }
   };
-
 
   return (
     <div className="min-h-screen bg-[#07111F] text-white flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden font-sans">
@@ -198,23 +158,22 @@ export const Onboarding: React.FC<OnboardingProps> = ({
             <Home className="w-8 h-8" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-white/90 to-white/60 bg-clip-text text-transparent">
-            MyFamily+
+            MaFamille+
           </h1>
           <p className="text-xs sm:text-sm text-white/50 max-w-xs mx-auto">
-            {isInitiallyAuthenticated 
-              ? `Authentifié en tant que ${userEmail}` 
-              : "Le centre opérationnel de votre quotidien familial"}
+            Le centre opérationnel de votre quotidien familial
           </p>
         </div>
 
         {/* Tab Selection */}
-        {!isInitiallyAuthenticated && (
-          <div className="grid grid-cols-3 gap-1.5 p-1 bg-white/5 rounded-2xl border border-white/5 shadow-inner">
+        {activeMode !== 'forgot' && (
+          <div className="grid grid-cols-2 gap-1.5 p-1 bg-white/5 rounded-2xl border border-white/5 shadow-inner">
             <button
               type="button"
               onClick={() => {
                 setActiveMode('login');
                 setErrorMessage(null);
+                setSuccessMessage(null);
               }}
               className={`py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeMode === 'login' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white'
@@ -225,249 +184,189 @@ export const Onboarding: React.FC<OnboardingProps> = ({
             <button
               type="button"
               onClick={() => {
-                setActiveMode('join');
-                setErrorMessage(null);
-              }}
-              className={`py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeMode === 'join' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white'
-              }`}
-            >
-              Rejoindre
-            </button>
-            <button
-              type="button"
-              onClick={() => {
                 setActiveMode('create');
                 setErrorMessage(null);
+                setSuccessMessage(null);
               }}
               className={`py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeMode === 'create' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white'
               }`}
             >
-              S'inscrire
-            </button>
-          </div>
-        )}
-
-        {isInitiallyAuthenticated && (
-          <div className="grid grid-cols-2 gap-1.5 p-1 bg-white/5 rounded-2xl border border-white/5 shadow-inner">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveMode('create');
-                setErrorMessage(null);
-              }}
-              className={`py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeMode === 'create' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white'
-              }`}
-            >
-              Créer un Foyer
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveMode('join');
-                setErrorMessage(null);
-              }}
-              className={`py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeMode === 'join' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white'
-              }`}
-            >
-              Rejoindre un Foyer
+              Créer un compte
             </button>
           </div>
         )}
 
         {/* Panel Form */}
-        <div className="glass-panel border border-white/8 rounded-[32px] p-6 sm:p-8 space-y-5 shadow-2xl relative">
+        <div className="glass-panel border border-white/8 rounded-[32px] p-6 sm:p-8 space-y-5 shadow-2xl relative bg-white/2 backdrop-blur-md">
           
           <form onSubmit={handleSubmit} className="space-y-4">
             
-            {/* Input Prénom (Only if joining or creating) */}
-            {activeMode !== 'login' && activeMode !== 'forgot' && (
-              <div className="space-y-1.5 animate-fade-in">
-                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
-                  Votre Prénom
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-3 text-white/30">
-                    <User className="w-4 h-4" />
-                  </span>
-                  <input 
-                    type="text" 
-                    required
-                    placeholder="Ex: Amadou, Sarah, Papa..."
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF] focus:bg-white/8 transition-all"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* If S'inscrire (create foyer) */}
+            {/* Input Prénom et Nom (S'inscrire seulement) */}
             {activeMode === 'create' && (
-              <div className="space-y-1.5 animate-fade-in">
-                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
-                  Nom du Foyer
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-3 text-white/30">
-                    <Home className="w-4 h-4" />
-                  </span>
-                  <input 
-                    type="text" 
-                    required
-                    placeholder="Ex: Famille Martin, Notre Foyer..."
-                    value={foyerName}
-                    onChange={(e) => setFoyerName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF] focus:bg-white/8 transition-all"
-                  />
-                </div>
-                <p className="text-[9px] text-white/30 leading-normal">
-                  Vous serez le créateur et l'administrateur principal (Chef de famille) de ce foyer.
-                </p>
-              </div>
-            )}
-
-            {/* If Rejoindre (join foyer) */}
-            {activeMode === 'join' && (
-              <div className="space-y-4 animate-fade-in">
-                {/* Code d'invitation */}
+              <div className="grid grid-cols-2 gap-3 animate-fade-in">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
-                    Code d'Invitation (ex: FAM-XXXXX)
+                    Prénom
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3.5 top-3 text-white/30">
-                      <Key className="w-4 h-4" />
+                    <span className="absolute left-3 top-3 text-white/30">
+                      <User className="w-3.5 h-3.5" />
                     </span>
                     <input 
                       type="text" 
                       required
-                      placeholder="FAM-XXXXX"
-                      value={inviteCode}
-                      onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-[#6C5CFF] focus:bg-white/8 transition-all"
+                      placeholder="Ex: Issa"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF] focus:bg-white/8 transition-all"
                     />
                   </div>
                 </div>
 
-                {/* Role selection */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
-                    Votre Rôle
+                    Nom
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['parent', 'child', 'guest'] as const).map((r) => (
-                      <button
-                        key={r}
-                        type="button"
-                        onClick={() => setRole(r)}
-                        className={`py-2 rounded-xl text-[10px] font-bold border transition-all cursor-pointer capitalize ${
-                          role === r 
-                            ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] text-white shadow-sm' 
-                            : 'bg-white/5 border-transparent text-white/50 hover:text-white hover:bg-white/8'
-                        }`}
-                      >
-                        {r === 'parent' ? 'Parent 👨‍👩‍👧' : r === 'child' ? 'Enfant 🧒' : 'Invité 👥'}
-                      </button>
-                    ))}
+                  <div className="relative">
+                    <span className="absolute left-3 top-3 text-white/30">
+                      <User className="w-3.5 h-3.5" />
+                    </span>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Ex: Yattabare"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF] focus:bg-white/8 transition-all"
+                    />
                   </div>
-                  <p className="text-[9px] text-yellow-500/80 leading-normal flex items-start space-x-1.5 mt-1 bg-yellow-500/5 p-2 rounded-lg border border-yellow-500/10">
-                    <span className="text-xs">⚠️</span>
-                    <span>Cette demande est soumise à validation et approbation du Chef de Famille avant d'être effective.</span>
-                  </p>
                 </div>
               </div>
             )}
 
-            {/* Email and Password inputs (If NOT authenticated) */}
-            {!isInitiallyAuthenticated && (
-              <div className="space-y-4 border-t border-white/5 pt-4 animate-fade-in">
-                {/* Email */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
-                    Adresse E-mail
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-3 text-white/30">
-                      <Mail className="w-4 h-4" />
-                    </span>
-                    <input 
-                      type="email" 
-                      required
-                      placeholder="Ex: amadou@gmail.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF] focus:bg-white/8 transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* Password (only if not in forgot mode) */}
-                {activeMode !== 'forgot' && (
-                  <div className="space-y-1.5 animate-fade-in">
-                    <div className="flex justify-between items-center">
-                      <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
-                        Mot de passe
-                      </label>
-                      {activeMode === 'login' && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveMode('forgot');
-                            setErrorMessage(null);
-                            setSuccessMessage(null);
-                          }}
-                          className="text-[10px] font-semibold text-[#6C5CFF] hover:text-[#5b4eff] hover:underline cursor-pointer focus:outline-none"
-                        >
-                          Mot de passe oublié ?
-                        </button>
-                      )}
-                    </div>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-3 text-white/30">
-                        <Lock className="w-4 h-4" />
-                      </span>
-                      <input 
-                        type={showPassword ? "text" : "password"} 
-                        required
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF] focus:bg-white/8 transition-all"
+            {/* Photo Avatar (S'inscrire seulement) */}
+            {activeMode === 'create' && (
+              <div className="space-y-2.5 animate-fade-in">
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                  Photo de Profil (Optionnelle)
+                </label>
+                <div className="flex flex-col space-y-3 p-3 bg-white/3 rounded-2xl border border-white/5">
+                  <div className="flex items-center space-x-3 justify-center">
+                    <div className="relative shrink-0">
+                      <img 
+                        src={photoUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${firstName || 'default'}`} 
+                        alt="Avatar" 
+                        className="w-12 h-12 rounded-full object-cover border border-[#6C5CFF]"
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 top-3 text-white/30 hover:text-white/60 focus:outline-none cursor-pointer"
-                      >
-                        {showPassword ? (
-                          <EyeOff className="w-4 h-4" />
-                        ) : (
-                          <Eye className="w-4 h-4" />
-                        )}
-                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 justify-center">
+                      {presetAvatars.map((url, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setPhotoUrl(url)}
+                          className={`w-8 h-8 rounded-lg bg-white/5 border hover:bg-white/10 active:scale-95 transition-all overflow-hidden flex items-center justify-center cursor-pointer ${
+                            photoUrl === url ? 'border-[#6C5CFF]' : 'border-transparent'
+                          }`}
+                        >
+                          <img src={url} alt="preset" className="w-full h-full object-cover" />
+                        </button>
+                      ))}
                     </div>
                   </div>
-                )}
+                  <input
+                    type="text"
+                    placeholder="Ou collez l'URL d'une image"
+                    value={photoUrl}
+                    onChange={(e) => setPhotoUrl(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-[11px] focus:outline-none focus:border-[#6C5CFF]"
+                  />
+                </div>
+              </div>
+            )}
 
-                {activeMode === 'forgot' && (
-                  <div className="flex justify-end mt-1 animate-fade-in">
+            {/* Email */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                Adresse E-mail
+              </label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-3 text-white/30">
+                  <Mail className="w-4 h-4" />
+                </span>
+                <input 
+                  type="email" 
+                  required
+                  placeholder="Ex: issa.yatta@gmail.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF] focus:bg-white/8 transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Password (except in forgot mode) */}
+            {activeMode !== 'forgot' && (
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                    Mot de passe
+                  </label>
+                  {activeMode === 'login' && (
                     <button
                       type="button"
                       onClick={() => {
-                        setActiveMode('login');
+                        setActiveMode('forgot');
                         setErrorMessage(null);
                         setSuccessMessage(null);
                       }}
-                      className="text-[10px] font-semibold text-[#6C5CFF] hover:text-[#5b4eff] hover:underline cursor-pointer focus:outline-none"
+                      className="text-[10px] font-semibold text-[#6C5CFF] hover:underline cursor-pointer focus:outline-none"
                     >
-                      Retour à la connexion
+                      Mot de passe oublié ?
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-3 text-white/30">
+                    <Lock className="w-4 h-4" />
+                  </span>
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    required
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF] focus:bg-white/8 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-3 text-white/30 hover:text-white/60 focus:outline-none cursor-pointer"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeMode === 'forgot' && (
+              <div className="flex justify-end mt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMode('login');
+                    setErrorMessage(null);
+                    setSuccessMessage(null);
+                  }}
+                  className="text-[10px] font-semibold text-[#6C5CFF] hover:underline cursor-pointer"
+                >
+                  Retour à la connexion
+                </button>
               </div>
             )}
 
@@ -491,7 +390,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5b4eff] text-white font-extrabold text-xs tracking-wider uppercase transition-all shadow-[0_4px_15px_rgba(108,92,255,0.3)] hover:shadow-[0_4px_20px_rgba(108,92,255,0.5)] flex items-center justify-center space-x-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
+              className="w-full py-3.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5b4eff] text-white font-extrabold text-xs tracking-wider uppercase transition-all shadow-[0_4px_15px_rgba(108,92,255,0.3)] flex items-center justify-center space-x-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
             >
               {loading ? (
                 <span>Traitement en cours...</span>
@@ -502,10 +401,8 @@ export const Onboarding: React.FC<OnboardingProps> = ({
                     {activeMode === 'login' 
                       ? "Se Connecter" 
                       : activeMode === 'forgot'
-                        ? "Envoyer le mail de récupération"
-                        : activeMode === 'create' 
-                          ? (isInitiallyAuthenticated ? "Créer le Foyer" : "S'inscrire et Créer un Foyer")
-                          : (isInitiallyAuthenticated ? "Envoyer la demande d'adhésion" : "S'inscrire et Rejoindre le Foyer")}
+                        ? "Récupérer mon mot de passe"
+                        : "S'inscrire"}
                   </span>
                 </>
               )}
@@ -516,16 +413,9 @@ export const Onboarding: React.FC<OnboardingProps> = ({
 
         </div>
 
-        {/* Footer actions */}
-        <div className="flex flex-col items-center space-y-3.5 pt-2">
-          {isInitiallyAuthenticated && (
-            <button
-              onClick={onLogout}
-              className="text-white/40 hover:text-[#FF4D6D] text-xs font-semibold underline underline-offset-4 transition-colors cursor-pointer"
-            >
-              Se déconnecter de mon compte
-            </button>
-          )}
+        {/* Footer info */}
+        <div className="text-center text-[10px] text-white/30 font-medium">
+          MaFamille+ respecte la charte RGPD et protège vos données personnelles.
         </div>
 
       </div>
