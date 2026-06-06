@@ -665,11 +665,31 @@ export const foyerService = {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
-    const { data: foyerData, error: foyerError } = await supabase
+    const normalizedInput = inviteCode.replace(/[\s-]/g, '').toUpperCase();
+    const variations = [normalizedInput];
+    const match = normalizedInput.match(/^([A-Z]+)([A-Z0-9]+)$/);
+    if (match) {
+      const prefix = match[1];
+      const suffix = match[2];
+      variations.push(`${prefix}-${suffix}`);
+    }
+    const uniqueVariations = Array.from(new Set(variations));
+
+    // Developer temporary logs
+    console.log("Code saisi :", inviteCode);
+    console.log("Code normalisé :", uniqueVariations);
+
+    const { data: foyerList, error: foyerError } = await supabase
       .from('foyers')
       .select('id, name')
-      .eq('invite_code', inviteCode.toUpperCase().trim())
-      .single();
+      .in('invite_code', uniqueVariations)
+      .limit(1);
+
+    const foyerData = foyerList && foyerList.length > 0 ? foyerList[0] : null;
+
+    console.log("Résultat recherche famille :", foyerError ? "Erreur" : (foyerData ? "Succès" : "Non trouvé"));
+    console.log("Famille trouvée :", foyerData);
+    console.log("Erreur exacte :", foyerError);
 
     if (foyerError || !foyerData) {
       throw new Error("Code d'invitation invalide. Vérifiez le code et réessayez.");
