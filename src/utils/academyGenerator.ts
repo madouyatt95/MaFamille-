@@ -380,3 +380,337 @@ function generateLanguageQuestion(
     etoiles: 1
   };
 }
+
+export function generateQuestionForLesson(
+  lessonId: string,
+  niveau: 'CP' | 'CE1' | 'CE2' | 'CM1' | 'CM2' | '6e' | '5e' | '4e' | '3e' | 'Lycée'
+): AcademyQuestion {
+  const id = `lesson_q_${lessonId}_${Math.floor(Math.random() * 100000)}`;
+
+  if (lessonId === 'les_cp_mat_add') {
+    const a = Math.floor(Math.random() * 6) + 1;
+    const b = Math.floor(Math.random() * 4) + 1;
+    const ans = a + b;
+    return {
+      id,
+      niveau,
+      matiere: 'Mathématiques',
+      competence: 'calcul',
+      chapitre: 'Additions simples',
+      question: `Combien font ${a} + ${b} ?`,
+      options: shuffle([String(ans), ...getRandomDistractors(ans, 3, 4).map(String)]),
+      reponse: String(ans),
+      explication: `On regroupe ${a} et ${b}, ce qui donne ${ans}.`,
+      indice: "Compte 1 par 1 en partant du premier nombre !",
+      difficulte: 1,
+      xp: 10,
+      etoiles: 1
+    };
+  }
+
+  if (lessonId === 'les_ce2_mat_mult7') {
+    const mult = Math.floor(Math.random() * 10) + 1;
+    const ans = 7 * mult;
+    return {
+      id,
+      niveau,
+      matiere: 'Mathématiques',
+      competence: 'calcul',
+      chapitre: 'Table de 7',
+      question: `Combien font 7 × ${mult} ?`,
+      options: shuffle([String(ans), ...getRandomDistractors(ans, 3, 8).map(String)]),
+      reponse: String(ans),
+      explication: `7 fois ${mult} font ${ans}.`,
+      indice: "Répète 7 plusieurs fois de suite !",
+      difficulte: 2,
+      xp: 12,
+      etoiles: 1
+    };
+  }
+
+  if (lessonId === 'les_cm1_mat_frac') {
+    const list = [
+      { q: "Si on coupe une tarte en 4 parts et qu'on en mange 3, quelle fraction reste-t-il ?", ans: "1/4", opt: ["1/4", "3/4", "2/4", "1/2"], exp: "Il reste 1 part sur les 4 d'origine, donc 1/4." },
+      { q: "Dans la fraction 2/3, comment s'appelle le nombre 2 ?", ans: "Le numérateur", opt: ["Le numérateur", "Le dénominateur", "Le diviseur", "L'unité"], exp: "Le nombre du haut est le numérateur." },
+      { q: "Quelle fraction représente la moitié d'un objet ?", ans: "1/2", opt: ["1/2", "1/3", "1/4", "2/3"], exp: "La moitié se note 1/2." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Mathématiques',
+      competence: 'calcul',
+      chapitre: 'Fractions',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "Pense au numérateur en haut et au dénominateur en bas !",
+      difficulte: 2,
+      xp: 12,
+      etoiles: 1
+    };
+  }
+
+  if (lessonId === 'les_3e_mat_pyth') {
+    const list = [
+      { q: "Dans un triangle rectangle de côtés adjacents 6 cm et 8 cm, quelle est la longueur de l'hypoténuse ?", ans: "10 cm", opt: ["10 cm", "14 cm", "12 cm", "9 cm"], exp: "Hypoténuse² = 6² + 8² = 36 + 64 = 100. Racine de 100 = 10." },
+      { q: "Comment s'appelle le côté le plus long opposé à l'angle droit ?", ans: "L'hypoténuse", opt: ["L'hypoténuse", "Le côté adjacent", "L'ordonnée", "L'abscisse"], exp: "C'est l'hypoténuse." },
+      { q: "Si un triangle ABC est rectangle en A, d'après Pythagore :", ans: "BC² = AB² + AC²", opt: ["BC² = AB² + AC²", "AB² = BC² + AC²", "AC² = AB² + BC²", "AB = BC + AC"], exp: "Le carré de l'hypoténuse BC est égal à la somme des carrés des autres côtés." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Mathématiques',
+      competence: 'calcul',
+      chapitre: 'Théorème de Pythagore',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "Applique la formule a² + b² = c².",
+      difficulte: 2,
+      xp: 15,
+      etoiles: 2
+    };
+  }
+
+  if (lessonId === 'les_lyc_mat_deriv') {
+    const list = [
+      { q: "Quelle est la dérivée de f(x) = 5x + 3 ?", ans: "5", opt: ["5", "3", "5x", "0"], exp: "La dérivée de ax + b est a, donc ici c'est 5." },
+      { q: "Quelle est la dérivée de f(x) = 2x² ?", ans: "4x", opt: ["4x", "2x", "4", "x²"], exp: "La dérivée de x² est 2x, donc 2 * 2x = 4x." },
+      { q: "Si f'(x) < 0 sur un intervalle, alors la fonction f est :", ans: "Décroissante", opt: ["Décroissante", "Croissante", "Constante", "Nulle"], exp: "Une dérivée strictement négative implique une fonction décroissante." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Mathématiques',
+      competence: 'calcul',
+      chapitre: 'Dérivées',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "Pense au coefficient directeur de la tangente !",
+      difficulte: 2,
+      xp: 15,
+      etoiles: 2
+    };
+  }
+
+  if (lessonId === 'les_cp_fra_ou') {
+    const list = [
+      { q: "Quel mot s'écrit avec les lettres 'o' et 'u' pour faire [ou] ?", ans: "La poule", opt: ["La poule", "La tortue", "Le chat", "Le vélo"], exp: "Poule s'écrit p-o-u-l-e, et contient bien le son [ou]." },
+      { q: "Quel mot contient le son [ou] ?", ans: "Un loup", opt: ["Un loup", "Une moto", "Un nid", "Un mur"], exp: "Loup se termine par o-u-p, formant le son [ou]." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Français',
+      competence: 'orthographe',
+      chapitre: 'Le son [ou]',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "Prononce les mots à voix haute pour entendre 'ou' !",
+      difficulte: 1,
+      xp: 10,
+      etoiles: 1
+    };
+  }
+
+  if (lessonId === 'les_ce2_fra_sujver') {
+    const list = [
+      { q: "Dans 'Le chien cour___ après la balle', comment se termine le verbe ?", ans: "t", opt: ["t", "ent", "es", "ons"], exp: "Le sujet is 'Le chien' (il), la terminaison du verbe courir est donc 't' (court)." },
+      { q: "Dans 'Les enfants jou___ dehors', comment se termine le verbe ?", ans: "ent", opt: ["ent", "e", "ons", "ez"], exp: "Le sujet est 'Les enfants' (ils), donc la terminaison au pluriel est '-ent' (jouent)." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Français',
+      competence: 'conjugaison',
+      chapitre: 'Accord sujet-verbe',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "Trouve qui fait l'action pour accorder le verbe !",
+      difficulte: 2,
+      xp: 12,
+      etoiles: 1
+    };
+  }
+
+  if (lessonId === 'les_cm1_fra_al') {
+    const list = [
+      { q: "Quel est le pluriel de 'Un animal' ?", ans: "Des animaux", opt: ["Des animaux", "Des animals", "Des originale", "Des animalux"], exp: "Le pluriel des mots en -al se fait en -aux, sauf exceptions." },
+      { q: "Quel est le pluriel de 'Un festival' (exception) ?", ans: "Des festivals", opt: ["Des festivals", "Des festivaux", "Des festivales", "Des festivalx"], exp: "Festival fait partie des exceptions et prend un simple 's' au pluriel." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Français',
+      competence: 'orthographe',
+      chapitre: 'Pluriel en -al',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "Est-ce une exception de la liste (bal, carnaval, festival...) ?",
+      difficulte: 2,
+      xp: 12,
+      etoiles: 1
+    };
+  }
+
+  if (lessonId === 'les_3e_fra_cond') {
+    const list = [
+      { q: "Comment conjugue-t-on 'chanter' à la première personne du singulier au conditionnel présent ?", ans: "Je chanterais", opt: ["Je chanterais", "Je chanterai", "Je chantois", "Je chanteras"], exp: "Radical du futur (chanter-) + terminaison de l'imparfait (-ais) = chanterais." },
+      { q: "Quelle forme correspond à 'Vous (finir)' au conditionnel présent ?", ans: "Vous finiriez", opt: ["Vous finiriez", "Vous finirez", "Vous finissiez", "Vous finiriezs"], exp: "Radical du futur (finir-) + terminaison de l'imparfait (-iez) = finiriez." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Français',
+      competence: 'conjugaison',
+      chapitre: 'Conditionnel présent',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "Pense au radical du futur suivi des terminaisons de l'imparfait.",
+      difficulte: 2,
+      xp: 12,
+      etoiles: 1
+    };
+  }
+
+  if (lessonId === 'les_ce2_dec_eau') {
+    const list = [
+      { q: "Comment appelle-t-on l'eau sous forme de gaz ?", ans: "La vapeur d'eau", opt: ["La vapeur d'eau", "La glace", "La pluie", "La grêle"], exp: "L'eau gazeuse s'appelle la vapeur d'eau." },
+      { q: "Quel changement d'état se produit quand la glace devient de l'eau liquide ?", ans: "La fusion", opt: ["La fusion", "La solidification", "L'évaporation", "La condensation"], exp: "Le passage solide ➔ liquide est la fusion." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Découverte',
+      competence: 'sciences',
+      chapitre: 'États de l\'eau',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "Pense à la chaleur qui fait fondre la glace.",
+      difficulte: 1,
+      xp: 10,
+      etoiles: 1
+    };
+  }
+
+  if (lessonId === 'les_cm1_dec_pharaons') {
+    const list = [
+      { q: "Comment les Égyptiens de l'Antiquité conservaient-ils les corps des pharaons ?", ans: "Par la momification", opt: ["Par la momification", "Par enterrement direct", "Par congélation", "Par crémation"], exp: "Le corps était vidé, salé et enveloppé de bandelettes pour devenir une momie." },
+      { q: "Quel fleuve vital coulait en Égypte ancienne ?", ans: "Le Nil", opt: ["Le Nil", "Le Danube", "L'Euphrate", "Le Gange"], exp: "Le Nil permettait l'agriculture grâce à ses crues fertiles." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Découverte',
+      competence: 'culture',
+      chapitre: 'Égypte ancienne',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "On enroulait des bandelettes autour du corps.",
+      difficulte: 1,
+      xp: 12,
+      etoiles: 1
+    };
+  }
+
+  if (lessonId === 'les_6e_lan_irregular') {
+    const list = [
+      { q: "Quel est le prétérit du verbe irrégulier 'to see' (voir) ?", ans: "saw", opt: ["saw", "seed", "seen", "was"], exp: "La conjugaison de see est see ➔ saw ➔ seen." },
+      { q: "Quel est le prétérit du verbe irrégulier 'to make' (faire) ?", ans: "made", opt: ["made", "maked", "make", "done"], exp: "La conjugaison de make est make ➔ made ➔ made." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Anglais',
+      competence: 'anglais',
+      chapitre: 'Verbes irréguliers',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "C'est une forme courte.",
+      difficulte: 2,
+      xp: 12,
+      etoiles: 1
+    };
+  }
+
+  if (lessonId === 'les_cp_lan_colors') {
+    const list = [
+      { q: "Comment dit-on 'Rouge' en anglais ?", ans: "Red", opt: ["Red", "Blue", "Green", "Yellow"], exp: "Red est la traduction de rouge en anglais." },
+      { q: "Quelle est la couleur 'Yellow' ?", ans: "Jaune", opt: ["Jaune", "Vert", "Bleu", "Blanc"], exp: "Yellow se traduit par jaune." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Langues',
+      competence: 'anglais',
+      chapitre: 'Colors',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "Pense au soleil pour yellow, au feu pour red.",
+      difficulte: 1,
+      xp: 10,
+      etoiles: 1
+    };
+  }
+
+  if (lessonId === 'les_ce2_lan_wolof') {
+    const list = [
+      { q: "En Wolof, que signifie 'Na nga def ?' ?", ans: "Comment vas-tu ?", opt: ["Comment vas-tu ?", "Merci", "Au revoir", "S'il te plaît"], exp: "C'est la salutation habituelle en Wolof." },
+      { q: "Comment dit-on 'Merci' en Wolof ?", ans: "Jërëjëf", opt: ["Jërëjëf", "Mangi fi", "Na nga def", "Waaw"], exp: "Jërëjëf signifie merci." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Langues',
+      competence: 'culture',
+      chapitre: 'Wolof de base',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "Na nga def est une question, Jërëjëf est un remerciement.",
+      difficulte: 1,
+      xp: 10,
+      etoiles: 1
+    };
+  }
+
+  // Fallback to general generator
+  const mat: 'Mathématiques' | 'Français' | 'Langues' = 
+    lessonId.includes('_mat_') ? 'Mathématiques' : 
+    (lessonId.includes('_fra_') ? 'Français' : 'Langues');
+  return generateProceduralQuestion(niveau, mat);
+}
+

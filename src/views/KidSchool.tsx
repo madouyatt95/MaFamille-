@@ -30,9 +30,9 @@ import {
   ShoppingBag
 } from 'lucide-react';
 import type { Member, SchoolTask, Dish, FamilyEvent } from '../types';
-import { staticAcademyQuestions } from '../data/academyData';
-import type { AcademyQuestion } from '../data/academyData';
-import { generateProceduralQuestion } from '../utils/academyGenerator';
+import { staticAcademyQuestions, staticAcademyLessons } from '../data/academyData';
+import type { AcademyQuestion, Lesson } from '../data/academyData';
+import { generateProceduralQuestion, generateQuestionForLesson } from '../utils/academyGenerator';
 
 export interface KidSchoolProps {
   member: Member;
@@ -51,7 +51,7 @@ export interface KidSchoolProps {
 }
 
 // Local Lessons Database for the local tutor
-interface Lesson {
+interface LocalTutorLesson {
   title: string;
   subject: string;
   competence: 'lecture' | 'orthographe' | 'calcul' | 'conjugaison' | 'culture' | 'anglais' | 'sciences';
@@ -60,7 +60,7 @@ interface Lesson {
   keywords: string[];
 }
 
-const localLessons: Lesson[] = [
+const localLessons: LocalTutorLesson[] = [
   {
     title: "Les fractions simples 🍰",
     subject: "Mathématiques",
@@ -145,6 +145,21 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
   // Navigation: default subtab is 'academie'
   const [activeSubTab, setActiveSubTab] = useState<'academie' | 'devoirs' | 'tuteur' | 'notes'>('academie');
 
+  // Lesson progression states
+  const [selectedSubject, setSelectedSubject] = useState<'Mathématiques' | 'Français' | 'Découverte' | 'Langues' | null>(null);
+  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+
+  const [lessonProgress, setLessonProgress] = useState<Record<string, 'none' | 'lesson_read' | 'exercises_done' | 'challenge_done' | 'completed'>>(() => {
+    const key = `academy_lesson_progress_${member.id}`;
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : {};
+  });
+
+  useEffect(() => {
+    const key = `academy_lesson_progress_${member.id}`;
+    localStorage.setItem(key, JSON.stringify(lessonProgress));
+  }, [lessonProgress, member.id]);
+
   // Local storage progression stats
   const [stats, setStats] = useState<{
     xp: number;
@@ -195,7 +210,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
 
   // Active Quiz State
   const [activeQuiz, setActiveQuiz] = useState<{
-    type: 'quick' | 'daily' | 'weekly' | 'tutor';
+    type: 'quick' | 'daily' | 'weekly' | 'tutor' | 'kid_exercises' | 'kid_challenge' | 'kid_evaluation';
     questions: AcademyQuestion[];
     currentIndex: number;
     score: number;
@@ -206,6 +221,53 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
     starsEarned: number;
     showHint: boolean;
   } | null>(null);
+
+  // Timed challenge states
+  const [challengeTimeLeft, setChallengeTimeLeft] = useState<number>(45);
+  const challengeTimerRef = useRef<any>(null);
+
+  const handleChallengeTimeout = () => {
+    if (challengeTimerRef.current) clearInterval(challengeTimerRef.current);
+    alert(`⏱️ Temps écoulé ! Tu as obtenu un score de ${activeQuiz?.score || 0}/${activeQuiz?.questions.length || 5}.`);
+    if (activeQuiz && activeQuiz.score >= 4) {
+      if (selectedLesson) {
+        setLessonProgress(prev => ({
+          ...prev,
+          [selectedLesson.id]: 'challenge_done'
+        }));
+        setStats(prev => ({
+          ...prev,
+          xp: prev.xp + 25,
+          stars: prev.stars + 3
+        }));
+        alert("🎉 Défi réussi ! Tu as obtenu au moins 4 bonnes réponses. Le niveau Évaluation est débloqué ! 🚀");
+      }
+    } else {
+      alert("😢 Pas tout à fait assez rapide ! Réponds juste à 4 questions en moins de 45 secondes.");
+    }
+    setActiveQuiz(null);
+  };
+
+  useEffect(() => {
+    if (activeQuiz && activeQuiz.type === 'kid_challenge') {
+      setChallengeTimeLeft(45);
+      challengeTimerRef.current = setInterval(() => {
+        setChallengeTimeLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(challengeTimerRef.current);
+            setTimeout(() => {
+              handleChallengeTimeout();
+            }, 0);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (challengeTimerRef.current) clearInterval(challengeTimerRef.current);
+    };
+  }, [activeQuiz]);
 
   // Chatbox (Tuteur Local) State
   const [chatMessages, setChatMessages] = useState<Array<{ sender: 'user' | 'ai'; text: string; action?: { label: string; onClick: () => void } }>>([
@@ -278,6 +340,63 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
     if (parsedAge === 13) return '4e';
     if (parsedAge === 14) return '3e';
     return 'Lycée';
+  };
+
+  const startKidExercises = (lesson: Lesson) => {
+    const questions: AcademyQuestion[] = [];
+    for (let i = 0; i < 5; i++) {
+      questions.push(generateQuestionForLesson(lesson.id, currentGrade));
+    }
+    setActiveQuiz({
+      type: 'kid_exercises',
+      questions,
+      currentIndex: 0,
+      score: 0,
+      answers: [],
+      selectedOption: null,
+      showCorrection: false,
+      xpEarned: 0,
+      starsEarned: 0,
+      showHint: false
+    });
+  };
+
+  const startKidChallenge = (lesson: Lesson) => {
+    const questions: AcademyQuestion[] = [];
+    for (let i = 0; i < 5; i++) {
+      questions.push(generateQuestionForLesson(lesson.id, currentGrade));
+    }
+    setActiveQuiz({
+      type: 'kid_challenge',
+      questions,
+      currentIndex: 0,
+      score: 0,
+      answers: [],
+      selectedOption: null,
+      showCorrection: false,
+      xpEarned: 0,
+      starsEarned: 0,
+      showHint: false
+    });
+  };
+
+  const startKidEvaluation = (lesson: Lesson) => {
+    const questions: AcademyQuestion[] = [];
+    for (let i = 0; i < 10; i++) {
+      questions.push(generateQuestionForLesson(lesson.id, currentGrade));
+    }
+    setActiveQuiz({
+      type: 'kid_evaluation',
+      questions,
+      currentIndex: 0,
+      score: 0,
+      answers: [],
+      selectedOption: null,
+      showCorrection: false,
+      xpEarned: 0,
+      starsEarned: 0,
+      showHint: false
+    });
   };
 
   const currentGrade = getSchoolGrade();
@@ -593,8 +712,74 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
         alert(`Superbe évaluation hebdomadaire (${cleanScore}/10) ! Tu as débloqué le badge "Génie du Trimestre" ! 🏅 Vos parents ont été notifiés de vos résultats.`);
       }
 
+      // Handle Kid's progression phases
+      if (activeQuiz.type === 'kid_exercises') {
+        if (selectedLesson) {
+          setLessonProgress(prev => ({
+            ...prev,
+            [selectedLesson.id]: 'exercises_done'
+          }));
+          setTimeout(() => {
+            alert(`🎉 Entraînement réussi ! Tu as fait les 5 exercices. Le Défi chronométré de 45s est maintenant débloqué ! 💪`);
+          }, 800);
+        }
+      } else if (activeQuiz.type === 'kid_challenge') {
+        if (challengeTimerRef.current) clearInterval(challengeTimerRef.current);
+        if (cleanScore >= 4) {
+          if (selectedLesson) {
+            setLessonProgress(prev => ({
+              ...prev,
+              [selectedLesson.id]: 'challenge_done'
+            }));
+            setTimeout(() => {
+              alert(`🎉 Défi réussi ! Tu as obtenu ${cleanScore}/5 bonnes réponses en moins de 45 secondes. L'Évaluation finale est débloquée ! 🚀`);
+            }, 800);
+          }
+        } else {
+          setTimeout(() => {
+            alert(`😢 Défi échoué (Score : ${cleanScore}/5). Tu dois obtenir au moins 4/5 en moins de 45 secondes. Réessaye !`);
+          }, 800);
+          setActiveQuiz(null);
+          return;
+        }
+      } else if (activeQuiz.type === 'kid_evaluation') {
+        if (cleanScore >= 8) {
+          if (selectedLesson) {
+            setLessonProgress(prev => ({
+              ...prev,
+              [selectedLesson.id]: 'completed'
+            }));
+            
+            // Suggest pocket money to parents (add to school tasks as parent validation task)
+            const pocketMoneyTask: SchoolTask = {
+              id: `pocket-${Date.now()}`,
+              title: `Argent de poche : validation de la leçon "${selectedLesson.title}" pour ${member.name}`,
+              subject: 'Récompense',
+              difficulty: 'medium',
+              assignedMemberId: member.id,
+              dueDate: 'Aujourd\'hui',
+              done: true,
+              grade: undefined // Pending validation
+            };
+            setSchoolTasks(prev => [...prev, pocketMoneyTask]);
+
+            setTimeout(() => {
+              alert(`🏆 Évaluation validée ! Score : ${cleanScore}/10. La leçon "${selectedLesson.title}" est complétée ! Tu gagnes un bonus de +50 XP, +5 Étoiles, et une demande de récompense (+0.50€) a été envoyée à tes parents. 💶✨`);
+            }, 800);
+          }
+        } else {
+          setTimeout(() => {
+            alert(`😢 Évaluation échouée (Score : ${cleanScore}/10). Tu dois obtenir au moins 8/10. Relis la leçon et réessaye !`);
+          }, 800);
+          setActiveQuiz(null);
+          return;
+        }
+      }
+
       setActiveQuiz(null);
-      alert(`Quiz terminé ! Score : ${cleanScore}/${activeQuiz.questions.length} ⭐️\nVous gagnez +${totalXp} XP et +${totalStars} Étoiles !`);
+      if (activeQuiz.type !== 'kid_challenge' && activeQuiz.type !== 'kid_exercises' && activeQuiz.type !== 'kid_evaluation') {
+        alert(`Quiz terminé ! Score : ${cleanScore}/${activeQuiz.questions.length} ⭐️\nVous gagnez +${totalXp} XP et +${totalStars} Étoiles !`);
+      }
     }
   };
 
@@ -611,7 +796,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
     setTimeout(() => {
       const cleanQuery = query.toLowerCase();
       let responseText = '';
-      let matchedLesson: Lesson | undefined;
+      let matchedLesson: LocalTutorLesson | undefined;
 
       // Scan keyword matches
       for (const lesson of localLessons) {
@@ -774,8 +959,19 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
           {/* Quiz Header info */}
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black text-[#00D26A] uppercase tracking-widest bg-[#00D26A]/10 px-3 py-1 rounded-full">
-              {activeQuiz.type === 'daily' ? '🏆 Défi Quotidien' : activeQuiz.type === 'weekly' ? '⚡ Évaluation Hebdomadaire' : '📝 Quiz d\'entraînement'}
+              {activeQuiz.type === 'daily' ? '🏆 Défi Quotidien' : 
+               activeQuiz.type === 'weekly' ? '⚡ Évaluation Hebdomadaire' : 
+               activeQuiz.type === 'kid_exercises' ? '✍️ Exercices d\'entraînement' :
+               activeQuiz.type === 'kid_challenge' ? '⏱️ Défi Chronométré (45s)' :
+               activeQuiz.type === 'kid_evaluation' ? '📝 Évaluation Finale' :
+               '📝 Quiz d\'entraînement'}
             </span>
+            {activeQuiz.type === 'kid_challenge' && (
+              <div className="flex items-center space-x-1.5 bg-rose-500/10 border border-rose-500/25 text-rose-400 px-3 py-1 rounded-full text-xs font-black animate-pulse">
+                <Clock className="w-3.5 h-3.5" />
+                <span>{challengeTimeLeft}s</span>
+              </div>
+            )}
             <span className="text-xs text-white/50 font-bold">
               Question {activeQuiz.currentIndex + 1} sur {activeQuiz.questions.length}
             </span>
@@ -844,7 +1040,9 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
                 </button>
                 {activeQuiz.showHint && (
                   <p className="text-[11px] text-yellow-300/80 italic font-semibold">
-                    💡 Hint: {activeQuiz.questions[activeQuiz.currentIndex].indice}
+                    💡 Indice : {activeQuiz.type === 'kid_exercises' && selectedLesson 
+                      ? selectedLesson.astuce 
+                      : activeQuiz.questions[activeQuiz.currentIndex].indice}
                   </p>
                 )}
               </div>
@@ -874,7 +1072,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
 
       {/* SUB-TAB: ACADEMIE (GAME HUB) */}
       {activeSubTab === 'academie' && !activeQuiz && (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-fadeIn">
           
           {/* XP & NIVEAU STATS CARD */}
           <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 shadow-lg space-y-4 relative overflow-hidden">
@@ -905,120 +1103,441 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
             </div>
           </div>
 
-          {/* CORE ACTIONS GRID */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            
-            {/* Daily Challenge Button */}
-            <button
-              onClick={launchDailyChallenge}
-              className="bg-gradient-to-br from-[#FFB020]/15 to-[#FF8C00]/15 border-2 border-[#FFB020]/30 rounded-[28px] p-5 text-left flex items-start space-x-4 hover:border-[#FFB020]/50 transition-all cursor-pointer relative overflow-hidden"
-            >
-              <div className="p-3.5 bg-[#FFB020]/20 rounded-2xl text-2xl shrink-0">
-                🏆
+          {/* CASE 1: SUBJECT PICKER */}
+          {selectedSubject === null && (
+            <div className="space-y-6">
+              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">
+                🎯 Sélectionne ta matière :
+              </span>
+              
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { name: 'Mathématiques', icon: '🧮', gradient: 'from-[#4F8CFF]/20 to-[#6C5CFF]/10', border: 'border-[#4F8CFF]/20', text: 'text-[#4F8CFF]' },
+                  { name: 'Français', icon: '✍️', gradient: 'from-[#FF6C8F]/20 to-[#FF4572]/10', border: 'border-[#FF6C8F]/20', text: 'text-[#FF6C8F]' },
+                  { name: 'Découverte', icon: '🌍', gradient: 'from-[#FFB020]/20 to-[#FF8C00]/10', border: 'border-[#FFB020]/20', text: 'text-[#FFB020]' },
+                  { name: 'Langues', icon: '🌐', gradient: 'from-[#00D26A]/20 to-[#00FF87]/10', border: 'border-[#00D26A]/20', text: 'text-[#00D26A]' }
+                ].map((subj) => {
+                  const lessonsCount = staticAcademyLessons.filter(l => l.niveau === currentGrade && l.matiere === subj.name).length || 
+                    staticAcademyLessons.filter(l => l.matiere === subj.name).length;
+                  const completedCount = staticAcademyLessons.filter(l => (l.niveau === currentGrade || true) && l.matiere === subj.name && lessonProgress[l.id] === 'completed').length;
+                  
+                  return (
+                    <button
+                      key={subj.name}
+                      onClick={() => setSelectedSubject(subj.name as any)}
+                      className={`bg-gradient-to-br ${subj.gradient} border-2 ${subj.border} rounded-[28px] p-5 text-left flex flex-col justify-between space-y-4 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer relative overflow-hidden`}
+                    >
+                      <span className="text-3xl">{subj.icon}</span>
+                      <div>
+                        <h4 className="text-sm font-black text-white">{subj.name}</h4>
+                        <p className="text-[10px] text-white/60 font-bold mt-1">
+                          {completedCount} / {lessonsCount} leçon{lessonsCount > 1 ? 's' : ''} complétée{completedCount > 1 ? 's' : ''}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-              <div className="space-y-1">
-                <h4 className="text-sm font-black text-white flex items-center space-x-1.5">
-                  <span>Défi Quotidien</span>
-                  <span className="text-[8px] bg-[#FFB020]/20 text-[#FFB020] px-1.5 py-0.5 rounded-full uppercase">10 Qs</span>
-                </h4>
-                <p className="text-[11px] text-white/60 font-bold leading-snug">
-                  5 Maths, 3 Conjugaisons, 2 Découvertes. Double XP et Étoiles !
-                </p>
-              </div>
-            </button>
 
-            {/* Quick Quiz Button */}
-            <button
-              onClick={launchQuickQuiz}
-              className="bg-gradient-to-br from-[#00D26A]/15 to-[#00FF87]/15 border-2 border-[#00D26A]/25 rounded-[28px] p-5 text-left flex items-start space-x-4 hover:border-[#00D26A]/45 transition-all cursor-pointer"
-            >
-              <div className="p-3.5 bg-[#00D26A]/20 rounded-2xl text-2xl shrink-0">
-                ⚡
-              </div>
-              <div className="space-y-1">
-                <h4 className="text-sm font-black text-white flex items-center space-x-1.5">
-                  <span>Quiz Rapide</span>
-                  <span className="text-[8px] bg-[#00D26A]/20 text-[#00D26A] px-1.5 py-0.5 rounded-full uppercase">5 Qs</span>
-                </h4>
-                <p className="text-[11px] text-white/60 font-bold leading-snug">
-                  5 questions aléatoires ciblant vos compétences à améliorer.
-                </p>
-              </div>
-            </button>
+              {/* SKILLS JAUGE SECTION */}
+              <div className="space-y-3">
+                <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">
+                  📊 Mes Compétences Académiques :
+                </span>
 
-            {/* Weekly Evaluation */}
-            <button
-              onClick={launchWeeklyEvaluation}
-              className="bg-gradient-to-br from-[#6C5CFF]/15 to-[#4F8CFF]/15 border-2 border-[#6C5CFF]/25 rounded-[28px] p-5 text-left flex items-start space-x-4 hover:border-[#6C5CFF]/45 transition-all cursor-pointer md:col-span-2"
-            >
-              <div className="p-3.5 bg-[#6C5CFF]/20 rounded-2xl text-2xl shrink-0">
-                📝
-              </div>
-              <div className="space-y-1">
-                <h4 className="text-sm font-black text-white flex items-center space-x-1.5">
-                  <span>Évaluation Hebdomadaire</span>
-                  <span className="text-[8px] bg-[#6C5CFF]/20 text-[#6C5CFF] px-1.5 py-0.5 rounded-full uppercase">10 Qs</span>
-                </h4>
-                <p className="text-[11px] text-white/60 font-bold leading-snug">
-                  Évaluation complète de la semaine. Débloquez de prestigieux Badges !
-                </p>
-              </div>
-            </button>
-          </div>
-
-          {/* SKILLS JAUGE SECTION */}
-          <div className="space-y-3">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">
-              📊 Mes Compétences Académiques :
-            </span>
-
-            <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 space-y-4">
-              {Object.entries(stats.skills).map(([skill, val]) => {
-                let color = "from-indigo-500 to-indigo-400";
-                if (skill === 'calcul') color = "from-emerald-500 to-emerald-400";
-                if (skill === 'orthographe' || skill === 'conjugaison') color = "from-pink-500 to-pink-400";
-                if (skill === 'culture') color = "from-amber-500 to-amber-400";
-                
-                return (
-                  <div key={skill} className="space-y-1">
-                    <div className="flex justify-between items-center text-xs font-black">
-                      <span className="capitalize text-white/80">{skill}</span>
-                      <span className="text-[#00D26A]">{val}%</span>
-                    </div>
-                    <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full bg-gradient-to-r ${color} rounded-full`} 
-                        style={{ width: `${val}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* PARENT REWARDS LIST */}
-          <div className="space-y-3">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block flex items-center space-x-1 text-yellow-400">
-              <ShoppingBag className="w-3.5 h-3.5" />
-              <span>Boutique des Récompenses (Parents) :</span>
-            </span>
-
-            <div className="bg-white/5 border border-white/8 rounded-[32px] p-4 space-y-2.5">
-              {parentRewards.map((rew, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3.5 bg-white/3 rounded-2xl">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-xl">{rew.icon}</span>
-                    <span className="text-xs font-black text-white">{rew.label}</span>
-                  </div>
-                  <div className="flex items-center space-x-1.5 bg-yellow-500/10 border border-yellow-500/25 px-2.5 py-1 rounded-xl text-yellow-400 font-extrabold text-[10px] uppercase">
-                    <span>{rew.cost}</span>
-                    <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-                  </div>
+                <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 space-y-4">
+                  {Object.entries(stats.skills).map(([skill, val]) => {
+                    let color = "from-indigo-500 to-indigo-400";
+                    if (skill === 'calcul') color = "from-emerald-500 to-emerald-400";
+                    if (skill === 'orthographe' || skill === 'conjugaison') color = "from-pink-500 to-pink-400";
+                    if (skill === 'culture') color = "from-amber-500 to-amber-400";
+                    
+                    return (
+                      <div key={skill} className="space-y-1">
+                        <div className="flex justify-between items-center text-xs font-black">
+                          <span className="capitalize text-white/80">{skill}</span>
+                          <span className="text-[#00D26A]">{val}%</span>
+                        </div>
+                        <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full bg-gradient-to-r ${color} rounded-full`} 
+                            style={{ width: `${val}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
+              </div>
+
+              {/* PARENT REWARDS LIST */}
+              <div className="space-y-3">
+                <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block flex items-center space-x-1 text-yellow-400">
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  <span>Boutique des Récompenses (Parents) :</span>
+                </span>
+
+                <div className="bg-white/5 border border-white/8 rounded-[32px] p-4 space-y-2.5">
+                  {parentRewards.map((rew, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3.5 bg-white/3 rounded-2xl">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-xl">{rew.icon}</span>
+                        <span className="text-xs font-black text-white">{rew.label}</span>
+                      </div>
+                      <div className="flex items-center space-x-1.5 bg-yellow-500/10 border border-yellow-500/25 px-2.5 py-1 rounded-xl text-yellow-400 font-extrabold text-[10px] uppercase">
+                        <span>{rew.cost}</span>
+                        <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* CASE 2: LESSON PATH (DUOLINGO-LIKE) */}
+          {selectedSubject !== null && selectedLesson === null && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setSelectedSubject(null)}
+                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white font-extrabold text-[11px] uppercase tracking-wider flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Matières</span>
+                </button>
+                <span className="text-xs font-extrabold text-[#00D26A] bg-[#00D26A]/10 px-3 py-1 rounded-full uppercase tracking-wider">
+                  {selectedSubject}
+                </span>
+              </div>
+
+              <div className="text-center space-y-1">
+                <h3 className="text-lg font-black text-white">Mon Parcours Scolaire</h3>
+                <p className="text-xs text-white/50 font-bold">Niveau : {currentGrade}</p>
+              </div>
+
+              {/* DUOLINGO PATH MAP */}
+              <div className="relative flex flex-col items-center py-6">
+                
+                {/* Central connecting line */}
+                <div className="absolute top-0 bottom-0 w-1 bg-gradient-to-b from-[#00D26A]/40 to-[#00D26A]/5 border-dashed border-l-2 border-[#00D26A]/20" />
+                
+                {(() => {
+                  const childLessons = staticAcademyLessons.filter(l => l.niveau === currentGrade && l.matiere === selectedSubject);
+                  const displayLessons = childLessons.length > 0 
+                    ? childLessons 
+                    : staticAcademyLessons.filter(l => l.matiere === selectedSubject);
+
+                  return displayLessons.map((les, idx) => {
+                    const progress = lessonProgress[les.id] || 'none';
+                    const isCompleted = progress === 'completed';
+                    
+                    // Unlock condition: first item is always unlocked, others if preceding is completed
+                    const isUnlocked = idx === 0 || (lessonProgress[displayLessons[idx - 1].id] === 'completed');
+                    
+                    let bgStyle = "bg-white/5 border-white/10 text-white/40 cursor-not-allowed";
+                    let icon = "🔒";
+                    let badgeText = "Verrouillé";
+                    let badgeStyle = "bg-white/5 text-white/40 border border-white/5";
+
+                    if (isUnlocked) {
+                      if (isCompleted) {
+                        bgStyle = "bg-gradient-to-br from-[#00D26A] to-[#00FF87] text-[#07111F] hover:shadow-lg hover:shadow-[#00D26A]/20 border-transparent cursor-pointer";
+                        icon = "🏆";
+                        badgeText = "Complété !";
+                        badgeStyle = "bg-[#00D26A]/20 text-[#00D26A] border border-[#00D26A]/30";
+                      } else {
+                        bgStyle = "bg-gradient-to-br from-[#6C5CFF] to-[#4F8CFF] text-white hover:shadow-lg hover:shadow-[#6C5CFF]/20 border-transparent cursor-pointer animate-pulse";
+                        icon = "📖";
+                        badgeText = progress === 'none' ? "Prêt" : progress === 'lesson_read' ? "Entraînement" : progress === 'exercises_done' ? "Défi" : "Évaluation";
+                        badgeStyle = "bg-[#6C5CFF]/20 text-[#9E94FF] border border-[#6C5CFF]/30";
+                      }
+                    }
+
+                    // Zigzag horizontal offset (left, middle, right)
+                    const offsets = ["translate-x-[-20px] sm:translate-x-[-40px]", "translate-x-0", "translate-x-[20px] sm:translate-x-[40px]"];
+                    const offsetClass = offsets[idx % 3];
+
+                    return (
+                      <div key={les.id} className={`flex flex-col items-center space-y-2.5 my-6 relative z-10 transition-all ${offsetClass}`}>
+                        
+                        {/* Circular path button */}
+                        <button
+                          disabled={!isUnlocked}
+                          onClick={() => setSelectedLesson(les)}
+                          className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-black shadow-md border-2 transition-all active:scale-95 ${bgStyle}`}
+                        >
+                          {icon}
+                        </button>
+
+                        {/* Title and details */}
+                        <div className="bg-[#112240] border border-white/5 rounded-2xl p-3 text-center w-48 sm:w-56 shadow-md">
+                          <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${badgeStyle}`}>
+                            {badgeText}
+                          </span>
+                          <h4 className="text-[11px] font-extrabold text-white mt-1.5 leading-snug line-clamp-2">
+                            {les.title}
+                          </h4>
+                        </div>
+
+                      </div>
+                    );
+                  });
+                })()}
+
+              </div>
+            </div>
+          )}
+
+          {/* CASE 3: SELECTED LESSON DASHBOARD (5 STEPS) */}
+          {selectedSubject !== null && selectedLesson !== null && (
+            <div className="space-y-6">
+              
+              {/* Back to path */}
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setSelectedLesson(null)}
+                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white font-extrabold text-[11px] uppercase tracking-wider flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Parcours</span>
+                </button>
+                <span className="text-xs font-extrabold text-[#00D26A] bg-[#00D26A]/10 px-3 py-1 rounded-full uppercase tracking-wider">
+                  {selectedSubject}
+                </span>
+              </div>
+
+              {/* Lesson General Presentation */}
+              <div className="text-center space-y-1">
+                <span className="text-[9px] font-black text-white/30 uppercase tracking-widest block">Fiche active</span>
+                <h2 className="text-xl font-black text-white leading-tight">{selectedLesson.title}</h2>
+              </div>
+
+              <div className="space-y-4 text-left">
+                
+                {/* STEP 1: READ LESSON */}
+                <div className="bg-[#112240] border border-white/5 rounded-[32px] p-5 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="text-lg">📖</span>
+                      <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 1 : La Leçon</h4>
+                    </div>
+                    {lessonProgress[selectedLesson.id] && lessonProgress[selectedLesson.id] !== 'none' ? (
+                      <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase">Lue ✓</span>
+                    ) : (
+                      <span className="text-[9px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full uppercase">À Lire</span>
+                    )}
+                  </div>
+
+                  <div className="space-y-3.5">
+                    <p className="text-xs text-white/80 leading-relaxed font-medium">
+                      {selectedLesson.explication}
+                    </p>
+
+                    {selectedLesson.schemas && selectedLesson.schemas.length > 0 && (
+                      <div className="bg-black/30 p-3.5 rounded-2xl border border-white/5 font-mono text-[10px] text-emerald-400 whitespace-pre">
+                        {selectedLesson.schemas.map((s, idx) => (
+                          <div key={idx}>{s}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="bg-gradient-to-r from-blue-500/5 to-indigo-500/5 border border-indigo-500/15 p-4 rounded-2xl space-y-1.5">
+                      <span className="text-[9px] font-black text-indigo-400 uppercase tracking-wider">💡 Astuce mémo :</span>
+                      <p className="text-xs text-white/70 italic leading-relaxed">
+                        {selectedLesson.astuce}
+                      </p>
+                    </div>
+
+                    <div className="bg-black/20 p-4 rounded-2xl border border-white/5 space-y-2">
+                      <span className="text-[9px] font-black text-white/40 uppercase tracking-wider">📝 L'essentiel à retenir :</span>
+                      <ul className="list-disc pl-4 space-y-1.5 text-xs text-white/75 font-medium">
+                        {selectedLesson.memo.split('\n').map((line, lIdx) => (
+                          <li key={lIdx}>{line.replace(/^- /, '')}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="p-4 bg-[#00D26A]/5 border border-[#00D26A]/15 rounded-2xl space-y-1">
+                      <span className="text-[9px] font-black text-[#00D26A] uppercase tracking-wider">Exemple concret :</span>
+                      <p className="text-xs text-white/80 leading-relaxed font-medium">
+                        {selectedLesson.exemple}
+                      </p>
+                    </div>
+                  </div>
+
+                  {(!lessonProgress[selectedLesson.id] || lessonProgress[selectedLesson.id] === 'none') && (
+                    <button
+                      onClick={() => {
+                        setLessonProgress(prev => ({ ...prev, [selectedLesson.id]: 'lesson_read' }));
+                        setStats(prev => ({ ...prev, xp: prev.xp + 5 }));
+                        alert("📖 Leçon lue ! Tu gagnes +5 XP. L'entraînement est débloqué ! ✍️");
+                      }}
+                      className="w-full mt-2 py-3 bg-[#00D26A] text-[#07111F] font-black text-xs rounded-2xl shadow-md hover:bg-[#00FF87] transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                    >
+                      <span>J'ai lu la leçon ! 👍 (+5 XP)</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* STEP 2: PRACTICE / TRAINING */}
+                {(() => {
+                  const progress = lessonProgress[selectedLesson.id] || 'none';
+                  const isUnlocked = progress !== 'none';
+                  const isCompleted = progress !== 'none' && progress !== 'lesson_read';
+
+                  return (
+                    <div className={`bg-[#112240] border border-white/5 rounded-[32px] p-5 shadow-sm space-y-4 ${!isUnlocked ? 'opacity-40' : ''}`}>
+                      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                        <div className="flex items-center space-x-2.5">
+                          <span className="text-lg">✍️</span>
+                          <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 2 : Je m'entraîne</h4>
+                        </div>
+                        {isCompleted ? (
+                          <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase">Réussi ✓</span>
+                        ) : !isUnlocked ? (
+                          <span className="text-[9px] font-bold text-white/30 bg-white/5 px-2 py-0.5 rounded-full uppercase">Bloqué</span>
+                        ) : (
+                          <span className="text-[9px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full uppercase">Prêt</span>
+                        )}
+                      </div>
+
+                      {isUnlocked && (
+                        <p className="text-xs text-white/60 leading-relaxed font-bold">
+                          Réponds à 5 questions d'entraînement. Tu as droit à des indices !
+                        </p>
+                      )}
+
+                      {isUnlocked && !isCompleted && (
+                        <button
+                          onClick={() => startKidExercises(selectedLesson)}
+                          className="w-full py-3 bg-[#6C5CFF] text-white font-black text-xs rounded-2xl shadow-md hover:bg-[#5849E0] transition-all flex items-center justify-center space-x-2 cursor-pointer animate-pulse"
+                        >
+                          <span>Lancer l'entraînement (5 exercices) ✍️</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* STEP 3: TIMED CHALLENGE */}
+                {(() => {
+                  const progress = lessonProgress[selectedLesson.id] || 'none';
+                  const isUnlocked = progress === 'exercises_done' || progress === 'challenge_done' || progress === 'completed';
+                  const isCompleted = progress === 'challenge_done' || progress === 'completed';
+
+                  return (
+                    <div className={`bg-[#112240] border border-white/5 rounded-[32px] p-5 shadow-sm space-y-4 ${!isUnlocked ? 'opacity-40' : ''}`}>
+                      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                        <div className="flex items-center space-x-2.5">
+                          <span className="text-lg">🎯</span>
+                          <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 3 : Le Défi Chrono</h4>
+                        </div>
+                        {isCompleted ? (
+                          <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase">Relevé ✓</span>
+                        ) : !isUnlocked ? (
+                          <span className="text-[9px] font-bold text-white/30 bg-white/5 px-2 py-0.5 rounded-full uppercase">Bloqué</span>
+                        ) : (
+                          <span className="text-[9px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full uppercase">Prêt</span>
+                        )}
+                      </div>
+
+                      {isUnlocked && (
+                        <p className="text-xs text-white/60 leading-relaxed font-bold">
+                          ⏱️ Obtiens au moins **4/5 bonnes réponses** en moins de **45 secondes** !
+                        </p>
+                      )}
+
+                      {isUnlocked && !isCompleted && (
+                        <button
+                          onClick={() => startKidChallenge(selectedLesson)}
+                          className="w-full py-3 bg-gradient-to-r from-[#FFB020] to-[#FF8C00] text-[#07111F] font-black text-xs rounded-2xl shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                        >
+                          <span>Lancer le Défi (45 secondes !) ⏱️</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* STEP 4: FINAL EVALUATION */}
+                {(() => {
+                  const progress = lessonProgress[selectedLesson.id] || 'none';
+                  const isUnlocked = progress === 'challenge_done' || progress === 'completed';
+                  const isCompleted = progress === 'completed';
+
+                  return (
+                    <div className={`bg-[#112240] border border-white/5 rounded-[32px] p-5 shadow-sm space-y-4 ${!isUnlocked ? 'opacity-40' : ''}`}>
+                      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                        <div className="flex items-center space-x-2.5">
+                          <span className="text-lg">📝</span>
+                          <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 4 : L'Évaluation</h4>
+                        </div>
+                        {isCompleted ? (
+                          <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase">Validée ✓</span>
+                        ) : !isUnlocked ? (
+                          <span className="text-[9px] font-bold text-white/30 bg-white/5 px-2 py-0.5 rounded-full uppercase">Bloqué</span>
+                        ) : (
+                          <span className="text-[9px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full uppercase">Prêt</span>
+                        )}
+                      </div>
+
+                      {isUnlocked && (
+                        <p className="text-xs text-white/60 leading-relaxed font-bold">
+                          Réponds à 10 questions. Obtiens au moins **8/10** pour finaliser la leçon !
+                        </p>
+                      )}
+
+                      {isUnlocked && !isCompleted && (
+                        <button
+                          onClick={() => startKidEvaluation(selectedLesson)}
+                          className="w-full py-3 bg-[#00D26A] text-[#07111F] font-black text-xs rounded-2xl shadow-md hover:bg-[#00FF87] transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                        >
+                          <span>Lancer l'Évaluation Finale (10 questions) 📝</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* STEP 5: REWARDS & COMPLETION */}
+                {lessonProgress[selectedLesson.id] === 'completed' && (
+                  <div className="bg-gradient-to-br from-[#FFB020]/15 to-[#FF8C00]/10 border-2 border-[#FFB020]/30 rounded-[32px] p-6 text-center space-y-4 relative overflow-hidden">
+                    <div className="absolute top-[-20%] right-[-10%] w-[40%] h-[40%] rounded-full bg-[#FFB020]/10 blur-xl pointer-events-none" />
+                    
+                    <span className="text-3xl animate-bounce block">🏆</span>
+                    <h3 className="text-base font-black text-white">Félicitations, Leçon validée !</h3>
+                    
+                    <p className="text-xs text-white/75 font-semibold leading-relaxed">
+                      Tu as maîtrisé cette leçon avec succès. Voici tes récompenses :
+                    </p>
+
+                    <div className="flex items-center justify-center space-x-4">
+                      <div className="bg-white/5 px-4 py-2 rounded-2xl border border-white/10 text-center">
+                        <span className="text-[8px] text-white/40 font-black uppercase tracking-wider block">XP gagnés</span>
+                        <span className="text-sm font-black text-emerald-400">+50 XP</span>
+                      </div>
+                      <div className="bg-white/5 px-4 py-2 rounded-2xl border border-white/10 text-center">
+                        <span className="text-[8px] text-white/40 font-black uppercase tracking-wider block">Étoiles</span>
+                        <span className="text-sm font-black text-yellow-400 flex items-center justify-center space-x-1">
+                          <span>+5</span> <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                        </span>
+                      </div>
+                      <div className="bg-white/5 px-4 py-2 rounded-2xl border border-white/10 text-center">
+                        <span className="text-[8px] text-white/40 font-black uppercase tracking-wider block">Argent poche</span>
+                        <span className="text-sm font-black text-indigo-300">+0.50€ 💶</span>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 bg-white/5 border border-white/5 rounded-2xl text-[10px] text-white/50 leading-relaxed font-bold">
+                      💡 Une demande de validation d'argent de poche a été transmise aux parents.
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            </div>
+          )}
 
         </div>
       )}
