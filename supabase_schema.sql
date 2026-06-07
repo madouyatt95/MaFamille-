@@ -938,12 +938,12 @@ BEGIN
   -- Faire l'appel HTTP de manière asynchrone sans bloquer la transaction principale
   BEGIN
     PERFORM net.http_post(
-      url := 'https://zjhxombzoilbchxftszb.supabase.co/functions/v1/send-push'::text,
+      url := 'https://ravkssbaxcfhnzsemfrh.supabase.co/functions/v1/send-push'::text,
       body := v_payload,
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
-        'apikey', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqaHhvbWJ6b2lsYmNoeGZ0c3piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMDEzNDMsImV4cCI6MjA5NDg3NzM0M30.3F0DEZC-iJSPEqkRzPdWO-ZRb5IK9G-5eXpJTgMooXE',
-        'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqaHhvbWJ6b2lsYmNoeGZ0c3piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMDEzNDMsImV4cCI6MjA5NDg3NzM0M30.3F0DEZC-iJSPEqkRzPdWO-ZRb5IK9G-5eXpJTgMooXE'
+        'apikey', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJhdmtzc2JheGNmaG56c2VtZnJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NjE0MjQsImV4cCI6MjA5NjQzNzQyNH0.huIqaed9K0iD7fQaxdS89Tpl2HJ4vynvClyqvEjRm6o',
+        'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJhdmtzc2JheGNmaG56c2VtZnJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NjE0MjQsImV4cCI6MjA5NjQzNzQyNH0.huIqaed9K0iD7fQaxdS89Tpl2HJ4vynvClyqvEjRm6o'
       ),
       timeout_milliseconds := 5000
     );
