@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { detectGroceryCategory, parseSmartNaturalSentence, getGroceryItemEmoji, formatGroceryQty, POPULAR_GROCERIES } from '../utils/groceryParser';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
@@ -66,11 +66,12 @@ import type {
   JustificatifPack,
   Artisan,
   PocketMoneyChild,
+  PocketMoneyRule,
   ArchivedList,
   Account,
   Transaction
 } from '../types';
-import { getDefaultPermissions, parseChoreTitle, serializeChoreTitle } from '../types';
+import { getDefaultPermissions, parseChoreTitle, serializeChoreTitle, parsePocketMoneyTitle, serializePocketMoneyTitle } from '../types';
 import type { ModulePermissions, FamilyModule } from '../types';
 
 // Import newly built premium sub-modules
@@ -738,14 +739,27 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [choresActiveSubTab, setChoresActiveSubTab] = useState<'actives' | 'historique'>('actives');
   const [choreHistoryFilter, setChoreHistoryFilter] = useState<'all' | 'wall' | 'accepted' | 'validated' | 'refused'>('all');
 
-  const [pmSelectedChildId, setPmSelectedChildId] = useState<string | null>(null);
+  const [pmSelectedChildId, setPmSelectedChildId] = useState<string | null>(() => {
+    return localStorage.getItem('mf_last_selected_child_id');
+  });
+
+  useEffect(() => {
+    if (pmSelectedChildId) {
+      localStorage.setItem('mf_last_selected_child_id', pmSelectedChildId);
+    } else {
+      localStorage.removeItem('mf_last_selected_child_id');
+    }
+  }, [pmSelectedChildId]);
 
   // Boutique Config State
   const [newBoutiqueTitle, setNewBoutiqueTitle] = useState('');
-  const [newBoutiqueCost, setNewBoutiqueCost] = useState(50);
+  const [newBoutiqueCostPoints, setNewBoutiqueCostPoints] = useState(50);
+  const [newBoutiqueCostMoney, setNewBoutiqueCostMoney] = useState(5);
   const [newBoutiqueIcon, setNewBoutiqueIcon] = useState('🎁');
   const [newBoutiqueSubCategory, setNewBoutiqueSubCategory] = useState('Cadeau');
   const [newBoutiqueValidationRequired, setNewBoutiqueValidationRequired] = useState(true);
+  const [newBoutiqueAvail, setNewBoutiqueAvail] = useState(true);
+  const [showQuickForm, setShowQuickForm] = useState(false);
 
   // Direct Adjustment State
   const [adjustmentType, setAdjustmentType] = useState<'add' | 'remove'>('add');
@@ -6178,58 +6192,102 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       )}
 
       {activeModule === 'argent' && (() => {
-        // Find selected child
-        const selectedChild = pocketMoney.find(c => c.id === pmSelectedChildId);
+        // Find selected child or default to first child
+        const foyerKids = members.filter(m => {
+          return !['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(m.role) && m.id !== '1' && m.id !== '2';
+        });
 
-        // Mapper from SavingGoal to RewardItem
+        const selectedChild = pocketMoney.find(c => c.id === pmSelectedChildId) || pocketMoney.find(c => foyerKids.some(k => k.id === c.id));
+        const resolvedChild = selectedChild ? {
+          id: selectedChild.id,
+          name: selectedChild.name,
+          balance: selectedChild.balance || 0,
+          points: selectedChild.points || 0,
+          avatar: selectedChild.avatar || '',
+          goalTitle: selectedChild.goalTitle || '',
+          goalAmount: selectedChild.goalAmount,
+          goalType: selectedChild.goalType || 'money',
+          rules: selectedChild.rules || []
+        } : foyerKids.length > 0 ? {
+          id: foyerKids[0].id,
+          name: foyerKids[0].name,
+          balance: 0,
+          points: 0,
+          avatar: foyerKids[0].photoUrl || '',
+          goalTitle: '',
+          goalAmount: undefined,
+          goalType: 'money' as const,
+          rules: []
+        } : null;
+
+        const getAge = (birthDate?: string) => {
+          if (!birthDate) return 'Âge N/A';
+          const birth = new Date(birthDate);
+          const today = new Date();
+          let age = today.getFullYear() - birth.getFullYear();
+          const m = today.getMonth() - birth.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+            age--;
+          }
+          return `${age} ans`;
+        };
+
+        const getChildStreak = (childId: string) => {
+          const completedTasks = tasks.filter(t => t.assignedMemberId === childId && t.done);
+          const storedStreak = localStorage.getItem(`mf_kid_streak_${childId}`);
+          if (storedStreak) return parseInt(storedStreak, 10);
+          return Math.min(7, completedTasks.length);
+        };
+
         const mapSavingGoalToReward = (sg: SavingGoal) => {
           let icon = '🎁';
-          let validationRequired = true;
-          let subCategory = 'Cadeau';
+          let costPoints = sg.targetAmount || 50;
+          let costMoney = Math.round(costPoints / 10);
+          let category = 'Cadeau';
+          let avail = true;
           
           if (sg.contributions && sg.contributions.length > 0) {
             const meta = sg.contributions[0] as any;
             if (meta.icon) icon = meta.icon;
-            if (meta.validationRequired !== undefined) validationRequired = meta.validationRequired;
-            if (meta.subCategory) subCategory = meta.subCategory;
+            if (meta.costPoints !== undefined) costPoints = meta.costPoints;
+            if (meta.costMoney !== undefined) costMoney = meta.costMoney;
+            if (meta.subCategory) category = meta.subCategory;
+            if (meta.avail !== undefined) avail = meta.avail;
           }
           
           return {
             id: sg.id,
             title: sg.title,
-            cost: sg.targetAmount,
+            costPoints,
+            costMoney,
             icon,
-            category: subCategory,
-            validationRequired
+            category,
+            avail
           };
         };
 
-        // Load boutique rewards
         const dbRewards = (goals || [])
           .filter(sg => sg.category === 'boutique_reward')
           .map(mapSavingGoalToReward);
 
         const rewardsList = dbRewards.length > 0 ? dbRewards : [
-          { id: 'rew-1', title: '30 min de console 🎮', cost: 50, validationRequired: true },
-          { id: 'rew-2', title: 'Choisir le menu du dîner 🍕', cost: 80, validationRequired: true },
-          { id: 'rew-3', title: 'Coucher tardif (+30 min) 🌙', cost: 100, validationRequired: true },
-          { id: 'rew-4', title: 'Double boule de glace 🍦', cost: 120, validationRequired: true },
-          { id: 'rew-5', title: 'Cinéma en famille 🎬', cost: 250, validationRequired: true },
-          { id: 'rew-6', title: 'Nouveau jouet au choix 🧸', cost: 400, validationRequired: true }
+          { id: 'rew-1', title: '30 min de console 🎮', costPoints: 50, costMoney: 5, icon: '🎮', category: 'Écran', avail: true },
+          { id: 'rew-2', title: 'Choisir le menu du dîner 🍕', costPoints: 80, costMoney: 8, icon: '🍕', category: 'Repas', avail: true },
+          { id: 'rew-3', title: 'Coucher tardif (+30 min) 🌙', costPoints: 100, costMoney: 10, icon: '🌙', category: 'Sommeil', avail: true },
+          { id: 'rew-4', title: 'Double boule de glace 🍦', costPoints: 120, costMoney: 12, icon: '🍦', category: 'Gourmandise', avail: true },
+          { id: 'rew-5', title: 'Cinéma en famille 🎬', costPoints: 250, costMoney: 25, icon: '🎬', category: 'Sortie', avail: true },
+          { id: 'rew-6', title: 'Nouveau jouet au choix 🧸', costPoints: 400, costMoney: 40, icon: '🧸', category: 'Cadeau', avail: true }
         ];
 
-        // Direct adjustments form handler
+        // Quick adjust handler
         const handleApplyDirectAdjustment = async (e: React.FormEvent) => {
           e.preventDefault();
-          if (!pmSelectedChildId || !adjustmentAmount) return;
+          if (!resolvedChild || !adjustmentAmount) return;
           const amt = parseFloat(adjustmentAmount);
           if (isNaN(amt) || amt <= 0) return;
 
-          const child = pocketMoney.find(c => c.id === pmSelectedChildId);
-          if (!child) return;
-
-          let newBalance = child.balance;
-          let newPoints = child.points;
+          let newBalance = resolvedChild.balance;
+          let newPoints = resolvedChild.points;
           const isAdd = adjustmentType === 'add';
 
           if (adjustmentAsset === 'money') {
@@ -6238,59 +6296,183 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             newPoints = isAdd ? newPoints + Math.round(amt) : Math.max(0, newPoints - Math.round(amt));
           }
 
-          // Update pocketMoney state locally
-          setPocketMoney(prev => prev.map(c => c.id === child.id ? { ...c, balance: newBalance, points: newPoints } : c));
+          setPocketMoney(prev => prev.map(c => c.id === resolvedChild.id ? { ...c, balance: newBalance, points: newPoints } : c));
 
-          const timestamp = Date.now();
           const reasonText = adjustmentReason.trim() || (isAdd ? 'Ajustement positif' : 'Ajustement négatif');
+          const parentAccountId = adjustmentAccountId || accounts.find(a => a.type === 'bank')?.id || accounts[0]?.id || null;
 
-          // If money reward, record parent transaction
-          if (adjustmentAsset === 'money') {
-            if (onAddTransaction) {
-              onAddTransaction({
-                amount: amt,
-                type: isAdd ? 'expense' : 'income',
-                category: 'Argent de Poche',
-                date: new Date().toISOString().split('T')[0],
-                title: `${isAdd ? 'Crédit' : 'Débit'} tirelire : ${reasonText}`,
-                memberName: child.name,
-                accountId: adjustmentAccountId || null
-              });
-            }
-          } else {
-            // Points adjustment
-            if (onAddTransaction) {
-              onAddTransaction({
-                amount: 0,
-                type: isAdd ? 'income' : 'expense',
-                category: 'Argent de Poche',
-                date: new Date().toISOString().split('T')[0],
-                title: `${isAdd ? 'Attribution' : 'Retrait'} de points : ${reasonText} (${isAdd ? '+' : '-'}${Math.round(amt)} pts)`,
-                memberName: child.name
-              });
-            }
+          if (adjustmentAsset === 'money' && onAddTransaction) {
+            onAddTransaction({
+              amount: amt,
+              type: isAdd ? 'expense' : 'income',
+              category: 'Argent de Poche',
+              date: new Date().toISOString().split('T')[0],
+              title: `${isAdd ? 'Crédit' : 'Débit'} tirelire : ${reasonText}`,
+              memberName: resolvedChild.name,
+              accountId: isAdd ? parentAccountId : null
+            });
+          } else if (onAddTransaction) {
+            onAddTransaction({
+              amount: 0,
+              type: isAdd ? 'income' : 'expense',
+              category: 'Argent de Poche',
+              date: new Date().toISOString().split('T')[0],
+              title: `${isAdd ? 'Attribution' : 'Retrait'} de points : ${reasonText} (${isAdd ? '+' : '-'}${Math.round(amt)} pts)`,
+              memberName: resolvedChild.name
+            });
           }
 
-          // Update Supabase
           try {
             const client = getSupabaseClient();
             if (client && foyer) {
               await client.from('pocket_money')
                 .update({ balance: newBalance, points: newPoints })
-                .eq('id', child.id)
+                .eq('id', resolvedChild.id)
                 .eq('foyer_id', foyer.id);
-              console.log("[MenuHub] Direct adjustment successfully saved to cloud.");
             }
           } catch (err) {
-            console.error("[MenuHub] Failed to save adjustment to cloud:", err);
+            console.error("Direct adjustment error:", err);
           }
 
           setAdjustmentAmount('');
           setAdjustmentReason('');
-          alert(`Ajustement appliqué ! Solde de ${child.name} mis à jour.`);
+          setShowQuickForm(false);
+          alert(`Ajustement appliqué pour ${resolvedChild.name} !`);
         };
 
-        // Cancel recurring transfer
+        // Automatic Rules Save handler
+        const handleSaveChildRules = async (childId: string, updatedRules: PocketMoneyRule[]) => {
+          setPocketMoney(prev => prev.map(c => c.id === childId ? { ...c, rules: updatedRules } : c));
+          const child = pocketMoney.find(c => c.id === childId);
+          if (!child) return;
+
+          const serialized = serializePocketMoneyTitle({
+            goalTitle: child.goalTitle || '',
+            goalType: child.goalType || 'money',
+            rules: updatedRules
+          });
+
+          try {
+            const client = getSupabaseClient();
+            if (client && foyer) {
+              await client.from('pocket_money')
+                .update({ goal_title: serialized })
+                .eq('id', childId)
+                .eq('foyer_id', foyer.id);
+              alert("Règles automatiques enregistrées avec succès !");
+            }
+          } catch (err) {
+            console.error("Error saving rules:", err);
+          }
+        };
+
+        // Goal setter handler
+        const handleSaveGoal = async (childId: string, title: string, amount: number, type: 'points' | 'money') => {
+          setPocketMoney(prev => prev.map(c => c.id === childId ? { 
+            ...c, 
+            goalTitle: title, 
+            goalAmount: amount, 
+            goalType: type 
+          } : c));
+
+          const child = pocketMoney.find(c => c.id === childId);
+          if (!child) return;
+
+          const serialized = serializePocketMoneyTitle({
+            goalTitle: title,
+            goalType: type,
+            rules: child.rules || []
+          });
+
+          try {
+            const client = getSupabaseClient();
+            if (client && foyer) {
+              await client.from('pocket_money')
+                .update({ 
+                  goal_title: serialized, 
+                  goal_amount: amount 
+                })
+                .eq('id', childId)
+                .eq('foyer_id', foyer.id);
+              alert("Objectif de cagnotte mis à jour !");
+            }
+          } catch (err) {
+            console.error("Error updating child savings goal:", err);
+          }
+        };
+
+        // Approve boutique request
+        const handleApproveBoutiqueRequest = async (alertItem: NotificationAlert, childId: string, rewardId: string, paymentMethod: string) => {
+          const child = pocketMoney.find(c => c.id === childId);
+          if (!child) return;
+          const reward = rewardsList.find(r => r.id === rewardId);
+          if (!reward) return;
+
+          const cost = paymentMethod === 'points' ? reward.costPoints : reward.costMoney;
+          
+          if (paymentMethod === 'points') {
+            if (child.points < cost) {
+              alert(`Solde insuffisant : ${child.name} a ${child.points} Pts, mais le cadeau coûte ${cost} Pts.`);
+              return;
+            }
+          } else {
+            if (child.balance < cost) {
+              alert(`Solde insuffisant : ${child.name} a ${formatMoney(child.balance)}, mais le cadeau coûte ${formatMoney(cost)}.`);
+              return;
+            }
+          }
+
+          const updatedPoints = paymentMethod === 'points' ? child.points - cost : child.points;
+          const updatedBalance = paymentMethod === 'money' ? child.balance - cost : child.balance;
+
+          setPocketMoney(prev => prev.map(c => c.id === childId ? { ...c, points: updatedPoints, balance: updatedBalance } : c));
+
+          if (onAddTransaction) {
+            onAddTransaction({
+              amount: paymentMethod === 'money' ? cost : 0,
+              type: 'expense',
+              category: 'Argent de Poche',
+              date: new Date().toISOString().split('T')[0],
+              title: `Achat boutique validé (${paymentMethod === 'points' ? 'Points' : 'Cash'}) : ${reward.title}`,
+              memberName: child.name
+            });
+          }
+
+          if (setAlerts) {
+            setAlerts(prev => prev.filter(a => a.id !== alertItem.id));
+          }
+
+          try {
+            const client = getSupabaseClient();
+            if (client) {
+              await client.from('alerts').delete().eq('id', alertItem.id);
+              await client.from('pocket_money')
+                .update({ points: updatedPoints, balance: updatedBalance })
+                .eq('id', childId);
+            }
+          } catch (err) {
+            console.error("Error approving request:", err);
+          }
+
+          alert(`🎉 Achat "${reward.title}" approuvé pour ${child.name} !`);
+        };
+
+        // Refuse alert
+        const handleRefuseRequest = async (alertId: string) => {
+          if (setAlerts) {
+            setAlerts(prev => prev.filter(a => a.id !== alertId));
+          }
+          try {
+            const client = getSupabaseClient();
+            if (client) {
+              await client.from('alerts').delete().eq('id', alertId);
+            }
+          } catch (err) {
+            console.error("Error deleting alert:", err);
+          }
+          alert("Demande refusée.");
+        };
+
         const handleCancelRecurringTransfer = async (txId: string) => {
           if (window.confirm("Voulez-vous annuler ce versement récurrent ?")) {
             if (setTransactions) {
@@ -6300,10 +6482,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               const client = getSupabaseClient();
               if (client && foyer) {
                 await client.from('transactions').delete().eq('id', txId).eq('foyer_id', foyer.id);
-                console.log("[MenuHub] Recurring transfer deleted successfully.");
               }
             } catch (err) {
-              console.error("[MenuHub] Failed to delete recurring transfer from cloud:", err);
+              console.error("Failed to delete recurring transfer:", err);
             }
           }
         };
@@ -6311,25 +6492,22 @@ export const MenuHub: React.FC<MenuHubProps> = ({
         // Create boutique item
         const handleCreateBoutiqueItem = async (e: React.FormEvent) => {
           e.preventDefault();
-          if (!newBoutiqueTitle.trim() || !newBoutiqueCost || !setSavingGoals) return;
+          if (!newBoutiqueTitle.trim() || !newBoutiqueCostPoints || !setSavingGoals) return;
 
           const newGoal: SavingGoal = {
             id: `sg-rew-${Date.now()}`,
             title: newBoutiqueTitle.trim(),
-            targetAmount: newBoutiqueCost,
+            targetAmount: newBoutiqueCostPoints,
             currentAmount: 0,
             targetDate: '',
             category: 'boutique_reward',
             contributions: [
               {
-                memberName: 'system',
-                amount: 0,
-                date: new Date().toISOString()
-              },
-              {
+                costPoints: newBoutiqueCostPoints,
+                costMoney: newBoutiqueCostMoney,
                 icon: newBoutiqueIcon,
-                validationRequired: newBoutiqueValidationRequired,
-                subCategory: newBoutiqueSubCategory
+                subCategory: newBoutiqueSubCategory,
+                avail: newBoutiqueAvail
               } as any
             ]
           };
@@ -6349,67 +6527,149 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 category: newGoal.category,
                 contributions: newGoal.contributions
               });
-              console.log("[MenuHub] Custom boutique reward created successfully.");
             }
           } catch (err) {
-            console.error("[MenuHub] Failed to save custom boutique reward to cloud:", err);
+            console.error("Error creating boutique reward:", err);
           }
 
           setNewBoutiqueTitle('');
-          setNewBoutiqueCost(50);
+          setNewBoutiqueCostPoints(50);
+          setNewBoutiqueCostMoney(5);
           setNewBoutiqueIcon('🎁');
           setNewBoutiqueSubCategory('Cadeau');
-          setNewBoutiqueValidationRequired(true);
+          setNewBoutiqueAvail(true);
           alert("Récompense ajoutée à la boutique !");
         };
 
-        // Delete boutique item
+        // Toggle reward availability
+        const handleToggleRewardAvailability = async (goalId: string, currentAvail: boolean) => {
+          if (!setSavingGoals) return;
+          
+          setSavingGoals(prev => prev.map(g => {
+            if (g.id !== goalId) return g;
+            const firstCont = g.contributions?.[0] as any || {};
+            return {
+              ...g,
+              contributions: [
+                {
+                  ...firstCont,
+                  avail: !currentAvail
+                } as any
+              ]
+            };
+          }));
+
+          try {
+            const client = getSupabaseClient();
+            if (client && foyer) {
+              const goal = goals.find(g => g.id === goalId);
+              if (goal) {
+                const firstCont = goal.contributions?.[0] as any || {};
+                const updatedContributions = [
+                  {
+                    ...firstCont,
+                    avail: !currentAvail
+                  }
+                ];
+                await client.from('saving_goals')
+                  .update({ contributions: updatedContributions })
+                  .eq('id', goalId)
+                  .eq('foyer_id', foyer.id);
+              }
+            }
+          } catch (err) {
+            console.error("Error updating boutique reward availability:", err);
+          }
+        };
+
         const handleDeleteBoutiqueItem = async (goalId: string) => {
           if (!setSavingGoals) return;
-
           if (window.confirm("Voulez-vous supprimer cette récompense de la boutique ?")) {
             setSavingGoals(prev => prev.filter(g => g.id !== goalId));
-
             try {
               const client = getSupabaseClient();
               if (client && foyer) {
                 await client.from('saving_goals').delete().eq('id', goalId).eq('foyer_id', foyer.id);
-                console.log("[MenuHub] Custom boutique reward deleted successfully.");
               }
             } catch (err) {
-              console.error("[MenuHub] Failed to delete custom boutique reward from cloud:", err);
+              console.error("Failed to delete boutique item:", err);
             }
           }
         };
+
+        const RULE_TYPES_INFO = [
+          { type: 'weekly', label: 'Hebdomadaire 📅', desc: 'Versement régulier automatique toutes les semaines.' },
+          { type: 'monthly', label: 'Mensuel 📅', desc: 'Versement régulier automatique tous les mois.' },
+          { type: 'after_mission', label: 'Après mission 🧹', desc: 'Prime bonus versée dès qu\'une mission parentale est validée.' },
+          { type: 'after_grade', label: 'Après note 📝', desc: 'Bonus versé pour chaque note répondant à la condition (ex: >= 15).' },
+          { type: 'after_average', label: 'Après moyenne générale 🎓', desc: 'Bonus versé si la moyenne générale franchit le seuil (ex: 15).' },
+          { type: 'after_badge', label: 'Après badge débloqué 🏅', desc: 'Récompense pour l\'obtention d\'un nouveau badge de succès.' },
+          { type: 'after_challenge', label: 'Après défi relevé 🏆', desc: 'Bonus pour la complétion de défis familiaux.' }
+        ] as const;
+
+        if (foyerKids.length === 0) {
+          return (
+            <div className="glass-panel rounded-[28px] border border-white/8 p-8 text-center space-y-2">
+              <span className="text-3xl block">🪙</span>
+              <p className="text-sm font-bold text-white">Aucun enfant trouvé</p>
+              <p className="text-xs text-white/50 leading-relaxed font-bold">Pour utiliser le module argent de poche, vous devez d'abord ajouter des membres enfants à votre foyer.</p>
+            </div>
+          );
+        }
+
+        const validatedRewardsCount = transactions.filter(t => 
+          (t.category === 'Argent de Poche' || t.category === 'Argent de poche') &&
+          t.title.includes('Achat boutique validé') && 
+          (t.memberName === resolvedChild?.name || t.memberId === resolvedChild?.id)
+        ).length;
+
+        const pendingRequests = alerts.filter(a => {
+          if (a.senderMemberId !== resolvedChild?.id) return false;
+          return a.id.startsWith('req-rew-') || a.id.startsWith('sug-rew-');
+        });
+
+        const activeRulesCount = ((resolvedChild?.rules || []) as PocketMoneyRule[]).filter(r => r.active).length;
+        const missionStreak = resolvedChild ? getChildStreak(resolvedChild.id) : 0;
+        const childTransactions = transactions.filter(t => 
+          (t.category === 'Argent de poche' || t.category === 'Argent de Poche') && 
+          (t.memberName === resolvedChild?.name || t.memberId === resolvedChild?.id)
+        );
 
         return (
           <div className="space-y-6">
             <div>
               <h2 className="text-lg font-extrabold text-white">Argent de Poche</h2>
-              <p className="text-xs text-white/50">Missions rémunérées et cagnottes des enfants</p>
+              <p className="text-xs text-white/50">Missions rémunérées, règles automatiques et cagnottes des enfants</p>
             </div>
 
-            {/* Selection of child */}
+            {/* Carousel of Children Cards */}
             <div className="space-y-2 text-left">
-              <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Sélectionnez un enfant pour gérer son portefeuille :</label>
-              <div className="flex flex-wrap gap-3">
-                {pocketMoney.map(child => {
-                  const isSelected = pmSelectedChildId === child.id;
+              <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Sélectionnez un enfant :</label>
+              <div className="flex space-x-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                {foyerKids.map(k => {
+                  const pmChild = pocketMoney.find(c => c.id === k.id) || { balance: 0, points: 0 };
+                  const isSelected = resolvedChild?.id === k.id;
+                  const childAge = getAge(k.birthDate);
                   return (
                     <button
                       type="button"
-                      key={child.id}
-                      onClick={() => setPmSelectedChildId(isSelected ? null : child.id)}
-                      className={`flex items-center space-x-3 p-3 rounded-2xl border text-left font-bold transition-all cursor-pointer ${
+                      key={k.id}
+                      onClick={() => setPmSelectedChildId(k.id)}
+                      className={`flex-shrink-0 flex items-center space-x-3 p-3.5 rounded-[22px] border-2 text-left font-bold transition-all cursor-pointer relative overflow-hidden group ${
                         isSelected 
-                          ? 'bg-[#6C5CFF]/25 border-[#6C5CFF] text-white shadow-md' 
+                          ? 'bg-gradient-to-br from-[#6C5CFF]/15 to-[#00D26A]/15 border-[#6C5CFF] text-white shadow-md' 
                           : 'bg-white/5 border-white/5 text-white/60 hover:text-white hover:bg-white/8'
                       }`}
+                      style={{ minWidth: '220px' }}
                     >
-                      <img src={child.avatar} alt={child.name} className="w-8 h-8 rounded-full object-cover border border-white/10" />
-                      <div>
-                        <p className="text-xs">{child.name}</p>
-                        <p className="text-[9px] text-white/40">{formatMoney(child.balance)} • {child.points} Pts</p>
+                      <img src={k.photoUrl || '/placeholder_avatar.png'} alt={k.name} className="w-10 h-10 rounded-full object-cover border border-white/10" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs truncate font-extrabold text-white">{k.name}</p>
+                        <p className="text-[9px] text-white/40 truncate">{childAge} • {k.schoolOrEmployer || 'Classe N/A'}</p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className="text-[10px] font-black text-[#00D26A]">{formatMoney(pmChild.balance || 0)}</span>
+                          <span className="text-[10px] font-black text-[#6C5CFF]">⭐ {pmChild.points || 0} pts</span>
+                        </div>
                       </div>
                     </button>
                   );
@@ -6417,351 +6677,395 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               </div>
             </div>
 
-            {selectedChild ? (
+            {resolvedChild && (
               <div className="space-y-6">
-                
-                {/* Child Dashboard Overview */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 text-left">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <img src={selectedChild.avatar} alt={selectedChild.name} className="w-10 h-10 rounded-full object-cover border border-white/10" />
-                        <div>
-                          <h3 className="text-sm font-bold text-white">{selectedChild.name}</h3>
-                          <p className="text-[10px] text-white/40">Enfant • Compte Épargne Connecté</p>
-                        </div>
-                      </div>
-                      {isParent && (
-                        <div className="flex space-x-1">
-                          <button 
-                            type="button"
-                            onClick={() => {
-                              const newBalance = window.prompt(`Modifier la cagnotte de ${selectedChild.name} (€) :`, String(selectedChild.balance));
-                              if (newBalance === null) return;
-                              const newPoints = window.prompt(`Modifier les points de ${selectedChild.name} :`, String(selectedChild.points));
-                              if (newPoints === null) return;
-                              setPocketMoney(prev => prev.map(c => c.id === selectedChild.id ? { ...c, balance: Number(newBalance), points: Number(newPoints) } : c));
-                            }}
-                            className="p-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-white/60 hover:text-white transition text-[10px] font-bold"
-                            title="Modifier"
-                          >
-                            ✏️
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                {/* 6-Card Dashboard Overview */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                  <div className="bg-white/5 border border-white/5 rounded-3xl p-4 text-center space-y-1">
+                    <span className="text-xl">🌟</span>
+                    <span className="text-[9px] font-bold text-white/40 block uppercase tracking-wide">Points Dispo</span>
+                    <p className="text-base font-black text-[#6C5CFF]">{resolvedChild.points}</p>
+                  </div>
+                  <div className="bg-white/5 border border-white/5 rounded-3xl p-4 text-center space-y-1">
+                    <span className="text-xl">💰</span>
+                    <span className="text-[9px] font-bold text-white/40 block uppercase tracking-wide">Argent Dispo</span>
+                    <p className="text-base font-black text-[#00D26A]">{formatMoney(resolvedChild.balance)}</p>
+                  </div>
+                  <div className="bg-white/5 border border-white/5 rounded-3xl p-4 text-center space-y-1">
+                    <span className="text-xl">🎁</span>
+                    <span className="text-[9px] font-bold text-white/40 block uppercase tracking-wide">Récompenses</span>
+                    <p className="text-base font-black text-white">{validatedRewardsCount}</p>
+                  </div>
+                  <div className="bg-white/5 border border-white/5 rounded-3xl p-4 text-center space-y-1">
+                    <span className="text-xl">🛒</span>
+                    <span className="text-[9px] font-bold text-white/40 block uppercase tracking-wide">En Attente</span>
+                    <p className={`text-base font-black ${pendingRequests.length > 0 ? 'text-amber-500' : 'text-white'}`}>{pendingRequests.length}</p>
+                  </div>
+                  <div className="bg-white/5 border border-white/5 rounded-3xl p-4 text-center space-y-1">
+                    <span className="text-xl">📅</span>
+                    <span className="text-[9px] font-bold text-white/40 block uppercase tracking-wide">Règles Auto</span>
+                    <p className="text-base font-black text-white">{activeRulesCount}</p>
+                  </div>
+                  <div className="bg-white/5 border border-white/5 rounded-3xl p-4 text-center space-y-1">
+                    <span className="text-xl">🔥</span>
+                    <span className="text-[9px] font-bold text-white/40 block uppercase tracking-wide">Série</span>
+                    <p className="text-base font-black text-[#FFB020]">{missionStreak} j</p>
+                  </div>
+                </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-center pt-2">
-                      <div className="p-3 rounded-2xl bg-white/5 border border-white/5">
-                        <span className="text-[8px] font-bold text-white/40 uppercase tracking-wide block">Solde Cagnotte</span>
-                        <span className="text-base font-extrabold text-[#00D26A] mt-0.5 block">{formatMoney(selectedChild.balance)}</span>
-                      </div>
-                      <div className="p-3 rounded-2xl bg-white/5 border border-white/5">
-                        <span className="text-[8px] font-bold text-white/40 uppercase tracking-wide block">Points Actuels</span>
-                        <span className="text-base font-extrabold text-[#6C5CFF] mt-0.5 block">{selectedChild.points} Pts</span>
-                      </div>
-                    </div>
-
-                    {/* Objectif d'épargne */}
-                    <div className="p-3.5 rounded-2xl bg-white/5 border border-white/5 text-left space-y-2">
-                      {selectedChild.goalTitle ? (
-                        <>
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-white">🎯 {selectedChild.goalTitle}</span>
-                            <span className="font-bold text-white/60">{selectedChild.balance.toFixed(2)}€ / {selectedChild.goalAmount}€</span>
-                          </div>
-                          <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden border border-white/5">
-                            <div 
-                              className="h-full bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] transition-all"
-                              style={{ width: `${Math.min(100, (selectedChild.balance / (selectedChild.goalAmount || 1)) * 100)}%` }}
-                            ></div>
-                          </div>
-                          <div className="flex items-center justify-between text-[9px] text-white/40">
-                            <span>Progression: {Math.min(100, Math.round((selectedChild.balance / (selectedChild.goalAmount || 1)) * 100))}%</span>
-                            <button 
-                              type="button" 
-                              onClick={() => {
-                                setPocketMoney(prev => prev.map(c => c.id === selectedChild.id ? { ...c, goalTitle: undefined, goalAmount: undefined } : c));
-                              }}
-                              className="text-red-400 hover:underline"
-                            >
-                              Supprimer
-                            </button>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="space-y-2">
-                          <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest block">🎯 Objectif d'épargne</span>
-                          <button 
-                            type="button"
-                            onClick={() => {
-                              const goalTitle = window.prompt("Quel est l'objectif d'épargne ? (ex: Vélo, Console...) :");
-                              if (!goalTitle) return;
-                              const goalAmount = window.prompt("Montant de l'objectif (€) :");
-                              if (!goalAmount) return;
-                              setPocketMoney(prev => prev.map(c => c.id === selectedChild.id ? { ...c, goalTitle, goalAmount: Number(goalAmount) } : c));
-                            }}
-                            className="w-full py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-[10px] transition text-center border border-dashed border-white/20"
-                          >
-                            + Définir un objectif d'épargne
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                {/* Quick actions buttons */}
+                <div className="space-y-3">
+                  <div className="flex space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdjustmentType('add');
+                        setAdjustmentAsset('points');
+                        setShowQuickForm(prev => prev && adjustmentAsset === 'points' && adjustmentType === 'add' ? false : true);
+                      }}
+                      className="flex-1 py-3 px-4 bg-gradient-to-r from-[#6C5CFF] to-[#6C5CFF]/70 text-white font-extrabold text-xs rounded-2xl shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                    >
+                      <span>⭐ Ajouter des étoiles</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdjustmentType('add');
+                        setAdjustmentAsset('money');
+                        setShowQuickForm(prev => prev && adjustmentAsset === 'money' && adjustmentType === 'add' ? false : true);
+                      }}
+                      className="flex-1 py-3 px-4 bg-gradient-to-r from-[#00D26A] to-[#00D26A]/70 text-white font-extrabold text-xs rounded-2xl shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                    >
+                      <span>💶 Ajouter de l'argent</span>
+                    </button>
                   </div>
 
-                  {/* Direct Adjustments Form */}
-                  <form onSubmit={handleApplyDirectAdjustment} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 text-left font-sans">
-                    <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block flex items-center space-x-1.5">
-                      <span>Ajustement direct (Accès Parent) 🪙</span>
-                    </span>
-                    
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Action</label>
+                  {/* Collapsible Adjustment Form */}
+                  {showQuickForm && (
+                    <form onSubmit={handleApplyDirectAdjustment} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 text-left font-sans">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block">
+                          Ajustement rapide : {adjustmentType === 'add' ? 'Ajouter' : 'Retirer'} {adjustmentAsset === 'points' ? 'des Points (Stars)' : 'du Cash (€)'}
+                        </span>
                         <select
                           value={adjustmentType}
                           onChange={e => setAdjustmentType(e.target.value as any)}
-                          className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                          className="bg-white/5 border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white focus:outline-none"
                         >
                           <option value="add">Ajouter (+)</option>
                           <option value="remove">Retirer (-)</option>
                         </select>
                       </div>
 
-                      <div>
-                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Type de solde</label>
-                        <select
-                          value={adjustmentAsset}
-                          onChange={e => setAdjustmentAsset(e.target.value as any)}
-                          className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-                        >
-                          <option value="money">Argent (€)</option>
-                          <option value="points">Points (Pts)</option>
-                        </select>
-                      </div>
-                    </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Montant / Quantité</label>
+                          <input
+                            type="number"
+                            step="any"
+                            required
+                            placeholder={adjustmentAsset === 'points' ? 'ex: 50' : 'ex: 5.00'}
+                            value={adjustmentAmount}
+                            onChange={e => setAdjustmentAmount(e.target.value)}
+                            className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                          />
+                        </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          {adjustmentAsset === 'money' ? (
+                            <>
+                              <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Débiter le compte parent</label>
+                              <select
+                                value={adjustmentAccountId}
+                                onChange={e => setAdjustmentAccountId(e.target.value)}
+                                className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                                required
+                              >
+                                <option value="">Sélectionner...</option>
+                                {accounts.map(acc => (
+                                  <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toFixed(2)}€)</option>
+                                ))}
+                              </select>
+                            </>
+                          ) : (
+                            <div className="pt-6 text-white/40 text-[10px] font-bold">Aucun compte bancaire requis pour les points.</div>
+                          )}
+                        </div>
+                      </div>
+
                       <div>
-                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Montant</label>
+                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Motif / Commentaire</label>
                         <input
-                          type="number"
-                          step="any"
+                          type="text"
+                          placeholder="ex: Récompense tâches ménagères, Bonne note en Maths..."
+                          value={adjustmentReason}
+                          onChange={e => setAdjustmentReason(e.target.value)}
+                          className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
                           required
-                          placeholder="ex: 10"
-                          value={adjustmentAmount}
-                          onChange={e => setAdjustmentAmount(e.target.value)}
-                          className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
                         />
                       </div>
 
-                      <div>
-                        {adjustmentAsset === 'money' ? (
-                          <>
-                            <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Compte parent à impacter</label>
-                            <select
-                              value={adjustmentAccountId}
-                              onChange={e => setAdjustmentAccountId(e.target.value)}
-                              className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none"
-                              required
-                            >
-                              <option value="">Sélectionner...</option>
-                              {accounts.map(acc => (
-                                <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toFixed(2)}€)</option>
-                              ))}
-                            </select>
-                          </>
-                        ) : (
-                          <div className="pt-5 text-white/40 text-[10px] font-bold">Ajustement direct de points</div>
-                        )}
+                      <div className="flex space-x-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowQuickForm(false)}
+                          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white rounded-xl text-xs font-bold"
+                        >
+                          Annuler
+                        </button>
+                        <button
+                          type="submit"
+                          className="flex-1 py-2 bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white text-xs font-bold rounded-xl"
+                        >
+                          Confirmer l'opération
+                        </button>
                       </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Raison / Commentaire</label>
-                      <input
-                        type="text"
-                        placeholder="ex: Récompense bonne note, Achat confiseries..."
-                        value={adjustmentReason}
-                        onChange={e => setAdjustmentReason(e.target.value)}
-                        className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full py-2 bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white text-xs font-extrabold rounded-xl hover:opacity-95 transition-all cursor-pointer border border-[#6C5CFF]/20"
-                    >
-                      Appliquer l'ajustement
-                    </button>
-                  </form>
+                    </form>
+                  )}
                 </div>
 
-                {/* Shop Purchases Alerts specific to this child */}
-                {(() => {
-                  const childBoutiqueAlerts = alerts.filter(a => a.id.startsWith('req-rew-') && a.senderMemberId === selectedChild.id);
-                  if (childBoutiqueAlerts.length === 0) return null;
-
-                  return (
-                    <div className="glass-panel rounded-[28px] border-2 border-amber-500/20 bg-amber-500/5 p-5 space-y-3 text-left">
-                      <div className="flex items-center space-x-2 text-amber-500">
-                        <span>🛍️</span>
-                        <h4 className="text-xs font-extrabold uppercase tracking-wider">Demandes d'achats boutique ({selectedChild.name})</h4>
-                      </div>
-                      <div className="space-y-2">
-                        {childBoutiqueAlerts.map(alertItem => {
-                          const alertParts = alertItem.id.split('-');
-                          const rewardId = `${alertParts[3]}-${alertParts[4]}`;
+                {/* Validation Requests (alerts req-rew-* & sug-rew-*) */}
+                {pendingRequests.length > 0 && (
+                  <div className="glass-panel rounded-[28px] border-2 border-amber-500/20 bg-amber-500/5 p-5 space-y-3 text-left">
+                    <div className="flex items-center space-x-2 text-amber-500">
+                      <span>🔔</span>
+                      <h4 className="text-xs font-extrabold uppercase tracking-wider">Demandes en attente de validation ({resolvedChild.name})</h4>
+                    </div>
+                    <div className="space-y-2">
+                      {pendingRequests.map(alertItem => {
+                        // 1. Check if purchase request req-rew-*
+                        const isPurchase = alertItem.id.startsWith('req-rew-');
+                        if (isPurchase) {
+                          const match = alertItem.id.match(/^req-rew-(.+)-(.+)-(points|money)-(\d+)$/);
+                          if (!match) return null;
+                          const rewardId = match[2];
+                          const paymentMethod = match[3];
                           const reward = rewardsList.find(r => r.id === rewardId);
-
-                          const handleApprove = async () => {
-                            if (!reward) return;
-                            if (selectedChild.points < reward.cost) {
-                              alert(`Désolé, ${selectedChild.name} n'a plus assez de points (${selectedChild.points} pts) pour débloquer cette récompense (${reward.cost} pts).`);
-                              return;
-                            }
-
-                            // Deduct points
-                            const updatedPoints = selectedChild.points - reward.cost;
-                            setPocketMoney(prev => prev.map(c => c.id === selectedChild.id ? { ...c, points: updatedPoints } : c));
-
-                            // Add Transaction
-                            if (onAddTransaction) {
-                              onAddTransaction({
-                                amount: 0,
-                                type: 'expense',
-                                category: 'Argent de Poche',
-                                date: new Date().toISOString().split('T')[0],
-                                title: `Achat boutique validé : ${reward.title} (-${reward.cost} pts)`,
-                                memberName: selectedChild.name
-                              });
-                            }
-
-                            // Delete alert
-                            if (setAlerts) {
-                              setAlerts(prev => prev.filter(a => a.id !== alertItem.id));
-                            }
-
-                            // Delete alert in Supabase
-                            try {
-                              const client = getSupabaseClient();
-                              if (client) {
-                                await client.from('alerts').delete().eq('id', alertItem.id);
-                                await client.from('pocket_money').update({ points: updatedPoints }).eq('id', selectedChild.id);
-                              }
-                            } catch (err) {
-                              console.error("[MenuHub] Failed to update reward approval on cloud:", err);
-                            }
-
-                            alert(`🎉 Demande d'achat "${reward.title}" validée !`);
-                          };
-
-                          const handleRefuse = async () => {
-                            if (setAlerts) {
-                              setAlerts(prev => prev.filter(a => a.id !== alertItem.id));
-                            }
-                            try {
-                              const client = getSupabaseClient();
-                              if (client) {
-                                await client.from('alerts').delete().eq('id', alertItem.id);
-                              }
-                            } catch (err) {
-                              console.error("[MenuHub] Failed to delete alert on cloud:", err);
-                            }
-                            alert("Demande d'achat refusée.");
-                          };
+                          const cost = paymentMethod === 'points' ? reward?.costPoints : reward?.costMoney;
 
                           return (
                             <div key={alertItem.id} className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
                               <div>
-                                <p className="font-bold text-white">{alertItem.title} ({reward?.cost || 0} pts)</p>
+                                <p className="font-bold text-white">Achat boutique : {reward?.title || 'Cadeau inconnu'}</p>
+                                <p className="text-[10px] text-white/50">
+                                  Méthode de paiement demandée : <span className="font-bold text-[#6C5CFF]">{paymentMethod === 'points' ? 'Étoiles/Points' : 'Cash'}</span> • Coût : <span className="font-bold text-[#00D26A]">{paymentMethod === 'points' ? `${cost} Pts` : `${cost} €`}</span>
+                                </p>
+                              </div>
+                              <div className="flex space-x-2 shrink-0">
+                                <button type="button" onClick={() => handleRefuseRequest(alertItem.id)} className="px-3 py-1 bg-red-500/20 text-red-400 rounded-xl font-bold cursor-pointer">Refuser</button>
+                                <button type="button" onClick={() => handleApproveBoutiqueRequest(alertItem, resolvedChild.id, rewardId, paymentMethod)} className="px-3 py-1 bg-[#00D26A] text-[#07111F] rounded-xl font-bold cursor-pointer">Approuver</button>
+                              </div>
+                            </div>
+                          );
+                        } else {
+                          // Suggestion sug-rew-*
+                          return (
+                            <div key={alertItem.id} className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+                              <div>
+                                <p className="font-bold text-white">Suggestion de cadeau personnalisé 💡</p>
                                 <p className="text-[10px] text-white/50">{alertItem.description}</p>
                               </div>
                               <div className="flex space-x-2 shrink-0">
-                                <button type="button" onClick={handleRefuse} className="px-3 py-1 bg-red-500/20 text-red-400 rounded-xl font-bold">Refuser</button>
-                                <button type="button" onClick={handleApprove} className="px-3 py-1 bg-[#00D26A] text-[#07111F] rounded-xl font-bold">Valider</button>
+                                <button type="button" onClick={() => handleRefuseRequest(alertItem.id)} className="px-3 py-1 bg-red-500/20 text-red-400 rounded-xl font-bold cursor-pointer">Ignorer</button>
+                                <button 
+                                  type="button" 
+                                  onClick={() => {
+                                    // Pre-fill boutique creator
+                                    setNewBoutiqueTitle(alertItem.title.replace("Suggestion : ", ""));
+                                    setNewBoutiqueCostPoints(100);
+                                    setNewBoutiqueCostMoney(10);
+                                    setNewBoutiqueIcon('🎁');
+                                    alert("Formulaire de boutique pré-rempli ci-dessous !");
+                                    // Remove alert
+                                    handleRefuseRequest(alertItem.id);
+                                  }} 
+                                  className="px-3 py-1 bg-[#6C5CFF] text-white rounded-xl font-bold cursor-pointer"
+                                >
+                                  Créer le cadeau
+                                </button>
                               </div>
                             </div>
                           );
-                        })}
-                      </div>
+                        }
+                      })}
                     </div>
-                  );
-                })()}
+                  </div>
+                )}
 
-                {/* Recurring transfers list for this child */}
-                {(() => {
-                  const childRecurringTransfers = transactions.filter(t => 
-                    t.recurrence && t.recurrence !== 'none' &&
-                    (t.category === 'Argent de poche' || t.category === 'Argent de Poche') && 
-                    (t.memberName === selectedChild.name || t.memberId === selectedChild.id)
-                  );
-                  if (childRecurringTransfers.length === 0) return null;
-
-                  return (
-                    <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-3 text-left">
-                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">Versements récurrents programmés</h4>
-                      <div className="space-y-2">
-                        {childRecurringTransfers.map(tx => (
-                          <div key={tx.id} className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 text-xs font-bold">
-                            <div>
-                              <p className="text-white">{tx.title}</p>
-                              <p className="text-[9px] text-white/40">Montant: {formatMoney(tx.amount)} • Récurrence: {tx.recurrence === 'weekly' ? 'Chaque semaine' : 'Chaque mois'}</p>
+                {/* Savings goal thermometer editor */}
+                <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 text-left">
+                  <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block flex items-center space-x-1.5">
+                    <span>🎯 Objectif d'épargne (Cagnotte)</span>
+                  </span>
+                  
+                  {resolvedChild.goalTitle ? (
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center text-xs">
+                        <div>
+                          <p className="font-bold text-white">🎯 {resolvedChild.goalTitle}</p>
+                          <p className="text-[10px] text-white/40">Cible : {resolvedChild.goalType === 'points' ? `${resolvedChild.goalAmount} Pts` : `${resolvedChild.goalAmount} €`}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleSaveGoal(resolvedChild.id, '', 0, 'money')}
+                          className="text-red-400 hover:text-red-300 text-xs font-bold"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                      
+                      {/* Thermometer */}
+                      {(() => {
+                        const current = resolvedChild.goalType === 'points' ? resolvedChild.points : resolvedChild.balance;
+                        const target = resolvedChild.goalAmount || 1;
+                        const pct = Math.min(100, Math.round((current / target) * 100));
+                        return (
+                          <div className="space-y-1">
+                            <div className="w-full h-3 rounded-full bg-white/5 overflow-hidden border border-white/5 flex items-center pr-1.5">
+                              <div 
+                                className="h-full bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] transition-all"
+                                style={{ width: `${pct}%` }}
+                              ></div>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleCancelRecurringTransfer(tx.id)}
-                              className="px-2.5 py-1 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-xl font-bold font-sans cursor-pointer"
-                            >
-                              Annuler
-                            </button>
+                            <div className="flex justify-between text-[10px] text-white/40">
+                              <span>Progression : {pct}%</span>
+                              <span>{resolvedChild.goalType === 'points' ? `${current} Pts / ${target} Pts` : `${formatMoney(current)} / ${formatMoney(target)}`}</span>
+                            </div>
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })()}
                     </div>
-                  );
-                })()}
+                  ) : (
+                    <div className="p-4 border border-dashed border-white/10 rounded-2xl text-center space-y-3">
+                      <p className="text-xs text-white/40 font-bold">Aucun objectif d'épargne défini pour cet enfant.</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const title = window.prompt("Quel est l'objectif d'épargne ? (ex: VTT, PlayStation...) :");
+                          if (!title) return;
+                          const amtStr = window.prompt("Quel est le montant cible ? (ex: 200) :");
+                          if (!amtStr) return;
+                          const amount = parseFloat(amtStr);
+                          if (isNaN(amount)) return;
+                          const type = window.confirm("L'objectif est-il mesuré en Argent (€) ? (Cliquez sur Annuler pour les Étoiles/Points)") ? 'money' : 'points';
+                          handleSaveGoal(resolvedChild.id, title, amount, type);
+                        }}
+                        className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-bold border border-white/10"
+                      >
+                        + Configurer un objectif
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-                {/* Transactions history list for this child */}
-                {(() => {
-                  const childTransactions = transactions.filter(t => 
-                    (t.category === 'Argent de poche' || t.category === 'Argent de Poche') && 
-                    (t.memberName === selectedChild.name || t.memberId === selectedChild.id)
-                  );
+                {/* Automatic rules configs */}
+                <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 text-left">
+                  <h3 className="text-sm font-extrabold text-white flex items-center space-x-2">
+                    <span>⚙️ Règles de versement automatique</span>
+                  </h3>
+                  <p className="text-[11px] text-white/50 font-bold">Configurez des versements automatiques en cash (€) ou en étoiles (Pts) selon 7 conditions clés.</p>
+                  
+                  <div className="space-y-4">
+                    {RULE_TYPES_INFO.map(rType => {
+                      const childRules = (resolvedChild.rules || []) as PocketMoneyRule[];
+                      const currentRule: PocketMoneyRule = childRules.find(r => r.type === rType.type) || {
+                        id: `rule-${resolvedChild.id}-${rType.type}`,
+                        type: rType.type,
+                        active: false,
+                        amount: 0,
+                        points: 0,
+                        conditionValue: rType.type === 'after_grade' || rType.type === 'after_average' ? '>= 15' : undefined
+                      };
 
-                  return (
-                    <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-3 text-left">
-                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">Historique de la tirelire</h4>
-                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                        {childTransactions.map(tx => {
-                          const isCredit = tx.amount > 0 || (tx.type as string) === 'credit' || tx.type === 'income';
-                          const displayAmt = Math.abs(tx.amount);
-                          return (
-                            <div key={tx.id} className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 text-xs font-bold">
-                              <div>
-                                <p className="text-white">{tx.title}</p>
-                                <p className="text-[9px] text-white/40">{tx.date}</p>
-                              </div>
-                              {tx.amount !== 0 ? (
-                                <span className={isCredit ? 'text-[#00D26A]' : 'text-[#FF4D6D]'}>
-                                  {isCredit ? '+' : '-'}{displayAmt.toFixed(2)} €
-                                </span>
-                              ) : (
-                                <span className="text-[#FFB020] text-[10px] font-black">Achat Boutique</span>
-                              )}
+                      const handleToggleRuleActive = (active: boolean) => {
+                        const exists = childRules.some(r => r.type === rType.type);
+                        const updated = exists 
+                          ? childRules.map(r => r.type === rType.type ? { ...r, active } : r)
+                          : [...childRules, { ...currentRule, active }];
+                        handleSaveChildRules(resolvedChild.id, updated);
+                      };
+
+                      const handleUpdateRuleValues = (amt: number, pts: number, cond?: string) => {
+                        const exists = childRules.some(r => r.type === rType.type);
+                        const updatedRule = { ...currentRule, amount: amt, points: pts, conditionValue: cond };
+                        const updated = exists
+                          ? childRules.map(r => r.type === rType.type ? updatedRule : r)
+                          : [...childRules, updatedRule];
+                        handleSaveChildRules(resolvedChild.id, updated);
+                      };
+
+                      const needsCondition = rType.type === 'after_grade' || rType.type === 'after_average';
+
+                      return (
+                        <div key={rType.type} className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                          <div className="space-y-1 flex-1">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-extrabold text-white">{rType.label}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[8px] font-black ${currentRule.active ? 'bg-[#00D26A]/20 text-[#00D26A]' : 'bg-white/10 text-white/40'}`}>
+                                {currentRule.active ? 'Actif' : 'Inactif'}
+                              </span>
                             </div>
-                          );
-                        })}
-                        {childTransactions.length === 0 && (
-                          <p className="text-xs text-white/30 text-center py-4">Aucune transaction enregistrée.</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
+                            <p className="text-[10px] text-white/40 font-bold">{rType.desc}</p>
+                          </div>
 
-                {/* Boutique configuration panel */}
+                          <div className="flex flex-wrap items-center gap-3 shrink-0">
+                            {needsCondition && (
+                              <div className="flex flex-col space-y-1">
+                                <span className="text-[8px] font-bold text-white/40 uppercase">Seuil/Condition</span>
+                                <input
+                                  type="text"
+                                  placeholder="ex: >= 15"
+                                  value={currentRule.conditionValue || ''}
+                                  onChange={e => handleUpdateRuleValues(currentRule.amount || 0, currentRule.points || 0, e.target.value)}
+                                  className="w-16 bg-[#07111F] border border-white/8 rounded-xl px-2 py-1 text-center font-bold text-white focus:outline-none"
+                                />
+                              </div>
+                            )}
+
+                            <div className="flex flex-col space-y-1">
+                              <span className="text-[8px] font-bold text-white/40 uppercase">Montant (€)</span>
+                              <input
+                                type="number"
+                                step="any"
+                                placeholder="0"
+                                value={currentRule.amount || ''}
+                                onChange={e => handleUpdateRuleValues(parseFloat(e.target.value) || 0, currentRule.points || 0, currentRule.conditionValue)}
+                                className="w-16 bg-[#07111F] border border-white/8 rounded-xl px-2 py-1 text-center font-bold text-white focus:outline-none"
+                              />
+                            </div>
+
+                            <div className="flex flex-col space-y-1">
+                              <span className="text-[8px] font-bold text-white/40 uppercase">Étoiles (Pts)</span>
+                              <input
+                                type="number"
+                                placeholder="0"
+                                value={currentRule.points || ''}
+                                onChange={e => handleUpdateRuleValues(currentRule.amount || 0, parseInt(e.target.value, 10) || 0, currentRule.conditionValue)}
+                                className="w-16 bg-[#07111F] border border-white/8 rounded-xl px-2 py-1 text-center font-bold text-[#6C5CFF] focus:outline-none"
+                              />
+                            </div>
+
+                            <div className="flex items-center pt-3">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleRuleActive(!currentRule.active)}
+                                className={`px-3 py-1 rounded-xl font-bold transition cursor-pointer text-[10px] ${
+                                  currentRule.active
+                                    ? 'bg-red-500/20 text-red-400'
+                                    : 'bg-[#00D26A] text-[#07111F]'
+                                }`}
+                              >
+                                {currentRule.active ? 'Désactiver' : 'Activer'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Boutique Configuration Editor */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
                   {/* Create item form */}
                   <form onSubmit={handleCreateBoutiqueItem} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 font-sans text-left">
@@ -6773,26 +7077,39 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                         <input
                           type="text"
                           required
-                          placeholder="ex: 30m console, Glace..."
+                          placeholder="ex: 30m console, Sortie ciné..."
                           value={newBoutiqueTitle}
                           onChange={e => setNewBoutiqueTitle(e.target.value)}
-                          className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2 text-xs text-white focus:outline-none"
+                          className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                         />
                       </div>
                       <div>
-                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Prix (en Points)</label>
+                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Prix (en Étoiles/Points)</label>
                         <input
                           type="number"
                           required
                           placeholder="ex: 100"
-                          value={newBoutiqueCost}
-                          onChange={e => setNewBoutiqueCost(Number(e.target.value))}
+                          value={newBoutiqueCostPoints}
+                          onChange={e => setNewBoutiqueCostPoints(Number(e.target.value))}
                           className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                         />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Prix Cash (€)</label>
+                        <input
+                          type="number"
+                          step="any"
+                          required
+                          placeholder="ex: 10"
+                          value={newBoutiqueCostMoney}
+                          onChange={e => setNewBoutiqueCostMoney(Number(e.target.value))}
+                          className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none text-center"
+                        />
+                      </div>
+
                       <div>
                         <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Icône (Emoji)</label>
                         <input
@@ -6820,7 +7137,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                           <option value="Cadeau">Cadeau</option>
                         </select>
                       </div>
+                    </div>
 
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Validation requise</label>
                         <select
@@ -6830,6 +7149,18 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                         >
                           <option value="true">Oui</option>
                           <option value="false">Non (Auto)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Visible pour enfants</label>
+                        <select
+                          value={newBoutiqueAvail ? 'true' : 'false'}
+                          onChange={e => setNewBoutiqueAvail(e.target.value === 'true')}
+                          className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none"
+                        >
+                          <option value="true">Afficher</option>
+                          <option value="false">Masquer</option>
                         </select>
                       </div>
                     </div>
@@ -6845,23 +7176,35 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   {/* List custom rewards */}
                   <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3 font-sans text-left">
                     <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Articles Boutique configurés ({dbRewards.length})</span>
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                       {dbRewards.map(item => (
                         <div key={item.id} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 text-xs font-bold">
                           <div className="flex items-center space-x-2">
                             <span className="text-base">{item.icon}</span>
                             <div>
                               <p className="text-white">{item.title}</p>
-                              <p className="text-[9px] text-white/40">{item.category} • {item.cost} Pts • {item.validationRequired ? 'Avec validation' : 'Direct'}</p>
+                              <p className="text-[9px] text-white/40">
+                                {item.category} • {item.costPoints} Pts / {formatMoney(item.costMoney)} • {item.avail ? 'Visible' : 'Masqué'}
+                              </p>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteBoutiqueItem(item.id)}
-                            className="p-1 text-red-400 hover:bg-red-500/10 rounded transition cursor-pointer"
-                          >
-                            🗑️
-                          </button>
+                          <div className="flex space-x-1.5 items-center">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleRewardAvailability(item.id, item.avail)}
+                              className={`p-1 rounded text-[10px] ${item.avail ? 'text-amber-400' : 'text-gray-400'}`}
+                              title={item.avail ? 'Masquer' : 'Afficher'}
+                            >
+                              {item.avail ? '👁️' : '👁️‍🗨️'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteBoutiqueItem(item.id)}
+                              className="p-1 text-red-400 hover:bg-red-500/10 rounded transition cursor-pointer"
+                            >
+                              🗑️
+                            </button>
+                          </div>
                         </div>
                       ))}
                       {dbRewards.length === 0 && (
@@ -6871,15 +7214,70 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   </div>
                 </div>
 
-              </div>
-            ) : (
-              <div className="glass-panel rounded-[28px] border border-white/8 p-8 text-center space-y-2">
-                <span className="text-3xl block">🪙</span>
-                <p className="text-sm font-bold text-white">Gérer le Portefeuille d'un Enfant</p>
-                <p className="text-xs text-white/50 leading-relaxed font-bold">Sélectionnez l'un des enfants ci-dessus pour accéder à son solde, ajuster son argent, configurer sa boutique ou valider ses demandes d'achats.</p>
+                {/* Recurring transfers list for this child */}
+                {(() => {
+                  const childRecurringTransfers = transactions.filter(t => 
+                    t.recurrence && t.recurrence !== 'none' &&
+                    (t.category === 'Argent de poche' || t.category === 'Argent de Poche') && 
+                    (t.memberName === resolvedChild.name || t.memberId === resolvedChild.id)
+                  );
+                  if (childRecurringTransfers.length === 0) return null;
+
+                  return (
+                    <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-3 text-left">
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">Versements récurrents programmés</h4>
+                      <div className="space-y-2">
+                        {childRecurringTransfers.map(tx => (
+                          <div key={tx.id} className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 text-xs font-bold">
+                            <div>
+                              <p className="text-white">{tx.title}</p>
+                              <p className="text-[9px] text-white/40">Montant : {formatMoney(tx.amount)} • Récurrence : {tx.recurrence === 'weekly' ? 'Chaque semaine' : 'Chaque mois'}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelRecurringTransfer(tx.id)}
+                              className="px-2.5 py-1 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-xl font-bold font-sans cursor-pointer"
+                            >
+                              Annuler
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Transactions history list for this child */}
+                <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-3 text-left">
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Historique de la tirelire ({resolvedChild.name})</h4>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {childTransactions.map(tx => {
+                      const isCredit = tx.amount > 0 || (tx.type as string) === 'credit' || tx.type === 'income';
+                      const displayAmt = Math.abs(tx.amount);
+                      return (
+                        <div key={tx.id} className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 text-xs font-bold">
+                          <div>
+                            <p className="text-white">{tx.title}</p>
+                            <p className="text-[9px] text-white/40">{tx.date}</p>
+                          </div>
+                          {tx.amount !== 0 ? (
+                            <span className={isCredit ? 'text-[#00D26A]' : 'text-[#FF4D6D]'}>
+                              {isCredit ? '+' : '-'}{displayAmt.toFixed(2)} €
+                            </span>
+                          ) : (
+                            <span className="text-[#FFB020] text-[10px] font-black">Opération points</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {childTransactions.length === 0 && (
+                      <p className="text-xs text-white/30 text-center py-4">Aucune transaction enregistrée.</p>
+                    )}
+                  </div>
+                </div>
+
               </div>
             )}
-
           </div>
         );
       })()}

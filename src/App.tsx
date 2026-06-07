@@ -5,8 +5,10 @@ import { parseSmartNaturalSentence, detectGroceryCategory, getGroceryItemEmoji, 
 import { DICTIONARIES } from './utils/dictionaries';
 
 
-import { getDefaultPermissions, parseChoreTitle, serializeChoreTitle } from './types';
+import { getDefaultPermissions, parseChoreTitle, serializeChoreTitle, parsePocketMoneyTitle, serializePocketMoneyTitle } from './types';
 import type { 
+  PocketMoneyChild,
+  PocketMoneyRule,
   Member, 
   FamilyJoinRequest,
   FamilyEvent, 
@@ -432,7 +434,7 @@ function App() {
   const [pets, setPets] = useState<PetRecord[]>(() => {
     return safeGetLocalStorage('mf_pets', []);
   });
-  const [pocketMoney, setPocketMoney] = useState<{ id: string; name: string; balance: number; points: number; avatar: string; }[]>(() => {
+  const [pocketMoney, setPocketMoney] = useState<PocketMoneyChild[]>(() => {
     return safeGetLocalStorage('mf_pocket_money', []);
   });
 
@@ -1548,6 +1550,296 @@ function App() {
     }
   }, [members, foyer]);
 
+  // ----------------------------------------------------
+  // MOTEUR D'ALLOCATIONS ET RÈGLES AUTOMATIQUES (POCKET MONEY)
+  // ----------------------------------------------------
+  const matchGradeCondition = (gradeValue: number, conditionStr: string): boolean => {
+    if (!conditionStr) return true;
+    const match = conditionStr.match(/^(\s*)([>=<!]+)?\s*([0-9.,]+)/);
+    if (!match) return false;
+    const op = match[2] || '>=';
+    const val = parseFloat(match[3].replace(',', '.'));
+    switch (op) {
+      case '>=': return gradeValue >= val;
+      case '>': return gradeValue > val;
+      case '<=': return gradeValue <= val;
+      case '<': return gradeValue < val;
+      case '=':
+      case '==': return gradeValue === val;
+      default: return gradeValue >= val;
+    }
+  };
+
+  const triggerSchoolRulesForChild = (studentId: string, grade: any) => {
+    const parentAccountId = accounts.find(a => a.type === 'bank')?.id || accounts[0]?.id || null;
+    
+    setPocketMoney(prev => {
+      let changed = false;
+      const updatedList = prev.map(child => {
+        if (child.id !== studentId) return child;
+        
+        let updatedBalance = child.balance;
+        let pointsReward = child.points;
+        let rulesChanged = false;
+
+        const updatedRules = (child.rules || []).map(rule => {
+          if (!rule.active) return rule;
+
+          // 1. Règle "après note"
+          if (rule.type === 'after_grade') {
+            if (rule.lastPaymentDate === grade.id) return rule;
+
+            const cond = rule.conditionValue || '>= 15';
+            const normalizedValue = (grade.value / grade.max) * 20;
+            const isMatch = matchGradeCondition(normalizedValue, cond);
+
+            if (isMatch) {
+              rulesChanged = true;
+              if (rule.amount && rule.amount > 0) {
+                updatedBalance += rule.amount;
+                handleAddTransaction({
+                  amount: rule.amount,
+                  type: 'expense',
+                  category: 'Argent de Poche',
+                  date: new Date().toISOString().split('T')[0],
+                  title: `Bonus scolaire (€) (Note: ${grade.value}/${grade.max} en ${grade.subject})`,
+                  memberName: child.name,
+                  accountId: parentAccountId,
+                  moduleSource: 'school'
+                });
+              }
+              if (rule.points && rule.points > 0) {
+                pointsReward += rule.points;
+                handleAddTransaction({
+                  amount: rule.points / 10,
+                  type: 'savings',
+                  category: 'Argent de Poche',
+                  date: new Date().toISOString().split('T')[0],
+                  title: `Bonus scolaire (Points) (Note: ${grade.value}/${grade.max} en ${grade.subject})`,
+                  memberName: child.name
+                });
+              }
+              return { ...rule, lastPaymentDate: grade.id };
+            }
+          }
+
+          // 2. Règle "après moyenne"
+          if (rule.type === 'after_average') {
+            const childGrades = grades.filter(g => g.studentId === studentId);
+            if (!childGrades.some(g => g.id === grade.id)) {
+              childGrades.push(grade);
+            }
+
+            if (childGrades.length > 0) {
+              const totalSum = childGrades.reduce((sum, g) => sum + (g.value / g.max) * 20, 0);
+              const avg = totalSum / childGrades.length;
+              const threshold = parseFloat((rule.conditionValue || '15').replace(',', '.'));
+
+              if (avg >= threshold) {
+                const todayStr = new Date().toISOString().split('T')[0];
+                if (rule.lastPaymentDate === todayStr) return rule;
+
+                rulesChanged = true;
+                if (rule.amount && rule.amount > 0) {
+                  updatedBalance += rule.amount;
+                  handleAddTransaction({
+                    amount: rule.amount,
+                    type: 'expense',
+                    category: 'Argent de Poche',
+                    date: todayStr,
+                    title: `Bonus moyenne scolaire (€) (Moyenne générale: ${avg.toFixed(2)}/20)`,
+                    memberName: child.name,
+                    accountId: parentAccountId,
+                    moduleSource: 'school'
+                  });
+                }
+                if (rule.points && rule.points > 0) {
+                  pointsReward += rule.points;
+                  handleAddTransaction({
+                    amount: rule.points / 10,
+                    type: 'savings',
+                    category: 'Argent de Poche',
+                    date: todayStr,
+                    title: `Bonus moyenne scolaire (Points) (Moyenne générale: ${avg.toFixed(2)}/20)`,
+                    memberName: child.name
+                  });
+                }
+                return { ...rule, lastPaymentDate: todayStr };
+              }
+            }
+          }
+
+          return rule;
+        });
+
+        if (rulesChanged || updatedBalance !== child.balance || pointsReward !== child.points) {
+          changed = true;
+          // Sync database
+          const client = getSupabaseClient();
+          const serializedTitle = serializePocketMoneyTitle({
+            goalTitle: child.goalTitle || '',
+            goalType: child.goalType || 'money',
+            rules: updatedRules
+          });
+
+          if (client) {
+            client.from('pocket_money')
+              .update({ 
+                balance: updatedBalance, 
+                points: pointsReward, 
+                goal_title: serializedTitle 
+              })
+              .eq('id', child.id)
+              .then(({ error }) => {
+                if (error) console.error("Error updating pocket money school rules in Supabase:", error);
+              });
+          }
+
+          return {
+            ...child,
+            balance: updatedBalance,
+            points: pointsReward,
+            rules: updatedRules
+          };
+        }
+
+        return child;
+      });
+
+      return changed ? updatedList : prev;
+    });
+  };
+
+  const periodicCheckedRef = useRef(false);
+  
+  const checkPeriodicAllowances = (currentList: PocketMoneyChild[]) => {
+    if (periodicCheckedRef.current) return;
+    periodicCheckedRef.current = true;
+
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const parentAccountId = accounts.find(a => a.type === 'bank')?.id || accounts[0]?.id || null;
+
+    setPocketMoney(prev => {
+      let changed = false;
+      const updatedList = prev.map(child => {
+        let childChanged = false;
+        let updatedBalance = child.balance;
+        let pointsReward = child.points;
+
+        const updatedRules = (child.rules || []).map(rule => {
+          if (!rule.active) return rule;
+          if (rule.type !== 'weekly' && rule.type !== 'monthly') return rule;
+
+          let shouldPay = false;
+          if (!rule.lastPaymentDate) {
+            shouldPay = true;
+          } else {
+            const lastPay = new Date(rule.lastPaymentDate);
+            const diffTime = Math.abs(today.getTime() - lastPay.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (rule.type === 'weekly' && diffDays >= 7) {
+              shouldPay = true;
+            } else if (rule.type === 'monthly' && diffDays >= 30) {
+              shouldPay = true;
+            }
+          }
+
+          if (shouldPay) {
+            childChanged = true;
+            changed = true;
+            
+            if (rule.amount && rule.amount > 0) {
+              updatedBalance += rule.amount;
+              handleAddTransaction({
+                amount: rule.amount,
+                type: 'expense',
+                category: 'Argent de Poche',
+                date: todayStr,
+                title: `Versement périodique (€) (Règle ${rule.type === 'weekly' ? 'Hebdomadaire' : 'Mensuelle'})`,
+                memberName: child.name,
+                accountId: parentAccountId,
+                moduleSource: 'pocket_money'
+              });
+            }
+            if (rule.points && rule.points > 0) {
+              pointsReward += rule.points;
+              handleAddTransaction({
+                amount: rule.points / 10,
+                type: 'savings',
+                category: 'Argent de Poche',
+                date: todayStr,
+                title: `Versement périodique (Points) (Règle ${rule.type === 'weekly' ? 'Hebdomadaire' : 'Mensuelle'})`,
+                memberName: child.name
+              });
+            }
+            return { ...rule, lastPaymentDate: todayStr };
+          }
+
+          return rule;
+        });
+
+        if (childChanged) {
+          // Sync database
+          const client = getSupabaseClient();
+          const serializedTitle = serializePocketMoneyTitle({
+            goalTitle: child.goalTitle || '',
+            goalType: child.goalType || 'money',
+            rules: updatedRules
+          });
+
+          if (client) {
+            client.from('pocket_money')
+              .update({ 
+                balance: updatedBalance, 
+                points: pointsReward, 
+                goal_title: serializedTitle 
+              })
+              .eq('id', child.id)
+              .then(({ error }) => {
+                if (error) console.error("Error updating pocket money periodic rule in Supabase:", error);
+              });
+          }
+
+          return {
+            ...child,
+            balance: updatedBalance,
+            points: pointsReward,
+            rules: updatedRules
+          };
+        }
+
+        return child;
+      });
+
+      return changed ? updatedList : prev;
+    });
+  };
+
+  useEffect(() => {
+    if (isSyncReady && pocketMoney.length > 0) {
+      checkPeriodicAllowances(pocketMoney);
+    }
+  }, [isSyncReady, pocketMoney]);
+
+  const processedGradeIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (grades.length > 0 && processedGradeIdsRef.current.size === 0) {
+      grades.forEach(g => processedGradeIdsRef.current.add(g.id));
+      return;
+    }
+
+    const newGrades = grades.filter(g => !processedGradeIdsRef.current.has(g.id));
+    if (newGrades.length > 0) {
+      newGrades.forEach(g => {
+        processedGradeIdsRef.current.add(g.id);
+        triggerSchoolRulesForChild(g.studentId, g);
+      });
+    }
+  }, [grades]);
+
 
 
 
@@ -2482,15 +2774,20 @@ function App() {
 
       // Set pocketMoney
       if (pocketMoneyRes.success && pocketMoneyRes.data) {
-        setPocketMoney(pocketMoneyRes.data.map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          balance: Number(p.balance || 0),
-          points: Number(p.points || 0),
-          avatar: p.avatar || '',
-          goalTitle: p.goal_title || undefined,
-          goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined
-        })));
+        setPocketMoney(pocketMoneyRes.data.map((p: any) => {
+          const meta = parsePocketMoneyTitle(p.goal_title || '');
+          return {
+            id: p.id,
+            name: p.name,
+            balance: Number(p.balance || 0),
+            points: Number(p.points || 0),
+            avatar: p.avatar || '',
+            goalTitle: meta.goalTitle || '',
+            goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined,
+            goalType: meta.goalType || 'money',
+            rules: meta.rules || []
+          };
+        }));
       }
 
       // Set artisans
@@ -3100,10 +3397,20 @@ function App() {
       }
 
       if (pocketMoneyRes.data) {
-        const mapped = pocketMoneyRes.data.map(p => ({
-          id: p.id, name: p.name, balance: Number(p.balance || 0), points: Number(p.points || 0), avatar: p.avatar || '',
-          goalTitle: p.goal_title || undefined, goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined
-        }));
+        const mapped = pocketMoneyRes.data.map((p: any) => {
+          const meta = parsePocketMoneyTitle(p.goal_title || '');
+          return {
+            id: p.id,
+            name: p.name,
+            balance: Number(p.balance || 0),
+            points: Number(p.points || 0),
+            avatar: p.avatar || '',
+            goalTitle: meta.goalTitle || '',
+            goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined,
+            goalType: meta.goalType || 'money',
+            rules: meta.rules || []
+          };
+        });
         setPocketMoney(prev => {
           const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
           const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
@@ -3591,15 +3898,20 @@ function App() {
     const subPocketMoney = foyerService.subscribeToChanges('pocket_money', foyer.id, () => {
       foyerService.fetchTableData('pocket_money', foyer.id).then(pmData => {
         if (pmData) {
-          setPocketMoney(pmData.map(p => ({
-            id: p.id,
-            name: p.name,
-            balance: Number(p.balance || 0),
-            points: Number(p.points || 0),
-            avatar: p.avatar || '',
-            goalTitle: p.goal_title || undefined,
-            goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined
-          })));
+          setPocketMoney(pmData.map((p: any) => {
+            const meta = parsePocketMoneyTitle(p.goal_title || '');
+            return {
+              id: p.id,
+              name: p.name,
+              balance: Number(p.balance || 0),
+              points: Number(p.points || 0),
+              avatar: p.avatar || '',
+              goalTitle: meta.goalTitle || '',
+              goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined,
+              goalType: meta.goalType || 'money',
+              rules: meta.rules || []
+            };
+          }));
         }
       });
     });
@@ -9882,6 +10194,35 @@ function App() {
                   moduleSource: 'tasks'
                 });
               }
+
+              // Moteur d'allocations: Règle automatique "après mission"
+              const afterMissionRules = (child.rules || []).filter(r => r.type === 'after_mission' && r.active);
+              afterMissionRules.forEach(rule => {
+                if (rule.amount && rule.amount > 0) {
+                  updatedBalance += rule.amount;
+                  handleAddTransaction({
+                    amount: rule.amount,
+                    type: 'expense',
+                    category: 'Argent de Poche',
+                    date: new Date().toISOString().split('T')[0],
+                    title: `Règle auto après mission (€) : ${t.title}`,
+                    memberName: child.name,
+                    accountId: parentAccountId,
+                    moduleSource: 'tasks'
+                  });
+                }
+                if (rule.points && rule.points > 0) {
+                  pointsReward += rule.points;
+                  handleAddTransaction({
+                    amount: rule.points / 10,
+                    type: 'savings',
+                    category: 'Argent de Poche',
+                    date: new Date().toISOString().split('T')[0],
+                    title: `Règle auto après mission (Points) : ${t.title}`,
+                    memberName: child.name
+                  });
+                }
+              });
 
               // Mettre à jour dans Supabase
               const client = getSupabaseClient();

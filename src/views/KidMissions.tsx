@@ -26,10 +26,11 @@ interface KidMissionsProps {
 interface RewardItem {
   id: string;
   title: string;
-  cost: number;
+  costPoints: number;
+  costMoney: number;
   icon: string;
   category: string;
-  validationRequired?: boolean;
+  avail: boolean;
 }
 
 export const KidMissions: React.FC<KidMissionsProps> = ({
@@ -54,6 +55,9 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   const [requestPoints, setRequestPoints] = useState(20);
   const [showConfetti, setShowConfetti] = useState(false);
   const [confettiMessage, setConfettiMessage] = useState('');
+  const [customRewardTitle, setCustomRewardTitle] = useState('');
+  const [customRewardPoints, setCustomRewardPoints] = useState(100);
+  const [customRewardMoney, setCustomRewardMoney] = useState(10);
 
   // Find pocket money account for this kid
   const myAccount = pocketMoney.find(p => p.id === member.id) || {
@@ -102,38 +106,44 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   // Mapper from SavingGoal to RewardItem
   const mapSavingGoalToReward = (sg: SavingGoal): RewardItem => {
     let icon = '🎁';
-    let validationRequired = true;
+    let costPoints = sg.targetAmount || 50;
+    let costMoney = Math.round(costPoints / 10);
     let subCategory = 'Cadeau';
+    let avail = true;
     
     if (sg.contributions && sg.contributions.length > 0) {
       const meta = sg.contributions[0] as any;
       if (meta.icon) icon = meta.icon;
-      if (meta.validationRequired !== undefined) validationRequired = meta.validationRequired;
+      if (meta.costPoints !== undefined) costPoints = meta.costPoints;
+      if (meta.costMoney !== undefined) costMoney = meta.costMoney;
       if (meta.subCategory) subCategory = meta.subCategory;
+      if (meta.avail !== undefined) avail = meta.avail;
     }
     
     return {
       id: sg.id,
       title: sg.title,
-      cost: sg.targetAmount,
+      costPoints,
+      costMoney,
       icon,
       category: subCategory,
-      validationRequired
+      avail
     };
   };
 
   // Load rewards from savingGoals category === 'boutique_reward'
   const dbRewards = (savingGoals || [])
     .filter(sg => sg.category === 'boutique_reward')
-    .map(mapSavingGoalToReward);
+    .map(mapSavingGoalToReward)
+    .filter(r => r.avail);
 
   const rewardsList = dbRewards.length > 0 ? dbRewards : [
-    { id: 'rew-1', title: '30 min de console 🎮', cost: 50, icon: '⚡', category: 'Écran', validationRequired: true },
-    { id: 'rew-2', title: 'Choisir le menu du dîner 🍕', cost: 80, icon: '😋', category: 'Repas', validationRequired: true },
-    { id: 'rew-3', title: 'Coucher tardif (+30 min) 🌙', cost: 100, icon: '⏰', category: 'Sommeil', validationRequired: true },
-    { id: 'rew-4', title: 'Double boule de glace 🍦', cost: 120, icon: '🍧', category: 'Gourmandise', validationRequired: true },
-    { id: 'rew-5', title: 'Cinéma en famille 🎬', cost: 250, icon: '🍿', category: 'Sortie', validationRequired: true },
-    { id: 'rew-6', title: 'Nouveau jouet au choix 🧸', cost: 400, icon: '🎁', category: 'Cadeau', validationRequired: true }
+    { id: 'rew-1', title: '30 min de console 🎮', costPoints: 50, costMoney: 5, icon: '🎮', category: 'Écran', avail: true },
+    { id: 'rew-2', title: 'Choisir le menu du dîner 🍕', costPoints: 80, costMoney: 8, icon: '🍕', category: 'Repas', avail: true },
+    { id: 'rew-3', title: 'Coucher tardif (+30 min) 🌙', costPoints: 100, costMoney: 10, icon: '🌙', category: 'Sommeil', avail: true },
+    { id: 'rew-4', title: 'Double boule de glace 🍦', costPoints: 120, costMoney: 12, icon: '🍦', category: 'Gourmandise', avail: true },
+    { id: 'rew-5', title: 'Cinéma en famille 🎬', costPoints: 250, costMoney: 25, icon: '🎬', category: 'Sortie', avail: true },
+    { id: 'rew-6', title: 'Nouveau jouet au choix 🧸', costPoints: 400, costMoney: 40, icon: '🧸', category: 'Cadeau', avail: true }
   ];
 
   // Complete a task (needs parental validation)
@@ -177,107 +187,115 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   };
 
   // Buy a reward (requests validation from parent)
-  const handleRedeemReward = async (reward: RewardItem) => {
-    if ((myAccount.points || 0) < reward.cost) {
-      alert(`Oups ! Il te manque ${reward.cost - (myAccount.points || 0)} points pour acheter cette récompense. Continue tes missions ! 💪`);
-      return;
-    }
+  const handleRedeemReward = async (reward: RewardItem, paymentMethod: 'points' | 'money') => {
+    const cost = paymentMethod === 'points' ? reward.costPoints : reward.costMoney;
+    const myPoints = myAccount.points || 0;
+    const myBalance = myAccount.balance || 0;
 
-    if (window.confirm(`Es-tu sûr de vouloir demander cette récompense : "${reward.title}" pour ${reward.cost} points ?`)) {
-      if (reward.validationRequired) {
-        const timestamp = Date.now();
-        const newAlert: NotificationAlert = {
-          id: `req-rew-${member.id}-${reward.id}-${timestamp}`,
-          title: `Demande de récompense : ${reward.title}`,
-          description: `${member.name} souhaite échanger ${reward.cost} points contre "${reward.title}".`,
-          time: new Date().toISOString(),
-          type: 'warning',
-          read: false,
-          module: 'argent',
-          senderMemberId: member.id,
-          senderName: member.name,
-          senderAvatar: member.photoUrl
-        };
-
-        if (setAlerts) {
-          setAlerts(prev => [newAlert, ...prev]);
-        }
-
-        try {
-          const client = getSupabaseClient();
-          if (client && foyer) {
-            await client.from('alerts').insert({
-              id: newAlert.id,
-              foyer_id: foyer.id,
-              title: newAlert.title,
-              description: newAlert.description,
-              time: newAlert.time,
-              type: newAlert.type,
-              read: newAlert.read,
-              module: newAlert.module,
-              sender_member_id: newAlert.senderMemberId,
-              sender_name: newAlert.senderName,
-              sender_avatar: newAlert.senderAvatar
-            });
-            console.log("[KidMissions] Reward request successfully saved to cloud.");
-          }
-        } catch (err) {
-          console.error("[KidMissions] Failed to save reward request alert to cloud:", err);
-        }
-
-        setConfettiMessage(`Ta demande pour "${reward.title}" a bien été envoyée à tes parents. Ils vont la valider très vite ! 🚀✨`);
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 4000);
-      } else {
-        // Direct purchase
-        const updatedPoints = (myAccount.points || 0) - reward.cost;
-        setPocketMoney(prev => prev.map(p => p.id === member.id ? { ...p, points: updatedPoints } : p));
-        
-        const timestamp = Date.now();
-        const newTx: Transaction = {
-          id: `tx-rew-${member.id}-${reward.id}-${timestamp}`,
-          amount: 0,
-          type: 'expense',
-          category: 'Argent de Poche',
-          date: new Date().toISOString().split('T')[0],
-          title: `Achat boutique : ${reward.title} (-${reward.cost} pts)`,
-          memberId: member.id,
-          memberName: member.name
-        };
-        
-        try {
-          const client = getSupabaseClient();
-          if (client && foyer) {
-            await client
-              .from('pocket_money')
-              .update({ points: updatedPoints })
-              .eq('id', member.id)
-              .eq('foyer_id', foyer.id);
-            
-            await client
-              .from('transactions')
-              .insert({
-                id: newTx.id,
-                foyer_id: foyer.id,
-                amount: newTx.amount,
-                type: newTx.type,
-                category: newTx.category,
-                date: newTx.date,
-                title: newTx.title,
-                member_id: newTx.memberId,
-                member_name: newTx.memberName
-              });
-            console.log("[KidMissions] Direct reward purchase recorded successfully.");
-          }
-        } catch (err) {
-          console.error("[KidMissions] Failed to record direct reward purchase:", err);
-        }
-
-        setConfettiMessage(`Génial ! Tu as acheté "${reward.title}". ${reward.cost} points ont été déduits de ton compte. Profites-en bien ! 🎉✨`);
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 4000);
+    if (paymentMethod === 'points') {
+      if (myPoints < cost) {
+        alert(`Oups ! Il te manque ${cost - myPoints} étoiles pour acheter ce cadeau. Continue tes missions ! 💪🌟`);
+        return;
+      }
+    } else {
+      if (myBalance < cost) {
+        alert(`Oups ! Il te manque ${cost.toFixed(2)} € dans ta tirelire pour acheter ce cadeau. Continue tes missions ! 💶💪`);
+        return;
       }
     }
+
+    if (window.confirm(`Es-tu sûr de vouloir demander cette récompense : "${reward.title}" pour ${paymentMethod === 'points' ? `${cost} étoiles` : `${cost.toFixed(2)} €`} ?`)) {
+      const timestamp = Date.now();
+      const newAlert: NotificationAlert = {
+        id: `req-rew-${member.id}-${reward.id}-${paymentMethod}-${timestamp}`,
+        title: `Demande de récompense : ${reward.title}`,
+        description: `${member.name} souhaite échanger ${paymentMethod === 'points' ? `${cost} étoiles` : `${cost.toFixed(2)} €`} contre "${reward.title}".`,
+        time: new Date().toISOString(),
+        type: 'warning',
+        read: false,
+        module: 'argent',
+        senderMemberId: member.id,
+        senderName: member.name,
+        senderAvatar: member.photoUrl
+      };
+
+      if (setAlerts) {
+        setAlerts(prev => [newAlert, ...prev]);
+      }
+
+      try {
+        const client = getSupabaseClient();
+        if (client && foyer) {
+          await client.from('alerts').insert({
+            id: newAlert.id,
+            foyer_id: foyer.id,
+            title: newAlert.title,
+            description: newAlert.description,
+            time: newAlert.time,
+            type: newAlert.type,
+            read: newAlert.read,
+            module: newAlert.module,
+            sender_member_id: newAlert.senderMemberId,
+            sender_name: newAlert.senderName,
+            sender_avatar: newAlert.senderAvatar
+          });
+        }
+      } catch (err) {
+        console.error("[KidMissions] Failed to save reward request alert to cloud:", err);
+      }
+
+      setConfettiMessage(`Ta demande pour "${reward.title}" a bien été envoyée à tes parents. Ils vont la valider très vite ! 🚀✨`);
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 4000);
+    }
+  };
+
+  // Suggest a custom reward
+  const handleSuggestCustomReward = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customRewardTitle.trim()) return;
+
+    const timestamp = Date.now();
+    const newAlert: NotificationAlert = {
+      id: `sug-rew-${member.id}-${timestamp}`,
+      title: `Suggestion : ${customRewardTitle.trim()}`,
+      description: `${member.name} propose un nouveau cadeau : "${customRewardTitle.trim()}" pour ${customRewardPoints} Pts ou ${customRewardMoney} €.`,
+      time: new Date().toISOString(),
+      type: 'info',
+      read: false,
+      module: 'argent',
+      senderMemberId: member.id,
+      senderName: member.name,
+      senderAvatar: member.photoUrl
+    };
+
+    if (setAlerts) {
+      setAlerts(prev => [newAlert, ...prev]);
+    }
+
+    try {
+      const client = getSupabaseClient();
+      if (client && foyer) {
+        await client.from('alerts').insert({
+          id: newAlert.id,
+          foyer_id: foyer.id,
+          title: newAlert.title,
+          description: newAlert.description,
+          time: newAlert.time,
+          type: newAlert.type,
+          read: newAlert.read,
+          module: newAlert.module,
+          sender_member_id: newAlert.senderMemberId,
+          sender_name: newAlert.senderName,
+          sender_avatar: newAlert.senderAvatar
+        });
+      }
+    } catch (err) {
+      console.error("[KidMissions] Failed to suggest reward:", err);
+    }
+
+    alert(`Proposition envoyée ! Tes parents ont reçu ton idée : "${customRewardTitle.trim()}".`);
+    setCustomRewardTitle('');
   };
 
   // Ask for new mission
@@ -643,119 +661,360 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
       {/* CONTENT: Reward Store */}
       {activeSubTab === 'boutique' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {rewardsList.map(reward => {
-              const canAfford = (myAccount.points || 0) >= reward.cost;
+              const myPoints = myAccount.points || 0;
+              const myBalance = myAccount.balance || 0;
+              const canAffordPoints = myPoints >= reward.costPoints;
+              const canAffordMoney = myBalance >= reward.costMoney;
+
               return (
                 <div 
                   key={reward.id} 
-                  className={`bg-[#112240] border-2 rounded-[28px] p-4 flex flex-col justify-between text-left space-y-3 relative shadow-lg ${
-                    canAfford ? 'border-[#FFB020]/40' : 'border-white/5 opacity-80'
+                  className={`bg-[#112240] border-2 rounded-[28px] p-5 flex flex-col justify-between text-left space-y-4 relative shadow-lg transition-all duration-300 ${
+                    canAffordPoints || canAffordMoney ? 'border-[#FFB020]/30 hover:border-[#FFB020]/60' : 'border-white/5 opacity-80'
                   }`}
                 >
-                  <div className="space-y-1.5">
-                    <div className="w-10 h-10 bg-white/5 rounded-2xl flex items-center justify-center text-xl shrink-0">
+                  <div className="space-y-2">
+                    <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-2xl shrink-0">
                       {reward.icon}
                     </div>
                     <div>
-                      <span className="text-[8px] font-black uppercase text-white/30 tracking-wider">
+                      <span className="text-[9px] font-black uppercase text-white/30 tracking-wider">
                         {reward.category}
                       </span>
-                      <h3 className="text-xs font-extrabold text-white leading-snug mt-0.5 min-h-[32px]">
+                      <h3 className="text-sm font-black text-white leading-snug mt-0.5 min-h-[36px]">
                         {reward.title}
                       </h3>
                     </div>
                   </div>
                   
-                  <div className="space-y-2 pt-2 border-t border-white/5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-white/55 font-bold">Prix :</span>
-                      <span className="text-xs font-black text-[#FFB020] flex items-center space-x-1">
-                        <Star className="w-3 h-3 fill-[#FFB020]" />
-                        <span>{reward.cost} pts</span>
+                  <div className="space-y-3 pt-3 border-t border-white/5 text-xs font-bold">
+                    <div className="flex justify-between items-center text-[11px] text-white/50">
+                      <span>Tarif Étoiles :</span>
+                      <span className="text-white font-extrabold flex items-center space-x-1">
+                        <Star className="w-3.5 h-3.5 fill-[#FFB020] text-[#FFB020]" />
+                        <span className="text-[#FFB020]">{reward.costPoints} pts</span>
                       </span>
                     </div>
 
-                    <button
-                      onClick={() => handleRedeemReward(reward)}
-                      className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                        canAfford 
-                          ? 'bg-[#FFB020] text-[#07111F] active:scale-95 shadow-md shadow-[#FFB020]/10' 
-                          : 'bg-white/5 text-white/30 cursor-not-allowed'
-                      }`}
-                    >
-                      Acheter ⭐️
-                    </button>
+                    <div className="flex justify-between items-center text-[11px] text-white/50">
+                      <span>Tarif Tirelire :</span>
+                      <span className="text-[#00D26A] font-extrabold">
+                        {reward.costMoney.toFixed(2)} €
+                      </span>
+                    </div>
+
+                    {/* Double checkout buttons */}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        onClick={() => handleRedeemReward(reward, 'points')}
+                        className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                          canAffordPoints 
+                            ? 'bg-[#FFB020] text-[#07111F] active:scale-95 shadow-md' 
+                            : 'bg-white/5 text-white/35 cursor-not-allowed border border-white/5'
+                        }`}
+                      >
+                        Acheter (Pts) 🌟
+                      </button>
+                      <button
+                        onClick={() => handleRedeemReward(reward, 'money')}
+                        className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                          canAffordMoney 
+                            ? 'bg-[#00D26A] text-[#07111F] active:scale-95 shadow-md' 
+                            : 'bg-white/5 text-white/35 cursor-not-allowed border border-white/5'
+                        }`}
+                      >
+                        Acheter (€) 💶
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
+
+          {/* Form: Proposer un cadeau personnalisé */}
+          <form onSubmit={handleSuggestCustomReward} className="bg-white/5 border border-white/8 rounded-[32px] p-5 space-y-4 text-left font-sans">
+            <div className="flex items-center space-x-2 text-sm font-bold text-white">
+              <Sparkles className="w-5 h-5 text-[#FFB020]" />
+              <span>Je voudrais cette récompense 💡</span>
+            </div>
+            <p className="text-[10px] text-white/50 font-bold">Tu as une idée de récompense sympa ? Suggère-la à tes parents ici !</p>
+            <div className="space-y-3 font-bold">
+              <input 
+                type="text" 
+                placeholder="Ex: Aller au trampoline park, Soirée pyjama..."
+                value={customRewardTitle}
+                onChange={(e) => setCustomRewardTitle(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-xs text-white placeholder-white/35 focus:outline-none focus:border-[#FFB020]/50"
+                required
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[9px] text-white/40 uppercase block mb-1">Valeur Étoiles</label>
+                  <input 
+                    type="number"
+                    placeholder="ex: 150"
+                    value={customRewardPoints || ''}
+                    onChange={(e) => setCustomRewardPoints(parseInt(e.target.value, 10) || 0)}
+                    className="w-full bg-[#07111F] border border-white/10 rounded-xl py-2 px-3 text-xs text-white focus:outline-none text-center"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] text-white/40 uppercase block mb-1">Valeur Cash (€)</label>
+                  <input 
+                    type="number"
+                    step="any"
+                    placeholder="ex: 15.00"
+                    value={customRewardMoney || ''}
+                    onChange={(e) => setCustomRewardMoney(parseFloat(e.target.value) || 0)}
+                    className="w-full bg-[#07111F] border border-white/10 rounded-xl py-2 px-3 text-xs text-white focus:outline-none text-center"
+                  />
+                </div>
+              </div>
+            </div>
+            <button 
+              type="submit"
+              className="w-full py-3 bg-[#FFB020] text-[#07111F] rounded-xl text-xs font-black uppercase tracking-wider active:scale-97 transition-all cursor-pointer text-center"
+            >
+              Suggérer cette idée 💬
+            </button>
+          </form>
         </div>
       )}
 
       {/* CONTENT: Pocket Money Log */}
-      {activeSubTab === 'argent' && (
-        <div className="space-y-6">
-          
-          {/* Main Account Balance Card */}
-          <div className="bg-gradient-to-br from-[#00D26A]/20 to-[#00D26A]/5 border border-[#00D26A]/30 rounded-[32px] p-6 text-center space-y-3 shadow-xl relative overflow-hidden">
-            <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-[#00D26A]/10 blur-[50px] pointer-events-none" />
-            <div className="w-14 h-14 bg-[#00D26A]/15 border border-[#00D26A]/30 text-[#00D26A] rounded-2xl flex items-center justify-center text-3xl mx-auto shadow-inner">
-              🪙
-            </div>
-            <div>
-              <p className="text-3xl font-black tracking-tight text-[#00D26A]">
-                {myAccount.balance.toFixed(2)} €
-              </p>
-              <p className="text-xs font-bold text-white/50 uppercase tracking-widest mt-1">
-                Mon pécule disponible
-              </p>
-            </div>
-          </div>
+      {activeSubTab === 'argent' && (() => {
+        // Kids ranking by points
+        const kidsRanking = [...pocketMoney].sort((a, b) => (b.points || 0) - (a.points || 0));
 
-          {/* Transactions list */}
-          <div className="space-y-3">
-            <div className="flex items-center space-x-1.5 text-xs text-white/40 uppercase tracking-wider px-1">
-              <History className="w-3.5 h-3.5" />
-              <span>Historique de ma tirelire :</span>
-            </div>
+        // Stats calculation
+        const screenTimeSaved = validatedTasks.length * 30; // in minutes
+        const screenTimeStr = screenTimeSaved >= 60 
+          ? `${Math.floor(screenTimeSaved / 60)}h${screenTimeSaved % 60 ? screenTimeSaved % 60 : ''}`
+          : `${screenTimeSaved} min`;
+
+        const cashEarned = myRealTransactions
+          .filter(t => t.amount > 0 && (t.type === 'income' || t.type === 'savings'))
+          .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+        const starsEarned = validatedTasks.reduce((sum, t) => sum + (t.rewardPoints || 0), 0);
+        const starsSpent = Math.max(0, starsEarned - (myAccount.points || 0));
+        const badgeCount = Math.floor(starsEarned / 100);
+
+        const completedTasksCount = validatedTasks.length;
+        const taskHistoryStreak = myTasks.filter(t => t.done).length;
+        const storedStreak = localStorage.getItem(`mf_kid_streak_${member.id}`);
+        const missionStreak = storedStreak ? parseInt(storedStreak, 10) : Math.min(7, taskHistoryStreak);
+
+        return (
+          <div className="space-y-6">
             
-            <div className="bg-white/5 border border-white/8 rounded-[32px] p-2 space-y-2">
-              {(myRealTransactions.length === 0) ? (
-                <p className="text-xs text-center text-white/40 py-6 font-bold">Pas encore d'activité enregistrée dans ta tirelire ! 🪙</p>
-              ) : (
-                myRealTransactions.map((tx: any) => {
-                  const isCredit = tx.amount > 0 || tx.type === 'credit' || tx.type === 'income';
-                  const displayAmount = Math.abs(tx.amount);
+            {/* Double Wallet Balances (Stars & Cash) */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gradient-to-br from-[#FFB020]/20 to-[#FFB020]/5 border border-[#FFB020]/30 rounded-[32px] p-5 text-center space-y-2 shadow-xl relative overflow-hidden">
+                <span className="text-3xl block">🌟</span>
+                <p className="text-2xl font-black text-[#FFB020] tracking-tight">{myAccount.points || 0} Pts</p>
+                <p className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Mes Étoiles</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-[#00D26A]/20 to-[#00D26A]/5 border border-[#00D26A]/30 rounded-[32px] p-5 text-center space-y-2 shadow-xl relative overflow-hidden">
+                <span className="text-3xl block">🪙</span>
+                <p className="text-2xl font-black text-[#00D26A] tracking-tight">{myAccount.balance.toFixed(2)} €</p>
+                <p className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Ma Tirelire</p>
+              </div>
+            </div>
+
+            {/* Savings Goal Thermometer */}
+            {myAccount.goalTitle ? (
+              <div className="bg-white/5 border border-white/8 rounded-[32px] p-5 space-y-3 text-left">
+                <div className="flex justify-between items-center text-xs">
+                  <div>
+                    <span className="text-[9px] font-bold text-white/40 uppercase block">🎯 Objectif Cagnotte :</span>
+                    <span className="font-extrabold text-white text-sm">✨ {myAccount.goalTitle}</span>
+                  </div>
+                  <span className="font-black text-[#FFB020]">
+                    {myAccount.goalType === 'points'
+                      ? `${myAccount.points} / ${myAccount.goalAmount} Pts`
+                      : `${myAccount.balance.toFixed(2)} € / ${myAccount.goalAmount} €`
+                    }
+                  </span>
+                </div>
+                {(() => {
+                  const current = myAccount.goalType === 'points' ? myAccount.points : myAccount.balance;
+                  const target = myAccount.goalAmount || 1;
+                  const pct = Math.min(100, Math.round((current / target) * 100));
                   return (
-                    <div key={tx.id} className="bg-white/5 rounded-2xl p-4 flex items-center justify-between">
-                      <div className="space-y-1">
-                        <h4 className="text-xs font-extrabold text-white leading-tight">{tx.title}</h4>
-                        <p className="text-[10px] text-white/35 font-bold">{tx.date}</p>
+                    <div className="space-y-1">
+                      <div className="w-full h-4 rounded-full bg-white/5 overflow-hidden border border-white/8 relative flex items-center pr-1">
+                        <div 
+                          className="h-full bg-gradient-to-r from-[#FFB020] to-[#FF8C00] transition-all duration-500 rounded-full flex items-center justify-end px-2"
+                          style={{ width: `${pct}%` }}
+                        >
+                          {pct > 15 && <span className="text-[9px] text-[#07111F] font-black">{pct}%</span>}
+                        </div>
                       </div>
-                      
-                      {tx.amount !== 0 ? (
-                        <span className={`text-xs font-black px-3 py-1.5 rounded-xl ${
-                          isCredit ? 'text-[#00D26A] bg-[#00D26A]/10' : 'text-[#FF4D6D] bg-[#FF4D6D]/10'
-                        }`}>
-                          {isCredit ? '+' : '-'}{displayAmount.toFixed(2)} €
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-black text-[#FFB020] bg-[#FFB020]/10 px-3 py-1.5 rounded-xl uppercase tracking-wider flex items-center space-x-1">
-                          <Sparkles className="w-3 h-3" />
-                          <span>Pris !</span>
-                        </span>
-                      )}
+                      <div className="text-[9px] text-white/45 text-right font-bold">
+                        Plus que {myAccount.goalType === 'points' ? `${Math.max(0, target - current)} points` : `${Math.max(0, target - current).toFixed(2)} €`} pour atteindre ton objectif !
+                      </div>
                     </div>
                   );
-                })
-              )}
-            </div>
-          </div>
+                })()}
+              </div>
+            ) : (
+              <div className="bg-white/5 border border-white/8 rounded-[32px] p-5 text-center space-y-2">
+                <span className="text-2xl">🎯</span>
+                <p className="text-xs text-white/50 leading-relaxed font-bold">Demande à tes parents de te fixer un objectif (comme une console ou un jouet) pour voir ta barre de progression ici !</p>
+              </div>
+            )}
 
-        </div>
-      )}
+            {/* Leaderboard Podium */}
+            {kidsRanking.length > 0 && (
+              <div className="bg-[#112240] border border-white/5 rounded-[32px] p-6 space-y-4 text-left">
+                <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block">🏆 Podium de la famille :</span>
+                
+                <div className="flex justify-center items-end space-x-2 pt-8 pb-4">
+                  {/* 2nd Place */}
+                  {kidsRanking[1] && (
+                    <div className="flex flex-col items-center space-y-1.5 flex-1 max-w-[80px]">
+                      <div className="relative">
+                        <img src={kidsRanking[1].avatar || '/placeholder_avatar.png'} alt={kidsRanking[1].name} className="w-10 h-10 rounded-full object-cover border-2 border-slate-300" />
+                        <div className="absolute -top-2 -right-2 bg-slate-300 text-slate-900 text-[9px] w-5 h-5 rounded-full flex items-center justify-center font-black">2</div>
+                      </div>
+                      <span className="text-[10px] font-bold text-white truncate max-w-full block">{kidsRanking[1].name}</span>
+                      <span className="text-[9px] text-[#6C5CFF] font-black">{kidsRanking[1].points} pts</span>
+                      <div className="w-full h-12 bg-[#6C5CFF]/25 border-t-2 border-slate-300 rounded-t-xl"></div>
+                    </div>
+                  )}
+
+                  {/* 1st Place */}
+                  {kidsRanking[0] && (
+                    <div className="flex flex-col items-center space-y-1.5 flex-1 max-w-[90px] -translate-y-2">
+                      <div className="relative">
+                        <img src={kidsRanking[0].avatar || '/placeholder_avatar.png'} alt={kidsRanking[0].name} className="w-12 h-12 rounded-full object-cover border-2 border-[#FFB020]" />
+                        <div className="absolute -top-2 -right-2 bg-[#FFB020] text-[#07111F] text-[10px] w-6 h-6 rounded-full flex items-center justify-center font-black">1</div>
+                      </div>
+                      <span className="text-[11px] font-black text-white truncate max-w-full block">{kidsRanking[0].name}</span>
+                      <span className="text-[10px] text-[#FFB020] font-black">{kidsRanking[0].points} pts</span>
+                      <div className="w-full h-16 bg-[#FFB020]/20 border-t-2 border-[#FFB020] rounded-t-xl"></div>
+                    </div>
+                  )}
+
+                  {/* 3rd Place */}
+                  {kidsRanking[2] && (
+                    <div className="flex flex-col items-center space-y-1.5 flex-1 max-w-[80px]">
+                      <div className="relative">
+                        <img src={kidsRanking[2].avatar || '/placeholder_avatar.png'} alt={kidsRanking[2].name} className="w-10 h-10 rounded-full object-cover border-2 border-amber-600" />
+                        <div className="absolute -top-2 -right-2 bg-amber-600 text-white text-[9px] w-5 h-5 rounded-full flex items-center justify-center font-black">3</div>
+                      </div>
+                      <span className="text-[10px] font-bold text-white truncate max-w-full block">{kidsRanking[2].name}</span>
+                      <span className="text-[9px] text-[#6C5CFF] font-black">{kidsRanking[2].points} pts</span>
+                      <div className="w-full h-8 bg-[#6C5CFF]/15 border-t-2 border-amber-600 rounded-t-xl"></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Statistics Dashboard */}
+            <div className="bg-[#112240] border border-white/5 rounded-[32px] p-5 space-y-3 text-left">
+              <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block">📊 Mes Statistiques :</span>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white/5 rounded-2xl p-3.5 flex items-center space-x-3">
+                  <span className="text-2xl">⏳</span>
+                  <div>
+                    <span className="text-[9px] text-white/40 block font-bold">Écran évité</span>
+                    <span className="text-xs font-black text-white">{screenTimeStr}</span>
+                  </div>
+                </div>
+
+                <div className="bg-white/5 rounded-2xl p-3.5 flex items-center space-x-3">
+                  <span className="text-2xl">🧹</span>
+                  <div>
+                    <span className="text-[9px] text-white/40 block font-bold">Missions faites</span>
+                    <span className="text-xs font-black text-white">{completedTasksCount}</span>
+                  </div>
+                </div>
+
+                <div className="bg-white/5 rounded-2xl p-3.5 flex items-center space-x-3">
+                  <span className="text-2xl">⭐</span>
+                  <div>
+                    <span className="text-[9px] text-white/40 block font-bold">Étoiles gagnées</span>
+                    <span className="text-xs font-black text-[#FFB020]">{starsEarned} Pts</span>
+                  </div>
+                </div>
+
+                <div className="bg-white/5 rounded-2xl p-3.5 flex items-center space-x-3">
+                  <span className="text-2xl">🛍️</span>
+                  <div>
+                    <span className="text-[9px] text-white/40 block font-bold">Étoiles dépensées</span>
+                    <span className="text-xs font-black text-[#6C5CFF]">{starsSpent} Pts</span>
+                  </div>
+                </div>
+
+                <div className="bg-white/5 rounded-2xl p-3.5 flex items-center space-x-3">
+                  <span className="text-2xl">💶</span>
+                  <div>
+                    <span className="text-[9px] text-white/40 block font-bold">Argent gagné</span>
+                    <span className="text-xs font-black text-[#00D26A]">{cashEarned.toFixed(2)} €</span>
+                  </div>
+                </div>
+
+                <div className="bg-white/5 rounded-2xl p-3.5 flex items-center space-x-3">
+                  <span className="text-2xl">🏅</span>
+                  <div>
+                    <span className="text-[9px] text-white/40 block font-bold">Badges obtenus</span>
+                    <span className="text-xs font-black text-[#FF8C00]">{badgeCount} badge{badgeCount > 1 ? 's' : ''}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Transactions History Log */}
+            <div className="space-y-3">
+              <div className="flex items-center space-x-1.5 text-[10px] text-white/40 uppercase tracking-wider px-1 text-left">
+                <History className="w-3.5 h-3.5" />
+                <span>Historique de ma tirelire :</span>
+              </div>
+              
+              <div className="bg-white/5 border border-white/8 rounded-[32px] p-2 space-y-2">
+                {(myRealTransactions.length === 0) ? (
+                  <p className="text-xs text-center text-white/40 py-6 font-bold">Pas encore d'activité enregistrée dans ta tirelire ! 🪙</p>
+                ) : (
+                  myRealTransactions.map((tx: any) => {
+                    const isCredit = tx.amount > 0 || tx.type === 'income' || tx.type === 'savings';
+                    const displayAmount = Math.abs(tx.amount);
+                    return (
+                      <div key={tx.id} className="bg-white/5 rounded-2xl p-4 flex items-center justify-between">
+                        <div className="space-y-1 text-left">
+                          <h4 className="text-xs font-extrabold text-white leading-tight">{tx.title}</h4>
+                          <p className="text-[10px] text-white/35 font-bold">{tx.date}</p>
+                        </div>
+                        
+                        {tx.amount !== 0 ? (
+                          <span className={`text-xs font-black px-3 py-1.5 rounded-xl ${
+                            isCredit ? 'text-[#00D26A] bg-[#00D26A]/10' : 'text-[#FF4D6D] bg-[#FF4D6D]/10'
+                          }`}>
+                            {isCredit ? '+' : '-'}{displayAmount.toFixed(2)} €
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-black text-[#FFB020] bg-[#FFB020]/10 px-3 py-1.5 rounded-xl uppercase tracking-wider flex items-center space-x-1">
+                            <Sparkles className="w-3 h-3" />
+                            <span>Opération</span>
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+          </div>
+        );
+      })()}
     </div>
   );
 };

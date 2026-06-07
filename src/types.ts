@@ -670,6 +670,8 @@ export interface PocketMoneyChild {
   avatar: string;
   goalTitle?: string;
   goalAmount?: number;
+  goalType?: 'points' | 'money';
+  rules?: PocketMoneyRule[];
 }
 
 export const ALL_FAMILY_MODULES: FamilyModule[] = [
@@ -732,4 +734,31 @@ export function getDefaultPermissions(role: string): Record<FamilyModule, Module
     }
   }
   return perms;
+}
+
+export interface PocketMoneyRule {
+  id: string;
+  type: 'weekly' | 'monthly' | 'after_mission' | 'after_grade' | 'after_average' | 'after_badge' | 'after_challenge';
+  amount: number;
+  points: number;
+  active: boolean;
+  conditionValue?: string;
+  lastPaymentDate?: string;
+}
+
+export function parsePocketMoneyTitle(rawTitle: string): { goalTitle?: string; goalType?: 'points' | 'money'; rules?: PocketMoneyRule[] } {
+  if (!rawTitle) return {};
+  const trimmed = rawTitle.trim();
+  if (trimmed.startsWith('{')) {
+    try {
+      return JSON.parse(trimmed);
+    } catch (e) {
+      console.error("Error parsing pocket money metadata:", e);
+    }
+  }
+  return { goalTitle: rawTitle, goalType: 'money', rules: [] };
+}
+
+export function serializePocketMoneyTitle(metadata: { goalTitle?: string; goalType?: 'points' | 'money'; rules?: PocketMoneyRule[] }): string {
+  return JSON.stringify(metadata);
 }
