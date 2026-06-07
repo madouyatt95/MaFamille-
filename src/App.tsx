@@ -10686,6 +10686,7 @@ function App() {
             events={appEvents as any}
             setActiveTab={setActiveTab}
             setActiveModule={setActiveModule}
+            onOpenProfileSwitcher={() => setProfileSwitcherOpen(true)}
           />
         );
       }

@@ -12,6 +12,7 @@ interface TeenDashboardProps {
   events: FamilyEvent[];
   setActiveTab: (tab: string) => void;
   setActiveModule: (moduleName: string) => void;
+  onOpenProfileSwitcher?: () => void;
 }
 
 export const TeenDashboard: React.FC<TeenDashboardProps> = ({
@@ -23,7 +24,8 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   pocketMoney,
   events,
   setActiveTab,
-  setActiveModule
+  setActiveModule,
+  onOpenProfileSwitcher
 }) => {
   // Filter tasks assigned to this teen
   const myTasks = tasks.filter(t => t.assignedMemberId === member.id && !t.done);
@@ -47,8 +49,22 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
 
   return (
     <div className="min-h-screen bg-[var(--family-bg)] text-[var(--family-text)] p-4 font-sans pb-32">
+      {/* Top Bar Switcher */}
+      <div className="flex justify-between items-center w-full px-2 pt-[calc(0.5rem+env(safe-area-inset-top,0px))] relative z-20 mb-4">
+        <span className="text-[10px] font-black text-white/30 uppercase tracking-widest">ESPACE ADO ⚡</span>
+        {onOpenProfileSwitcher && (
+          <button
+            onClick={onOpenProfileSwitcher}
+            className="px-3.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[10px] font-extrabold text-[#FF4D6D] hover:bg-[#FF4D6D]/10 hover:text-white transition-all flex items-center space-x-1.5 cursor-pointer active:scale-95 shadow-md animate-fade-in"
+          >
+            <span>🚪</span>
+            <span>Revenir au profil parent</span>
+          </button>
+        )}
+      </div>
+
       {/* Header Profile */}
-      <div className="flex flex-col items-center justify-center pt-8 pb-4 space-y-4">
+      <div className="flex flex-col items-center justify-center pt-4 pb-4 space-y-4">
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] rounded-full blur-lg opacity-50 animate-pulse"></div>
           <img 
