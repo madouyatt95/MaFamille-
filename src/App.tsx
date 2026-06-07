@@ -11195,6 +11195,13 @@ function App() {
               setSchoolTasks={setSchoolTasks}
               dishes={dishes}
               grades={grades}
+              setGrades={setGrades}
+              schedule={schedule}
+              setSchedule={setSchedule}
+              events={events}
+              members={appMembers}
+              isPremium={isPremium}
+              onTriggerPaywall={() => setPaywallOpen(true)}
               onBack={() => setActiveModule('')}
             />
           );

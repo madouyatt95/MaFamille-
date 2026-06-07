@@ -175,7 +175,8 @@ export const spaceService = {
     if (estId === 'est-1') {
       return [
         { id: 'st-1', title: 'Exercices de géométrie', subject: 'Mathématiques', difficulty: 'medium', assignedMemberId: '3', dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], done: false },
-        { id: 'st-2', title: 'Lire le chapitre 3', subject: 'Français', difficulty: 'easy', assignedMemberId: '3', dueDate: new Date(Date.now() + 172800000).toISOString().split('T')[0], done: false }
+        { id: 'st-2', title: 'Lire le chapitre 3', subject: 'Français', difficulty: 'easy', assignedMemberId: '3', dueDate: new Date(Date.now() + 172800000).toISOString().split('T')[0], done: false },
+        { id: 'st-eval-1', title: 'Évaluation sur les tables de multiplication (6 à 9)', subject: 'Mathématiques', difficulty: 'medium', assignedMemberId: '3', dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], done: false }
       ];
     } else if (estId === 'est-2') {
       return [
