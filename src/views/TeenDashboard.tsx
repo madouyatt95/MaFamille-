@@ -1613,7 +1613,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
           
           <div className="flex justify-between items-center pt-[calc(1rem+env(safe-area-inset-top,0px))]">
             <div>
-              <h1 className="text-xl font-black text-white">L'Album de Famille</h1>
+              <h1 className="text-xl font-black text-white">Timeline</h1>
               <p className="text-[10px] text-white/50 font-bold">Garde tes souvenirs intacts (+10 XP par post)</p>
             </div>
             
@@ -1683,7 +1683,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                   type="submit" 
                   className="flex-1 py-3 bg-[#6C5CFF] text-white font-black rounded-xl text-xs uppercase cursor-pointer"
                 >
-                  Publier sur l'album 🚀
+                  Partager sur le feed 🚀
                 </button>
                 <button 
                   type="button" 
@@ -2117,7 +2117,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                   >
                     <span className="text-2xl">👛</span>
                     <div>
-                      <h4 className="text-[10px] font-black text-white leading-tight">Argent de poche</h4>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Portefeuille</h4>
                       <p className="text-[8px] font-bold text-emerald-400 mt-0.5 leading-none">{myAccount.balance.toFixed(2)} €</p>
                     </div>
                   </button>
@@ -2201,7 +2201,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                   >
                     <span className="text-2xl">📆</span>
                     <div>
-                      <h4 className="text-[10px] font-black text-white leading-tight">Agenda</h4>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Agenda partagé familial</h4>
                       <p className="text-[8px] font-bold text-amber-400 mt-0.5 leading-none">{events.length} événement{events.length > 1 ? 's' : ''}</p>
                     </div>
                   </button>
@@ -2259,7 +2259,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                   >
                     <span className="text-2xl">🛒</span>
                     <div>
-                      <h4 className="text-[10px] font-black text-white leading-tight">Courses</h4>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Liste de courses</h4>
                       <p className="text-[8px] font-bold text-rose-400 mt-0.5 leading-none">Liste partagée</p>
                     </div>
                   </button>
@@ -2362,7 +2362,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                   >
                     <span className="text-2xl">📂</span>
                     <div>
-                      <h4 className="text-[10px] font-black text-white leading-tight">Documents</h4>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Coffre-fort</h4>
                       <p className="text-[8px] font-bold text-cyan-400 mt-0.5 leading-none">Accès autorisé</p>
                     </div>
                   </button>
@@ -2420,7 +2420,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                   >
                     <span className="text-2xl">🎓</span>
                     <div>
-                      <h4 className="text-[10px] font-black text-white leading-tight">Mon Établissement</h4>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Mon établissement</h4>
                       <p className="text-[8px] font-bold text-cyan-400 mt-0.5 leading-none">{schoolName || "Collège"}</p>
                     </div>
                   </button>
@@ -2433,7 +2433,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                   >
                     <span className="text-2xl">📞</span>
                     <div>
-                      <h4 className="text-[10px] font-black text-white leading-tight">Répertoire</h4>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Répertoire utile</h4>
                       <p className="text-[8px] font-bold text-emerald-400 mt-0.5 leading-none">Numéros utiles</p>
                     </div>
                   </button>
@@ -2488,7 +2488,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
             <span className="text-3xl shrink-0 animate-bounce">🚀</span>
           </div>
         </div>
-      )} /* End of SUBTAB: PLUS */
+      )}
 
       {/* --- RENDER MODULE: BADGES GALLERY --- */}
       {internalTab === 'plus' && activeModule === 'badges' && (
