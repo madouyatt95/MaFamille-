@@ -53,6 +53,7 @@ interface TuteurScolaireProps {
   setGrades: React.Dispatch<React.SetStateAction<GradeItem[]>>;
   schedule: ScheduleItem[];
   setSchedule: React.Dispatch<React.SetStateAction<ScheduleItem[]>>;
+  initialSubTab?: 'devoirs' | 'quizzes' | 'schedule' | 'grades';
 }
 
 export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({ 
@@ -65,9 +66,16 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   grades,
   setGrades,
   schedule,
-  setSchedule
+  setSchedule,
+  initialSubTab
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'devoirs' | 'quizzes' | 'schedule' | 'grades'>('devoirs');
+  const [activeSubTab, setActiveSubTab] = React.useState<'devoirs' | 'quizzes' | 'schedule' | 'grades'>('devoirs');
+  
+  React.useEffect(() => {
+    if (initialSubTab) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
   const activeMember = members?.find(m => m.id === activeMemberId);
   const isParent = activeMember 
     ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMember.role)

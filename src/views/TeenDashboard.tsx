@@ -232,6 +232,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   const [newMemoryTitle, setNewMemoryTitle] = useState('');
   const [newMemoryDesc, setNewMemoryDesc] = useState('');
   const [newMemoryImg, setNewMemoryImg] = useState('');
+  const [memoryType, setMemoryType] = useState<'souvenir' | 'capsule'>('souvenir');
   const [isAddingMemory, setIsAddingMemory] = useState(false);
 
   // Sync internalTab with activeTab prop
@@ -239,9 +240,13 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
     if (activeTab === 'accueil') setInternalTab('accueil');
     else if (activeTab === 'timeline') setInternalTab('timeline');
     else if (activeTab === 'menu') {
-      if (activeModule === 'ecole') setInternalTab('ecole');
-      else if (activeModule === 'messagerie') setInternalTab('messages');
-      else setInternalTab('plus');
+      if (['ecole', 'ecole_devoirs', 'tuteur_ia', 'notes_bulletins', 'emploi_temps'].includes(activeModule || '')) {
+        setInternalTab('ecole');
+      } else if (activeModule === 'messagerie') {
+        setInternalTab('messages');
+      } else {
+        setInternalTab('plus');
+      }
     }
   }, [activeTab, activeModule]);
 
@@ -548,10 +553,15 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
       } catch (e) {}
     });
 
-    // 4. Événements (Only social/family events, hide admin/bill events)
+    // 4. Événements (Only social/family events, hide admin/bill/boring parent events)
     if (isModuleAllowed('agenda')) {
       (events || []).forEach(e => {
-        if (!e || e.type === 'vaccine' || e.type === 'bill') return;
+        if (!e || e.type === 'vaccine' || e.type === 'bill' || (e.type as string) === 'administrative') return;
+        
+        // Exclude parent appointments, general days off, public holidays, banking, taxes, medical etc.
+        const isBoring = /démarche|rdv administratif|facture|impôt|banque|férié|jour férié|travaux|réunion|professionnel|dentiste|médecin|contrôle/i.test(e.title || '');
+        if (isBoring) return;
+
         const dateVal = e.dateTime ? new Date(e.dateTime) : new Date();
         list.push({
           id: `evt-${e.id}`,
@@ -665,7 +675,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
       }
       list.push({
         id: `mem-${m.id}`,
-        type: 'Souvenir',
+        type: m.theme ? 'Capsule' : 'Souvenir',
         title: m.title,
         description: m.description,
         date: dateVal,
@@ -738,6 +748,19 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
         date: new Date(),
         dateText: 'Récemment',
         icon: "🕊️"
+      });
+    }
+
+    // 14. Carte Familiale / Localisation (if authorized)
+    if (isModuleAllowed('carte_familiale')) {
+      list.push({
+        id: `carte-familiale-feed`,
+        type: 'Localisation',
+        title: 'Carte Familiale Interactive 🗺️',
+        description: 'La carte interactive est partagée. Localise tes proches en toute sécurité.',
+        date: new Date(),
+        dateText: 'En direct',
+        icon: "📍"
       });
     }
 
@@ -1053,7 +1076,8 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
       date: new Date().toLocaleDateString('fr-FR'),
       authorName: member.name,
       authorPhoto: member.photoUrl || '',
-      likesCount: 0
+      likesCount: 0,
+      theme: memoryType === 'capsule' ? 'capsule' : undefined
     };
 
     if (setMemories) setMemories(prev => [newM, ...prev]);
@@ -1071,17 +1095,19 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
           author: newM.authorName,
           author_id: member.id,
           likes: newM.likesCount,
-          liked_by: JSON.stringify([])
+          liked_by: JSON.stringify([]),
+          theme: newM.theme || null
         });
       }
     } catch (err) {
       console.error("[TeenDashboard] Failed to save memory:", err);
     }
 
-    alert(`📸 Souvenir magique ajouté à la Timeline ! (+10 XP)`);
+    handleAwardAdoXP(10, `Publication d'un ${memoryType === 'capsule' ? 'souvenir scellé dans la capsule' : 'souvenir dans l\'album'}`);
     setNewMemoryTitle('');
     setNewMemoryDesc('');
     setNewMemoryImg('');
+    setMemoryType('souvenir');
     setIsAddingMemory(false);
   };
 
@@ -1438,6 +1464,12 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
               setGrades={setGrades}
               schedule={schedule}
               setSchedule={setSchedule}
+              initialSubTab={
+                activeModule === 'tuteur_ia' ? 'quizzes' :
+                activeModule === 'notes_bulletins' ? 'grades' :
+                activeModule === 'emploi_temps' ? 'schedule' :
+                'devoirs'
+              }
             />
           </div>
         </div>
@@ -1574,9 +1606,29 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
               </h3>
               
               <div className="space-y-3 font-medium text-xs">
+                <div className="grid grid-cols-2 gap-2 bg-[#07111F]/50 p-1 rounded-xl border border-white/5">
+                  <button 
+                    type="button"
+                    onClick={() => setMemoryType('souvenir')}
+                    className={`py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      memoryType === 'souvenir' ? 'bg-[#6C5CFF] text-white' : 'text-white/45 hover:text-white/70'
+                    }`}
+                  >
+                    📸 Souvenir
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setMemoryType('capsule')}
+                    className={`py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      memoryType === 'capsule' ? 'bg-[#6C5CFF] text-white' : 'text-white/45 hover:text-white/70'
+                    }`}
+                  >
+                    ⏳ Capsule
+                  </button>
+                </div>
                 <input 
                   type="text" 
-                  placeholder="Titre (ex: Sortie vélo, Gâteau de mamie...)"
+                  placeholder={memoryType === 'capsule' ? "Titre de la capsule (ex: Mon année de 3ème...)" : "Titre (ex: Sortie vélo, Gâteau de mamie...)"}
                   required
                   value={newMemoryTitle}
                   onChange={(e) => setNewMemoryTitle(e.target.value)}
@@ -1623,6 +1675,31 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
               const userHahaed = reactions[act.id]?.haha?.includes(member.name);
               const userFireed = reactions[act.id]?.fire?.includes(member.name);
               const userClapped = reactions[act.id]?.clap?.includes(member.name);
+
+              if (act.type === 'Localisation') {
+                return (
+                  <div key={act.id} className="bg-[#112240] border-2 border-emerald-500/30 rounded-[32px] p-5 flex flex-col justify-between shadow-lg animate-fade-in space-y-3">
+                    <div className="flex items-start space-x-3">
+                      <span className="text-2xl shrink-0">📍</span>
+                      <div className="space-y-1 text-left min-w-0 flex-1">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[8px] font-black uppercase text-white/30 tracking-widest">
+                            {act.type} • {act.dateText}
+                          </span>
+                        </div>
+                        <h3 className="text-sm font-black text-white leading-snug">{act.title}</h3>
+                        <p className="text-xs text-white/60 leading-relaxed">{act.description}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => { setActiveTab('menu'); setActiveModule('carte'); }}
+                      className="w-full py-2.5 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 font-extrabold text-xs rounded-xl hover:bg-emerald-500/20 active:scale-95 transition-all cursor-pointer text-center"
+                    >
+                      Ouvrir la carte familiale 🗺️
+                    </button>
+                  </div>
+                );
+              }
 
               if (act.type === 'Souvenir' || act.type === 'Capsule') {
                 return (
@@ -1892,33 +1969,37 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
 
           <div className="space-y-6">
             
-            {/* Section 1: Progression & Récompenses */}
-            {(isModuleAllowed('taches')) && (
-              <div className="space-y-3">
-                <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">🎮 Progression & Récompenses</span>
-                <div className="grid grid-cols-2 gap-3">
-                  <button 
-                    onClick={() => { setActiveTab('menu'); setActiveModule('taches'); setTeenChoreSubTab('my_tasks'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                  >
-                    <div className="w-10 h-10 rounded-2xl bg-[#FFB020]/15 border border-[#FFB020]/30 text-xl flex items-center justify-center">🧹</div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Missions</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Tâches ménagères & entraide</p>
-                    </div>
-                  </button>
+            {/* Section 1: Progression & Récompenses (🎮) */}
+            <div className="space-y-3">
+              <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">🎮 Progression & Récompenses</span>
+              <div className="grid grid-cols-2 gap-3">
+                {isModuleAllowed('taches') && (
+                  <>
+                    <button 
+                      onClick={() => { setActiveTab('menu'); setActiveModule('taches'); setTeenChoreSubTab('my_tasks'); }}
+                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    >
+                      <div className="w-10 h-10 rounded-2xl bg-[#FFB020]/15 border border-[#FFB020]/30 text-xl flex items-center justify-center">🧹</div>
+                      <div>
+                        <h4 className="text-xs font-black text-white">Missions</h4>
+                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Tâches ménagères & entraide</p>
+                      </div>
+                    </button>
 
-                  <button 
-                    onClick={() => { setActiveTab('menu'); setActiveModule('taches'); setTeenChoreSubTab('wall'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                  >
-                    <div className="w-10 h-10 rounded-2xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-xl flex items-center justify-center">📋</div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Mur des Tâches</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Missions communes à prendre</p>
-                    </div>
-                  </button>
+                    <button 
+                      onClick={() => { setActiveTab('menu'); setActiveModule('taches'); setTeenChoreSubTab('wall'); }}
+                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    >
+                      <div className="w-10 h-10 rounded-2xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-xl flex items-center justify-center">📋</div>
+                      <div>
+                        <h4 className="text-xs font-black text-white">Mur des Tâches</h4>
+                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Missions communes à prendre</p>
+                      </div>
+                    </button>
+                  </>
+                )}
 
+                {isModuleAllowed('taches') && (
                   <button 
                     onClick={() => { setActiveTab('menu'); setActiveModule('boutique'); }}
                     className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
@@ -1929,330 +2010,356 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                       <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Échange tes étoiles en cadeaux</p>
                     </div>
                   </button>
+                )}
 
+                {isModuleAllowed('budget') && (
+                  <>
+                    <button 
+                      onClick={() => { setActiveTab('menu'); setActiveModule('argent'); }}
+                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    >
+                      <div className="w-10 h-10 rounded-2xl bg-[#00D26A]/15 border border-[#00D26A]/30 text-xl flex items-center justify-center">🪙</div>
+                      <div>
+                        <h4 className="text-xs font-black text-white">Portefeuille</h4>
+                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Argent de poche & objectifs</p>
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={() => { setActiveTab('menu'); setActiveModule('argent'); }}
+                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    >
+                      <div className="w-10 h-10 rounded-2xl bg-sky-500/15 border border-sky-500/30 text-xl flex items-center justify-center">🎯</div>
+                      <div>
+                        <h4 className="text-xs font-black text-white">Objectifs d'Épargne</h4>
+                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Tes tirelires & cagnottes</p>
+                      </div>
+                    </button>
+                  </>
+                )}
+
+                <button 
+                  onClick={() => setInternalTab('accueil')}
+                  className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                >
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-xl flex items-center justify-center">🏆</div>
+                  <div>
+                    <h4 className="text-xs font-black text-white">Classement Familial</h4>
+                    <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Podium de la semaine</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Section 2: École & Organisation (📚) */}
+            <div className="space-y-3">
+              <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">📚 École & Organisation</span>
+              <div className="grid grid-cols-2 gap-3">
+                {isModuleAllowed('ecole') && (
+                  <>
+                    <button 
+                      onClick={() => { setActiveTab('menu'); setActiveModule('ecole_devoirs'); }}
+                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    >
+                      <div className="w-10 h-10 rounded-2xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-xl flex items-center justify-center">🎓</div>
+                      <div>
+                        <h4 className="text-xs font-black text-white">École & Devoirs</h4>
+                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Tes matières & cahier scolaire</p>
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={() => { setActiveTab('menu'); setActiveModule('notes_bulletins'); }}
+                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    >
+                      <div className="w-10 h-10 rounded-2xl bg-purple-500/15 border border-purple-500/30 text-xl flex items-center justify-center">📈</div>
+                      <div>
+                        <h4 className="text-xs font-black text-white">Notes & Bulletins</h4>
+                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Tes moyennes & coefficients</p>
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={() => { setActiveTab('menu'); setActiveModule('emploi_temps'); }}
+                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    >
+                      <div className="w-10 h-10 rounded-2xl bg-blue-500/15 border border-blue-500/30 text-xl flex items-center justify-center">📅</div>
+                      <div>
+                        <h4 className="text-xs font-black text-white">Emploi du Temps</h4>
+                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Ton planning des cours</p>
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={() => { setActiveTab('menu'); setActiveModule('tuteur_ia'); }}
+                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    >
+                      <div className="w-10 h-10 rounded-2xl bg-pink-600/15 border border-pink-600/30 text-xl flex items-center justify-center">🤖</div>
+                      <div>
+                        <h4 className="text-xs font-black text-white">Tuteur IA</h4>
+                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Révisions personnalisées</p>
+                      </div>
+                    </button>
+                  </>
+                )}
+
+                {isModuleAllowed('agenda') && (
                   <button 
-                    onClick={() => { setActiveTab('menu'); setActiveModule('argent'); }}
+                    onClick={() => { setActiveTab('menu'); setActiveModule('agenda'); }}
                     className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
                   >
-                    <div className="w-10 h-10 rounded-2xl bg-[#00D26A]/15 border border-[#00D26A]/30 text-xl flex items-center justify-center">🪙</div>
+                    <div className="w-10 h-10 rounded-2xl bg-teal-500/15 border border-teal-500/30 text-xl flex items-center justify-center">🗓️</div>
                     <div>
-                      <h4 className="text-xs font-black text-white">Portefeuille</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Argent de poche & objectifs</p>
+                      <h4 className="text-xs font-black text-white">Agenda</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Événements de la famille</p>
                     </div>
                   </button>
+                )}
+              </div>
+            </div>
 
+            {/* Section 3: Vie de famille (👨👩👧👦) */}
+            <div className="space-y-3">
+              <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">👨👩👧👦 Vie de Famille</span>
+              <div className="grid grid-cols-2 gap-3">
+                {isModuleAllowed('messagerie') && (
                   <button 
-                    onClick={() => { setActiveTab('menu'); setActiveModule('argent'); }}
+                    onClick={() => { setActiveTab('menu'); setActiveModule('messagerie'); }}
                     className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
                   >
-                    <div className="w-10 h-10 rounded-2xl bg-sky-500/15 border border-sky-500/30 text-xl flex items-center justify-center">🎯</div>
+                    <div className="w-10 h-10 rounded-2xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-xl flex items-center justify-center">💬</div>
                     <div>
-                      <h4 className="text-xs font-black text-white">Objectifs d'Épargne</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Tes tirelires & cagnottes</p>
+                      <h4 className="text-xs font-black text-white">Messages</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Discussion familiale privée</p>
                     </div>
                   </button>
+                )}
 
+                {isModuleAllowed('conseil_famille') && (
                   <button 
-                    onClick={() => setInternalTab('accueil')}
+                    onClick={() => { setActiveTab('menu'); setActiveModule('conseil'); }}
                     className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
                   >
-                    <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-xl flex items-center justify-center">🏆</div>
+                    <div className="w-10 h-10 rounded-2xl bg-pink-500/15 border border-pink-500/30 text-xl flex items-center justify-center">🗳️</div>
                     <div>
-                      <h4 className="text-xs font-black text-white">Classement Familial</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Podium de la semaine</p>
+                      <h4 className="text-xs font-black text-white">Conseil de Famille</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Sondages & décisions collectives</p>
                     </div>
                   </button>
-                </div>
+                )}
+
+                {isModuleAllowed('menu_semaine') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('menu_semaine'); }}
+                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-orange-500/15 border border-orange-500/30 text-xl flex items-center justify-center">🍲</div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">Menu de la Semaine</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Repas prévus à la maison</p>
+                    </div>
+                  </button>
+                )}
+
+                {isModuleAllowed('voyages') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('voyages'); }}
+                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-sky-500/15 border border-sky-500/30 text-xl flex items-center justify-center">✈️</div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">Voyages</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Checklists & valises collectives</p>
+                    </div>
+                  </button>
+                )}
+
+                {isModuleAllowed('courses') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('courses'); }}
+                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-xl flex items-center justify-center">🛒</div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">Courses</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Liste de provisions communes</p>
+                    </div>
+                  </button>
+                )}
+
+                {isModuleAllowed('carte_familiale') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('carte'); }}
+                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-xl flex items-center justify-center">🗺️</div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">Carte Familiale</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Localise tes proches en sécurité</p>
+                    </div>
+                  </button>
+                )}
+
+                {isModuleAllowed('repertoire_important') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('repertoire_important'); }}
+                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-slate-500/15 border border-slate-500/30 text-xl flex items-center justify-center">📞</div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">Répertoire Important</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Numéros urgents de ta famille</p>
+                    </div>
+                  </button>
+                )}
               </div>
-            )}
+            </div>
 
-            {/* Section 2: École & Organisation */}
-            {(isModuleAllowed('ecole') || isModuleAllowed('agenda')) && (
-              <div className="space-y-3">
-                <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">📚 École & Organisation</span>
-                <div className="grid grid-cols-2 gap-3">
-                  {isModuleAllowed('ecole') && (
-                    <>
-                      <button 
-                        onClick={() => { setActiveTab('menu'); setActiveModule('ecole'); }}
-                        className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                      >
-                        <div className="w-10 h-10 rounded-2xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-xl flex items-center justify-center">🎓</div>
-                        <div>
-                          <h4 className="text-xs font-black text-white">École & Devoirs</h4>
-                          <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Tes matières & cahier scolaire</p>
-                        </div>
-                      </button>
+            {/* Section 4: Souvenirs & Bien-être (✨) */}
+            <div className="space-y-3">
+              <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">✨ Souvenirs & Bien-être</span>
+              <div className="grid grid-cols-2 gap-3">
+                {isModuleAllowed('capsule_temporelle') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('capsule'); }}
+                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-[#FFB020]/15 border border-[#FFB020]/30 text-xl flex items-center justify-center">⏳</div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">Capsule Temporelle</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Souvenirs scellés pour plus tard</p>
+                    </div>
+                  </button>
+                )}
 
-                      <button 
-                        onClick={() => { setActiveTab('menu'); setActiveModule('ecole'); }}
-                        className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                      >
-                        <div className="w-10 h-10 rounded-2xl bg-purple-500/15 border border-purple-500/30 text-xl flex items-center justify-center">🤖</div>
-                        <div>
-                          <h4 className="text-xs font-black text-white">Tuteur IA</h4>
-                          <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Révisions personnalisées</p>
-                        </div>
-                      </button>
+                {isModuleAllowed('histoires_soir') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('conteur'); }}
+                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-xl flex items-center justify-center">🌙</div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">Histoires du Soir</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Contes merveilleux IA du soir</p>
+                    </div>
+                  </button>
+                )}
 
-                      <button 
-                        onClick={() => { setActiveTab('menu'); setActiveModule('ecole'); }}
-                        className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                      >
-                        <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-xl flex items-center justify-center">📈</div>
-                        <div>
-                          <h4 className="text-xs font-black text-white">Notes & Bulletins</h4>
-                          <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Tes moyennes & coefficients</p>
-                        </div>
-                      </button>
+                {isModuleAllowed('peacemaker') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('peacemaker'); }}
+                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-[#9E94FF]/15 border border-[#9E94FF]/30 text-xl flex items-center justify-center">🕊️</div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">PeaceMaker</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Résous tes litiges avec l'IA</p>
+                    </div>
+                  </button>
+                )}
 
-                      <button 
-                        onClick={() => { setActiveTab('menu'); setActiveModule('ecole'); }}
-                        className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                      >
-                        <div className="w-10 h-10 rounded-2xl bg-blue-500/15 border border-blue-500/30 text-xl flex items-center justify-center">📅</div>
-                        <div>
-                          <h4 className="text-xs font-black text-white">Emploi du Temps</h4>
-                          <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Ton planning des cours</p>
-                        </div>
-                      </button>
-                    </>
-                  )}
-                  
-                  {isModuleAllowed('agenda') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('agenda'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-teal-500/15 border border-teal-500/30 text-xl flex items-center justify-center">🗓️</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Agenda</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Événements de la famille</p>
-                      </div>
-                    </button>
-                  )}
-                </div>
+                {isModuleAllowed('animaux') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('animaux'); }}
+                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-amber-600/15 border border-amber-600/30 text-xl flex items-center justify-center">🐾</div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">Animaux</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Profils & suivi vétérinaire</p>
+                    </div>
+                  </button>
+                )}
+
+                {isModuleAllowed('documents') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('documents'); }}
+                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-cyan-600/15 border border-cyan-600/30 text-xl flex items-center justify-center">📄</div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">Documents Autorisés</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Fichiers & pièces autorisées</p>
+                    </div>
+                  </button>
+                )}
+
+                {isModuleAllowed('sante') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('sante'); }}
+                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-rose-600/15 border border-rose-600/30 text-xl flex items-center justify-center">❤️</div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">Santé Autorisée</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Fiches médicales autorisées</p>
+                    </div>
+                  </button>
+                )}
               </div>
-            )}
+            </div>
 
-            {/* Section 3: Vie de famille */}
-            {(isModuleAllowed('messagerie') || isModuleAllowed('conseil_famille') || isModuleAllowed('menu_semaine') || isModuleAllowed('voyages') || isModuleAllowed('courses') || isModuleAllowed('carte_familiale') || isModuleAllowed('repertoire_important')) && (
-              <div className="space-y-3">
-                <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">👨👩👧👦 Vie de Famille</span>
-                <div className="grid grid-cols-2 gap-3">
-                  {isModuleAllowed('messagerie') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('messagerie'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-xl flex items-center justify-center">💬</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Messages</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Discussion familiale privée</p>
-                      </div>
-                    </button>
-                  )}
+            {/* Section 5: Ouverture extérieure (🏛️) */}
+            <div className="space-y-3">
+              <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">🏛️ Ouverture Extérieure</span>
+              <div className="grid grid-cols-2 gap-3">
+                {isModuleAllowed('commune') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('commune'); }}
+                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-xl flex items-center justify-center">🏢</div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">Ma Commune</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Infos & événements de la mairie</p>
+                    </div>
+                  </button>
+                )}
 
-                  {isModuleAllowed('conseil_famille') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('conseil'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-pink-500/15 border border-pink-500/30 text-xl flex items-center justify-center">🗳️</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Conseil</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Sondages & décisions collectives</p>
-                      </div>
-                    </button>
-                  )}
-
-                  {isModuleAllowed('menu_semaine') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('menu_semaine'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-orange-500/15 border border-orange-500/30 text-xl flex items-center justify-center">🍲</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Menu Semaine</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Repas prévus à la maison</p>
-                      </div>
-                    </button>
-                  )}
-
-                  {isModuleAllowed('voyages') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('voyages'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-sky-500/15 border border-sky-500/30 text-xl flex items-center justify-center">✈️</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Voyages</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Checklists & valises collectives</p>
-                      </div>
-                    </button>
-                  )}
-
-                  {isModuleAllowed('courses') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('courses'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-xl flex items-center justify-center">🛒</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Courses</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Liste de provisions communes</p>
-                      </div>
-                    </button>
-                  )}
-
-                  {isModuleAllowed('carte_familiale') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('carte'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-xl flex items-center justify-center">🗺️</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Carte</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Localise tes proches en sécurité</p>
-                      </div>
-                    </button>
-                  )}
-
-                  {isModuleAllowed('repertoire_important') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('repertoire_important'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-slate-500/15 border border-slate-500/30 text-xl flex items-center justify-center">📞</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Répertoire</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Numéros urgents de ta famille</p>
-                      </div>
-                    </button>
-                  )}
-                </div>
+                {isModuleAllowed('etablissement') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('etablissement'); }}
+                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-cyan-700/15 border border-cyan-700/30 text-xl flex items-center justify-center">🏫</div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">Mon Établissement</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">ProNote & liens scolaires</p>
+                    </div>
+                  </button>
+                )}
               </div>
-            )}
+            </div>
 
-            {/* Section 4: Souvenirs & Bien-être */}
-            {(isModuleAllowed('capsule_temporelle') || isModuleAllowed('histoires_soir') || isModuleAllowed('peacemaker') || isModuleAllowed('animaux') || isModuleAllowed('documents') || isModuleAllowed('sante')) && (
-              <div className="space-y-3">
-                <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">✨ Souvenirs & Bien-être</span>
-                <div className="grid grid-cols-2 gap-3">
-                  {isModuleAllowed('capsule_temporelle') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('capsule'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-[#FFB020]/15 border border-[#FFB020]/30 text-xl flex items-center justify-center">⏳</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Capsule</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Souvenirs scellés pour plus tard</p>
-                      </div>
-                    </button>
-                  )}
+            {/* Section 6: Mon Compte (👤) */}
+            <div className="space-y-3">
+              <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">👤 Mon Compte</span>
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  onClick={onOpenProfileSwitcher}
+                  className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                >
+                  <div className="w-10 h-10 rounded-2xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-xl flex items-center justify-center">👤</div>
+                  <div>
+                    <h4 className="text-xs font-black text-white">Changer de Profil</h4>
+                    <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Changer d'espace familial</p>
+                  </div>
+                </button>
 
-                  {isModuleAllowed('histoires_soir') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('conteur'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-xl flex items-center justify-center">🌙</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Histoires</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Contes merveilleux IA du soir</p>
-                      </div>
-                    </button>
-                  )}
-
-                  {isModuleAllowed('peacemaker') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('peacemaker'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-[#9E94FF]/15 border border-[#9E94FF]/30 text-xl flex items-center justify-center">🕊️</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">PeaceMaker IA</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Résous tes litiges avec l'IA</p>
-                      </div>
-                    </button>
-                  )}
-
-                  {isModuleAllowed('animaux') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('animaux'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-amber-600/15 border border-amber-600/30 text-xl flex items-center justify-center">🐾</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Animaux</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Profils & suivi vétérinaire</p>
-                      </div>
-                    </button>
-                  )}
-
-                  {isModuleAllowed('documents') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('documents'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-cyan-600/15 border border-cyan-600/30 text-xl flex items-center justify-center">📄</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Documents</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Fichiers & pièces autorisées</p>
-                      </div>
-                    </button>
-                  )}
-
-                  {isModuleAllowed('sante') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('sante'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-rose-600/15 border border-rose-600/30 text-xl flex items-center justify-center">❤️</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Santé</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Fiches médicales autorisées</p>
-                      </div>
-                    </button>
-                  )}
-                </div>
+                {isModuleAllowed('parametres') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('settings'); }}
+                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-slate-600/15 border border-slate-600/30 text-xl flex items-center justify-center">⚙️</div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">Paramètres</h4>
+                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Paramètres de l'application</p>
+                    </div>
+                  </button>
+                )}
               </div>
-            )}
-
-            {/* Section 5: Ouverture extérieure */}
-            {(isModuleAllowed('commune') || isModuleAllowed('etablissement')) && (
-              <div className="space-y-3">
-                <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">🏛️ Ouverture Extérieure</span>
-                <div className="grid grid-cols-2 gap-3">
-                  {isModuleAllowed('commune') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('commune'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-xl flex items-center justify-center">🏢</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Ma Commune</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Infos & événements de la mairie</p>
-                      </div>
-                    </button>
-                  )}
-
-                  {isModuleAllowed('etablissement') && (
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('etablissement'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-cyan-700/15 border border-cyan-700/30 text-xl flex items-center justify-center">🏫</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Établissement</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">ProNote & liens scolaires</p>
-                      </div>
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
+            </div>
 
           </div>
 
