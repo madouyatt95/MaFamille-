@@ -11394,6 +11394,10 @@ function App() {
             memories={memories}
             members={appMembers}
             foyer={appFoyer}
+            documents={appDocuments}
+            transactions={appTransactions}
+            goals={appSavingGoals}
+            alerts={appFilteredAlerts}
             onOpenProfileSwitcher={() => setProfileSwitcherOpen(true)}
           />
         );
@@ -11520,6 +11524,7 @@ function App() {
               setAlerts={setAlerts}
               foyer={appFoyer}
               transactions={appTransactions}
+              setTransactions={setTransactions}
               savingGoals={savingGoals}
               setSavingGoals={setSavingGoals}
               onApplyWallTask={handleApplyWallTask}

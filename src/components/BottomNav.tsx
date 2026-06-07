@@ -156,7 +156,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             <button 
               onClick={() => handleNavClick('menu', 'ecole')}
               className={`flex flex-col items-center justify-center space-y-1 py-1 px-3 rounded-2xl transition-all duration-300 cursor-pointer ${
-                activeTab === 'menu' && activeMember?.schoolOrEmployer ? 'text-[#6C5CFF] scale-105 font-bold' : 'text-white/40 hover:text-white/70'
+                activeTab === 'menu' && activeModule === 'ecole' ? 'text-[#6C5CFF] scale-105 font-bold' : 'text-white/40 hover:text-white/70'
               }`}
             >
               <BookOpen className="w-5.5 h-5.5" />
@@ -167,7 +167,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             <button 
               onClick={() => handleNavClick('menu', 'messagerie')}
               className={`flex flex-col items-center justify-center space-y-1 py-1 px-3 rounded-2xl transition-all duration-300 cursor-pointer ${
-                activeTab === 'menu' && !activeMember?.schoolOrEmployer ? 'text-[#6C5CFF] scale-105 font-bold' : 'text-white/40 hover:text-white/70'
+                activeTab === 'menu' && activeModule === 'messagerie' ? 'text-[#6C5CFF] scale-105 font-bold' : 'text-white/40 hover:text-white/70'
               }`}
             >
               <MessageSquare className="w-5.5 h-5.5" />
@@ -189,7 +189,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             <button 
               onClick={() => handleNavClick('menu')}
               className={`flex flex-col items-center justify-center space-y-1 py-1 px-3 rounded-2xl transition-all duration-300 cursor-pointer ${
-                activeTab === 'menu' ? 'text-[#6C5CFF] scale-105 font-bold' : 'text-white/40 hover:text-white/70'
+                activeTab === 'menu' && activeModule !== 'ecole' && activeModule !== 'messagerie' ? 'text-[#6C5CFF] scale-105 font-bold' : 'text-white/40 hover:text-white/70'
               }`}
             >
               <Plus className="w-5.5 h-5.5" />

@@ -17,7 +17,7 @@ import {
   Clock, 
   Activity 
 } from 'lucide-react';
-import type { Member, ChoreTask, FamilyEvent, Trip, SchoolTask, Dish } from '../types';
+import type { Member, ChoreTask, FamilyEvent, Trip, SchoolTask, Dish, DocumentFile, Transaction, SavingGoal, NotificationAlert } from '../types';
 import { parseChoreTitle, serializeChoreTitle } from '../types';
 import { getSupabaseClient } from '../utils/supabase';
 
@@ -38,6 +38,10 @@ interface KidsDashboardProps {
   memories?: any[];
   members?: Member[];
   foyer?: any;
+  documents?: DocumentFile[];
+  transactions?: Transaction[];
+  goals?: SavingGoal[];
+  alerts?: NotificationAlert[];
   onOpenProfileSwitcher?: () => void;
 }
 
@@ -56,6 +60,10 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
   memories = [],
   members = [],
   foyer,
+  documents = [],
+  transactions = [],
+  goals = [],
+  alerts = [],
   onOpenProfileSwitcher
 }) => {
   
@@ -166,10 +174,238 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
   // 8. Active Family Council (Votes)
   const activeVote = (votes || []).length > 0 ? votes[0] : null;
 
-  // 9. Last activities (Timeline filtered for kids)
-  const recentActivities = (events || [])
-    .filter(e => e && !e.done && e.type !== 'vaccine' && !(e.title || '').includes('mock'))
-    .slice(0, 3);
+  // 9. Chronological Timeline Activities Parser
+  interface TimelineItem {
+    id: string;
+    type: string;
+    title: string;
+    description: string;
+    date: Date;
+    dateText: string;
+    icon: string;
+  }
+
+  const buildFamilyActivities = (): TimelineItem[] => {
+    const list: TimelineItem[] = [];
+
+    // Missions / Tâches
+    (tasks || []).forEach(t => {
+      if (!t) return;
+      const meta = parseChoreTitle(t.title);
+      const title = meta.title || t.title;
+      let dateVal = new Date();
+      if (t.dueDate) dateVal = new Date(t.dueDate);
+      
+      let label = "";
+      let icon = "🧹";
+      if (meta.status === 'validated') {
+        label = `Mission validée : ${title}`;
+        icon = "✅";
+      } else if (meta.status === 'pending_validation') {
+        label = `Mission terminée : ${title}`;
+        icon = "⏳";
+      } else {
+        label = `Nouvelle mission proposée : ${title}`;
+      }
+
+      list.push({
+        id: `task-${t.id}`,
+        type: 'Mission',
+        title: label,
+        description: meta.description || `Attribuée à ${t.assignedMemberName || 'la famille'}. Récompense : ${t.rewardPoints} pts.`,
+        date: dateVal,
+        dateText: t.dueDate || 'Aujourd\'hui',
+        icon
+      });
+    });
+
+    // Achats / Transactions
+    (transactions || []).forEach(tx => {
+      if (!tx || tx.isArchived) return;
+      const dateVal = tx.date ? new Date(tx.date) : new Date();
+      const isExpense = tx.type === 'expense';
+      
+      list.push({
+        id: `tx-${tx.id}`,
+        type: 'Finance',
+        title: `${isExpense ? 'Achat boutique' : 'Gain tirelire'} : ${tx.title}`,
+        description: `Montant : ${tx.amount.toFixed(2)} € pour ${tx.memberName || 'la famille'}.`,
+        date: dateVal,
+        dateText: tx.date,
+        icon: isExpense ? "🛍️" : "🪙"
+      });
+    });
+
+    // Anniversaires
+    (members || []).forEach(m => {
+      if (!m || !m.birthDate) return;
+      try {
+        let bdayStr = m.birthDate;
+        let parts = bdayStr.includes('/') ? bdayStr.split('/') : bdayStr.split('-');
+        if (parts.length === 3) {
+          let month = parseInt(parts[1]) - 1;
+          let day = parseInt(parts[0].length === 4 ? parts[2] : parts[0]);
+          let year = new Date().getFullYear();
+          let bdayThisYear = new Date(year, month, day);
+          list.push({
+            id: `bday-${m.id}`,
+            type: 'Anniversaire',
+            title: `Anniversaire de ${m.name} 🎂`,
+            description: `Il/Elle fête ses ${year - parseInt(parts[0].length === 4 ? parts[0] : parts[2])} ans !`,
+            date: bdayThisYear,
+            dateText: bdayThisYear.toLocaleDateString('fr-FR'),
+            icon: "🎉"
+          });
+        }
+      } catch (e) {}
+    });
+
+    // Événements
+    (events || []).forEach(e => {
+      if (!e || e.type === 'vaccine') return;
+      const dateVal = e.dateTime ? new Date(e.dateTime) : new Date();
+      list.push({
+        id: `evt-${e.id}`,
+        type: 'Événement',
+        title: e.title,
+        description: `${e.description || 'Événement familial prévu.'} à ${e.time || '09:00'}.`,
+        date: dateVal,
+        dateText: e.dateTime?.split('T')[0] || 'Aujourd\'hui',
+        icon: "📅"
+      });
+    });
+
+    // Voyages
+    (trips || []).forEach(tr => {
+      if (!tr) return;
+      const dateVal = tr.startDate ? new Date(tr.startDate) : new Date();
+      list.push({
+        id: `trip-${tr.id}`,
+        type: 'Voyage',
+        title: `Voyage à ${tr.destination} ✈️`,
+        description: `Du ${tr.startDate} au ${tr.endDate}.`,
+        date: dateVal,
+        dateText: tr.startDate,
+        icon: "🗺️"
+      });
+    });
+
+    // Menus
+    (dishes || []).forEach(d => {
+      if (!d) return;
+      list.push({
+        id: `dish-${d.id}`,
+        type: 'Menu',
+        title: `Repas : ${d.name} 🍲`,
+        description: `Prévu pour le ${d.mealType === 'lunch' ? 'Déjeuner' : 'Dîner'} (${d.day}).`,
+        date: new Date(),
+        dateText: d.day,
+        icon: "😋"
+      });
+    });
+
+    // Devoirs
+    (schoolTasks || []).forEach(st => {
+      if (!st) return;
+      const dateVal = st.dueDate ? new Date(st.dueDate) : new Date();
+      list.push({
+        id: `schooltask-${st.id}`,
+        type: 'Devoir',
+        title: `Devoir : ${st.title} (${st.subject})`,
+        description: `Pour le ${st.dueDate}. Statut : ${st.done ? 'Terminé ✅' : 'À faire ⏳'}.`,
+        date: dateVal,
+        dateText: st.dueDate,
+        icon: "📚"
+      });
+    });
+
+    // Documents
+    (documents || []).forEach(doc => {
+      if (!doc) return;
+      const dateVal = doc.uploadDate ? new Date(doc.uploadDate) : new Date();
+      list.push({
+        id: `doc-${doc.id}`,
+        type: 'Document',
+        title: `Fichier : ${doc.name}`,
+        description: `Catégorie : ${doc.category}. Ajouté par ${doc.memberName || 'Famille'}.`,
+        date: dateVal,
+        dateText: doc.uploadDate,
+        icon: "📄"
+      });
+    });
+
+    // Sondages / Conseil de Famille
+    (votes || []).forEach(v => {
+      if (!v) return;
+      const dateVal = v.dueDate ? new Date(v.dueDate) : new Date();
+      list.push({
+        id: `vote-${v.id}`,
+        type: 'Sondage',
+        title: `Vote : ${v.question}`,
+        description: `Proposé par ${v.authorName}. Statut : ${v.active ? 'Actif' : 'Clos'}.`,
+        date: dateVal,
+        dateText: v.dueDate,
+        icon: "🗳️"
+      });
+    });
+
+    // Souvenirs / Album / Capsule
+    (memories || []).forEach(m => {
+      if (!m) return;
+      let dateVal = new Date();
+      if (m.date) {
+        const parts = m.date.split('/');
+        if (parts.length === 3) {
+          dateVal = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        } else {
+          dateVal = new Date(m.date);
+        }
+      }
+      list.push({
+        id: `mem-${m.id}`,
+        type: m.theme ? 'Capsule' : 'Souvenir',
+        title: `${m.theme ? 'Capsule' : 'Photo'} : ${m.title}`,
+        description: `${m.description} — par ${m.authorName}.`,
+        date: dateVal,
+        dateText: m.date,
+        icon: m.theme ? "⏳" : "📸"
+      });
+    });
+
+    // Messages importants / alertes
+    (alerts || []).forEach(al => {
+      if (!al || al.read) return;
+      const dateVal = al.time ? new Date(al.time) : new Date();
+      list.push({
+        id: `alert-${al.id}`,
+        type: 'Alerte',
+        title: al.title,
+        description: al.description,
+        date: dateVal,
+        dateText: al.time ? new Date(al.time).toLocaleDateString('fr-FR') : 'Aujourd\'hui',
+        icon: "📢"
+      });
+    });
+
+    // Récompenses boutique configurées
+    (goals || []).forEach(g => {
+      if (!g || g.category !== 'boutique_reward') return;
+      const dateVal = g.targetDate ? new Date(g.targetDate) : new Date();
+      list.push({
+        id: `goal-${g.id}`,
+        type: 'Récompense',
+        title: `Cadeau disponible : ${g.title}`,
+        description: `Prix : ${g.targetAmount} Pts.`,
+        date: dateVal,
+        dateText: g.targetDate || 'Aujourd\'hui',
+        icon: "🎁"
+      });
+    });
+
+    return list.sort((a, b) => b.date.getTime() - a.date.getTime());
+  };
+
+  const recentActivities = buildFamilyActivities().slice(0, 10);
 
   // 10. Bedtime Story Recomended
   const bedtimeStoryTitle = `Les Aventures Spatiales de ${member.name} 🚀🌙`;
@@ -545,11 +781,17 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
               <p className="text-xs text-center text-white/40 py-6 font-bold">Pas de nouvelle activité aujourd'hui !</p>
             ) : (
               recentActivities.map(act => (
-                <div key={act.id} className="bg-white/5 rounded-2xl p-4 flex items-center space-x-3">
-                  <span className="text-xl">📅</span>
-                  <div className="space-y-0.5">
-                    <h4 className="text-xs font-bold text-white">{act.title}</h4>
-                    <p className="text-[9.5px] text-white/40 font-bold">{(act.dateTime || '').split('T')[0] || act.time || ''}</p>
+                <div key={act.id} className="bg-white/5 rounded-2xl p-4 flex items-start space-x-3">
+                  <span className="text-2xl shrink-0">{act.icon}</span>
+                  <div className="space-y-0.5 min-w-0 flex-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[8px] font-black uppercase text-[#FFB020] tracking-widest">{act.type}</span>
+                      <span className="text-[8px] text-white/30 font-bold">{act.dateText}</span>
+                    </div>
+                    <h4 className="text-xs font-bold text-white truncate">{act.title}</h4>
+                    {act.description && (
+                      <p className="text-[10px] text-white/50 leading-tight line-clamp-2">{act.description}</p>
+                    )}
                   </div>
                 </div>
               ))

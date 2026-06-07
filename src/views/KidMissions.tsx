@@ -16,6 +16,7 @@ interface KidMissionsProps {
   setAlerts?: React.Dispatch<React.SetStateAction<NotificationAlert[]>>;
   foyer?: Foyer | null;
   transactions?: Transaction[];
+  setTransactions?: React.Dispatch<React.SetStateAction<Transaction[]>>;
   savingGoals?: SavingGoal[];
   setSavingGoals?: React.Dispatch<React.SetStateAction<SavingGoal[]>>;
   onApplyWallTask?: (taskId: string, memberId: string) => void;
@@ -31,6 +32,7 @@ interface RewardItem {
   icon: string;
   category: string;
   avail: boolean;
+  validationRequired?: boolean;
 }
 
 export const KidMissions: React.FC<KidMissionsProps> = ({
@@ -44,6 +46,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   setAlerts,
   foyer,
   transactions = [],
+  setTransactions,
   savingGoals = [],
   setSavingGoals,
   onApplyWallTask,
@@ -110,6 +113,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
     let costMoney = Math.round(costPoints / 10);
     let subCategory = 'Cadeau';
     let avail = true;
+    let validationRequired = true;
     
     if (sg.contributions && sg.contributions.length > 0) {
       const meta = sg.contributions[0] as any;
@@ -118,6 +122,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
       if (meta.costMoney !== undefined) costMoney = meta.costMoney;
       if (meta.subCategory) subCategory = meta.subCategory;
       if (meta.avail !== undefined) avail = meta.avail;
+      if (meta.validationRequired !== undefined) validationRequired = meta.validationRequired;
     }
     
     return {
@@ -127,7 +132,8 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
       costMoney,
       icon,
       category: subCategory,
-      avail
+      avail,
+      validationRequired
     };
   };
 
@@ -137,14 +143,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
     .map(mapSavingGoalToReward)
     .filter(r => r.avail);
 
-  const rewardsList = dbRewards.length > 0 ? dbRewards : [
-    { id: 'rew-1', title: '30 min de console 🎮', costPoints: 50, costMoney: 5, icon: '🎮', category: 'Écran', avail: true },
-    { id: 'rew-2', title: 'Choisir le menu du dîner 🍕', costPoints: 80, costMoney: 8, icon: '🍕', category: 'Repas', avail: true },
-    { id: 'rew-3', title: 'Coucher tardif (+30 min) 🌙', costPoints: 100, costMoney: 10, icon: '🌙', category: 'Sommeil', avail: true },
-    { id: 'rew-4', title: 'Double boule de glace 🍦', costPoints: 120, costMoney: 12, icon: '🍦', category: 'Gourmandise', avail: true },
-    { id: 'rew-5', title: 'Cinéma en famille 🎬', costPoints: 250, costMoney: 25, icon: '🎬', category: 'Sortie', avail: true },
-    { id: 'rew-6', title: 'Nouveau jouet au choix 🧸', costPoints: 400, costMoney: 40, icon: '🧸', category: 'Cadeau', avail: true }
-  ];
+  const rewardsList = dbRewards;
 
   // Complete a task (needs parental validation)
   const handleCompleteTask = async (taskId: string, points: number) => {
@@ -186,25 +185,38 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
     setTimeout(() => setShowConfetti(false), 4000);
   };
 
-  // Buy a reward (requests validation from parent)
-  const handleRedeemReward = async (reward: RewardItem, paymentMethod: 'points' | 'money') => {
-    const cost = paymentMethod === 'points' ? reward.costPoints : reward.costMoney;
+  // Buy a reward (requests validation from parent, or direct redeem if validationRequired is false)
+  const handleRedeemReward = async (reward: RewardItem) => {
     const myPoints = myAccount.points || 0;
     const myBalance = myAccount.balance || 0;
+    const canPoints = myPoints >= reward.costPoints;
+    const canMoney = myBalance >= reward.costMoney;
 
-    if (paymentMethod === 'points') {
-      if (myPoints < cost) {
-        alert(`Oups ! Il te manque ${cost - myPoints} étoiles pour acheter ce cadeau. Continue tes missions ! 💪🌟`);
-        return;
+    if (!canPoints && !canMoney) {
+      alert(`Oups ! Il te manque des étoiles (${reward.costPoints} pts requis) ou de l'argent dans ta tirelire (${reward.costMoney.toFixed(2)} € requis) pour t'offrir "${reward.title}" ! 💪`);
+      return;
+    }
+
+    let paymentMethod: 'points' | 'money' | null = null;
+    if (canPoints && canMoney) {
+      const choice = window.confirm(
+        `Comment souhaites-tu régler "${reward.title}" ?\n\n- Cliquez sur [OK] pour payer en Étoiles (🌟 ${reward.costPoints} pts)\n- Cliquez sur [Annuler] pour payer en Argent (💰 ${reward.costMoney.toFixed(2)} €)`
+      );
+      paymentMethod = choice ? 'points' : 'money';
+    } else if (canPoints) {
+      if (window.confirm(`Confirmer l'achat de "${reward.title}" avec tes Étoiles (🌟 ${reward.costPoints} pts) ?`)) {
+        paymentMethod = 'points';
       }
     } else {
-      if (myBalance < cost) {
-        alert(`Oups ! Il te manque ${cost.toFixed(2)} € dans ta tirelire pour acheter ce cadeau. Continue tes missions ! 💶💪`);
-        return;
+      if (window.confirm(`Confirmer l'achat de "${reward.title}" avec ta Tirelire (💰 ${reward.costMoney.toFixed(2)} €) ?`)) {
+        paymentMethod = 'money';
       }
     }
 
-    if (window.confirm(`Es-tu sûr de vouloir demander cette récompense : "${reward.title}" pour ${paymentMethod === 'points' ? `${cost} étoiles` : `${cost.toFixed(2)} €`} ?`)) {
+    if (!paymentMethod) return;
+    const cost = paymentMethod === 'points' ? reward.costPoints : reward.costMoney;
+
+    if (reward.validationRequired !== false) {
       const timestamp = Date.now();
       const newAlert: NotificationAlert = {
         id: `req-rew-${member.id}-${reward.id}-${paymentMethod}-${timestamp}`,
@@ -245,6 +257,53 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
       }
 
       setConfettiMessage(`Ta demande pour "${reward.title}" a bien été envoyée à tes parents. Ils vont la valider très vite ! 🚀✨`);
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 4000);
+    } else {
+      // Direct purchase (no validation required)
+      const updatedPoints = paymentMethod === 'points' ? (myAccount.points || 0) - cost : (myAccount.points || 0);
+      const updatedBalance = paymentMethod === 'money' ? (myAccount.balance || 0) - cost : (myAccount.balance || 0);
+      setPocketMoney(prev => prev.map(p => p.id === member.id ? { ...p, points: updatedPoints, balance: updatedBalance } : p));
+
+      const timestamp = Date.now();
+      const newTx: Transaction = {
+        id: `tx-rew-${member.id}-${reward.id}-${timestamp}`,
+        amount: paymentMethod === 'money' ? -cost : 0,
+        type: 'expense',
+        category: 'Argent de Poche',
+        date: new Date().toISOString().split('T')[0],
+        title: `Achat boutique : ${reward.title} (-${paymentMethod === 'points' ? `${cost} pts` : `${cost.toFixed(2)} €`})`,
+        memberId: member.id,
+        memberName: member.name
+      };
+
+      try {
+        const client = getSupabaseClient();
+        if (client && foyer) {
+          if (paymentMethod === 'points') {
+            await client.from('pocket_money').update({ points: updatedPoints }).eq('id', member.id);
+          } else {
+            await client.from('pocket_money').update({ balance: updatedBalance }).eq('id', member.id);
+          }
+          await client.from('transactions').insert({
+            id: newTx.id,
+            foyer_id: foyer.id,
+            amount: newTx.amount,
+            type: newTx.type,
+            category: newTx.category,
+            date: newTx.date,
+            title: newTx.title,
+            member_id: newTx.memberId,
+            member_name: newTx.memberName
+          });
+          if (setTransactions) {
+            setTransactions(prev => [newTx, ...prev]);
+          }
+        }
+      } catch (err) {
+        console.error("[KidMissions] Direct redeem failed:", err);
+      }
+      setConfettiMessage(`Félicitations ! Achat direct réussi. ${paymentMethod === 'points' ? `${cost} points` : `${cost.toFixed(2)} €`} déduits ! 🎉`);
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 4000);
     }
@@ -661,78 +720,72 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
       {/* CONTENT: Reward Store */}
       {activeSubTab === 'boutique' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {rewardsList.map(reward => {
-              const myPoints = myAccount.points || 0;
-              const myBalance = myAccount.balance || 0;
-              const canAffordPoints = myPoints >= reward.costPoints;
-              const canAffordMoney = myBalance >= reward.costMoney;
+          {rewardsList.length === 0 ? (
+            <div className="text-center p-8 bg-white/5 border border-white/10 rounded-[32px] space-y-3">
+              <span className="text-4xl block">🎁</span>
+              <p className="text-sm font-black text-white">Aucune récompense disponible pour le moment.</p>
+              <p className="text-xs text-white/40 font-bold">Demande à tes parents d'en créer une !</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {rewardsList.map(reward => {
+                const myPoints = myAccount.points || 0;
+                const myBalance = myAccount.balance || 0;
+                const canAfford = myPoints >= reward.costPoints || myBalance >= reward.costMoney;
 
-              return (
-                <div 
-                  key={reward.id} 
-                  className={`bg-[#112240] border-2 rounded-[28px] p-5 flex flex-col justify-between text-left space-y-4 relative shadow-lg transition-all duration-300 ${
-                    canAffordPoints || canAffordMoney ? 'border-[#FFB020]/30 hover:border-[#FFB020]/60' : 'border-white/5 opacity-80'
-                  }`}
-                >
-                  <div className="space-y-2">
-                    <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-2xl shrink-0">
-                      {reward.icon}
+                return (
+                  <div 
+                    key={reward.id} 
+                    className={`bg-[#112240] border-2 rounded-[28px] p-4 flex flex-col justify-between space-y-3 relative shadow-lg transition-all duration-300 ${
+                      canAfford ? 'border-[#FFB020]/40' : 'border-white/5 opacity-80'
+                    }`}
+                  >
+                    <div className="space-y-1.5">
+                      <div className="w-10 h-10 bg-white/5 rounded-2xl flex items-center justify-center text-xl shrink-0">
+                        {reward.icon}
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-black uppercase text-white/30 tracking-wider">
+                          {reward.category}
+                        </span>
+                        <h3 className="text-xs font-extrabold text-white leading-snug mt-0.5 min-h-[36px]">
+                          {reward.title}
+                        </h3>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-[9px] font-black uppercase text-white/30 tracking-wider">
-                        {reward.category}
-                      </span>
-                      <h3 className="text-sm font-black text-white leading-snug mt-0.5 min-h-[36px]">
-                        {reward.title}
-                      </h3>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3 pt-3 border-t border-white/5 text-xs font-bold">
-                    <div className="flex justify-between items-center text-[11px] text-white/50">
-                      <span>Tarif Étoiles :</span>
-                      <span className="text-white font-extrabold flex items-center space-x-1">
-                        <Star className="w-3.5 h-3.5 fill-[#FFB020] text-[#FFB020]" />
-                        <span className="text-[#FFB020]">{reward.costPoints} pts</span>
-                      </span>
-                    </div>
+                    
+                    <div className="space-y-2 pt-2 border-t border-white/5 text-[10px] font-bold">
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/55">Prix Étoiles :</span>
+                        <span className="text-[#FFB020] flex items-center space-x-1">
+                          <Star className="w-3.5 h-3.5 fill-[#FFB020] text-[#FFB020]" />
+                          <span>{reward.costPoints} pts</span>
+                        </span>
+                      </div>
 
-                    <div className="flex justify-between items-center text-[11px] text-white/50">
-                      <span>Tarif Tirelire :</span>
-                      <span className="text-[#00D26A] font-extrabold">
-                        {reward.costMoney.toFixed(2)} €
-                      </span>
-                    </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/55">Prix Tirelire :</span>
+                        <span className="text-[#00D26A]">
+                          {reward.costMoney.toFixed(2)} €
+                        </span>
+                      </div>
 
-                    {/* Double checkout buttons */}
-                    <div className="grid grid-cols-2 gap-2 pt-1">
                       <button
-                        onClick={() => handleRedeemReward(reward, 'points')}
-                        className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                          canAffordPoints 
-                            ? 'bg-[#FFB020] text-[#07111F] active:scale-95 shadow-md' 
-                            : 'bg-white/5 text-white/35 cursor-not-allowed border border-white/5'
+                        onClick={() => handleRedeemReward(reward)}
+                        className={`w-full py-2 mt-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                          canAfford 
+                            ? 'bg-[#FFB020] text-[#07111F] active:scale-95 shadow-md shadow-[#FFB020]/10' 
+                            : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5'
                         }`}
                       >
-                        Acheter (Pts) 🌟
-                      </button>
-                      <button
-                        onClick={() => handleRedeemReward(reward, 'money')}
-                        className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                          canAffordMoney 
-                            ? 'bg-[#00D26A] text-[#07111F] active:scale-95 shadow-md' 
-                            : 'bg-white/5 text-white/35 cursor-not-allowed border border-white/5'
-                        }`}
-                      >
-                        Acheter (€) 💶
+                        Acheter 🎁
                       </button>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Form: Proposer un cadeau personnalisé */}
           <form onSubmit={handleSuggestCustomReward} className="bg-white/5 border border-white/8 rounded-[32px] p-5 space-y-4 text-left font-sans">

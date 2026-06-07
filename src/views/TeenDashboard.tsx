@@ -140,6 +140,14 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   const [teenChoreSubTab, setTeenChoreSubTab] = useState<'my_tasks' | 'wall'>('my_tasks');
   const [suggestionText, setSuggestionText] = useState('');
   const [suggestionPts, setSuggestionPts] = useState(25);
+
+  // Suggested rewards states
+  const [sugRewardTitle, setSugRewardTitle] = useState('');
+  const [sugRewardDesc, setSugRewardDesc] = useState('');
+  const [sugRewardPoints, setSugRewardPoints] = useState(100);
+  const [sugRewardMoney, setSugRewardMoney] = useState(10);
+  const [sugRewardIcon, setSugRewardIcon] = useState('🎁');
+  const [isSuggestingReward, setIsSuggestingReward] = useState(false);
   
   // Wallet goal edit states
   const [goalTitleInput, setGoalTitleInput] = useState('');
@@ -383,39 +391,280 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
     !v.options.some(opt => opt.votes.includes(member.name) || opt.votes.includes(member.id))
   );
 
+  // 9. Chronological Timeline Activities Parser for Teen Space
+  interface TimelineItem {
+    id: string;
+    type: string;
+    title: string;
+    description: string;
+    date: Date;
+    dateText: string;
+    icon: string;
+    authorName?: string;
+    authorPhoto?: string;
+    imageUrl?: string;
+    likesCount?: number;
+  }
+
+  const buildFamilyActivities = (): TimelineItem[] => {
+    const list: TimelineItem[] = [];
+
+    // Missions / Tâches
+    (tasks || []).forEach(t => {
+      if (!t) return;
+      const meta = parseChoreTitle(t.title);
+      const title = meta.title || t.title;
+      let dateVal = new Date();
+      if (t.dueDate) dateVal = new Date(t.dueDate);
+      
+      let label = "";
+      let icon = "🧹";
+      if (meta.status === 'validated') {
+        label = `Mission validée : ${title}`;
+        icon = "✅";
+      } else if (meta.status === 'pending_validation') {
+        label = `Mission terminée : ${title}`;
+        icon = "⏳";
+      } else {
+        label = `Nouvelle mission proposée : ${title}`;
+      }
+
+      list.push({
+        id: `task-${t.id}`,
+        type: 'Mission',
+        title: label,
+        description: meta.description || `Attribuée à ${t.assignedMemberName || 'la famille'}. Récompense : ${t.rewardPoints} pts.`,
+        date: dateVal,
+        dateText: t.dueDate || 'Aujourd\'hui',
+        icon
+      });
+    });
+
+    // Achats / Transactions
+    (transactions || []).forEach(tx => {
+      if (!tx || tx.isArchived) return;
+      const dateVal = tx.date ? new Date(tx.date) : new Date();
+      const isExpense = tx.type === 'expense';
+      
+      list.push({
+        id: `tx-${tx.id}`,
+        type: 'Finance',
+        title: `${isExpense ? 'Achat boutique' : 'Gain tirelire'} : ${tx.title}`,
+        description: `Montant : ${tx.amount.toFixed(2)} € pour ${tx.memberName || 'la famille'}.`,
+        date: dateVal,
+        dateText: tx.date,
+        icon: isExpense ? "🛍️" : "🪙"
+      });
+    });
+
+    // Anniversaires
+    (members || []).forEach(m => {
+      if (!m || !m.birthDate) return;
+      try {
+        let bdayStr = m.birthDate;
+        let parts = bdayStr.includes('/') ? bdayStr.split('/') : bdayStr.split('-');
+        if (parts.length === 3) {
+          let month = parseInt(parts[1]) - 1;
+          let day = parseInt(parts[0].length === 4 ? parts[2] : parts[0]);
+          let year = new Date().getFullYear();
+          let bdayThisYear = new Date(year, month, day);
+          list.push({
+            id: `bday-${m.id}`,
+            type: 'Anniversaire',
+            title: `Anniversaire de ${m.name} 🎂`,
+            description: `Il/Elle fête ses ${year - parseInt(parts[0].length === 4 ? parts[0] : parts[2])} ans !`,
+            date: bdayThisYear,
+            dateText: bdayThisYear.toLocaleDateString('fr-FR'),
+            icon: "🎉"
+          });
+        }
+      } catch (e) {}
+    });
+
+    // Événements
+    (events || []).forEach(e => {
+      if (!e || e.type === 'vaccine') return;
+      const dateVal = e.dateTime ? new Date(e.dateTime) : new Date();
+      list.push({
+        id: `evt-${e.id}`,
+        type: 'Événement',
+        title: e.title,
+        description: `${e.description || 'Événement familial prévu.'} à ${e.time || '09:00'}.`,
+        date: dateVal,
+        dateText: e.dateTime?.split('T')[0] || 'Aujourd\'hui',
+        icon: "📅"
+      });
+    });
+
+    // Voyages
+    (trips || []).forEach(tr => {
+      if (!tr) return;
+      const dateVal = tr.startDate ? new Date(tr.startDate) : new Date();
+      list.push({
+        id: `trip-${tr.id}`,
+        type: 'Voyage',
+        title: `Voyage à ${tr.destination} ✈️`,
+        description: `Du ${tr.startDate} au ${tr.endDate}.`,
+        date: dateVal,
+        dateText: tr.startDate,
+        icon: "🗺️"
+      });
+    });
+
+    // Menus
+    (dishes || []).forEach(d => {
+      if (!d) return;
+      list.push({
+        id: `dish-${d.id}`,
+        type: 'Menu',
+        title: `Repas : ${d.name} 🍲`,
+        description: `Prévu pour le ${d.mealType === 'lunch' ? 'Déjeuner' : 'Dîner'} (${d.day}).`,
+        date: new Date(),
+        dateText: d.day,
+        icon: "😋"
+      });
+    });
+
+    // Devoirs
+    (schoolTasks || []).forEach(st => {
+      if (!st) return;
+      const dateVal = st.dueDate ? new Date(st.dueDate) : new Date();
+      list.push({
+        id: `schooltask-${st.id}`,
+        type: 'Devoir',
+        title: `Devoir : ${st.title} (${st.subject})`,
+        description: `Pour le ${st.dueDate}. Statut : ${st.done ? 'Terminé ✅' : 'À faire ⏳'}.`,
+        date: dateVal,
+        dateText: st.dueDate,
+        icon: "📚"
+      });
+    });
+
+    // Documents
+    (documents || []).forEach(doc => {
+      if (!doc) return;
+      const dateVal = doc.uploadDate ? new Date(doc.uploadDate) : new Date();
+      list.push({
+        id: `doc-${doc.id}`,
+        type: 'Document',
+        title: `Fichier : ${doc.name}`,
+        description: `Catégorie : ${doc.category}. Ajouté par ${doc.memberName || 'Famille'}.`,
+        date: dateVal,
+        dateText: doc.uploadDate,
+        icon: "📄"
+      });
+    });
+
+    // Sondages / Conseil de Famille
+    (votes || []).forEach(v => {
+      if (!v) return;
+      const dateVal = v.dueDate ? new Date(v.dueDate) : new Date();
+      list.push({
+        id: `vote-${v.id}`,
+        type: 'Sondage',
+        title: `Vote : ${v.question}`,
+        description: `Proposé par ${v.authorName}. Statut : ${v.active ? 'Actif' : 'Clos'}.`,
+        date: dateVal,
+        dateText: v.dueDate,
+        icon: "🗳️"
+      });
+    });
+
+    // Souvenirs / Album / Capsule
+    (memories || []).forEach(m => {
+      if (!m) return;
+      let dateVal = new Date();
+      if (m.date) {
+        const parts = m.date.split('/');
+        if (parts.length === 3) {
+          dateVal = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        } else {
+          dateVal = new Date(m.date);
+        }
+      }
+      list.push({
+        id: `mem-${m.id}`,
+        type: 'Souvenir',
+        title: m.title,
+        description: m.description,
+        date: dateVal,
+        dateText: m.date,
+        icon: m.theme ? "⏳" : "📸",
+        authorName: m.authorName,
+        authorPhoto: m.authorPhoto,
+        imageUrl: m.imageUrl,
+        likesCount: m.likesCount
+      });
+    });
+
+    // Messages importants / alertes
+    (alerts || []).forEach(al => {
+      if (!al || al.read) return;
+      const dateVal = al.time ? new Date(al.time) : new Date();
+      list.push({
+        id: `alert-${al.id}`,
+        type: 'Alerte',
+        title: al.title,
+        description: al.description,
+        date: dateVal,
+        dateText: al.time ? new Date(al.time).toLocaleDateString('fr-FR') : 'Aujourd\'hui',
+        icon: "📢"
+      });
+    });
+
+    // Récompenses boutique configurées
+    (goals || []).forEach(g => {
+      if (!g || g.category !== 'boutique_reward') return;
+      const dateVal = g.targetDate ? new Date(g.targetDate) : new Date();
+      list.push({
+        id: `goal-${g.id}`,
+        type: 'Récompense',
+        title: `Cadeau disponible : ${g.title}`,
+        description: `Prix : ${g.targetAmount} Pts.`,
+        date: dateVal,
+        dateText: g.targetDate || 'Aujourd\'hui',
+        icon: "🎁"
+      });
+    });
+
+    return list.sort((a, b) => b.date.getTime() - a.date.getTime());
+  };
+
+  const familyActivities = buildFamilyActivities();
+
   // Load boutique reward items from saving_goals category = 'boutique_reward'
   const mapSavingGoalToReward = (sg: SavingGoal) => {
     let icon = '🎁';
-    let valReq = true;
+    let costPoints = sg.targetAmount || 50;
+    let costMoney = Math.round(costPoints / 10);
     let subCat = 'Cadeau';
+    let avail = true;
+    let valReq = true;
     if (sg.contributions && sg.contributions.length > 0) {
       const meta = sg.contributions[0] as any;
       if (meta.icon) icon = meta.icon;
-      if (meta.validationRequired !== undefined) valReq = meta.validationRequired;
+      if (meta.costPoints !== undefined) costPoints = meta.costPoints;
+      if (meta.costMoney !== undefined) costMoney = meta.costMoney;
       if (meta.subCategory) subCat = meta.subCategory;
+      if (meta.avail !== undefined) avail = meta.avail;
+      if (meta.validationRequired !== undefined) valReq = meta.validationRequired;
     }
     return {
       id: sg.id,
       title: sg.title,
-      cost: sg.targetAmount,
+      costPoints,
+      costMoney,
       icon,
       category: subCat,
+      avail,
       validationRequired: valReq
     };
   };
 
   const boutiqueRewards = (goals || [])
     .filter(sg => sg.category === 'boutique_reward')
-    .map(mapSavingGoalToReward);
-
-  const finalRewards = boutiqueRewards.length > 0 ? boutiqueRewards : [
-    { id: 'rew-1', title: '30 min de console 🎮', cost: 50, icon: '⚡', category: 'Écran', validationRequired: true },
-    { id: 'rew-2', title: 'Choisir le menu du dîner 🍕', cost: 80, icon: '😋', category: 'Repas', validationRequired: true },
-    { id: 'rew-3', title: 'Coucher tardif (+30 min) 🌙', cost: 100, icon: '⏰', category: 'Sommeil', validationRequired: true },
-    { id: 'rew-4', title: 'Double boule de glace 🍦', cost: 120, icon: '🍧', category: 'Gourmandise', validationRequired: true },
-    { id: 'rew-5', title: 'Cinéma en famille 🎬', cost: 250, icon: '🍿', category: 'Sortie', validationRequired: true },
-    { id: 'rew-6', title: 'Nouveau jouet au choix 🧸', cost: 400, icon: '🎁', category: 'Cadeau', validationRequired: true }
-  ];
+    .map(mapSavingGoalToReward)
+    .filter(r => r.avail);
 
   // 6. ADO INTERACTIONS HANDLERS
   
@@ -452,76 +701,103 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
 
   // Buy a boutique reward
   const handleRedeemReward = async (reward: any) => {
-    if ((myAccount.points || 0) < reward.cost) {
-      alert(`Il te manque ${reward.cost - (myAccount.points || 0)} points pour t'offrir "${reward.title}" ! 💪`);
+    const myPoints = myAccount.points || 0;
+    const myBalance = myAccount.balance || 0;
+    const canPoints = myPoints >= reward.costPoints;
+    const canMoney = myBalance >= reward.costMoney;
+
+    if (!canPoints && !canMoney) {
+      alert(`Oups ! Il te manque des étoiles (${reward.costPoints} pts requis) ou de l'argent dans ta tirelire (${reward.costMoney.toFixed(2)} € requis) pour t'offrir "${reward.title}" ! 💪`);
       return;
     }
 
-    if (window.confirm(`Confirmer l'achat de "${reward.title}" pour ${reward.cost} points ?`)) {
-      if (reward.validationRequired) {
-        const timestamp = Date.now();
-        const newAlert: NotificationAlert = {
-          id: `req-rew-${member.id}-${reward.id}-${timestamp}`,
-          title: `Achat Ado : ${reward.title}`,
-          description: `${member.name} souhaite dépenser ${reward.cost} points pour "${reward.title}".`,
-          time: new Date().toISOString(),
-          type: 'warning',
-          read: false,
-          module: 'argent',
-          senderMemberId: member.id,
-          senderName: member.name,
-          senderAvatar: member.photoUrl
-        };
-
-        if (setAlerts) setAlerts(prev => [newAlert, ...prev]);
-
-        try {
-          const client = getSupabaseClient();
-          if (client && foyer) {
-            await client.from('alerts').insert({
-              id: newAlert.id, foyer_id: foyer.id, title: newAlert.title,
-              description: newAlert.description, time: newAlert.time, type: newAlert.type,
-              read: newAlert.read, module: newAlert.module, sender_member_id: newAlert.senderMemberId,
-              sender_name: newAlert.senderName, sender_avatar: newAlert.senderAvatar
-            });
-          }
-        } catch (err) {
-          console.error("[TeenDashboard] Failed to send reward alert:", err);
-        }
-        alert(`Demande d'achat envoyée aux parents ! Ils vont la valider très vite. 🚀`);
-      } else {
-        // Direct purchase (no validation required)
-        const updatedPoints = (myAccount.points || 0) - reward.cost;
-        setPocketMoney(prev => prev.map(p => p.id === member.id ? { ...p, points: updatedPoints } : p));
-
-        const timestamp = Date.now();
-        const newTx: Transaction = {
-          id: `tx-rew-${member.id}-${reward.id}-${timestamp}`,
-          amount: 0,
-          type: 'expense',
-          category: 'Argent de Poche',
-          date: new Date().toISOString().split('T')[0],
-          title: `Achat boutique : ${reward.title} (-${reward.cost} pts)`,
-          memberId: member.id,
-          memberName: member.name
-        };
-
-        try {
-          const client = getSupabaseClient();
-          if (client && foyer) {
-            await client.from('pocket_money').update({ points: updatedPoints }).eq('id', member.id);
-            await client.from('transactions').insert({
-              id: newTx.id, foyer_id: foyer.id, amount: newTx.amount, type: newTx.type,
-              category: newTx.category, date: newTx.date, title: newTx.title,
-              member_id: newTx.memberId, member_name: newTx.memberName
-            });
-            setTransactions(prev => [newTx, ...prev]);
-          }
-        } catch (err) {
-          console.error("[TeenDashboard] Direct redeem failed:", err);
-        }
-        alert(`Félicitations ! Achat direct réussi. ${reward.cost} points déduits ! 🎉`);
+    let paymentMethod: 'points' | 'money' | null = null;
+    if (canPoints && canMoney) {
+      const choice = window.confirm(
+        `Comment souhaites-tu régler "${reward.title}" ?\n\n- Cliquez sur [OK] pour payer en Étoiles (🌟 ${reward.costPoints} pts)\n- Cliquez sur [Annuler] pour payer en Argent (💰 ${reward.costMoney.toFixed(2)} €)`
+      );
+      paymentMethod = choice ? 'points' : 'money';
+    } else if (canPoints) {
+      if (window.confirm(`Confirmer l'achat de "${reward.title}" avec tes Étoiles (🌟 ${reward.costPoints} pts) ?`)) {
+        paymentMethod = 'points';
       }
+    } else {
+      if (window.confirm(`Confirmer l'achat de "${reward.title}" avec ta Tirelire (💰 ${reward.costMoney.toFixed(2)} €) ?`)) {
+        paymentMethod = 'money';
+      }
+    }
+
+    if (!paymentMethod) return;
+    const cost = paymentMethod === 'points' ? reward.costPoints : reward.costMoney;
+
+    if (reward.validationRequired) {
+      const timestamp = Date.now();
+      const newAlert: NotificationAlert = {
+        id: `req-rew-${member.id}-${reward.id}-${paymentMethod}-${timestamp}`,
+        title: `Achat Ado : ${reward.title}`,
+        description: `${member.name} souhaite dépenser ${paymentMethod === 'points' ? `${cost} points` : `${cost.toFixed(2)} €`} pour "${reward.title}".`,
+        time: new Date().toISOString(),
+        type: 'warning',
+        read: false,
+        module: 'argent',
+        senderMemberId: member.id,
+        senderName: member.name,
+        senderAvatar: member.photoUrl
+      };
+
+      if (setAlerts) setAlerts(prev => [newAlert, ...prev]);
+
+      try {
+        const client = getSupabaseClient();
+        if (client && foyer) {
+          await client.from('alerts').insert({
+            id: newAlert.id, foyer_id: foyer.id, title: newAlert.title,
+            description: newAlert.description, time: newAlert.time, type: newAlert.type,
+            read: newAlert.read, module: newAlert.module, sender_member_id: newAlert.senderMemberId,
+            sender_name: newAlert.senderName, sender_avatar: newAlert.senderAvatar
+          });
+        }
+      } catch (err) {
+        console.error("[TeenDashboard] Failed to send reward alert:", err);
+      }
+      alert(`Demande d'achat envoyée aux parents ! Ils vont la valider très vite. 🚀`);
+    } else {
+      // Direct purchase (no validation required)
+      const updatedPoints = paymentMethod === 'points' ? (myAccount.points || 0) - cost : (myAccount.points || 0);
+      const updatedBalance = paymentMethod === 'money' ? (myAccount.balance || 0) - cost : (myAccount.balance || 0);
+      setPocketMoney(prev => prev.map(p => p.id === member.id ? { ...p, points: updatedPoints, balance: updatedBalance } : p));
+
+      const timestamp = Date.now();
+      const newTx: Transaction = {
+        id: `tx-rew-${member.id}-${reward.id}-${timestamp}`,
+        amount: paymentMethod === 'money' ? -cost : 0,
+        type: 'expense',
+        category: 'Argent de Poche',
+        date: new Date().toISOString().split('T')[0],
+        title: `Achat boutique : ${reward.title} (-${paymentMethod === 'points' ? `${cost} pts` : `${cost.toFixed(2)} €`})`,
+        memberId: member.id,
+        memberName: member.name
+      };
+
+      try {
+        const client = getSupabaseClient();
+        if (client && foyer) {
+          if (paymentMethod === 'points') {
+            await client.from('pocket_money').update({ points: updatedPoints }).eq('id', member.id);
+          } else {
+            await client.from('pocket_money').update({ balance: updatedBalance }).eq('id', member.id);
+          }
+          await client.from('transactions').insert({
+            id: newTx.id, foyer_id: foyer.id, amount: newTx.amount, type: newTx.type,
+            category: newTx.category, date: newTx.date, title: newTx.title,
+            member_id: newTx.memberId, member_name: newTx.memberName
+          });
+          setTransactions(prev => [newTx, ...prev]);
+        }
+      } catch (err) {
+        console.error("[TeenDashboard] Direct redeem failed:", err);
+      }
+      alert(`Félicitations ! Achat direct réussi. ${paymentMethod === 'points' ? `${cost} points` : `${cost.toFixed(2)} €`} déduits ! 🎉`);
     }
   };
 
@@ -562,6 +838,57 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
 
     alert(`Proposition envoyée ! Tes parents ont reçu une notification. 💬`);
     setSuggestionText('');
+  };
+
+  // Suggest a custom boutique reward
+  const handleSuggestReward = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sugRewardTitle.trim()) return;
+
+    const timestamp = Date.now();
+    const newAlert: NotificationAlert = {
+      id: `sug-rew-${member.id}-${timestamp}`,
+      title: `Suggestion : ${sugRewardTitle.trim()}`,
+      description: `${member.name} propose un nouveau cadeau : "${sugRewardTitle.trim()}" (${sugRewardDesc.trim()}) pour ${sugRewardPoints} Pts ou ${sugRewardMoney} €. Icone: ${sugRewardIcon}`,
+      time: new Date().toISOString(),
+      type: 'info',
+      read: false,
+      module: 'argent',
+      senderMemberId: member.id,
+      senderName: member.name,
+      senderAvatar: member.photoUrl
+    };
+
+    if (setAlerts) setAlerts(prev => [newAlert, ...prev]);
+
+    try {
+      const client = getSupabaseClient();
+      if (client && foyer) {
+        await client.from('alerts').insert({
+          id: newAlert.id,
+          foyer_id: foyer.id,
+          title: newAlert.title,
+          description: newAlert.description,
+          time: newAlert.time,
+          type: newAlert.type,
+          read: newAlert.read,
+          module: newAlert.module,
+          sender_member_id: newAlert.senderMemberId,
+          sender_name: newAlert.senderName,
+          sender_avatar: newAlert.senderAvatar
+        });
+      }
+    } catch (err) {
+      console.error("[TeenDashboard] Failed to suggest reward:", err);
+    }
+
+    alert(`Proposition de récompense envoyée aux parents ! 🚀`);
+    setSugRewardTitle('');
+    setSugRewardDesc('');
+    setSugRewardPoints(100);
+    setSugRewardMoney(10);
+    setSugRewardIcon('🎁');
+    setIsSuggestingReward(false);
   };
 
   // Edit saving goal title/amount
@@ -645,10 +972,12 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32 relative overflow-hidden">
+    <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32 relative overflow-hidden flex flex-col items-center">
       {/* Background decoration blur halos */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#6C5CFF]/10 blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#FF4D6D]/10 blur-[120px] pointer-events-none" />
+
+      <div className="w-full max-w-4xl mx-auto space-y-6 relative z-10 flex flex-col justify-start">
 
       {/* ---------------------------------------------------------------------- */}
       {/* HEADER: Profile, Streak & Level Status */}
@@ -939,13 +1268,27 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
               onClick={() => { setActiveTab('menu'); setActiveModule('boutique'); }}
               className="bg-white/5 border border-white/8 rounded-[28px] p-4 text-left space-y-2 cursor-pointer hover:bg-white/8 transition flex flex-col justify-between"
             >
-              <div className="space-y-1">
-                <span className="text-[8px] font-bold text-white/40 uppercase tracking-wider block">🛍️ Boutique Cadeaux</span>
-                <p className="text-xs font-black text-white truncate">{finalRewards[0].title}</p>
-              </div>
-              <span className="text-[9px] font-black text-[#FFB020] bg-[#FFB020]/15 px-2 py-0.5 rounded-lg w-fit font-sans">
-                {finalRewards[0].cost} pts
-              </span>
+              {boutiqueRewards.length > 0 ? (
+                <>
+                  <div className="space-y-1">
+                    <span className="text-[8px] font-bold text-white/40 uppercase tracking-wider block">🛍️ Boutique Cadeaux</span>
+                    <p className="text-xs font-black text-white truncate">{boutiqueRewards[0].title}</p>
+                  </div>
+                  <span className="text-[9px] font-black text-[#FFB020] bg-[#FFB020]/15 px-2 py-0.5 rounded-lg w-fit font-sans">
+                    {boutiqueRewards[0].costPoints} pts
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-1">
+                    <span className="text-[8px] font-bold text-white/40 uppercase tracking-wider block">🛍️ Boutique Cadeaux</span>
+                    <p className="text-xs font-bold text-white/50 truncate">Aucun cadeau disponible</p>
+                  </div>
+                  <span className="text-[8px] font-bold text-white/30 uppercase tracking-wider">
+                    Demande à tes parents !
+                  </span>
+                </>
+              )}
             </div>
 
           </div>
@@ -1161,32 +1504,69 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
 
           {/* Timeline Feed */}
           <div className="space-y-4">
-            {memories.map((mem) => (
-              <div key={mem.id} className="bg-[#112240] border border-white/5 rounded-[32px] overflow-hidden shadow-xl">
-                {mem.imageUrl && (
-                  <img 
-                    src={mem.imageUrl} 
-                    alt={mem.title} 
-                    className="w-full h-48 object-cover border-b border-white/5"
-                  />
-                )}
-                <div className="p-5 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[8px] font-black uppercase text-white/30 tracking-widest">
-                      📅 {mem.date} • par {mem.authorName}
-                    </span>
-                    <span className="text-[10px] font-black text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-lg flex items-center gap-0.5">
-                      <Heart className="w-3.5 h-3.5 fill-rose-400" />
-                      {mem.likesCount || 0}
-                    </span>
+            {familyActivities.map((act) => {
+              if (act.type === 'Souvenir' || act.type === 'Capsule') {
+                return (
+                  <div key={act.id} className="bg-[#112240] border border-white/5 rounded-[32px] overflow-hidden shadow-xl animate-fade-in">
+                    {act.imageUrl && (
+                      <img 
+                        src={act.imageUrl} 
+                        alt={act.title} 
+                        className="w-full h-48 object-cover border-b border-white/5"
+                      />
+                    )}
+                    <div className="p-5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[8px] font-black uppercase text-white/30 tracking-widest">
+                          {act.icon} {act.type === 'Capsule' ? 'Capsule Temporelle ⏳' : 'Souvenir'} • {act.dateText} • par {act.authorName || 'Famille'}
+                        </span>
+                        <span className="text-[10px] font-black text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-lg flex items-center gap-0.5">
+                          <Heart className="w-3.5 h-3.5 fill-rose-400" />
+                          {act.likesCount || 0}
+                        </span>
+                      </div>
+                      <h3 className="text-sm font-black text-white leading-snug">{act.title}</h3>
+                      {act.description && (
+                        <p className="text-xs text-white/60 leading-relaxed">{act.description}</p>
+                      )}
+                    </div>
                   </div>
-                  <h3 className="text-sm font-black text-white leading-snug">{mem.title}</h3>
-                  {mem.description && (
-                    <p className="text-xs text-white/60 leading-relaxed">{mem.description}</p>
-                  )}
+                );
+              }
+
+              // Visual decoration depending on activity type
+              let borderStyle = "border-white/5";
+              if (act.type === 'Mission') borderStyle = "border-[#6C5CFF]/30";
+              else if (act.type === 'Anniversaire') borderStyle = "border-[#FFB020]/30";
+              else if (act.type === 'Finance') borderStyle = "border-[#00D26A]/30";
+              else if (act.type === 'Événement') borderStyle = "border-indigo-500/30";
+              else if (act.type === 'Voyage') borderStyle = "border-teal-500/30";
+              else if (act.type === 'Devoir') borderStyle = "border-rose-500/30";
+              else if (act.type === 'Sondage') borderStyle = "border-cyan-500/30";
+
+              return (
+                <div 
+                  key={act.id} 
+                  className={`bg-[#112240] border-2 ${borderStyle} rounded-[24px] p-4 flex items-start space-x-3 shadow-lg animate-fade-in`}
+                >
+                  <span className="text-2xl shrink-0">{act.icon}</span>
+                  <div className="space-y-1 text-left min-w-0 flex-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[8px] font-black uppercase text-white/30 tracking-widest">
+                        {act.type} • {act.dateText}
+                      </span>
+                    </div>
+                    <h3 className="text-xs font-black text-white leading-snug">{act.title}</h3>
+                    {act.description && (
+                      <p className="text-[11px] text-white/60 leading-relaxed">{act.description}</p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
+            {familyActivities.length === 0 && (
+              <p className="text-xs text-center text-white/40 py-8 font-bold">Aucune activité enregistrée pour le moment !</p>
+            )}
           </div>
 
         </div>
@@ -1944,57 +2324,151 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
             </button>
             <div>
               <h1 className="text-xl font-black text-white">Boutique de Récompenses</h1>
-              <p className="text-[10px] text-white/50 font-bold">Échange tes points étoiles contre des cadeaux</p>
+              <p className="text-[10px] text-white/50 font-bold">Échange tes points étoiles ou ton argent contre des cadeaux</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {finalRewards.map(reward => {
-              const canAfford = (myAccount.points || 0) >= reward.cost;
-              return (
-                <div 
-                  key={reward.id} 
-                  className={`bg-[#112240] border-2 rounded-[28px] p-4 flex flex-col justify-between space-y-3 relative shadow-lg ${
-                    canAfford ? 'border-[#FFB020]/40' : 'border-white/5 opacity-80'
-                  }`}
-                >
-                  <div className="space-y-1.5">
-                    <div className="w-10 h-10 bg-white/5 rounded-2xl flex items-center justify-center text-xl shrink-0">
-                      {reward.icon}
+          {boutiqueRewards.length === 0 ? (
+            <div className="text-center p-8 bg-white/5 border border-white/10 rounded-[32px] space-y-3">
+              <span className="text-4xl block">🎁</span>
+              <p className="text-sm font-black text-white">Aucune récompense disponible pour le moment.</p>
+              <p className="text-xs text-white/40 font-bold">Demande à tes parents d'en créer une !</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {boutiqueRewards.map(reward => {
+                const myPoints = myAccount.points || 0;
+                const myBalance = myAccount.balance || 0;
+                const canAfford = myPoints >= reward.costPoints || myBalance >= reward.costMoney;
+                return (
+                  <div 
+                    key={reward.id} 
+                    className={`bg-[#112240] border-2 rounded-[28px] p-4 flex flex-col justify-between space-y-3 relative shadow-lg ${
+                      canAfford ? 'border-[#FFB020]/40' : 'border-white/5 opacity-80'
+                    }`}
+                  >
+                    <div className="space-y-1.5">
+                      <div className="w-10 h-10 bg-white/5 rounded-2xl flex items-center justify-center text-xl shrink-0">
+                        {reward.icon}
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-black uppercase text-white/30 tracking-wider">
+                          {reward.category}
+                        </span>
+                        <h3 className="text-xs font-extrabold text-white leading-snug mt-0.5 min-h-[32px]">
+                          {reward.title}
+                        </h3>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2 pt-2 border-t border-white/5 text-[10px] font-bold">
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/55">Prix Étoiles :</span>
+                        <span className="text-[#FFB020] flex items-center space-x-1">
+                          <Star className="w-3 h-3 fill-[#FFB020] text-[#FFB020]" />
+                          <span>{reward.costPoints} pts</span>
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/55">Prix Tirelire :</span>
+                        <span className="text-[#00D26A]">
+                          {reward.costMoney.toFixed(2)} €
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => handleRedeemReward(reward)}
+                        className={`w-full py-2 mt-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                          canAfford 
+                            ? 'bg-[#FFB020] text-[#07111F] active:scale-95 shadow-md shadow-[#FFB020]/10' 
+                            : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5'
+                        }`}
+                      >
+                        Acheter 🎁
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Form: Proposer une récompense */}
+          <div className="bg-white/5 border border-white/8 rounded-[32px] p-5 space-y-4">
+            <button
+              onClick={() => setIsSuggestingReward(!isSuggestingReward)}
+              className="w-full py-3 bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-[#9E94FF] rounded-xl text-xs font-black uppercase tracking-wider hover:bg-[#6C5CFF]/20 transition-all flex items-center justify-center space-x-2"
+            >
+              <span>➕ Proposer une récompense</span>
+            </button>
+
+            {isSuggestingReward && (
+              <form onSubmit={handleSuggestReward} className="space-y-4 pt-2 border-t border-white/5 animate-fade-in font-sans">
+                <div className="space-y-3 font-bold text-xs">
+                  <div>
+                    <label className="text-[9px] text-white/40 uppercase block mb-1">Nom de la récompense souhaitée</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: Sortie cinéma, Jeu vidéo, Ballon..."
+                      value={sugRewardTitle}
+                      onChange={(e) => setSugRewardTitle(e.target.value)}
+                      className="w-full bg-[#07111F] border border-white/10 rounded-xl py-2.5 px-4 text-white placeholder-white/35 focus:outline-none focus:border-[#6C5CFF]"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[9px] text-white/40 uppercase block mb-1">Description / Rationale</label>
+                    <textarea 
+                      placeholder="Pourquoi mérites-tu ce cadeau ?"
+                      value={sugRewardDesc}
+                      onChange={(e) => setSugRewardDesc(e.target.value)}
+                      rows={2}
+                      className="w-full bg-[#07111F] border border-white/10 rounded-xl py-2.5 px-4 text-white placeholder-white/35 focus:outline-none focus:border-[#6C5CFF] resize-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[9px] text-white/40 uppercase block mb-1">Prix suggéré (🌟 points)</label>
+                      <input 
+                        type="number" 
+                        value={sugRewardPoints}
+                        onChange={(e) => setSugRewardPoints(Number(e.target.value))}
+                        className="w-full bg-[#07111F] border border-white/10 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-[#6C5CFF]"
+                      />
                     </div>
                     <div>
-                      <span className="text-[8px] font-black uppercase text-white/30 tracking-wider">
-                        {reward.category}
-                      </span>
-                      <h3 className="text-xs font-extrabold text-white leading-snug mt-0.5 min-h-[32px]">
-                        {reward.title}
-                      </h3>
+                      <label className="text-[9px] text-white/40 uppercase block mb-1">Prix suggéré (💰 cash €)</label>
+                      <input 
+                        type="number" 
+                        value={sugRewardMoney}
+                        onChange={(e) => setSugRewardMoney(Number(e.target.value))}
+                        className="w-full bg-[#07111F] border border-white/10 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-[#6C5CFF]"
+                      />
                     </div>
                   </div>
-                  
-                  <div className="space-y-2 pt-2 border-t border-white/5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-white/55 font-bold">Prix :</span>
-                      <span className="text-xs font-black text-[#FFB020] flex items-center space-x-1">
-                        <Star className="w-3 h-3 fill-[#FFB020] text-[#FFB020]" />
-                        <span>{reward.cost} pts</span>
-                      </span>
-                    </div>
 
-                    <button
-                      onClick={() => handleRedeemReward(reward)}
-                      className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                        canAfford 
-                          ? 'bg-[#FFB020] text-[#07111F] active:scale-95 shadow-md shadow-[#FFB020]/10' 
-                          : 'bg-white/5 text-white/30 cursor-not-allowed'
-                      }`}
-                    >
-                      Acheter 🎁
-                    </button>
+                  <div>
+                    <label className="text-[9px] text-white/40 uppercase block mb-1">Émoticône représentatif</label>
+                    <input 
+                      type="text" 
+                      value={sugRewardIcon}
+                      onChange={(e) => setSugRewardIcon(e.target.value)}
+                      className="w-full bg-[#07111F] border border-white/10 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-[#6C5CFF]"
+                    />
                   </div>
                 </div>
-              );
-            })}
+
+                <button 
+                  type="submit"
+                  className="w-full py-3 bg-[#6C5CFF] text-white rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer"
+                >
+                  Envoyer la proposition 🚀
+                </button>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -2205,6 +2679,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
         </div>
       )}
 
+      </div>
     </div>
   );
 };
