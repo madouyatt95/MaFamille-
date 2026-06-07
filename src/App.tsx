@@ -11301,7 +11301,6 @@ function App() {
         if (ageNum >= 11 && ageNum < 18) isTeen = true;
       }
     }
-
     if (isTeen && appActiveMemberObj) {
       return (
         <TeenDashboard 
@@ -11361,10 +11360,13 @@ function App() {
           setTrips={setTrips}
           documents={appDocuments}
           setDocuments={setDocuments}
+          communeName={communeName}
+          schoolName={schoolName}
+          onToggleEventDone={handleToggleEventDone}
+          onMoveEvent={handleMoveEvent}
         />
       );
     }
-
     if (activeTab === 'accueil') {
       let isKid = false;
       if (appActiveMemberObj) {

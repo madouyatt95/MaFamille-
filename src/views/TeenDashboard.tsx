@@ -13,8 +13,10 @@ import { PeaceMaker } from '../components/modules/PeaceMaker';
 import { ConteurIA } from '../components/modules/ConteurIA';
 import { ConseilFamille } from '../components/modules/ConseilFamille';
 import { CapsuleTemporelle } from '../components/modules/CapsuleTemporelle';
+import { CommuneHub } from '../components/modules/CommuneHub';
 import { FamilyMap } from './FamilyMap';
 import { MenuHub } from './MenuHub';
+import { Agenda } from './Agenda';
 import { getSupabaseClient } from '../utils/supabase';
 
 interface TeenDashboardProps {
@@ -75,6 +77,10 @@ interface TeenDashboardProps {
   onToggleTask?: (taskId: string) => void;
   onSendNotification?: any;
   memberPermissions?: any;
+  communeName?: string;
+  schoolName?: string;
+  onToggleEventDone?: (id: string) => void;
+  onMoveEvent?: (eventId: string, newDate: string) => void;
 }
 
 export const TeenDashboard: React.FC<TeenDashboardProps> = ({
@@ -134,7 +140,11 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   onTakeWallTask,
   onToggleTask,
   onSendNotification,
-  memberPermissions
+  memberPermissions,
+  communeName = 'Cormeilles-en-Parisis',
+  schoolName = 'Collège Victor Hugo',
+  onToggleEventDone = () => {},
+  onMoveEvent = () => {}
 }) => {
   // Navigation active tab index internally mapped
   // Teen space will render internally or listen to external tab routing
@@ -212,6 +222,24 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   };
 
   const [teenChoreSubTab, setTeenChoreSubTab] = useState<'my_tasks' | 'wall'>('my_tasks');
+  const [externalEvents, setExternalEvents] = useState<any[]>([]);
+  const [calendarSources, setCalendarSources] = useState<any[]>([]);
+  const [currentCalendarCountry, setCurrentCalendarCountry] = useState<string>('France');
+
+  const getAdoAverage = () => {
+    const myGrades = (grades || []).filter(g => g.studentId === member.id);
+    if (myGrades.length === 0) return 'N/A';
+    let totalWeighted = 0;
+    let totalCoef = 0;
+    myGrades.forEach(g => {
+      const normalized = (g.value / g.max) * 20;
+      totalWeighted += normalized * g.coef;
+      totalCoef += g.coef;
+    });
+    return (totalWeighted / totalCoef).toFixed(1);
+  };
+
+  const totalUnreadChat = (chatGroups || []).reduce((acc, g) => acc + (g.unreadCount || 0), 0);
   const [suggestionText, setSuggestionText] = useState('');
   const [suggestionPts, setSuggestionPts] = useState(25);
 
@@ -1441,7 +1469,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
         <div className="space-y-4 animate-fade-in relative z-10 text-left">
           <div className="flex items-center space-x-3 mb-4 pt-[calc(1rem+env(safe-area-inset-top,0px))]">
             <button 
-              onClick={() => { setActiveTab('accueil'); setActiveModule(''); }}
+              onClick={() => { setActiveTab('menu'); setActiveModule(''); }}
               className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white cursor-pointer"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -1480,7 +1508,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
         <div className="space-y-4 animate-fade-in relative z-10">
           <div className="flex items-center space-x-3 mb-2 pt-[calc(1rem+env(safe-area-inset-top,0px))] text-left">
             <button 
-              onClick={() => { setActiveTab('accueil'); setActiveModule(''); }}
+              onClick={() => { setActiveTab('menu'); setActiveModule(''); }}
               className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white cursor-pointer"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -1962,9 +1990,77 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
       {internalTab === 'plus' && activeModule === '' && (
         <div className="space-y-6 animate-fade-in relative z-10 text-left">
           
-          <div className="pt-[calc(1rem+env(safe-area-inset-top,0px))]">
-            <h1 className="text-xl font-black text-white">Hub d'Aventures Ado ⚡</h1>
-            <p className="text-[10px] text-white/50 font-bold font-sans uppercase tracking-wider">Explore tes missions, révisions, et la vie de famille</p>
+          {/* Hub Header Styled Like Reference Visual */}
+          <div className="flex justify-between items-center pt-[calc(1.5rem+env(safe-area-inset-top,0px))] pb-2 border-b border-white/5">
+            <div>
+              <h1 className="text-xl font-black text-white">Hub d'Aventures Ado ⚡</h1>
+              <p className="text-[10px] text-white/50 font-bold font-sans">Tout ce qu'il te faut, au même endroit.</p>
+            </div>
+
+            <div className="flex items-center space-x-3.5 bg-white/3 border border-white/5 rounded-2xl py-2 px-3 shadow-inner">
+              <div className="relative">
+                <img 
+                  src={member.photoUrl} 
+                  alt={member.name} 
+                  className="w-10 h-10 rounded-full object-cover border border-[#6C5CFF]/30"
+                />
+              </div>
+              <div className="text-left space-y-0.5">
+                <h4 className="text-xs font-black text-white leading-none">{member.name}</h4>
+                <p className="text-[9px] text-[#FFB020] font-black uppercase leading-none">Niveau {level}</p>
+                
+                {/* Micro progress bar */}
+                <div className="w-20 mt-1">
+                  <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] rounded-full"
+                      style={{ width: `${(currentXP / xpPerLevel) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-[7px] font-bold text-white/45 block text-right mt-0.5">
+                    {currentXP} / {xpPerLevel} XP
+                  </span>
+                </div>
+              </div>
+              <button className="p-1.5 rounded-lg bg-white/5 text-white/60 hover:text-white relative cursor-pointer">
+                <Bell className="w-4 h-4" />
+                {alerts.filter(a => !a.read).length > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Défi du jour Widget */}
+          <div className="bg-[#112240] border border-[#6C5CFF]/30 rounded-[32px] p-5 flex items-center justify-between shadow-lg relative overflow-hidden text-left">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center text-2xl">
+                🏆
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-xs font-black text-white flex items-center gap-1">
+                  <span>Défi du jour</span>
+                  <span>🔥</span>
+                </h4>
+                <p className="text-[10px] text-white/50 font-bold leading-tight">Termine tes devoirs et gagne 50 XP</p>
+                
+                {/* Progress bar */}
+                <div className="flex items-center space-x-2 pt-1">
+                  <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div className="w-[30%] h-full bg-amber-500 rounded-full"></div>
+                  </div>
+                  <span className="text-[8px] font-bold text-white/40">0 / 1</span>
+                </div>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => { setActiveTab('menu'); setActiveModule('taches'); setTeenChoreSubTab('my_tasks'); }}
+              className="px-4 py-2.5 bg-[#6C5CFF] text-white hover:opacity-90 transition-all font-black text-[10px] uppercase tracking-wider rounded-xl cursor-pointer shadow-md shadow-[#6C5CFF]/25 flex items-center space-x-1"
+            >
+              <span>Voir mes missions</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           <div className="space-y-6">
@@ -1972,204 +2068,186 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
             {/* Section 1: Progression & Récompenses (🎮) */}
             <div className="space-y-3">
               <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">🎮 Progression & Récompenses</span>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
                 {isModuleAllowed('taches') && (
-                  <>
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('taches'); setTeenChoreSubTab('my_tasks'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-[#FFB020]/15 border border-[#FFB020]/30 text-xl flex items-center justify-center">🧹</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Missions</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Tâches ménagères & entraide</p>
-                      </div>
-                    </button>
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('taches'); setTeenChoreSubTab('my_tasks'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <span className="text-2xl">🎯</span>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Missions</h4>
+                      <p className="text-[8px] font-bold text-indigo-400 mt-0.5 leading-none">{tasks.filter(t => !t.done && parseChoreTitle(t.title).attributionMode !== 'wall').length} en cours</p>
+                    </div>
+                  </button>
+                )}
 
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('taches'); setTeenChoreSubTab('wall'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-xl flex items-center justify-center">📋</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Mur des Tâches</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Missions communes à prendre</p>
-                      </div>
-                    </button>
-                  </>
+                {isModuleAllowed('taches') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('taches'); setTeenChoreSubTab('wall'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <span className="text-2xl">📋</span>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Mur des tâches</h4>
+                      <p className="text-[8px] font-bold text-indigo-400 mt-0.5 leading-none">
+                        {tasks.filter(t => parseChoreTitle(t.title).attributionMode === 'wall' && !t.done).length} tâche{tasks.filter(t => parseChoreTitle(t.title).attributionMode === 'wall' && !t.done).length > 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </button>
                 )}
 
                 {isModuleAllowed('taches') && (
                   <button 
                     onClick={() => { setActiveTab('menu'); setActiveModule('boutique'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
                   >
-                    <div className="w-10 h-10 rounded-2xl bg-[#FF4D6D]/15 border border-[#FF4D6D]/30 text-xl flex items-center justify-center">🛍️</div>
+                    <span className="text-2xl">🛍️</span>
                     <div>
-                      <h4 className="text-xs font-black text-white">Boutique</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Échange tes étoiles en cadeaux</p>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Boutique</h4>
+                      <p className="text-[8px] font-bold text-pink-400 mt-0.5 leading-none">{boutiqueRewards.length > 0 ? "Nouveau !" : "Disponible"}</p>
                     </div>
                   </button>
                 )}
 
                 {isModuleAllowed('budget') && (
-                  <>
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('argent'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-[#00D26A]/15 border border-[#00D26A]/30 text-xl flex items-center justify-center">🪙</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Portefeuille</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Argent de poche & objectifs</p>
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('argent'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-sky-500/15 border border-sky-500/30 text-xl flex items-center justify-center">🎯</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Objectifs d'Épargne</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Tes tirelires & cagnottes</p>
-                      </div>
-                    </button>
-                  </>
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('argent'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <span className="text-2xl">👛</span>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Argent de poche</h4>
+                      <p className="text-[8px] font-bold text-emerald-400 mt-0.5 leading-none">{myAccount.balance.toFixed(2)} €</p>
+                    </div>
+                  </button>
                 )}
 
-                <button 
-                  onClick={() => setInternalTab('accueil')}
-                  className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                >
-                  <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-xl flex items-center justify-center">🏆</div>
-                  <div>
-                    <h4 className="text-xs font-black text-white">Classement Familial</h4>
-                    <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Podium de la semaine</p>
-                  </div>
-                </button>
+                {isModuleAllowed('budget') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('argent'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <span className="text-2xl">🐷</span>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Objectifs d'épargne</h4>
+                      <p className="text-[8px] font-bold text-sky-400 mt-0.5 leading-none">{goals.filter(g => g.category !== 'boutique_reward').length} objectif{goals.filter(g => g.category !== 'boutique_reward').length > 1 ? 's' : ''}</p>
+                    </div>
+                  </button>
+                )}
+
+                {isModuleAllowed('taches') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('badges'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <span className="text-2xl">🎖️</span>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Badges</h4>
+                      <p className="text-[8px] font-bold text-purple-400 mt-0.5 leading-none">{myBadges.length} badge{myBadges.length > 1 ? 's' : ''}</p>
+                    </div>
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Section 2: École & Organisation (📚) */}
             <div className="space-y-3">
               <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">📚 École & Organisation</span>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
                 {isModuleAllowed('ecole') && (
-                  <>
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('ecole_devoirs'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-xl flex items-center justify-center">🎓</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">École & Devoirs</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Tes matières & cahier scolaire</p>
-                      </div>
-                    </button>
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('ecole_devoirs'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <span className="text-2xl">📖</span>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">École & Devoirs</h4>
+                      <p className="text-[8px] font-bold text-emerald-400 mt-0.5 leading-none">{schoolTasks.filter(t => !t.done).length} devoir{schoolTasks.filter(t => !t.done).length > 1 ? 's' : ''}</p>
+                    </div>
+                  </button>
+                )}
 
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('notes_bulletins'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-purple-500/15 border border-purple-500/30 text-xl flex items-center justify-center">📈</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Notes & Bulletins</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Tes moyennes & coefficients</p>
-                      </div>
-                    </button>
+                {isModuleAllowed('ecole') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('notes_bulletins'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <span className="text-2xl">📈</span>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Notes & Bulletins</h4>
+                      <p className="text-[8px] font-bold text-teal-400 mt-0.5 leading-none">Moy. {getAdoAverage()}</p>
+                    </div>
+                  </button>
+                )}
 
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('emploi_temps'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-blue-500/15 border border-blue-500/30 text-xl flex items-center justify-center">📅</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Emploi du Temps</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Ton planning des cours</p>
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => { setActiveTab('menu'); setActiveModule('tuteur_ia'); }}
-                      className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-pink-600/15 border border-pink-600/30 text-xl flex items-center justify-center">🤖</div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Tuteur IA</h4>
-                        <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Révisions personnalisées</p>
-                      </div>
-                    </button>
-                  </>
+                {isModuleAllowed('ecole') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('emploi_temps'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <span className="text-2xl">📅</span>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Emploi du temps</h4>
+                      <p className="text-[8px] font-bold text-blue-400 mt-0.5 leading-none">Semaine A</p>
+                    </div>
+                  </button>
                 )}
 
                 {isModuleAllowed('agenda') && (
                   <button 
                     onClick={() => { setActiveTab('menu'); setActiveModule('agenda'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
                   >
-                    <div className="w-10 h-10 rounded-2xl bg-teal-500/15 border border-teal-500/30 text-xl flex items-center justify-center">🗓️</div>
+                    <span className="text-2xl">📆</span>
                     <div>
-                      <h4 className="text-xs font-black text-white">Agenda</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Événements de la famille</p>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Agenda</h4>
+                      <p className="text-[8px] font-bold text-amber-400 mt-0.5 leading-none">{events.length} événement{events.length > 1 ? 's' : ''}</p>
+                    </div>
+                  </button>
+                )}
+
+                {isModuleAllowed('ecole') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('tuteur_ia'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <span className="text-2xl">🤖</span>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Tuteur IA</h4>
+                      <p className="text-[8px] font-bold text-pink-400 mt-0.5 leading-none">Besoin d'aide ?</p>
+                    </div>
+                  </button>
+                )}
+
+                {isModuleAllowed('messagerie') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('messagerie'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <span className="text-2xl">💬</span>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Messages</h4>
+                      <p className="text-[8px] font-bold text-indigo-400 mt-0.5 leading-none">{totalUnreadChat > 0 ? `${totalUnreadChat} nouveau${totalUnreadChat > 1 ? 'x' : ''}` : "Discussion"}</p>
                     </div>
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Section 3: Vie de famille (👨👩👧👦) */}
+            {/* Section 3: Vie de Famille (👨‍👩‍👧‍👦) */}
             <div className="space-y-3">
-              <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">👨👩👧👦 Vie de Famille</span>
-              <div className="grid grid-cols-2 gap-3">
-                {isModuleAllowed('messagerie') && (
-                  <button 
-                    onClick={() => { setActiveTab('menu'); setActiveModule('messagerie'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                  >
-                    <div className="w-10 h-10 rounded-2xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-xl flex items-center justify-center">💬</div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Messages</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Discussion familiale privée</p>
-                    </div>
-                  </button>
-                )}
-
-                {isModuleAllowed('conseil_famille') && (
-                  <button 
-                    onClick={() => { setActiveTab('menu'); setActiveModule('conseil'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                  >
-                    <div className="w-10 h-10 rounded-2xl bg-pink-500/15 border border-pink-500/30 text-xl flex items-center justify-center">🗳️</div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Conseil de Famille</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Sondages & décisions collectives</p>
-                    </div>
-                  </button>
-                )}
-
+              <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">👨‍👩‍👧‍👦 Vie de Famille</span>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
                 {isModuleAllowed('menu_semaine') && (
                   <button 
-                    onClick={() => { setActiveTab('menu'); setActiveModule('menu_semaine'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    onClick={() => { setActiveTab('menu'); setActiveModule('menus'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
                   >
-                    <div className="w-10 h-10 rounded-2xl bg-orange-500/15 border border-orange-500/30 text-xl flex items-center justify-center">🍲</div>
+                    <span className="text-2xl">🥗</span>
                     <div>
-                      <h4 className="text-xs font-black text-white">Menu de la Semaine</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Repas prévus à la maison</p>
-                    </div>
-                  </button>
-                )}
-
-                {isModuleAllowed('voyages') && (
-                  <button 
-                    onClick={() => { setActiveTab('menu'); setActiveModule('voyages'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                  >
-                    <div className="w-10 h-10 rounded-2xl bg-sky-500/15 border border-sky-500/30 text-xl flex items-center justify-center">✈️</div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Voyages</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Checklists & valises collectives</p>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Menu de la semaine</h4>
+                      <p className="text-[8px] font-bold text-orange-400 mt-0.5 leading-none">À découvrir</p>
                     </div>
                   </button>
                 )}
@@ -2177,70 +2255,29 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                 {isModuleAllowed('courses') && (
                   <button 
                     onClick={() => { setActiveTab('menu'); setActiveModule('courses'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
                   >
-                    <div className="w-10 h-10 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-xl flex items-center justify-center">🛒</div>
+                    <span className="text-2xl">🛒</span>
                     <div>
-                      <h4 className="text-xs font-black text-white">Courses</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Liste de provisions communes</p>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Courses</h4>
+                      <p className="text-[8px] font-bold text-rose-400 mt-0.5 leading-none">Liste partagée</p>
                     </div>
                   </button>
                 )}
 
-                {isModuleAllowed('carte_familiale') && (
+                {isModuleAllowed('conseil_famille') && (
                   <button 
-                    onClick={() => { setActiveTab('menu'); setActiveModule('carte'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    onClick={() => { setActiveTab('menu'); setActiveModule('conseil'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
                   >
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-xl flex items-center justify-center">🗺️</div>
+                    <span className="text-2xl">👪</span>
                     <div>
-                      <h4 className="text-xs font-black text-white">Carte Familiale</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Localise tes proches en sécurité</p>
-                    </div>
-                  </button>
-                )}
-
-                {isModuleAllowed('repertoire_important') && (
-                  <button 
-                    onClick={() => { setActiveTab('menu'); setActiveModule('repertoire_important'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                  >
-                    <div className="w-10 h-10 rounded-2xl bg-slate-500/15 border border-slate-500/30 text-xl flex items-center justify-center">📞</div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Répertoire Important</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Numéros urgents de ta famille</p>
-                    </div>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Section 4: Souvenirs & Bien-être (✨) */}
-            <div className="space-y-3">
-              <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">✨ Souvenirs & Bien-être</span>
-              <div className="grid grid-cols-2 gap-3">
-                {isModuleAllowed('capsule_temporelle') && (
-                  <button 
-                    onClick={() => { setActiveTab('menu'); setActiveModule('capsule'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                  >
-                    <div className="w-10 h-10 rounded-2xl bg-[#FFB020]/15 border border-[#FFB020]/30 text-xl flex items-center justify-center">⏳</div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Capsule Temporelle</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Souvenirs scellés pour plus tard</p>
-                    </div>
-                  </button>
-                )}
-
-                {isModuleAllowed('histoires_soir') && (
-                  <button 
-                    onClick={() => { setActiveTab('menu'); setActiveModule('conteur'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
-                  >
-                    <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-xl flex items-center justify-center">🌙</div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Histoires du Soir</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Contes merveilleux IA du soir</p>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Conseil de famille</h4>
+                      <p className="text-[8px] font-bold text-pink-400 mt-0.5 leading-none">
+                        {votes.filter(v => v.active).length > 0 
+                          ? `${votes.filter(v => v.active).length} vote${votes.filter(v => v.active).length > 1 ? 's' : ''} en cours` 
+                          : "Sondages"}
+                      </p>
                     </div>
                   </button>
                 )}
@@ -2248,25 +2285,72 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                 {isModuleAllowed('peacemaker') && (
                   <button 
                     onClick={() => { setActiveTab('menu'); setActiveModule('peacemaker'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
                   >
-                    <div className="w-10 h-10 rounded-2xl bg-[#9E94FF]/15 border border-[#9E94FF]/30 text-xl flex items-center justify-center">🕊️</div>
+                    <span className="text-2xl">✌️</span>
                     <div>
-                      <h4 className="text-xs font-black text-white">PeaceMaker</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Résous tes litiges avec l'IA</p>
+                      <h4 className="text-[10px] font-black text-white leading-tight">PeaceMaker IA</h4>
+                      <p className="text-[8px] font-bold text-amber-400 mt-0.5 leading-none">Régler un souci</p>
                     </div>
                   </button>
                 )}
 
-                {isModuleAllowed('animaux') && (
+                {isModuleAllowed('carte_familiale') && (
                   <button 
-                    onClick={() => { setActiveTab('menu'); setActiveModule('animaux'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    onClick={() => { setActiveTab('menu'); setActiveModule('carte'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
                   >
-                    <div className="w-10 h-10 rounded-2xl bg-amber-600/15 border border-amber-600/30 text-xl flex items-center justify-center">🐾</div>
+                    <span className="text-2xl">🗺️</span>
                     <div>
-                      <h4 className="text-xs font-black text-white">Animaux</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Profils & suivi vétérinaire</p>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Carte familiale</h4>
+                      <p className="text-[8px] font-bold text-emerald-400 mt-0.5 leading-none">Explorer la carte</p>
+                    </div>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Section 4: Souvenirs & Bien-être (💜) */}
+            <div className="space-y-3">
+              <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">💜 Souvenirs & Bien-être</span>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                {isModuleAllowed('capsule_temporelle') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('capsule'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <span className="text-2xl">⏳</span>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Capsule temporelle</h4>
+                      <p className="text-[8px] font-bold text-amber-400 mt-0.5 leading-none">
+                        {memories.filter(m => m.theme === 'capsule').length} souvenir{memories.filter(m => m.theme === 'capsule').length > 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </button>
+                )}
+
+                {isModuleAllowed('histoires_soir') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('conteur'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <span className="text-2xl">🌙</span>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Histoires du soir</h4>
+                      <p className="text-[8px] font-bold text-indigo-400 mt-0.5 leading-none">Nouveau conte</p>
+                    </div>
+                  </button>
+                )}
+
+                {isModuleAllowed('voyages') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('voyages'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <span className="text-2xl">🧳</span>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Voyages</h4>
+                      <p className="text-[8px] font-bold text-sky-400 mt-0.5 leading-none">{trips.length} voyage{trips.length > 1 ? 's' : ''}</p>
                     </div>
                   </button>
                 )}
@@ -2274,12 +2358,12 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                 {isModuleAllowed('documents') && (
                   <button 
                     onClick={() => { setActiveTab('menu'); setActiveModule('documents'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
                   >
-                    <div className="w-10 h-10 rounded-2xl bg-cyan-600/15 border border-cyan-600/30 text-xl flex items-center justify-center">📄</div>
+                    <span className="text-2xl">📂</span>
                     <div>
-                      <h4 className="text-xs font-black text-white">Documents Autorisés</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Fichiers & pièces autorisées</p>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Documents</h4>
+                      <p className="text-[8px] font-bold text-cyan-400 mt-0.5 leading-none">Accès autorisé</p>
                     </div>
                   </button>
                 )}
@@ -2287,31 +2371,44 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                 {isModuleAllowed('sante') && (
                   <button 
                     onClick={() => { setActiveTab('menu'); setActiveModule('sante'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
                   >
-                    <div className="w-10 h-10 rounded-2xl bg-rose-600/15 border border-rose-600/30 text-xl flex items-center justify-center">❤️</div>
+                    <span className="text-2xl">💖</span>
                     <div>
-                      <h4 className="text-xs font-black text-white">Santé Autorisée</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Fiches médicales autorisées</p>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Santé</h4>
+                      <p className="text-[8px] font-bold text-rose-400 mt-0.5 leading-none">Bien-être</p>
+                    </div>
+                  </button>
+                )}
+
+                {isModuleAllowed('animaux') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('animaux'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <span className="text-2xl">🐾</span>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Animaux</h4>
+                      <p className="text-[8px] font-bold text-amber-400 mt-0.5 leading-none">Nos compagnons</p>
                     </div>
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Section 5: Ouverture extérieure (🏛️) */}
+            {/* Section 5: Ouverture extérieure (🌍) */}
             <div className="space-y-3">
-              <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">🏛️ Ouverture Extérieure</span>
-              <div className="grid grid-cols-2 gap-3">
+              <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">🌍 Ouverture Extérieure</span>
+              <div className="grid grid-cols-3 gap-3">
                 {isModuleAllowed('commune') && (
                   <button 
                     onClick={() => { setActiveTab('menu'); setActiveModule('commune'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
                   >
-                    <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-xl flex items-center justify-center">🏢</div>
+                    <span className="text-2xl">🏢</span>
                     <div>
-                      <h4 className="text-xs font-black text-white">Ma Commune</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Infos & événements de la mairie</p>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Ma Commune</h4>
+                      <p className="text-[8px] font-bold text-amber-400 mt-0.5 leading-none">Infos utiles</p>
                     </div>
                   </button>
                 )}
@@ -2319,42 +2416,55 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                 {isModuleAllowed('etablissement') && (
                   <button 
                     onClick={() => { setActiveTab('menu'); setActiveModule('etablissement'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
                   >
-                    <div className="w-10 h-10 rounded-2xl bg-cyan-700/15 border border-cyan-700/30 text-xl flex items-center justify-center">🏫</div>
+                    <span className="text-2xl">🎓</span>
                     <div>
-                      <h4 className="text-xs font-black text-white">Mon Établissement</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">ProNote & liens scolaires</p>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Mon Établissement</h4>
+                      <p className="text-[8px] font-bold text-cyan-400 mt-0.5 leading-none">{schoolName || "Collège"}</p>
+                    </div>
+                  </button>
+                )}
+
+                {isModuleAllowed('repertoire_important') && (
+                  <button 
+                    onClick={() => { setActiveTab('menu'); setActiveModule('repertoire_important'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <span className="text-2xl">📞</span>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Répertoire</h4>
+                      <p className="text-[8px] font-bold text-emerald-400 mt-0.5 leading-none">Numéros utiles</p>
                     </div>
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Section 6: Mon Compte (👤) */}
+            {/* Section 6: Profil & Paramètres (⚙️) */}
             <div className="space-y-3">
-              <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">👤 Mon Compte</span>
-              <div className="grid grid-cols-2 gap-3">
+              <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">⚙️ Profil & Paramètres</span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <button 
                   onClick={onOpenProfileSwitcher}
-                  className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                  className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
                 >
-                  <div className="w-10 h-10 rounded-2xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-xl flex items-center justify-center">👤</div>
+                  <span className="text-2xl">👤</span>
                   <div>
-                    <h4 className="text-xs font-black text-white">Changer de Profil</h4>
-                    <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Changer d'espace familial</p>
+                    <h4 className="text-[10px] font-black text-white leading-tight">Profil</h4>
+                    <p className="text-[8px] font-bold text-indigo-400 mt-0.5 leading-none">Mes infos</p>
                   </div>
                 </button>
 
                 {isModuleAllowed('parametres') && (
                   <button 
                     onClick={() => { setActiveTab('menu'); setActiveModule('settings'); }}
-                    className="bg-[#112240] border border-white/10 rounded-[28px] p-4 text-left flex flex-col justify-between space-y-4 cursor-pointer hover:border-[#6C5CFF]/30 transition"
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
                   >
-                    <div className="w-10 h-10 rounded-2xl bg-slate-600/15 border border-slate-600/30 text-xl flex items-center justify-center">⚙️</div>
+                    <span className="text-2xl">⚙️</span>
                     <div>
-                      <h4 className="text-xs font-black text-white">Paramètres</h4>
-                      <p className="text-[8.5px] text-white/45 mt-0.5 leading-tight">Paramètres de l'application</p>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Paramètres</h4>
+                      <p className="text-[8px] font-bold text-slate-400 mt-0.5 leading-none">Préférences</p>
                     </div>
                   </button>
                 )}
@@ -2363,33 +2473,259 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
 
           </div>
 
-          {/* Badges Gallery Widget */}
-          <div className="bg-[#112240] border border-white/8 rounded-[36px] p-5 text-left space-y-3.5">
-            <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-              <Award className="w-4.5 h-4.5 text-[#FFB020]" />
-              Galerie des Badges ({myBadges.length})
-            </h4>
-            
-            <div className="grid grid-cols-4 gap-2 pt-1">
-              {myBadges.map((badge) => (
+          {/* Ma journée Widget */}
+          <div className="bg-gradient-to-r from-[#112240] to-[#1a2e5c] border border-white/5 rounded-[32px] p-5 flex items-center justify-between shadow-lg relative overflow-hidden text-left">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center text-2xl">
+                ☀️
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-black text-white">Ma journée</h4>
+                <p className="text-[10px] text-white/60 leading-tight font-sans">Bonne journée {member.name} !</p>
+                <p className="text-[9px] text-[#FFB020] font-black font-sans uppercase tracking-wider">Prêt à relever de nouveaux défis ? 💪</p>
+              </div>
+            </div>
+            <span className="text-3xl shrink-0 animate-bounce">🚀</span>
+          </div>
+        </div>
+      )} /* End of SUBTAB: PLUS */
+
+      {/* --- RENDER MODULE: BADGES GALLERY --- */}
+      {internalTab === 'plus' && activeModule === 'badges' && (
+        <div className="space-y-6 animate-fade-in text-left relative z-10">
+          <div className="flex items-center space-x-3 mb-4 pt-[calc(1rem+env(safe-area-inset-top,0px))]">
+            <button 
+              onClick={() => setActiveModule('')}
+              className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white cursor-pointer"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-xl font-black text-white">Mes Badges 🎖️</h1>
+              <p className="text-[10px] text-white/50 font-bold">Relève des défis pour enrichir ta collection !</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {[
+              { id: 'badge-hw', title: 'Premier devoir terminé 📚', desc: 'Tu as complété ton premier devoir scolaire.', icon: '📝' },
+              { id: 'badge-task', title: 'Missionnaire Actif 🧹', desc: '5 missions d\'entraide familiale accomplies.', icon: '⚡' },
+              { id: 'badge-vote', title: 'Citoyen du Foyer ⚖️', desc: 'Tu as participé aux votes du conseil de famille.', icon: '🗳️' },
+              { id: 'badge-pm', title: 'Médiateur de Paix 🕊️', desc: 'Tu as résolu un conflit en utilisant PeaceMaker IA.', icon: '🕊️' },
+              { id: 'badge-story', title: 'Grand Conteur 🌙', desc: 'Tu as créé ton premier conte magique du soir.', icon: '📖' },
+              { id: 'badge-save', title: 'Épargnant Sage 🪙', desc: 'Objectif d\'épargne personnel défini.', icon: '💰' },
+              { id: 'badge-trip', title: 'Aventurier ✈️', desc: 'Voyage familial prévu à l\'horizon.', icon: '🗺️' },
+              { id: 'badge-brain', title: 'Major de Promo 🧠', desc: 'Moyenne générale scolaire supérieure à 15/20.', icon: '👑' }
+            ].map((badge) => {
+              const isUnlocked = myBadges.some(b => b.id === badge.id);
+              return (
                 <div 
                   key={badge.id} 
-                  className="bg-white/5 border border-white/5 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center space-y-1 group relative cursor-pointer"
-                  title={badge.desc}
+                  className={`bg-[#112240]/65 border rounded-2xl p-4 text-center flex flex-col items-center justify-between space-y-3 relative overflow-hidden transition-all ${
+                    isUnlocked 
+                      ? 'border-indigo-500/50 shadow-md shadow-indigo-500/10 opacity-100' 
+                      : 'border-white/5 opacity-40 grayscale'
+                  }`}
                 >
-                  <span className="text-2xl">{badge.icon}</span>
-                  <span className="text-[8px] font-black text-white/70 truncate w-full">{badge.title.split(' ')[0] || badge.title}</span>
-                  
-                  {/* Tooltip on hover */}
-                  <div className="absolute bottom-full mb-2 hidden group-hover:block w-40 bg-[#07111F] border border-white/10 p-2 rounded-xl text-[9px] leading-snug text-white z-30 shadow-2xl">
-                    <p className="font-extrabold">{badge.title}</p>
-                    <p className="text-white/60 mt-0.5">{badge.desc}</p>
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center text-3xl shadow-inner ${
+                    isUnlocked ? 'bg-indigo-500/15 text-white' : 'bg-white/5 text-white/30'
+                  }`}>
+                    {badge.icon}
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-white leading-tight">{badge.title}</h4>
+                    <p className="text-[9px] text-white/50 leading-snug mt-1">{badge.desc}</p>
+                  </div>
+                  <div className="pt-1 w-full">
+                    {isUnlocked ? (
+                      <span className="inline-block text-[8px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 px-2.5 py-1 rounded-full">
+                        Débloqué 🎉
+                      </span>
+                    ) : (
+                      <span className="inline-block text-[8px] font-black uppercase tracking-wider bg-white/5 text-white/30 px-2.5 py-1 rounded-full">
+                        🔒 Verrouillé
+                      </span>
+                    )}
                   </div>
                 </div>
-              ))}
-              {myBadges.length === 0 && (
-                <p className="text-[10px] text-white/40 italic col-span-4 text-center py-2">Pas encore de badges, continue tes efforts ! 🧭</p>
-              )}
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* --- RENDER MODULE: AGENDA DIRECT --- */}
+      {internalTab === 'plus' && activeModule === 'agenda' && (
+        <div className="space-y-4 animate-fade-in text-left">
+          <div className="flex items-center space-x-3 mb-4 pt-[calc(1rem+env(safe-area-inset-top,0px))]">
+            <button 
+              onClick={() => setActiveModule('')}
+              className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white cursor-pointer"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-xl font-black text-white">Agenda de Famille 📆</h1>
+              <p className="text-[10px] text-white/50 font-bold">Calendrier partagé de la maison</p>
+            </div>
+          </div>
+          <div className="relative z-10 rounded-[32px] overflow-hidden border border-white/10 shadow-2xl p-1 bg-[#112240]">
+            <Agenda 
+              events={events}
+              members={members}
+              activeMemberId={member.id}
+              onAddEventClick={() => {
+                const title = prompt("Nom de l'événement :");
+                if (title && onAddEvent) {
+                  const now = new Date().toISOString().slice(0, 16);
+                  onAddEvent(title, now);
+                }
+              }}
+              onToggleEventDone={onToggleEventDone}
+              onMoveEvent={onMoveEvent}
+              defaultSelectedDate={new Date().toISOString().split('T')[0]}
+              externalEvents={externalEvents}
+              setExternalEvents={setExternalEvents}
+              calendarSources={calendarSources}
+              setCalendarSources={setCalendarSources}
+              currentCalendarCountry={currentCalendarCountry}
+              setCurrentCalendarCountry={setCurrentCalendarCountry}
+              onBack={() => setActiveModule('')}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* --- RENDER MODULE: COMMUNE DIRECT --- */}
+      {internalTab === 'plus' && activeModule === 'commune' && (
+        <div className="space-y-4 animate-fade-in text-left">
+          <div className="flex items-center space-x-3 mb-4 pt-[calc(1rem+env(safe-area-inset-top,0px))]">
+            <button 
+              onClick={() => setActiveModule('')}
+              className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white cursor-pointer"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-xl font-black text-white">Ma Commune 🏢</h1>
+              <p className="text-[10px] text-white/50 font-bold">Informations de la ville</p>
+            </div>
+          </div>
+          <div className="relative z-10 rounded-[32px] overflow-hidden border border-white/10 shadow-2xl p-1 bg-[#112240]">
+            <CommuneHub 
+              communeName={communeName} 
+              onBack={() => setActiveModule('')} 
+            />
+          </div>
+        </div>
+      )}
+
+      {/* --- RENDER MODULE: ETABLISSEMENT DIRECT --- */}
+      {internalTab === 'plus' && activeModule === 'etablissement' && (
+        <div className="space-y-6 animate-fade-in text-left relative z-10">
+          
+          <div className="flex items-center space-x-3 mb-4 pt-[calc(1rem+env(safe-area-inset-top,0px))]">
+            <button 
+              onClick={() => setActiveModule('')}
+              className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white cursor-pointer"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-xl font-black text-white">Mon Établissement 🎓</h1>
+              <p className="text-[10px] text-white/50 font-bold">Gère ta scolarité au quotidien</p>
+            </div>
+          </div>
+
+          {/* School Card */}
+          <div className="bg-[#112240] border border-[#6C5CFF]/30 rounded-[32px] p-6 space-y-4 shadow-lg text-left">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 rounded-2xl flex items-center justify-center text-2xl">
+                🎓
+              </div>
+              <div>
+                <h2 className="text-base font-black text-white">{schoolName}</h2>
+                <p className="text-xs text-white/50">Classe de {member.age ? `${parseInt(member.age) - 6}ème` : 'Ado'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-[#112240]/60 border border-white/5 rounded-[28px] p-5 space-y-2">
+              <span className="text-[10px] font-black text-white/45 uppercase tracking-wider block">Moyenne Générale</span>
+              <div className="flex items-baseline space-x-1">
+                <span className="text-2xl font-black text-[#6C5CFF]">{getAdoAverage()}</span>
+                <span className="text-xs text-white/45">/20</span>
+              </div>
+              <p className="text-[9px] text-white/50 leading-tight">Mise à jour par les parents</p>
+            </div>
+
+            <div className="bg-[#112240]/60 border border-white/5 rounded-[28px] p-5 space-y-2">
+              <span className="text-[10px] font-black text-white/45 uppercase tracking-wider block">Devoirs Restants</span>
+              <span className="text-2xl font-black text-[#FFB020]">{schoolTasks.filter(t => !t.done).length}</span>
+              <p className="text-[9px] text-white/50 leading-tight">À faire cette semaine</p>
+            </div>
+          </div>
+
+          {/* Today's Schedule Card */}
+          <div className="bg-[#112240] border border-white/5 rounded-[32px] p-5 space-y-3 shadow-lg">
+            <h3 className="text-xs font-black uppercase text-white/45 tracking-wider flex items-center gap-1.5">
+              <span>📅</span> Emploi du Temps du Jour
+            </h3>
+            
+            {schedule && schedule.length > 0 ? (
+              <div className="space-y-2">
+                {schedule.slice(0, 3).map((item: any, idx: number) => (
+                  <div key={idx} className="flex justify-between items-center p-3 rounded-xl bg-white/3 border border-white/5 text-xs">
+                    <div>
+                      <h4 className="font-bold text-white">{item.subject || item.title}</h4>
+                      <p className="text-[10px] text-white/40">{item.time || 'Heure non précisée'}</p>
+                    </div>
+                    {item.room && (
+                      <span className="text-[10px] font-extrabold text-[#6C5CFF] bg-[#6C5CFF]/10 px-2 py-0.5 rounded-md">
+                        Salle {item.room}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-white/35 text-center py-4 font-bold">Aucun cours aujourd'hui !</p>
+            )}
+
+            <button 
+              onClick={() => { setActiveTab('menu'); setActiveModule('emploi_temps'); }}
+              className="w-full mt-2 py-2.5 bg-[#6C5CFF]/15 hover:bg-[#6C5CFF]/30 border border-[#6C5CFF]/25 text-[#9E94FF] font-extrabold text-xs rounded-xl cursor-pointer text-center active:scale-97 transition-all"
+            >
+              Voir tout l'emploi du temps ➔
+            </button>
+          </div>
+
+          {/* Quick Actions / Homework List */}
+          <div className="p-5 rounded-[28px] bg-white/3 border border-white/5 space-y-3 text-left">
+            <h4 className="text-xs font-black text-white uppercase tracking-wider">Accès Rapide</h4>
+            <div className="grid grid-cols-1 gap-2">
+              <button
+                onClick={() => { setActiveTab('menu'); setActiveModule('ecole_devoirs'); }}
+                className="p-4 rounded-2xl bg-[#112240] border border-white/5 hover:border-white/10 text-white font-bold text-xs transition-all text-left flex items-center justify-between cursor-pointer active:scale-98"
+              >
+                <div className="flex items-center space-x-2.5">
+                  <span>📝</span>
+                  <span>Consulter le Cahier de Textes</span>
+                </div>
+                <span className="text-[#6C5CFF]">➔</span>
+              </button>
+              <button
+                onClick={() => { setActiveTab('menu'); setActiveModule('tuteur_ia'); }}
+                className="p-4 rounded-2xl bg-[#112240] border border-white/5 hover:border-white/10 text-white font-bold text-xs transition-all text-left flex items-center justify-between cursor-pointer active:scale-98"
+              >
+                <div className="flex items-center space-x-2.5">
+                  <span>🤖</span>
+                  <span>Étudier avec le Tuteur Scolaire IA</span>
+                </div>
+                <span className="text-[#6C5CFF]">➔</span>
+              </button>
             </div>
           </div>
 
@@ -3127,8 +3463,8 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
 
       {/* --- RENDER OTHER MODULES VIA MENUHUB (with isKidMode={true}) --- */}
       {internalTab === 'plus' && [
-        'courses', 'voyages', 'agenda', 'documents', 'sante', 'animaux', 
-        'repertoire_important', 'commune', 'etablissement'
+        'courses', 'voyages', 'menus', 'documents', 'sante', 'animaux', 
+        'repertoire_important'
       ].includes(activeModule) && (
         <div className="space-y-4 animate-fade-in text-left">
           <div className="flex items-center space-x-3 mb-4 pt-[calc(1rem+env(safe-area-inset-top,0px))]">
@@ -3142,13 +3478,11 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
               <h1 className="text-xl font-black text-white">
                 {activeModule === 'courses' ? 'Courses & Provisions' :
                  activeModule === 'voyages' ? 'Voyages & Préparatifs' :
-                 activeModule === 'agenda' ? 'Agenda de Famille' :
+                 activeModule === 'menus' ? 'Menu de la Semaine' :
                  activeModule === 'documents' ? 'Documents & Fichiers' :
                  activeModule === 'sante' ? 'Santé & Suivi' :
                  activeModule === 'animaux' ? 'Nos Animaux' :
-                 activeModule === 'repertoire_important' ? 'Répertoire de Contacts' :
-                 activeModule === 'commune' ? 'Ma Commune' :
-                 activeModule === 'etablissement' ? 'Mon Établissement' : 'Module'}
+                 activeModule === 'repertoire_important' ? 'Répertoire de Contacts' : 'Module'}
               </h1>
             </div>
           </div>
