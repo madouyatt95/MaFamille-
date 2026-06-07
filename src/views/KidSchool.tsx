@@ -21,10 +21,18 @@ import {
   Flame,
   Star,
   ChevronRight,
-  Smile
+  Smile,
+  Trophy,
+  Gamepad2,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  ShoppingBag
 } from 'lucide-react';
 import type { Member, SchoolTask, Dish, FamilyEvent } from '../types';
-import { aiQuotaService } from '../services/aiQuotaService';
+import { staticAcademyQuestions } from '../data/academyData';
+import type { AcademyQuestion } from '../data/academyData';
+import { generateProceduralQuestion } from '../utils/academyGenerator';
 
 export interface KidSchoolProps {
   member: Member;
@@ -42,17 +50,82 @@ export interface KidSchoolProps {
   onBack: () => void;
 }
 
-interface GradeItem {
-  id: string;
-  studentId: string;
-  studentName: string;
+// Local Lessons Database for the local tutor
+interface Lesson {
+  title: string;
   subject: string;
-  value: number;
-  max: number;
-  coef: number;
-  examTitle: string;
-  date: string;
+  competence: 'lecture' | 'orthographe' | 'calcul' | 'conjugaison' | 'culture' | 'anglais' | 'sciences';
+  content: string;
+  example: string;
+  keywords: string[];
 }
+
+const localLessons: Lesson[] = [
+  {
+    title: "Les fractions simples 🍰",
+    subject: "Mathématiques",
+    competence: "calcul",
+    content: "Une fraction représente le partage d'une unité en parts égales. Le numérateur (chiffre du haut) désigne le nombre de parts que l'on prend. Le dénominateur (chiffre du bas) désigne en combien de parts égales l'unité a été coupée.",
+    example: "Si tu coupes un gâteau en 4 parts égales et que tu en manges 1 part, tu as mangé 1/4 (un quart) du gâteau. S'il en reste 3 parts, il reste 3/4 (trois quarts).",
+    keywords: ["fraction", "partage", "denominateur", "numerateur", "diviser"]
+  },
+  {
+    title: "Astuces de multiplication 🧮",
+    subject: "Mathématiques",
+    competence: "calcul",
+    content: "Multiplier c'est comme additionner plusieurs fois le même nombre. Pour retenir la table de 9, tu peux plier le doigt correspondant au multiplicateur : le nombre de doigts à gauche donne les dizaines, à droite les unités.",
+    example: "Pour 9 × 4, plie le 4ème doigt. Tu as 3 doigts à gauche et 6 à droite, ce qui fait 36 !",
+    keywords: ["multiplication", "table", "multiplier", "calcul", "fois"]
+  },
+  {
+    title: "Le pluriel des noms en -al ✍️",
+    subject: "Français",
+    competence: "orthographe",
+    content: "Les noms masculins qui se terminent par '-al' font généralement leur pluriel en '-aux'. Cependant, il existe quelques exceptions très connues à retenir : bal, cal, carnaval, chacal, festival, régal qui prennent simplement un 's'.",
+    example: "Un cheval -> Des chevaux. Un journal -> Des journaux. Mais : Un festival -> Des festivals.",
+    keywords: ["pluriel", "orthographe", "nom", "cheval", "aux", "singulier"]
+  },
+  {
+    title: "Repérer le verbe d'action 📖",
+    subject: "Français",
+    competence: "conjugaison",
+    content: "Le verbe est le cœur de la phrase. Pour le trouver facilement, tu peux changer le temps de la phrase (mettre au futur ou au passé) ou encadrer le mot par 'ne ... pas'. Le verbe est le mot qui change ou qui se fait encadrer.",
+    example: "Dans 'Le chat dort sur le canapé' : 'Le chat NE dort PAS...' ou au futur 'Le chat dormira...'. Le mot qui change est 'dort', c'est le verbe.",
+    keywords: ["verbe", "trouver", "conjugaison", "action", "phrase", "sujet"]
+  },
+  {
+    title: "Les Pharaons d'Égypte 🏺",
+    subject: "Découverte",
+    competence: "culture",
+    content: "Les pharaons étaient les souverains de l'Égypte antique, considérés comme des intermédiaires entre les dieux et les hommes. À leur mort, ils étaient souvent momifiés pour conserver leur corps et enterrés dans de gigantesques pyramides.",
+    example: "Le pharaon Toutânkhamon est devenu célèbre car son tombeau a été retrouvé intact avec tout son trésor en or en 1922.",
+    keywords: ["pharaon", "egypte", "pyramide", "antiquite", "momie", "histoire"]
+  },
+  {
+    title: "Le Système Solaire 🌍",
+    subject: "Découverte",
+    competence: "sciences",
+    content: "Notre système solaire comprend le Soleil (une étoile) et 8 planètes qui tournent autour. Les planètes proches du Soleil sont rocheuses (Mercure, Vénus, Terre, Mars) et les plus éloignées sont gazeuses et géantes (Jupiter, Saturne, Uranus, Neptune).",
+    example: "La Terre est la 3ème planète à partir du Soleil. Elle est la seule connue à abriter de l'eau liquide en grande quantité et la vie.",
+    keywords: ["planete", "soleil", "terre", "mars", "astronomie", "espace", "systeme solaire"]
+  },
+  {
+    title: "Salutations en Wolof 🇸🇳",
+    subject: "Langues",
+    competence: "culture",
+    content: "Le wolof est la langue la plus parlée au Sénégal. Pour saluer quelqu'un poliment, on lui demande comment il va et on répond chaleureusement. L'hospitalité est une valeur fondamentale appelée la Teranga.",
+    example: "- Na nga def ? (Comment vas-tu ?)\n- Mangi fi rekk. (Je vais bien seulement.)\n- Jërëjëf. (Merci.)",
+    keywords: ["wolof", "senegal", "saluer", "traduction", "teranga", "langue"]
+  },
+  {
+    title: "Vocabulary Basics (Anglais) 🇬🇧",
+    subject: "Langues",
+    competence: "anglais",
+    content: "Pour dialoguer en anglais, il est important de connaître le vocabulaire de base de la maison, des animaux de compagnie et des salutations quotidiennes.",
+    example: "- Hello/Hi (Bonjour)\n- A dog (Un chien) / A cat (Un chat)\n- A house (Une maison) / School (L'école)",
+    keywords: ["anglais", "english", "traduction", "vocabulaire", "mot", "hello"]
+  }
+];
 
 export const KidSchool: React.FC<KidSchoolProps> = ({
   member,
@@ -69,34 +142,148 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
   onTriggerPaywall,
   onBack
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'devoirs' | 'tuteur' | 'emploi' | 'notes'>('devoirs');
-  
-  // AI Tutor state
-  const [chatMessages, setChatMessages] = useState<Array<{ sender: 'user' | 'ai'; text: string }>>([
-    { sender: 'ai', text: `Salut ${member.name} ! Je suis ton super Tuteur IA. 🦸‍♂️ Tu as une question sur tes devoirs ou un sujet d'école ? Tape ta question ci-dessous !` }
+  // Navigation: default subtab is 'academie'
+  const [activeSubTab, setActiveSubTab] = useState<'academie' | 'devoirs' | 'tuteur' | 'notes'>('academie');
+
+  // Local storage progression stats
+  const [stats, setStats] = useState<{
+    xp: number;
+    stars: number;
+    level: number;
+    streak: number;
+    lastActiveDate: string;
+    skills: {
+      lecture: number;
+      orthographe: number;
+      calcul: number;
+      conjugaison: number;
+      culture: number;
+      anglais: number;
+      sciences: number;
+    };
+    completedQuizzesCount: number;
+    lastWeeklyEvalDate: string;
+  }>(() => {
+    const key = `academy_stats_${member.id}`;
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {
+        console.warn("Erreur lecture stats locales, réinitialisation", e);
+      }
+    }
+    return {
+      xp: 0,
+      stars: 0,
+      level: 1,
+      streak: 0,
+      lastActiveDate: '',
+      skills: {
+        lecture: 20,
+        orthographe: 20,
+        calcul: 20,
+        conjugaison: 20,
+        culture: 20,
+        anglais: 20,
+        sciences: 20
+      },
+      completedQuizzesCount: 0,
+      lastWeeklyEvalDate: ''
+    };
+  });
+
+  // Active Quiz State
+  const [activeQuiz, setActiveQuiz] = useState<{
+    type: 'quick' | 'daily' | 'weekly' | 'tutor';
+    questions: AcademyQuestion[];
+    currentIndex: number;
+    score: number;
+    answers: boolean[];
+    selectedOption: string | null;
+    showCorrection: boolean;
+    xpEarned: number;
+    starsEarned: number;
+    showHint: boolean;
+  } | null>(null);
+
+  // Chatbox (Tuteur Local) State
+  const [chatMessages, setChatMessages] = useState<Array<{ sender: 'user' | 'ai'; text: string; action?: { label: string; onClick: () => void } }>>([
+    { sender: 'ai', text: `Salut ${member.name} ! Je suis ton Tuteur Local. 🦸‍♂️ Pas besoin d'internet ou d'une IA complexe pour apprendre ! Pose-moi des questions sur les fractions, l'Égypte, la conjugaison ou l'anglais, et je t'aiderai à réviser avec des mini-tests.` }
   ]);
   const [userInput, setUserInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [tutorNotice, setTutorNotice] = useState<boolean>(false);
-  const [selectedTaskForRevision, setSelectedTaskForRevision] = useState<SchoolTask | null>(null);
-
-  const handleReviewWithAI = (task: SchoolTask) => {
-    setSelectedTaskForRevision(task);
-    setActiveSubTab('tuteur');
-  };
-
-  // Schedule sub-tab state
-  const [scheduleViewMode, setScheduleViewMode] = useState<'today' | 'week'>('today');
-  const [selectedDay, setSelectedDay] = useState<string>('Lundi');
-
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom on new messages
+  // Auto-save stats to localStorage
+  useEffect(() => {
+    const key = `academy_stats_${member.id}`;
+    localStorage.setItem(key, JSON.stringify(stats));
+  }, [stats, member.id]);
+
+  // Check and update Streak
+  useEffect(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (stats.lastActiveDate !== todayStr) {
+      setStats(prev => {
+        let newStreak = prev.streak;
+        if (prev.lastActiveDate) {
+          const lastDate = new Date(prev.lastActiveDate);
+          const diffTime = Math.abs(new Date(todayStr).getTime() - lastDate.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          if (diffDays === 1) {
+            newStreak += 1;
+          } else if (diffDays > 1) {
+            newStreak = 1;
+          }
+        } else {
+          newStreak = 1;
+        }
+        return {
+          ...prev,
+          streak: newStreak,
+          lastActiveDate: todayStr
+        };
+      });
+    }
+  }, [member.id]);
+
+  // Auto Scroll Chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, isTyping]);
 
-  // Helper: check if a task is an evaluation
+  // Get current grade based on Age
+  const getSchoolGrade = (): 'CP' | 'CE1' | 'CE2' | 'CM1' | 'CM2' | '6e' | '5e' | '4e' | '3e' | 'Lycée' => {
+    let parsedAge = 8; // Default to CE2 (8 years old)
+    if (member.age) {
+      const num = parseInt(member.age, 10);
+      if (!isNaN(num)) parsedAge = num;
+    } else if (member.birthDate) {
+      const birth = new Date(member.birthDate);
+      if (!isNaN(birth.getTime())) {
+        const ageDifMs = Date.now() - birth.getTime();
+        const ageDate = new Date(ageDifMs);
+        parsedAge = Math.abs(ageDate.getUTCFullYear() - 1970);
+      }
+    }
+    
+    if (parsedAge <= 6) return 'CP';
+    if (parsedAge === 7) return 'CE1';
+    if (parsedAge === 8) return 'CE2';
+    if (parsedAge === 9) return 'CM1';
+    if (parsedAge === 10) return 'CM2';
+    if (parsedAge === 11) return '6e';
+    if (parsedAge === 12) return '5e';
+    if (parsedAge === 13) return '4e';
+    if (parsedAge === 14) return '3e';
+    return 'Lycée';
+  };
+
+  const currentGrade = getSchoolGrade();
+
+  // Unified School Tasks & Events calculation
+  const myTasks = schoolTasks.filter(t => t.assignedMemberId === member.id);
   const isEvaluation = (task: SchoolTask) => {
     const titleLower = task.title.toLowerCase();
     const subjectLower = task.subject.toLowerCase();
@@ -106,170 +293,313 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
            titleLower.includes('controle') || 
            titleLower.includes('test') || 
            titleLower.includes('examen') || 
-           titleLower.includes('exam') || 
            subjectLower.includes('éval') || 
            subjectLower.includes('contrôle');
   };
 
-  // Filter tasks for this specific child
-  const myTasks = schoolTasks.filter(t => t.assignedMemberId === member.id);
-  
-  // Split homeworks vs evaluations
   const myHomeworks = myTasks.filter(t => !isEvaluation(t));
-  const pendingHomeworks = myHomeworks.filter(t => !t.done);
-  const completedHomeworks = myHomeworks.filter(t => t.done);
-  
-  const upcomingEvaluations = myTasks.filter(t => isEvaluation(t) && !t.done);
-
-  // Progression calculation (percentage of tasks completed)
-  const totalTasks = myTasks.length;
-  const completedTasksCount = myTasks.filter(t => t.done).length;
-  const progression = totalTasks > 0 ? Math.round((completedTasksCount / totalTasks) * 100) : 100;
-
-  // Real grades filtered for this child
-  const myRealGrades = grades.filter(g => g.studentId === member.id);
-
-  // Overall average normalized to 20
-  const normalizedGrades = myRealGrades.map(g => (g.value / g.max) * 20);
-  const overallAverage = normalizedGrades.length > 0 
-    ? Number((normalizedGrades.reduce((sum, val) => sum + val, 0) / normalizedGrades.length).toFixed(2))
-    : null;
-
-  // Filter events of type 'school' for this member
+  const myEvaluations = myTasks.filter(t => isEvaluation(t));
   const schoolEvents = events.filter(e => 
     e.type === 'school' && 
     (!e.memberId || e.memberId === member.id || e.memberName?.toLowerCase() === member.name?.toLowerCase())
   );
 
-  // Dynamic system prompt constructor for AI Tutor
-  const getAIContextPrompt = () => {
-    const homeworkList = myTasks.map(t => `- [${t.subject}] ${t.title} (Difficulté: ${t.difficulty || 'medium'}, Statut: ${t.done ? (t.grade === 'Validé' ? 'Terminé & Validé' : 'Fait, en attente de validation') : 'À faire'}, Limite: ${t.dueDate})`).join('\n');
-    const gradeList = myRealGrades.map(g => `- [${g.subject}] ${g.examTitle} : ${g.value}/${g.max} (coef ${g.coef})`).join('\n');
-    
-    // Calculate subject averages to find difficulties
-    const subjectGrades: Record<string, { total: number; count: number }> = {};
-    myRealGrades.forEach(g => {
-      if (!subjectGrades[g.subject]) {
-        subjectGrades[g.subject] = { total: 0, count: 0 };
+  // Group agenda items for today
+  const days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  const todayDayName = days[new Date().getDay()];
+  const todayClasses = schedule
+    .filter(item => item && (item.studentId === member.id || item.studentName?.toLowerCase() === member.name?.toLowerCase()) && item.day === todayDayName)
+    .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+
+  // Handle local revision trigger
+  const handleReviewWithTutor = (task: SchoolTask) => {
+    setActiveSubTab('tuteur');
+    setChatMessages(prev => [
+      ...prev,
+      { sender: 'user', text: `Aide-moi à réviser mon devoir de ${task.subject} : "${task.title}" 📖` }
+    ]);
+    setIsTyping(true);
+
+    setTimeout(() => {
+      // Local helper keyword logic
+      const cleanSubject = task.subject.toLowerCase();
+      let responseText = `C'est parti pour réviser ton devoir de **${task.subject}** : "${task.title}". 🌟\n\n`;
+
+      const lesson = localLessons.find(l => cleanSubject.includes(l.subject.toLowerCase()) || l.keywords.some(k => task.title.toLowerCase().includes(k)));
+      if (lesson) {
+        responseText += `Voici une petite fiche de révision :\n\n📚 **${lesson.title}**\n${lesson.content}\n\n💡 *Exemple :* ${lesson.example}`;
+      } else {
+        responseText += `Pour réviser, relis attentivement ton cahier de cours. Prends ton temps pour comprendre les définitions et refais les exercices faits en classe.\n\nJe te propose un petit test rapide de 3 questions pour valider tes connaissances !`;
       }
-      subjectGrades[g.subject].total += (g.value / g.max) * 20;
-      subjectGrades[g.subject].count += 1;
-    });
-    
-    const strugglingSubjects: string[] = [];
-    Object.entries(subjectGrades).forEach(([subject, data]) => {
-      const avg = data.total / data.count;
-      if (avg < 12) strugglingSubjects.push(subject);
-    });
-    
-    const difficultTasks = myTasks.filter(t => !t.done && t.difficulty === 'hard');
 
-    return `Tu es un super Tuteur IA drôle, pédagogue et hyper encourageant pour un enfant de 8 à 11 ans nommé ${member.name}.
-Réponds à sa question de manière simple, ludique, claire et encourageante, en utilisant des émojis.
-Garde ta réponse concise (maximum 4-5 phrases) et adaptée à son niveau scolaire (primaire).
-
-Voici les vraies données scolaires de l'enfant pour adapter tes réponses et lui proposer des encouragements ou révisions ciblées :
-Devoirs en cours :
-${homeworkList || 'Aucun devoir pour le moment.'}
-
-Notes obtenues :
-${gradeList || 'Aucune note pour le moment.'}
-
-Difficultés identifiées (moyennes < 12/20 ou tâches complexes) :
-${strugglingSubjects.length > 0 ? `Matières en difficulté : ${strugglingSubjects.join(', ')}` : 'Aucune matière en difficulté pour le moment, très bon niveau !'}
-${difficultTasks.length > 0 ? `Devoirs difficiles à faire : ${difficultTasks.map(t => t.title).join(', ')}` : ''}
-
-Consignes :
-1. Si l'enfant te demande de réviser un devoir, propose-lui un mini-quiz amusant de 1 ou 2 questions ou une explication simplifiée.
-2. Encourage-le régulièrement en te basant sur ses bonnes notes ou en le soutenant sur ses matières en difficulté.
-3. Reste toujours bienveillant, utilise des métaphores enfantines et un ton dynamique.
-`;
+      setChatMessages(prev => [
+        ...prev,
+        { 
+          sender: 'ai', 
+          text: responseText,
+          action: {
+            label: "Commencer le mini-test d'entraînement 🎯",
+            onClick: () => launchTutorQuiz(task.subject)
+          }
+        }
+      ]);
+      setIsTyping(false);
+    }, 800);
   };
 
-  // Call Gemini API with safety checks
-  const callGemini = async (prompt: string) => {
-    try {
-      const useProxy = !import.meta.env.DEV || !import.meta.env.VITE_GEMINI_API_KEY;
-      const geminiEndpoint = useProxy
-        ? (import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini')
-        : `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
-
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (!useProxy && import.meta.env.VITE_GEMINI_API_KEY) {
-        headers['Authorization'] = `Bearer ${import.meta.env.VITE_GEMINI_API_KEY}`;
+  // Launch a localized mini-quiz from the tutor
+  const launchTutorQuiz = (subject: string) => {
+    const quizQuestions: AcademyQuestion[] = [];
+    
+    // Filter questions that match the subject
+    const subjectStatic = staticAcademyQuestions.filter(q => q.matiere.toLowerCase().includes(subject.toLowerCase()));
+    
+    for (let i = 0; i < 3; i++) {
+      if (Math.random() > 0.5 && subjectStatic.length > i) {
+        quizQuestions.push(subjectStatic[i]);
+      } else {
+        // Generate dynamically
+        const normSubject = subject.toLowerCase().includes('math') ? 'Mathématiques' : (subject.toLowerCase().includes('lang') ? 'Langues' : 'Français');
+        quizQuestions.push(generateProceduralQuestion(currentGrade, normSubject));
       }
+    }
 
-      const response = await fetch(geminiEndpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.7 }
-        })
+    setActiveQuiz({
+      type: 'tutor',
+      questions: quizQuestions,
+      currentIndex: 0,
+      score: 0,
+      answers: [],
+      selectedOption: null,
+      showCorrection: false,
+      xpEarned: 0,
+      starsEarned: 0,
+      showHint: false
+    });
+  };
+
+  // Launch Quick Quiz (5 questions based on errors/weaknesses)
+  const launchQuickQuiz = () => {
+    // Find weakest skill
+    let weakestSkill: keyof typeof stats.skills = 'calcul';
+    let minScore = 101;
+    Object.entries(stats.skills).forEach(([skill, val]) => {
+      if (val < minScore) {
+        minScore = val;
+        weakestSkill = skill as keyof typeof stats.skills;
+      }
+    });
+
+    const quizQuestions: AcademyQuestion[] = [];
+    
+    // Add 2 questions from the weakest skill (if static exists, or procedural)
+    const matchingStatic = staticAcademyQuestions.filter(q => q.competence === weakestSkill && q.niveau === currentGrade);
+    
+    for (let i = 0; i < 5; i++) {
+      if (i < 2 && matchingStatic.length > i) {
+        quizQuestions.push(matchingStatic[i]);
+      } else {
+        // Procedural generation
+        const mat = i % 3 === 0 ? 'Mathématiques' : (i % 3 === 1 ? 'Français' : 'Langues');
+        quizQuestions.push(generateProceduralQuestion(currentGrade, mat));
+      }
+    }
+
+    setActiveQuiz({
+      type: 'quick',
+      questions: quizQuestions,
+      currentIndex: 0,
+      score: 0,
+      answers: [],
+      selectedOption: null,
+      showCorrection: false,
+      xpEarned: 0,
+      starsEarned: 0,
+      showHint: false
+    });
+  };
+
+  // Launch Daily Challenge (10 questions: 5 maths, 3 conjugation, 2 discovery)
+  const launchDailyChallenge = () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const key = `academy_daily_done_${member.id}`;
+    if (localStorage.getItem(key) === todayStr) {
+      alert("Tu as déjà réussi ton défi quotidien aujourd'hui ! Reviens demain. 😉🏆");
+      return;
+    }
+
+    const quizQuestions: AcademyQuestion[] = [];
+    
+    // 5 Maths (Procedural)
+    for (let i = 0; i < 5; i++) {
+      quizQuestions.push(generateProceduralQuestion(currentGrade, 'Mathématiques'));
+    }
+    // 3 Conjugation (Procedural)
+    for (let i = 0; i < 3; i++) {
+      quizQuestions.push(generateProceduralQuestion(currentGrade, 'Français'));
+    }
+    // 2 Discovery (Static)
+    const discoveryStatic = staticAcademyQuestions.filter(q => q.niveau === currentGrade && q.matiere === 'Découverte');
+    if (discoveryStatic.length >= 2) {
+      quizQuestions.push(discoveryStatic[0], discoveryStatic[1]);
+    } else {
+      // Fallback procedural
+      quizQuestions.push(
+        generateProceduralQuestion(currentGrade, 'Mathématiques'),
+        generateProceduralQuestion(currentGrade, 'Langues')
+      );
+    }
+
+    setActiveQuiz({
+      type: 'daily',
+      questions: quizQuestions,
+      currentIndex: 0,
+      score: 0,
+      answers: [],
+      selectedOption: null,
+      showCorrection: false,
+      xpEarned: 0,
+      starsEarned: 0,
+      showHint: false
+    });
+  };
+
+  // Launch Weekly Evaluation (10 general questions)
+  const launchWeeklyEvaluation = () => {
+    const quizQuestions: AcademyQuestion[] = [];
+    // Fetch 10 questions for this grade level
+    const gradeStatic = staticAcademyQuestions.filter(q => q.niveau === currentGrade);
+    
+    for (let i = 0; i < 10; i++) {
+      if (gradeStatic.length > i) {
+        quizQuestions.push(gradeStatic[i]);
+      } else {
+        const mat = i % 3 === 0 ? 'Mathématiques' : (i % 3 === 1 ? 'Français' : 'Langues');
+        quizQuestions.push(generateProceduralQuestion(currentGrade, mat));
+      }
+    }
+
+    setActiveQuiz({
+      type: 'weekly',
+      questions: quizQuestions,
+      currentIndex: 0,
+      score: 0,
+      answers: [],
+      selectedOption: null,
+      showCorrection: false,
+      xpEarned: 0,
+      starsEarned: 0,
+      showHint: false
+    });
+  };
+
+  // Submit Answer in Quiz
+  const handleAnswerSubmit = (option: string) => {
+    if (!activeQuiz || activeQuiz.showCorrection) return;
+
+    const currentQ = activeQuiz.questions[activeQuiz.currentIndex];
+    const isCorrect = option === currentQ.reponse;
+    
+    const nextAnswers = [...activeQuiz.answers, isCorrect];
+    const nextScore = activeQuiz.score + (isCorrect ? 1 : 0);
+    
+    let qXp = currentQ.xp || 10;
+    let qStars = currentQ.etoiles || 1;
+
+    // Daily Challenge gives double rewards
+    if (activeQuiz.type === 'daily') {
+      qXp *= 2;
+      qStars *= 2;
+    }
+
+    const nextXpEarned = activeQuiz.xpEarned + (isCorrect ? qXp : 0);
+    const nextStarsEarned = activeQuiz.starsEarned + (isCorrect ? qStars : 0);
+
+    setActiveQuiz(prev => prev ? {
+      ...prev,
+      score: nextScore,
+      answers: nextAnswers,
+      selectedOption: option,
+      showCorrection: true,
+      xpEarned: nextXpEarned,
+      starsEarned: nextStarsEarned
+    } : null);
+
+    // Update Skills progression dynamically
+    const comp = currentQ.competence as keyof typeof stats.skills;
+    setStats(prev => {
+      const skillsCopy = { ...prev.skills };
+      if (isCorrect) {
+        skillsCopy[comp] = Math.min(100, (skillsCopy[comp] || 20) + 4);
+      } else {
+        skillsCopy[comp] = Math.max(10, (skillsCopy[comp] || 20) - 1);
+      }
+      return {
+        ...prev,
+        skills: skillsCopy
+      };
+    });
+  };
+
+  // Go to next question or complete quiz
+  const handleNextQuestion = () => {
+    if (!activeQuiz) return;
+
+    if (activeQuiz.currentIndex + 1 < activeQuiz.questions.length) {
+      setActiveQuiz(prev => prev ? {
+        ...prev,
+        currentIndex: prev.currentIndex + 1,
+        selectedOption: null,
+        showCorrection: false,
+        showHint: false
+      } : null);
+    } else {
+      // Quiz Finished! Apply XP & Stars & Level up check
+      const totalXp = activeQuiz.xpEarned;
+      const totalStars = activeQuiz.starsEarned;
+      const cleanScore = activeQuiz.score;
+
+      setStats(prev => {
+        let newXp = prev.xp + totalXp;
+        let newLevel = prev.level;
+        // Level up algorithm (100 XP per level)
+        const xpThreshold = newLevel * 100;
+        if (newXp >= xpThreshold) {
+          newXp -= xpThreshold;
+          newLevel += 1;
+          setTimeout(() => {
+            alert(`🎉 FÉLICITATIONS ! Tu passes au Niveau ${newLevel} ! Continue comme ça ! 🚀🏆`);
+          }, 600);
+        }
+
+        return {
+          ...prev,
+          xp: newXp,
+          stars: prev.stars + totalStars,
+          level: newLevel,
+          completedQuizzesCount: prev.completedQuizzesCount + 1,
+          lastWeeklyEvalDate: activeQuiz.type === 'weekly' ? new Date().toISOString().split('T')[0] : prev.lastWeeklyEvalDate
+        };
       });
 
-      if (!response.ok) throw new Error('Gemini API call failed');
-      const data = await response.json();
-      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      
-      if (aiResponse.trim()) {
-        setChatMessages(prev => [...prev, { sender: 'ai', text: aiResponse.trim() }]);
-        setIsTyping(false);
-      } else {
-        throw new Error('Empty response');
+      // If Daily Challenge, save today's date
+      if (activeQuiz.type === 'daily' && cleanScore >= 7) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        localStorage.setItem(`academy_daily_done_${member.id}`, todayStr);
       }
-    } catch (err) {
-      console.warn("[KidSchool IA] Échec appel Gemini, repli sur simulateur local :", err);
-      setTutorNotice(true);
-      simulateLocalAiResponse();
+
+      // Propose parent notifications or parent validation
+      if (activeQuiz.type === 'weekly' && cleanScore >= 8) {
+        alert(`Superbe évaluation hebdomadaire (${cleanScore}/10) ! Tu as débloqué le badge "Génie du Trimestre" ! 🏅 Vos parents ont été notifiés de vos résultats.`);
+      }
+
+      setActiveQuiz(null);
+      alert(`Quiz terminé ! Score : ${cleanScore}/${activeQuiz.questions.length} ⭐️\nVous gagnez +${totalXp} XP et +${totalStars} Étoiles !`);
     }
   };
 
-  // Simulate local AI response based on topic/query
-  const simulateLocalAiResponse = (optSubject?: string, optTitle?: string) => {
-    setTimeout(() => {
-      let aiResponse = '';
-      const subj = optSubject ? optSubject.toLowerCase() : '';
-      const title = optTitle ? optTitle.toLowerCase() : '';
-
-      if (subj.includes('math') || title.includes('fraction') || title.includes('géométrie') || title.includes('multiplic')) {
-        aiResponse = `Super, révisons les Mathématiques ! 📐 Sais-tu par exemple ce qu'est le dénominateur dans une fraction ? C'est le nombre du bas ! Il indique en combien de parts égales on a coupé un gâteau. Si tu coupes un gâteau en 4 parts, le dénominateur est 4. Est-ce que c'est clair pour toi ? 😉`;
-      } else if (subj.includes('fran') || title.includes('lecture') || title.includes('verbe') || title.includes('grammaire')) {
-        aiResponse = `Génial, révisons le Français ! 📖 Pour repérer un verbe d'action dans une phrase, tu peux essayer de dire 'Ne ... pas' autour. Exemple : 'Le chien dort' -> 'Le chien NE dort PAS'. Le mot coincé au milieu est 'dort', c'est notre verbe ! Prêt pour un autre défi ? 🐕`;
-      } else if (subj.includes('hist') || title.includes('pharaon') || title.includes('pyramide') || title.includes('révolution')) {
-        aiResponse = `En route pour l'Histoire ! 🏺 Sais-tu que la plus grande pyramide d'Égypte est celle de Khéops ? Elle a été construite il y a plus de 4500 ans pour servir de tombeau au pharaon Khéops. C'est incroyable, non ? 🏜️`;
-      } else {
-        aiResponse = `D'accord ! C'est parti pour réviser ton travail scolaire. 💡 Prends ton temps pour bien lire les leçons et fais des schémas colorés. Si tu as une question précise sur un sujet, écris-la moi et je t'expliquerai simplement ! 🌟`;
-      }
-
-      setChatMessages(prev => [...prev, { sender: 'ai', text: aiResponse }]);
-      setIsTyping(false);
-    }, 1200);
-  };
-
-  // Deep-link trigger when child clicks "Réviser avec le Tuteur IA"
-  useEffect(() => {
-    if (selectedTaskForRevision && activeSubTab === 'tuteur') {
-      const task = selectedTaskForRevision;
-      setSelectedTaskForRevision(null); // Clear first
-      
-      const userText = `Aide-moi à réviser mon devoir de ${task.subject} : "${task.title}" 📖`;
-      setChatMessages(prev => [...prev, { sender: 'user', text: userText }]);
-      setIsTyping(true);
-
-      const prompt = `${getAIContextPrompt()}\n\nL'enfant clique sur "Réviser avec le Tuteur IA" pour le devoir "${task.title}" de la matière ${task.subject}. Pose-lui une question de révision amusante (mini-quiz) ou explique-lui brièvement une notion clé de ce devoir (en 3-4 phrases).`;
-      
-      const callRealAI = aiQuotaService.consumeAIQuota(isPremium);
-      if (callRealAI) {
-        callGemini(prompt);
-      } else {
-        simulateLocalAiResponse(task.subject, task.title);
-      }
-    }
-  }, [selectedTaskForRevision, activeSubTab]);
-
-  // Main message sender for AI Tutor Chatbox
-  const handleSendMessage = async (e: React.FormEvent) => {
+  // Local Tutor Chatbot handler
+  const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!userInput.trim()) return;
 
@@ -277,54 +607,56 @@ Consignes :
     setChatMessages(prev => [...prev, { sender: 'user', text: query }]);
     setUserInput('');
     setIsTyping(true);
-    setTutorNotice(false);
 
-    const prompt = `${getAIContextPrompt()}\n\nQuestion de l'enfant : "${query}"`;
-    const callRealAI = aiQuotaService.consumeAIQuota(isPremium);
-    if (callRealAI) {
-      callGemini(prompt);
-    } else {
-      // Local simulator fallback
-      setTimeout(() => {
-        let aiResponse = '';
-        const cleanQuery = query.toLowerCase();
-        
-        const matchedTask = pendingHomeworks.find(t => cleanQuery.includes(t.subject.toLowerCase()) || cleanQuery.includes(t.title.toLowerCase()));
-        const matchedEval = upcomingEvaluations.find(e => cleanQuery.includes(e.subject.toLowerCase()) || cleanQuery.includes(e.title.toLowerCase()));
-        
-        if (matchedTask || matchedEval) {
-          const item = matchedTask || matchedEval;
-          aiResponse = `Oh, je vois que tu as justement un devoir de ${item?.subject} à faire : "${item?.title}" ! 📚 C'est prévu pour le ${item?.dueDate}. Pour t'aider, commence par bien relire ta leçon, puis essaie de faire les questions une par une. N'oublie pas : chaque petit effort compte ! Bon courage ! 💪✨`;
-        } else if (cleanQuery.includes('fraction')) {
-          aiResponse = "Une fraction, c'est comme découper un bon gâteau ! 🍰 Si tu coupes le gâteau en 4 parts égales, et que tu en manges 1 part, tu as mangé 1/4 (un quart). Le chiffre du bas (4) s'indique le dénominateur (combien de parts). Le chiffre du haut (1) est le numérateur (combien de parts tu manges) ! Miam ! 😋";
-        } else if (cleanQuery.includes('table') || cleanQuery.includes('multiplic')) {
-          aiResponse = "Les multiplications sont des super raccourcis ! 🚀 Par exemple, au lieu de faire 3 + 3 + 3 + 3 + 3 (ce qui fait 15), tu peux juste faire 3 x 5 = 15 ! Ma petite astuce pour la table de 9 : pour faire 9 x 4, plie ton 4ème doigt. Tu auras 3 doigts levés à gauche et 6 à droite... cela fait 36 ! Magique ! 🖐️✨";
-        } else if (cleanQuery.includes('pharaon') || cleanQuery.includes('egypte') || cleanQuery.includes('pyramide')) {
-          aiResponse = "Les pharaons étaient les grands rois de l'Égypte antique ! 👑 Ils étaient enterrés dans d'immenses pyramides en pierre. La plus grande est la pyramide de Khéops, bâtie il y a plus de 4500 ans ! 🏺🏜️";
-        } else if (cleanQuery.includes('note') || cleanQuery.includes('bulletin') || cleanQuery.includes('moyenne')) {
-          if (myRealGrades.length > 0) {
-            const avg = myRealGrades.reduce((acc, g) => acc + (g.value / g.max) * 20, 0) / myRealGrades.length;
-            aiResponse = `Ton bulletin est super intéressant ! 🏅 Ta moyenne générale est de ${avg.toFixed(1)}/20. Tu as notamment eu un ${myRealGrades[0].value}/${myRealGrades[0].max} en ${myRealGrades[0].subject}. Continue comme ça, tu es un vrai champion ! 🌟`;
-          } else {
-            aiResponse = "Tu n'as pas encore de notes enregistrées dans ton bulletin pour le moment ! C'est le début de l'aventure, continue de travailler fort ! 🚀";
-          }
-        } else {
-          aiResponse = `Oh, super question sur "${query}" ! 💡 Pour réussir ton apprentissage sur ce sujet, je te conseille de lire attentivement ta leçon, de faire un petit schéma en couleur, et d'en parler à ton enseignant ou à tes parents ce soir. L'important est d'être curieux ! Que veux-tu savoir d'autre ? 🌟`;
+    setTimeout(() => {
+      const cleanQuery = query.toLowerCase();
+      let responseText = '';
+      let matchedLesson: Lesson | undefined;
+
+      // Scan keyword matches
+      for (const lesson of localLessons) {
+        if (lesson.keywords.some(k => cleanQuery.includes(k)) || cleanQuery.includes(lesson.subject.toLowerCase())) {
+          matchedLesson = lesson;
+          break;
         }
+      }
+
+      if (matchedLesson) {
+        responseText = `J'ai trouvé une leçon pour toi ! 📖\n\n**${matchedLesson.title}** (${matchedLesson.subject})\n\n${matchedLesson.content}\n\n💡 *Exemple :* ${matchedLesson.example}\n\nVeux-tu tester tes connaissances tout de suite avec un mini-quiz ?`;
         
-        setChatMessages(prev => [...prev, { sender: 'ai', text: aiResponse }]);
-        setIsTyping(false);
-      }, 1200);
-    }
+        setChatMessages(prev => [
+          ...prev,
+          { 
+            sender: 'ai', 
+            text: responseText,
+            action: {
+              label: `Tester mes connaissances en ${matchedLesson?.subject} 🎯`,
+              onClick: () => launchTutorQuiz(matchedLesson?.subject || 'Mathématiques')
+            }
+          }
+        ]);
+      } else {
+        responseText = `Je n'ai pas trouvé de leçon spécifique pour "${query}". 🧐\n\nMais je peux t'aider sur de nombreux sujets ! Essaye de me demander :\n- "Les fractions" 🍰\n- "Les tables de multiplication" 🧮\n- "Les Pharaons" 🏺\n- "Le pluriel des noms" ✍️\n- "Saluer en Wolof" 🇸🇳\n- "Le Système Solaire" 🌍\n\nQue veux-tu réviser ?`;
+        
+        setChatMessages(prev => [...prev, { sender: 'ai', text: responseText }]);
+      }
+      setIsTyping(false);
+    }, 900);
   };
 
-  // Toggle child task done status
-  const toggleTaskDone = (taskId: string) => {
+  // Toggle single child homework done state
+  const toggleHomeworkDone = (taskId: string) => {
     setSchoolTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         const nextState = !t.done;
         if (nextState) {
-          alert("Génial ! Devoir coché. Tu l'as envoyé à tes parents pour validation. 📚🌟");
+          // Add small XP/Stars instantly
+          setStats(s => ({
+            ...s,
+            xp: s.xp + 5,
+            stars: s.stars + 1
+          }));
+          alert("Bravo ! Devoir coché. Tu gagnes +5 XP et +1 Étoile ! Envoyé aux parents pour validation. 📚✨");
         }
         return { ...t, done: nextState, grade: undefined };
       }
@@ -332,59 +664,24 @@ Consignes :
     }));
   };
 
-  // Helper icons/styles for subjects
+  // Style helper for subjects
   const getSubjectStyle = (subj: string) => {
     const lower = subj.toLowerCase();
-    if (lower.includes('math')) return { bg: 'bg-indigo-500/15', border: 'border-indigo-500/30', text: 'text-indigo-300' };
-    if (lower.includes('hist') || lower.includes('géo') || lower.includes('geo')) return { bg: 'bg-amber-500/15', border: 'border-amber-500/30', text: 'text-amber-300' };
-    if (lower.includes('scien') || lower.includes('svt') || lower.includes('bio')) return { bg: 'bg-emerald-500/15', border: 'border-emerald-500/30', text: 'text-emerald-300' };
-    if (lower.includes('fran') || lower.includes('dictée')) return { bg: 'bg-pink-500/15', border: 'border-pink-500/30', text: 'text-pink-300' };
-    if (lower.includes('angl')) return { bg: 'bg-cyan-500/15', border: 'border-cyan-500/30', text: 'text-cyan-300' };
-    return { bg: 'bg-purple-500/15', border: 'border-purple-500/30', text: 'text-purple-300' };
+    if (lower.includes('math')) return { bg: 'bg-indigo-500/15', border: 'border-indigo-500/30', text: 'text-indigo-300', icon: '🧮' };
+    if (lower.includes('hist') || lower.includes('géo') || lower.includes('geo')) return { bg: 'bg-amber-500/15', border: 'border-amber-500/30', text: 'text-amber-300', icon: '🌍' };
+    if (lower.includes('scien') || lower.includes('svt') || lower.includes('bio')) return { bg: 'bg-emerald-500/15', border: 'border-emerald-500/30', text: 'text-emerald-300', icon: '🧬' };
+    if (lower.includes('fran') || lower.includes('dictée')) return { bg: 'bg-pink-500/15', border: 'border-pink-500/30', text: 'text-pink-300', icon: '✍️' };
+    if (lower.includes('angl')) return { bg: 'bg-cyan-500/15', border: 'border-cyan-500/30', text: 'text-cyan-300', icon: '🇬🇧' };
+    return { bg: 'bg-purple-500/15', border: 'border-purple-500/30', text: 'text-purple-300', icon: '📖' };
   };
 
-  const getDifficultyBadge = (diff: 'easy' | 'medium' | 'hard') => {
-    if (diff === 'easy') return { label: '🟢 Facile', style: 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/25' };
-    if (diff === 'medium') return { label: '🟡 Moyen', style: 'text-amber-400 bg-amber-500/10 border border-amber-500/25' };
-    return { label: '🔴 Défi', style: 'text-rose-400 bg-rose-500/10 border border-rose-500/25' };
-  };
-
-  // Grades status color mapping
-  const getGradeStatus = (val: number, max: number) => {
-    const ratio = val / max;
-    if (ratio >= 0.8) return { label: 'Excellent 🌟', style: 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' };
-    if (ratio >= 0.7) return { label: 'Très Bien ✨', style: 'text-cyan-400 bg-cyan-500/10 border border-cyan-500/20' };
-    if (ratio >= 0.6) return { label: 'Bien 👍', style: 'text-blue-400 bg-blue-500/10 border border-blue-500/20' };
-    if (ratio >= 0.5) return { label: 'Moyen 🧐', style: 'text-amber-400 bg-amber-500/10 border border-amber-500/20' };
-    return { label: 'À travailler 📚', style: 'text-rose-400 bg-rose-500/10 border border-rose-500/20' };
-  };
-
-  // Appréciation generator based on subject average
-  const getSubjectAppreciation = (avg: number) => {
-    if (avg >= 16) return "Excellent travail ! Autonomie et rigueur remarquables. 🌟";
-    if (avg >= 14) return "Très bon trimestre. Les résultats sont solides et réguliers. 👍";
-    if (avg >= 12) return "Trimestre satisfaisant. Poursuis tes efforts pour encore progresser. 🎯";
-    return "Ensemble fragile. Concentre-toi bien sur tes révisions et fais-toi aider par l'IA. 🚀";
-  };
-
-  // General average badge generator
-  const getBadgeDetails = (avg: number) => {
-    if (avg >= 16) return { label: 'Félicitations 🏆🌟', color: 'bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 text-white', text: 'Un niveau exceptionnel ! Tu es une véritable star de la classe !' };
-    if (avg >= 14) return { label: 'Tableau d\'Honneur 🎖️✨', color: 'bg-gradient-to-r from-teal-400 to-blue-500 text-white', text: 'Très bon travail ! Tes efforts de révision portent leurs fruits !' };
-    if (avg >= 12) return { label: 'Encouragements 🎯👍', color: 'bg-gradient-to-r from-indigo-400 to-purple-500 text-white', text: 'Bonne moyenne générale. Continue d\'étudier, tu progresses bien !' };
-    return { label: 'Objectif Progression 🚀', color: 'bg-gradient-to-r from-orange-400 to-red-500 text-white', text: 'Chaque jour est une chance de t\'améliorer. Révise avec ton tuteur IA !' };
-  };
-
-  // Group grades by subject
-  const gradesBySubject: Record<string, { sum: number; count: number; maxTotal: number }> = {};
-  myRealGrades.forEach(g => {
-    if (!gradesBySubject[g.subject]) {
-      gradesBySubject[g.subject] = { sum: 0, count: 0, maxTotal: 0 };
-    }
-    gradesBySubject[g.subject].sum += g.value;
-    gradesBySubject[g.subject].count += 1;
-    gradesBySubject[g.subject].maxTotal += g.max;
-  });
+  // Parent configuration mocks for rewards
+  const parentRewards = [
+    { label: "1 heure de console de jeux", cost: 15, icon: "🎮" },
+    { label: "Cinéma en famille ce weekend", cost: 30, icon: "🍿" },
+    { label: "Argent de poche supplémentaire (+5€)", cost: 50, icon: "💶" },
+    { label: "Choix du dîner de ce soir", cost: 10, icon: "🍕" }
+  ];
 
   return (
     <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32 relative overflow-hidden">
@@ -404,22 +701,43 @@ Consignes :
           </button>
           <div>
             <h1 className="text-2xl font-black tracking-tight text-white flex items-center space-x-2">
-              <span>🎒</span>
-              <span>Mon Espace École</span>
+              <span>🎓</span>
+              <span>MaFamille+ Académie</span>
             </h1>
-            <p className="text-xs text-white/50 font-bold">Consulte ton agenda, tes notes et révise avec l'IA !</p>
+            <p className="text-xs text-white/50 font-bold">Niveau scolaire actuel : {currentGrade}</p>
           </div>
         </div>
-        <div className="p-2.5 rounded-2xl bg-[#00D26A]/10 border border-[#00D26A]/20 text-white text-xl">
-          🏫
+        
+        {/* Flame Streak and Stars */}
+        <div className="flex items-center space-x-2">
+          {stats.streak > 0 && (
+            <div className="flex items-center space-x-1 bg-orange-500/10 border border-orange-500/25 px-2.5 py-1.5 rounded-xl text-orange-400 font-extrabold text-xs">
+              <Flame className="w-4 h-4 fill-orange-500 text-orange-500 animate-pulse" />
+              <span>{stats.streak} j</span>
+            </div>
+          )}
+          <div className="flex items-center space-x-1 bg-yellow-500/10 border border-yellow-500/25 px-2.5 py-1.5 rounded-xl text-yellow-400 font-extrabold text-xs">
+            <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+            <span>{stats.stars}</span>
+          </div>
         </div>
       </div>
 
-      {/* Navigation Tabs */}
+      {/* Navigation Sub-Tabs */}
       <div className="bg-white/5 p-1 rounded-2xl border border-white/5 grid grid-cols-4 gap-1 mb-6">
         <button
-          onClick={() => setActiveSubTab('devoirs')}
-          className={`py-3.5 rounded-xl text-[10px] sm:text-xs font-black transition-all cursor-pointer text-center ${
+          onClick={() => { setActiveSubTab('academie'); setActiveQuiz(null); }}
+          className={`py-3 rounded-xl text-[10px] sm:text-xs font-black transition-all cursor-pointer text-center ${
+            activeSubTab === 'academie' 
+              ? 'bg-[#00D26A] text-[#07111F] shadow-md shadow-[#00D26A]/20' 
+              : 'text-white/50 hover:text-white/85'
+          }`}
+        >
+          🎮 Académie
+        </button>
+        <button
+          onClick={() => { setActiveSubTab('devoirs'); setActiveQuiz(null); }}
+          className={`py-3 rounded-xl text-[10px] sm:text-xs font-black transition-all cursor-pointer text-center ${
             activeSubTab === 'devoirs' 
               ? 'bg-[#00D26A] text-[#07111F] shadow-md shadow-[#00D26A]/20' 
               : 'text-white/50 hover:text-white/85'
@@ -428,253 +746,458 @@ Consignes :
           📚 Devoirs
         </button>
         <button
-          onClick={() => setActiveSubTab('tuteur')}
-          className={`py-3.5 rounded-xl text-[10px] sm:text-xs font-black transition-all cursor-pointer text-center ${
+          onClick={() => { setActiveSubTab('tuteur'); setActiveQuiz(null); }}
+          className={`py-3 rounded-xl text-[10px] sm:text-xs font-black transition-all cursor-pointer text-center ${
             activeSubTab === 'tuteur' 
               ? 'bg-[#00D26A] text-[#07111F] shadow-md shadow-[#00D26A]/20' 
               : 'text-white/50 hover:text-white/85'
           }`}
         >
-          🤖 Tuteur IA
+          🤖 Tuteur
         </button>
         <button
-          onClick={() => setActiveSubTab('emploi')}
-          className={`py-3.5 rounded-xl text-[10px] sm:text-xs font-black transition-all cursor-pointer text-center ${
-            activeSubTab === 'emploi' 
-              ? 'bg-[#00D26A] text-[#07111F] shadow-md shadow-[#00D26A]/20' 
-              : 'text-white/50 hover:text-white/85'
-          }`}
-        >
-          📅 Agenda
-        </button>
-        <button
-          onClick={() => setActiveSubTab('notes')}
-          className={`py-3.5 rounded-xl text-[10px] sm:text-xs font-black transition-all cursor-pointer text-center ${
+          onClick={() => { setActiveSubTab('notes'); setActiveQuiz(null); }}
+          className={`py-3 rounded-xl text-[10px] sm:text-xs font-black transition-all cursor-pointer text-center ${
             activeSubTab === 'notes' 
               ? 'bg-[#00D26A] text-[#07111F] shadow-md shadow-[#00D26A]/20' 
               : 'text-white/50 hover:text-white/85'
           }`}
         >
-          🏅 Notes
+          🏅 Bulletins
         </button>
       </div>
 
-      {/* CONTENT: DEVOIRS */}
-      {activeSubTab === 'devoirs' && (
+      {/* QUIZ SYSTEM POPUP/OVERLAY */}
+      {activeQuiz && (
+        <div className="bg-[#112240] border-2 border-[#00D26A]/30 rounded-[32px] p-6 shadow-2xl space-y-6 mb-6 relative">
+          
+          {/* Quiz Header info */}
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black text-[#00D26A] uppercase tracking-widest bg-[#00D26A]/10 px-3 py-1 rounded-full">
+              {activeQuiz.type === 'daily' ? '🏆 Défi Quotidien' : activeQuiz.type === 'weekly' ? '⚡ Évaluation Hebdomadaire' : '📝 Quiz d\'entraînement'}
+            </span>
+            <span className="text-xs text-white/50 font-bold">
+              Question {activeQuiz.currentIndex + 1} sur {activeQuiz.questions.length}
+            </span>
+          </div>
+
+          {/* Quiz Progress bar */}
+          <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-[#00D26A] to-[#00FF87] transition-all" 
+              style={{ width: `${((activeQuiz.currentIndex + 1) / activeQuiz.questions.length) * 100}%` }}
+            />
+          </div>
+
+          {/* Question Text */}
+          <div className="space-y-2.5">
+            <span className="text-[9px] font-black text-white/30 uppercase tracking-widest block">
+              {activeQuiz.questions[activeQuiz.currentIndex].chapitre} • {activeQuiz.questions[activeQuiz.currentIndex].matiere}
+            </span>
+            <h3 className="text-base font-extrabold text-white leading-snug">
+              {activeQuiz.questions[activeQuiz.currentIndex].question}
+            </h3>
+          </div>
+
+          {/* Answer Options Grid */}
+          <div className="grid grid-cols-1 gap-2.5">
+            {activeQuiz.questions[activeQuiz.currentIndex].options.map((option, oIdx) => {
+              const isSelected = activeQuiz.selectedOption === option;
+              const isCorrect = option === activeQuiz.questions[activeQuiz.currentIndex].reponse;
+              
+              let btnStyle = "bg-white/5 border-white/10 text-white hover:bg-white/10";
+              if (activeQuiz.showCorrection) {
+                if (isCorrect) {
+                  btnStyle = "bg-emerald-500/20 border-emerald-500/50 text-emerald-300";
+                } else if (isSelected) {
+                  btnStyle = "bg-rose-500/20 border-rose-500/50 text-rose-300";
+                } else {
+                  btnStyle = "bg-white/3 border-white/5 text-white/40";
+                }
+              }
+
+              return (
+                <button
+                  key={oIdx}
+                  onClick={() => handleAnswerSubmit(option)}
+                  disabled={activeQuiz.showCorrection}
+                  className={`w-full p-4 rounded-2xl border text-left font-black text-xs transition-all flex items-center justify-between cursor-pointer ${btnStyle}`}
+                >
+                  <span>{option}</span>
+                  {activeQuiz.showCorrection && isCorrect && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />}
+                  {activeQuiz.showCorrection && isSelected && !isCorrect && <XCircle className="w-5 h-5 text-rose-400 shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Indice & Correction Area */}
+          <div className="space-y-3 pt-2">
+            {!activeQuiz.showCorrection && (
+              <div className="flex justify-between items-center">
+                <button 
+                  onClick={() => setActiveQuiz(prev => prev ? { ...prev, showHint: !prev.showHint } : null)}
+                  className="text-[10px] text-white/50 hover:text-white font-bold flex items-center space-x-1 cursor-pointer"
+                >
+                  <HelpCircle className="w-3.5 h-3.5" />
+                  <span>Besoin d'un indice ?</span>
+                </button>
+                {activeQuiz.showHint && (
+                  <p className="text-[11px] text-yellow-300/80 italic font-semibold">
+                    💡 Hint: {activeQuiz.questions[activeQuiz.currentIndex].indice}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {activeQuiz.showCorrection && (
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2 animate-fadeIn">
+                <p className="text-xs font-black text-white/80">
+                  {activeQuiz.selectedOption === activeQuiz.questions[activeQuiz.currentIndex].reponse ? '✅ Très bonne réponse !' : '❌ Ce n\'est pas tout à fait ça.'}
+                </p>
+                <p className="text-[11px] text-white/60 leading-relaxed font-medium">
+                  {activeQuiz.questions[activeQuiz.currentIndex].explication}
+                </p>
+                
+                <button
+                  onClick={handleNextQuestion}
+                  className="w-full mt-3 py-3 rounded-xl bg-[#00D26A] text-[#07111F] font-black text-xs hover:bg-[#00FF87] transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <span>Continuer</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB: ACADEMIE (GAME HUB) */}
+      {activeSubTab === 'academie' && !activeQuiz && (
         <div className="space-y-6">
           
-          {/* Progression Header */}
-          <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 shadow-lg space-y-3 relative overflow-hidden">
+          {/* XP & NIVEAU STATS CARD */}
+          <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 shadow-lg space-y-4 relative overflow-hidden">
             <div className="absolute top-[-20%] right-[-10%] w-[40%] h-[40%] rounded-full bg-[#00D26A]/10 blur-xl pointer-events-none" />
             <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <span className="text-[10px] font-black text-[#00D26A] uppercase tracking-wider">Ma Progression</span>
-                <h3 className="text-sm font-extrabold text-white">
-                  {completedTasksCount} sur {totalTasks} devoirs cochés !
+              <div className="space-y-1">
+                <span className="text-[9px] font-black text-[#00D26A] uppercase tracking-wider">Académie Progression</span>
+                <h3 className="text-xl font-black text-white">
+                  Niveau {stats.level}
                 </h3>
               </div>
-              <span className="text-2xl">{progression === 100 ? '🥇' : '🚀'}</span>
+              <div className="p-3 bg-white/5 border border-white/10 rounded-2xl">
+                <Trophy className="w-6 h-6 text-yellow-400" />
+              </div>
             </div>
-            
+
             <div className="space-y-1.5">
               <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden border border-white/5">
                 <div 
                   className="h-full bg-gradient-to-r from-[#00D26A] to-[#00FF87] rounded-full transition-all duration-500" 
-                  style={{ width: `${progression}%` }}
+                  style={{ width: `${(stats.xp / (stats.level * 100)) * 100}%` }}
                 />
               </div>
               <div className="flex justify-between text-[9px] font-bold text-white/40">
-                <span>0%</span>
-                <span>{progression}% accomplis</span>
-                <span>100%</span>
+                <span>{stats.xp} XP</span>
+                <span>Prochain niveau à {stats.level * 100} XP</span>
               </div>
             </div>
           </div>
 
-          {/* Section: Devoirs à réaliser */}
-          <div className="space-y-3">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block flex items-center space-x-1">
-              <span>📖 Devoirs à faire ({pendingHomeworks.length})</span>
-            </span>
+          {/* CORE ACTIONS GRID */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             
-            {pendingHomeworks.length === 0 ? (
-              <div className="bg-white/5 border border-white/8 rounded-[32px] p-6 text-center space-y-2">
-                <span className="text-3xl block">⭐️</span>
-                <p className="text-sm font-black text-white">Aucun devoir à faire !</p>
-                <p className="text-xs text-white/40">Tu as terminé tout ton travail scolaire. Beau travail !</p>
+            {/* Daily Challenge Button */}
+            <button
+              onClick={launchDailyChallenge}
+              className="bg-gradient-to-br from-[#FFB020]/15 to-[#FF8C00]/15 border-2 border-[#FFB020]/30 rounded-[28px] p-5 text-left flex items-start space-x-4 hover:border-[#FFB020]/50 transition-all cursor-pointer relative overflow-hidden"
+            >
+              <div className="p-3.5 bg-[#FFB020]/20 rounded-2xl text-2xl shrink-0">
+                🏆
               </div>
-            ) : (
-              <div className="space-y-3">
-                {pendingHomeworks.map(task => {
-                  const subStyle = getSubjectStyle(task.subject);
-                  const diffBadge = getDifficultyBadge(task.difficulty || 'medium');
-                  return (
-                    <div 
-                      key={task.id} 
-                      className="bg-[#112240] border-2 border-[#00D26A]/15 rounded-[28px] p-4 flex flex-col space-y-3 shadow-lg hover:border-[#00D26A]/30 transition-all"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1.5">
-                          <div className="flex flex-wrap gap-1.5 items-center">
-                            <span className={`text-[8px] font-extrabold px-2 py-0.5 rounded-full border uppercase tracking-wider ${subStyle.bg} ${subStyle.border} ${subStyle.text}`}>
-                              {task.subject}
-                            </span>
-                            <span className={`text-[8px] font-extrabold px-2 py-0.5 rounded-full border uppercase tracking-wider ${diffBadge.style}`}>
-                              {diffBadge.label}
-                            </span>
-                          </div>
-                          <h3 className="text-sm font-extrabold text-white leading-snug">
-                            {task.title}
-                          </h3>
-                        </div>
-                        <button 
-                          onClick={() => toggleTaskDone(task.id)}
-                          className="w-9 h-9 rounded-xl border border-white/20 hover:border-[#00D26A]/60 flex items-center justify-center cursor-pointer hover:bg-[#00D26A]/10 active:scale-95 transition-all shrink-0 ml-2 mt-0.5"
-                        >
-                          {task.done ? '✅' : ''}
-                        </button>
-                      </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-black text-white flex items-center space-x-1.5">
+                  <span>Défi Quotidien</span>
+                  <span className="text-[8px] bg-[#FFB020]/20 text-[#FFB020] px-1.5 py-0.5 rounded-full uppercase">10 Qs</span>
+                </h4>
+                <p className="text-[11px] text-white/60 font-bold leading-snug">
+                  5 Maths, 3 Conjugaisons, 2 Découvertes. Double XP et Étoiles !
+                </p>
+              </div>
+            </button>
 
-                      <div className="flex items-center justify-between pt-2.5 border-t border-white/5">
-                        <p className="text-[10px] text-white/50 font-bold flex items-center space-x-1">
-                          <Calendar className="w-3.5 h-3.5 text-white/40" />
-                          <span>Pour le : {task.dueDate}</span>
-                        </p>
-                        <button 
-                          onClick={() => handleReviewWithAI(task)}
-                          className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] hover:from-[#5849E0] hover:to-[#3A75E0] text-white font-black text-[9px] uppercase tracking-wider flex items-center space-x-1 shadow transition-all active:scale-95 cursor-pointer"
-                        >
-                          <Sparkles className="w-3 h-3 text-white" />
-                          <span>Réviser avec l'IA</span>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+            {/* Quick Quiz Button */}
+            <button
+              onClick={launchQuickQuiz}
+              className="bg-gradient-to-br from-[#00D26A]/15 to-[#00FF87]/15 border-2 border-[#00D26A]/25 rounded-[28px] p-5 text-left flex items-start space-x-4 hover:border-[#00D26A]/45 transition-all cursor-pointer"
+            >
+              <div className="p-3.5 bg-[#00D26A]/20 rounded-2xl text-2xl shrink-0">
+                ⚡
               </div>
-            )}
+              <div className="space-y-1">
+                <h4 className="text-sm font-black text-white flex items-center space-x-1.5">
+                  <span>Quiz Rapide</span>
+                  <span className="text-[8px] bg-[#00D26A]/20 text-[#00D26A] px-1.5 py-0.5 rounded-full uppercase">5 Qs</span>
+                </h4>
+                <p className="text-[11px] text-white/60 font-bold leading-snug">
+                  5 questions aléatoires ciblant vos compétences à améliorer.
+                </p>
+              </div>
+            </button>
+
+            {/* Weekly Evaluation */}
+            <button
+              onClick={launchWeeklyEvaluation}
+              className="bg-gradient-to-br from-[#6C5CFF]/15 to-[#4F8CFF]/15 border-2 border-[#6C5CFF]/25 rounded-[28px] p-5 text-left flex items-start space-x-4 hover:border-[#6C5CFF]/45 transition-all cursor-pointer md:col-span-2"
+            >
+              <div className="p-3.5 bg-[#6C5CFF]/20 rounded-2xl text-2xl shrink-0">
+                📝
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-black text-white flex items-center space-x-1.5">
+                  <span>Évaluation Hebdomadaire</span>
+                  <span className="text-[8px] bg-[#6C5CFF]/20 text-[#6C5CFF] px-1.5 py-0.5 rounded-full uppercase">10 Qs</span>
+                </h4>
+                <p className="text-[11px] text-white/60 font-bold leading-snug">
+                  Évaluation complète de la semaine. Débloquez de prestigieux Badges !
+                </p>
+              </div>
+            </button>
           </div>
 
-          {/* Section: Évaluations à venir */}
-          <div className="space-y-3">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block flex items-center space-x-1 text-[#FFB020]">
-              <span>🔥 Évaluations à venir ({upcomingEvaluations.length})</span>
-            </span>
-            
-            {upcomingEvaluations.length === 0 ? (
-              <div className="bg-white/5 border border-white/8 rounded-[32px] p-6 text-center">
-                <p className="text-xs text-white/30">Aucun contrôle ou évaluation programmés bientôt ! 👍</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {upcomingEvaluations.map(task => {
-                  const subStyle = getSubjectStyle(task.subject);
-                  const diffBadge = getDifficultyBadge(task.difficulty || 'medium');
-                  return (
-                    <div 
-                      key={task.id} 
-                      className="bg-[#112240] border-2 border-[#FFB020]/20 rounded-[28px] p-4 flex flex-col space-y-3 shadow-lg"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1.5">
-                          <div className="flex flex-wrap gap-1.5 items-center">
-                            <span className="text-[8px] font-extrabold px-2 py-0.5 rounded-full border uppercase tracking-wider bg-[#FFB020]/10 border-[#FFB020]/30 text-[#FFB020]">
-                              ⚠️ Contrôle
-                            </span>
-                            <span className={`text-[8px] font-extrabold px-2 py-0.5 rounded-full border uppercase tracking-wider ${subStyle.bg} ${subStyle.border} ${subStyle.text}`}>
-                              {task.subject}
-                            </span>
-                            <span className={`text-[8px] font-extrabold px-2 py-0.5 rounded-full border uppercase tracking-wider ${diffBadge.style}`}>
-                              {diffBadge.label}
-                            </span>
-                          </div>
-                          <h3 className="text-sm font-extrabold text-white leading-snug">
-                            {task.title}
-                          </h3>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2.5 border-t border-white/5">
-                        <p className="text-[10px] text-[#FFB020] font-bold flex items-center space-x-1">
-                          <Calendar className="w-3.5 h-3.5 text-[#FFB020]/70" />
-                          <span>Prévu le : {task.dueDate}</span>
-                        </p>
-                        <button 
-                          onClick={() => handleReviewWithAI(task)}
-                          className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#FFB020] to-[#FF8C00] text-white font-black text-[9px] uppercase tracking-wider flex items-center space-x-1 shadow transition-all active:scale-95 cursor-pointer"
-                        >
-                          <Sparkles className="w-3 h-3 text-white" />
-                          <span>Réviser avec l'IA</span>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Section: Devoirs Terminés */}
+          {/* SKILLS JAUGE SECTION */}
           <div className="space-y-3">
             <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">
-              ✅ Devoirs Terminés ({completedHomeworks.length})
+              📊 Mes Compétences Académiques :
             </span>
-            
-            {completedHomeworks.length === 0 ? (
-              <div className="p-4 text-center text-xs text-white/20 italic">
-                Pas encore de devoirs terminés aujourd'hui.
-              </div>
-            ) : (
-              <div className="bg-white/5 border border-white/8 rounded-[32px] p-4 space-y-3">
-                {completedHomeworks.map(task => {
-                  const subStyle = getSubjectStyle(task.subject);
-                  const isParentValidated = task.grade === 'Validé';
-                  return (
-                    <div key={task.id} className="flex items-center justify-between p-3 bg-white/5 rounded-2xl text-xs opacity-75">
-                      <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full border uppercase ${subStyle.bg} ${subStyle.border} ${subStyle.text}`}>
-                            {task.subject}
-                          </span>
-                          <span className="text-[9px] text-white/30 font-bold">Fait</span>
-                        </div>
-                        <h4 className="font-bold text-white line-through decoration-white/30">{task.title}</h4>
-                      </div>
-                      <div className="text-right shrink-0">
-                        {isParentValidated ? (
-                          <span className="px-2.5 py-1 rounded-lg bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] text-[9px] font-black uppercase">
-                            Validé ✓
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-1 rounded-lg bg-[#FFB020]/10 border border-[#FFB020]/20 text-[#FFB020] text-[9px] font-black uppercase flex items-center space-x-1">
-                            <Clock className="w-3 h-3 animate-pulse" />
-                            <span>Attente</span>
-                          </span>
-                        )}
-                      </div>
+
+            <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 space-y-4">
+              {Object.entries(stats.skills).map(([skill, val]) => {
+                let color = "from-indigo-500 to-indigo-400";
+                if (skill === 'calcul') color = "from-emerald-500 to-emerald-400";
+                if (skill === 'orthographe' || skill === 'conjugaison') color = "from-pink-500 to-pink-400";
+                if (skill === 'culture') color = "from-amber-500 to-amber-400";
+                
+                return (
+                  <div key={skill} className="space-y-1">
+                    <div className="flex justify-between items-center text-xs font-black">
+                      <span className="capitalize text-white/80">{skill}</span>
+                      <span className="text-[#00D26A]">{val}%</span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                    <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full bg-gradient-to-r ${color} rounded-full`} 
+                        style={{ width: `${val}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* PARENT REWARDS LIST */}
+          <div className="space-y-3">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block flex items-center space-x-1 text-yellow-400">
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span>Boutique des Récompenses (Parents) :</span>
+            </span>
+
+            <div className="bg-white/5 border border-white/8 rounded-[32px] p-4 space-y-2.5">
+              {parentRewards.map((rew, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3.5 bg-white/3 rounded-2xl">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-xl">{rew.icon}</span>
+                    <span className="text-xs font-black text-white">{rew.label}</span>
+                  </div>
+                  <div className="flex items-center space-x-1.5 bg-yellow-500/10 border border-yellow-500/25 px-2.5 py-1 rounded-xl text-yellow-400 font-extrabold text-[10px] uppercase">
+                    <span>{rew.cost}</span>
+                    <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
         </div>
       )}
 
-      {/* CONTENT: TUTEUR IA */}
+      {/* SUB-TAB: DEVOIRS & AGENDA UNIFIED */}
+      {activeSubTab === 'devoirs' && (
+        <div className="space-y-6">
+          
+          {/* Progress overview */}
+          <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 shadow-lg space-y-3">
+            <div className="flex justify-between items-center">
+              <div className="space-y-0.5">
+                <span className="text-[9px] font-black text-[#00D26A] uppercase tracking-wider">Progression Devoirs</span>
+                <h3 className="text-sm font-extrabold text-white">
+                  {myHomeworks.filter(t => t.done).length} sur {myHomeworks.length} devoirs faits !
+                </h3>
+              </div>
+              <span className="text-2xl">🚀</span>
+            </div>
+            
+            <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
+              <div 
+                className="h-full bg-gradient-to-r from-[#00D26A] to-[#00FF87] rounded-full transition-all" 
+                style={{ width: `${myHomeworks.length > 0 ? (myHomeworks.filter(t => t.done).length / myHomeworks.length) * 100 : 100}%` }}
+              />
+            </div>
+          </div>
+
+          {/* CHRONOLOGICAL AGENDA FEED */}
+          <div className="space-y-4">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">
+              📅 Mon Agenda Scolaire (Aujourd'hui) :
+            </span>
+
+            {/* 1. Today's Classes */}
+            {todayClasses.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-[9px] font-black text-white/30 uppercase tracking-widest block">🏫 Cours de la journée ({todayDayName})</span>
+                {todayClasses.map(cls => {
+                  const style = getSubjectStyle(cls.subject);
+                  return (
+                    <div key={cls.id} className="bg-[#112240] border border-white/5 rounded-2xl p-4 flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-xl">{style.icon}</span>
+                        <div>
+                          <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase ${style.bg} ${style.border} ${style.text}`}>
+                            {cls.subject}
+                          </span>
+                          <h4 className="text-xs font-black text-white mt-1">
+                            {cls.startTime} - {cls.endTime}
+                          </h4>
+                          {cls.room && <p className="text-[9px] text-white/40 font-bold">📍 Salle : {cls.room}</p>}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-black text-white/30 uppercase">Classe</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 2. Today's Homework / Tasks */}
+            <div className="space-y-3">
+              <span className="text-[9px] font-black text-white/30 uppercase tracking-widest block">📖 Devoirs et exercices à faire</span>
+              
+              {myHomeworks.filter(t => !t.done).length === 0 ? (
+                <div className="bg-white/3 border border-white/5 rounded-2xl p-5 text-center text-xs text-white/40 font-bold">
+                  Aucun devoir à faire pour le moment ! 🎉
+                </div>
+              ) : (
+                myHomeworks.filter(t => !t.done).map(task => {
+                  const style = getSubjectStyle(task.subject);
+                  return (
+                    <div key={task.id} className="bg-[#112240] border-2 border-[#00D26A]/10 rounded-3xl p-4 space-y-3.5 hover:border-[#00D26A]/30 transition-all">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <span className={`text-[8px] font-extrabold px-2 py-0.5 rounded-full uppercase border ${style.bg} ${style.border} ${style.text}`}>
+                            {task.subject}
+                          </span>
+                          <h4 className="text-xs font-extrabold text-white leading-snug">{task.title}</h4>
+                        </div>
+                        <button 
+                          onClick={() => toggleHomeworkDone(task.id)}
+                          className="w-8 h-8 rounded-lg border border-white/10 flex items-center justify-center cursor-pointer hover:bg-white/5 active:scale-95 transition-all shrink-0"
+                        >
+                          {task.done ? '✓' : ''}
+                        </button>
+                      </div>
+
+                      <div className="flex justify-between items-center pt-2.5 border-t border-white/5">
+                        <span className="text-[9.5px] text-white/40 font-bold flex items-center space-x-1">
+                          <Clock className="w-3 h-3" />
+                          <span>Pour le : {task.dueDate}</span>
+                        </span>
+                        <button
+                          onClick={() => handleReviewWithTutor(task)}
+                          className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] hover:from-[#5849E0] text-white font-black text-[9px] uppercase tracking-wider flex items-center space-x-1 cursor-pointer"
+                        >
+                          <Sparkles className="w-3 h-3 text-white" />
+                          <span>Réviser avec le Tuteur</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* 3. Upcoming School Evaluations */}
+            <div className="space-y-3">
+              <span className="text-[9px] font-black text-[#FFB020] uppercase tracking-widest block">⚠️ Évaluations et contrôles programmés</span>
+              {myEvaluations.length === 0 ? (
+                <div className="bg-white/3 border border-white/5 rounded-2xl p-4 text-center text-xs text-white/30">
+                  Aucune évaluation programmée. 👍
+                </div>
+              ) : (
+                myEvaluations.map(task => {
+                  const style = getSubjectStyle(task.subject);
+                  return (
+                    <div key={task.id} className="bg-[#112240] border-2 border-[#FFB020]/20 rounded-3xl p-4 space-y-3">
+                      <div className="space-y-1">
+                        <div className="flex space-x-1.5">
+                          <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase bg-[#FFB020]/10 border border-[#FFB020]/30 text-[#FFB020]">Contrôle</span>
+                          <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase border ${style.bg} ${style.border} ${style.text}`}>{task.subject}</span>
+                        </div>
+                        <h4 className="text-xs font-black text-white leading-tight">{task.title}</h4>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-white/5">
+                        <span className="text-[9px] text-[#FFB020] font-bold">Le : {task.dueDate}</span>
+                        <button
+                          onClick={() => handleReviewWithTutor(task)}
+                          className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#FFB020] to-[#FF8C00] text-white font-black text-[9px] uppercase tracking-wider flex items-center space-x-1 cursor-pointer"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          <span>Réviser</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* 4. Outings and events */}
+            <div className="space-y-3">
+              <span className="text-[9px] font-black text-white/30 uppercase tracking-widest block">⛺ Sorties et vie scolaire</span>
+              {schoolEvents.length === 0 ? (
+                <div className="bg-white/3 border border-white/5 rounded-2xl p-4 text-center text-xs text-white/30">
+                  Aucune sortie de planifiée.
+                </div>
+              ) : (
+                schoolEvents.map(event => (
+                  <div key={event.id} className="bg-[#112240] border border-white/5 rounded-2xl p-4 flex items-start space-x-3">
+                    <span className="text-xl">⛺</span>
+                    <div>
+                      <h4 className="text-xs font-black text-white leading-tight">{event.title}</h4>
+                      <p className="text-[9px] text-[#00D26A] font-bold">Le {event.dateTime} {event.time ? `à ${event.time}` : ''}</p>
+                      {event.description && <p className="text-[9.5px] text-white/50 leading-relaxed mt-1 font-medium">{event.description}</p>}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* SUB-TAB: TUTEUR LOCAL AUTONOME */}
       {activeSubTab === 'tuteur' && (
         <div className="space-y-4 flex flex-col min-h-[calc(100vh-250px)]">
           
-          {/* Chat Window */}
-          <div className="flex-1 bg-white/5 border border-white/8 rounded-[32px] p-4 flex flex-col space-y-4 overflow-y-auto max-h-[480px] shadow-inner relative">
-            
-            {tutorNotice && (
-              <div className="bg-[#FFB020]/10 border border-[#FFB020]/20 rounded-2xl p-3 text-xs text-[#FFB020] flex items-start space-x-2">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <p>Connexion restreinte ou quota local. Le Tuteur IA tourne en mode local intelligent ! 🤖✨</p>
-              </div>
-            )}
+          {/* Chat log window */}
+          <div className="flex-1 bg-white/5 border border-white/8 rounded-[32px] p-4 flex flex-col space-y-4 overflow-y-auto max-h-[420px] shadow-inner relative">
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-3 text-[10px] text-blue-300 flex items-start space-x-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <p>Moteur local actif. Le Tuteur utilise les fiches et les algorithmes internes de l'application ! 🤖✨</p>
+            </div>
 
             {chatMessages.map((msg, idx) => {
               const isAi = msg.sender === 'ai';
@@ -683,22 +1206,31 @@ Consignes :
                   key={idx} 
                   className={`flex items-start space-x-2.5 ${!isAi ? 'flex-row-reverse space-x-reverse' : ''}`}
                 >
-                  {/* Avatar */}
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-lg shadow-md ${
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-sm shadow-md ${
                     isAi ? 'bg-gradient-to-br from-[#6C5CFF] to-[#4F8CFF]' : 'bg-[#00D26A]/20 border border-[#00D26A]/30 text-white'
                   }`}>
                     {isAi ? '🤖' : '👦'}
                   </div>
                   
-                  {/* Bubble */}
-                  <div className={`p-4 rounded-3xl max-w-[80%] text-xs font-medium leading-relaxed shadow-sm ${
-                    isAi 
-                      ? 'bg-[#112240] border border-white/8 text-white rounded-tl-none' 
-                      : 'bg-[#00D26A] text-[#07111F] font-bold rounded-tr-none'
-                  }`}>
-                    {msg.text.split('\n').map((line, lIdx) => (
-                      <p key={lIdx} className={lIdx > 0 ? 'mt-1.5' : ''}>{line}</p>
-                    ))}
+                  <div className="space-y-2 max-w-[80%]">
+                    <div className={`p-4 rounded-3xl text-xs font-medium leading-relaxed shadow-sm ${
+                      isAi 
+                        ? 'bg-[#112240] border border-white/8 text-white rounded-tl-none' 
+                        : 'bg-[#00D26A] text-[#07111F] font-bold rounded-tr-none'
+                    }`}>
+                      {msg.text.split('\n').map((line, lIdx) => (
+                        <p key={lIdx} className={lIdx > 0 ? 'mt-1.5' : ''}>{line}</p>
+                      ))}
+                    </div>
+
+                    {msg.action && (
+                      <button
+                        onClick={msg.action.onClick}
+                        className="px-4 py-2.5 rounded-xl bg-[#00D26A] text-[#07111F] font-black text-[10px] uppercase tracking-wider hover:bg-[#00FF87] active:scale-95 transition-all shadow-md cursor-pointer block"
+                      >
+                        {msg.action.label}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -706,32 +1238,61 @@ Consignes :
 
             {isTyping && (
               <div className="flex items-center space-x-2.5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#6C5CFF] to-[#4F8CFF] flex items-center justify-center shrink-0 text-lg shadow-md animate-pulse">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#6C5CFF] to-[#4F8CFF] flex items-center justify-center shrink-0 text-sm animate-pulse">
                   🤖
                 </div>
                 <div className="bg-[#112240] border border-white/8 p-3 rounded-2xl text-xs flex items-center space-x-2 text-white/50 rounded-tl-none">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Le Tuteur IA réfléchit...</span>
+                  <span>Le tuteur consulte ses manuels...</span>
                 </div>
               </div>
             )}
-
+            
             <div ref={chatEndRef} />
           </div>
 
-          {/* Chat Form */}
+          {/* Quick topic suggestion pills */}
+          <div className="flex items-center space-x-2 overflow-x-auto pb-1 shrink-0">
+            <span className="text-[9px] font-black text-white/30 uppercase shrink-0">Sujets :</span>
+            <button 
+              onClick={() => { setUserInput("Parle-moi des fractions"); }}
+              className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 hover:border-white/20 text-white/80 font-black text-[10px] shrink-0 cursor-pointer"
+            >
+              🍰 Fractions
+            </button>
+            <button 
+              onClick={() => { setUserInput("Aide-moi sur les tables de multiplication"); }}
+              className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 hover:border-white/20 text-white/80 font-black text-[10px] shrink-0 cursor-pointer"
+            >
+              🧮 Multiplications
+            </button>
+            <button 
+              onClick={() => { setUserInput("Qui étaient les pharaons ?"); }}
+              className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 hover:border-white/20 text-white/80 font-black text-[10px] shrink-0 cursor-pointer"
+            >
+              🏺 Pharaons d'Égypte
+            </button>
+            <button 
+              onClick={() => { setUserInput("Comment saluer en Wolof ?"); }}
+              className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 hover:border-white/20 text-white/80 font-black text-[10px] shrink-0 cursor-pointer"
+            >
+              🇸🇳 Salutations Wolof
+            </button>
+          </div>
+
+          {/* Chat send box */}
           <form onSubmit={handleSendMessage} className="flex space-x-2 mt-auto">
             <input 
               type="text" 
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
-              placeholder="Pose une question à ton tuteur IA... (ex: fractions, Égypte)"
-              className="flex-1 bg-white/5 border border-white/8 rounded-2xl px-4 py-3 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#00D26A] transition-all"
+              placeholder="Pose une question sur les fractions, la grammaire..."
+              className="flex-1 bg-white/5 border border-white/8 rounded-2xl px-4 py-3.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#00D26A] transition-all"
             />
             <button 
               type="submit"
               disabled={isTyping || !userInput.trim()}
-              className="p-3.5 rounded-2xl bg-[#00D26A] text-[#07111F] hover:bg-[#00FF87] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center shadow-lg active:scale-95 cursor-pointer shrink-0"
+              className="p-4 rounded-2xl bg-[#00D26A] text-[#07111F] hover:bg-[#00FF87] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center shadow-lg active:scale-95 cursor-pointer shrink-0"
             >
               <Send className="w-4 h-4" />
             </button>
@@ -740,319 +1301,91 @@ Consignes :
         </div>
       )}
 
-      {/* CONTENT: AGENDA (EMPLOI DU TEMPS) */}
-      {activeSubTab === 'emploi' && (
-        <div className="space-y-6">
-          
-          {/* Read only Warning */}
-          <div className="bg-white/3 border border-white/5 rounded-2xl p-3.5 text-center text-[10px] text-white/45 font-bold uppercase tracking-wider">
-            🔒 Vue en lecture seule — Gérée par les parents
-          </div>
-
-          {/* View Toggles */}
-          <div className="bg-white/5 p-1 rounded-xl border border-white/5 grid grid-cols-2 gap-1">
-            <button 
-              onClick={() => setScheduleViewMode('today')}
-              className={`py-2 rounded-lg text-xs font-black transition-all cursor-pointer text-center ${
-                scheduleViewMode === 'today' ? 'bg-[#00D26A] text-[#07111F]' : 'text-white/50'
-              }`}
-            >
-              📅 Aujourd'hui
-            </button>
-            <button 
-              onClick={() => setScheduleViewMode('week')}
-              className={`py-2 rounded-lg text-xs font-black transition-all cursor-pointer text-center ${
-                scheduleViewMode === 'week' ? 'bg-[#00D26A] text-[#07111F]' : 'text-white/50'
-              }`}
-            >
-              🗓️ Semaine
-            </button>
-          </div>
-
-          {/* Schedule List */}
-          {scheduleViewMode === 'today' ? (
-            <div className="space-y-3">
-              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">
-                Mes Cours d'aujourd'hui :
-              </span>
-              
-              {(() => {
-                const days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-                const today = days[new Date().getDay()];
-                const todayClasses = schedule
-                  .filter(item => item && (item.studentId === member.id || item.studentName?.toLowerCase() === member.name?.toLowerCase()) && item.day === today)
-                  .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
-
-                if (todayClasses.length === 0) {
-                  return (
-                    <div className="bg-white/5 border border-white/8 rounded-[32px] p-8 text-center space-y-2">
-                      <span className="text-4xl block">🎉</span>
-                      <p className="text-sm font-black text-white">Pas de cours aujourd'hui !</p>
-                      <p className="text-xs text-white/40 leading-relaxed font-bold">Profites-en pour te reposer ou réviser tes chapitres avec l'IA.</p>
-                    </div>
-                  );
-                }
-
-                return todayClasses.map(cls => {
-                  const subStyle = getSubjectStyle(cls.subject);
-                  return (
-                    <div key={cls.id} className="bg-[#112240] border border-white/8 rounded-[24px] p-4 flex items-center justify-between">
-                      <div className="flex items-center space-x-3.5">
-                        <div className={`p-2.5 rounded-xl border flex items-center justify-center shrink-0 ${subStyle.bg} ${subStyle.border} ${subStyle.text}`}>
-                          <Calendar className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <span className={`text-[8.5px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider ${subStyle.bg} ${subStyle.border} ${subStyle.text}`}>
-                            {cls.subject}
-                          </span>
-                          <h4 className="text-xs font-black text-white mt-1.5">
-                            {cls.startTime} - {cls.endTime}
-                          </h4>
-                          {cls.room && (
-                            <p className="text-[10px] text-white/40 font-bold mt-0.5 flex items-center space-x-0.5">
-                              <MapPin className="w-3 h-3 text-white/30" />
-                              <span>Salle : {cls.room}</span>
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <span className="text-xl">🏫</span>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'].map((day) => {
-                const dayClasses = schedule
-                  .filter(item => item && (item.studentId === member.id || item.studentName?.toLowerCase() === member.name?.toLowerCase()) && item.day === day)
-                  .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
-
-                if (dayClasses.length === 0) return null;
-
-                return (
-                  <div key={day} className="bg-white/5 border border-white/8 rounded-[28px] p-4 space-y-3">
-                    <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                      <span className="text-xs font-black text-[#00D26A]">{day}</span>
-                      <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest">Jour d'école</span>
-                    </div>
-
-                    <div className="space-y-2">
-                      {dayClasses.map(cls => {
-                        const subStyle = getSubjectStyle(cls.subject);
-                        return (
-                          <div key={cls.id} className="p-3 bg-white/5 rounded-2xl flex items-center justify-between border border-white/5">
-                            <div>
-                              <h4 className="text-xs font-extrabold text-white">{cls.subject}</h4>
-                              <p className="text-[10px] text-white/40 font-bold mt-0.5">
-                                ⏰ {cls.startTime} - {cls.endTime} {cls.room ? `• 📍 ${cls.room}` : ''}
-                              </p>
-                            </div>
-                            <span className="text-lg">📚</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {schedule.filter(item => item && (item.studentId === member.id || item.studentName?.toLowerCase() === member.name?.toLowerCase())).length === 0 && (
-                <div className="bg-white/5 border border-white/8 rounded-[32px] p-8 text-center space-y-2">
-                  <span className="text-4xl block">📅</span>
-                  <p className="text-sm font-black text-white">Aucun cours planifié</p>
-                  <p className="text-xs text-white/40 font-bold leading-relaxed">Ton emploi du temps n'a pas encore été configuré par tes parents.</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Section: Sorties & Activités scolaires */}
-          <div className="space-y-3 pt-2">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block flex items-center space-x-1 text-[#00D26A]">
-              <span>⛺ Sorties & Événements Scolaires ({schoolEvents.length})</span>
-            </span>
-
-            {schoolEvents.length === 0 ? (
-              <div className="bg-white/3 border border-white/5 rounded-2xl p-4 text-center">
-                <p className="text-xs text-white/20">Aucun événement ou sortie scolaire de planifié. 🎒</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {schoolEvents.map(event => (
-                  <div key={event.id} className="bg-[#112240] border border-[#00D26A]/10 rounded-2xl p-4 flex items-start space-x-3">
-                    <div className="p-2.5 rounded-xl bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] shrink-0 text-lg">
-                      🎒
-                    </div>
-                    <div className="space-y-1">
-                      <h4 className="text-xs font-extrabold text-white leading-tight">{event.title}</h4>
-                      <p className="text-[10px] text-[#00D26A] font-bold">
-                        📅 Le {event.dateTime} {event.time ? `à ${event.time}` : ''}
-                      </p>
-                      {event.location && (
-                        <p className="text-[9.5px] text-white/40 font-bold flex items-center space-x-0.5">
-                          <MapPin className="w-3 h-3 text-white/30 shrink-0" />
-                          <span className="truncate">{event.location}</span>
-                        </p>
-                      )}
-                      {event.description && (
-                        <p className="text-[9.5px] text-white/50 leading-relaxed font-bold bg-white/3 p-2 rounded-xl mt-1 border border-white/5">
-                          {event.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-        </div>
-      )}
-
-      {/* CONTENT: NOTES & BULLETINS */}
+      {/* SUB-TAB: NOTES & BULLETINS (READ ONLY) */}
       {activeSubTab === 'notes' && (
         <div className="space-y-6">
           
-          {/* Read only Warning */}
           <div className="bg-white/3 border border-white/5 rounded-2xl p-3.5 text-center text-[10px] text-white/45 font-bold uppercase tracking-wider">
-            🔒 Vue en lecture seule — Gérée par les parents
+            🔒 Bulletins officiels — Lecture seule (Parent)
           </div>
 
-          {/* Moyenne générale & badge */}
-          {overallAverage !== null ? (
+          {/* Average Normalized Grade */}
+          {grades.length > 0 ? (
             (() => {
-              const badge = getBadgeDetails(overallAverage);
+              const myRealGrades = grades.filter(g => g.studentId === member.id);
+              const normalized = myRealGrades.map(g => (g.value / g.max) * 20);
+              const avg = normalized.length > 0 
+                ? Number((normalized.reduce((sum, val) => sum + val, 0) / normalized.length).toFixed(2))
+                : null;
+
+              if (avg === null) {
+                return (
+                  <div className="bg-[#112240] border border-white/8 rounded-[32px] p-6 text-center text-xs text-white/40 font-bold">
+                    Aucune note n'a été partagée par les parents pour le moment. 🏅
+                  </div>
+                );
+              }
+
               return (
-                <div className="bg-[#112240] border border-white/8 rounded-[32px] p-6 text-center space-y-4 shadow-xl relative overflow-hidden">
+                <div className="bg-[#112240] border border-white/8 rounded-[32px] p-6 text-center space-y-3.5 shadow-xl relative overflow-hidden">
                   <div className="absolute top-[-10%] left-[-10%] w-[30%] h-[30%] rounded-full bg-[#FFD700]/10 blur-xl pointer-events-none" />
                   
                   <div className="space-y-1">
-                    <span className="text-[10px] font-black text-white/30 uppercase tracking-widest block">Ma Moyenne Générale</span>
+                    <span className="text-[9px] font-black text-white/30 uppercase tracking-widest block">Moyenne Générale Trimestre</span>
                     <div className="inline-flex items-baseline space-x-1 bg-white/5 border border-white/8 px-6 py-2.5 rounded-3xl">
-                      <span className="text-3xl font-black text-[#FFB020]">{overallAverage}</span>
+                      <span className="text-3xl font-black text-[#FFB020]">{avg}</span>
                       <span className="text-xs font-bold text-white/40">/ 20</span>
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <span className={`inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-full text-xs font-black shadow ${badge.color}`}>
-                      <span>{badge.label}</span>
-                    </span>
-                    <p className="text-xs text-white/60 font-bold max-w-xs mx-auto leading-relaxed">
-                      "{badge.text}"
-                    </p>
-                  </div>
+                  <p className="text-xs text-white/70 font-semibold italic">
+                    "{avg >= 15 ? 'Excellent trimestre. Le tuteur est fier de toi ! 🏆✨' : 'Trimestre satisfaisant, continue à t\'entraîner avec les défis quotidiens ! 🚀'}"
+                  </p>
                 </div>
               );
             })()
           ) : (
-            <div className="bg-[#112240] border border-white/8 rounded-[32px] p-8 text-center space-y-3">
-              <span className="text-4xl block">🏅</span>
-              <p className="text-sm font-black text-white">Pas encore de moyenne générale</p>
-              <p className="text-xs text-white/40 leading-relaxed font-bold">Travaille bien en classe pour recevoir tes premières notes de tes parents !</p>
+            <div className="bg-[#112240] border border-white/8 rounded-[32px] p-6 text-center text-xs text-white/40 font-bold">
+              Aucun bulletin configuré dans le module parent.
             </div>
           )}
 
-          {/* Bulletin Scolaire (Subject averages) */}
-          <div className="space-y-3">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">
-              📊 Mon Bulletin Trimestriel :
-            </span>
+          {/* Detailed Grades Feed */}
+          {grades.filter(g => g.studentId === member.id).length > 0 && (
+            <div className="space-y-3">
+              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">
+                📊 Relevé détaillé des notes :
+              </span>
 
-            {Object.keys(gradesBySubject).length > 0 ? (
-              <div className="space-y-3.5">
-                {Object.entries(gradesBySubject).map(([subj, data]) => {
-                  const avg = Number(((data.sum / data.maxTotal) * 20).toFixed(2));
-                  const subStyle = getSubjectStyle(subj);
-                  return (
-                    <div key={subj} className="bg-white/5 border border-white/8 rounded-[28px] p-5 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full border uppercase tracking-wider ${subStyle.bg} ${subStyle.border} ${subStyle.text}`}>
-                          {subj}
-                        </span>
-                        <div className="inline-flex items-baseline space-x-0.5">
-                          <span className="text-base font-black text-white">{avg}</span>
-                          <span className="text-[10px] font-bold text-white/40">/20</span>
-                        </div>
-                      </div>
-
-                      {/* Micro progress bar for subject average */}
-                      <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] rounded-full"
-                          style={{ width: `${(avg / 20) * 100}%` }}
-                        />
-                      </div>
-
-                      {/* Feedback / Appréciation */}
-                      <div className="p-3 bg-white/3 border border-white/5 rounded-xl text-[11px] text-white/70 font-medium leading-relaxed italic">
-                        💬 <span className="font-bold text-white/40 uppercase tracking-wider text-[8px] not-italic mr-1.5">Avis Tuteur :</span>
-                        {getSubjectAppreciation(avg)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-xs text-white/30 text-center py-6">Aucune matière avec note pour le moment.</p>
-            )}
-          </div>
-
-          {/* Historique des Notes */}
-          <div className="space-y-3">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">
-              📜 Historique de Mes Notes :
-            </span>
-
-            {myRealGrades.length > 0 ? (
               <div className="space-y-3">
-                {[...myRealGrades].reverse().map(grade => {
-                  const subStyle = getSubjectStyle(grade.subject);
-                  const status = getGradeStatus(grade.value, grade.max);
+                {grades.filter(g => g.studentId === member.id).map((grade, idx) => {
+                  const style = getSubjectStyle(grade.subject);
+                  const isExcellent = (grade.value / grade.max) >= 0.8;
+                  
                   return (
-                    <div 
-                      key={grade.id} 
-                      className="bg-[#112240] border border-white/5 rounded-[24px] p-4 flex items-center justify-between hover:bg-white/5 transition-all"
-                    >
-                      <div className="flex items-center space-x-3.5">
-                        <div className="p-2.5 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center shrink-0">
-                          <span className="text-sm font-black text-[#FFB020]">
-                            {grade.value}/{grade.max}
-                          </span>
+                    <div key={idx} className="bg-[#112240] border border-white/5 rounded-2xl p-4 flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                          <span className="text-sm font-black text-[#FFB020]">{grade.value}/{grade.max}</span>
                         </div>
                         <div>
-                          <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                            <span className={`text-[8px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider ${subStyle.bg} ${subStyle.border} ${subStyle.text}`}>
-                              {grade.subject}
-                            </span>
-                            <span className="text-[8.5px] text-white/30 font-bold">
-                              Coef: {grade.coef}
-                            </span>
-                          </div>
-                          <h4 className="text-xs font-extrabold text-white mt-1.5 leading-snug">
-                            {grade.examTitle}
-                          </h4>
-                          <p className="text-[9.5px] text-white/40 font-bold mt-0.5">
-                            Reçu le {grade.date}
-                          </p>
+                          <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase ${style.bg} ${style.border} ${style.text}`}>
+                            {grade.subject}
+                          </span>
+                          <h4 className="text-xs font-black text-white mt-1 leading-snug">{grade.examTitle}</h4>
+                          <p className="text-[9px] text-white/40 font-bold">Obtenue le : {grade.date}</p>
                         </div>
                       </div>
-                      
-                      <div className="shrink-0 ml-2">
-                        <span className={`text-[8px] font-black px-2 py-1 rounded-lg uppercase tracking-wider ${status.style}`}>
-                          {status.label}
-                        </span>
-                      </div>
+
+                      {isExcellent && (
+                        <span className="text-xl">🌟</span>
+                      )}
                     </div>
                   );
                 })}
               </div>
-            ) : (
-              <p className="text-xs text-white/30 text-center py-6">Aucune note reçue dans l'historique.</p>
-            )}
-          </div>
+            </div>
+          )}
 
         </div>
       )}

@@ -999,3 +999,42 @@ AFTER INSERT OR UPDATE ON public.groceries
 FOR EACH ROW EXECUTE FUNCTION public.trigger_send_push();
 
 
+-- ========================
+-- 6. ACADÉMIE ÉDUCATIVE
+-- ========================
+
+-- Table des questions de l'Académie (histoire, géographie, sciences, wolof, anglais, etc.)
+CREATE TABLE IF NOT EXISTS public.academy_questions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    niveau TEXT NOT NULL, -- CP, CE1, CE2, CM1, CM2, 6e, 5e, 4e, 3e, Lycee
+    matiere TEXT NOT NULL, -- Mathématiques, Français, Découverte, Langues
+    competence TEXT NOT NULL, -- lecture, orthographe, calcul, conjugaison, culture, anglais, sciences
+    chapitre TEXT NOT NULL,
+    question TEXT NOT NULL,
+    options TEXT[] NOT NULL, -- choix multiples
+    reponse TEXT NOT NULL, -- option correcte
+    explication TEXT,
+    indice TEXT,
+    difficulte INT DEFAULT 1, -- 1 = Facile, 2 = Moyen, 3 = Défi
+    xp INT DEFAULT 10,
+    etoiles INT DEFAULT 1,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Activer RLS
+ALTER TABLE public.academy_questions ENABLE ROW LEVEL SECURITY;
+
+-- Tout utilisateur authentifié peut lire les questions de l'académie
+CREATE POLICY "academy_questions_select" ON public.academy_questions FOR SELECT
+    USING (auth.uid() IS NOT NULL);
+
+-- Seuls les parents et administrateurs peuvent modifier les questions de l'académie
+CREATE POLICY "academy_questions_write" ON public.academy_questions FOR ALL
+    USING (EXISTS (
+        SELECT 1 FROM public.foyer_members 
+        WHERE user_id = auth.uid() AND role IN ('admin', 'parent')
+    ));
+
+
+
