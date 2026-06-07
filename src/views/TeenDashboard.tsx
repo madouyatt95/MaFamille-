@@ -68,6 +68,12 @@ interface TeenDashboardProps {
   setTrips: React.Dispatch<React.SetStateAction<Trip[]>>;
   documents: DocumentFile[];
   setDocuments: React.Dispatch<React.SetStateAction<DocumentFile[]>>;
+  onApplyWallTask?: (taskId: string, memberId: string) => void;
+  onAcceptCandidate?: (taskId: string, memberId: string) => void;
+  onRefuseCandidate?: (taskId: string, memberId: string) => void;
+  onTakeWallTask?: (taskId: string, memberId: string) => void;
+  onToggleTask?: (taskId: string) => void;
+  onSendNotification?: any;
 }
 
 export const TeenDashboard: React.FC<TeenDashboardProps> = ({
@@ -120,11 +126,18 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   trips = [],
   setTrips,
   documents = [],
-  setDocuments
+  setDocuments,
+  onApplyWallTask,
+  onAcceptCandidate,
+  onRefuseCandidate,
+  onTakeWallTask,
+  onToggleTask,
+  onSendNotification
 }) => {
   // Navigation active tab index internally mapped
   // Teen space will render internally or listen to external tab routing
   const [internalTab, setInternalTab] = useState<'accueil' | 'ecole' | 'messages' | 'timeline' | 'plus'>('accueil');
+  const [teenChoreSubTab, setTeenChoreSubTab] = useState<'my_tasks' | 'wall'>('my_tasks');
   const [suggestionText, setSuggestionText] = useState('');
   const [suggestionPts, setSuggestionPts] = useState(25);
   
@@ -1477,155 +1490,376 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
       )}
 
       {/* --- RENDER MODULE: MISSIONS DETAILS (taches) --- */}
-      {internalTab === 'plus' && activeModule === 'taches' && (
-        <div className="space-y-6 animate-fade-in text-left">
-          <div className="flex items-center space-x-3 mb-2 pt-[calc(1rem+env(safe-area-inset-top,0px))]">
-            <button 
-              onClick={() => setActiveModule('')}
-              className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white cursor-pointer"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="text-xl font-black text-white">Mes Missions Familiales</h1>
-              <p className="text-[10px] text-white/50 font-bold">Gagne des points et de l'argent de poche</p>
-            </div>
-          </div>
+      {internalTab === 'plus' && activeModule === 'taches' && (() => {
+        const wallTasks = parsedTasks.filter(t => t.attributionMode === 'wall' && !t.isArchived);
+        const dailySpecialTask = wallTasks.find(t => t.isDailySpecial);
+        const regularWallTasks = wallTasks.filter(t => t.id !== dailySpecialTask?.id);
 
-          <div className="space-y-3">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block">Missions à faire :</span>
-            
-            {todoTasks.length === 0 ? (
-              <div className="bg-white/5 border border-white/10 rounded-[32px] p-8 text-center space-y-2">
-                <span className="text-4xl block">🎉</span>
-                <p className="text-sm font-black text-white">Bravo ! Tout est fini !</p>
-                <p className="text-xs text-white/40 leading-relaxed font-bold">Tu as accompli toutes les tâches demandées par tes parents pour aujourd'hui.</p>
+        const renderWallAction = (task: any) => {
+          const isCandidate = task.candidates?.includes(member.id);
+          const isAccepted = task.acceptedVolunteers?.includes(member.id);
+          const isFull = (task.acceptedVolunteers?.length || 0) >= (task.maxParticipants || 1);
+
+          if (isAccepted) {
+            return (
+              <button disabled className="w-full py-2.5 rounded-xl bg-[#00D26A]/20 text-[#00D26A] font-extrabold text-xs uppercase tracking-wider border border-[#00D26A]/30">
+                Acceptée 🎉
+              </button>
+            );
+          }
+          if (isCandidate) {
+            return (
+              <button disabled className="w-full py-2.5 rounded-xl bg-[#FFB020]/20 text-[#FFB020] font-extrabold text-xs uppercase tracking-wider border border-[#FFB020]/30">
+                Candidature envoyée ⏳
+              </button>
+            );
+          }
+          if (isFull) {
+            return (
+              <button disabled className="w-full py-2.5 rounded-xl bg-white/5 text-white/30 font-extrabold text-xs uppercase tracking-wider border border-white/5">
+                Complète (Max atteint)
+              </button>
+            );
+          }
+
+          if (task.selectionMode === 'first_come') {
+            return (
+              <button 
+                onClick={() => onTakeWallTask?.(task.id, member.id)}
+                className="w-full py-2.5 rounded-xl bg-[#00D26A] text-[#07111F] font-black text-xs uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-lg"
+              >
+                Je prends 🚀
+              </button>
+            );
+          } else {
+            return (
+              <button 
+                onClick={() => onApplyWallTask?.(task.id, member.id)}
+                className="w-full py-2.5 rounded-xl bg-[#6C5CFF] text-white font-black text-xs uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-lg"
+              >
+                Je postule 🙋‍♂️
+              </button>
+            );
+          }
+        };
+
+        return (
+          <div className="space-y-6 animate-fade-in text-left">
+            <div className="flex items-center space-x-3 mb-2 pt-[calc(1rem+env(safe-area-inset-top,0px))]">
+              <button 
+                onClick={() => setActiveModule('')}
+                className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white cursor-pointer"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <h1 className="text-xl font-black text-white">Missions Familiales</h1>
+                <p className="text-[10px] text-white/50 font-bold">Gagne des points, de l'XP et de l'argent de poche</p>
+              </div>
+            </div>
+
+            {/* Premium Sub-tabs navigation */}
+            <div className="flex bg-white/5 border border-white/10 rounded-2xl p-1 relative z-20">
+              <button
+                onClick={() => setTeenChoreSubTab('my_tasks')}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all duration-300 flex items-center justify-center space-x-2 cursor-pointer ${
+                  teenChoreSubTab === 'my_tasks'
+                    ? 'bg-[#6C5CFF] text-white shadow-lg'
+                    : 'text-white/40 hover:text-white/60'
+                }`}
+              >
+                📋
+                <span>Mes tâches ({todoTasks.length})</span>
+              </button>
+              <button
+                onClick={() => setTeenChoreSubTab('wall')}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all duration-300 flex items-center justify-center space-x-2 cursor-pointer ${
+                  teenChoreSubTab === 'wall'
+                    ? 'bg-gradient-to-r from-[#FF4D6D] to-[#FF8C00] text-white shadow-lg'
+                    : 'text-white/40 hover:text-white/60'
+                }`}
+              >
+                🔥
+                <span>Mur des tâches ({wallTasks.length})</span>
+              </button>
+            </div>
+
+            {teenChoreSubTab === 'my_tasks' ? (
+              <div className="space-y-6 animate-fade-in">
+                <div className="space-y-3">
+                  <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block">Missions à faire :</span>
+                  
+                  {todoTasks.length === 0 ? (
+                    <div className="bg-white/5 border border-white/10 rounded-[32px] p-8 text-center space-y-2">
+                      <span className="text-4xl block">🎉</span>
+                      <p className="text-sm font-black text-white">Bravo ! Tout est fini !</p>
+                      <p className="text-xs text-white/40 leading-relaxed font-bold">Tu as accompli toutes les tâches demandées par tes parents pour aujourd'hui.</p>
+                    </div>
+                  ) : (
+                    todoTasks.map(task => (
+                      <div 
+                        key={task.id} 
+                        className="bg-[#112240] border-2 border-[#6C5CFF]/30 rounded-[28px] p-4 flex items-center justify-between shadow-lg"
+                      >
+                        <div className="flex-1 pr-4">
+                          <div className="flex items-center space-x-2 flex-wrap gap-1">
+                            <span className="text-[8px] font-bold bg-[#6C5CFF]/20 text-[#9d94ff] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                              Famille 🏠
+                            </span>
+                            {task.priority === 'high' && (
+                              <span className="text-[8px] font-bold bg-[#FF4D6D]/20 text-[#FF4D6D] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                ⚠️ Urgent
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="text-sm font-bold text-white mt-1 leading-snug">{task.title}</h3>
+                          {task.description && (
+                            <p className="text-xs text-white/60 mt-0.5 leading-relaxed">{task.description}</p>
+                          )}
+                          {task.status === 'refused' && (
+                            <p className="text-xs text-[#FF4D6D] font-bold mt-1">❌ À corriger (demande de tes parents)</p>
+                          )}
+                          <div className="flex items-center flex-wrap gap-1.5 mt-2 text-[9px] font-bold">
+                            <span className="text-[#FFB020] bg-[#FFB020]/10 border border-[#FFB020]/20 px-2 py-0.5 rounded-lg flex items-center space-x-1 shrink-0">
+                              <Star className="w-3 h-3 fill-[#FFB020] text-[#FFB020]" />
+                              <span>+{task.rewardPoints || 10} pts</span>
+                            </span>
+                            {task.rewardAmount ? (
+                              <span className="text-[#00D26A] bg-[#00D26A]/10 border border-[#00D26A]/20 px-2 py-0.5 rounded-lg flex items-center shrink-0">
+                                💰 +{task.rewardAmount.toFixed(2)} €
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => handleCompleteTask(task.id, task.rewardPoints || 10)}
+                          className="w-12 h-12 bg-[#00D26A] rounded-[18px] flex items-center justify-center shadow-lg active:scale-90 transition-transform cursor-pointer shrink-0"
+                        >
+                          <CheckCircle2 className="w-6 h-6 text-white" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Form: Propose task */}
+                <form onSubmit={handleProposeMission} className="bg-white/5 border border-white/8 rounded-[32px] p-5 space-y-4">
+                  <div className="flex items-center space-x-2 text-sm font-bold text-white">
+                    <PlusCircle className="w-5 h-5 text-[#FFB020]" />
+                    <span>Proposer une nouvelle mission</span>
+                  </div>
+                  
+                  <div className="space-y-3 font-bold">
+                    <input 
+                      type="text" 
+                      placeholder="Ex: Nettoyer le balcon, tondre la pelouse, laver la voiture..."
+                      value={suggestionText}
+                      onChange={(e) => setSuggestionText(e.target.value)}
+                      className="w-full bg-[#07111F] border border-white/10 rounded-xl py-3 px-4 text-xs text-white placeholder-white/35 focus:outline-none focus:border-[#FFB020]/50"
+                    />
+                    
+                    <div className="flex items-center justify-between bg-[#07111F] p-3 rounded-2xl border border-white/5">
+                      <span className="text-xs text-white/60 font-medium">Points demandés :</span>
+                      <div className="flex items-center space-x-3">
+                        <button 
+                          type="button" 
+                          onClick={() => setSuggestionPts(Math.max(10, suggestionPts - 10))}
+                          className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center font-bold text-sm cursor-pointer"
+                        >
+                          -
+                        </button>
+                        <span className="text-xs text-[#FFB020] font-black">{suggestionPts} pts</span>
+                        <button 
+                          type="button" 
+                          onClick={() => setSuggestionPts(Math.min(100, suggestionPts + 10))}
+                          className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center font-bold text-sm cursor-pointer"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="w-full py-3.5 bg-[#FFB020] text-[#07111F] rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer"
+                  >
+                    Envoyer aux parents 💬
+                  </button>
+                </form>
+
+                {/* Pending tasks */}
+                {pendingValidationTasks.length > 0 && (
+                  <div className="space-y-3 animate-fade-in">
+                    <span className="text-[10px] font-black text-[#FFB020] uppercase tracking-wider block">En attente de validation parentale :</span>
+                    <div className="space-y-2">
+                      {pendingValidationTasks.map(task => (
+                        <div key={task.id} className="flex items-center justify-between p-4 bg-[#112240] rounded-[24px] border border-white/10">
+                          <div>
+                            <h4 className="text-xs font-bold text-white/80">{task.title}</h4>
+                            <p className="text-[10px] text-white/40">Soumis - En cours de vérification</p>
+                          </div>
+                          <span className="text-xs font-black text-[#FFB020] flex items-center space-x-1 bg-[#FFB020]/10 px-2 py-1 rounded-xl font-sans">
+                            <Clock className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '4s' }} />
+                            <span>+{task.rewardPoints || 10} pts</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Completed history */}
+                {validatedTasks.length > 0 && (
+                  <div className="space-y-3 animate-fade-in">
+                    <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block">Missions complétées :</span>
+                    <div className="bg-white/5 rounded-[32px] p-2 space-y-2 border border-white/5">
+                      {validatedTasks.map(task => (
+                        <div key={task.id} className="flex items-center justify-between p-3 bg-white/5 rounded-2xl">
+                          <div>
+                            <h4 className="text-xs font-bold text-white/60 line-through">{task.title}</h4>
+                            <p className="text-[10px] text-white/35">Validé par les parents</p>
+                          </div>
+                          <span className="text-xs font-black text-[#00D26A] flex items-center space-x-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>+{task.rewardPoints || 10} pts</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
-              todoTasks.map(task => (
-                <div 
-                  key={task.id} 
-                  className="bg-[#112240] border-2 border-[#6C5CFF]/30 rounded-[28px] p-4 flex items-center justify-between shadow-lg"
-                >
-                  <div className="flex-1 pr-4">
-                    <span className="text-[9px] font-bold bg-[#6C5CFF]/20 text-[#9d94ff] px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      Famille 🏠 {task.priority === 'high' ? '⚠️ Urgent' : ''}
-                    </span>
-                    <h3 className="text-sm font-bold text-white mt-1 leading-snug">{task.title}</h3>
-                    {task.description && (
-                      <p className="text-xs text-white/60 mt-0.5">{task.description}</p>
-                    )}
-                    {task.status === 'refused' && (
-                      <p className="text-xs text-[#FF4D6D] font-bold mt-1">❌ À corriger (demande de tes parents)</p>
-                    )}
-                    <p className="text-xs font-black text-[#FFB020] mt-1 flex items-center space-x-1">
-                      <Star className="w-3.5 h-3.5 fill-[#FFB020] text-[#FFB020]" />
-                      <span>+{task.rewardPoints || 10} points</span>
-                      {task.rewardAmount ? (
-                        <span className="text-[#00D26A] ml-2">({task.rewardAmount.toFixed(2)} €)</span>
-                      ) : null}
-                    </p>
+              // Marketplace-style "Mur des tâches" 🔥
+              <div className="space-y-6 animate-fade-in">
+                
+                {/* Mission du jour header card */}
+                {dailySpecialTask ? (
+                  <div className="relative overflow-hidden rounded-[32px] p-0.5 bg-gradient-to-tr from-[#FFB020] via-[#FF4D6D] to-[#6C5CFF] shadow-2xl animate-fade-in">
+                    <div className="bg-[#0F1E3D]/95 rounded-[30px] p-5 space-y-4 text-left relative overflow-hidden backdrop-blur-md">
+                      {/* Glow halo */}
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF4D6D]/20 blur-2xl pointer-events-none" />
+                      
+                      <div className="flex justify-between items-start">
+                        <span className="text-[8px] font-black text-white px-2.5 py-1 rounded-full bg-gradient-to-r from-[#FFB020] to-[#FF4D6D] uppercase tracking-widest border border-white/20">
+                          ⭐ Mission du jour
+                        </span>
+                        <span className="text-xs font-black text-[#FFB020] bg-[#FFB020]/15 px-2.5 py-1 rounded-xl">
+                          +{dailySpecialTask.rewardPoints} Pts
+                        </span>
+                      </div>
+
+                      {dailySpecialTask.imageUrl && (
+                        <div className="w-full h-32 rounded-2xl overflow-hidden border border-white/10 my-2 bg-[#07111F]">
+                          <img src={dailySpecialTask.imageUrl} alt={dailySpecialTask.title} className="w-full h-full object-cover" />
+                        </div>
+                      )}
+
+                      <div className="space-y-1">
+                        <h3 className="text-base font-black text-white leading-snug">{dailySpecialTask.title}</h3>
+                        {dailySpecialTask.description && (
+                          <p className="text-xs text-white/70 leading-relaxed font-medium">{dailySpecialTask.description}</p>
+                        )}
+                      </div>
+
+                      {/* Metadata Badges */}
+                      <div className="flex flex-wrap gap-1.5 pt-1 text-[10px] text-white/70 font-extrabold">
+                        <span className="bg-white/5 border border-white/5 px-2.5 py-1 rounded-lg flex items-center">📂 {dailySpecialTask.category}</span>
+                        <span className="bg-white/5 border border-white/5 px-2.5 py-1 rounded-lg flex items-center">⚡ {dailySpecialTask.difficulty === 'easy' ? 'Facile' : dailySpecialTask.difficulty === 'hard' ? 'Difficile' : 'Moyen'}</span>
+                        {dailySpecialTask.estimatedTime && <span className="bg-white/5 border border-white/5 px-2.5 py-1 rounded-lg flex items-center">⏱️ {dailySpecialTask.estimatedTime}</span>}
+                        {dailySpecialTask.rewardAmount ? (
+                          <span className="bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] px-2.5 py-1 rounded-lg flex items-center">💰 +{dailySpecialTask.rewardAmount.toFixed(2)} €</span>
+                        ) : null}
+                        {dailySpecialTask.xpReward && (
+                          <span className="bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-[#9E94FF] px-2.5 py-1 rounded-lg flex items-center">✨ +{dailySpecialTask.xpReward} XP</span>
+                        )}
+                        <span className="bg-white/5 border border-white/5 px-2.5 py-1 rounded-lg flex items-center">👥 {dailySpecialTask.acceptedVolunteers?.length || 0} / {dailySpecialTask.maxParticipants} pris</span>
+                      </div>
+
+                      {/* Action Button */}
+                      <div className="pt-2">
+                        {renderWallAction(dailySpecialTask)}
+                      </div>
+                    </div>
                   </div>
-                  <button 
-                    onClick={() => handleCompleteTask(task.id, task.rewardPoints || 10)}
-                    className="w-12 h-12 bg-[#00D26A] rounded-[18px] flex items-center justify-center shadow-lg active:scale-90 transition-transform cursor-pointer shrink-0"
-                  >
-                    <CheckCircle2 className="w-6 h-6 text-white" />
-                  </button>
+                ) : (
+                  <div className="p-4 rounded-[24px] bg-[#6C5CFF]/10 border border-[#6C5CFF]/25 text-center text-xs font-bold text-white/60">
+                    💡 Astuce : Les missions du Mur sont ouvertes à tous ! Premier arrivé, premier servi 🚀
+                  </div>
+                )}
+
+                {/* Available missions grid */}
+                <div className="space-y-3">
+                  <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block">Missions disponibles :</span>
+                  
+                  {regularWallTasks.length === 0 && !dailySpecialTask ? (
+                    <div className="bg-white/5 border border-white/10 rounded-[32px] p-8 text-center space-y-2">
+                      <span className="text-4xl block">📭</span>
+                      <p className="text-sm font-black text-white">Le mur est vide !</p>
+                      <p className="text-xs text-white/40 leading-relaxed font-bold">Aucune mission ouverte n'est proposée pour le moment. Repasse plus tard !</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                      {regularWallTasks.map(task => {
+                        const hasImg = !!task.imageUrl;
+                        return (
+                          <div 
+                            key={task.id} 
+                            className="bg-[#112240] border border-white/8 rounded-[32px] p-4 flex flex-col justify-between space-y-4 hover:border-[#6C5CFF]/30 transition duration-300"
+                          >
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-start">
+                                <span className="text-[8px] font-black bg-[#6C5CFF]/15 text-[#9E94FF] px-2 py-0.5 rounded-md uppercase tracking-wider border border-[#6C5CFF]/10">
+                                  {task.category}
+                                </span>
+                                <span className="text-[10px] font-black text-[#FFB020] bg-[#FFB020]/10 px-2 py-0.5 rounded-lg font-sans">
+                                  +{task.rewardPoints} Pts
+                                </span>
+                              </div>
+
+                              {hasImg && (
+                                <div className="w-full h-24 rounded-2xl overflow-hidden border border-white/5 bg-[#07111F]">
+                                  <img src={task.imageUrl} alt={task.title} className="w-full h-full object-cover" />
+                                </div>
+                              )}
+
+                              <div className="text-left space-y-1">
+                                <h4 className="text-sm font-black text-white">{task.title}</h4>
+                                {task.description && (
+                                  <p className="text-xs text-white/60 font-medium leading-relaxed">{task.description}</p>
+                                )}
+                              </div>
+
+                              {/* Badges row */}
+                              <div className="flex flex-wrap gap-1.5 text-[9px] text-white/60 font-bold pt-1">
+                                <span className="bg-white/5 px-2 py-0.5 rounded-md flex items-center">⚡ {task.difficulty === 'easy' ? 'Facile' : task.difficulty === 'hard' ? 'Difficile' : 'Moyen'}</span>
+                                {task.estimatedTime && <span className="bg-white/5 px-2 py-0.5 rounded-md flex items-center">⏱️ {task.estimatedTime}</span>}
+                                {task.rewardAmount ? (
+                                  <span className="bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] px-2 py-0.5 rounded-md flex items-center">💰 +{task.rewardAmount.toFixed(2)} €</span>
+                                ) : null}
+                                {task.xpReward && (
+                                  <span className="bg-[#6C5CFF]/15 text-[#9E94FF] px-2 py-0.5 rounded-md flex items-center">✨ +{task.xpReward} XP</span>
+                                )}
+                                <span className="bg-white/5 px-2 py-0.5 rounded-md flex items-center">👥 {task.acceptedVolunteers?.length || 0} / {task.maxParticipants} pris</span>
+                              </div>
+                            </div>
+
+                            <div className="pt-1">
+                              {renderWallAction(task)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              ))
+
+              </div>
             )}
           </div>
-
-          {/* Form: Propose task */}
-          <form onSubmit={handleProposeMission} className="bg-white/5 border border-white/8 rounded-[32px] p-5 space-y-4">
-            <div className="flex items-center space-x-2 text-sm font-bold text-white">
-              <PlusCircle className="w-5 h-5 text-[#FFB020]" />
-              <span>Proposer une nouvelle mission</span>
-            </div>
-            
-            <div className="space-y-3 font-bold">
-              <input 
-                type="text" 
-                placeholder="Ex: Nettoyer le balcon, tondre la pelouse, laver la voiture..."
-                value={suggestionText}
-                onChange={(e) => setSuggestionText(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-xs text-white placeholder-white/35 focus:outline-none focus:border-[#FFB020]/50"
-              />
-              
-              <div className="flex items-center justify-between bg-white/5 p-3 rounded-2xl border border-white/5">
-                <span className="text-xs text-white/60 font-medium">Points demandés :</span>
-                <div className="flex items-center space-x-3">
-                  <button 
-                    type="button" 
-                    onClick={() => setSuggestionPts(Math.max(10, suggestionPts - 10))}
-                    className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center font-bold text-sm cursor-pointer"
-                  >
-                    -
-                  </button>
-                  <span className="text-xs text-[#FFB020] font-black">{suggestionPts} pts</span>
-                  <button 
-                    type="button" 
-                    onClick={() => setSuggestionPts(Math.min(100, suggestionPts + 10))}
-                    className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center font-bold text-sm cursor-pointer"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <button 
-              type="submit" 
-              className="w-full py-3.5 bg-[#FFB020] text-[#07111F] rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer"
-            >
-              Envoyer aux parents 💬
-            </button>
-          </form>
-
-          {/* Pending tasks */}
-          {pendingValidationTasks.length > 0 && (
-            <div className="space-y-3">
-              <span className="text-[10px] font-black text-[#FFB020] uppercase tracking-wider block">En attente de validation parentale :</span>
-              <div className="space-y-2">
-                {pendingValidationTasks.map(task => (
-                  <div key={task.id} className="flex items-center justify-between p-4 bg-[#112240] rounded-[24px] border border-white/10">
-                    <div>
-                      <h4 className="text-xs font-bold text-white/80">{task.title}</h4>
-                      <p className="text-[10px] text-white/40">Soumis - En cours de vérification</p>
-                    </div>
-                    <span className="text-xs font-black text-[#FFB020] flex items-center space-x-1 bg-[#FFB020]/10 px-2 py-1 rounded-xl">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>+{task.rewardPoints || 10} pts</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Completed history */}
-          {validatedTasks.length > 0 && (
-            <div className="space-y-3">
-              <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block">Missions complétées :</span>
-              <div className="bg-white/5 rounded-[32px] p-2 space-y-2 border border-white/5">
-                {validatedTasks.map(task => (
-                  <div key={task.id} className="flex items-center justify-between p-3 bg-white/5 rounded-2xl">
-                    <div>
-                      <h4 className="text-xs font-bold text-white/60 line-through">{task.title}</h4>
-                      <p className="text-[10px] text-white/35">Validé par les parents</p>
-                    </div>
-                    <span className="text-xs font-black text-[#00D26A] flex items-center space-x-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>+{task.rewardPoints || 10} pts</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {/* --- RENDER MODULE: WALLET DETAIL (argent) --- */}
       {internalTab === 'plus' && activeModule === 'argent' && (

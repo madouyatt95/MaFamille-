@@ -18,6 +18,9 @@ interface KidMissionsProps {
   transactions?: Transaction[];
   savingGoals?: SavingGoal[];
   setSavingGoals?: React.Dispatch<React.SetStateAction<SavingGoal[]>>;
+  onApplyWallTask?: (taskId: string, memberId: string) => void;
+  onTakeWallTask?: (taskId: string, memberId: string) => void;
+  onSendNotification?: any;
 }
 
 interface RewardItem {
@@ -41,7 +44,10 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   foyer,
   transactions = [],
   savingGoals = [],
-  setSavingGoals
+  setSavingGoals,
+  onApplyWallTask,
+  onTakeWallTask,
+  onSendNotification
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'missions' | 'boutique' | 'argent'>(defaultTab || 'missions');
   const [requestText, setRequestText] = useState('');
@@ -91,6 +97,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   const todoTasks = myTasks.filter(t => t.status === 'todo' || t.status === 'in_progress' || t.status === 'refused');
   const pendingValidationTasks = myTasks.filter(t => t.status === 'pending_validation');
   const validatedTasks = myTasks.filter(t => t.status === 'validated');
+  const wallTasks = parsedTasks.filter(t => t.attributionMode === 'wall' && !t.isArchived);
 
   // Mapper from SavingGoal to RewardItem
   const mapSavingGoalToReward = (sg: SavingGoal): RewardItem => {
@@ -457,6 +464,89 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
                   </button>
                 </div>
               ))
+            )}
+          </div>
+
+          {/* Section: Missions disponibles */}
+          <div className="space-y-3">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block text-left">🌟 Missions disponibles sur le Mur :</span>
+            
+            {wallTasks.length === 0 ? (
+              <p className="text-xs text-white/30 text-center py-4 italic">Aucune mission disponible sur le Mur pour le moment.</p>
+            ) : (
+              wallTasks.map((task: any) => {
+                const isCandidate = task.candidates?.includes(member.id);
+                const isAccepted = task.acceptedVolunteers?.includes(member.id);
+                const isFull = (task.acceptedVolunteers?.length || 0) >= (task.maxParticipants || 1);
+
+                return (
+                  <div 
+                    key={task.id} 
+                    className="bg-[#161B30]/60 border border-[#6C5CFF]/30 rounded-[28px] p-4 flex flex-col justify-between space-y-4 shadow-lg text-left"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[8px] font-black bg-[#6C5CFF]/20 text-[#9E94FF] px-2 py-0.5 rounded-md uppercase tracking-wider">
+                          {task.category || 'Missions'}
+                        </span>
+                        <span className="text-[10px] font-black text-[#FFB020] bg-[#FFB020]/10 px-2 py-0.5 rounded-lg">
+                          +{task.rewardPoints} Pts
+                        </span>
+                      </div>
+
+                      {task.imageUrl && (
+                        <div className="w-full h-24 rounded-2xl overflow-hidden border border-white/5 bg-[#07111F]">
+                          <img src={task.imageUrl} alt={task.title} className="w-full h-full object-cover" />
+                        </div>
+                      )}
+
+                      <h3 className="text-sm font-bold text-white leading-snug">{task.title}</h3>
+                      {task.description && (
+                        <p className="text-xs text-white/60 leading-relaxed">{task.description}</p>
+                      )}
+
+                      {/* Badges row */}
+                      <div className="flex flex-wrap gap-1.5 text-[9px] text-white/60 font-bold pt-1">
+                        <span className="bg-white/5 px-2 py-0.5 rounded-md flex items-center">⚡ {task.difficulty === 'easy' ? 'Facile' : task.difficulty === 'hard' ? 'Difficile' : 'Moyen'}</span>
+                        {task.estimatedTime && <span className="bg-white/5 px-2 py-0.5 rounded-md flex items-center">⏱️ {task.estimatedTime}</span>}
+                        {task.rewardAmount ? (
+                          <span className="bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] px-2 py-0.5 rounded-md flex items-center">💰 +{task.rewardAmount.toFixed(2)} €</span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="pt-1">
+                      {isAccepted ? (
+                        <button disabled className="w-full py-2.5 rounded-xl bg-[#00D26A]/20 text-[#00D26A] font-extrabold text-xs uppercase tracking-wider border border-[#00D26A]/30">
+                          Acceptée 🎉
+                        </button>
+                      ) : isCandidate ? (
+                        <button disabled className="w-full py-2.5 rounded-xl bg-[#FFB020]/20 text-[#FFB020] font-extrabold text-xs uppercase tracking-wider border border-[#FFB020]/30">
+                          Candidature envoyée ⏳
+                        </button>
+                      ) : isFull ? (
+                        <button disabled className="w-full py-2.5 rounded-xl bg-white/5 text-white/30 font-extrabold text-xs uppercase tracking-wider border border-white/5">
+                          Complète
+                        </button>
+                      ) : task.selectionMode === 'first_come' ? (
+                        <button 
+                          onClick={() => onTakeWallTask?.(task.id, member.id)}
+                          className="w-full py-2.5 rounded-xl bg-[#00D26A] text-[#07111F] font-black text-xs uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-lg"
+                        >
+                          Je prends 🚀
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => onApplyWallTask?.(task.id, member.id)}
+                          className="w-full py-2.5 rounded-xl bg-[#6C5CFF] text-white font-black text-xs uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-lg"
+                        >
+                          Je postule 🙋‍♂️
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
 

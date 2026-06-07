@@ -242,6 +242,9 @@ interface MenuHubProps {
   setTransactions?: React.Dispatch<React.SetStateAction<Transaction[]>>;
   memberPermissions?: Record<string, Record<FamilyModule, ModulePermissions>>;
   isKidMode?: boolean;
+  onAcceptCandidate?: (taskId: string, memberId: string) => void;
+  onRefuseCandidate?: (taskId: string, memberId: string) => void;
+  onSendNotification?: (title: string, description: string, moduleName?: string, type?: 'info' | 'warning' | 'error' | 'success') => Promise<void>;
 }
 
 const modIdToFamilyModule: Record<string, FamilyModule> = {
@@ -418,6 +421,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   alerts = [],
   setAlerts,
   isKidMode = false,
+  onAcceptCandidate,
+  onRefuseCandidate,
+  onSendNotification,
 }) => {
   const activePermissions = useMemo(() => {
     if (memberPermissions && activeMemberId && memberPermissions[activeMemberId]) {
@@ -720,7 +726,17 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newLocalTaskPriority, setNewLocalTaskPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [newLocalTaskValidationRequired, setNewLocalTaskValidationRequired] = useState(true);
   const [newLocalTaskAssigneeIds, setNewLocalTaskAssigneeIds] = useState<string[]>([]);
+  const [newLocalTaskAttributionMode, setNewLocalTaskAttributionMode] = useState<'single' | 'multiple' | 'wall'>('single');
+  const [newLocalTaskMaxParticipants, setNewLocalTaskMaxParticipants] = useState(1);
+  const [newLocalTaskSelectionMode, setNewLocalTaskSelectionMode] = useState<'first_come' | 'approval'>('first_come');
+  const [newLocalTaskDifficulty, setNewLocalTaskDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
+  const [newLocalTaskCategory, setNewLocalTaskCategory] = useState('Divers');
+  const [newLocalTaskImageUrl, setNewLocalTaskImageUrl] = useState('');
+  const [newLocalTaskEstimatedTime, setNewLocalTaskEstimatedTime] = useState('');
+  const [newLocalTaskIsDailySpecial, setNewLocalTaskIsDailySpecial] = useState(false);
+  const [newLocalTaskXpReward, setNewLocalTaskXpReward] = useState<number>(20);
   const [choresActiveSubTab, setChoresActiveSubTab] = useState<'actives' | 'historique'>('actives');
+  const [choreHistoryFilter, setChoreHistoryFilter] = useState<'all' | 'wall' | 'accepted' | 'validated' | 'refused'>('all');
 
   const [pmSelectedChildId, setPmSelectedChildId] = useState<string | null>(null);
 
@@ -3346,7 +3362,18 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             time: meta.time,
             rewardAmount: meta.rewardAmount || t.rewardAmount,
             assignedMemberIds: meta.assignedMemberIds || (t.assignedMemberId ? [t.assignedMemberId] : []),
-            recurrence: meta.recurrence || t.rotation
+            recurrence: meta.recurrence || t.rotation,
+            attributionMode: meta.attributionMode || 'single',
+            maxParticipants: meta.maxParticipants || 1,
+            selectionMode: meta.selectionMode || 'first_come',
+            candidates: meta.candidates || [],
+            acceptedVolunteers: meta.acceptedVolunteers || [],
+            difficulty: meta.difficulty || 'medium',
+            category: meta.category || 'Divers',
+            imageUrl: meta.imageUrl || '',
+            estimatedTime: meta.estimatedTime || '',
+            isDailySpecial: !!meta.isDailySpecial,
+            xpReward: meta.xpReward
           };
         }).filter(Boolean) as any[];
 
@@ -3401,42 +3428,112 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (!newLocalTaskTitle.trim()) return;
-                  if (newLocalTaskAssigneeIds.length === 0) {
+                  if (newLocalTaskAttributionMode !== 'wall' && newLocalTaskAssigneeIds.length === 0) {
                     alert("Veuillez sélectionner au moins un membre assigné.");
                     return;
                   }
-                  
-                  const serialized = serializeChoreTitle({
-                    title: newLocalTaskTitle,
-                    description: newLocalTaskDescription,
-                    priority: newLocalTaskPriority,
-                    status: 'todo',
-                    validationRequired: newLocalTaskValidationRequired,
-                    isArchived: false,
-                    time: newLocalTaskTime,
-                    rewardAmount: parseFloat(newLocalTaskRewardAmount) || 0,
-                    assignedMemberIds: newLocalTaskAssigneeIds,
-                    recurrence: newLocalTaskRotation as any
-                  });
 
-                  const firstAssigneeId = newLocalTaskAssigneeIds[0] || '';
-                  const firstAssigneeObj = members.find(m => m.id === firstAssigneeId);
-                  const assigneeName = newLocalTaskAssigneeIds.length > 1 
-                    ? `${newLocalTaskAssigneeIds.length} membres` 
-                    : (firstAssigneeObj ? firstAssigneeObj.name : 'Général');
+                  if (newLocalTaskAttributionMode === 'wall') {
+                    // Create task on the Wall
+                    const serialized = serializeChoreTitle({
+                      title: newLocalTaskTitle,
+                      description: newLocalTaskDescription,
+                      priority: newLocalTaskPriority,
+                      status: 'todo',
+                      validationRequired: newLocalTaskValidationRequired,
+                      isArchived: false,
+                      time: newLocalTaskTime,
+                      rewardAmount: parseFloat(newLocalTaskRewardAmount) || 0,
+                      assignedMemberIds: [],
+                      recurrence: newLocalTaskRotation as any,
+                      attributionMode: 'wall',
+                      maxParticipants: newLocalTaskMaxParticipants,
+                      selectionMode: newLocalTaskSelectionMode,
+                      difficulty: newLocalTaskDifficulty,
+                      category: newLocalTaskCategory,
+                      imageUrl: newLocalTaskImageUrl,
+                      estimatedTime: newLocalTaskEstimatedTime,
+                      isDailySpecial: newLocalTaskIsDailySpecial,
+                      xpReward: newLocalTaskXpReward,
+                      candidates: [],
+                      acceptedVolunteers: []
+                    });
 
-                  onAddTask({
-                    title: serialized,
-                    rewardPoints: Number(newLocalTaskPoints) || 0,
-                    rotation: newLocalTaskRotation,
-                    assignedMemberId: firstAssigneeId,
-                    assignedMemberName: assigneeName,
-                    done: false,
-                    validatedByParent: false,
-                    dueDate: newLocalTaskDueDate || new Date().toISOString().split('T')[0],
-                    rewardAmount: parseFloat(newLocalTaskRewardAmount) || undefined
-                  });
+                    onAddTask({
+                      title: serialized,
+                      rewardPoints: Number(newLocalTaskPoints) || 0,
+                      rotation: newLocalTaskRotation,
+                      assignedMemberId: '',
+                      assignedMemberName: 'Ouverte (Mur)',
+                      done: false,
+                      validatedByParent: false,
+                      dueDate: newLocalTaskDueDate || new Date().toISOString().split('T')[0],
+                      rewardAmount: parseFloat(newLocalTaskRewardAmount) || undefined
+                    });
+                  } else if (newLocalTaskAttributionMode === 'multiple') {
+                    // Create a separate task for each selected member
+                    newLocalTaskAssigneeIds.forEach(memberId => {
+                      const memberObj = members.find(m => m.id === memberId);
+                      const assigneeName = memberObj ? memberObj.name : 'Membre';
+                      const serialized = serializeChoreTitle({
+                        title: newLocalTaskTitle,
+                        description: newLocalTaskDescription,
+                        priority: newLocalTaskPriority,
+                        status: 'todo',
+                        validationRequired: newLocalTaskValidationRequired,
+                        isArchived: false,
+                        time: newLocalTaskTime,
+                        rewardAmount: parseFloat(newLocalTaskRewardAmount) || 0,
+                        assignedMemberIds: [memberId],
+                        recurrence: newLocalTaskRotation as any,
+                        attributionMode: 'single'
+                      });
 
+                      onAddTask({
+                        title: serialized,
+                        rewardPoints: Number(newLocalTaskPoints) || 0,
+                        rotation: newLocalTaskRotation,
+                        assignedMemberId: memberId,
+                        assignedMemberName: assigneeName,
+                        done: false,
+                        validatedByParent: false,
+                        dueDate: newLocalTaskDueDate || new Date().toISOString().split('T')[0],
+                        rewardAmount: parseFloat(newLocalTaskRewardAmount) || undefined
+                      });
+                    });
+                  } else {
+                    // Single assignment
+                    const firstAssigneeId = newLocalTaskAssigneeIds[0] || '';
+                    const firstAssigneeObj = members.find(m => m.id === firstAssigneeId);
+                    const assigneeName = firstAssigneeObj ? firstAssigneeObj.name : 'Général';
+                    const serialized = serializeChoreTitle({
+                      title: newLocalTaskTitle,
+                      description: newLocalTaskDescription,
+                      priority: newLocalTaskPriority,
+                      status: 'todo',
+                      validationRequired: newLocalTaskValidationRequired,
+                      isArchived: false,
+                      time: newLocalTaskTime,
+                      rewardAmount: parseFloat(newLocalTaskRewardAmount) || 0,
+                      assignedMemberIds: [firstAssigneeId],
+                      recurrence: newLocalTaskRotation as any,
+                      attributionMode: 'single'
+                    });
+
+                    onAddTask({
+                      title: serialized,
+                      rewardPoints: Number(newLocalTaskPoints) || 0,
+                      rotation: newLocalTaskRotation,
+                      assignedMemberId: firstAssigneeId,
+                      assignedMemberName: assigneeName,
+                      done: false,
+                      validatedByParent: false,
+                      dueDate: newLocalTaskDueDate || new Date().toISOString().split('T')[0],
+                      rewardAmount: parseFloat(newLocalTaskRewardAmount) || undefined
+                    });
+                  }
+
+                  // Reset states
                   setNewLocalTaskTitle('');
                   setNewLocalTaskRewardAmount('');
                   setNewLocalTaskDescription('');
@@ -3445,9 +3542,18 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   setNewLocalTaskPriority('medium');
                   setNewLocalTaskValidationRequired(true);
                   setNewLocalTaskAssigneeIds([]);
-                  alert(`🧹 Mission "${newLocalTaskTitle}" créée !`);
+                  setNewLocalTaskAttributionMode('single');
+                  setNewLocalTaskMaxParticipants(1);
+                  setNewLocalTaskSelectionMode('first_come');
+                  setNewLocalTaskDifficulty('medium');
+                  setNewLocalTaskCategory('Divers');
+                  setNewLocalTaskImageUrl('');
+                  setNewLocalTaskEstimatedTime('');
+                  setNewLocalTaskIsDailySpecial(false);
+                  setNewLocalTaskXpReward(20);
+                  alert(`🧹 Mission "${newLocalTaskTitle}" créée avec succès !`);
                 }}
-                className="glass-panel border border-[#6C5CFF]/20 rounded-[28px] p-5 space-y-4 text-left font-sans"
+                className="glass-panel border border-[#6C5CFF]/20 rounded-[28px] p-5 space-y-4 text-left font-sans animate-fade-in"
               >
                 <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block flex items-center space-x-1.5">
                   <Plus className="w-3.5 h-3.5 text-[#6C5CFF]" />
@@ -3456,7 +3562,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left font-medium">
                   <div>
-                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Intitulé de la tâche</label>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Intitulé de la tâche / mission</label>
                     <input
                       type="text"
                       required
@@ -3467,8 +3573,25 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     />
                   </div>
 
-                  <div className="flex flex-col text-left">
-                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Assigné à (Sélection multiple)</label>
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Mode d'attribution</label>
+                    <select
+                      value={newLocalTaskAttributionMode}
+                      onChange={(e) => setNewLocalTaskAttributionMode(e.target.value as any)}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                    >
+                      <option value="single">Assignation unique (Membre spécifique)</option>
+                      <option value="multiple">Assignations multiples (Clônée pour chacun)</option>
+                      <option value="wall">Ouverte à tous (Publiée sur le Mur) 🔥</option>
+                    </select>
+                  </div>
+                </div>
+
+                {newLocalTaskAttributionMode !== 'wall' && (
+                  <div className="flex flex-col text-left animate-slide-down">
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">
+                      {newLocalTaskAttributionMode === 'single' ? "Assigné à (Sélectionnez un membre)" : "Assigné à (Sélection multiple)"}
+                    </label>
                     <div className="flex flex-wrap gap-1.5 py-1 text-left">
                       {members.map(m => {
                         const checked = newLocalTaskAssigneeIds.includes(m.id);
@@ -3482,10 +3605,14 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                               type="checkbox"
                               checked={checked}
                               onChange={() => {
-                                if (checked) {
-                                  setNewLocalTaskAssigneeIds(prev => prev.filter(id => id !== m.id));
+                                if (newLocalTaskAttributionMode === 'single') {
+                                  setNewLocalTaskAssigneeIds([m.id]);
                                 } else {
-                                  setNewLocalTaskAssigneeIds(prev => [...prev, m.id]);
+                                  if (checked) {
+                                    setNewLocalTaskAssigneeIds(prev => prev.filter(id => id !== m.id));
+                                  } else {
+                                    setNewLocalTaskAssigneeIds(prev => [...prev, m.id]);
+                                  }
                                 }
                               }}
                               className="hidden"
@@ -3496,7 +3623,103 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                       })}
                     </div>
                   </div>
-                </div>
+                )}
+
+                {newLocalTaskAttributionMode === 'wall' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left font-medium animate-slide-down">
+                    <div>
+                      <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Participants max</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={newLocalTaskMaxParticipants}
+                        onChange={(e) => setNewLocalTaskMaxParticipants(Number(e.target.value))}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Règle d'attribution</label>
+                      <select
+                        value={newLocalTaskSelectionMode}
+                        onChange={(e) => setNewLocalTaskSelectionMode(e.target.value as any)}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                      >
+                        <option value="first_come">Premier arrivé, premier servi (direct)</option>
+                        <option value="approval">Sur candidature (validation parentale)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Catégorie</label>
+                      <select
+                        value={newLocalTaskCategory}
+                        onChange={(e) => setNewLocalTaskCategory(e.target.value)}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                      >
+                        <option value="Ménage">Ménage 🧹</option>
+                        <option value="Cuisine">Cuisine 🍳</option>
+                        <option value="Jardinage">Jardinage 🌱</option>
+                        <option value="Courses">Courses 🛒</option>
+                        <option value="Bricolage">Bricolage 🔨</option>
+                        <option value="Animaux">Animaux 🐾</option>
+                        <option value="Divers">Divers 📦</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Difficulté</label>
+                      <select
+                        value={newLocalTaskDifficulty}
+                        onChange={(e) => setNewLocalTaskDifficulty(e.target.value as any)}
+                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                      >
+                        <option value="easy">Facile 🟢</option>
+                        <option value="medium">Moyenne 🟡</option>
+                        <option value="hard">Difficile 🔴</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Durée estimée</label>
+                      <input
+                        type="text"
+                        placeholder="ex: 30 min, 1h..."
+                        value={newLocalTaskEstimatedTime}
+                        onChange={(e) => setNewLocalTaskEstimatedTime(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">XP Récompensée</label>
+                      <input
+                        type="number"
+                        value={newLocalTaskXpReward}
+                        onChange={(e) => setNewLocalTaskXpReward(Number(e.target.value))}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none"
+                      />
+                    </div>
+                    <div className="sm:col-span-3">
+                      <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">URL de l'image (optionnelle)</label>
+                      <input
+                        type="text"
+                        placeholder="https://..."
+                        value={newLocalTaskImageUrl}
+                        onChange={(e) => setNewLocalTaskImageUrl(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none"
+                      />
+                    </div>
+                    <div className="sm:col-span-3 flex items-center space-x-2 py-2">
+                      <input
+                        type="checkbox"
+                        id="newLocalTaskIsDailySpecial"
+                        checked={newLocalTaskIsDailySpecial}
+                        onChange={(e) => setNewLocalTaskIsDailySpecial(e.target.checked)}
+                        className="rounded bg-[#07111F] border-white/10 text-[#6C5CFF] focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
+                      />
+                      <label htmlFor="newLocalTaskIsDailySpecial" className="text-xs font-bold text-white cursor-pointer select-none">
+                        ⭐ Mettre en valeur comme "Mission du jour"
+                      </label>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 gap-3">
                   <div>
@@ -3634,12 +3857,13 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 </div>
               </div>
             )}
-
-            {/* Sub-tabs for Chores view */}
-            <div className="flex space-x-2 border-b border-white/5 pb-2 text-left">
+            <div className="flex space-x-2 border-b border-white/5 pb-2 text-left items-center flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => setChoresActiveSubTab('actives')}
+                onClick={() => {
+                  setChoresActiveSubTab('actives');
+                  setChoreHistoryFilter('all');
+                }}
                 className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
                   choresActiveSubTab === 'actives' 
                     ? 'bg-[#6C5CFF] text-white shadow-md' 
@@ -3657,234 +3881,381 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     : 'text-white/40 hover:text-white/60 bg-white/5'
                 }`}
               >
-                Historique des Validées ({archivedParsedTasks.length})
+                Historique & Filtres ({archivedParsedTasks.length})
               </button>
             </div>
+
+            {/* History filters */}
+            {choresActiveSubTab === 'historique' && (
+              <div className="flex flex-wrap gap-1.5 p-2 bg-white/5 rounded-2xl border border-white/5 text-left animate-slide-down">
+                {[
+                  { id: 'all', label: 'Toutes les Archivées' },
+                  { id: 'wall', label: 'Missions Ouvertes (Mur)' },
+                  { id: 'accepted', label: 'Missions Acceptées / En cours' },
+                  { id: 'validated', label: 'Missions Validées' },
+                  { id: 'refused', label: 'Missions Refusées' }
+                ].map(f => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setChoreHistoryFilter(f.id as any)}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                      choreHistoryFilter === f.id
+                        ? 'bg-[#6C5CFF] text-white shadow-sm'
+                        : 'text-white/50 hover:text-white/70 hover:bg-white/5'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Tasks List */}
             <div className="space-y-3 text-left">
               <h3 className="text-xs font-bold text-white uppercase tracking-wider px-1 text-left">
-                {choresActiveSubTab === 'actives' ? 'Tableau de répartition' : 'Missions Validées & Archivées'}
+                {choresActiveSubTab === 'actives' ? 'Tableau de répartition' : `Missions : ${
+                  choreHistoryFilter === 'wall' ? 'Ouvertes' :
+                  choreHistoryFilter === 'accepted' ? 'Acceptées / En cours' :
+                  choreHistoryFilter === 'validated' ? 'Validées' :
+                  choreHistoryFilter === 'refused' ? 'Refusées' : 'Toutes les Archivées'
+                }`}
               </h3>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {(choresActiveSubTab === 'actives' ? activeParsedTasks : archivedParsedTasks).map((task) => {
-                  if (editingTaskId === task.id) {
+                {(() => {
+                  const filteredTasks = parsedChores.filter(t => {
+                    if (choresActiveSubTab === 'actives') {
+                      return !t.isArchived;
+                    } else {
+                      switch (choreHistoryFilter) {
+                        case 'wall':
+                          return t.attributionMode === 'wall' && !t.isArchived;
+                        case 'accepted':
+                          return t.id.startsWith('tk-vol-') && !t.validatedByParent;
+                        case 'validated':
+                          return t.status === 'validated' || t.validatedByParent;
+                        case 'refused':
+                          return t.status === 'refused';
+                        case 'all':
+                        default:
+                          return t.isArchived;
+                      }
+                    }
+                  });
+
+                  return filteredTasks.map((task) => {
+                    if (editingTaskId === task.id) {
+                      return (
+                        <div 
+                          key={task.id}
+                          className="glass-panel rounded-[28px] p-4 border border-[#6C5CFF]/30 bg-[#6C5CFF]/5 flex flex-col justify-between space-y-3"
+                        >
+                          <div className="space-y-2">
+                            <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block">Titre de la tâche</label>
+                            <input
+                              type="text"
+                              value={editTaskTitle}
+                              onChange={(e) => setEditTaskTitle(e.target.value)}
+                              className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                              placeholder="Faire la vaisselle..."
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block mb-1">Points</label>
+                              <input
+                                type="number"
+                                value={editTaskPoints}
+                                onChange={(e) => setEditTaskPoints(parseInt(e.target.value) || 0)}
+                                className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1 text-xs text-white focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block mb-1">Périodicité</label>
+                              <select
+                                value={editTaskRotation}
+                                onChange={(e) => setEditTaskRotation(e.target.value as any)}
+                                className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                              >
+                                <option value="daily">Quotidienne</option>
+                                <option value="weekly">Hebdomadaire</option>
+                                <option value="none">Ponctuelle</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block mb-1">Assigné à</label>
+                            <select
+                              value={editTaskAssigneeId}
+                              onChange={(e) => setEditTaskAssigneeId(e.target.value)}
+                              className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                            >
+                              {members.map(m => (
+                                <option key={m.id} value={m.id}>{m.name}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex items-center justify-end space-x-2 pt-2 border-t border-white/5">
+                            <button
+                              type="button"
+                              onClick={() => setEditingTaskId(null)}
+                              className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 hover:text-white text-[10px] font-bold transition-all cursor-pointer"
+                            >
+                              Annuler
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const assignee = members.find(m => m.id === editTaskAssigneeId);
+                                const originalTask = tasks.find(t => t.id === task.id);
+                                const originalMeta = parseChoreTitle(originalTask?.title || '');
+                                const updatedMeta = {
+                                  ...originalMeta,
+                                  title: editTaskTitle,
+                                  recurrence: editTaskRotation
+                                };
+                                const serialized = serializeChoreTitle(updatedMeta);
+
+                                onEditTask(
+                                  task.id,
+                                  serialized,
+                                  editTaskPoints,
+                                  editTaskRotation,
+                                  editTaskAssigneeId,
+                                  assignee ? assignee.name : 'Général'
+                                );
+                                setEditingTaskId(null);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-[#6C5CFF] text-white text-[10px] font-bold hover:bg-[#5849E0] transition-all cursor-pointer shadow-md"
+                            >
+                              Sauver
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    const isWallTask = task.attributionMode === 'wall';
+                    const hasImage = isWallTask && task.imageUrl;
+
                     return (
                       <div 
                         key={task.id}
-                        className="glass-panel rounded-[28px] p-4 border border-[#6C5CFF]/30 bg-[#6C5CFF]/5 flex flex-col justify-between space-y-3"
+                        className={`glass-panel rounded-[28px] p-4 border flex flex-col justify-between min-h-[160px] h-auto transition-all relative group text-left ${
+                          task.status === 'validated' || task.validatedByParent 
+                            ? 'border-[#00D26A]/30 bg-[#00D26A]/5 opacity-70' 
+                            : task.status === 'pending_validation'
+                              ? 'border-[#FFB020]/30 bg-[#FFB020]/5' 
+                              : task.status === 'refused'
+                                ? 'border-[#FF4D6D]/30 bg-[#FF4D6D]/5'
+                                : isWallTask
+                                  ? 'border-[#6C5CFF]/30 bg-[#161B30]/40'
+                                  : 'border-white/8'
+                        }`}
                       >
-                        <div className="space-y-2">
-                          <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block">Titre de la tâche</label>
-                          <input
-                            type="text"
-                            value={editTaskTitle}
-                            onChange={(e) => setEditTaskTitle(e.target.value)}
-                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
-                            placeholder="Faire la vaisselle..."
-                          />
+                        {/* Parent Hover/Group Quick Edit/Delete Actions */}
+                        {isParent && choresActiveSubTab === 'actives' && (getPermission('taches', 'modifier') || getPermission('taches', 'supprimer')) && (
+                          <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1 z-20">
+                            {getPermission('taches', 'modifier') && !isWallTask && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingTaskId(task.id);
+                                  setEditTaskTitle(task.title);
+                                  setEditTaskPoints(task.rewardPoints);
+                                  setEditTaskRotation(task.recurrence);
+                                  setEditTaskAssigneeId(task.assignedMemberId);
+                                }}
+                                className="p-1.5 bg-white/5 hover:bg-[#6C5CFF]/20 border border-white/10 hover:border-[#6C5CFF]/30 text-white hover:text-[#9E94FF] rounded-lg transition active:scale-95 cursor-pointer"
+                                title="Modifier la tâche"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                              </button>
+                            )}
+                            {getPermission('taches', 'supprimer') && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteTask(task.id);
+                                }}
+                                className="p-1.5 bg-white/5 hover:bg-[#FF3B30]/25 border border-white/10 hover:border-[#FF3B30]/40 text-white hover:text-[#FF3B30] rounded-lg transition active:scale-95 cursor-pointer"
+                                title="Supprimer la tâche"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="flex items-start justify-between space-x-3">
+                          <div className="space-y-1.5 flex-1">
+                            <div className="flex items-center flex-wrap gap-1.5">
+                              {task.isDailySpecial && (
+                                <span className="text-[8px] font-black text-white uppercase tracking-widest bg-gradient-to-r from-[#FFB020] to-[#FF4D6D] px-2 py-0.5 rounded-lg border border-white/10">
+                                  ⭐ Mission du jour
+                                </span>
+                              )}
+                              <span className="text-[8px] font-extrabold text-[#6C5CFF] uppercase tracking-widest bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 px-2 py-0.5 rounded-lg">
+                                {isWallTask ? 'Mur des tâches' : (task.recurrence === 'daily' ? 'Quotidienne' : task.recurrence === 'weekly' ? 'Hebdo' : 'Ponctuel')}
+                              </span>
+                              <span className={`text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-lg ${
+                                task.priority === 'high' 
+                                  ? 'text-[#FF4D6D] bg-[#FF4D6D]/10 border border-[#FF4D6D]/20' 
+                                  : task.priority === 'low' 
+                                    ? 'text-white/40 bg-white/5 border border-white/5' 
+                                    : 'text-[#9e94ff] bg-[#6C5CFF]/10 border border-[#6C5CFF]/10'
+                              }`}>
+                                {task.priority === 'high' ? 'Urgent' : task.priority === 'low' ? 'Priorité Basse' : 'Normal'}
+                              </span>
+                            </div>
+
+                            {hasImage && (
+                              <div className="w-full h-20 rounded-xl overflow-hidden my-1.5 border border-white/5 bg-white/5">
+                                <img src={task.imageUrl} alt={task.title} className="w-full h-full object-cover" />
+                              </div>
+                            )}
+                            
+                            <h4 className={`text-xs sm:text-sm font-bold text-white mt-1 ${task.done && task.validatedByParent ? 'line-through text-white/40' : ''}`}>
+                              {task.title}
+                            </h4>
+                            {task.description && (
+                              <p className="text-[10px] text-white/50 mt-0.5 leading-relaxed">{task.description}</p>
+                            )}
+
+                            {isWallTask && (
+                              <div className="flex flex-wrap gap-1.5 mt-2 pt-1 text-[9px] text-white/60 font-medium">
+                                <span className="bg-white/5 border border-white/5 px-1.5 py-0.5 rounded-md flex items-center">📂 {task.category}</span>
+                                <span className="bg-white/5 border border-white/5 px-1.5 py-0.5 rounded-md flex items-center">⚡ {task.difficulty === 'easy' ? 'Facile' : task.difficulty === 'hard' ? 'Difficile' : 'Moyen'}</span>
+                                {task.estimatedTime && <span className="bg-white/5 border border-white/5 px-1.5 py-0.5 rounded-md flex items-center">⏱️ {task.estimatedTime}</span>}
+                                {task.xpReward && <span className="bg-[#6C5CFF]/10 border border-[#6C5CFF]/10 text-[#9e94ff] px-1.5 py-0.5 rounded-md flex items-center">✨ +{task.xpReward} XP</span>}
+                                <span className="bg-white/5 border border-white/5 px-1.5 py-0.5 rounded-md flex items-center">👥 {task.acceptedVolunteers?.length || 0} / {task.maxParticipants} pris</span>
+                              </div>
+                            )}
+
+                            {task.status === 'refused' && (
+                              <p className="text-[9px] text-[#FF4D6D] font-extrabold mt-1">❌ À corriger par l'enfant</p>
+                            )}
+                          </div>
+                          
+                          <div className="flex flex-col items-end shrink-0 space-y-1">
+                            <span className="text-[10px] font-extrabold text-[#FFB020] bg-[#FFB020]/10 border border-[#FFB020]/20 px-2 py-0.5 rounded-lg mr-8 sm:mr-0">
+                              +{task.rewardPoints} Pts
+                            </span>
+                            {task.rewardAmount ? (
+                              <span className="text-[10px] font-extrabold text-[#00D26A] bg-[#00D26A]/10 border border-[#00D26A]/20 px-2 py-0.5 rounded-lg mr-8 sm:mr-0">
+                                +{formatMoney(task.rewardAmount)}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block mb-1">Points</label>
-                            <input
-                              type="number"
-                              value={editTaskPoints}
-                              onChange={(e) => setEditTaskPoints(parseInt(e.target.value) || 0)}
-                              className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1 text-xs text-white focus:outline-none"
-                            />
+                        {/* Candidates Approval block */}
+                        {isParent && isWallTask && (task.candidates || []).length > 0 && (
+                          <div className="mt-3 bg-white/5 border border-white/10 rounded-2xl p-3 space-y-2 w-full text-left">
+                            <p className="text-[9px] font-extrabold text-[#FFB020] uppercase tracking-wider">Candidatures en attente :</p>
+                            <div className="space-y-1.5">
+                              {(task.candidates || []).map((candidateId: string) => {
+                                const cand = members.find(m => m.id === candidateId);
+                                return (
+                                  <div key={candidateId} className="flex items-center justify-between text-xs py-1.5 border-b border-white/5 last:border-0 last:pb-0">
+                                    <span className="font-bold text-white">{cand ? cand.name : 'Un enfant'}</span>
+                                    <div className="flex space-x-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => onRefuseCandidate?.(task.id, candidateId)}
+                                        className="px-2.5 py-1 rounded-xl bg-[#FF4D6D] text-white text-[9px] font-bold hover:opacity-90 transition-all cursor-pointer shadow-md"
+                                      >
+                                        Refuser
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => onAcceptCandidate?.(task.id, candidateId)}
+                                        className="px-2.5 py-1 rounded-xl bg-[#00D26A] text-white text-[9px] font-bold hover:opacity-90 transition-all cursor-pointer shadow-md"
+                                      >
+                                        Accepter
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                          <div>
-                            <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block mb-1">Périodicité</label>
-                            <select
-                              value={editTaskRotation}
-                              onChange={(e) => setEditTaskRotation(e.target.value as any)}
-                              className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                        )}
+
+                        <div className="flex items-center justify-between pt-3 border-t border-white/5 mt-3">
+                          <span className="text-[10px] text-white/50">
+                            {isWallTask ? 'Attribution :' : 'Assigné :'} <strong className="text-white">{isWallTask ? 'Mur / Ouverte' : task.assignedMemberName}</strong>
+                          </span>
+                          {task.status === 'validated' || task.validatedByParent ? (
+                            <span className="text-[10px] font-bold text-[#00D26A] flex items-center space-x-1">
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              <span>Validé</span>
+                            </span>
+                          ) : task.status === 'pending_validation' ? (
+                            <div className="flex space-x-1.5">
+                              <button 
+                                onClick={() => handleRefuseTask(task.id)}
+                                className="px-2.5 py-1 rounded-xl bg-[#FF4D6D] text-white text-[10px] font-bold hover:opacity-90 transition-all cursor-pointer"
+                              >
+                                Refuser
+                              </button>
+                              <button 
+                                onClick={() => onValidateTask(task.id)}
+                                className="px-2.5 py-1 rounded-xl bg-[#00D26A] text-white text-[10px] font-bold hover:opacity-90 transition-all cursor-pointer"
+                              >
+                                Valider
+                              </button>
+                            </div>
+                          ) : task.status === 'refused' ? (
+                            <span className="text-[10px] font-bold text-[#FF4D6D] italic">Refusé (correction)</span>
+                          ) : !isWallTask && getPermission('taches', 'modifier') ? (
+                            <button 
+                              onClick={() => onToggleTask(task.id)}
+                              className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:text-white text-[10px] font-bold cursor-pointer"
                             >
-                              <option value="daily">Quotidienne</option>
-                              <option value="weekly">Hebdomadaire</option>
-                              <option value="none">Ponctuelle</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block mb-1">Assigné à</label>
-                          <select
-                            value={editTaskAssigneeId}
-                            onChange={(e) => setEditTaskAssigneeId(e.target.value)}
-                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
-                          >
-                            {members.map(m => (
-                              <option key={m.id} value={m.id}>{m.name}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="flex items-center justify-end space-x-2 pt-2 border-t border-white/5">
-                          <button
-                            type="button"
-                            onClick={() => setEditingTaskId(null)}
-                            className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 hover:text-white text-[10px] font-bold transition-all cursor-pointer"
-                          >
-                            Annuler
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const assignee = members.find(m => m.id === editTaskAssigneeId);
-                              const originalTask = tasks.find(t => t.id === task.id);
-                              const originalMeta = parseChoreTitle(originalTask?.title || '');
-                              const updatedMeta = {
-                                ...originalMeta,
-                                title: editTaskTitle,
-                                recurrence: editTaskRotation
-                              };
-                              const serialized = serializeChoreTitle(updatedMeta);
-
-                              onEditTask(
-                                task.id,
-                                serialized,
-                                editTaskPoints,
-                                editTaskRotation,
-                                editTaskAssigneeId,
-                                assignee ? assignee.name : 'Général'
-                              );
-                              setEditingTaskId(null);
-                            }}
-                            className="px-3 py-1.5 rounded-xl bg-[#6C5CFF] text-white text-[10px] font-bold hover:bg-[#5849E0] transition-all cursor-pointer shadow-md"
-                          >
-                            Sauver
-                          </button>
+                              Marquer fait
+                            </button>
+                          ) : isWallTask ? (
+                            <span className="text-[10px] text-white/40 font-bold bg-white/5 px-2.5 py-0.5 rounded-lg border border-white/5">Ouverte</span>
+                          ) : (
+                            <span className="text-[10px] text-white/30 italic">Non autorisé</span>
+                          )}
                         </div>
                       </div>
                     );
-                  }
-
-                  return (
-                    <div 
-                      key={task.id}
-                      className={`glass-panel rounded-[28px] p-4 border flex flex-col justify-between h-[150px] transition-all relative group text-left ${
-                        task.status === 'validated' || task.validatedByParent 
-                          ? 'border-[#00D26A]/30 bg-[#00D26A]/5 opacity-70' 
-                          : task.status === 'pending_validation'
-                            ? 'border-[#FFB020]/30 bg-[#FFB020]/5' 
-                            : task.status === 'refused'
-                              ? 'border-[#FF4D6D]/30 bg-[#FF4D6D]/5'
-                              : 'border-white/8'
-                      }`}
-                    >
-                      {/* Parent Hover/Group Quick Edit/Delete Actions */}
-                      {isParent && choresActiveSubTab === 'actives' && (getPermission('taches', 'modifier') || getPermission('taches', 'supprimer')) && (
-                        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1 z-20">
-                          {getPermission('taches', 'modifier') && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingTaskId(task.id);
-                                setEditTaskTitle(task.title);
-                                setEditTaskPoints(task.rewardPoints);
-                                setEditTaskRotation(task.recurrence);
-                                setEditTaskAssigneeId(task.assignedMemberId);
-                              }}
-                              className="p-1.5 bg-white/5 hover:bg-[#6C5CFF]/20 border border-white/10 hover:border-[#6C5CFF]/30 text-white hover:text-[#9E94FF] rounded-lg transition active:scale-95 cursor-pointer"
-                              title="Modifier la tâche"
-                            >
-                              <Edit3 className="w-3 h-3" />
-                            </button>
-                          )}
-                          {getPermission('taches', 'supprimer') && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDeleteTask(task.id);
-                              }}
-                              className="p-1.5 bg-white/5 hover:bg-[#FF3B30]/25 border border-white/10 hover:border-[#FF3B30]/40 text-white hover:text-[#FF3B30] rounded-lg transition active:scale-95 cursor-pointer"
-                              title="Supprimer la tâche"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center space-x-1.5">
-                            <span className="text-[8px] font-extrabold text-[#6C5CFF] uppercase tracking-widest bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 px-2 py-0.5 rounded-lg">
-                              {task.recurrence === 'daily' ? 'Quotidienne' : task.recurrence === 'weekly' ? 'Hebdo' : 'Ponctuel'}
-                            </span>
-                            <span className={`text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-lg ${
-                              task.priority === 'high' 
-                                ? 'text-[#FF4D6D] bg-[#FF4D6D]/10 border border-[#FF4D6D]/20' 
-                                : task.priority === 'low' 
-                                  ? 'text-white/40 bg-white/5 border border-white/5' 
-                                  : 'text-[#9e94ff] bg-[#6C5CFF]/10 border border-[#6C5CFF]/10'
-                            }`}>
-                              {task.priority === 'high' ? 'Urgent' : task.priority === 'low' ? 'Priorité Basse' : 'Normal'}
-                            </span>
-                          </div>
-                          
-                          <h4 className={`text-xs sm:text-sm font-bold text-white mt-2 ${task.done && task.validatedByParent ? 'line-through text-white/40' : ''}`}>
-                            {task.title}
-                          </h4>
-                          {task.description && (
-                            <p className="text-[10px] text-white/50 mt-0.5 line-clamp-1">{task.description}</p>
-                          )}
-                          {task.status === 'refused' && (
-                            <p className="text-[9px] text-[#FF4D6D] font-extrabold mt-1">❌ À corriger par l'enfant</p>
-                          )}
-                        </div>
-                        <span className="text-[10px] font-extrabold text-[#FFB020] bg-[#FFB020]/10 border border-[#FFB020]/20 px-2 py-0.5 rounded-lg shrink-0 mr-8">
-                          +{task.rewardPoints} Pts
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-3 border-t border-white/5 mt-2">
-                        <span className="text-[10px] text-white/50">Assigné : <strong className="text-white">{task.assignedMemberName}</strong></span>
-                        {task.status === 'validated' || task.validatedByParent ? (
-                          <span className="text-[10px] font-bold text-[#00D26A] flex items-center space-x-1">
-                            <ShieldCheck className="w-3.5 h-3.5" />
-                            <span>Validé</span>
-                          </span>
-                        ) : task.status === 'pending_validation' ? (
-                          <div className="flex space-x-1.5">
-                            <button 
-                              onClick={() => handleRefuseTask(task.id)}
-                              className="px-2.5 py-1 rounded-xl bg-[#FF4D6D] text-white text-[10px] font-bold hover:opacity-90 transition-all cursor-pointer"
-                            >
-                              Refuser
-                            </button>
-                            <button 
-                              onClick={() => onValidateTask(task.id)}
-                              className="px-2.5 py-1 rounded-xl bg-[#00D26A] text-white text-[10px] font-bold hover:opacity-90 transition-all cursor-pointer"
-                            >
-                              Valider
-                            </button>
-                          </div>
-                        ) : task.status === 'refused' ? (
-                          <span className="text-[10px] font-bold text-[#FF4D6D] italic">Refusé (correction)</span>
-                        ) : getPermission('taches', 'modifier') ? (
-                          <button 
-                            onClick={() => onToggleTask(task.id)}
-                            className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:text-white text-[10px] font-bold cursor-pointer"
-                          >
-                            Marquer fait
-                          </button>
-                        ) : (
-                          <span className="text-[10px] text-white/30 italic">Non autorisé</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                  });
+                })()}
               </div>
               
-              {(choresActiveSubTab === 'actives' ? activeParsedTasks : archivedParsedTasks).length === 0 && (
-                <p className="text-xs text-white/30 text-center py-8">Aucune mission dans cette liste.</p>
-              )}
+              {(() => {
+                const count = parsedChores.filter(t => {
+                  if (choresActiveSubTab === 'actives') {
+                    return !t.isArchived;
+                  } else {
+                    switch (choreHistoryFilter) {
+                      case 'wall':
+                        return t.attributionMode === 'wall' && !t.isArchived;
+                      case 'accepted':
+                        return t.id.startsWith('tk-vol-') && !t.validatedByParent;
+                      case 'validated':
+                        return t.status === 'validated' || t.validatedByParent;
+                      case 'refused':
+                        return t.status === 'refused';
+                      case 'all':
+                      default:
+                        return t.isArchived;
+                    }
+                  }
+                }).length;
+
+                return count === 0 ? (
+                  <p className="text-xs text-white/30 text-center py-8">Aucune mission dans cette liste.</p>
+                ) : null;
+              })()}
             </div>
           </div>
         );

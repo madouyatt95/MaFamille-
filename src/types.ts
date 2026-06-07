@@ -268,6 +268,19 @@ export interface ChoreTask {
   time?: string;
   assignedMemberIds?: string[];
   recurrence?: 'daily' | 'weekly' | 'none';
+
+  // Task Wall properties
+  attributionMode?: 'single' | 'multiple' | 'wall';
+  maxParticipants?: number;
+  selectionMode?: 'first_come' | 'approval';
+  candidates?: string[];
+  acceptedVolunteers?: string[];
+  difficulty?: 'easy' | 'medium' | 'hard';
+  category?: string;
+  imageUrl?: string;
+  estimatedTime?: string;
+  isDailySpecial?: boolean;
+  xpReward?: number;
 }
 
 export interface ChoreTaskMetadata {
@@ -281,6 +294,19 @@ export interface ChoreTaskMetadata {
   rewardAmount?: number;
   assignedMemberIds?: string[];
   recurrence?: 'daily' | 'weekly' | 'none';
+
+  // Task Wall properties
+  attributionMode?: 'single' | 'multiple' | 'wall';
+  maxParticipants?: number;
+  selectionMode?: 'first_come' | 'approval';
+  candidates?: string[];
+  acceptedVolunteers?: string[];
+  difficulty?: 'easy' | 'medium' | 'hard';
+  category?: string;
+  imageUrl?: string;
+  estimatedTime?: string;
+  isDailySpecial?: boolean;
+  xpReward?: number;
 }
 
 export function parseChoreTitle(rawTitle: string): ChoreTaskMetadata {
@@ -298,7 +324,18 @@ export function parseChoreTitle(rawTitle: string): ChoreTaskMetadata {
           time: data.time || '',
           rewardAmount: data.rewardAmount || 0,
           assignedMemberIds: Array.isArray(data.assignedMemberIds) ? data.assignedMemberIds : [],
-          recurrence: data.recurrence || 'none'
+          recurrence: data.recurrence || 'none',
+          attributionMode: data.attributionMode || 'single',
+          maxParticipants: data.maxParticipants || 1,
+          selectionMode: data.selectionMode || 'first_come',
+          candidates: Array.isArray(data.candidates) ? data.candidates : [],
+          acceptedVolunteers: Array.isArray(data.acceptedVolunteers) ? data.acceptedVolunteers : [],
+          difficulty: data.difficulty || 'medium',
+          category: data.category || 'Divers',
+          imageUrl: data.imageUrl || '',
+          estimatedTime: data.estimatedTime || '',
+          isDailySpecial: !!data.isDailySpecial,
+          xpReward: data.xpReward
         };
       }
     } catch (e) {
@@ -315,7 +352,18 @@ export function parseChoreTitle(rawTitle: string): ChoreTaskMetadata {
     time: '',
     rewardAmount: 0,
     assignedMemberIds: [],
-    recurrence: 'none'
+    recurrence: 'none',
+    attributionMode: 'single',
+    maxParticipants: 1,
+    selectionMode: 'first_come',
+    candidates: [],
+    acceptedVolunteers: [],
+    difficulty: 'medium',
+    category: 'Divers',
+    imageUrl: '',
+    estimatedTime: '',
+    isDailySpecial: false,
+    xpReward: undefined
   };
 }
 
@@ -330,7 +378,18 @@ export function serializeChoreTitle(meta: ChoreTaskMetadata): string {
     time: meta.time || '',
     rewardAmount: meta.rewardAmount || 0,
     assignedMemberIds: meta.assignedMemberIds || [],
-    recurrence: meta.recurrence || 'none'
+    recurrence: meta.recurrence || 'none',
+    attributionMode: meta.attributionMode || 'single',
+    maxParticipants: meta.maxParticipants || 1,
+    selectionMode: meta.selectionMode || 'first_come',
+    candidates: meta.candidates || [],
+    acceptedVolunteers: meta.acceptedVolunteers || [],
+    difficulty: meta.difficulty || 'medium',
+    category: meta.category || 'Divers',
+    imageUrl: meta.imageUrl || '',
+    estimatedTime: meta.estimatedTime || '',
+    isDailySpecial: !!meta.isDailySpecial,
+    xpReward: meta.xpReward
   });
 }
 

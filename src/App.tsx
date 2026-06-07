@@ -9310,9 +9310,12 @@ function App() {
   const handleAddTask = (newTask: any) => {
     const id = `tk-${Date.now()}`;
     setTasks(prev => [{ ...newTask, id }, ...prev]);
+    const parsed = parseChoreTitle(newTask.title);
     sendLocalNotification(
-      "Nouvelle tâche assignée",
-      `🧹 La tâche "${newTask.title}" a été assignée à ${newTask.assignedMemberName || 'un membre'}.`,
+      parsed.attributionMode === 'wall' ? "Nouvelle mission publiée" : "Nouvelle tâche assignée",
+      parsed.attributionMode === 'wall' 
+        ? `🔥 Une nouvelle mission ouverte "${parsed.title}" est disponible sur le Mur des tâches !`
+        : `🧹 La tâche "${parsed.title}" a été assignée à ${newTask.assignedMemberName || 'un membre'}.`,
       "taches"
     );
   };
@@ -9907,6 +9910,13 @@ function App() {
         meta.title = meta.title || t.title;
         const serialized = serializeChoreTitle(meta);
 
+        // Notify validated task
+        sendLocalNotification(
+          "Mission validée 🎉",
+          `La mission "${meta.title || t.title}" a été validée par tes parents. Bien joué !`,
+          "taches"
+        );
+
         // Mettre à jour dans Supabase
         const client = getSupabaseClient();
         if (client) {
@@ -9929,6 +9939,200 @@ function App() {
       }
       return t;
     }));
+  };
+
+  const handleApplyWallTask = async (taskId: string, memberId: string) => {
+    const memberObj = appMembers.find(m => m.id === memberId);
+    const memberName = memberObj ? memberObj.name : 'Un membre';
+
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        const meta = parseChoreTitle(t.title);
+        const currentCandidates = meta.candidates || [];
+        if (currentCandidates.includes(memberId)) return t;
+        
+        const newCandidates = [...currentCandidates, memberId];
+        const updatedMeta = { ...meta, candidates: newCandidates };
+        const serialized = serializeChoreTitle(updatedMeta);
+
+        // Notify parents
+        sendLocalNotification(
+          "Nouvelle candidature 🙋‍♂️",
+          `${memberName} a postulé pour la mission "${meta.title}".`,
+          "taches"
+        );
+
+        return { ...t, title: serialized };
+      }
+      return t;
+    }));
+  };
+
+  const handleAcceptCandidate = async (taskId: string, memberId: string) => {
+    const memberObj = appMembers.find(m => m.id === memberId);
+    const memberName = memberObj ? memberObj.name : 'Un membre';
+
+    setTasks(prev => {
+      const task = prev.find(t => t.id === taskId);
+      if (!task) return prev;
+
+      const meta = parseChoreTitle(task.title);
+      const acceptedVolunteers = meta.acceptedVolunteers || [];
+      const maxParticipants = meta.maxParticipants || 1;
+
+      if (acceptedVolunteers.length >= maxParticipants) {
+        alert("Le nombre maximum de participants a déjà été atteint pour cette mission.");
+        return prev;
+      }
+
+      // Add to accepted, remove from candidates
+      const updatedVolunteers = [...acceptedVolunteers, memberId];
+      const updatedCandidates = (meta.candidates || []).filter(id => id !== memberId);
+      
+      const isFull = updatedVolunteers.length >= maxParticipants;
+      const updatedMeta = { 
+        ...meta, 
+        acceptedVolunteers: updatedVolunteers, 
+        candidates: updatedCandidates,
+        isArchived: isFull ? true : meta.isArchived
+      };
+      const serializedWall = serializeChoreTitle(updatedMeta);
+
+      // Create a cloned task for the child
+      const cloneId = `tk-vol-${memberId}-${Date.now()}`;
+      const clonedMeta = {
+        title: meta.title,
+        description: meta.description,
+        priority: meta.priority,
+        status: 'todo' as const,
+        validationRequired: meta.validationRequired,
+        isArchived: false,
+        time: meta.time,
+        rewardAmount: task.rewardAmount,
+        assignedMemberIds: [memberId],
+        recurrence: 'none' as const,
+        attributionMode: 'single' as const,
+        xpReward: meta.xpReward
+      };
+      const serializedClone = serializeChoreTitle(clonedMeta);
+
+      const clonedTask: ChoreTask = {
+        id: cloneId,
+        title: serializedClone,
+        rewardPoints: task.rewardPoints,
+        assignedMemberId: memberId,
+        assignedMemberName: memberName,
+        done: false,
+        rotation: 'none',
+        validatedByParent: false,
+        dueDate: task.dueDate,
+        rewardAmount: task.rewardAmount
+      };
+
+      // Notify the child
+      sendLocalNotification(
+        "Candidature acceptée 🎉",
+        `Félicitations ! Ta candidature pour la mission "${meta.title}" a été acceptée.`,
+        "taches"
+      );
+
+      // Update task list
+      return prev.map(t => t.id === taskId ? { ...t, title: serializedWall, isArchived: updatedMeta.isArchived } : t).concat(clonedTask);
+    });
+  };
+
+  const handleRefuseCandidate = async (taskId: string, memberId: string) => {
+    const targetTask = tasks.find(t => t.id === taskId);
+    const meta = targetTask ? parseChoreTitle(targetTask.title) : null;
+
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        const meta = parseChoreTitle(t.title);
+        const updatedCandidates = (meta.candidates || []).filter(id => id !== memberId);
+        const updatedMeta = { ...meta, candidates: updatedCandidates };
+        const serialized = serializeChoreTitle(updatedMeta);
+
+        // Notify child
+        sendLocalNotification(
+          "Candidature refusée ⏳",
+          `Ta candidature pour la mission "${meta.title}" n'a pas été retenue.`,
+          "taches"
+        );
+
+        return { ...t, title: serialized };
+      }
+      return t;
+    }));
+  };
+
+  const handleTakeWallTask = async (taskId: string, memberId: string) => {
+    const memberObj = appMembers.find(m => m.id === memberId);
+    const memberName = memberObj ? memberObj.name : 'Un membre';
+
+    setTasks(prev => {
+      const task = prev.find(t => t.id === taskId);
+      if (!task) return prev;
+
+      const meta = parseChoreTitle(task.title);
+      const acceptedVolunteers = meta.acceptedVolunteers || [];
+      const maxParticipants = meta.maxParticipants || 1;
+
+      if (acceptedVolunteers.length >= maxParticipants) {
+        alert("Cette mission a déjà été réservée.");
+        return prev;
+      }
+
+      // Add to accepted
+      const updatedVolunteers = [...acceptedVolunteers, memberId];
+      const isFull = updatedVolunteers.length >= maxParticipants;
+      const updatedMeta = { 
+        ...meta, 
+        acceptedVolunteers: updatedVolunteers, 
+        isArchived: isFull ? true : meta.isArchived
+      };
+      const serializedWall = serializeChoreTitle(updatedMeta);
+
+      // Create a cloned task for the child
+      const cloneId = `tk-vol-${memberId}-${Date.now()}`;
+      const clonedMeta = {
+        title: meta.title,
+        description: meta.description,
+        priority: meta.priority,
+        status: 'todo' as const,
+        validationRequired: meta.validationRequired,
+        isArchived: false,
+        time: meta.time,
+        rewardAmount: task.rewardAmount,
+        assignedMemberIds: [memberId],
+        recurrence: 'none' as const,
+        attributionMode: 'single' as const,
+        xpReward: meta.xpReward
+      };
+      const serializedClone = serializeChoreTitle(clonedMeta);
+
+      const clonedTask: ChoreTask = {
+        id: cloneId,
+        title: serializedClone,
+        rewardPoints: task.rewardPoints,
+        assignedMemberId: memberId,
+        assignedMemberName: memberName,
+        done: false,
+        rotation: 'none',
+        validatedByParent: false,
+        dueDate: task.dueDate,
+        rewardAmount: task.rewardAmount
+      };
+
+      // Notify family/parent
+      sendLocalNotification(
+        "Mission réservée 🚀",
+        `${memberName} a pris la mission "${meta.title}".`,
+        "taches"
+      );
+
+      // Update task list
+      return prev.map(t => t.id === taskId ? { ...t, title: serializedWall, isArchived: updatedMeta.isArchived } : t).concat(clonedTask);
+    });
   };
 
   const handleToggleGrocery = async (id: string) => {
@@ -10778,6 +10982,12 @@ function App() {
           onDeleteTask={handleDeleteTask}
           onEditTask={handleEditTask}
           onValidateTask={handleValidateTask}
+          onApplyWallTask={handleApplyWallTask}
+          onAcceptCandidate={handleAcceptCandidate}
+          onRefuseCandidate={handleRefuseCandidate}
+          onTakeWallTask={handleTakeWallTask}
+          onSendNotification={sendLocalNotification}
+          onToggleTask={handleToggleTask}
           goals={appSavingGoals}
           setSavingGoals={setSavingGoals}
           transactions={appTransactions}
@@ -10971,6 +11181,9 @@ function App() {
               transactions={appTransactions}
               savingGoals={savingGoals}
               setSavingGoals={setSavingGoals}
+              onApplyWallTask={handleApplyWallTask}
+              onTakeWallTask={handleTakeWallTask}
+              onSendNotification={sendLocalNotification}
             />
           );
         }
@@ -11126,6 +11339,9 @@ function App() {
                   onAddGrocery={handleToggleGrocery}
                   onToggleTask={handleToggleTask}
                   onValidateTask={handleValidateTask}
+                  onAcceptCandidate={handleAcceptCandidate}
+                  onRefuseCandidate={handleRefuseCandidate}
+                  onSendNotification={sendLocalNotification}
                   onToggleGrocery={handleToggleGrocery}
                   onAddGroceryItem={handleAddGroceryItem}
                   onDeleteGroceryItem={handleDeleteGroceryItem}
@@ -11355,6 +11571,9 @@ function App() {
                   onAddGrocery={handleToggleGrocery}
                   onToggleTask={handleToggleTask}
                   onValidateTask={handleValidateTask}
+                  onAcceptCandidate={handleAcceptCandidate}
+                  onRefuseCandidate={handleRefuseCandidate}
+                  onSendNotification={sendLocalNotification}
                   onToggleGrocery={handleToggleGrocery}
                   onAddGroceryItem={handleAddGroceryItem}
                   onDeleteGroceryItem={handleDeleteGroceryItem}
@@ -11563,6 +11782,9 @@ function App() {
           onAddGrocery={handleToggleGrocery}
           onToggleTask={handleToggleTask}
           onValidateTask={handleValidateTask}
+          onAcceptCandidate={handleAcceptCandidate}
+          onRefuseCandidate={handleRefuseCandidate}
+          onSendNotification={sendLocalNotification}
           onToggleGrocery={handleToggleGrocery}
           onAddGroceryItem={handleAddGroceryItem}
           onDeleteGroceryItem={handleDeleteGroceryItem}
