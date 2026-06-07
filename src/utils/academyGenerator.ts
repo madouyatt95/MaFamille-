@@ -707,6 +707,122 @@ export function generateQuestionForLesson(
     };
   }
 
+  if (lessonId === 'les_geo_oceans') {
+    const list = [
+      { q: "Quel est le plus grand océan de la Terre ?", ans: "L'océan Pacifique", opt: ["L'océan Pacifique", "L'océan Atlantique", "L'océan Indien", "L'océan Arctique"], exp: "L'océan Pacifique couvre environ 30% de la surface de la Terre." },
+      { q: "Combien y a-t-il de continents sur Terre ?", ans: "6", opt: ["6", "5", "7", "8"], exp: "Il y a 6 grands continents : Asie, Afrique, Amérique, Europe, Océanie, Antarctique." },
+      { q: "Sur quel continent se trouve l'Égypte ?", ans: "L'Afrique", opt: ["L'Afrique", "L'Asie", "L'Europe", "L'Amérique"], exp: "L'Égypte est située dans le nord-est de l'Afrique." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Géographie',
+      competence: 'culture',
+      chapitre: 'Océans et Continents',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "C'est une grande étendue d'eau ou de terre.",
+      difficulte: 1,
+      xp: 10,
+      etoiles: 1
+    };
+  }
+
+  if (lessonId === 'les_lecture_recit') {
+    const list = [
+      { q: "Comment s'appelle le personnage principal d'une histoire ?", ans: "Le héros ou l'héroïne", opt: ["Le héros ou l'héroïne", "L'opposant", "Le narrateur", "L'allié"], exp: "Le héros ou l'héroïne mène l'histoire et réalise la quête." },
+      { q: "Quel personnage aide le héros dans sa mission ?", ans: "L'allié", opt: ["L'allié", "L'opposant", "L'antagoniste", "Le figurant"], exp: "Les alliés soutiennent le héros dans ses épreuves." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Lecture',
+      competence: 'lecture',
+      chapitre: 'Récits',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "Pense au rôle qu'il joue pour ou contre le personnage principal.",
+      difficulte: 1,
+      xp: 10,
+      etoiles: 1
+    };
+  }
+
+  if (lessonId === 'les_culture_instruments') {
+    const list = [
+      { q: "À quelle famille appartient la guitare ?", ans: "Les cordes", opt: ["Les cordes", "Les vents", "Les percussions", "Les cuivres"], exp: "Le musicien pince les cordes de la guitare pour produire des notes." },
+      { q: "Lequel de ces instruments fait partie des percussions ?", ans: "Le tambour", opt: ["Le tambour", "Le violon", "La flûte", "La trompette"], exp: "On tape sur le tambour pour faire résonner sa membrane." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Culture',
+      competence: 'culture',
+      chapitre: 'Musique',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "Demande-toi si on souffle, si on gratte ou si on tape dessus !",
+      difficulte: 1,
+      xp: 10,
+      etoiles: 1
+    };
+  }
+
+  if (lessonId === 'les_6e_hist_moyenage') {
+    const list = [
+      { q: "Quel groupe de la société médiévale faisait la guerre ?", ans: "La Noblesse", opt: ["La Noblesse", "Le Clergé", "Les Paysans", "Les Serfs"], exp: "Les chevaliers et seigneurs faisaient partie de la Noblesse et devaient défendre le royaume." },
+      { q: "Où vivait le seigneur pour se protéger des attaques ?", ans: "Dans un château fort", opt: ["Dans un château fort", "Dans un monastère", "Dans une chaumière", "Dans une villa"], exp: "Le château fort offrait une protection militaire grâce à ses remparts." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Histoire',
+      competence: 'culture',
+      chapitre: 'Le Moyen Âge',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "Ils portaient des armures et des épées.",
+      difficulte: 2,
+      xp: 12,
+      etoiles: 1
+    };
+  }
+
+  if (lessonId === 'les_5e_sci_volcans') {
+    const list = [
+      { q: "Comment s'appelle la roche fondue qui sort d'un volcan en éruption ?", ans: "La lave", opt: ["La lave", "Le magma", "Le granite", "Le basalte"], exp: "Le magma devient de la lave lorsqu'il sort à la surface et perd ses gaz." },
+      { q: "Quel volcan d'Italie a détruit la ville de Pompéi dans l'Antiquité ?", ans: "Le Vésuve", opt: ["Le Vésuve", "L'Etna", "Le Stromboli", "Le Piton de la Fournaise"], exp: "Le Vésuve a enseveli Pompéi sous les cendres en l'an 79." }
+    ];
+    const item = list[Math.floor(Math.random() * list.length)];
+    return {
+      id,
+      niveau,
+      matiere: 'Sciences',
+      competence: 'sciences',
+      chapitre: 'Les Volcans',
+      question: item.q,
+      options: shuffle(item.opt),
+      reponse: item.ans,
+      explication: item.exp,
+      indice: "C'est un volcan européen très célèbre et explosif.",
+      difficulte: 2,
+      xp: 12,
+      etoiles: 1
+    };
+  }
+
   // Fallback to general generator
   const mat: 'Mathématiques' | 'Français' | 'Langues' = 
     lessonId.includes('_mat_') ? 'Mathématiques' : 

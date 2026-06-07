@@ -1,7 +1,7 @@
 export interface AcademyQuestion {
   id: string | number;
   niveau: 'CP' | 'CE1' | 'CE2' | 'CM1' | 'CM2' | '6e' | '5e' | '4e' | '3e' | 'Lycée';
-  matiere: 'Mathématiques' | 'Français' | 'Découverte' | 'Langues' | 'Histoire' | 'Géographie' | 'Sciences' | 'Anglais' | 'Culture G';
+  matiere: 'Mathématiques' | 'Français' | 'Découverte' | 'Langues' | 'Histoire' | 'Géographie' | 'Sciences' | 'Lecture' | 'Culture' | 'Anglais' | 'Culture G';
   competence: 'lecture' | 'orthographe' | 'calcul' | 'conjugaison' | 'culture' | 'anglais' | 'sciences';
   chapitre: string;
   question: string;
@@ -17,71 +17,68 @@ export interface AcademyQuestion {
 export interface Lesson {
   id: string;
   niveau: 'CP' | 'CE1' | 'CE2' | 'CM1' | 'CM2' | '6e' | '5e' | '4e' | '3e' | 'Lycée';
-  matiere: 'Mathématiques' | 'Français' | 'Découverte' | 'Langues' | 'Histoire' | 'Géographie' | 'Sciences' | 'Anglais' | 'Culture G';
+  matiere: 'Mathématiques' | 'Français' | 'Découverte' | 'Langues' | 'Histoire' | 'Géographie' | 'Sciences' | 'Lecture' | 'Culture' | 'Anglais' | 'Culture G';
+  category: string; // e.g. "Tables de multiplication", "Additions"
   title: string;
   explication: string;
   astuce: string;
   memo: string; // Bullet points separated by newlines
   exemple: string;
+  pieges?: string; // Common traps or pitfalls
   schemas?: string[]; // Small text-based schemas
-}
-
-export const staticAcademyLessons: Lesson[] = [
-  // === MATHÉMATIQUES / MATHS ===
+}export const staticAcademyLessons: Lesson[] = [
+  // === MATHÉMATIQUES ===
   {
     id: "les_cp_mat_add",
     niveau: "CP",
     matiere: "Mathématiques",
+    category: "Additions",
     title: "L'addition simple (1 à 10) ➕",
     explication: "L'addition consiste à assembler deux nombres pour en trouver le total. C'est comme regrouper des bonbons dans un seul panier.",
     astuce: "Pour ajouter, tu peux démarrer du plus grand nombre et avancer en comptant sur tes doigts !",
     memo: "- Le signe '+' se lit 'plus'.\n- Le résultat s'appelle la somme.\n- Ajouter 1, c'est trouver le nombre juste après.",
     exemple: "Si tu as 3 pommes et qu'on t'en donne 2 de plus, tu calcules 3 + 2. Tu pars de 3 et tu ajoutes 2 doigts : 4, 5. Tu as 5 pommes en tout !",
+    pieges: "Attention à ne pas recompter le premier groupe. Si tu fais 3 + 2, compte : 4 (1er) puis 5 (2e).",
     schemas: ["🍎🍎🍎 + 🍎🍎 = 🍎🍎🍎🍎🍎", "3 + 2 = 5"]
   },
   {
     id: "les_ce2_mat_mult7",
     niveau: "CE2",
     matiere: "Mathématiques",
+    category: "Tables de multiplication",
     title: "La table de multiplication par 7 🧮",
     explication: "Multiplier par 7, c'est ajouter le nombre 7 plusieurs fois à lui-même.",
     astuce: "Apprends à repérer le rythme de la table : 7, 14, 21, 28, 35, 42, 49, 56, 63, 70.",
     memo: "- 7 × 1 = 7\n- 7 × 2 = 14 (le double)\n- 7 × 5 = 35 (la moitié de 70)\n- 7 × 10 = 70\n- 7 × 7 = 49 (le carré magique !)",
     exemple: "Pour calculer 7 × 3, on additionne 7 trois fois : 7 + 7 + 7 = 21.",
+    pieges: "Ne pas confondre 7 × 8 (56) et 7 × 9 (63) ! C'est le piège le plus classique de cette table.",
     schemas: ["7 × 3 = 21", "📈 7 -> 14 -> 21 -> 28"]
   },
   {
     id: "les_cm1_mat_frac",
     niveau: "CM1",
     matiere: "Mathématiques",
+    category: "Fractions",
     title: "Les fractions simples 🍰",
     explication: "Une fraction représente le partage d'une unité en parts égales. Le numérateur (haut) indique le nombre de parts que l'on prend. Le dénominateur (bas) indique en combien de parts égales l'unité a été coupée.",
     astuce: "Pense à une pizza : si tu la coupes en 4 parts, le bas de la fraction est 4. Si tu manges 1 part, le haut est 1.",
     memo: "- Numérateur : chiffre du haut (parts prises).\n- Dénominateur : chiffre du bas (parts coupées).\n- 1/2 se lit 'un demi'.\n- 1/4 se lit 'un quart'.\n- 3/4 se lit 'trois quarts'.",
     exemple: "Si tu manges la moitié d'un gâteau coupé en 2, tu as mangé 1/2 du gâteau.",
+    pieges: "Plus le dénominateur (bas) est grand, plus la part est PETITE ! 1/8 est beaucoup plus petit que 1/2.",
     schemas: ["🍰 Coupé en 2 parts = 1/2", "🍕 Coupé en 4 parts = 1/4"]
   },
   {
     id: "les_3e_mat_pyth",
     niveau: "3e",
     matiere: "Mathématiques",
+    category: "Géométrie",
     title: "Théorème de Pythagore 🔺",
     explication: "Dans un triangle rectangle, le carré de la longueur de l'hypoténuse (le plus grand côté opposé à l'angle droit) est égal à la somme des carrés des longueurs des deux autres côtés.",
     astuce: "Ce théorème sert à calculer une longueur manquante dans un triangle qui possède un angle droit !",
     memo: "- S'applique uniquement aux triangles rectangles.\n- Formule : BC² = AB² + AC² (si A est l'angle droit).\n- L'hypoténuse est toujours le côté le plus long.",
     exemple: "Soit un triangle rectangle en A avec AB = 3 cm et AC = 4 cm. BC² = 3² + 4² = 9 + 16 = 25. BC = racine carrée de 25, donc BC = 5 cm.",
+    pieges: "Vérifie bien que le triangle a un angle droit avant d'écrire la formule !",
     schemas: ["  /| \n / | hypoténuse (c)\n/__| \n  a   b", "Formule: a² + b² = c²"]
-  },
-  {
-    id: "les_lyc_mat_deriv",
-    niveau: "Lycée",
-    matiere: "Mathématiques",
-    title: "Les fonctions dérivées 📈",
-    explication: "La dérivée f'(x) d'une fonction f(x) donne la pente de la tangente en un point. Elle indique la vitesse de variation instantanée de la fonction.",
-    astuce: "Si la dérivée f'(x) est positive, la fonction f est croissante. Si f'(x) est négative, f est décroissante !",
-    memo: "- Dérivée de x² est 2x.\n- Dérivée de ax + b est a.\n- Dérivée de 1/x est -1/x².\n- Permet de dresser le tableau de variations d'une fonction.",
-    exemple: "Soit f(x) = 3x² + 5x - 2. Sa fonction dérivée est f'(x) = 3(2x) + 5 = 6x + 5.",
-    schemas: ["f(x) = x²  --> f'(x) = 2x", "f'(x) > 0 ==> Fonction Croissante 📈"]
   },
 
   // === FRANÇAIS ===
@@ -89,136 +86,147 @@ export const staticAcademyLessons: Lesson[] = [
     id: "les_cp_fra_ou",
     niveau: "CP",
     matiere: "Français",
+    category: "Lecture",
     title: "Le son [ou] 🗣️",
     explication: "Le son [ou] s'écrit en associant les lettres 'o' et 'u' ensemble dans le même mot.",
     astuce: "Quand tu prononces 'ou', ta bouche forme un petit cercle tout rond !",
     memo: "- Lettres complices : o + u = ou.\n- Se trouve dans loup, roue, poule, genou.\n- Ne pas confondre avec le son [u] (comme dans tortue).",
     exemple: "Dans le mot 'loup', on voit 'ou'. Le 'p' à la fin ne se prononce pas. Ça fait le son [ou] !",
+    pieges: "Attention à ne pas inverser l'ordre : 'uo' ne fait pas le son [ou] !",
     schemas: ["o + u = [ou]", "🐺 l-ou-p, 🚗 r-ou-e"]
   },
   {
     id: "les_ce2_fra_sujver",
     niveau: "CE2",
     matiere: "Français",
+    category: "Conjugaison",
     title: "L'accord Sujet-Verbe ✍️",
     explication: "Le verbe s'accorde toujours en nombre (singulier ou pluriel) et en personne (je, tu, il...) avec son sujet. Si le sujet change, la terminaison du verbe change.",
     astuce: "Pour trouver le sujet, pose la question : 'Qui est-ce qui + verbe ?' !",
     memo: "- Sujet singulier -> Verbe singulier (ex. -e, -t).\n- Sujet pluriel -> Verbe pluriel (ex. -ent).\n- Le pronom 'Tu' commande toujours un 's' à la fin du verbe.",
     exemple: "Le chat mange (singulier). Les chats mangent (pluriel).",
+    pieges: "Les verbes au pluriel se terminent souvent par '-ent' (ex: ils mangent), tandis que les noms au pluriel prennent un '-s' (ex: les chats). Ne confonds pas !",
     schemas: ["Le chat (il) -> mange", "Les chats (ils) -> mangent"]
   },
   {
     id: "les_cm1_fra_al",
     niveau: "CM1",
     matiere: "Français",
+    category: "Orthographe",
     title: "Le pluriel des noms en -al ✍️",
     explication: "Les noms masculins qui se terminent par '-al' font généralement leur pluriel en '-aux'.",
     astuce: "Retiens bien la liste des 7 exceptions courantes qui prennent simplement un 's' au pluriel : bal, cal, carnaval, chacal, festival, régal, récital.",
     memo: "- Règle générale : -al devient -aux.\n- Un journal -> des journaux.\n- Exception : un festival -> des festivals.\n- Exception : un bal -> des bals.",
     exemple: "On écrit 'un cheval' au singulier, mais 'des chevaux' au pluriel. Par contre, pour la fête, on écrit 'des carnavals'.",
+    pieges: "Attention : l'erreur classique est de mettre 'des journals' ou 'des carnavaux'. Apprends les exceptions par cœur !",
     schemas: ["-al ➔ -aux (général)", "-al ➔ -als (exceptions : bal, festival...)"]
   },
-  {
-    id: "les_3e_fra_cond",
-    niveau: "3e",
-    matiere: "Français",
-    title: "Le conditionnel présent 🗣️",
-    explication: "Le conditionnel présent s'utilise pour exprimer une action soumise à condition, un souhait, un regret, ou une formule de politesse.",
-    astuce: "Il se construit facilement : prends le radical du futur simple et ajoute les terminaisons de l'imparfait (-ais, -ais, -ait, -ions, -iez, -aient).",
-    memo: "- Radical = Futur simple (ex. je chanter-).\n- Terminaison = Imparfait (ex. -ais).\n- Exemple : Je chanterais.\n- S'accorde avec le sujet.",
-    exemple: "Si j'avais de l'argent (imparfait), j'achèterais (conditionnel) ce livre. Pourrais-tu m'aider (politesse) ?",
-    schemas: ["Futur (radical) + Imparfait (terminaison)", "Je finir- + -ais = Je finirais"]
-  },
 
-  // === DÉCOUVERTE / HISTOIRE / GÉOGRAPHIE / SCIENCES ===
+  // === DÉCOUVERTE / SCIENCES / HISTOIRE / GÉOGRAPHIE ===
   {
     id: "les_ce2_dec_eau",
     niveau: "CE2",
-    matiere: "Découverte",
+    matiere: "Sciences",
+    category: "Sciences",
     title: "Les trois états de l'eau 💧❄️💨",
     explication: "Sur la Terre, l'eau existe sous trois formes différentes : liquide, solide, ou gaz.",
     astuce: "L'eau change d'état à cause de la température. Le froid la durcit, la chaleur la fait s'évaporer !",
     memo: "- État liquide : eau du robinet, pluie, mer.\n- État solide (froid < 0°C) : glace, neige, givre.\n- État gazeux (chaleur) : vapeur d'eau (invisible).\n- La glace fond à 0°C.",
     exemple: "Quand tu mets de l'eau au congélateur, elle devient solide (glaçon). Quand tu fais bouillir de l'eau dans une casserole, elle s'échappe sous forme de vapeur (gaz).",
+    pieges: "La vapeur d'eau est un gaz invisible ! Le petit nuage blanc au-dessus de la bouilloire est en fait de l'eau déjà refroidie en micro-gouttelettes liquides.",
     schemas: ["💧 Liquide (Pluie)", "❄️ Solide (Glaçon < 0°C)", "💨 Gazeux (Vapeur > 100°C)"]
   },
   {
     id: "les_cm1_dec_pharaons",
     niveau: "CM1",
-    matiere: "Découverte",
+    matiere: "Histoire",
+    category: "Histoire",
     title: "L'Égypte des pharaons 🏺",
     explication: "Dans l'Égypte antique, le pharaon était le roi absolu. Il était considéré comme un dieu vivant et régnait sur tout le peuple le long du fleuve Nil.",
     astuce: "Les pharaons construisaient des pyramides géantes pour servir de tombeaux et protéger leur momie !",
     memo: "- Pharaon : souverain d'Égypte antique.\n- Les pyramides : tombeaux géants en pierre.\n- La momification : méthode pour conserver les corps.\n- Toutânkhamon et Ramsès II sont très célèbres.",
     exemple: "Toutânkhamon est devenu célèbre car son tombeau a été retrouvé en 1922 rempli d'or, de bijoux et de masques royaux intacts.",
+    pieges: "Les pyramides n'étaient pas des palais pour habiter, mais des tombeaux funéraires sacrés.",
     schemas: ["▲ Pyramide (Tombeau)", "𓀾 Pharaon (Dieu-Roi)"]
   },
   {
-    id: "les_6e_hist_moyenage",
-    niveau: "6e",
-    matiere: "Histoire",
-    title: "La société au Moyen Âge 🛡️🏰",
-    explication: "Le Moyen Âge en Europe s'étend sur 1000 ans. La société y est divisée en trois groupes (ordres) très inégaux : ceux qui prient, ceux qui combattent et ceux qui travaillent.",
-    astuce: "Retiens les trois groupes : le Clergé (religion), la Noblesse (guerre) et le Tiers-État (paysans et artisans) !",
-    memo: "- Clergé : prier et éduquer.\n- Noblesse : défendre et gouverner (chevaliers, seigneurs).\n- Paysans : cultiver la terre et payer les impôts (les serfs).\n- La féodalité lie les vassaux aux seigneurs.",
-    exemple: "Le seigneur protège les paysans dans son château fort en cas d'attaque, en échange de corvées et de taxes (la taille, la dîme).",
-    schemas: ["🏰 Château Fort (Protection/Pouvoir)", "🛡️ Noblesse / ⛪ Clergé / 🚜 Paysans"]
+    id: "les_geo_oceans",
+    niveau: "CE2",
+    matiere: "Géographie",
+    category: "Géographie",
+    title: "Océans et Continents 🌎",
+    explication: "Notre planète Terre possède 5 grands océans d'eau salée et 6 grands continents de terre ferme.",
+    astuce: "L'océan Pacifique est le plus grand et couvre à lui seul un tiers de la surface terrestre !",
+    memo: "- Les 5 Océans : Pacifique, Atlantique, Indien, Arctique, Antarctique.\n- Les 6 Continents : Asie, Afrique, Amérique, Europe, Océanie, Antarctique.\n- L'Asie est le plus grand continent.",
+    exemple: "La France est située sur le continent européen, et elle est bordée par l'océan Atlantique.",
+    pieges: "Ne pas confondre l'Arctique (au pôle Nord, sans terre ferme sous la glace) et l'Antarctique (au pôle Sud, qui est un vrai continent rocheux sous la glace).",
+    schemas: ["🌎 Océan Pacifique (Le plus grand)", "🗺️ Continent Asiatique (Le plus peuplé)"]
   },
   {
-    id: "les_5e_sci_volcans",
-    niveau: "5e",
-    matiere: "Sciences",
-    title: "Le volcanisme et la Terre 🌋",
-    explication: "Les volcans se forment lorsque de la roche fondue sous pression (le magma) monte des profondeurs de la Terre et s'échappe par une fissure de la croûte terrestre.",
-    astuce: "Tant que la roche en fusion est sous terre, c'est du MAGMA. Dès qu'elle sort à l'air libre, on l'appelle de la LAVE !",
-    memo: "- Magma : roche fondue sous la Terre.\n- Lave : magma dégazé sorti à l'extérieur.\n- Éruption effusive : lave fluide coulant calmement (volcans rouges).\n- Éruption explosive : cendres, gaz et explosions (volcans gris).",
-    exemple: "Le Piton de la Fournaise (La Réunion) est un volcan effusif rouge, tandis que le Vésuve (Italie) est un volcan explosif gris très dangereux.",
-    schemas: ["🌋 Volcan", "🔥 Magma (Sous Terre) ➔ Lave (Dehors)"]
+    id: "les_lecture_recit",
+    niveau: "CE1",
+    matiere: "Lecture",
+    category: "Lecture",
+    title: "Comprendre les personnages d'un récit 📖",
+    explication: "Dans une histoire, le personnage principal (le héros) a toujours un but (une quête) et rencontre des obstacles (des épreuves).",
+    astuce: "Repère les alliés du héros (les amis qui l'aident) et les opposants (les ennemis qui lui barrent le passage) !",
+    memo: "- Héros/Héroïne : personnage central.\n- Quête : l'objectif ou la mission du héros.\n- Schéma narratif : Début -> Élément perturbateur -> Aventures -> Résolution -> Fin.",
+    exemple: "Dans le Petit Chaperon Rouge, le Chaperon est l'héroïne, sa quête est d'apporter des galettes à sa grand-mère, et le loup est l'opposant.",
+    pieges: "Parfois, le personnage principal n'est pas humain, il peut s'agir d'un animal (comme dans les Fables de La Fontaine) ou d'un objet magique.",
+    schemas: ["📖 Récit : Début ➔ Problème ➔ Aventures ➔ Fin", "🦸‍♂️ Héros / 🤝 Alliés / 🦹‍♂️ Opposants"]
   },
   {
-    id: "les_3e_sci_adn",
-    niveau: "3e",
-    matiere: "Sciences",
-    title: "L'ADN et la Génétique 🧬",
-    explication: "L'ADN (Acide Désoxyribonucléique) contient toutes les instructions nécessaires au développement et au fonctionnement d'un être vivant. Il est situé dans le noyau de chaque cellule.",
-    astuce: "L'ADN ressemble à une longue échelle en colimaçon (double hélice) composée de 4 barreaux chimiques (A, T, C, G) !",
-    memo: "- Contenu dans les chromosomes du noyau cellulaire.\n- Gène : portion d'ADN codant pour un caractère précis.\n- Allèle : version différente d'un même gène.\n- Les humains possèdent 23 paires de chromosomes.",
-    exemple: "La couleur de tes yeux est déterminée par les gènes hérités de tes parents (allèle bleu, marron, vert) portés par ton ADN.",
-    schemas: ["🧬 Double hélice d'ADN", "4 Bases : Adénine (A), Thymine (T), Cytosine (C), Guanine (G)"]
+    id: "les_culture_instruments",
+    niveau: "CE2",
+    matiere: "Culture",
+    category: "Culture",
+    title: "Les familles d'instruments de musique 🎵",
+    explication: "Les instruments de musique sont regroupés en 3 grandes familles selon la manière dont ils fabriquent le son : les cordes, les vents et les percussions.",
+    astuce: "Pour savoir à quelle famille appartient un instrument, demande-toi : que fait le musicien pour en jouer ? Frotter, souffler ou taper ?",
+    memo: "- Les cordes : frottées (violon), pincées (guitare, harpe) ou frappées (piano).\n- Les vents : les bois (flûte, clarinette) et les cuivres (trompette, trombone).\n- Les percussions : frappées (tambour, xylophone).",
+    exemple: "Bien qu'il ait des touches, le piano est un instrument à cordes frappées : appuyer sur une touche actionne un petit marteau qui frappe une corde cachée.",
+    pieges: "La flûte traversière est dans la famille des bois, même si elle est fabriquée en métal aujourd'hui !",
+    schemas: ["🎻 Cordes (Violon, Harpe)", "🎺 Vents (Flûte, Trompette)", "🥁 Percussions (Tambour, Triangle)"]
   },
 
-  // === LANGUES / ANGLAIS ===
+  // === LANGUES ===
   {
     id: "les_cp_lan_colors",
     niveau: "CP",
     matiere: "Langues",
+    category: "Anglais",
     title: "Les couleurs en anglais 🎨",
     explication: "Les couleurs s'écrivent et se prononcent différemment en anglais. C'est utile pour décrire les objets autour de toi !",
     astuce: "Amuse-toi à nommer la couleur des jouets dans ta chambre en anglais !",
     memo: "- Red = Rouge\n- Blue = Bleu\n- Yellow = Jaune\n- Green = Vert\n- Black = Noir\n- White = Blanc",
     exemple: "Une pomme rouge se dit 'A red apple'. Remarque que la couleur se place avant l'objet en anglais !",
+    pieges: "Attention : l'adjectif de couleur s'écrit TOUJOURS avant le nom en anglais, et il ne prend jamais de 's' au pluriel (ex: 'green apples').",
     schemas: ["🔴 Red", "🔵 Blue", "🟡 Yellow", "🟢 Green"]
   },
   {
     id: "les_ce2_lan_wolof",
     niveau: "CE2",
     matiere: "Langues",
+    category: "Wolof",
     title: "Saluer en Wolof 🇸🇳",
     explication: "Le Wolof est la langue nationale du Sénégal. Saluer chaleureusement est une coutume essentielle appelée la Téranga.",
     astuce: "Demander comment va la personne et sa famille fait partie intégrante de la politesse en Wolof !",
     memo: "- Na nga def ? : Comment vas-tu ?\n- Mangi fi rekk : Je vais bien seulement.\n- Jërëjëf : Merci.\n- Naka sa wa kër ? : Comment va ta famille ?",
     exemple: "Quand tu rencontres un ami, tu lui dis 'Na nga def ?'. Il te répond poliment 'Mangi fi rekk, jërëjëf !'.",
+    pieges: "L'intonation est importante pour bien se faire comprendre. La politesse exige de saluer d'abord les aînés.",
     schemas: ["🇸🇳 Wolof Salutations", "🗣️ Na nga def ? ➔ Mangi fi rekk"]
   },
   {
     id: "les_6e_lan_irregular",
     niveau: "6e",
     matiere: "Anglais",
+    category: "Anglais",
     title: "Verbes irréguliers essentiels 🇬🇧",
     explication: "En anglais, beaucoup de verbes courants ne prennent pas '-ed' au prétérit (le passé). Leurs formes passées doivent être apprises par cœur.",
     astuce: "Apprends-les par groupes de sonorités pour t'en souvenir plus facilement (ex. sing-sang-sung, ring-rang-rung) !",
     memo: "- to be : was/were, been (être)\n- to have : had, had (avoir)\n- to do : did, done (faire)\n- to go : went, gone (aller)\n- to see : saw, seen (voir)",
     exemple: "Pour dire 'Je suis allé à l'école hier', tu n'écris pas 'I goed', mais 'I went to school yesterday' car 'go' est irrégulier.",
+    pieges: "N'ajoute jamais de '-ed' aux verbes irréguliers au passé ! C'est une faute très courante.",
     schemas: ["Base verbale ➔ Prétérit ➔ Participe Passé", "Go ➔ Went ➔ Gone"]
   }
 ];

@@ -146,6 +146,20 @@ const localLessons: LocalTutorLesson[] = [
   }
 ];
 
+const matureFlashcards = [
+  { subject: "Mathématiques", q: "Théorème de Pythagore 🔺", a: "Dans un triangle rectangle, le carré de l'hypoténuse est égal à la somme des carrés des deux autres côtés : BC² = AB² + AC²." },
+  { subject: "Mathématiques", q: "Dérivée de x² 📈", a: "La dérivée de la fonction f(x) = x² est f'(x) = 2x." },
+  { subject: "Mathématiques", q: "Dérivée de 1/x 📈", a: "La dérivée de la fonction f(x) = 1/x est f'(x) = -1/x²." },
+  { subject: "Mathématiques", q: "Formule de l'aire d'un disque 🍕", a: "L'aire d'un disque de rayon R est égale à A = π × R²." },
+  { subject: "Français", q: "Qu'est-ce qu'un pléonasme ? 🗣️", a: "C'est une figure de style qui répète des termes de même sens, comme 'monter en haut' ou 'reculer en arrière'." },
+  { subject: "Français", q: "Conditionnel Présent de 'Aimer' (Je) 🗣️", a: "J'aimerais (radical du futur 'aimer-' + terminaison de l'imparfait '-ais')." },
+  { subject: "Français", q: "Comment accorder le participe passé avec 'Avoir' ? ✍️", a: "Le participe passé conjugué avec 'avoir' s'accorde en genre et en nombre avec le COD si celui-ci est placé avant le verbe." },
+  { subject: "Sciences / SVT", q: "Composition de l'atmosphère terrestre 🌍", a: "Environ 78% de Diazote (N₂), 21% de Dioxygène (O₂), et 1% d'autres gaz (Argon, CO₂...)." },
+  { subject: "Sciences / SVT", q: "Qu'est-ce que l'ADN ? 🧬", a: "L'Acide Désoxyribonucléique est le support de l'information génétique, structuré en double hélice." },
+  { subject: "Langues", q: "Traduction de 'Merci' en Wolof 🇸🇳", a: "Jërëjëf." },
+  { subject: "Langues", q: "Traduction de 'Comment vas-tu ?' en Wolof 🇸🇳", a: "Na nga def ?" }
+];
+
 export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({ 
   schoolTasks, 
   setSchoolTasks, 
@@ -164,24 +178,41 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMember.role)
     : (activeMemberId === '1' || activeMemberId === '2');
 
-  // Default tab for teenager is 'academie', parent is 'devoirs'
-  const [activeSubTab, setActiveSubTab] = useState<'academie' | 'devoirs' | 'tuteur' | 'notes' | 'schedule' | 'grades' | 'academie_preview' | 'coach'>(() => {
+  // Default tab for teenager is 'cours', parent is 'devoirs'
+  const [activeSubTab, setActiveSubTab] = useState<'academie' | 'devoirs' | 'tuteur' | 'notes' | 'schedule' | 'grades' | 'academie_preview' | 'coach' | 'cours' | 'revisions' | 'defis' | 'progression'>(() => {
     if (initialSubTab) {
-      if (initialSubTab === 'quizzes') return isParent ? 'devoirs' : 'academie';
-      return initialSubTab;
+      if (initialSubTab === 'quizzes') return isParent ? 'devoirs' : 'cours';
+      if (initialSubTab === 'grades') return isParent ? 'grades' : 'notes';
+      return initialSubTab as any;
     }
-    return isParent ? 'devoirs' : 'academie';
+    return isParent ? 'devoirs' : 'cours';
   });
 
   const [scheduleViewMode, setScheduleViewMode] = useState<'list' | 'calendar'>('list');
   const [selectedDay, setSelectedDay] = useState<string>('Lundi');
 
+  const [targetAverage, setTargetAverage] = useState<number>(() => {
+    const key = `academy_target_average_${activeMemberId}`;
+    const stored = localStorage.getItem(key);
+    return stored ? Number(stored) : 15;
+  });
+
+  useEffect(() => {
+    const key = `academy_target_average_${activeMemberId}`;
+    localStorage.setItem(key, String(targetAverage));
+  }, [targetAverage, activeMemberId]);
+
+  const [currentFlashIndex, setCurrentFlashIndex] = useState(0);
+  const [isFlashFlipped, setIsFlashFlipped] = useState(false);
+
   useEffect(() => {
     if (initialSubTab) {
       if (initialSubTab === 'quizzes') {
-        setActiveSubTab(isParent ? 'devoirs' : 'academie');
+        setActiveSubTab(isParent ? 'devoirs' : 'cours');
+      } else if (initialSubTab === 'grades') {
+        setActiveSubTab(isParent ? 'grades' : 'notes');
       } else {
-        setActiveSubTab(initialSubTab);
+        setActiveSubTab(initialSubTab as any);
       }
     }
   }, [initialSubTab, isParent]);
@@ -1011,10 +1042,10 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
         found.matiere === 'Français' ? 'français' : 
         found.matiere === 'Découverte' ? 'sciences' : 'langues'
       );
-      setActiveSubTab('academie');
+      setActiveSubTab('cours');
       alert(`📚 Lancement de la fiche de révision : ${found.title}`);
     } else {
-      setActiveSubTab('coach');
+      setActiveSubTab('revisions');
       setUserInput(`Aide-moi à réviser mon cours de ${task.subject} sur : ${task.title}`);
       alert(`🤖 Coach ouvert pour réviser : ${task.title}`);
     }
@@ -1515,38 +1546,46 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
       </div>
 
       {/* Segmented subtabs navigation */}
-      <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 grid grid-cols-4 gap-1">
+      <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 grid grid-cols-5 gap-1">
         <button
-          onClick={() => { setActiveSubTab('academie'); setActiveQuiz(null); }}
-          className={`py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
-            activeSubTab === 'academie' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'
-          }`}
-        >
-          🎮 Académie
-        </button>
-        <button
-          onClick={() => { setActiveSubTab('devoirs'); setActiveQuiz(null); }}
-          className={`py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
-            activeSubTab === 'devoirs' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'
+          onClick={() => { setActiveSubTab('cours' as any); setActiveQuiz(null); }}
+          className={`py-2 rounded-xl text-[9px] sm:text-xs font-bold transition-all cursor-pointer ${
+            activeSubTab === 'cours' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'
           }`}
         >
           📚 Mes cours
         </button>
         <button
-          onClick={() => { setActiveSubTab('coach' as any); setActiveQuiz(null); }}
-          className={`py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
-            activeSubTab === ('coach' as any) ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'
+          onClick={() => { setActiveSubTab('revisions' as any); setActiveQuiz(null); }}
+          className={`py-2 rounded-xl text-[9px] sm:text-xs font-bold transition-all cursor-pointer ${
+            activeSubTab === 'revisions' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'
           }`}
         >
-          🤖 Coach
+          📝 Révisions
+        </button>
+        <button
+          onClick={() => { setActiveSubTab('defis' as any); setActiveQuiz(null); }}
+          className={`py-2 rounded-xl text-[9px] sm:text-xs font-bold transition-all cursor-pointer ${
+            activeSubTab === 'defis' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'
+          }`}
+        >
+          🎯 Défis
         </button>
         <button
           onClick={() => { setActiveSubTab('notes'); setActiveQuiz(null); }}
-          className={`py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
+          className={`py-2 rounded-xl text-[9px] sm:text-xs font-bold transition-all cursor-pointer ${
             activeSubTab === 'notes' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'
           }`}
         >
           📊 Notes
+        </button>
+        <button
+          onClick={() => { setActiveSubTab('progression' as any); setActiveQuiz(null); }}
+          className={`py-2 rounded-xl text-[9px] sm:text-xs font-bold transition-all cursor-pointer ${
+            activeSubTab === 'progression' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'
+          }`}
+        >
+          🏆 Progrès
         </button>
       </div>
 
@@ -1643,37 +1682,23 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
           </div>
         </div>
       )}
-      {activeSubTab === 'academie' && !activeQuiz && (
-        <div className="space-y-6 text-left animate-fadeIn">
-          
-          {/* XP & NIVEAU STATS CARD */}
-          <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 shadow-lg space-y-4 relative overflow-hidden">
-            <div className="absolute top-[-20%] right-[-10%] w-[40%] h-[40%] rounded-full bg-[#6C5CFF]/10 blur-xl pointer-events-none" />
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <span className="text-[9px] font-black text-[#6C5CFF] uppercase tracking-wider">Académie Progression</span>
-                <h3 className="text-xl font-black text-white">Niveau {stats.level}</h3>
-              </div>
-              <div className="p-3 bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 rounded-2xl">
-                <Trophy className="w-6 h-6 text-yellow-400" />
-              </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden border border-white/5">
-                <div className="h-full bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] rounded-full transition-all duration-500" style={{ width: `${(stats.xp / (stats.level * 100)) * 100}%` }} />
-              </div>
-              <div className="flex justify-between text-[9px] font-bold text-white/40">
-                <span>{stats.xp} XP</span>
-                <span>Prochain niveau à {stats.level * 100} XP</span>
-              </div>
+      {activeSubTab === 'cours' && !activeQuiz && (
+        <div className="space-y-6 text-left animate-fadeIn">
+          {/* Top Card */}
+          <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 shadow-lg flex items-center justify-between relative overflow-hidden">
+            <div className="absolute top-[-20%] right-[-10%] w-[40%] h-[40%] rounded-full bg-[#6C5CFF]/10 blur-xl pointer-events-none" />
+            <div className="space-y-1">
+              <span className="text-[9px] font-black text-[#6C5CFF] uppercase tracking-wider">Bibliothèque de Cours</span>
+              <h3 className="text-base font-black text-white">Classe de {currentGrade}</h3>
+              <p className="text-[10px] text-white/50">Choisis une matière pour réviser tes fiches de cours.</p>
             </div>
+            <span className="text-3xl">📚</span>
           </div>
 
           {/* Subject Categories */}
           <div className="space-y-3">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">📚 Sélectionne ta matière de révision :</span>
-            
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">Matières disponibles :</span>
             <div className="bg-white/5 border border-white/8 rounded-[32px] p-5 space-y-4">
               <div className="grid grid-cols-2 gap-2">
                 {[
@@ -1700,10 +1725,10 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
 
               {/* Subject Detailed Area */}
               {selectedLessonCategory !== null && !selectedLesson && (
-                <div className="space-y-4 pt-4 border-t border-white/5">
+                <div className="space-y-4 pt-4 border-t border-white/5 animate-fadeIn">
                   <div className="flex justify-between items-center">
                     <h5 className="text-xs font-black text-white uppercase tracking-wider">
-                      Espace {selectedLessonCategory === 'maths' ? 'Mathématiques' : selectedLessonCategory === 'français' ? 'Français' : selectedLessonCategory === 'sciences' ? 'Sciences / SVT' : 'Langues'}
+                      Fiches en {selectedLessonCategory === 'maths' ? 'Mathématiques' : selectedLessonCategory === 'français' ? 'Français' : selectedLessonCategory === 'sciences' ? 'Sciences / SVT' : 'Langues'}
                     </h5>
                     <button 
                       onClick={() => setSelectedLessonCategory(null)}
@@ -1713,43 +1738,6 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                     </button>
                   </div>
 
-                  {/* Flash revision launcher */}
-                  <div className="bg-gradient-to-r from-[#6C5CFF]/10 to-[#4F8CFF]/5 border border-[#6C5CFF]/20 rounded-2xl p-4 space-y-3">
-                    <h6 className="text-[11px] font-black text-white flex items-center space-x-1">
-                      <span>⏱️ Révision Flash (Quiz Chrono)</span>
-                    </h6>
-                    <p className="text-[10px] text-white/60 leading-snug">
-                      Réponds à un maximum de questions dans le temps imparti pour gagner des bonus !
-                    </p>
-                    <div className="flex space-x-2">
-                      {[2, 5, 10].map(m => (
-                        <button
-                          key={m}
-                          onClick={() => launchTeenFlash(selectedLessonCategory === 'maths' ? 'Mathématiques' : selectedLessonCategory === 'français' ? 'Français' : 'Langues', m)}
-                          className="px-3 py-1.5 bg-[#6C5CFF] hover:bg-[#5849E0] text-white rounded-xl text-[10px] font-black cursor-pointer transition-all"
-                        >
-                          {m} min
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Exam Blanc launcher */}
-                  <div className="bg-gradient-to-r from-[#FFB020]/15 to-[#FF8C00]/5 border border-[#FFB020]/25 rounded-2xl p-4 space-y-2 flex items-center justify-between">
-                    <div className="space-y-1">
-                      <h6 className="text-[11px] font-black text-white">📝 Contrôle Blanc Simulator</h6>
-                      <p className="text-[9.5px] text-white/50">10 questions. Note enregistrée sur ton bulletin trimestriel !</p>
-                    </div>
-                    <button
-                      onClick={() => launchTeenExam(selectedLessonCategory === 'maths' ? 'Mathématiques' : selectedLessonCategory === 'français' ? 'Français' : 'Langues')}
-                      className="px-4 py-2.5 bg-[#FFB020] text-[#07111F] rounded-xl text-[10px] font-black hover:bg-[#FFA200] transition-all cursor-pointer shrink-0"
-                    >
-                      Lancer
-                    </button>
-                  </div>
-
-                  {/* Course Lessons List */}
-                  <h6 className="text-[10px] font-black text-white/40 uppercase tracking-wider pt-2">Fiches de cours de {currentGrade} :</h6>
                   <div className="space-y-2">
                     {(() => {
                       const lessons = staticAcademyLessons.filter(l => l.niveau === currentGrade && 
@@ -1769,7 +1757,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                           );
 
                       if (displayLessons.length === 0) {
-                        return <p className="text-xs text-white/30 italic py-2">Aucune leçon disponible pour ce niveau.</p>;
+                        return <p className="text-xs text-white/30 italic py-2">Aucune fiche de cours disponible pour ce niveau.</p>;
                       }
 
                       return displayLessons.map((les) => (
@@ -1778,7 +1766,10 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                           onClick={() => setSelectedLesson(les)}
                           className="w-full p-3.5 bg-white/3 hover:bg-[#6C5CFF]/15 border border-white/5 rounded-2xl text-left text-xs font-black text-white flex justify-between items-center transition-all cursor-pointer"
                         >
-                          <span>{les.title}</span>
+                          <div className="flex items-center space-x-2.5">
+                            <BookOpen className="w-4 h-4 text-[#6C5CFF]" />
+                            <span>{les.title}</span>
+                          </div>
                           <ChevronRight className="w-4.5 h-4.5 text-white/30" />
                         </button>
                       ));
@@ -1796,7 +1787,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                       className="text-[10px] font-black text-white/50 hover:text-white flex items-center space-x-1 cursor-pointer"
                     >
                       <ArrowLeft className="w-3.5 h-3.5" />
-                      <span>Retour</span>
+                      <span>Retour aux fiches</span>
                     </button>
                     <span className="text-[9px] font-bold text-white/40 uppercase bg-white/5 border border-white/5 px-2.5 py-0.5 rounded-full">
                       {selectedLesson.matiere}
@@ -1805,23 +1796,37 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
 
                   <div className="space-y-3.5">
                     <h4 className="text-sm font-extrabold text-white leading-snug">{selectedLesson.title}</h4>
-                    <p className="text-xs text-white/80 leading-relaxed font-medium bg-black/20 p-4 rounded-2xl border border-white/5">
-                      {selectedLesson.explication}
-                    </p>
                     
+                    <div className="space-y-2">
+                      <span className="text-[9px] font-black text-white/40 uppercase tracking-wider block">📖 Explication simple :</span>
+                      <p className="text-xs text-white/80 leading-relaxed font-medium bg-black/20 p-4 rounded-2xl border border-white/5">
+                        {selectedLesson.explication}
+                      </p>
+                    </div>
+
                     {selectedLesson.schemas && selectedLesson.schemas.length > 0 && (
-                      <div className="bg-black/35 p-4 rounded-2xl border border-white/5 font-mono text-[10px] text-[#9E94FF] whitespace-pre overflow-x-auto">
-                        {selectedLesson.schemas.map((s, idx) => <div key={idx}>{s}</div>)}
+                      <div className="space-y-2">
+                        <span className="text-[9px] font-black text-white/40 uppercase tracking-wider block">🎨 Illustration visuelle :</span>
+                        <div className="bg-black/35 p-4 rounded-2xl border border-white/5 font-mono text-[10px] text-[#9E94FF] whitespace-pre overflow-x-auto">
+                          {selectedLesson.schemas.map((s, idx) => <div key={idx}>{s}</div>)}
+                        </div>
                       </div>
                     )}
 
                     <div className="p-3 bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 rounded-xl text-[10.5px] text-[#9E94FF] font-semibold italic">
-                      <span className="font-bold text-white/40 uppercase tracking-wider text-[8.5px] not-italic mr-1.5 block">Exemple concret :</span>
+                      <span className="font-bold text-white/40 uppercase tracking-wider text-[8.5px] not-italic mr-1.5 block">💡 Exemple concret :</span>
                       {selectedLesson.exemple}
                     </div>
 
+                    {selectedLesson.pieges && (
+                      <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-[10.5px] text-red-300 font-semibold italic">
+                        <span className="font-bold text-white/40 uppercase tracking-wider text-[8.5px] not-italic mr-1.5 block">⚠️ Piège à éviter :</span>
+                        {selectedLesson.pieges}
+                      </div>
+                    )}
+
                     <div className="bg-white/3 border border-white/5 p-4 rounded-2xl space-y-2">
-                      <span className="text-[9px] font-black text-white/40 uppercase tracking-wider block">Fiche Mémo :</span>
+                      <span className="text-[9px] font-black text-white/40 uppercase tracking-wider block">📌 Résumé / Mémo :</span>
                       <ul className="list-disc pl-4 space-y-1 text-xs text-white/70 font-medium">
                         {selectedLesson.memo.split('\n').map((line, idx) => (
                           <li key={idx}>{line.replace(/^- /, '')}</li>
@@ -1832,430 +1837,368 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
 
                   <button
                     onClick={() => { launchTeenExercises(selectedLesson); setSelectedLesson(null); }}
-                    className="w-full py-3.5 rounded-2xl bg-[#6C5CFF] text-white font-extrabold text-xs shadow-md hover:bg-[#5849E0] transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                    className="w-full py-3 rounded-2xl bg-[#6C5CFF] text-white font-extrabold text-xs shadow-md hover:bg-[#5849E0] transition-all flex items-center justify-center space-x-2 cursor-pointer"
                   >
-                    <span>Lancer un entraînement rapide (5 Qs) 🎯</span>
+                    <span>S'entraîner sur cette fiche (5 Qs) ✍️</span>
                   </button>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Daily & Weekly Challenges cards */}
-          {selectedLessonCategory === null && (
-            <div className="space-y-3">
-              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">🏆 Défis et Évaluations de la semaine :</span>
-              <div className="grid grid-cols-1 gap-3">
-                <button onClick={launchDailyChallenge} className="bg-gradient-to-br from-[#FFB020]/15 to-[#FF8C00]/5 border-2 border-[#FFB020]/30 rounded-[28px] p-5 text-left flex items-start space-x-4 hover:border-[#FFB020]/50 transition-all cursor-pointer">
-                  <span className="p-3 bg-[#FFB020]/20 rounded-2xl text-2xl">🏆</span>
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-black text-white">Défi Quotidien <span className="text-[8px] bg-[#FFB020]/20 text-[#FFB020] px-1.5 py-0.5 rounded-full">10 Qs</span></h4>
-                    <p className="text-[11px] text-white/60 font-bold leading-snug">Multi-matières. Remporte le double de XP et d'Étoiles !</p>
-                  </div>
-                </button>
+          {/* Study Methods */}
+          <div className="space-y-3">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">🧠 Méthodes de révision :</span>
+            <div className="grid grid-cols-1 gap-3">
+              {[
+                { 
+                  title: "💡 La Technique Feynman", 
+                  desc: "Explique un concept difficile avec des mots très simples, comme si tu l'expliquais à un enfant de 10 ans. Si tu bloques, c'est là que réside ta lacune." 
+                },
+                { 
+                  title: "⏱️ La Méthode Pomodoro", 
+                  desc: "Répartis ton travail en sessions de 25 minutes de concentration intense, suivies de 5 minutes de pause complète. Répète cela 4 fois." 
+                },
+                { 
+                  title: "⚡ L'Active Recall (Rappel Actif)", 
+                  desc: "Ferme ton cours et essaie d'écrire de mémoire tout ce dont tu te souviens sur une feuille blanche. C'est 10x plus efficace que de relire passivement." 
+                }
+              ].map((m, idx) => (
+                <div key={idx} className="bg-white/5 border border-white/8 rounded-2xl p-4 text-left space-y-1">
+                  <h4 className="text-xs font-black text-[#9E94FF]">{m.title}</h4>
+                  <p className="text-[11px] text-white/60 leading-relaxed font-medium">{m.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
-                <button onClick={launchWeeklyEvaluation} className="bg-gradient-to-br from-[#E040FB]/15 to-[#6C5CFF]/5 border-2 border-[#E040FB]/25 rounded-[28px] p-5 text-left flex items-start space-x-4 hover:border-[#E040FB]/45 transition-all cursor-pointer">
-                  <span className="p-3 bg-[#E040FB]/20 rounded-2xl text-2xl">⚡</span>
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-black text-white">Évaluation Hebdomadaire <span className="text-[8px] bg-[#E040FB]/20 text-[#E040FB] px-1.5 py-0.5 rounded-full">10 Qs</span></h4>
-                    <p className="text-[11px] text-white/60 font-bold leading-snug">Valide tes compétences et obtiens ton badge hebdo !</p>
+      {activeSubTab === 'revisions' && !activeQuiz && (
+        <div className="space-y-6 text-left animate-fadeIn">
+          {/* Flash Cards Card */}
+          <div className="space-y-3">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">📝 Flashcards de Révision :</span>
+            <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 space-y-4">
+              <div className="flex justify-between items-center text-[10px] text-white/40 font-bold">
+                <span className="bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-[#9E94FF] px-2 py-0.5 rounded-full">
+                  {matureFlashcards[currentFlashIndex].subject}
+                </span>
+                <span>Card {currentFlashIndex + 1} sur {matureFlashcards.length}</span>
+              </div>
+
+              {/* Flashcard Body */}
+              <div 
+                onClick={() => setIsFlashFlipped(!isFlashFlipped)}
+                className={`w-full min-h-[140px] rounded-2xl border-2 p-5 flex flex-col justify-center items-center text-center cursor-pointer transition-all duration-300 ${
+                  isFlashFlipped 
+                    ? 'bg-[#6C5CFF]/10 border-[#6C5CFF]/50 text-white shadow-inner' 
+                    : 'bg-white/5 border-white/10 text-white hover:bg-white/10'
+                }`}
+              >
+                {isFlashFlipped ? (
+                  <div className="space-y-2 animate-fadeIn">
+                    <span className="text-[9px] font-black text-[#9E94FF] uppercase tracking-wider block">Réponse</span>
+                    <p className="text-xs font-bold leading-relaxed">{matureFlashcards[currentFlashIndex].a}</p>
                   </div>
+                ) : (
+                  <div className="space-y-2">
+                    <span className="text-[9px] font-black text-white/40 uppercase tracking-wider block">Question / Notion</span>
+                    <p className="text-sm font-black leading-snug">{matureFlashcards[currentFlashIndex].q}</p>
+                    <span className="text-[9px] text-white/30 font-bold block pt-2">(Clique pour révéler la réponse)</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Flashcard Controls */}
+              <div className="flex gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsFlashFlipped(false);
+                    setCurrentFlashIndex(prev => prev === 0 ? matureFlashcards.length - 1 : prev - 1);
+                  }}
+                  className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl text-xs font-bold cursor-pointer transition-all"
+                >
+                  Précédent
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsFlashFlipped(!isFlashFlipped);
+                  }}
+                  className="px-4 py-2 bg-[#6C5CFF]/25 border border-[#6C5CFF]/40 text-[#9E94FF] rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  🔄 Retourner
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsFlashFlipped(false);
+                    setCurrentFlashIndex(prev => prev === matureFlashcards.length - 1 ? 0 : prev + 1);
+                  }}
+                  className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl text-xs font-bold cursor-pointer transition-all"
+                >
+                  Suivant
                 </button>
               </div>
             </div>
-          )}
+          </div>
 
-          {/* REWARDS STORE PREVIEW */}
-          {selectedLessonCategory === null && (
-            <div className="space-y-3">
-              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block flex items-center space-x-1.5 text-yellow-400">
-                <ShoppingBag className="w-3.5 h-3.5" />
-                <span>Récompenses déblocables :</span>
-              </span>
-
-              <div className="bg-white/5 border border-white/8 rounded-[32px] p-4 space-y-2">
-                {parentRewards.map((rew, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-white/3 rounded-2xl">
-                    <div className="flex items-center space-x-3">
-                      <span className="text-lg">{rew.icon}</span>
-                      <span className="text-xs font-black text-white">{rew.label}</span>
-                    </div>
-                    <div className="flex items-center space-x-1 bg-yellow-500/10 border border-yellow-500/25 px-2.5 py-1 rounded-xl text-yellow-400 font-extrabold text-[9px] uppercase">
-                      <span>{rew.cost}</span>
-                      <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-                    </div>
-                  </div>
+          {/* Quick Quiz Chrono Launcher */}
+          <div className="space-y-3">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">⏱️ Révision Flash (Quiz Chronométré) :</span>
+            <div className="bg-gradient-to-r from-[#6C5CFF]/15 to-[#4F8CFF]/5 border border-[#6C5CFF]/20 rounded-[32px] p-5 space-y-3">
+              <div className="space-y-1">
+                <h4 className="text-xs font-black text-white">Chrono Challenge</h4>
+                <p className="text-[11px] text-white/60 leading-snug">
+                  Entraîne ton cerveau avec un maximum de questions générées localement. Choisis ta durée :
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                {[2, 5, 10].map(m => (
+                  <button
+                    key={m}
+                    onClick={() => launchTeenFlash('Mathématiques', m)}
+                    className="py-2.5 bg-[#6C5CFF] hover:bg-[#5849E0] text-white rounded-xl text-[10px] font-black cursor-pointer transition-all shadow-md"
+                  >
+                    ⏱️ {m} Min
+                  </button>
                 ))}
               </div>
             </div>
-          )}
-        </div>
-      )}
-
-      {/* TEEN SUBTAB: DEVOIRS & AGENDA UNIFIED (Notion Timeline Feed) */}
-      {activeSubTab === 'devoirs' && (
-        <div className="space-y-6 text-left animate-fadeIn">
-          
-          {/* Progress Overview */}
-          <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 shadow-lg space-y-3">
-            <div className="flex justify-between items-center">
-              <div className="space-y-0.5">
-                <span className="text-[9px] font-black text-[#6C5CFF] uppercase tracking-wider">Timeline Devoirs</span>
-                <h3 className="text-sm font-extrabold text-white">
-                  {myHomeworks.filter(t => t.done).length} sur {myHomeworks.length} devoirs validés !
-                </h3>
-              </div>
-              <span className="text-2xl">📈</span>
-            </div>
-            
-            <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
-              <div className="h-full bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] rounded-full transition-all" style={{ width: `${myHomeworks.length > 0 ? (myHomeworks.filter(t => t.done).length / myHomeworks.length) * 100 : 100}%` }} />
-            </div>
           </div>
 
-          <div className="space-y-6">
-            
-            {/* 1. RETARDS (Overdue) */}
-            {(() => {
-              const list = myHomeworks.filter(t => !t.done && getTaskStatusGroup(t) === 'overdue');
-              if (list.length === 0) return null;
-              return (
-                <div className="space-y-2.5">
-                  <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest block flex items-center space-x-1">
-                    <span>⚠️ Devoirs en retard</span>
-                  </span>
-                  <div className="space-y-2.5">
-                    {list.map(task => {
-                      const style = getSubjectStyle(task.subject);
-                      return (
-                        <div key={task.id} className="bg-rose-500/5 border-2 border-rose-500/20 rounded-2xl p-4 flex items-center justify-between">
-                          <div className="space-y-1">
-                            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase ${style.bg} ${style.border} ${style.text}`}>{task.subject}</span>
-                            <h4 className="text-xs font-black text-white mt-1.5">{task.title}</h4>
-                            <p className="text-[9px] text-rose-300">Dû le : {task.dueDate}</p>
-                          </div>
-                          <button onClick={() => handleMarkCompleted(task.id)} className="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 flex items-center justify-center cursor-pointer hover:bg-rose-500/20 active:scale-95 transition-all">✓</button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* 2. AUJOURD'HUI */}
-            <div className="space-y-2.5">
-              <span className="text-[10px] font-black text-[#6C5CFF] uppercase tracking-widest block">📅 Aujourd'hui :</span>
-              
-              {/* Scheduled classes today */}
-              {todayClasses.length > 0 && (
-                <div className="space-y-2">
-                  {todayClasses.map(cls => {
-                    const style = getSubjectStyle(cls.subject);
-                    return (
-                      <div key={cls.id} className="bg-[#112240] border border-white/5 rounded-2xl p-4 flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <span className="text-xl">{style.icon}</span>
-                          <div>
-                            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase ${style.bg} ${style.border} ${style.text}`}>{cls.subject}</span>
-                            <h4 className="text-xs font-black text-white mt-1">{cls.startTime} - {cls.endTime}</h4>
-                            {cls.room && <p className="text-[9px] text-white/40 font-bold">📍 Salle : {cls.room}</p>}
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-black text-white/30 uppercase font-sans">Cours</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Tasks due today */}
-              {(() => {
-                const list = myHomeworks.filter(t => !t.done && getTaskStatusGroup(t) === 'today');
-                const evals = myEvaluations.filter(t => !t.done && getTaskStatusGroup(t) === 'today');
-                
-                if (list.length === 0 && evals.length === 0 && todayClasses.length === 0) {
-                  return <div className="bg-white/3 border border-white/5 rounded-2xl p-4 text-center text-xs text-white/40">Aucun cours ou devoir aujourd'hui ! 👍</div>;
-                }
-
-                return (
-                  <div className="space-y-2.5">
-                    {evals.map(task => {
-                      const style = getSubjectStyle(task.subject);
-                      return (
-                        <div key={task.id} className="bg-yellow-500/5 border-2 border-yellow-500/30 rounded-2xl p-4 flex items-center justify-between">
-                          <div className="space-y-1">
-                            <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 mr-1.5">Évaluation</span>
-                            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase ${style.bg} ${style.border} ${style.text}`}>{task.subject}</span>
-                            <h4 className="text-xs font-black text-white mt-1.5">{task.title}</h4>
-                          </div>
-                          <button onClick={() => handleReviewWithTutor({ ...task, assignedMemberId: activeMemberId })} className="px-3 py-1.5 bg-yellow-500 text-[#07111F] text-[9px] font-black uppercase rounded-lg cursor-pointer">Réviser</button>
-                        </div>
-                      );
-                    })}
-                    {list.map(task => {
-                      const style = getSubjectStyle(task.subject);
-                      return (
-                        <div key={task.id} className="bg-[#112240] border border-white/5 rounded-2xl p-4 flex items-center justify-between">
-                          <div className="space-y-1">
-                            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase ${style.bg} ${style.border} ${style.text}`}>{task.subject}</span>
-                            <h4 className="text-xs font-black text-white mt-1.5">{task.title}</h4>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <button onClick={() => handleReviewWithTutor({ ...task, assignedMemberId: activeMemberId })} className="p-2 bg-[#6C5CFF]/10 text-[#6C5CFF] rounded-lg cursor-pointer"><Sparkles className="w-4 h-4" /></button>
-                            <button onClick={() => handleMarkCompleted(task.id)} className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 flex items-center justify-center cursor-pointer">✓</button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* 3. CETTE SEMAINE */}
-            <div className="space-y-2.5">
-              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">📅 Cette semaine (7 prochains jours) :</span>
-              {(() => {
-                const list = myHomeworks.filter(t => !t.done && getTaskStatusGroup(t) === 'this_week');
-                const evals = myEvaluations.filter(t => !t.done && getTaskStatusGroup(t) === 'this_week');
-                
-                if (list.length === 0 && evals.length === 0) {
-                  return <div className="bg-white/3 border border-white/5 rounded-2xl p-4 text-center text-xs text-white/30">Rien de prévu pour le reste de la semaine !</div>;
-                }
-
-                return (
-                  <div className="space-y-2.5">
-                    {evals.map(task => {
-                      const style = getSubjectStyle(task.subject);
-                      return (
-                        <div key={task.id} className="bg-yellow-500/5 border-2 border-yellow-500/20 rounded-2xl p-4 flex items-center justify-between">
-                          <div className="space-y-1">
-                            <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase bg-yellow-500/10 border border-yellow-500/25 text-yellow-400 mr-1.5">Évaluation</span>
-                            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase ${style.bg} ${style.border} ${style.text}`}>{task.subject}</span>
-                            <h4 className="text-xs font-black text-white mt-1.5">{task.title}</h4>
-                            <p className="text-[9px] text-[#FFB020]">Date : {task.dueDate}</p>
-                          </div>
-                          <button onClick={() => handleReviewWithTutor({ ...task, assignedMemberId: activeMemberId })} className="px-3 py-1.5 bg-[#FFB020] text-[#07111F] text-[9px] font-black uppercase rounded-lg cursor-pointer">Réviser</button>
-                        </div>
-                      );
-                    })}
-                    {list.map(task => {
-                      const style = getSubjectStyle(task.subject);
-                      return (
-                        <div key={task.id} className="bg-[#112240] border border-white/5 rounded-2xl p-4 flex items-center justify-between">
-                          <div className="space-y-1">
-                            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase ${style.bg} ${style.border} ${style.text}`}>{task.subject}</span>
-                            <h4 className="text-xs font-black text-white mt-1.5">{task.title}</h4>
-                            <p className="text-[9px] text-white/40">Limite : {task.dueDate}</p>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <button onClick={() => handleReviewWithTutor({ ...task, assignedMemberId: activeMemberId })} className="p-2 bg-[#6C5CFF]/10 text-[#6C5CFF] rounded-lg cursor-pointer"><Sparkles className="w-4 h-4" /></button>
-                            <button onClick={() => handleMarkCompleted(task.id)} className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 flex items-center justify-center cursor-pointer">✓</button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* 4. EXAMENS PROCHES */}
-            {(() => {
-              const list = myEvaluations.filter(t => !t.done && getTaskStatusGroup(t) === 'soon');
-              if (list.length === 0) return null;
-              return (
-                <div className="space-y-2.5">
-                  <span className="text-[10px] font-black text-[#FFB020] uppercase tracking-widest block">⚠️ Contrôles à plus long terme :</span>
-                  <div className="space-y-2.5">
-                    {list.map(task => {
-                      const style = getSubjectStyle(task.subject);
-                      return (
-                        <div key={task.id} className="bg-yellow-500/5 border-white/5 rounded-2xl p-4 flex items-center justify-between">
-                          <div className="space-y-1">
-                            <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase bg-yellow-500/10 border border-yellow-500/25 text-yellow-400 mr-1.5">Contrôle</span>
-                            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase ${style.bg} ${style.border} ${style.text}`}>{task.subject}</span>
-                            <h4 className="text-xs font-black text-white mt-1.5">{task.title}</h4>
-                            <p className="text-[9px] text-white/40">Le : {task.dueDate}</p>
-                          </div>
-                          <button onClick={() => handleReviewWithTutor({ ...task, assignedMemberId: activeMemberId })} className="px-3 py-1.5 bg-[#FFB020] text-[#07111F] text-[9px] font-black uppercase rounded-lg cursor-pointer">Réviser</button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* 5. COCHÉS ET TERMINÉS */}
-            <div className="space-y-2.5">
-              <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block">✓ Devoirs terminés :</span>
-              {(() => {
-                const list = myHomeworks.filter(t => t.done);
-                if (list.length === 0) return <p className="text-xs text-white/30 italic">Aucun devoir validé pour le moment.</p>;
-                return (
-                  <div className="space-y-2">
-                    {list.map(task => {
-                      const style = getSubjectStyle(task.subject);
-                      return (
-                        <div key={task.id} className="bg-[#112240]/40 border border-white/5 p-4 rounded-xl flex items-center justify-between opacity-60">
-                          <div>
-                            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase ${style.bg} ${style.border} ${style.text}`}>{task.subject}</span>
-                            <h4 className="text-xs font-bold text-white/70 line-through mt-1.5">{task.title}</h4>
-                          </div>
-                          <span className="text-xs text-emerald-400">Fait ✓</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* TEEN SUBTAB: COACH INTELLIGENT & CHATBOT */}
-      {activeSubTab === 'coach' && (
-        <div className="space-y-6 text-left animate-fadeIn">
-          
-          {/* Smart insights header */}
-          <div className="bg-gradient-to-br from-[#6C5CFF]/15 to-[#4F8CFF]/5 border-2 border-[#6C5CFF]/20 rounded-[32px] p-6 space-y-4 relative overflow-hidden">
-            <div className="absolute top-[-25%] right-[-10%] w-[45%] h-[45%] rounded-full bg-[#6C5CFF]/25 blur-2xl pointer-events-none" />
-            <div className="flex items-center space-x-3.5">
-              <span className="text-2xl animate-pulse">🤖</span>
-              <div>
-                <h3 className="text-sm font-black text-white">Coach Scolaire Local</h3>
-                <p className="text-[10px] text-white/50">Analyse de tes performances en temps réel</p>
-              </div>
-            </div>
-
-            <div className="space-y-3 pt-2">
-              {/* Dynamic feedback messages */}
-              {(() => {
-                const myRealGrades = grades.filter(g => g.studentId === activeMemberId);
-                const normalized = myRealGrades.map(g => (g.value / g.max) * 20);
-                const avg = normalized.length > 0 
-                  ? Number((normalized.reduce((sum, val) => sum + val, 0) / normalized.length).toFixed(2))
-                  : null;
-
-                const feedbacks: string[] = [];
-                
-                if (avg !== null) {
-                  if (avg >= 16) {
-                    feedbacks.push(`🏆 Moyenne générale de ${avg}/20 ! C'est un excellent travail. Tu maîtrises tes sujets.`);
-                  } else if (avg >= 12) {
-                    feedbacks.push(`📈 Moyenne de ${avg}/20. Bon trimestre, poursuis tes efforts pour atteindre l'excellence !`);
-                  } else {
-                    feedbacks.push(`⚠️ Attention, ta moyenne est de ${avg}/20. Prends le temps de réviser tes cours dans l'Académie.`);
-                  }
-                } else {
-                  feedbacks.push("✍️ Pas encore de notes enregistrées. Fais un Contrôle Blanc dans l'Académie pour t'évaluer !");
-                }
-
-                // Streaks & skills advice
-                if (stats.streak >= 3) {
-                  feedbacks.push(`🔥 Série de ${stats.streak} jours consécutifs ! Le secret de la réussite, c'est la régularité.`);
-                }
-                
-                // Weakest skill analysis
-                let weakest: keyof typeof stats.skills = 'calcul';
-                let lowest = 101;
-                Object.entries(stats.skills).forEach(([s, val]) => {
-                  if (val < lowest) {
-                    lowest = val;
-                    weakest = s as any;
-                  }
-                });
-
-                if (lowest < 50) {
-                  feedbacks.push(`🔍 Point faible détecté en "${weakest}" (${lowest}%). Pense à revoir cette notion dans l'Académie.`);
-                } else {
-                  feedbacks.push(`💪 Compétence solide : tu te débrouilles très bien en "${weakest}" !`);
-                }
-
-                return feedbacks.map((f, idx) => (
-                  <div key={idx} className="flex items-start space-x-2 text-xs text-white/80 leading-relaxed font-medium">
-                    <span className="text-emerald-400 mt-0.5">✓</span>
-                    <span>{f}</span>
-                  </div>
-                ));
-              })()}
-            </div>
-
-            {/* Fast recommendation buttons */}
-            <div className="flex flex-wrap gap-2 pt-2 border-t border-white/5">
-              <button 
-                onClick={() => { setSelectedLessonCategory('maths'); setActiveSubTab('academie'); }}
-                className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-extrabold text-[10px] uppercase cursor-pointer transition-all"
-              >
-                🧮 Réviser les Maths
-              </button>
-              <button 
-                onClick={launchDailyChallenge}
-                className="px-3.5 py-2 rounded-xl bg-yellow-500/10 border border-yellow-500/25 text-yellow-400 font-extrabold text-[10px] uppercase cursor-pointer transition-all"
-              >
-                🏆 Défi du jour
-              </button>
-            </div>
-          </div>
-
-          {/* Interactive Chatbot Section */}
+          {/* Exercises Bank */}
           <div className="space-y-3">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">💬 Discuter avec mon tuteur local :</span>
-            
-            <div className="bg-white/5 border border-white/8 rounded-[32px] p-4 flex flex-col space-y-3.5 max-h-[300px] overflow-y-auto relative">
-              {chatMessages.map((msg, idx) => {
-                const isAi = msg.sender === 'ai';
-                return (
-                  <div key={idx} className={`flex items-start space-x-2.5 ${!isAi ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-sm shadow-md ${
-                      isAi ? 'bg-gradient-to-br from-[#6C5CFF] to-[#4F8CFF]' : 'bg-[#6C5CFF]/20 border border-[#6C5CFF]/30 text-white'
-                    }`}>
-                      {isAi ? '🤖' : '👦'}
-                    </div>
-                    
-                    <div className="space-y-2 max-w-[80%]">
-                      <div className={`p-3.5 rounded-2xl text-xs font-medium leading-relaxed shadow-sm ${
-                        isAi ? 'bg-[#112240] border border-white/8 text-white rounded-tl-none' : 'bg-[#6C5CFF] text-white font-bold rounded-tr-none'
-                      }`}>
-                        {msg.text.split('\n').map((line, lIdx) => (
-                          <p key={lIdx} className={lIdx > 0 ? 'mt-1' : ''}>{line}</p>
-                        ))}
-                      </div>
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">🎯 Banque d'Exercices Directs :</span>
+            <div className="bg-white/5 border border-white/8 rounded-[32px] p-5 space-y-3">
+              <p className="text-[11px] text-white/60 leading-relaxed font-medium">
+                Choisis une matière pour générer instantanément un test d'entraînement rapide de 5 questions.
+              </p>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                {[
+                  { label: "🧮 Mathématiques", sub: "Mathématiques" },
+                  { label: "✍️ Français", sub: "Français" },
+                  { label: "🧬 Découverte & SVT", sub: "Découverte" },
+                  { label: "🌍 Langues", sub: "Langues" }
+                ].map(item => (
+                  <button
+                    key={item.sub}
+                    onClick={() => {
+                      const questions: AcademyQuestion[] = [];
+                      for (let i = 0; i < 5; i++) {
+                        questions.push(generateProceduralQuestion(currentGrade, item.sub as any));
+                      }
+                      setActiveQuiz({
+                        type: 'teen_exercise',
+                        questions,
+                        currentIndex: 0,
+                        score: 0,
+                        answers: [],
+                        selectedOption: null,
+                        showCorrection: false,
+                        xpEarned: 0,
+                        starsEarned: 0,
+                        showHint: false
+                      });
+                    }}
+                    className="p-3 bg-white/5 border border-white/5 text-xs text-white rounded-2xl hover:bg-[#6C5CFF]/15 hover:border-[#6C5CFF]/30 transition-all font-black text-left cursor-pointer"
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Dictionary search */}
+          <div className="space-y-3">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">🔍 Dictionnaire de recherche scolaire :</span>
+            <div className="bg-white/5 border border-white/8 rounded-[32px] p-4 space-y-3">
+              <p className="text-[11px] text-white/50 leading-relaxed font-semibold">
+                Saisis un mot-clé (ex: "Pythagore", "fractions", "dérivée") pour obtenir instantanément une explication illustrée avec des emojis.
+              </p>
+              
+              {chatMessages.length > 1 && (
+                <div className="bg-[#112240] border border-white/5 p-3 rounded-2xl max-h-[160px] overflow-y-auto space-y-2">
+                  {chatMessages.slice(-2).map((msg, idx) => (
+                    <div key={idx} className={`p-2 rounded-xl text-[11px] ${msg.sender === 'ai' ? 'bg-black/20 text-white border border-white/5' : 'bg-[#6C5CFF]/10 text-[#9E94FF] font-bold text-right'}`}>
+                      <span className="font-extrabold text-[9px] block uppercase text-white/30 mb-0.5">{msg.sender === 'ai' ? '📖 Tuteur' : '👦 Moi'}</span>
+                      <p className="whitespace-pre-line leading-relaxed font-medium">{msg.text}</p>
                       {msg.action && (
-                        <button onClick={msg.action.onClick} className="px-3 py-1.5 rounded-lg bg-[#6C5CFF] text-white font-black text-[9px] uppercase tracking-wider hover:bg-[#5849E0] transition shadow-md cursor-pointer block">{msg.action.label}</button>
+                        <button onClick={msg.action.onClick} className="mt-1.5 px-2.5 py-1 rounded bg-[#6C5CFF] text-white font-black text-[9px] uppercase tracking-wider cursor-pointer block">{msg.action.label}</button>
                       )}
                     </div>
-                  </div>
-                );
-              })}
-
-              {isTyping && (
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#6C5CFF] to-[#4F8CFF] flex items-center justify-center shrink-0 text-sm animate-pulse">🤖</div>
-                  <div className="bg-[#112240] border border-white/8 p-3 rounded-2xl text-xs flex items-center space-x-2 text-white/50 rounded-tl-none">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Recherche...</span>
-                  </div>
+                  ))}
                 </div>
               )}
-              <div ref={chatEndRef} />
+
+              <form onSubmit={handleSendLocalMessage} className="flex space-x-2">
+                <input 
+                  type="text" 
+                  value={userInput} 
+                  onChange={(e) => setUserInput(e.target.value)} 
+                  placeholder="Ex: Pythagore, Dérivées, Wolof..." 
+                  className="flex-1 bg-white/5 border border-white/8 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:border-[#6C5CFF]" 
+                />
+                <button 
+                  type="submit" 
+                  disabled={isTyping || !userInput.trim()} 
+                  className="p-3 bg-[#6C5CFF] text-white rounded-2xl hover:bg-[#5849E0] transition disabled:opacity-50 flex items-center justify-center cursor-pointer shrink-0"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
             </div>
-
-            <form onSubmit={handleSendLocalMessage} className="flex space-x-2">
-              <input type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder="Pose une question de révision..." className="flex-1 bg-white/5 border border-white/8 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:border-[#6C5CFF]" />
-              <button type="submit" disabled={isTyping || !userInput.trim()} className="p-3.5 rounded-2xl bg-[#6C5CFF] text-white hover:bg-[#5849E0] transition disabled:opacity-50 flex items-center justify-center shadow-lg cursor-pointer shrink-0"><Send className="w-4 h-4" /></button>
-            </form>
           </div>
-
         </div>
       )}
 
-      {/* TEEN SUBTAB: NOTES & BULLETINS */}
-      {activeSubTab === 'notes' && (
+      {activeSubTab === 'defis' && !activeQuiz && (
+        <div className="space-y-6 text-left animate-fadeIn">
+          {/* Header Card */}
+          <div className="bg-gradient-to-br from-[#E040FB]/15 to-[#6C5CFF]/5 border border-[#E040FB]/20 rounded-[32px] p-5 shadow-lg flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-[9px] font-black text-[#E040FB] uppercase tracking-wider">Arène des Défis</span>
+              <h3 className="text-base font-black text-white">Prêt à affronter tes limites ?</h3>
+              <p className="text-[10px] text-white/50">Mesure-toi à la famille et gagne des bonus d'XP !</p>
+            </div>
+            <span className="text-3xl">🎯</span>
+          </div>
+
+          {/* Daily & Weekly Challenges cards */}
+          <div className="grid grid-cols-1 gap-3">
+            <button 
+              onClick={launchDailyChallenge} 
+              className="bg-gradient-to-br from-[#FFB020]/15 to-[#FF8C00]/5 border-2 border-[#FFB020]/30 rounded-[28px] p-5 text-left flex items-start space-x-4 hover:border-[#FFB020]/50 transition-all cursor-pointer w-full"
+            >
+              <span className="p-3 bg-[#FFB020]/20 rounded-2xl text-xl shrink-0">🏆</span>
+              <div className="space-y-1 min-w-0 flex-1">
+                <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                  Défi Quotidien 
+                  <span className="text-[8px] bg-[#FFB020]/20 text-[#FFB020] px-1.5 py-0.5 rounded-full font-black uppercase">XP DOUBLE</span>
+                </h4>
+                <p className="text-[10px] text-white/60 font-semibold leading-snug">
+                  10 questions mélangées. Reçois le double de récompenses (+100 XP / +10 Étoiles) !
+                </p>
+              </div>
+            </button>
+
+            <button 
+              onClick={launchWeeklyEvaluation} 
+              className="bg-gradient-to-br from-[#E040FB]/15 to-[#6C5CFF]/5 border-2 border-[#E040FB]/25 rounded-[28px] p-5 text-left flex items-start space-x-4 hover:border-[#E040FB]/45 transition-all cursor-pointer w-full"
+            >
+              <span className="p-3 bg-[#E040FB]/20 rounded-2xl text-xl shrink-0">⚡</span>
+              <div className="space-y-1 min-w-0 flex-1">
+                <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                  Évaluation Hebdomadaire
+                  <span className="text-[8px] bg-[#E040FB]/20 text-[#E040FB] px-1.5 py-0.5 rounded-full font-black uppercase">Badge</span>
+                </h4>
+                <p className="text-[10px] text-white/60 font-semibold leading-snug">
+                  10 questions pour valider ton assiduité de la semaine et débloquer ton badge.
+                </p>
+              </div>
+            </button>
+          </div>
+
+          {/* Gamified Leaderboard */}
+          <div className="space-y-3">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">🏆 Classement XP Familial (Hebdo) :</span>
+            <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 space-y-3.5">
+              {(() => {
+                const leaderboardList = members && members.length > 0 
+                  ? members.map(m => {
+                      let memberXp = 120;
+                      if (m.id === activeMemberId) {
+                        memberXp = stats.xp + (stats.level - 1) * 300;
+                      } else if (m.role?.toLowerCase().includes('ado') || m.id === '3') {
+                        memberXp = 450;
+                      } else if (m.role?.toLowerCase().includes('enfant') || m.id === '4') {
+                        memberXp = 220;
+                      } else {
+                        memberXp = 90;
+                      }
+                      return {
+                        id: m.id,
+                        name: m.name,
+                        photoUrl: m.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80',
+                        xp: memberXp
+                      };
+                    }).sort((a, b) => b.xp - a.xp)
+                  : [
+                      { id: '3', name: 'Amadou', photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80', xp: 450 },
+                      { id: activeMemberId, name: activeMember?.name || 'Ado', photoUrl: activeMember?.photoUrl || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=100&q=80', xp: stats.xp + (stats.level - 1) * 300 },
+                      { id: '4', name: 'Awa', photoUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80', xp: 220 }
+                    ].sort((a, b) => b.xp - a.xp);
+
+                return leaderboardList.map((user, idx) => {
+                  const isMe = user.id === activeMemberId;
+                  const rankEmojis = ['👑', '🥈', '🥉'];
+                  
+                  return (
+                    <div 
+                      key={user.id} 
+                      className={`flex items-center justify-between p-3 rounded-2xl transition-all ${
+                        isMe ? 'bg-[#6C5CFF]/15 border border-[#6C5CFF]/30' : 'bg-white/5 border border-white/5'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <span className="text-xs shrink-0 w-5 text-center font-black text-white/40">
+                          {rankEmojis[idx] || `${idx + 1}.`}
+                        </span>
+                        <img 
+                          src={user.photoUrl} 
+                          alt={user.name} 
+                          className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0"
+                        />
+                        <span className={`text-xs font-black truncate block ${isMe ? 'text-white' : 'text-white/80'}`}>
+                          {user.name} {isMe ? '(Moi)' : ''}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center space-x-2 shrink-0">
+                        <span className="text-[10px] font-black text-[#FFB020] bg-[#FFB020]/10 px-2.5 py-1 rounded-xl">
+                          {user.xp} XP
+                        </span>
+                        
+                        {!isMe && (
+                          <button
+                            onClick={() => {
+                              const questions: AcademyQuestion[] = [];
+                              for (let i = 0; i < 10; i++) {
+                                questions.push(generateProceduralQuestion(currentGrade, i % 2 === 0 ? 'Mathématiques' : 'Français'));
+                              }
+                              setActiveQuiz({
+                                type: 'teen_exercise',
+                                questions,
+                                currentIndex: 0,
+                                score: 0,
+                                answers: [],
+                                selectedOption: null,
+                                showCorrection: false,
+                                xpEarned: 0,
+                                starsEarned: 0,
+                                showHint: false
+                              });
+                              alert(`⚔️ Lancement du Duel contre ${user.name} ! Obtiens au moins 8/10 pour gagner.`);
+                            }}
+                            className="p-1.5 bg-[#E040FB]/10 border border-[#E040FB]/20 hover:bg-[#E040FB]/25 text-[#E040FB] rounded-xl text-[9px] font-black uppercase cursor-pointer transition-all"
+                          >
+                            ⚔️ Duel
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === 'notes' && !activeQuiz && (
         <div className="space-y-6 text-left animate-fadeIn">
           <div className="bg-white/3 border border-white/5 rounded-2xl p-3.5 text-center text-[10px] text-white/45 font-bold uppercase tracking-wider">
             🔒 Relevé officiel — Lecture seule (Parent)
@@ -2263,7 +2206,6 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
 
           {(() => {
             const myRealGrades = grades.filter(g => g.studentId === activeMemberId);
-            const normalized = myRealGrades.map(g => (g.value / g.max) * 20);
             
             let totalWeighted = 0;
             let totalCoef = 0;
@@ -2285,9 +2227,10 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
               );
             }
 
+            const gap = targetAverage - Number(avg);
+
             return (
               <div className="space-y-6">
-                
                 {/* Bulletin average card */}
                 <div className="bg-[#112240] border border-white/8 rounded-[32px] p-6 text-center space-y-4 shadow-xl relative overflow-hidden">
                   <div className="absolute top-[-10%] left-[-10%] w-[30%] h-[30%] rounded-full bg-[#FFD700]/10 blur-xl pointer-events-none" />
@@ -2301,6 +2244,47 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                   <p className="text-xs text-white/75 font-semibold italic">
                     "{avg >= 15 ? 'Félicitations pour tes excellents résultats ! Continue comme ça 🏆' : avg >= 12 ? 'Travail satisfaisant, continue à réviser avec ton Tuteur ! 🚀' : 'Révise tes cours pour remonter tes moyennes !'}"
                   </p>
+                </div>
+
+                {/* Grade Objective Setting Card */}
+                <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <div className="space-y-0.5">
+                      <h4 className="text-xs font-black text-white">🎯 Objectif de Moyenne</h4>
+                      <p className="text-[9.5px] text-white/50">Définis ton objectif et mesure ton écart</p>
+                    </div>
+                    <span className="text-sm font-black text-[#FFB020] bg-[#FFB020]/10 px-3 py-1 rounded-xl">
+                      {targetAverage} / 20
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <input 
+                      type="range" 
+                      min="10" 
+                      max="20" 
+                      step="0.5" 
+                      value={targetAverage} 
+                      onChange={(e) => setTargetAverage(Number(e.target.value))} 
+                      className="w-full h-1 bg-[#6C5CFF]/30 rounded-lg appearance-none cursor-pointer accent-[#6C5CFF]" 
+                    />
+                    <div className="flex justify-between text-[8px] font-black text-white/30">
+                      <span>10.0</span>
+                      <span>15.0</span>
+                      <span>20.0</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-white/5 flex items-center space-x-2.5">
+                    <TrendingUp className="w-4 h-4 text-[#00D26A] shrink-0" />
+                    <p className="text-[10px] text-white/70 font-semibold leading-snug">
+                      {gap <= 0 ? (
+                        <span className="text-emerald-400">✨ Objectif atteint ! Tu as dépassé ton objectif de {Math.abs(gap).toFixed(2)} points. Bravo !</span>
+                      ) : (
+                        <span>Encore <span className="text-[#FFB020] font-black">{gap.toFixed(2)} pts</span> à rattraper pour atteindre ta cible.</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Subject-wise averages summary */}
@@ -2335,34 +2319,186 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                     })()}
                   </div>
                 </div>
-
-                {/* Detailed Grades Feed */}
-                <div className="space-y-3">
-                  <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">📋 Historique des notes :</span>
-                  <div className="space-y-2.5">
-                    {myRealGrades.map((grade, idx) => {
-                      const style = getSubjectStyle(grade.subject);
-                      return (
-                        <div key={grade.id || idx} className="bg-[#112240] border border-white/5 rounded-2xl p-4 flex items-center justify-between">
-                          <div className="flex items-center space-x-3.5">
-                            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                              <span className="text-sm font-black text-[#FFB020]">{grade.value}/{grade.max}</span>
-                            </div>
-                            <div>
-                              <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase border ${style.bg} ${style.border} ${style.text}`}>{grade.subject}</span>
-                              <h4 className="text-xs font-black text-white mt-1 leading-snug">{grade.examTitle}</h4>
-                              <p className="text-[9px] text-white/40 font-bold">Reçu le : {grade.date} (Coef: {grade.coef || 1})</p>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {activeSubTab === 'progression' && !activeQuiz && (
+        <div className="space-y-6 text-left animate-fadeIn">
+          
+          {/* Level & XP Overview */}
+          <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 shadow-lg space-y-4 relative overflow-hidden">
+            <div className="absolute top-[-20%] right-[-10%] w-[40%] h-[40%] rounded-full bg-[#6C5CFF]/10 blur-xl pointer-events-none" />
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <span className="text-[9px] font-black text-[#6C5CFF] uppercase tracking-wider">Statut Général</span>
+                <h3 className="text-xl font-black text-white">Niveau {stats.level}</h3>
+                <p className="text-[10px] text-white/50">XP totale : {stats.xp + (stats.level - 1) * 300} XP</p>
+              </div>
+              <div className="p-3 bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 rounded-2xl">
+                <Trophy className="w-6 h-6 text-yellow-400" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                <div className="h-full bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] rounded-full transition-all duration-500" style={{ width: `${(stats.xp / (stats.level * 100)) * 100}%` }} />
+              </div>
+              <div className="flex justify-between text-[9px] font-bold text-white/40">
+                <span>{stats.xp} XP</span>
+                <span>Prochain niveau à {stats.level * 100} XP</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Streak & Work Time Grid */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-[#112240] border border-white/8 rounded-[32px] p-4 flex flex-col justify-between space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-[8px] font-black text-white/40 uppercase tracking-widest">Série d'Activité</span>
+                <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-white">{stats.streak} Jours</p>
+                <p className="text-[9px] text-white/50 font-bold mt-0.5 leading-snug">
+                  {stats.streak >= 3 ? '🔥 Super rythme !' : 'Régularité = Clé'}
+                </p>
+              </div>
+            </div>
+
+            {(() => {
+              const workTimeMin = stats.completedQuizzesCount * 8 + Math.floor(stats.xp / 10) * 2;
+              const hours = Math.floor(workTimeMin / 60);
+              const mins = workTimeMin % 60;
+              return (
+                <div className="bg-[#112240] border border-white/8 rounded-[32px] p-4 flex flex-col justify-between space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[8px] font-black text-white/40 uppercase tracking-widest">Temps de Travail</span>
+                    <Clock className="w-4 h-4 text-cyan-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-black text-white">{hours}h {mins}m</p>
+                    <p className="text-[9px] text-white/50 font-bold mt-0.5 uppercase tracking-wider">Cette semaine</p>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Weekly Work time chart */}
+          {(() => {
+            const workTimeMin = stats.completedQuizzesCount * 8 + Math.floor(stats.xp / 10) * 2;
+            const days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+            const distribution = [
+              Math.min(workTimeMin, 15),
+              Math.max(0, Math.min(workTimeMin - 15, 30)),
+              Math.max(0, Math.min(workTimeMin - 45, 10)),
+              Math.max(0, Math.min(workTimeMin - 55, 45)),
+              Math.max(0, Math.min(workTimeMin - 100, 20)),
+              Math.max(0, Math.min(workTimeMin - 120, 15)),
+              Math.max(0, Math.min(workTimeMin - 135, 25))
+            ];
+            
+            return (
+              <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 space-y-3.5">
+                <span className="text-[9px] font-black text-white/40 uppercase tracking-widest block">📊 Répartition hebdomadaire (Minutes) :</span>
+                <div className="flex justify-between items-end h-[60px] px-2 pt-2">
+                  {days.map((day, idx) => {
+                    const mins = distribution[idx] || 0;
+                    const maxVal = Math.max(...distribution, 10);
+                    const pct = (mins / maxVal) * 100;
+                    
+                    return (
+                      <div key={day} className="flex flex-col items-center space-y-1.5 w-7">
+                        <span className="text-[8px] font-black text-[#9E94FF]">{mins}m</span>
+                        <div className="w-2.5 bg-white/5 rounded-t-sm h-[30px] relative overflow-hidden">
+                          <div className="absolute bottom-0 w-full bg-gradient-to-t from-[#6C5CFF] to-[#4F8CFF] rounded-t-sm" style={{ height: `${pct}%` }} />
+                        </div>
+                        <span className="text-[8px] font-black text-white/30">{day}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Badges System */}
+          <div className="space-y-3">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">🏅 Badges Débloqués :</span>
+            <div className="bg-white/5 border border-white/8 rounded-[32px] p-5">
+              {(() => {
+                const myRealGrades = grades.filter(g => g.studentId === activeMemberId);
+                let totalWeighted = 0;
+                let totalCoef = 0;
+                myRealGrades.forEach(g => {
+                  totalWeighted += ((g.value / g.max) * 20) * g.coef;
+                  totalCoef += g.coef;
+                });
+                const avg = totalCoef > 0 ? totalWeighted / totalCoef : 0;
+                const totalXp = stats.xp + (stats.level - 1) * 300;
+
+                const badgesList = [
+                  { id: 'premier_pas', title: '🎒 Premier Pas', desc: 'Débuter l\'aventure scolaire.', unlocked: stats.level >= 1 },
+                  { id: 'assidu', title: '🔥 Assidu', desc: 'Avoir une série de 3 jours.', unlocked: stats.streak >= 3 },
+                  { id: 'acier', title: '🧠 Cerveau d\'acier', desc: 'Atteindre le niveau 5.', unlocked: stats.level >= 5 },
+                  { id: 'major', title: '🎓 Major de Promo', desc: 'Avoir une moyenne >= 15/20.', unlocked: avg >= 15 },
+                  { id: 'incollable', title: '🛡️ Incollable', desc: 'Valider 5 questionnaires.', unlocked: stats.completedQuizzesCount >= 5 },
+                  { id: 'chasseur', title: '⚡ Chasseur d\'XP', desc: 'Gagner 500 XP au total.', unlocked: totalXp >= 500 }
+                ];
+
+                return (
+                  <div className="grid grid-cols-2 gap-3">
+                    {badgesList.map(b => (
+                      <div 
+                        key={b.id} 
+                        className={`p-3 rounded-2xl border text-left flex items-start space-x-3 transition-all ${
+                          b.unlocked 
+                            ? 'bg-[#6C5CFF]/10 border-[#6C5CFF]/30 shadow-md shadow-[#6C5CFF]/5' 
+                            : 'bg-white/3 border-white/5 opacity-40'
+                        }`}
+                      >
+                        <span className="text-xl mt-0.5">{b.unlocked ? '🏆' : '🔒'}</span>
+                        <div className="min-w-0">
+                          <h5 className="text-[11px] font-black text-white truncate">{b.title}</h5>
+                          <p className="text-[9px] text-white/50 font-medium leading-snug">{b.desc}</p>
+                          <span className={`text-[8px] font-black uppercase tracking-wider block mt-1 ${
+                            b.unlocked ? 'text-emerald-400' : 'text-white/30'
+                          }`}>
+                            {b.unlocked ? 'Débloqué' : 'Verrouillé'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Reward Store Preview */}
+          <div className="space-y-3">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block flex items-center space-x-1.5 text-yellow-400">
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span>Récompenses déblocables :</span>
+            </span>
+            <div className="bg-white/5 border border-white/8 rounded-[32px] p-4 space-y-2">
+              {parentRewards.map((rew, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 bg-white/3 rounded-2xl">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-lg">{rew.icon}</span>
+                    <span className="text-xs font-black text-white">{rew.label}</span>
+                  </div>
+                  <div className="flex items-center space-x-1 bg-yellow-500/10 border border-yellow-500/25 px-2.5 py-1 rounded-xl text-yellow-400 font-extrabold text-[9px] uppercase">
+                    <span>{rew.cost}</span>
+                    <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
         </div>
       )}
     </div>
