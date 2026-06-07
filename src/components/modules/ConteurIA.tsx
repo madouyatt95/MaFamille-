@@ -26,6 +26,7 @@ interface ConteurIAProps {
   onTriggerPaywall?: () => void;
   member?: any;
   isKidMode?: boolean;
+  onStorySuccess?: () => void;
 }
 
 interface Universe {
@@ -296,7 +297,8 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
   isPremium = false, 
   onTriggerPaywall,
   member,
-  isKidMode = false
+  isKidMode = false,
+  onStorySuccess
 }) => {
   // Dynamically build heroes list from real family members passed via props
   const defaultHeroes = (members && members.length > 0)
@@ -597,6 +599,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
 
           setTimeout(() => {
             setActiveStory(story);
+            if (onStorySuccess) onStorySuccess();
             setCurrentChapterIndex(0);
             setIsGenerating(false);
             setGenStep(0);
@@ -640,6 +643,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           const isQuotaFallback = isPremium && remainingCalls === 0;
 
           setActiveStory(story);
+          if (onStorySuccess) onStorySuccess();
           setCurrentChapterIndex(0);
           setIsGenerating(false);
           setGenStep(0);

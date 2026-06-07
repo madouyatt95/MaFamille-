@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { ArrowLeft, GraduationCap, Calendar, Sparkles, BookOpen, AlertCircle, MessageSquare, CheckSquare, Award, Clock, ArrowRight } from 'lucide-react';
 import type { Member, SchoolTask, Dish } from '../types';
+import { TuteurScolaire } from '../components/modules/TuteurScolaire';
+import { getSupabaseClient } from '../utils/supabase';
 
 export interface KidSchoolProps {
   member: Member;
@@ -8,6 +10,12 @@ export interface KidSchoolProps {
   setSchoolTasks: React.Dispatch<React.SetStateAction<SchoolTask[]>>;
   dishes: Dish[];
   grades?: any[];
+  setGrades?: React.Dispatch<React.SetStateAction<any[]>>;
+  schedule?: any[];
+  setSchedule?: React.Dispatch<React.SetStateAction<any[]>>;
+  members?: any[];
+  isPremium?: boolean;
+  onTriggerPaywall?: () => void;
   onBack: () => void;
 }
 
@@ -34,9 +42,15 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
   setSchoolTasks,
   dishes,
   grades = [],
+  setGrades = () => {},
+  schedule = [],
+  setSchedule = () => {},
+  members = [],
+  isPremium = false,
+  onTriggerPaywall,
   onBack
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'devoirs' | 'tuteur' | 'cantine' | 'vie'>('devoirs');
+  const [activeSubTab, setActiveSubTab] = useState<'devoirs' | 'tuteur' | 'emploi' | 'vie'>('devoirs');
   const [tutorNotice, setTutorNotice] = useState<boolean>(false);
 
   // Devoirs / Tasks filtered for this member
@@ -252,14 +266,14 @@ Question de l'enfant : "${query}"`;
           Tuteur IA 🤖
         </button>
         <button
-          onClick={() => setActiveSubTab('cantine')}
+          onClick={() => setActiveSubTab('emploi')}
           className={`py-3 rounded-xl text-[10px] font-black transition-all cursor-pointer text-center ${
-            activeSubTab === 'cantine' 
+            activeSubTab === 'emploi' 
               ? 'bg-[#00D26A] text-[#07111F] shadow-md shadow-[#00D26A]/20' 
               : 'text-white/50 hover:text-white/85'
           }`}
         >
-          Cantine 🍽️
+          Emploi du temps 📅
         </button>
         <button
           onClick={() => setActiveSubTab('vie')}
@@ -383,118 +397,66 @@ Question de l'enfant : "${query}"`;
 
       {/* CONTENT: AI Tutor Chat */}
       {activeSubTab === 'tuteur' && (
-        <div className="space-y-4 flex flex-col min-h-[400px]">
-          {tutorNotice && (
-            <div className="bg-amber-500/20 border border-amber-500/30 rounded-2xl p-3 text-[10px] text-amber-200 font-bold flex items-center space-x-2 animate-pulse">
-              <span className="text-sm">⚡️</span>
-              <span>Connexion magique perturbée. Le Tuteur IA utilise sa mémoire locale ! ✨</span>
-            </div>
-          )}
-          {/* Chat box */}
-          <div className="flex-1 bg-white/5 border border-white/10 rounded-[32px] p-4 space-y-4 overflow-y-auto max-h-[350px] min-h-[250px] flex flex-col justify-end">
-            <div className="space-y-3">
-              {chatMessages.map((msg, idx) => (
-                <div 
-                  key={idx} 
-                  className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div 
-                    className={`max-w-[85%] rounded-[24px] px-4 py-3 text-xs leading-relaxed ${
-                      msg.sender === 'user'
-                        ? 'bg-[#00D26A] text-[#07111F] font-black rounded-br-none'
-                        : 'bg-[#112240] text-white/90 border border-white/5 rounded-bl-none font-bold'
-                    }`}
-                  >
-                    {msg.text}
-                  </div>
-                </div>
-              ))}
-              
-              {isTyping && (
-                <div className="flex justify-start">
-                  <div className="bg-[#112240] border border-white/5 rounded-[24px] rounded-bl-none px-4 py-2 text-xs text-white/40 font-bold flex items-center space-x-1.5">
-                    <span>Le Tuteur IA réfléchit</span>
-                    <span className="flex space-x-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:0.2s]" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:0.4s]" />
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Quick Questions suggestion */}
-          <div className="flex space-x-2 overflow-x-auto pb-1 no-scrollbar shrink-0">
-            <button 
-              onClick={() => setUserInput("C'est quoi une fraction ?")}
-              className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-bold text-white/60 hover:text-white shrink-0 cursor-pointer"
-            >
-              🍰 Les fractions
-            </button>
-            <button 
-              onClick={() => setUserInput("Une astuce pour la table de 9 ?")}
-              className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-bold text-white/60 hover:text-white shrink-0 cursor-pointer"
-            >
-              📐 Tables de multiplication
-            </button>
-            <button 
-              onClick={() => setUserInput("Qui a construit les pyramides ?")}
-              className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-bold text-white/60 hover:text-white shrink-0 cursor-pointer"
-            >
-              🏺 L'Égypte ancienne
-            </button>
-          </div>
-
-          {/* Input field */}
-          <form onSubmit={handleSendMessage} className="flex items-center space-x-2 shrink-0">
-            <input 
-              type="text" 
-              placeholder="Ex: Pourquoi le ciel est bleu ?"
-              value={userInput}
-              onChange={(e) => setUserInput(e.target.value)}
-              className="flex-1 bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#00D26A]/50"
-            />
-            <button 
-              type="submit" 
-              className="p-3 bg-[#00D26A] text-[#07111F] rounded-2xl cursor-pointer hover:scale-105 active:scale-95 transition-transform"
-            >
-              <ArrowRight className="w-5 h-5" />
-            </button>
-          </form>
+        <div className="space-y-4">
+          <TuteurScolaire 
+            schoolTasks={schoolTasks}
+            setSchoolTasks={setSchoolTasks}
+            activeMemberId={member.id}
+            members={members}
+            isPremium={isPremium}
+            onTriggerPaywall={onTriggerPaywall}
+            grades={grades}
+            setGrades={setGrades}
+            schedule={schedule}
+            setSchedule={setSchedule}
+          />
         </div>
       )}
 
-      {/* CONTENT: Cantine */}
-      {activeSubTab === 'cantine' && (
+      {/* CONTENT: Emploi du Temps */}
+      {activeSubTab === 'emploi' && (
         <div className="space-y-4">
-          <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block">Menu de la cantine scolaire :</span>
+          <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block">Mon Emploi du Temps Scolaire :</span>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {cantineMenu.map((dayItem, idx) => (
-              <div key={idx} className="bg-white/5 border border-white/8 rounded-[28px] p-5 space-y-3 text-left">
-                <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                  <span className="text-xs font-black text-[#00D26A]">{dayItem.day}</span>
-                  <span className="text-[10px] font-bold text-white/30">Cantine Centrale 🏫</span>
-                </div>
+          <div className="space-y-4">
+            {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'].map((day) => {
+              const dayClasses = (schedule || [])
+                .filter(item => item && (item.studentId === member.id || item.studentName?.toLowerCase() === member.name?.toLowerCase()) && item.day === day)
+                .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
                 
-                <div className="space-y-2 text-xs font-medium">
-                  <div>
-                    <span className="text-[9px] font-bold text-white/40 block">Entrée :</span>
-                    <span className="text-white/85">{dayItem.starter}</span>
+              if (dayClasses.length === 0) return null;
+              
+              return (
+                <div key={day} className="bg-white/5 border border-white/8 rounded-[28px] p-5 space-y-3 text-left">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                    <span className="text-xs font-black text-[#00D26A]">{day}</span>
+                    <span className="text-[9px] font-bold text-white/30">Cours de la journée 🏫</span>
                   </div>
-                  <div>
-                    <span className="text-[9px] font-bold text-white/40 block">Plat Principal :</span>
-                    <span className="text-white/95 font-bold">{dayItem.main}</span>
-                  </div>
-                  <div>
-                    <span className="text-[9px] font-bold text-white/40 block">Dessert :</span>
-                    <span className="text-white/85">{dayItem.dessert}</span>
+                  
+                  <div className="space-y-2.5">
+                    {dayClasses.map((cls) => (
+                      <div key={cls.id} className="p-3 bg-white/5 rounded-2xl flex items-center justify-between border border-white/5">
+                        <div>
+                          <h4 className="text-xs font-extrabold text-white">{cls.subject}</h4>
+                          <p className="text-[10px] text-white/40 font-bold mt-0.5">
+                            ⏰ {cls.startTime} - {cls.endTime} {cls.room ? `• 📍 ${cls.room}` : ''}
+                          </p>
+                        </div>
+                        <span className="text-xl">📚</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
+              );
+            })}
+            
+            {(schedule || []).filter(item => item && (item.studentId === member.id || item.studentName?.toLowerCase() === member.name?.toLowerCase())).length === 0 && (
+              <div className="bg-white/5 border border-white/10 rounded-[32px] p-8 text-center space-y-2">
+                <span className="text-4xl block">📅</span>
+                <p className="text-sm font-black text-white">Pas de cours programmé</p>
+                <p className="text-xs text-white/50 leading-relaxed font-bold">Ton emploi du temps n'a pas encore été configuré par tes parents.</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
       )}
@@ -502,44 +464,16 @@ Question de l'enfant : "${query}"`;
       {/* CONTENT: Vie Scolaire */}
       {activeSubTab === 'vie' && (
         <div className="space-y-6">
-          {/* Teacher Messages */}
-          <div className="space-y-3">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block">Messages des Enseignants :</span>
-            <div className="space-y-2.5">
-              {teacherMessages.map(msg => (
-                <div key={msg.id} className="p-4 bg-white/5 border border-white/8 rounded-[28px] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <span className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-lg">{msg.avatar}</span>
-                      <span className="text-xs font-black text-white">{msg.sender}</span>
-                    </div>
-                    <span className="text-[9px] font-bold text-white/30">{msg.date}</span>
-                  </div>
-                  <div className="border-l-2 border-[#00D26A] pl-3 py-0.5 space-y-1">
-                    <h4 className="text-xs font-bold text-white/90">{msg.subject}</h4>
-                    <p className="text-[11px] text-white/50 leading-relaxed font-bold">{msg.body}</p>
-                  </div>
-                </div>
-              ))}
+          <div className="bg-[#112240] border-2 border-white/5 rounded-[32px] p-8 text-center space-y-4 shadow-xl">
+            <div className="w-16 h-16 bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] rounded-full flex items-center justify-center text-3xl mx-auto shadow-inner">
+              🏫
             </div>
-          </div>
-
-          {/* Academic Stats and Badges */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white/5 border border-white/8 rounded-[28px] p-4 text-center space-y-2">
-              <Award className="w-8 h-8 text-[#FFB020] mx-auto" />
-              <div>
-                <p className="text-lg font-black text-white">Élève Modèle 🌟</p>
-                <p className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Badge de Comportement</p>
-              </div>
-            </div>
-            
-            <div className="bg-white/5 border border-white/8 rounded-[28px] p-4 text-center space-y-2">
-              <Clock className="w-8 h-8 text-[#4F8CFF] mx-auto" />
-              <div>
-                <p className="text-lg font-black text-white">100% Présent</p>
-                <p className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Cette semaine</p>
-              </div>
+            <div className="space-y-2">
+              <h3 className="text-lg font-black text-white">Mon établissement</h3>
+              <p className="text-xs text-white/50 font-bold uppercase tracking-widest">Bientôt disponible</p>
+              <p className="text-xs text-white/60 leading-relaxed font-bold max-w-xs mx-auto">
+                Rapproche-toi de ton école pour connecter ton carnet de liaison et recevoir les messages de ton établissement !
+              </p>
             </div>
           </div>
         </div>

@@ -13,6 +13,7 @@ interface KidProfileProps {
   foyer: any;
   documents?: DocumentFile[];
   onBack: () => void;
+  onOpenChatWithMember?: (memberId: string) => void;
 }
 
 export const KidProfile: React.FC<KidProfileProps> = ({
@@ -25,13 +26,14 @@ export const KidProfile: React.FC<KidProfileProps> = ({
   members,
   foyer,
   documents = [],
-  onBack
+  onBack,
+  onOpenChatWithMember
 }) => {
   const [previewDoc, setPreviewDoc] = useState<DocumentFile | null>(null);
 
   const myRealDocs = documents.filter(d => d && d.memberId === member.id && !d.isSecure);
   // Find pocket money account
-  const myAccount = pocketMoney.find(p => p.id === member.id) || { balance: 10.0, points: 120 };
+  const myAccount = pocketMoney.find(p => p.id === member.id) || { balance: 0.0, points: 0 };
 
   // Calculate statistics
   const completedChoresCount = tasks.filter(t => t.assignedMemberId === member.id && t.done).length;
@@ -244,19 +246,36 @@ export const KidProfile: React.FC<KidProfileProps> = ({
       <div className="space-y-3 mt-6">
         <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block">Ma Famille :</span>
         <div className="flex space-x-3 overflow-x-auto pb-2 no-scrollbar">
-          {members.map(m => (
-            <div key={m.id} className="bg-[#112240] border border-white/5 rounded-3xl p-3 flex flex-col items-center justify-center text-center w-24 shrink-0 space-y-2">
-              <img 
-                src={m.photoUrl} 
-                alt={m.name} 
-                className="w-10 h-10 rounded-full object-cover border border-white/10"
-              />
-              <div>
-                <h4 className="text-[10px] font-black text-white leading-tight truncate w-20">{m.name}</h4>
-                <p className="text-[8px] text-white/45 font-bold uppercase tracking-wider truncate w-20">{m.role || 'Membre'}</p>
+          {members.map(m => {
+            const isSelf = m.id === member.id;
+            return (
+              <div 
+                key={m.id} 
+                onClick={() => {
+                  if (!isSelf && onOpenChatWithMember) {
+                    onOpenChatWithMember(m.id);
+                  }
+                }}
+                className={`bg-[#112240] border rounded-3xl p-3 flex flex-col items-center justify-center text-center w-24 shrink-0 space-y-2 select-none ${
+                  isSelf 
+                    ? 'border-white/5 opacity-50 cursor-not-allowed' 
+                    : 'border-white/5 cursor-pointer hover:border-[#6C5CFF]/40 active:scale-95 transition-all'
+                }`}
+              >
+                <img 
+                  src={m.photoUrl} 
+                  alt={m.name} 
+                  className="w-10 h-10 rounded-full object-cover border border-white/10"
+                />
+                <div>
+                  <h4 className="text-[10px] font-black text-white leading-tight truncate w-20">{m.name}</h4>
+                  <p className="text-[8px] text-white/45 font-bold uppercase tracking-wider truncate w-20">
+                    {isSelf ? 'Moi ⭐' : (m.role || 'Membre')}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

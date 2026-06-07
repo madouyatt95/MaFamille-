@@ -18,6 +18,8 @@ import {
   Activity 
 } from 'lucide-react';
 import type { Member, ChoreTask, FamilyEvent, Trip, SchoolTask, Dish } from '../types';
+import { parseChoreTitle, serializeChoreTitle } from '../types';
+import { getSupabaseClient } from '../utils/supabase';
 
 interface KidsDashboardProps {
   member: Member;
@@ -57,14 +59,37 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
   onOpenProfileSwitcher
 }) => {
   
-  // 1. Tasks assigned to this kid that are not done
-  const myTasks = (tasks || []).filter(t => t && t.assignedMemberId === member.id && !t.done);
+  // Parse chores from metadata
+  const parsedTasks = (tasks || []).map(t => {
+    if (!t) return null;
+    const meta = parseChoreTitle(t.title);
+    return {
+      ...t,
+      title: meta.title,
+      description: meta.description,
+      priority: meta.priority,
+      status: meta.status || (t.done ? (t.validatedByParent ? 'validated' : 'pending_validation') : 'todo'),
+      validationRequired: meta.validationRequired,
+      isArchived: meta.isArchived,
+      time: meta.time,
+      rewardAmount: meta.rewardAmount,
+      assignedMemberIds: meta.assignedMemberIds,
+      recurrence: meta.recurrence
+    };
+  }).filter(Boolean) as ChoreTask[];
+
+  // 1. Tasks assigned to this kid that are not done and not archived
+  const myTasks = parsedTasks.filter(t => 
+    !t.isArchived &&
+    (t.status === 'todo' || t.status === 'in_progress' || t.status === 'refused') &&
+    (t.assignedMemberId === member.id || t.assignedMemberIds?.includes(member.id))
+  );
   
   // 2. School tasks (homework) assigned to this kid that are not done
   const myHomework = (schoolTasks || []).filter(t => t && t.assignedMemberId === member.id && !t.done);
 
   // 3. Pocket money account
-  const myAccount = (pocketMoney || []).find(p => p && p.id === member.id) || { balance: 10.0, points: 120 };
+  const myAccount = (pocketMoney || []).find(p => p && p.id === member.id) || { balance: 0.0, points: 0 };
 
   // 4. Closest upcoming family event
   const todayStr = new Date().toISOString().split('T')[0];
@@ -147,7 +172,7 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
     .slice(0, 3);
 
   // 10. Bedtime Story Recomended
-  const bedtimeStoryTitle = "Le Petit Dragon qui avait froid 🦎🔥";
+  const bedtimeStoryTitle = `Les Aventures Spatiales de ${member.name} 🚀🌙`;
 
   // Formatted date
   const formattedDate = new Intl.DateTimeFormat('fr-FR', {
@@ -157,7 +182,32 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
   }).format(new Date());
 
   const handleCompleteTask = (taskId: string) => {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, done: true } : t));
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        const meta = parseChoreTitle(t.title);
+        meta.status = 'pending_validation';
+        const newTitle = serializeChoreTitle(meta);
+        
+        // Update in Supabase
+        const client = getSupabaseClient();
+        if (client) {
+          client.from('chore_tasks')
+            .update({ title: newTitle, done: true })
+            .eq('id', t.id)
+            .then(({ error }) => {
+              if (error) console.error("Error completing task in Supabase:", error);
+            });
+        }
+        
+        return {
+          ...t,
+          title: newTitle,
+          done: true,
+          status: 'pending_validation'
+        };
+      }
+      return t;
+    }));
     alert("Mission accomplie ! Un parent va pouvoir la valider. Bien joué ! 🎉");
   };
 

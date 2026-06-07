@@ -9,9 +9,10 @@ import { aiQuotaService } from '../../services/aiQuotaService';
 interface PeaceMakerProps {
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
+  onMediationSuccess?: () => void;
 }
 
-export const PeaceMaker: React.FC<PeaceMakerProps> = ({ isPremium = false, onTriggerPaywall }) => {
+export const PeaceMaker: React.FC<PeaceMakerProps> = ({ isPremium = false, onTriggerPaywall, onMediationSuccess }) => {
   const [conflictDesc, setConflictDesc] = useState('');
   const [mediating, setMediating] = useState(false);
   const [compromise, setCompromise] = useState<any | null>(null);
@@ -261,6 +262,9 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
               setCompromise(null);
               setConflictDesc('');
               alert("🤝 Accord validé et signé par les deux parties ! Le calme et la bienveillance sont de retour.");
+              if (onMediationSuccess) {
+                onMediationSuccess();
+              }
             }}
             className="w-full py-3.5 rounded-[18px] bg-gradient-to-r from-[#00D26A] to-[#6C5CFF] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:opacity-95 shadow-md"
           >

@@ -10746,19 +10746,83 @@ function App() {
       );
     }
 
+    let isTeen = false;
+    if (appActiveMemberObj) {
+      const rClean = (appActiveMemberObj.role || '').toLowerCase();
+      if (rClean === 'adolescent' || rClean.includes('adolescent')) {
+        isTeen = true;
+      } else {
+        const ageNum = parseInt(appActiveMemberObj.age || '0');
+        if (ageNum >= 11 && ageNum < 18) isTeen = true;
+      }
+    }
+
+    if (isTeen && appActiveMemberObj) {
+      return (
+        <TeenDashboard 
+          member={appActiveMemberObj}
+          members={appMembers}
+          foyer={appFoyer}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          activeModule={activeModule}
+          setActiveModule={setActiveModule}
+          tasks={appTasks}
+          setTasks={setTasks}
+          schoolTasks={schoolTasks}
+          setSchoolTasks={setSchoolTasks}
+          pocketMoney={appPocketMoney}
+          setPocketMoney={setPocketMoney}
+          events={appEvents as any}
+          onAddTask={handleAddTask}
+          onDeleteTask={handleDeleteTask}
+          onEditTask={handleEditTask}
+          onValidateTask={handleValidateTask}
+          goals={appSavingGoals}
+          setSavingGoals={setSavingGoals}
+          transactions={appTransactions}
+          setTransactions={setTransactions}
+          alerts={appFilteredAlerts}
+          setAlerts={setAlerts}
+          onAddTransaction={handleAddTransaction}
+          onAddEvent={handleAddEvent}
+          memories={memories}
+          setMemories={setMemories}
+          votes={appVotes}
+          setVotes={setVotes}
+          grades={grades}
+          setGrades={setGrades}
+          schedule={schedule}
+          setSchedule={setSchedule}
+          dishes={dishes}
+          setDishes={setDishes}
+          isPremium={isPremium}
+          onTriggerPaywall={() => setPaywallOpen(true)}
+          accounts={accounts}
+          onOpenProfileSwitcher={() => setProfileSwitcherOpen(true)}
+          chatGroups={chatGroups}
+          setChatGroups={setChatGroups}
+          chatMessages={chatMessages}
+          setChatMessages={setChatMessages}
+          initialChatGroupId={initialChatGroupId}
+          setInitialChatGroupId={setInitialChatGroupId}
+          trips={appTrips}
+          setTrips={setTrips}
+          documents={appDocuments}
+          setDocuments={setDocuments}
+        />
+      );
+    }
+
     if (activeTab === 'accueil') {
       let isKid = false;
-      let isTeen = false;
       if (appActiveMemberObj) {
         const rClean = (appActiveMemberObj.role || '').toLowerCase();
-        if (rClean === 'adolescent' || rClean.includes('adolescent')) {
-          isTeen = true;
-        } else if (rClean === 'enfant' || rClean.includes('enfant')) {
+        if (rClean === 'enfant' || rClean.includes('enfant')) {
           isKid = true;
         } else {
           const ageNum = parseInt(appActiveMemberObj.age || '0');
           if (ageNum > 0 && ageNum < 11) isKid = true;
-          else if (ageNum >= 11 && ageNum < 18) isTeen = true;
         }
       }
       
@@ -10779,23 +10843,6 @@ function App() {
             memories={memories}
             members={appMembers}
             foyer={appFoyer}
-            onOpenProfileSwitcher={() => setProfileSwitcherOpen(true)}
-          />
-        );
-      }
-
-      if (isTeen && appActiveMemberObj) {
-        return (
-          <TeenDashboard 
-            member={appActiveMemberObj}
-            tasks={appTasks}
-            setTasks={setTasks}
-            schoolTasks={schoolTasks}
-            setSchoolTasks={setSchoolTasks}
-            pocketMoney={appPocketMoney}
-            events={appEvents as any}
-            setActiveTab={setActiveTab}
-            setActiveModule={setActiveModule}
             onOpenProfileSwitcher={() => setProfileSwitcherOpen(true)}
           />
         );

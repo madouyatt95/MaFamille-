@@ -258,7 +258,82 @@ export interface ChoreTask {
   validatedByParent: boolean;
   dueDate: string;
   rewardAmount?: number;
+
+  // Metadata properties parsed from/serialized to the 'title' column
+  description?: string;
+  priority?: 'low' | 'medium' | 'high';
+  status?: 'todo' | 'in_progress' | 'pending_validation' | 'validated' | 'refused';
+  validationRequired?: boolean;
+  isArchived?: boolean;
+  time?: string;
+  assignedMemberIds?: string[];
+  recurrence?: 'daily' | 'weekly' | 'none';
 }
+
+export interface ChoreTaskMetadata {
+  title: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high';
+  status?: 'todo' | 'in_progress' | 'pending_validation' | 'validated' | 'refused';
+  validationRequired?: boolean;
+  isArchived?: boolean;
+  time?: string;
+  rewardAmount?: number;
+  assignedMemberIds?: string[];
+  recurrence?: 'daily' | 'weekly' | 'none';
+}
+
+export function parseChoreTitle(rawTitle: string): ChoreTaskMetadata {
+  if (rawTitle && rawTitle.startsWith('{') && rawTitle.endsWith('}')) {
+    try {
+      const data = JSON.parse(rawTitle);
+      if (data && typeof data === 'object' && 'title' in data) {
+        return {
+          title: data.title || '',
+          description: data.description || '',
+          priority: data.priority || 'medium',
+          status: data.status || 'todo',
+          validationRequired: data.validationRequired !== false,
+          isArchived: !!data.isArchived,
+          time: data.time || '',
+          rewardAmount: data.rewardAmount || 0,
+          assignedMemberIds: Array.isArray(data.assignedMemberIds) ? data.assignedMemberIds : [],
+          recurrence: data.recurrence || 'none'
+        };
+      }
+    } catch (e) {
+      // Ignored, fallback to plain title
+    }
+  }
+  return {
+    title: rawTitle || '',
+    description: '',
+    priority: 'medium',
+    status: 'todo',
+    validationRequired: true,
+    isArchived: false,
+    time: '',
+    rewardAmount: 0,
+    assignedMemberIds: [],
+    recurrence: 'none'
+  };
+}
+
+export function serializeChoreTitle(meta: ChoreTaskMetadata): string {
+  return JSON.stringify({
+    title: meta.title || '',
+    description: meta.description || '',
+    priority: meta.priority || 'medium',
+    status: meta.status || 'todo',
+    validationRequired: meta.validationRequired !== false,
+    isArchived: !!meta.isArchived,
+    time: meta.time || '',
+    rewardAmount: meta.rewardAmount || 0,
+    assignedMemberIds: meta.assignedMemberIds || [],
+    recurrence: meta.recurrence || 'none'
+  });
+}
+
 
 export interface Vehicle {
   id: string;
