@@ -278,7 +278,7 @@ export const Accueil: React.FC<AccueilProps> = ({
   };
 
   return (
-    <div className="pb-32 pt-[calc(1.5rem+env(safe-area-inset-top,0px))] px-4 md:px-8 space-y-6 max-w-7xl mx-auto premium-glow-purple">
+    <div className="pb-32 pt-6 px-4 md:px-8 space-y-6 max-w-7xl mx-auto premium-glow-purple">
       
       {/* 1. Header Section */}
       <div className="flex items-center justify-between">

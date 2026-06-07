@@ -34,6 +34,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     else if (roleClean.includes('adolescent')) role = 'adolescent';
     else if (roleClean.includes('enfant')) role = 'enfant';
     else if (roleClean.includes('invit') || roleClean.includes('guest')) role = 'invite';
+    else {
+      const ageNum = parseInt(activeMember.age || '0');
+      if (ageNum > 0 && ageNum < 11) role = 'enfant';
+      else if (ageNum >= 11 && ageNum < 18) role = 'adolescent';
+      else role = 'adulte';
+    }
   } else {
     // Fallback mapping
     if (activeMemberId === '1') role = 'chef_famille';

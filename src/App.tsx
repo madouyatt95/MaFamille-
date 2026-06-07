@@ -100,6 +100,7 @@ import { Timeline } from './views/Timeline';
 import { Agenda } from './views/Agenda';
 import { Budget, DEFAULT_CATEGORIES } from './views/Budget';
 import { MenuHub } from './views/MenuHub';
+import { FamilyMap } from './views/FamilyMap';
 import { Settings } from './views/Settings';
 import { Membres } from './views/Membres';
 import { SharedPackView } from './components/modules/SharedPackView';
@@ -10544,7 +10545,7 @@ function App() {
           <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-[#FF4D6D]/10 blur-[130px] pointer-events-none" />
 
           {/* Header bar */}
-          <header className="w-full max-w-4xl mx-auto px-6 pt-[calc(1.5rem+env(safe-area-inset-top,0px))] pb-2 flex items-center justify-between relative z-10">
+          <header className="w-full max-w-4xl mx-auto px-6 pt-6 pb-2 flex items-center justify-between relative z-10">
             <div className="flex items-center space-x-3">
               <button 
                 onClick={() => setSidebarOpen(true)}
@@ -10791,6 +10792,12 @@ function App() {
       }
 
       if (isKid) {
+        if (activeModule === '') {
+          setTimeout(() => {
+            setActiveTab('accueil');
+          }, 0);
+          return null;
+        }
         if (activeModule === 'taches' || activeModule === 'argent' || activeModule === 'boutique') {
           return (
             <KidMissions 
@@ -10821,13 +10828,187 @@ function App() {
         }
         if (activeModule === 'conteur') {
           return (
-            <ConteurIA 
-              member={appActiveMemberObj!}
-              members={appMembers}
-              isPremium={isPremium}
-              onTriggerPaywall={() => setPaywallOpen(true)}
-              onBack={() => setActiveModule('')}
-            />
+            <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32 relative overflow-hidden">
+              <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#FFB020]/10 blur-[100px] pointer-events-none" />
+              <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#6C5CFF]/10 blur-[100px] pointer-events-none" />
+              
+              {/* Kid Header */}
+              <div className="flex items-center justify-between pt-[calc(1rem+env(safe-area-inset-top,0px))] mb-6">
+                <div className="flex items-center space-x-3">
+                  <button 
+                    onClick={() => setActiveModule('')}
+                    className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white cursor-pointer"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div>
+                    <h1 className="text-2xl font-black tracking-tight text-white flex items-center space-x-2">
+                      <span>🌙</span>
+                      <span>Histoires du Soir</span>
+                    </h1>
+                    <p className="text-xs text-white/55 font-bold">Crée ton conte magique avec l'IA !</p>
+                  </div>
+                </div>
+              </div>
+
+              <ConteurIA 
+                member={appActiveMemberObj!}
+                members={appMembers}
+                isPremium={isPremium}
+                onTriggerPaywall={() => setPaywallOpen(true)}
+                onBack={() => setActiveModule('')}
+                isKidMode={true}
+              />
+            </div>
+          );
+        }
+
+        if (activeModule === 'carte') {
+          return (
+            <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32 relative overflow-hidden">
+              <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#6C5CFF]/10 blur-[100px] pointer-events-none" />
+              <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#00D26A]/10 blur-[100px] pointer-events-none" />
+              
+              {/* Kid Header */}
+              <div className="flex items-center justify-between pt-[calc(1rem+env(safe-area-inset-top,0px))] mb-4">
+                <div className="flex items-center space-x-3">
+                  <button 
+                    onClick={() => setActiveModule('')}
+                    className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white cursor-pointer"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div>
+                    <h1 className="text-2xl font-black tracking-tight text-white flex items-center space-x-2">
+                      <span>🗺️</span>
+                      <span>Carte de la Famille</span>
+                    </h1>
+                    <p className="text-xs text-white/55 font-bold">Retrouve ta famille en toute sécurité !</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[32px] overflow-hidden border border-white/10 shadow-2xl h-[calc(100vh-220px)] relative z-10">
+                <FamilyMap 
+                  members={appMembers} 
+                  activeMemberId={appActiveMemberId} 
+                  onUpdateMemberProfile={handleUpdateMemberProfile} 
+                />
+              </div>
+            </div>
+          );
+        }
+
+        if (activeModule === 'courses') {
+          return (
+            <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32 relative overflow-hidden">
+              <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#FFB020]/10 blur-[100px] pointer-events-none" />
+              <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#6C5CFF]/10 blur-[100px] pointer-events-none" />
+              
+              {/* Kid Header */}
+              <div className="flex items-center justify-between pt-[calc(1rem+env(safe-area-inset-top,0px))] mb-6">
+                <div className="flex items-center space-x-3">
+                  <button 
+                    onClick={() => setActiveModule('')}
+                    className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white cursor-pointer"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div>
+                    <h1 className="text-2xl font-black tracking-tight text-white flex items-center space-x-2">
+                      <span>🛒</span>
+                      <span>Courses de la Famille</span>
+                    </h1>
+                    <p className="text-xs text-white/55 font-bold font-sans">Aide tes parents à faire les courses !</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative z-10">
+                <MenuHub 
+                  foyer={appFoyer}
+                  memberPermissions={memberPermissions}
+                  initialChatGroupId={initialChatGroupId}
+                  documents={appDocuments}
+                  setDocuments={setDocuments}
+                  tasks={appTasks}
+                  groceries={appGroceries}
+                  externalGroceryFilter={externalGroceryFilter}
+                  members={appMembers}
+                  setMembers={setMembers}
+                  vehicles={appVehicles}
+                  setVehicles={setVehicles}
+                  maintenance={appMaintenance}
+                  setMaintenance={setMaintenance}
+                  trips={appTrips}
+                  setTrips={setTrips}
+                  pets={appPets}
+                  setPets={setPets}
+                  pocketMoney={appPocketMoney}
+                  setPocketMoney={setPocketMoney}
+                  artisans={artisans}
+                  setArtisans={setArtisans}
+                  onUpdateMemberProfile={handleUpdateMemberProfile}
+                  goals={appSavingGoals}
+                  transactions={appTransactions}
+                  setTransactions={setTransactions}
+                  alerts={appFilteredAlerts}
+                  setAlerts={setAlerts}
+                  currencySymbol={getCurrencySymbol()}
+                  formatMoney={formatMoney}
+                  activeModule={activeModule}
+                  setActiveModule={setActiveModule}
+                  vaccines={appVaccines}
+                  setVaccines={setVaccines}
+                  onAddTask={handleAddTask}
+                  onDeleteTask={handleDeleteTask}
+                  onEditTask={handleEditTask}
+                  onAddGrocery={handleToggleGrocery}
+                  onToggleTask={handleToggleTask}
+                  onValidateTask={handleValidateTask}
+                  onToggleGrocery={handleToggleGrocery}
+                  onAddGroceryItem={handleAddGroceryItem}
+                  onDeleteGroceryItem={handleDeleteGroceryItem}
+                  onEditGroceryItem={handleEditGroceryItem}
+                  setActiveTab={setActiveTab}
+                  activeMemberId={appActiveMemberId}
+                  archivedLists={archivedLists}
+                  onArchiveCurrentList={handleArchiveCurrentList}
+                  onReuseArchivedList={handleReuseArchivedList}
+                  onDeleteArchivedList={handleDeleteArchivedList}
+                  onCleanGroceryList={handleCleanGroceryList}
+                  onToggleFavoriteGrocery={handleToggleFavoriteGrocery}
+                  chatGroups={chatGroups}
+                  setChatGroups={setChatGroups}
+                  chatMessages={chatMessages}
+                  setChatMessages={setChatMessages}
+                  demarches={appDemarches}
+                  setDemarches={setDemarches}
+                  justificatifPacks={justificatifPacks}
+                  setJustificatifPacks={setJustificatifPacks}
+                  onAddTransaction={handleAddTransaction}
+                  onAddEventDirect={handleAddEvent}
+                  onAddEvent={handleAddEvent}
+                  memories={memories}
+                  setMemories={setMemories}
+                  votes={appVotes}
+                  setVotes={setVotes}
+                  schoolTasks={schoolTasks}
+                  setSchoolTasks={setSchoolTasks}
+                  grades={grades}
+                  setGrades={setGrades}
+                  schedule={schedule}
+                  setSchedule={setSchedule}
+                  dishes={dishes}
+                  setDishes={setDishes}
+                  isPremium={isPremium}
+                  setIsPremium={setIsPremium}
+                  onTriggerPaywall={() => setPaywallOpen(true)}
+                  accounts={accounts}
+                  isKidMode={true}
+                />
+              </div>
+            </div>
           );
         }
         if (activeModule === 'membres') {
@@ -11548,7 +11729,7 @@ function App() {
           <div className="relative glass-panel border border-white/10 rounded-[32px] w-full max-w-md p-6 space-y-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] animate-fade-in pointer-events-auto z-10 bg-white/2 backdrop-blur-lg">
             
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/5 pt-[env(safe-area-inset-top,0px)] pb-3">
+            <div className="flex items-center justify-between border-b border-white/5 pb-3">
               <div>
                 <h3 className="text-sm font-black uppercase tracking-wider text-white">Sélecteur d'Espaces</h3>
                 <p className="text-[10px] text-white/40 mt-1">Naviguez entre vos familles, écoles et communes actives</p>

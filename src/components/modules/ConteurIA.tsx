@@ -25,6 +25,7 @@ interface ConteurIAProps {
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
   member?: any;
+  isKidMode?: boolean;
 }
 
 interface Universe {
@@ -294,7 +295,8 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
   members, 
   isPremium = false, 
   onTriggerPaywall,
-  member
+  member,
+  isKidMode = false
 }) => {
   // Dynamically build heroes list from real family members passed via props
   const defaultHeroes = (members && members.length > 0)
@@ -893,15 +895,17 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
               
               {/* Back button and title badge wrapper */}
               <div className="flex items-center justify-between w-full relative z-10 px-1 pt-[calc(1rem+env(safe-area-inset-top,0px))]">
-                <button 
-                  onClick={onBack}
-                  className="p-2.5 rounded-2xl bg-white/3 border border-white/6 hover:bg-white/8 text-white/70 hover:text-white transition-all duration-300 cursor-pointer flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5 text-[#FFB020]" />
-                  <span className="hidden sm:inline">Retour</span>
-                </button>
+                {!isKidMode && (
+                  <button 
+                    onClick={onBack}
+                    className="p-2.5 rounded-2xl bg-white/3 border border-white/6 hover:bg-white/8 text-white/70 hover:text-white transition-all duration-300 cursor-pointer flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5 text-[#FFB020]" />
+                    <span className="hidden sm:inline">Retour</span>
+                  </button>
+                )}
 
-                <div className="inline-flex items-center space-x-2 bg-gradient-to-r from-violet-600/15 via-pink-500/15 to-[#FFB020]/15 border border-white/8 px-4.5 py-1.8 rounded-full backdrop-blur-md">
+                <div className={`inline-flex items-center space-x-2 bg-gradient-to-r from-violet-600/15 via-pink-500/15 to-[#FFB020]/15 border border-white/8 px-4.5 py-1.8 rounded-full backdrop-blur-md ${isKidMode ? 'mx-auto' : ''}`}>
                   <Sparkles className="w-4 h-4 text-[#FFB020] animate-pulse" />
                   <span className="text-[10px] font-black uppercase tracking-widest text-[#FFB020] font-sans">Le Conteur Céleste IA</span>
                 </div>

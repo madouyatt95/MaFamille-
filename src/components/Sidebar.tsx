@@ -104,7 +104,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }`}
       >
         {/* Header space selector */}
-        <div className="p-4 border-b border-white/8 flex flex-col space-y-3 bg-[#07111F]/30">
+        <div className="p-4 border-b border-white/8 flex flex-col space-y-3 bg-[#07111F]/30 pt-[calc(1rem+env(safe-area-inset-top,0px))]">
           <div className="flex items-center justify-between">
             <button
               onClick={onOpenSpaceSelector}

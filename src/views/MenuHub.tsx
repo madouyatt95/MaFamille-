@@ -239,6 +239,7 @@ interface MenuHubProps {
   transactions?: Transaction[];
   setTransactions?: React.Dispatch<React.SetStateAction<Transaction[]>>;
   memberPermissions?: Record<string, Record<FamilyModule, ModulePermissions>>;
+  isKidMode?: boolean;
 }
 
 const modIdToFamilyModule: Record<string, FamilyModule> = {
@@ -412,6 +413,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   setTransactions,
   alerts = [],
   setAlerts,
+  isKidMode = false,
 }) => {
   const activePermissions = useMemo(() => {
     if (memberPermissions && activeMemberId && memberPermissions[activeMemberId]) {
@@ -1271,7 +1273,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     <div className="pb-32 pt-6 px-4 md:px-8 space-y-6 max-w-4xl mx-auto premium-glow-purple">
       
       {/* Back button if active sub-module */}
-      {activeModule && (
+      {activeModule && !isKidMode && (
         <button 
           onClick={() => setActiveModule('')}
           className="flex items-center space-x-2 text-xs font-bold text-white/50 hover:text-white transition-all cursor-pointer py-1.5 px-3 rounded-xl bg-white/5 border border-white/5 w-fit"
