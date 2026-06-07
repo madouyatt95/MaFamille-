@@ -70,7 +70,7 @@ import type {
   Account,
   Transaction
 } from '../types';
-import { getDefaultPermissions } from '../types';
+import { getDefaultPermissions, parseChoreTitle, serializeChoreTitle } from '../types';
 import type { ModulePermissions, FamilyModule } from '../types';
 
 // Import newly built premium sub-modules
@@ -178,6 +178,8 @@ interface MenuHubProps {
   onDeleteTask: (id: string) => void;
   onEditTask: (id: string, title: string, points: number, rotation: 'daily' | 'weekly' | 'none', assigneeId: string, assigneeName: string) => void;
   onAddGrocery: (item: any) => void;
+  setTasks?: React.Dispatch<React.SetStateAction<ChoreTask[]>>;
+  setSavingGoals?: React.Dispatch<React.SetStateAction<SavingGoal[]>>;
   onToggleTask: (id: string) => void;
   onValidateTask: (id: string) => void;
   onToggleGrocery: (id: string) => void;
@@ -361,6 +363,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   activeModule,
   setActiveModule,
   onAddTask,
+  setTasks,
+  setSavingGoals,
   onToggleTask,
   onDeleteTask,
   onEditTask,
@@ -710,6 +714,29 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newLocalTaskRotation, setNewLocalTaskRotation] = useState('none');
   const [newLocalTaskAssigneeId, setNewLocalTaskAssigneeId] = useState(activeMemberId || '1');
   const [newLocalTaskRewardAmount, setNewLocalTaskRewardAmount] = useState('');
+  const [newLocalTaskDescription, setNewLocalTaskDescription] = useState('');
+  const [newLocalTaskDueDate, setNewLocalTaskDueDate] = useState('');
+  const [newLocalTaskTime, setNewLocalTaskTime] = useState('');
+  const [newLocalTaskPriority, setNewLocalTaskPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [newLocalTaskValidationRequired, setNewLocalTaskValidationRequired] = useState(true);
+  const [newLocalTaskAssigneeIds, setNewLocalTaskAssigneeIds] = useState<string[]>([]);
+  const [choresActiveSubTab, setChoresActiveSubTab] = useState<'actives' | 'historique'>('actives');
+
+  const [pmSelectedChildId, setPmSelectedChildId] = useState<string | null>(null);
+
+  // Boutique Config State
+  const [newBoutiqueTitle, setNewBoutiqueTitle] = useState('');
+  const [newBoutiqueCost, setNewBoutiqueCost] = useState(50);
+  const [newBoutiqueIcon, setNewBoutiqueIcon] = useState('🎁');
+  const [newBoutiqueSubCategory, setNewBoutiqueSubCategory] = useState('Cadeau');
+  const [newBoutiqueValidationRequired, setNewBoutiqueValidationRequired] = useState(true);
+
+  // Direct Adjustment State
+  const [adjustmentType, setAdjustmentType] = useState<'add' | 'remove'>('add');
+  const [adjustmentAsset, setAdjustmentAsset] = useState<'money' | 'points'>('money');
+  const [adjustmentAmount, setAdjustmentAmount] = useState('');
+  const [adjustmentReason, setAdjustmentReason] = useState('');
+  const [adjustmentAccountId, setAdjustmentAccountId] = useState('');
 
   const [newPetExpenseSubCategory, setNewPetExpenseSubCategory] = useState('Nourriture');
   const [newPetExpenseAmount, setNewPetExpenseAmount] = useState('');
@@ -3303,317 +3330,565 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       )}
 
       {/* SUB-MODULE 4: Tâches */}
-      {activeModule === 'taches' && (
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-lg font-extrabold text-white">Tâches Ménagères & Missions</h2>
-            <p className="text-xs text-white/50">Rotation automatique et argent de poche</p>
-          </div>
+      {activeModule === 'taches' && (() => {
+        // Parse chores from metadata
+        const parsedChores = (tasks || []).map(t => {
+          if (!t) return null;
+          const meta = parseChoreTitle(t.title);
+          return {
+            ...t,
+            title: meta.title || t.title,
+            description: meta.description,
+            priority: meta.priority || 'medium',
+            status: meta.status || (t.done ? (t.validatedByParent ? 'validated' : 'pending_validation') : 'todo'),
+            validationRequired: meta.validationRequired !== false,
+            isArchived: meta.isArchived || t.validatedByParent || false,
+            time: meta.time,
+            rewardAmount: meta.rewardAmount || t.rewardAmount,
+            assignedMemberIds: meta.assignedMemberIds || (t.assignedMemberId ? [t.assignedMemberId] : []),
+            recurrence: meta.recurrence || t.rotation
+          };
+        }).filter(Boolean) as any[];
 
-          {/* Formulaire ajout Tâche avec récompense financière */}
-          {isParent && getPermission('taches', 'ajouter') && (
-            <form 
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!newLocalTaskTitle.trim()) return;
-                
-                const assigneeObj = members.find(m => m.id === newLocalTaskAssigneeId);
-                onAddTask({
-                  title: newLocalTaskTitle,
-                  rewardPoints: Number(newLocalTaskPoints) || 0,
-                  rotation: newLocalTaskRotation,
-                  assignedMemberId: newLocalTaskAssigneeId,
-                  assignedMemberName: assigneeObj ? assigneeObj.name : 'Général',
-                  done: false,
-                  validatedByParent: false,
-                  dueDate: new Date().toISOString().split('T')[0],
-                  rewardAmount: parseFloat(newLocalTaskRewardAmount) || undefined
-                });
+        const activeParsedTasks = parsedChores.filter(t => !t.isArchived);
+        const archivedParsedTasks = parsedChores.filter(t => t.isArchived);
 
-                setNewLocalTaskTitle('');
-                setNewLocalTaskRewardAmount('');
-                alert(`🧹 Mission "${newLocalTaskTitle}" créée !`);
-              }}
-              className="glass-panel border border-[#6C5CFF]/20 rounded-[28px] p-5 space-y-4 text-left font-sans"
-            >
-              <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block flex items-center space-x-1.5">
-                <Plus className="w-3.5 h-3.5 text-[#6C5CFF]" />
-                <span>Créer une mission / tâche (Accès Parent) 🧹</span>
-              </span>
+        const tasksToValidate = activeParsedTasks.filter(t => t.status === 'pending_validation');
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left font-medium">
-                <div>
-                  <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Intitulé de la tâche</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="ex: Ranger la chambre, Tondre la pelouse..."
-                    value={newLocalTaskTitle}
-                    onChange={(e) => setNewLocalTaskTitle(e.target.value)}
-                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none"
-                  />
-                </div>
+        const handleRefuseTask = async (taskId: string) => {
+          const target = tasks.find(t => t.id === taskId);
+          if (!target) return;
 
-                <div>
-                  <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Assigné à</label>
-                  <select
-                    value={newLocalTaskAssigneeId}
-                    onChange={(e) => setNewLocalTaskAssigneeId(e.target.value)}
-                    className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
-                  >
-                    {members.map(m => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+          if (window.confirm(`Refuser cette tâche et demander des corrections ?`)) {
+            const meta = parseChoreTitle(target.title);
+            meta.status = 'refused';
+            meta.title = meta.title || target.title;
+            const serialized = serializeChoreTitle(meta);
 
-              <div className="grid grid-cols-3 gap-3 text-left font-medium">
-                <div>
-                  <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Points récompensés</label>
-                  <input
-                    type="number"
-                    value={newLocalTaskPoints}
-                    onChange={(e) => setNewLocalTaskPoints(Number(e.target.value))}
-                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none"
-                  />
-                </div>
+            if (setTasks) {
+              setTasks(prev => prev.map(t => t.id === taskId ? {
+                ...t,
+                title: serialized,
+                done: false,
+                validatedByParent: false
+              } : t));
+            }
 
-                <div>
-                  <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Récompense (€ - Cash)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="ex: 5.00"
-                    value={newLocalTaskRewardAmount}
-                    onChange={(e) => setNewLocalTaskRewardAmount(e.target.value)}
-                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none"
-                  />
-                </div>
+            try {
+              const client = getSupabaseClient();
+              if (client) {
+                await client.from('chore_tasks')
+                  .update({ title: serialized, done: false, validated_by_parent: false })
+                  .eq('id', taskId);
+                console.log("[MenuHub] Task successfully marked as refused.");
+              }
+            } catch (err) {
+              console.error("[MenuHub] Failed to refuse task on cloud:", err);
+            }
+          }
+        };
 
-                <div>
-                  <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Périodicité</label>
-                  <select
-                    value={newLocalTaskRotation}
-                    onChange={(e) => setNewLocalTaskRotation(e.target.value as any)}
-                    className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
-                  >
-                    <option value="none">Unique / Ponctuelle</option>
-                    <option value="daily">Quotidienne</option>
-                    <option value="weekly">Hebdomadaire</option>
-                  </select>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-3 rounded-[18px] bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#6C5CFF]/20"
-              >
-                <Plus className="w-4 h-4 text-white" />
-                <span>Créer la mission</span>
-              </button>
-            </form>
-          )}
-
-          {/* Gamified Parent Validation Alert */}
-          {isParent && getPermission('taches', 'valider') && tasks.some(t => t.done && !t.validatedByParent) && (
-            <div className="p-4 rounded-[28px] bg-[#FFB020]/10 border border-[#FFB020]/20 space-y-3">
-              <div className="flex items-center space-x-2 text-[#FFB020]">
-                <Sparkles className="w-5 h-5 text-[#FFB020]" />
-                <h4 className="text-xs font-bold uppercase tracking-wider">En attente de validation parentale</h4>
-              </div>
-              <div className="space-y-2">
-                {tasks.filter(t => t.done && !t.validatedByParent).map((task) => (
-                  <div key={task.id} className="flex items-center justify-between text-xs py-1.5 border-b border-white/5 last:border-0 last:pb-0">
-                    <div>
-                      <p className="font-bold text-white">{task.title}</p>
-                      <p className="text-[10px] text-white/50">Effectué par {task.assignedMemberName} (+{task.rewardPoints} Pts)</p>
-                    </div>
-                    <button 
-                      onClick={() => onValidateTask(task.id)}
-                      className="px-3 py-1.5 rounded-xl bg-[#00D26A] text-white text-[10px] font-bold hover:opacity-90 transition-all cursor-pointer shadow-md"
-                    >
-                      Valider (+{formatMoney(task.rewardPoints / 10)})
-                    </button>
-                  </div>
-                ))}
-              </div>
+        return (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-extrabold text-white">Tâches Ménagères & Missions</h2>
+              <p className="text-xs text-white/50">Rotation automatique et argent de poche</p>
             </div>
-          )}
 
-          {/* Tasks List */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider px-1">Tableau de répartition</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {tasks.map((task) => {
-                if (editingTaskId === task.id) {
+            {/* Formulaire ajout Tâche avec récompense financière */}
+            {isParent && getPermission('taches', 'ajouter') && (
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newLocalTaskTitle.trim()) return;
+                  if (newLocalTaskAssigneeIds.length === 0) {
+                    alert("Veuillez sélectionner au moins un membre assigné.");
+                    return;
+                  }
+                  
+                  const serialized = serializeChoreTitle({
+                    title: newLocalTaskTitle,
+                    description: newLocalTaskDescription,
+                    priority: newLocalTaskPriority,
+                    status: 'todo',
+                    validationRequired: newLocalTaskValidationRequired,
+                    isArchived: false,
+                    time: newLocalTaskTime,
+                    rewardAmount: parseFloat(newLocalTaskRewardAmount) || 0,
+                    assignedMemberIds: newLocalTaskAssigneeIds,
+                    recurrence: newLocalTaskRotation as any
+                  });
+
+                  const firstAssigneeId = newLocalTaskAssigneeIds[0] || '';
+                  const firstAssigneeObj = members.find(m => m.id === firstAssigneeId);
+                  const assigneeName = newLocalTaskAssigneeIds.length > 1 
+                    ? `${newLocalTaskAssigneeIds.length} membres` 
+                    : (firstAssigneeObj ? firstAssigneeObj.name : 'Général');
+
+                  onAddTask({
+                    title: serialized,
+                    rewardPoints: Number(newLocalTaskPoints) || 0,
+                    rotation: newLocalTaskRotation,
+                    assignedMemberId: firstAssigneeId,
+                    assignedMemberName: assigneeName,
+                    done: false,
+                    validatedByParent: false,
+                    dueDate: newLocalTaskDueDate || new Date().toISOString().split('T')[0],
+                    rewardAmount: parseFloat(newLocalTaskRewardAmount) || undefined
+                  });
+
+                  setNewLocalTaskTitle('');
+                  setNewLocalTaskRewardAmount('');
+                  setNewLocalTaskDescription('');
+                  setNewLocalTaskDueDate('');
+                  setNewLocalTaskTime('');
+                  setNewLocalTaskPriority('medium');
+                  setNewLocalTaskValidationRequired(true);
+                  setNewLocalTaskAssigneeIds([]);
+                  alert(`🧹 Mission "${newLocalTaskTitle}" créée !`);
+                }}
+                className="glass-panel border border-[#6C5CFF]/20 rounded-[28px] p-5 space-y-4 text-left font-sans"
+              >
+                <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block flex items-center space-x-1.5">
+                  <Plus className="w-3.5 h-3.5 text-[#6C5CFF]" />
+                  <span>Créer une mission / tâche (Accès Parent) 🧹</span>
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left font-medium">
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Intitulé de la tâche</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="ex: Ranger la chambre, Tondre la pelouse..."
+                      value={newLocalTaskTitle}
+                      onChange={(e) => setNewLocalTaskTitle(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex flex-col text-left">
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Assigné à (Sélection multiple)</label>
+                    <div className="flex flex-wrap gap-1.5 py-1 text-left">
+                      {members.map(m => {
+                        const checked = newLocalTaskAssigneeIds.includes(m.id);
+                        return (
+                          <label key={m.id} className={`flex items-center space-x-1 px-2.5 py-1 rounded-xl border text-[10px] cursor-pointer select-none transition-all font-bold ${
+                            checked 
+                              ? 'bg-[#6C5CFF]/20 border-[#6C5CFF] text-[#9e94ff]' 
+                              : 'bg-white/5 border-white/5 text-white/50 hover:text-white'
+                          }`}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                if (checked) {
+                                  setNewLocalTaskAssigneeIds(prev => prev.filter(id => id !== m.id));
+                                } else {
+                                  setNewLocalTaskAssigneeIds(prev => [...prev, m.id]);
+                                }
+                              }}
+                              className="hidden"
+                            />
+                            <span>{m.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Description / Instructions</label>
+                    <textarea
+                      placeholder="Détaillez les instructions pour cette tâche..."
+                      value={newLocalTaskDescription}
+                      onChange={(e) => setNewLocalTaskDescription(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2 text-xs text-white focus:outline-none h-16 resize-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left font-medium">
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Date limite</label>
+                    <input
+                      type="date"
+                      value={newLocalTaskDueDate}
+                      onChange={(e) => setNewLocalTaskDueDate(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Heure limite</label>
+                    <input
+                      type="time"
+                      value={newLocalTaskTime}
+                      onChange={(e) => setNewLocalTaskTime(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Priorité</label>
+                    <select
+                      value={newLocalTaskPriority}
+                      onChange={(e) => setNewLocalTaskPriority(e.target.value as any)}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                    >
+                      <option value="low">Basse</option>
+                      <option value="medium">Moyenne</option>
+                      <option value="high">Haute / Urgente</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Validation requise</label>
+                    <select
+                      value={newLocalTaskValidationRequired ? 'true' : 'false'}
+                      onChange={(e) => setNewLocalTaskValidationRequired(e.target.value === 'true')}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                    >
+                      <option value="true">Oui (Parent vérifie)</option>
+                      <option value="false">Non (Validation auto)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 text-left font-medium">
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Points récompensés</label>
+                    <input
+                      type="number"
+                      value={newLocalTaskPoints}
+                      onChange={(e) => setNewLocalTaskPoints(Number(e.target.value))}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Récompense (€ - Cash)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="ex: 5.00"
+                      value={newLocalTaskRewardAmount}
+                      onChange={(e) => setNewLocalTaskRewardAmount(e.target.value)}
+                      className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Périodicité</label>
+                    <select
+                      value={newLocalTaskRotation}
+                      onChange={(e) => setNewLocalTaskRotation(e.target.value as any)}
+                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                    >
+                      <option value="none">Unique / Ponctuelle</option>
+                      <option value="daily">Quotidienne</option>
+                      <option value="weekly">Hebdomadaire</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-[18px] bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#6C5CFF]/20"
+                >
+                  <Plus className="w-4 h-4 text-white" />
+                  <span>Créer la mission</span>
+                </button>
+              </form>
+            )}
+
+            {/* Gamified Parent Validation Alert */}
+            {isParent && getPermission('taches', 'valider') && tasksToValidate.length > 0 && (
+              <div className="p-4 rounded-[28px] bg-[#FFB020]/10 border border-[#FFB020]/20 space-y-3 text-left">
+                <div className="flex items-center space-x-2 text-[#FFB020]">
+                  <Sparkles className="w-5 h-5 text-[#FFB020]" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider">En attente de validation parentale</h4>
+                </div>
+                <div className="space-y-2 text-left">
+                  {tasksToValidate.map((task) => (
+                    <div key={task.id} className="flex items-center justify-between text-xs py-2 border-b border-white/5 last:border-0 last:pb-0">
+                      <div>
+                        <p className="font-bold text-white">{task.title}</p>
+                        <p className="text-[10px] text-white/50">Effectué par {task.assignedMemberName} (+{task.rewardPoints} Pts)</p>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => handleRefuseTask(task.id)}
+                          className="px-2.5 py-1.5 rounded-xl bg-[#FF4D6D] text-white text-[10px] font-bold hover:opacity-90 transition-all cursor-pointer shadow-md"
+                        >
+                          Refuser
+                        </button>
+                        <button 
+                          onClick={() => onValidateTask(task.id)}
+                          className="px-3 py-1.5 rounded-xl bg-[#00D26A] text-white text-[10px] font-bold hover:opacity-90 transition-all cursor-pointer shadow-md"
+                        >
+                          Valider (+{formatMoney(task.rewardPoints / 10)})
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Sub-tabs for Chores view */}
+            <div className="flex space-x-2 border-b border-white/5 pb-2 text-left">
+              <button
+                type="button"
+                onClick={() => setChoresActiveSubTab('actives')}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                  choresActiveSubTab === 'actives' 
+                    ? 'bg-[#6C5CFF] text-white shadow-md' 
+                    : 'text-white/40 hover:text-white/60 bg-white/5'
+                }`}
+              >
+                Missions Actives ({activeParsedTasks.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setChoresActiveSubTab('historique')}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                  choresActiveSubTab === 'historique' 
+                    ? 'bg-[#6C5CFF] text-white shadow-md' 
+                    : 'text-white/40 hover:text-white/60 bg-white/5'
+                }`}
+              >
+                Historique des Validées ({archivedParsedTasks.length})
+              </button>
+            </div>
+
+            {/* Tasks List */}
+            <div className="space-y-3 text-left">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider px-1 text-left">
+                {choresActiveSubTab === 'actives' ? 'Tableau de répartition' : 'Missions Validées & Archivées'}
+              </h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {(choresActiveSubTab === 'actives' ? activeParsedTasks : archivedParsedTasks).map((task) => {
+                  if (editingTaskId === task.id) {
+                    return (
+                      <div 
+                        key={task.id}
+                        className="glass-panel rounded-[28px] p-4 border border-[#6C5CFF]/30 bg-[#6C5CFF]/5 flex flex-col justify-between space-y-3"
+                      >
+                        <div className="space-y-2">
+                          <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block">Titre de la tâche</label>
+                          <input
+                            type="text"
+                            value={editTaskTitle}
+                            onChange={(e) => setEditTaskTitle(e.target.value)}
+                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                            placeholder="Faire la vaisselle..."
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block mb-1">Points</label>
+                            <input
+                              type="number"
+                              value={editTaskPoints}
+                              onChange={(e) => setEditTaskPoints(parseInt(e.target.value) || 0)}
+                              className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1 text-xs text-white focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block mb-1">Périodicité</label>
+                            <select
+                              value={editTaskRotation}
+                              onChange={(e) => setEditTaskRotation(e.target.value as any)}
+                              className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                            >
+                              <option value="daily">Quotidienne</option>
+                              <option value="weekly">Hebdomadaire</option>
+                              <option value="none">Ponctuelle</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block mb-1">Assigné à</label>
+                          <select
+                            value={editTaskAssigneeId}
+                            onChange={(e) => setEditTaskAssigneeId(e.target.value)}
+                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                          >
+                            {members.map(m => (
+                              <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex items-center justify-end space-x-2 pt-2 border-t border-white/5">
+                          <button
+                            type="button"
+                            onClick={() => setEditingTaskId(null)}
+                            className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 hover:text-white text-[10px] font-bold transition-all cursor-pointer"
+                          >
+                            Annuler
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const assignee = members.find(m => m.id === editTaskAssigneeId);
+                              const originalTask = tasks.find(t => t.id === task.id);
+                              const originalMeta = parseChoreTitle(originalTask?.title || '');
+                              const updatedMeta = {
+                                ...originalMeta,
+                                title: editTaskTitle,
+                                recurrence: editTaskRotation
+                              };
+                              const serialized = serializeChoreTitle(updatedMeta);
+
+                              onEditTask(
+                                task.id,
+                                serialized,
+                                editTaskPoints,
+                                editTaskRotation,
+                                editTaskAssigneeId,
+                                assignee ? assignee.name : 'Général'
+                              );
+                              setEditingTaskId(null);
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-[#6C5CFF] text-white text-[10px] font-bold hover:bg-[#5849E0] transition-all cursor-pointer shadow-md"
+                          >
+                            Sauver
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div 
                       key={task.id}
-                      className="glass-panel rounded-[28px] p-4 border border-[#6C5CFF]/30 bg-[#6C5CFF]/5 flex flex-col justify-between space-y-3"
+                      className={`glass-panel rounded-[28px] p-4 border flex flex-col justify-between h-[150px] transition-all relative group text-left ${
+                        task.status === 'validated' || task.validatedByParent 
+                          ? 'border-[#00D26A]/30 bg-[#00D26A]/5 opacity-70' 
+                          : task.status === 'pending_validation'
+                            ? 'border-[#FFB020]/30 bg-[#FFB020]/5' 
+                            : task.status === 'refused'
+                              ? 'border-[#FF4D6D]/30 bg-[#FF4D6D]/5'
+                              : 'border-white/8'
+                      }`}
                     >
-                      <div className="space-y-2">
-                        <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block">Titre de la tâche</label>
-                        <input
-                          type="text"
-                          value={editTaskTitle}
-                          onChange={(e) => setEditTaskTitle(e.target.value)}
-                          className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
-                          placeholder="Faire la vaisselle..."
-                        />
+                      {/* Parent Hover/Group Quick Edit/Delete Actions */}
+                      {isParent && choresActiveSubTab === 'actives' && (getPermission('taches', 'modifier') || getPermission('taches', 'supprimer')) && (
+                        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1 z-20">
+                          {getPermission('taches', 'modifier') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingTaskId(task.id);
+                                setEditTaskTitle(task.title);
+                                setEditTaskPoints(task.rewardPoints);
+                                setEditTaskRotation(task.recurrence);
+                                setEditTaskAssigneeId(task.assignedMemberId);
+                              }}
+                              className="p-1.5 bg-white/5 hover:bg-[#6C5CFF]/20 border border-white/10 hover:border-[#6C5CFF]/30 text-white hover:text-[#9E94FF] rounded-lg transition active:scale-95 cursor-pointer"
+                              title="Modifier la tâche"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                            </button>
+                          )}
+                          {getPermission('taches', 'supprimer') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteTask(task.id);
+                              }}
+                              className="p-1.5 bg-white/5 hover:bg-[#FF3B30]/25 border border-white/10 hover:border-[#FF3B30]/40 text-white hover:text-[#FF3B30] rounded-lg transition active:scale-95 cursor-pointer"
+                              title="Supprimer la tâche"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center space-x-1.5">
+                            <span className="text-[8px] font-extrabold text-[#6C5CFF] uppercase tracking-widest bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 px-2 py-0.5 rounded-lg">
+                              {task.recurrence === 'daily' ? 'Quotidienne' : task.recurrence === 'weekly' ? 'Hebdo' : 'Ponctuel'}
+                            </span>
+                            <span className={`text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-lg ${
+                              task.priority === 'high' 
+                                ? 'text-[#FF4D6D] bg-[#FF4D6D]/10 border border-[#FF4D6D]/20' 
+                                : task.priority === 'low' 
+                                  ? 'text-white/40 bg-white/5 border border-white/5' 
+                                  : 'text-[#9e94ff] bg-[#6C5CFF]/10 border border-[#6C5CFF]/10'
+                            }`}>
+                              {task.priority === 'high' ? 'Urgent' : task.priority === 'low' ? 'Priorité Basse' : 'Normal'}
+                            </span>
+                          </div>
+                          
+                          <h4 className={`text-xs sm:text-sm font-bold text-white mt-2 ${task.done && task.validatedByParent ? 'line-through text-white/40' : ''}`}>
+                            {task.title}
+                          </h4>
+                          {task.description && (
+                            <p className="text-[10px] text-white/50 mt-0.5 line-clamp-1">{task.description}</p>
+                          )}
+                          {task.status === 'refused' && (
+                            <p className="text-[9px] text-[#FF4D6D] font-extrabold mt-1">❌ À corriger par l'enfant</p>
+                          )}
+                        </div>
+                        <span className="text-[10px] font-extrabold text-[#FFB020] bg-[#FFB020]/10 border border-[#FFB020]/20 px-2 py-0.5 rounded-lg shrink-0 mr-8">
+                          +{task.rewardPoints} Pts
+                        </span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block mb-1">Points</label>
-                          <input
-                            type="number"
-                            value={editTaskPoints}
-                            onChange={(e) => setEditTaskPoints(parseInt(e.target.value) || 0)}
-                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1 text-xs text-white focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block mb-1">Périodicité</label>
-                          <select
-                            value={editTaskRotation}
-                            onChange={(e) => setEditTaskRotation(e.target.value as any)}
-                            className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                      <div className="flex items-center justify-between pt-3 border-t border-white/5 mt-2">
+                        <span className="text-[10px] text-white/50">Assigné : <strong className="text-white">{task.assignedMemberName}</strong></span>
+                        {task.status === 'validated' || task.validatedByParent ? (
+                          <span className="text-[10px] font-bold text-[#00D26A] flex items-center space-x-1">
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            <span>Validé</span>
+                          </span>
+                        ) : task.status === 'pending_validation' ? (
+                          <div className="flex space-x-1.5">
+                            <button 
+                              onClick={() => handleRefuseTask(task.id)}
+                              className="px-2.5 py-1 rounded-xl bg-[#FF4D6D] text-white text-[10px] font-bold hover:opacity-90 transition-all cursor-pointer"
+                            >
+                              Refuser
+                            </button>
+                            <button 
+                              onClick={() => onValidateTask(task.id)}
+                              className="px-2.5 py-1 rounded-xl bg-[#00D26A] text-white text-[10px] font-bold hover:opacity-90 transition-all cursor-pointer"
+                            >
+                              Valider
+                            </button>
+                          </div>
+                        ) : task.status === 'refused' ? (
+                          <span className="text-[10px] font-bold text-[#FF4D6D] italic">Refusé (correction)</span>
+                        ) : getPermission('taches', 'modifier') ? (
+                          <button 
+                            onClick={() => onToggleTask(task.id)}
+                            className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:text-white text-[10px] font-bold cursor-pointer"
                           >
-                            <option value="daily">Quotidienne</option>
-                            <option value="weekly">Hebdomadaire</option>
-                            <option value="none">Ponctuelle</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="text-[9px] font-bold text-white/50 uppercase tracking-widest block mb-1">Assigné à</label>
-                        <select
-                          value={editTaskAssigneeId}
-                          onChange={(e) => setEditTaskAssigneeId(e.target.value)}
-                          className="w-full bg-[#07111F]/80 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
-                        >
-                          {members.map(m => (
-                            <option key={m.id} value={m.id}>{m.name}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="flex items-center justify-end space-x-2 pt-2 border-t border-white/5">
-                        <button
-                          type="button"
-                          onClick={() => setEditingTaskId(null)}
-                          className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 hover:text-white text-[10px] font-bold transition-all cursor-pointer"
-                        >
-                          Annuler
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const assignee = members.find(m => m.id === editTaskAssigneeId);
-                            onEditTask(
-                              task.id,
-                              editTaskTitle,
-                              editTaskPoints,
-                              editTaskRotation,
-                              editTaskAssigneeId,
-                              assignee ? assignee.name : 'Général'
-                            );
-                            setEditingTaskId(null);
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-[#6C5CFF] text-white text-[10px] font-bold hover:bg-[#5849E0] transition-all cursor-pointer shadow-md"
-                        >
-                          Sauver
-                        </button>
+                            Marquer fait
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-white/30 italic">Non autorisé</span>
+                        )}
                       </div>
                     </div>
                   );
-                }
-
-                return (
-                  <div 
-                    key={task.id}
-                    className={`glass-panel rounded-[28px] p-4 border flex flex-col justify-between h-[130px] transition-all relative group ${
-                      task.done 
-                        ? task.validatedByParent 
-                          ? 'border-[#00D26A]/30 bg-[#00D26A]/5 opacity-60' 
-                          : 'border-[#FFB020]/30 bg-[#FFB020]/5' 
-                        : 'border-white/8'
-                    }`}
-                  >
-                    {/* Parent Hover/Group Quick Edit/Delete Actions */}
-                    {isParent && (getPermission('taches', 'modifier') || getPermission('taches', 'supprimer')) && (
-                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1 z-20">
-                        {getPermission('taches', 'modifier') && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingTaskId(task.id);
-                              setEditTaskTitle(task.title);
-                              setEditTaskPoints(task.rewardPoints);
-                              setEditTaskRotation(task.rotation);
-                              setEditTaskAssigneeId(task.assignedMemberId);
-                            }}
-                            className="p-1.5 bg-white/5 hover:bg-[#6C5CFF]/20 border border-white/10 hover:border-[#6C5CFF]/30 text-white hover:text-[#9E94FF] rounded-lg transition active:scale-95 cursor-pointer"
-                            title="Modifier la tâche"
-                          >
-                            <Edit3 className="w-3 h-3" />
-                          </button>
-                        )}
-                        {getPermission('taches', 'supprimer') && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDeleteTask(task.id);
-                            }}
-                            className="p-1.5 bg-white/5 hover:bg-[#FF3B30]/25 border border-white/10 hover:border-[#FF3B30]/40 text-white hover:text-[#FF3B30] rounded-lg transition active:scale-95 cursor-pointer"
-                            title="Supprimer la tâche"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="text-[8px] font-extrabold text-[#6C5CFF] uppercase tracking-widest bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 px-2 py-0.5 rounded-lg">
-                          {task.rotation === 'daily' ? 'Quotidienne' : task.rotation === 'weekly' ? 'Hebdo' : 'Ponctuel'}
-                        </span>
-                        <h4 className={`text-xs sm:text-sm font-bold text-white mt-2 ${task.done ? 'line-through text-white/40' : ''}`}>
-                          {task.title}
-                        </h4>
-                      </div>
-                      <span className="text-[10px] font-extrabold text-[#6C5CFF] bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 px-2 py-0.5 rounded-lg shrink-0 mr-8">
-                        +{task.rewardPoints} Pts
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-3 border-t border-white/5 mt-2">
-                      <span className="text-[10px] text-white/50">Assigné : <strong className="text-white">{task.assignedMemberName}</strong></span>
-                      {!task.done && getPermission('taches', 'modifier') ? (
-                        <button 
-                          onClick={() => onToggleTask(task.id)}
-                          className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:text-white text-[10px] font-bold cursor-pointer"
-                        >
-                          Marquer fait
-                        </button>
-                      ) : !task.done ? (
-                        <span className="text-[10px] text-white/30 italic">Non autorisé</span>
-                      ) : (
-                        <span className={`text-[10px] font-bold ${task.validatedByParent ? 'text-[#00D26A]' : 'text-[#FFB020]'}`}>
-                          {task.validatedByParent ? 'Validé' : 'En attente'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                })}
+              </div>
+              
+              {(choresActiveSubTab === 'actives' ? activeParsedTasks : archivedParsedTasks).length === 0 && (
+                <p className="text-xs text-white/30 text-center py-8">Aucune mission dans cette liste.</p>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* SUB-MODULE 5: École */}
       {activeModule === 'ecole' && (
@@ -5531,534 +5806,712 @@ export const MenuHub: React.FC<MenuHubProps> = ({
         </div>
       )}
 
-      {/* 10. Argent de Poche */}
-      {activeModule === 'argent' && (
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-lg font-extrabold text-white">Argent de Poche</h2>
-            <p className="text-xs text-white/50">Missions rémunérées et cagnottes des enfants</p>
-          </div>
+      {activeModule === 'argent' && (() => {
+        // Find selected child
+        const selectedChild = pocketMoney.find(c => c.id === pmSelectedChildId);
 
-          {/* Demandes de Récompenses en Attente (Parent-only validation workflow) */}
-          {isParent && setAlerts && (
-            <div className="glass-panel rounded-[28px] border-2 border-amber-500/20 bg-amber-500/5 p-5 space-y-4">
-              <div className="flex items-center space-x-2">
-                <span className="text-lg">🛍️</span>
-                <h3 className="text-sm font-extrabold text-white">Demandes de Récompenses en Attente</h3>
-                <span className="text-[9px] font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full">
-                  {alerts.filter(a => a.id.startsWith('req-rew-')).length} en attente
-                </span>
-              </div>
+        // Mapper from SavingGoal to RewardItem
+        const mapSavingGoalToReward = (sg: SavingGoal) => {
+          let icon = '🎁';
+          let validationRequired = true;
+          let subCategory = 'Cadeau';
+          
+          if (sg.contributions && sg.contributions.length > 0) {
+            const meta = sg.contributions[0] as any;
+            if (meta.icon) icon = meta.icon;
+            if (meta.validationRequired !== undefined) validationRequired = meta.validationRequired;
+            if (meta.subCategory) subCategory = meta.subCategory;
+          }
+          
+          return {
+            id: sg.id,
+            title: sg.title,
+            cost: sg.targetAmount,
+            icon,
+            category: subCategory,
+            validationRequired
+          };
+        };
 
-              {alerts.filter(a => a.id.startsWith('req-rew-')).length > 0 ? (
-                <div className="space-y-3">
-                  {alerts.filter(a => a.id.startsWith('req-rew-')).map((alertItem) => {
-                    const parts = alertItem.id.split('-');
-                    const memberId = parts[2];
-                    const rewardId = `${parts[3]}-${parts[4]}`; // rew-1
-                    
-                    const child = pocketMoney.find(p => p.id === memberId);
-                    
-                    const rewardsList = [
-                      { id: 'rew-1', title: '30 min de console 🎮', cost: 50 },
-                      { id: 'rew-2', title: 'Choisir le menu du dîner 🍕', cost: 80 },
-                      { id: 'rew-3', title: 'Coucher tardif (+30 min) 🌙', cost: 100 },
-                      { id: 'rew-4', title: 'Double boule de glace 🍦', cost: 120 },
-                      { id: 'rew-5', title: 'Cinéma en famille 🎬', cost: 250 },
-                      { id: 'rew-6', title: 'Nouveau jouet au choix 🧸', cost: 400 }
-                    ];
-                    const reward = rewardsList.find(r => r.id === rewardId);
-                    
-                    const handleApprove = async () => {
-                      if (!child || !reward) return;
-                      
-                      if (child.points < reward.cost) {
-                        alert(`Désolé, ${child.name} n'a plus assez de points (${child.points} pts) pour débloquer cette récompense (${reward.cost} pts).`);
-                        return;
-                      }
-                      
-                      // 1. Deduct points from child pocket money
-                      setPocketMoney(prev => prev.map(c => c.id === child.id ? { ...c, points: c.points - reward.cost } : c));
-                      
-                      // 2. Add points debit transaction
-                      if (onAddTransaction) {
-                        onAddTransaction({
-                          amount: 0,
-                          type: 'expense',
-                          category: 'Argent de Poche',
-                          date: new Date().toISOString().split('T')[0],
-                          title: `Récompense validée : ${reward.title}`,
-                          memberName: child.name
-                        });
-                      }
-                      
-                      // 3. Delete alert from local state
-                      setAlerts(prev => prev.filter(a => a.id !== alertItem.id));
-                      
-                      // 4. Delete alert from Supabase
-                      try {
-                        const client = getSupabaseClient();
-                        if (client) {
-                          await client.from('alerts').delete().eq('id', alertItem.id);
-                        }
-                      } catch (err) {
-                        console.error("[MenuHub Validation] Failed to delete alert from cloud:", err);
-                      }
-                      
-                      alert(`🎉 Récompense "${reward.title}" validée avec succès pour ${child.name} !`);
-                    };
-                    
-                    const handleRefuse = async () => {
-                      // 1. Delete alert from local state
-                      setAlerts(prev => prev.filter(a => a.id !== alertItem.id));
-                      
-                      // 2. Delete alert from Supabase
-                      try {
-                        const client = getSupabaseClient();
-                        if (client) {
-                          await client.from('alerts').delete().eq('id', alertItem.id);
-                        }
-                      } catch (err) {
-                        console.error("[MenuHub Validation] Failed to delete alert from cloud:", err);
-                      }
-                      
-                      alert(`Récompense refusée. La demande a été supprimée.`);
-                    };
+        // Load boutique rewards
+        const dbRewards = (goals || [])
+          .filter(sg => sg.category === 'boutique_reward')
+          .map(mapSavingGoalToReward);
 
-                    return (
-                      <div key={alertItem.id} className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-2">
-                            <span className="font-extrabold text-white">{alertItem.title}</span>
-                            <span className="text-[10px] text-[#FFB020] font-black">({reward?.cost || 0} pts)</span>
-                          </div>
-                          <p className="text-white/60">{alertItem.description}</p>
-                          <p className="text-[9px] text-white/35">Solde actuel de l'enfant : {child?.points || 0} pts</p>
-                        </div>
-                        
-                        <div className="flex space-x-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={handleApprove}
-                            className="px-3 py-1.5 bg-[#00D26A] text-[#07111F] rounded-xl font-extrabold transition-all hover:scale-105 cursor-pointer"
-                          >
-                            Valider
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleRefuse}
-                            className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-xl font-extrabold hover:bg-red-500/30 transition-all cursor-pointer"
-                          >
-                            Refuser
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-xs text-white/30 text-center py-2 font-bold">Aucune demande de récompense en attente. 👍</p>
-              )}
-            </div>
-          )}
+        const rewardsList = dbRewards.length > 0 ? dbRewards : [
+          { id: 'rew-1', title: '30 min de console 🎮', cost: 50, validationRequired: true },
+          { id: 'rew-2', title: 'Choisir le menu du dîner 🍕', cost: 80, validationRequired: true },
+          { id: 'rew-3', title: 'Coucher tardif (+30 min) 🌙', cost: 100, validationRequired: true },
+          { id: 'rew-4', title: 'Double boule de glace 🍦', cost: 120, validationRequired: true },
+          { id: 'rew-5', title: 'Cinéma en famille 🎬', cost: 250, validationRequired: true },
+          { id: 'rew-6', title: 'Nouveau jouet au choix 🧸', cost: 400, validationRequired: true }
+        ];
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {(isParent ? pocketMoney : pocketMoney.filter(c => c.id === activeMemberId)).map((child) => (
-              <div key={child.id} className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <img src={child.avatar} alt={child.name} className="w-10 h-10 rounded-full object-cover border border-white/10" />
-                    <div>
-                      <h3 className="text-sm font-bold text-white">{child.name}</h3>
-                      <p className="text-[10px] text-white/40">Enfant • Compte Épargne Connecté</p>
-                    </div>
-                  </div>
-                  {isParent && (
-                    <div className="flex space-x-1">
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          const newBalance = window.prompt(`Modifier la cagnotte de ${child.name} (€) :`, String(child.balance));
-                          if (newBalance === null) return;
-                          const newPoints = window.prompt(`Modifier les points de ${child.name} :`, String(child.points));
-                          if (newPoints === null) return;
-                          setPocketMoney(prev => prev.map(c => c.id === child.id ? { ...c, balance: Number(newBalance), points: Number(newPoints) } : c));
-                        }}
-                        className="p-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-white/60 hover:text-white transition text-[10px] font-bold"
-                        title="Modifier"
-                      >
-                        ✏️
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm(`Supprimer le compte d'argent de poche de ${child.name} ?`)) {
-                            setPocketMoney(prev => prev.filter(c => c.id !== child.id));
-                          }
-                        }}
-                        className="p-1.5 bg-red-500/10 hover:bg-red-500/20 rounded-xl text-red-400 hover:text-red-300 transition text-[10px] font-bold"
-                        title="Supprimer"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  )}
-                </div>
+        // Direct adjustments form handler
+        const handleApplyDirectAdjustment = async (e: React.FormEvent) => {
+          e.preventDefault();
+          if (!pmSelectedChildId || !adjustmentAmount) return;
+          const amt = parseFloat(adjustmentAmount);
+          if (isNaN(amt) || amt <= 0) return;
 
-                <div className="grid grid-cols-2 gap-2 text-center pt-2">
-                  <div className="p-3 rounded-2xl bg-white/5 border border-white/5">
-                    <span className="text-[8px] font-bold text-white/40 uppercase tracking-wide block">Solde Cagnotte</span>
-                    <span className="text-base font-extrabold text-[#00D26A] mt-0.5 block">{formatMoney(child.balance)}</span>
-                  </div>
-                  <div className="p-3 rounded-2xl bg-white/5 border border-white/5">
-                    <span className="text-[8px] font-bold text-white/40 uppercase tracking-wide block">Points Actuels</span>
-                    <span className="text-base font-extrabold text-[#6C5CFF] mt-0.5 block">{child.points} Pts</span>
-                  </div>
-                </div>
+          const child = pocketMoney.find(c => c.id === pmSelectedChildId);
+          if (!child) return;
 
-                {/* Objectif d'épargne */}
-                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/5 text-left space-y-2">
-                  {child.goalTitle ? (
-                    <>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-white">🎯 {child.goalTitle}</span>
-                        <span className="font-bold text-white/60">{child.balance.toFixed(2)}€ / {child.goalAmount}€</span>
-                      </div>
-                      <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden border border-white/5">
-                        <div 
-                          className="h-full bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] transition-all"
-                          style={{ width: `${Math.min(100, (child.balance / (child.goalAmount || 1)) * 100)}%` }}
-                        ></div>
-                      </div>
-                      <div className="flex items-center justify-between text-[9px] text-white/40">
-                        <span>Progression: {Math.min(100, Math.round((child.balance / (child.goalAmount || 1)) * 100))}%</span>
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            setPocketMoney(prev => prev.map(c => c.id === child.id ? { ...c, goalTitle: undefined, goalAmount: undefined } : c));
-                          }}
-                          className="text-red-400 hover:underline"
-                        >
-                          Supprimer
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="space-y-2">
-                      <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest block">🎯 Objectif d'épargne</span>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          const goalTitle = window.prompt("Quel est l'objectif d'épargne ? (ex: Vélo, Console...) :");
-                          if (!goalTitle) return;
-                          const goalAmount = window.prompt("Montant de l'objectif (€) :");
-                          if (!goalAmount) return;
-                          setPocketMoney(prev => prev.map(c => c.id === child.id ? { ...c, goalTitle, goalAmount: Number(goalAmount) } : c));
-                        }}
-                        className="w-full py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-[10px] transition text-center border border-dashed border-white/20"
-                      >
-                        + Définir un objectif d'épargne
-                      </button>
-                    </div>
-                  )}
-                </div>
+          let newBalance = child.balance;
+          let newPoints = child.points;
+          const isAdd = adjustmentType === 'add';
 
-                <button 
-                  type="button"
-                  onClick={() => {
-                    if (child.points >= 50) {
-                      const amountEarned = child.points / 10;
-                      setPocketMoney(prev => prev.map(c => {
-                        if (c.id === child.id) {
-                          return { ...c, balance: c.balance + amountEarned, points: 0 };
-                        }
-                        return c;
-                      }));
+          if (adjustmentAsset === 'money') {
+            newBalance = isAdd ? newBalance + amt : Math.max(0, newBalance - amt);
+          } else {
+            newPoints = isAdd ? newPoints + Math.round(amt) : Math.max(0, newPoints - Math.round(amt));
+          }
 
-                      // Financial transaction integration
-                      if (onAddTransaction) {
-                        onAddTransaction({
-                          amount: amountEarned,
-                          type: 'expense',
-                          category: 'Argent de Poche',
-                          date: new Date().toISOString().split('T')[0],
-                          title: `Conversion points de ${child.name} en euros`,
-                          memberName: child.name
-                        });
-                      }
+          // Update pocketMoney state locally
+          setPocketMoney(prev => prev.map(c => c.id === child.id ? { ...c, balance: newBalance, points: newPoints } : c));
 
-                      alert(`🎉 Points convertis en euros pour ${child.name} ! (+${amountEarned.toFixed(2)} €)`);
-                    } else {
-                      alert("⚠️ Il faut au moins 50 points pour effectuer une conversion en argent de poche.");
-                    }
-                  }}
-                  className="w-full py-2.5 rounded-[18px] bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 hover:text-white font-bold text-xs transition-all cursor-pointer"
-                >
-                  Convertir les Points en Euros (€)
-                </button>
-              </div>
-            ))}
-          </div>
+          const timestamp = Date.now();
+          const reasonText = adjustmentReason.trim() || (isAdd ? 'Ajustement positif' : 'Ajustement négatif');
 
-          {/* Outil de Distribution Parent (uniquement pour les parents) */}
-          {isParent && (
-            <form onSubmit={handleAddPocketMoney} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
-              <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block flex items-center space-x-1.5">
-                <Plus className="w-3.5 h-3.5 text-[#6C5CFF]" />
-                <span>Distribuer de l'Argent ou des Points (Accès Parent) 💰</span>
-              </span>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left font-sans">
-                <div className="space-y-1.5 text-left font-medium">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Sélectionner l'Enfant</label>
-                  <select
-                    value={allowanceChildId}
-                    onChange={(e) => setAllowanceChildId(e.target.value)}
-                    className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
-                  >
-                    {pocketMoney.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
+          // If money reward, record parent transaction
+          if (adjustmentAsset === 'money') {
+            if (onAddTransaction) {
+              onAddTransaction({
+                amount: amt,
+                type: isAdd ? 'expense' : 'income',
+                category: 'Argent de Poche',
+                date: new Date().toISOString().split('T')[0],
+                title: `${isAdd ? 'Crédit' : 'Débit'} tirelire : ${reasonText}`,
+                memberName: child.name,
+                accountId: adjustmentAccountId || null
+              });
+            }
+          } else {
+            // Points adjustment
+            if (onAddTransaction) {
+              onAddTransaction({
+                amount: 0,
+                type: isAdd ? 'income' : 'expense',
+                category: 'Argent de Poche',
+                date: new Date().toISOString().split('T')[0],
+                title: `${isAdd ? 'Attribution' : 'Retrait'} de points : ${reasonText} (${isAdd ? '+' : '-'}${Math.round(amt)} pts)`,
+                memberName: child.name
+              });
+            }
+          }
 
-                <div className="space-y-1.5 text-left font-medium">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Compte à débiter (Parent)</label>
-                  <select
-                    value={allowanceAccountId}
-                    onChange={(e) => setAllowanceAccountId(e.target.value)}
-                    className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
-                  >
-                    <option value="">Sélectionner un compte...</option>
-                    {accounts.map(acc => (
-                      <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toFixed(2)}€)</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+          // Update Supabase
+          try {
+            const client = getSupabaseClient();
+            if (client && foyer) {
+              await client.from('pocket_money')
+                .update({ balance: newBalance, points: newPoints })
+                .eq('id', child.id)
+                .eq('foyer_id', foyer.id);
+              console.log("[MenuHub] Direct adjustment successfully saved to cloud.");
+            }
+          } catch (err) {
+            console.error("[MenuHub] Failed to save adjustment to cloud:", err);
+          }
 
-              <div className="grid grid-cols-2 gap-3 text-left">
-                <div className="space-y-1.5 text-left font-medium font-sans">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Ajouter Euros (€)</label>
-                  <input 
-                    type="number" 
-                    placeholder="ex: 10"
-                    value={allowanceAmount}
-                    onChange={(e) => setAllowanceAmount(e.target.value)}
-                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
-                  />
-                </div>
+          setAdjustmentAmount('');
+          setAdjustmentReason('');
+          alert(`Ajustement appliqué ! Solde de ${child.name} mis à jour.`);
+        };
 
-                <div className="space-y-1.5 text-left font-medium font-sans">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Ajouter Points (Pts)</label>
-                  <input 
-                    type="number" 
-                    placeholder="ex: 100"
-                    value={allowancePoints}
-                    onChange={(e) => setAllowancePoints(e.target.value)}
-                    className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
-                  />
-                </div>
-              </div>
+        // Cancel recurring transfer
+        const handleCancelRecurringTransfer = async (txId: string) => {
+          if (window.confirm("Voulez-vous annuler ce versement récurrent ?")) {
+            if (setTransactions) {
+              setTransactions(prev => prev.filter(t => t.id !== txId));
+            }
+            try {
+              const client = getSupabaseClient();
+              if (client && foyer) {
+                await client.from('transactions').delete().eq('id', txId).eq('foyer_id', foyer.id);
+                console.log("[MenuHub] Recurring transfer deleted successfully.");
+              }
+            } catch (err) {
+              console.error("[MenuHub] Failed to delete recurring transfer from cloud:", err);
+            }
+          }
+        };
 
-              <div className="grid grid-cols-2 gap-3 text-left font-medium font-sans">
-                <div className="flex items-center space-x-3 pt-6">
-                  <input
-                    type="checkbox"
-                    id="allowanceIsRecurring"
-                    checked={allowanceIsRecurring}
-                    onChange={(e) => setAllowanceIsRecurring(e.target.checked)}
-                    className="w-4 h-4 rounded bg-white/5 border border-white/10 text-[#6C5CFF]"
-                  />
-                  <label htmlFor="allowanceIsRecurring" className="text-xs text-white font-bold cursor-pointer select-none">Versement récurrent ?</label>
-                </div>
+        // Create boutique item
+        const handleCreateBoutiqueItem = async (e: React.FormEvent) => {
+          e.preventDefault();
+          if (!newBoutiqueTitle.trim() || !newBoutiqueCost || !setSavingGoals) return;
 
-                {allowanceIsRecurring && (
-                  <div>
-                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Fréquence du versement</label>
-                    <select
-                      value={allowanceRecurrenceType}
-                      onChange={(e) => setAllowanceRecurrenceType(e.target.value as any)}
-                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
-                    >
-                      <option value="weekly">Chaque semaine</option>
-                      <option value="monthly">Chaque mois</option>
-                    </select>
-                  </div>
-                )}
-              </div>
+          const newGoal: SavingGoal = {
+            id: `sg-rew-${Date.now()}`,
+            title: newBoutiqueTitle.trim(),
+            targetAmount: newBoutiqueCost,
+            currentAmount: 0,
+            targetDate: '',
+            category: 'boutique_reward',
+            contributions: [
+              {
+                memberName: 'system',
+                amount: 0,
+                date: new Date().toISOString()
+              },
+              {
+                icon: newBoutiqueIcon,
+                validationRequired: newBoutiqueValidationRequired,
+                subCategory: newBoutiqueSubCategory
+              } as any
+            ]
+          };
 
-              <button
-                type="submit"
-                className="w-full py-3 rounded-[18px] bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#6C5CFF]/20"
-              >
-                <Plus className="w-4 h-4 text-white" />
-                <span>Valider la distribution</span>
-              </button>
-            </form>
-          )}
+          setSavingGoals(prev => [...prev, newGoal]);
 
-          {/* Défis de Famille Collaboratifs */}
-          <div className="space-y-4 pt-4 border-t border-white/5">
-            <div className="flex items-center space-x-2">
-              <span className="text-lg">🎮</span>
-              <h3 className="text-sm font-extrabold text-white">Défis de Famille</h3>
-              <span className="text-[9px] font-bold text-[#6C5CFF] bg-[#6C5CFF]/10 px-2 py-0.5 rounded-full">{sharedQuests.length} actifs</span>
+          try {
+            const client = getSupabaseClient();
+            if (client && foyer) {
+              await client.from('saving_goals').insert({
+                id: newGoal.id,
+                foyer_id: foyer.id,
+                title: newGoal.title,
+                target_amount: newGoal.targetAmount,
+                current_amount: newGoal.currentAmount,
+                target_date: newGoal.targetDate,
+                category: newGoal.category,
+                contributions: newGoal.contributions
+              });
+              console.log("[MenuHub] Custom boutique reward created successfully.");
+            }
+          } catch (err) {
+            console.error("[MenuHub] Failed to save custom boutique reward to cloud:", err);
+          }
+
+          setNewBoutiqueTitle('');
+          setNewBoutiqueCost(50);
+          setNewBoutiqueIcon('🎁');
+          setNewBoutiqueSubCategory('Cadeau');
+          setNewBoutiqueValidationRequired(true);
+          alert("Récompense ajoutée à la boutique !");
+        };
+
+        // Delete boutique item
+        const handleDeleteBoutiqueItem = async (goalId: string) => {
+          if (!setSavingGoals) return;
+
+          if (window.confirm("Voulez-vous supprimer cette récompense de la boutique ?")) {
+            setSavingGoals(prev => prev.filter(g => g.id !== goalId));
+
+            try {
+              const client = getSupabaseClient();
+              if (client && foyer) {
+                await client.from('saving_goals').delete().eq('id', goalId).eq('foyer_id', foyer.id);
+                console.log("[MenuHub] Custom boutique reward deleted successfully.");
+              }
+            } catch (err) {
+              console.error("[MenuHub] Failed to delete custom boutique reward from cloud:", err);
+            }
+          }
+        };
+
+        return (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-extrabold text-white">Argent de Poche</h2>
+              <p className="text-xs text-white/50">Missions rémunérées et cagnottes des enfants</p>
             </div>
 
-            {sharedQuests.map(quest => {
-              const pct = Math.min(100, Math.round((quest.current / quest.target) * 100));
-              const isComplete = pct >= 100;
-              const isGenerating = generatingQuestVisual === quest.id;
-              
-              return (
-                <div key={quest.id} className={`glass-panel border rounded-[24px] p-4 space-y-3 relative overflow-hidden transition-all ${
-                  isComplete ? 'border-[#00D26A]/30 bg-[#00D26A]/5' : 'border-white/8'
-                }`}>
-                  
-                  {/* Visual Poster / Trophy Frame */}
-                  {isGenerating ? (
-                    <div className="w-full h-32 rounded-xl bg-slate-950 flex flex-col items-center justify-center space-y-2 border border-white/5">
-                      <div className="w-8 h-8 rounded-full border border-dashed border-[#6C5CFF] animate-spin flex items-center justify-center">
-                        <span className="text-xs">🪄</span>
-                      </div>
-                      <span className="text-[8px] font-black text-white/50 uppercase tracking-widest font-sans">
-                        {questVisualStep === 1 ? "Polissage des reflets dorés..." : 
-                         questVisualStep === 2 ? "Gravure de la récompense..." : 
-                         "L'IA sculpte votre trophée..."}
-                      </span>
-                    </div>
-                  ) : quest.posterUrl ? (
-                    <div className="relative w-full h-32 rounded-xl overflow-hidden border border-white/5 shadow-md group">
-                      <img 
-                        src={quest.posterUrl} 
-                        alt={quest.title} 
-                        className="w-full h-full object-cover transition-transform duration-[6000ms] group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20"></div>
-                      <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 text-[7px] font-extrabold text-[#FFB020] uppercase tracking-wider font-sans border border-white/5">
-                        {isComplete ? "🏆 Trophée Débloqué" : "🎬 Affiche de Mission"}
-                      </span>
-                    </div>
-                  ) : null}
-
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-bold text-white leading-relaxed flex-1">{quest.title}</h4>
-                    {isParent && (
-                      <button type="button" onClick={() => {
-                        if (window.confirm('Supprimer ce défi ?')) {
-                          setSharedQuests(prev => prev.filter(q => q.id !== quest.id));
-                        }
-                      }} className="p-1 hover:bg-red-500/10 rounded text-[10px] text-red-400 shrink-0">🗑️</button>
-                    )}
-                  </div>
-                  <div className="relative h-3 bg-white/5 rounded-full overflow-hidden border border-white/5">
-                    <div 
-                      className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
-                      style={{ 
-                        width: `${pct}%`, 
-                        background: isComplete ? '#00D26A' : 'linear-gradient(90deg, #6C5CFF, #FF4D6D)',
-                        boxShadow: isComplete ? '0 0 12px rgba(0,210,106,0.4)' : '0 0 12px rgba(108,92,255,0.3)'
-                      }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-white/50 font-bold">{quest.current} / {quest.target} • {pct}%</span>
-                    <span className="text-[#FFB020] font-bold">🏆 {quest.reward}</span>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-2">
-                    {!isComplete && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSharedQuests(prev => prev.map(q => q.id === quest.id ? { ...q, current: Math.min(q.target, q.current + 1) } : q));
-                        }}
-                        className="py-2.5 rounded-xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/20 text-[#6C5CFF] text-[10px] font-extrabold hover:bg-[#6C5CFF]/25 transition cursor-pointer"
-                      >
-                        ➕ Contribuer (+1)
-                      </button>
-                    )}
-                    
-                    {/* Generative IA visual quest button */}
+            {/* Selection of child */}
+            <div className="space-y-2 text-left">
+              <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Sélectionnez un enfant pour gérer son portefeuille :</label>
+              <div className="flex flex-wrap gap-3">
+                {pocketMoney.map(child => {
+                  const isSelected = pmSelectedChildId === child.id;
+                  return (
                     <button
                       type="button"
-                      disabled={isGenerating}
-                      onClick={() => {
-                        setGeneratingQuestVisual(quest.id);
-                        setQuestVisualStep(1);
-
-                        let promptStyle = '';
-                        if (isComplete) {
-                          // Générer un Trophée 3D Pixar en Or Massif de la Victoire basé sur la récompense !
-                          promptStyle = `shiny premium 3D Pixar gold trophy award representation of reward ${quest.reward}, sitting on a polished wooden desk, soft glowing aura backdrops, cinematic dramatic key lighting, photorealistic highly detailed award trophy`;
-                        } else {
-                          // Générer une Affiche Épique de Mission de Cinéma Pixar 3D basée sur le titre du défi !
-                          promptStyle = `highly detailed epic 3D Pixar animation movie poster illustrating: ${quest.title}, cheerful cute family characters working together as superheroes, colorful dust, bright sunny dynamic lighting`;
-                        }
-
-                        const finalPrompt = encodeURIComponent(promptStyle);
-                        const seed = Math.floor(Math.random() * 1000000);
-                        const generatedUrl = `https://image.pollinations.ai/prompt/${finalPrompt}?width=600&height=400&nologo=true&seed=${seed}`;
-
-                        setTimeout(() => {
-                          setQuestVisualStep(2);
-                          setTimeout(() => {
-                            setQuestVisualStep(3);
-
-                            const img = new Image();
-                            img.src = generatedUrl;
-                            img.onload = () => {
-                              setSharedQuests(prev => prev.map(q => q.id === quest.id ? { ...q, posterUrl: generatedUrl } : q));
-                              setGeneratingQuestVisual('');
-                            };
-                            img.onerror = () => {
-                              // Fallback Unsplash
-                              const unsplashUrl = isComplete 
-                                ? `https://images.unsplash.com/photo-1578269174936-2709b5a5e023?w=600&q=80&sig=${seed}` // Trophy
-                                : `https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=600&q=80&sig=${seed}`; // Cooperation/Motivation
-                              setSharedQuests(prev => prev.map(q => q.id === quest.id ? { ...q, posterUrl: unsplashUrl } : q));
-                              setGeneratingQuestVisual('');
-                            };
-                          }, 1000);
-                        }, 1000);
-                      }}
-                      className={`py-2.5 rounded-xl border text-[10px] font-extrabold transition cursor-pointer ${
-                        quest.posterUrl 
-                          ? 'border-[#FFB020]/25 bg-[#FFB020]/10 text-[#FFB020] hover:bg-[#FFB020]/15' 
-                          : 'border-white/8 bg-white/5 text-white/50 hover:text-white hover:bg-white/8'
-                      } ${!isComplete ? '' : 'col-span-2'}`}
+                      key={child.id}
+                      onClick={() => setPmSelectedChildId(isSelected ? null : child.id)}
+                      className={`flex items-center space-x-3 p-3 rounded-2xl border text-left font-bold transition-all cursor-pointer ${
+                        isSelected 
+                          ? 'bg-[#6C5CFF]/25 border-[#6C5CFF] text-white shadow-md' 
+                          : 'bg-white/5 border-white/5 text-white/60 hover:text-white hover:bg-white/8'
+                      }`}
                     >
-                      {isComplete ? "🏆 Trophée de la Victoire IA" : quest.posterUrl ? "🪄 Regénérer Visuel" : "🪄 Affiche de Mission IA"}
+                      <img src={child.avatar} alt={child.name} className="w-8 h-8 rounded-full object-cover border border-white/10" />
+                      <div>
+                        <p className="text-xs">{child.name}</p>
+                        <p className="text-[9px] text-white/40">{formatMoney(child.balance)} • {child.points} Pts</p>
+                      </div>
                     </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {selectedChild ? (
+              <div className="space-y-6">
+                
+                {/* Child Dashboard Overview */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 text-left">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <img src={selectedChild.avatar} alt={selectedChild.name} className="w-10 h-10 rounded-full object-cover border border-white/10" />
+                        <div>
+                          <h3 className="text-sm font-bold text-white">{selectedChild.name}</h3>
+                          <p className="text-[10px] text-white/40">Enfant • Compte Épargne Connecté</p>
+                        </div>
+                      </div>
+                      {isParent && (
+                        <div className="flex space-x-1">
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const newBalance = window.prompt(`Modifier la cagnotte de ${selectedChild.name} (€) :`, String(selectedChild.balance));
+                              if (newBalance === null) return;
+                              const newPoints = window.prompt(`Modifier les points de ${selectedChild.name} :`, String(selectedChild.points));
+                              if (newPoints === null) return;
+                              setPocketMoney(prev => prev.map(c => c.id === selectedChild.id ? { ...c, balance: Number(newBalance), points: Number(newPoints) } : c));
+                            }}
+                            className="p-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-white/60 hover:text-white transition text-[10px] font-bold"
+                            title="Modifier"
+                          >
+                            ✏️
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-center pt-2">
+                      <div className="p-3 rounded-2xl bg-white/5 border border-white/5">
+                        <span className="text-[8px] font-bold text-white/40 uppercase tracking-wide block">Solde Cagnotte</span>
+                        <span className="text-base font-extrabold text-[#00D26A] mt-0.5 block">{formatMoney(selectedChild.balance)}</span>
+                      </div>
+                      <div className="p-3 rounded-2xl bg-white/5 border border-white/5">
+                        <span className="text-[8px] font-bold text-white/40 uppercase tracking-wide block">Points Actuels</span>
+                        <span className="text-base font-extrabold text-[#6C5CFF] mt-0.5 block">{selectedChild.points} Pts</span>
+                      </div>
+                    </div>
+
+                    {/* Objectif d'épargne */}
+                    <div className="p-3.5 rounded-2xl bg-white/5 border border-white/5 text-left space-y-2">
+                      {selectedChild.goalTitle ? (
+                        <>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-white">🎯 {selectedChild.goalTitle}</span>
+                            <span className="font-bold text-white/60">{selectedChild.balance.toFixed(2)}€ / {selectedChild.goalAmount}€</span>
+                          </div>
+                          <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden border border-white/5">
+                            <div 
+                              className="h-full bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] transition-all"
+                              style={{ width: `${Math.min(100, (selectedChild.balance / (selectedChild.goalAmount || 1)) * 100)}%` }}
+                            ></div>
+                          </div>
+                          <div className="flex items-center justify-between text-[9px] text-white/40">
+                            <span>Progression: {Math.min(100, Math.round((selectedChild.balance / (selectedChild.goalAmount || 1)) * 100))}%</span>
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                setPocketMoney(prev => prev.map(c => c.id === selectedChild.id ? { ...c, goalTitle: undefined, goalAmount: undefined } : c));
+                              }}
+                              className="text-red-400 hover:underline"
+                            >
+                              Supprimer
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="space-y-2">
+                          <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest block">🎯 Objectif d'épargne</span>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const goalTitle = window.prompt("Quel est l'objectif d'épargne ? (ex: Vélo, Console...) :");
+                              if (!goalTitle) return;
+                              const goalAmount = window.prompt("Montant de l'objectif (€) :");
+                              if (!goalAmount) return;
+                              setPocketMoney(prev => prev.map(c => c.id === selectedChild.id ? { ...c, goalTitle, goalAmount: Number(goalAmount) } : c));
+                            }}
+                            className="w-full py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-[10px] transition text-center border border-dashed border-white/20"
+                          >
+                            + Définir un objectif d'épargne
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {isComplete && (
-                    <div className="text-center py-1 text-[10px] font-bold text-[#00D26A]">🎉 Défi accompli ! Récompense débloquée !</div>
-                  )}
-                </div>
-              );
-            })}
+                  {/* Direct Adjustments Form */}
+                  <form onSubmit={handleApplyDirectAdjustment} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 text-left font-sans">
+                    <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block flex items-center space-x-1.5">
+                      <span>Ajustement direct (Accès Parent) 🪙</span>
+                    </span>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Action</label>
+                        <select
+                          value={adjustmentType}
+                          onChange={e => setAdjustmentType(e.target.value as any)}
+                          className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                        >
+                          <option value="add">Ajouter (+)</option>
+                          <option value="remove">Retirer (-)</option>
+                        </select>
+                      </div>
 
-            {isParent && (
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                if (!newQuestTitle || !newQuestReward) return;
-                setSharedQuests(prev => [...prev, { id: `sq-${Date.now()}`, title: newQuestTitle, target: newQuestTarget, current: 0, reward: newQuestReward }]);
-                setNewQuestTitle(''); setNewQuestReward('');
-              }} className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
-                <span className="text-[9px] font-bold text-[#6C5CFF] uppercase tracking-widest block">➕ Créer un défi collaboratif</span>
-                <input type="text" required placeholder="Titre du défi..." value={newQuestTitle} onChange={e => setNewQuestTitle(e.target.value)} className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]" />
-                <div className="grid grid-cols-2 gap-2">
-                  <input type="number" min="1" required value={newQuestTarget} onChange={e => setNewQuestTarget(Number(e.target.value))} className="bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none" placeholder="Objectif" />
-                  <input type="text" required placeholder="Récompense 🏆" value={newQuestReward} onChange={e => setNewQuestReward(e.target.value)} className="bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none" />
+                      <div>
+                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Type de solde</label>
+                        <select
+                          value={adjustmentAsset}
+                          onChange={e => setAdjustmentAsset(e.target.value as any)}
+                          className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                        >
+                          <option value="money">Argent (€)</option>
+                          <option value="points">Points (Pts)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Montant</label>
+                        <input
+                          type="number"
+                          step="any"
+                          required
+                          placeholder="ex: 10"
+                          value={adjustmentAmount}
+                          onChange={e => setAdjustmentAmount(e.target.value)}
+                          className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                        />
+                      </div>
+
+                      <div>
+                        {adjustmentAsset === 'money' ? (
+                          <>
+                            <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Compte parent à impacter</label>
+                            <select
+                              value={adjustmentAccountId}
+                              onChange={e => setAdjustmentAccountId(e.target.value)}
+                              className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none"
+                              required
+                            >
+                              <option value="">Sélectionner...</option>
+                              {accounts.map(acc => (
+                                <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toFixed(2)}€)</option>
+                              ))}
+                            </select>
+                          </>
+                        ) : (
+                          <div className="pt-5 text-white/40 text-[10px] font-bold">Ajustement direct de points</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Raison / Commentaire</label>
+                      <input
+                        type="text"
+                        placeholder="ex: Récompense bonne note, Achat confiseries..."
+                        value={adjustmentReason}
+                        onChange={e => setAdjustmentReason(e.target.value)}
+                        className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-2 bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white text-xs font-extrabold rounded-xl hover:opacity-95 transition-all cursor-pointer border border-[#6C5CFF]/20"
+                    >
+                      Appliquer l'ajustement
+                    </button>
+                  </form>
                 </div>
-                <button type="submit" className="w-full py-2.5 rounded-xl bg-[#6C5CFF] text-white text-xs font-extrabold cursor-pointer transition hover:opacity-90">Créer le Défi</button>
-              </form>
+
+                {/* Shop Purchases Alerts specific to this child */}
+                {(() => {
+                  const childBoutiqueAlerts = alerts.filter(a => a.id.startsWith('req-rew-') && a.senderMemberId === selectedChild.id);
+                  if (childBoutiqueAlerts.length === 0) return null;
+
+                  return (
+                    <div className="glass-panel rounded-[28px] border-2 border-amber-500/20 bg-amber-500/5 p-5 space-y-3 text-left">
+                      <div className="flex items-center space-x-2 text-amber-500">
+                        <span>🛍️</span>
+                        <h4 className="text-xs font-extrabold uppercase tracking-wider">Demandes d'achats boutique ({selectedChild.name})</h4>
+                      </div>
+                      <div className="space-y-2">
+                        {childBoutiqueAlerts.map(alertItem => {
+                          const alertParts = alertItem.id.split('-');
+                          const rewardId = `${alertParts[3]}-${alertParts[4]}`;
+                          const reward = rewardsList.find(r => r.id === rewardId);
+
+                          const handleApprove = async () => {
+                            if (!reward) return;
+                            if (selectedChild.points < reward.cost) {
+                              alert(`Désolé, ${selectedChild.name} n'a plus assez de points (${selectedChild.points} pts) pour débloquer cette récompense (${reward.cost} pts).`);
+                              return;
+                            }
+
+                            // Deduct points
+                            const updatedPoints = selectedChild.points - reward.cost;
+                            setPocketMoney(prev => prev.map(c => c.id === selectedChild.id ? { ...c, points: updatedPoints } : c));
+
+                            // Add Transaction
+                            if (onAddTransaction) {
+                              onAddTransaction({
+                                amount: 0,
+                                type: 'expense',
+                                category: 'Argent de Poche',
+                                date: new Date().toISOString().split('T')[0],
+                                title: `Achat boutique validé : ${reward.title} (-${reward.cost} pts)`,
+                                memberName: selectedChild.name
+                              });
+                            }
+
+                            // Delete alert
+                            if (setAlerts) {
+                              setAlerts(prev => prev.filter(a => a.id !== alertItem.id));
+                            }
+
+                            // Delete alert in Supabase
+                            try {
+                              const client = getSupabaseClient();
+                              if (client) {
+                                await client.from('alerts').delete().eq('id', alertItem.id);
+                                await client.from('pocket_money').update({ points: updatedPoints }).eq('id', selectedChild.id);
+                              }
+                            } catch (err) {
+                              console.error("[MenuHub] Failed to update reward approval on cloud:", err);
+                            }
+
+                            alert(`🎉 Demande d'achat "${reward.title}" validée !`);
+                          };
+
+                          const handleRefuse = async () => {
+                            if (setAlerts) {
+                              setAlerts(prev => prev.filter(a => a.id !== alertItem.id));
+                            }
+                            try {
+                              const client = getSupabaseClient();
+                              if (client) {
+                                await client.from('alerts').delete().eq('id', alertItem.id);
+                              }
+                            } catch (err) {
+                              console.error("[MenuHub] Failed to delete alert on cloud:", err);
+                            }
+                            alert("Demande d'achat refusée.");
+                          };
+
+                          return (
+                            <div key={alertItem.id} className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+                              <div>
+                                <p className="font-bold text-white">{alertItem.title} ({reward?.cost || 0} pts)</p>
+                                <p className="text-[10px] text-white/50">{alertItem.description}</p>
+                              </div>
+                              <div className="flex space-x-2 shrink-0">
+                                <button type="button" onClick={handleRefuse} className="px-3 py-1 bg-red-500/20 text-red-400 rounded-xl font-bold">Refuser</button>
+                                <button type="button" onClick={handleApprove} className="px-3 py-1 bg-[#00D26A] text-[#07111F] rounded-xl font-bold">Valider</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Recurring transfers list for this child */}
+                {(() => {
+                  const childRecurringTransfers = transactions.filter(t => 
+                    t.recurrence && t.recurrence !== 'none' &&
+                    (t.category === 'Argent de poche' || t.category === 'Argent de Poche') && 
+                    (t.memberName === selectedChild.name || t.memberId === selectedChild.id)
+                  );
+                  if (childRecurringTransfers.length === 0) return null;
+
+                  return (
+                    <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-3 text-left">
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">Versements récurrents programmés</h4>
+                      <div className="space-y-2">
+                        {childRecurringTransfers.map(tx => (
+                          <div key={tx.id} className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 text-xs font-bold">
+                            <div>
+                              <p className="text-white">{tx.title}</p>
+                              <p className="text-[9px] text-white/40">Montant: {formatMoney(tx.amount)} • Récurrence: {tx.recurrence === 'weekly' ? 'Chaque semaine' : 'Chaque mois'}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelRecurringTransfer(tx.id)}
+                              className="px-2.5 py-1 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-xl font-bold font-sans cursor-pointer"
+                            >
+                              Annuler
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Transactions history list for this child */}
+                {(() => {
+                  const childTransactions = transactions.filter(t => 
+                    (t.category === 'Argent de poche' || t.category === 'Argent de Poche') && 
+                    (t.memberName === selectedChild.name || t.memberId === selectedChild.id)
+                  );
+
+                  return (
+                    <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-3 text-left">
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">Historique de la tirelire</h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {childTransactions.map(tx => {
+                          const isCredit = tx.amount > 0 || (tx.type as string) === 'credit' || tx.type === 'income';
+                          const displayAmt = Math.abs(tx.amount);
+                          return (
+                            <div key={tx.id} className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 text-xs font-bold">
+                              <div>
+                                <p className="text-white">{tx.title}</p>
+                                <p className="text-[9px] text-white/40">{tx.date}</p>
+                              </div>
+                              {tx.amount !== 0 ? (
+                                <span className={isCredit ? 'text-[#00D26A]' : 'text-[#FF4D6D]'}>
+                                  {isCredit ? '+' : '-'}{displayAmt.toFixed(2)} €
+                                </span>
+                              ) : (
+                                <span className="text-[#FFB020] text-[10px] font-black">Achat Boutique</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {childTransactions.length === 0 && (
+                          <p className="text-xs text-white/30 text-center py-4">Aucune transaction enregistrée.</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Boutique configuration panel */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                  {/* Create item form */}
+                  <form onSubmit={handleCreateBoutiqueItem} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 font-sans text-left">
+                    <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block">➕ Configurer un article de la Boutique</span>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Nom du cadeau</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="ex: 30m console, Glace..."
+                          value={newBoutiqueTitle}
+                          onChange={e => setNewBoutiqueTitle(e.target.value)}
+                          className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2 text-xs text-white focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Prix (en Points)</label>
+                        <input
+                          type="number"
+                          required
+                          placeholder="ex: 100"
+                          value={newBoutiqueCost}
+                          onChange={e => setNewBoutiqueCost(Number(e.target.value))}
+                          className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Icône (Emoji)</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="🎮, 🍕, 🍦"
+                          value={newBoutiqueIcon}
+                          onChange={e => setNewBoutiqueIcon(e.target.value)}
+                          className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none text-center"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Catégorie</label>
+                        <select
+                          value={newBoutiqueSubCategory}
+                          onChange={e => setNewBoutiqueSubCategory(e.target.value)}
+                          className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none"
+                        >
+                          <option value="Écran">Écran</option>
+                          <option value="Repas">Repas</option>
+                          <option value="Sommeil">Sommeil</option>
+                          <option value="Gourmandise">Gourmandise</option>
+                          <option value="Sortie">Sortie</option>
+                          <option value="Cadeau">Cadeau</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Validation requise</label>
+                        <select
+                          value={newBoutiqueValidationRequired ? 'true' : 'false'}
+                          onChange={e => setNewBoutiqueValidationRequired(e.target.value === 'true')}
+                          className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none"
+                        >
+                          <option value="true">Oui</option>
+                          <option value="false">Non (Auto)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-2 bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white text-xs font-bold rounded-xl cursor-pointer"
+                    >
+                      Ajouter l'article à la boutique
+                    </button>
+                  </form>
+
+                  {/* List custom rewards */}
+                  <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3 font-sans text-left">
+                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Articles Boutique configurés ({dbRewards.length})</span>
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {dbRewards.map(item => (
+                        <div key={item.id} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 text-xs font-bold">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-base">{item.icon}</span>
+                            <div>
+                              <p className="text-white">{item.title}</p>
+                              <p className="text-[9px] text-white/40">{item.category} • {item.cost} Pts • {item.validationRequired ? 'Avec validation' : 'Direct'}</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBoutiqueItem(item.id)}
+                            className="p-1 text-red-400 hover:bg-red-500/10 rounded transition cursor-pointer"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      ))}
+                      {dbRewards.length === 0 && (
+                        <p className="text-xs text-white/30 text-center py-6 font-bold">Aucun cadeau configuré (les cadeaux par défaut s'affichent pour les enfants).</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            ) : (
+              <div className="glass-panel rounded-[28px] border border-white/8 p-8 text-center space-y-2">
+                <span className="text-3xl block">🪙</span>
+                <p className="text-sm font-bold text-white">Gérer le Portefeuille d'un Enfant</p>
+                <p className="text-xs text-white/50 leading-relaxed font-bold">Sélectionnez l'un des enfants ci-dessus pour accéder à son solde, ajuster son argent, configurer sa boutique ou valider ses demandes d'achats.</p>
+              </div>
             )}
+
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 11. Capsule Temporelle */}
       {activeModule === 'capsule' && (

@@ -5,7 +5,7 @@ import { parseSmartNaturalSentence, detectGroceryCategory, getGroceryItemEmoji, 
 import { DICTIONARIES } from './utils/dictionaries';
 
 
-import { getDefaultPermissions } from './types';
+import { getDefaultPermissions, parseChoreTitle, serializeChoreTitle } from './types';
 import type { 
   Member, 
   FamilyJoinRequest,
@@ -2923,12 +2923,29 @@ function App() {
       }
 
       if (tasksRes.data) {
-        const mapped = tasksRes.data.map(t => ({
-          id: t.id, title: t.title, rewardPoints: t.reward_points, assignedMemberId: t.assigned_member_id,
-          assignedMemberName: t.assigned_member_name, done: t.done, rotation: t.rotation,
-          validatedByParent: t.validated_by_parent, dueDate: t.due_date,
-          rewardAmount: t.reward_amount ? Number(t.reward_amount) : undefined
-        }));
+        const mapped = tasksRes.data.map(t => {
+          const meta = parseChoreTitle(t.title);
+          return {
+            id: t.id,
+            title: meta.title || t.title,
+            rewardPoints: t.reward_points,
+            assignedMemberId: t.assigned_member_id,
+            assignedMemberName: t.assigned_member_name,
+            done: t.done,
+            rotation: t.rotation,
+            validatedByParent: t.validated_by_parent,
+            dueDate: t.due_date,
+            rewardAmount: t.reward_amount ? Number(t.reward_amount) : undefined,
+            description: meta.description,
+            priority: meta.priority,
+            status: meta.status,
+            validationRequired: meta.validationRequired,
+            isArchived: meta.isArchived,
+            time: meta.time,
+            assignedMemberIds: meta.assignedMemberIds,
+            recurrence: meta.recurrence
+          };
+        });
         setTasks(prev => {
           const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
           const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
@@ -3322,18 +3339,29 @@ function App() {
     const subTasks = foyerService.subscribeToChanges('chore_tasks', foyer.id, () => {
       foyerService.fetchTableData('chore_tasks', foyer.id).then(tasksData => {
         if (tasksData) {
-          const mapped = tasksData.map(t => ({
-            id: t.id,
-            title: t.title,
-            rewardPoints: t.reward_points,
-            assignedMemberId: t.assigned_member_id,
-            assignedMemberName: t.assigned_member_name,
-            done: t.done,
-            rotation: t.rotation,
-            validatedByParent: t.validated_by_parent,
-            dueDate: t.due_date,
-            rewardAmount: t.reward_amount ? Number(t.reward_amount) : undefined
-          }));
+          const mapped = tasksData.map(t => {
+            const meta = parseChoreTitle(t.title);
+            return {
+              id: t.id,
+              title: meta.title || t.title,
+              rewardPoints: t.reward_points,
+              assignedMemberId: t.assigned_member_id,
+              assignedMemberName: t.assigned_member_name,
+              done: t.done,
+              rotation: t.rotation,
+              validatedByParent: t.validated_by_parent,
+              dueDate: t.due_date,
+              rewardAmount: t.reward_amount ? Number(t.reward_amount) : undefined,
+              description: meta.description,
+              priority: meta.priority,
+              status: meta.status,
+              validationRequired: meta.validationRequired,
+              isArchived: meta.isArchived,
+              time: meta.time,
+              assignedMemberIds: meta.assignedMemberIds,
+              recurrence: meta.recurrence
+            };
+          });
           setTasks(prev => {
             const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
             const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
@@ -9581,6 +9609,64 @@ function App() {
     }
   };
 
+  const handleOpenChatWithMember = async (otherMemberId: string) => {
+    if (!activeMemberId || !otherMemberId) return;
+
+    // Check if a private group between activeMemberId and otherMemberId already exists
+    let existingGroup = chatGroups.find(g => 
+      g.isPrivate && 
+      g.memberIds.length === 2 && 
+      g.memberIds.includes(activeMemberId) && 
+      g.memberIds.includes(otherMemberId)
+    );
+
+    if (existingGroup) {
+      setInitialChatGroupId(existingGroup.id);
+      setActiveModule('messagerie');
+      return;
+    }
+
+    // Otherwise, create a new private chat group
+    const otherMemberObj = appMembers.find(m => m.id === otherMemberId);
+    const otherMemberName = otherMemberObj ? otherMemberObj.name : 'Membre';
+    const activeMemberObj = appMembers.find(m => m.id === activeMemberId);
+    const activeMemberName = activeMemberObj ? activeMemberObj.name : 'Moi';
+    
+    const newGroupId = `g-private-${Date.now()}`;
+    const newGroup: ChatGroup = {
+      id: newGroupId,
+      name: `${activeMemberName} & ${otherMemberName}`,
+      isPrivate: true,
+      memberIds: [activeMemberId, otherMemberId],
+      unreadCount: 0
+    };
+
+    // Update local state
+    setChatGroups(prev => [newGroup, ...prev]);
+
+    // Save to Supabase
+    const client = getSupabaseClient();
+    if (client && foyer) {
+      try {
+        await client.from('chat_groups').insert({
+          id: newGroupId,
+          foyer_id: foyer.id,
+          name: newGroup.name,
+          is_private: true,
+          member_ids: [activeMemberId, otherMemberId],
+          last_message: null,
+          last_message_time: null,
+          pinned_message_id: null
+        });
+      } catch (err) {
+        console.error("Error creating chat group in Supabase:", err);
+      }
+    }
+
+    setInitialChatGroupId(newGroupId);
+    setActiveModule('messagerie');
+  };
+
   const handleMoveEvent = async (id: string, newDate: string) => {
     const client = getSupabaseClient();
 
@@ -9815,7 +9901,31 @@ function App() {
           }));
         }
         
-        return { ...t, validatedByParent: true };
+        const meta = parseChoreTitle(t.title);
+        meta.status = 'validated';
+        meta.isArchived = true;
+        meta.title = meta.title || t.title;
+        const serialized = serializeChoreTitle(meta);
+
+        // Mettre à jour dans Supabase
+        const client = getSupabaseClient();
+        if (client) {
+          client.from('chore_tasks')
+            .update({ title: serialized, done: true, validated_by_parent: true })
+            .eq('id', id)
+            .then(({ error }) => {
+              if (error) console.error("Error validating task in Supabase:", error);
+            });
+        }
+
+        return { 
+          ...t, 
+          title: serialized, 
+          done: true, 
+          validatedByParent: true, 
+          status: 'validated', 
+          isArchived: true 
+        };
       }
       return t;
     }));
@@ -10812,6 +10922,8 @@ function App() {
               setAlerts={setAlerts}
               foyer={appFoyer}
               transactions={appTransactions}
+              savingGoals={savingGoals}
+              setSavingGoals={setSavingGoals}
             />
           );
         }
@@ -11025,6 +11137,7 @@ function App() {
               foyer={appFoyer}
               documents={documents}
               onBack={() => setActiveModule('')}
+              onOpenChatWithMember={handleOpenChatWithMember}
             />
           );
         }
@@ -11124,6 +11237,121 @@ function App() {
                 activeMemberId={appActiveMemberId} 
                 members={appMembers}
               />
+            </div>
+          );
+        }
+
+        if (activeModule === 'messagerie') {
+          return (
+            <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32 relative overflow-hidden">
+              <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#FFB020]/10 blur-[100px] pointer-events-none" />
+              <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#6C5CFF]/10 blur-[100px] pointer-events-none" />
+              
+              {/* Kid Header */}
+              <div className="flex items-center justify-between pt-[calc(1rem+env(safe-area-inset-top,0px))] mb-6">
+                <div className="flex items-center space-x-3">
+                  <button 
+                    onClick={() => setActiveModule('')}
+                    className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white cursor-pointer"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div>
+                    <h1 className="text-2xl font-black tracking-tight text-white flex items-center space-x-2">
+                      <span>💬</span>
+                      <span>Discussions</span>
+                    </h1>
+                    <p className="text-xs text-white/55 font-bold font-sans">Parle avec ta famille !</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative z-10">
+                <MenuHub 
+                  foyer={appFoyer}
+                  memberPermissions={memberPermissions}
+                  initialChatGroupId={initialChatGroupId}
+                  documents={appDocuments}
+                  setDocuments={setDocuments}
+                  tasks={appTasks}
+                  groceries={appGroceries}
+                  externalGroceryFilter={externalGroceryFilter}
+                  members={appMembers}
+                  setMembers={setMembers}
+                  vehicles={appVehicles}
+                  setVehicles={setVehicles}
+                  maintenance={appMaintenance}
+                  setMaintenance={setMaintenance}
+                  trips={appTrips}
+                  setTrips={setTrips}
+                  pets={appPets}
+                  setPets={setPets}
+                  pocketMoney={appPocketMoney}
+                  setPocketMoney={setPocketMoney}
+                  artisans={artisans}
+                  setArtisans={setArtisans}
+                  onUpdateMemberProfile={handleUpdateMemberProfile}
+                  goals={appSavingGoals}
+                  transactions={appTransactions}
+                  setTransactions={setTransactions}
+                  alerts={appFilteredAlerts}
+                  setAlerts={setAlerts}
+                  currencySymbol={getCurrencySymbol()}
+                  formatMoney={formatMoney}
+                  activeModule={activeModule}
+                  setActiveModule={setActiveModule}
+                  vaccines={appVaccines}
+                  setVaccines={setVaccines}
+                  onAddTask={handleAddTask}
+                  onDeleteTask={handleDeleteTask}
+                  onEditTask={handleEditTask}
+                  onAddGrocery={handleToggleGrocery}
+                  onToggleTask={handleToggleTask}
+                  onValidateTask={handleValidateTask}
+                  onToggleGrocery={handleToggleGrocery}
+                  onAddGroceryItem={handleAddGroceryItem}
+                  onDeleteGroceryItem={handleDeleteGroceryItem}
+                  onEditGroceryItem={handleEditGroceryItem}
+                  setActiveTab={setActiveTab}
+                  activeMemberId={appActiveMemberId}
+                  archivedLists={archivedLists}
+                  onArchiveCurrentList={handleArchiveCurrentList}
+                  onReuseArchivedList={handleReuseArchivedList}
+                  onDeleteArchivedList={handleDeleteArchivedList}
+                  onCleanGroceryList={handleCleanGroceryList}
+                  onToggleFavoriteGrocery={handleToggleFavoriteGrocery}
+                  chatGroups={chatGroups}
+                  setChatGroups={setChatGroups}
+                  chatMessages={chatMessages}
+                  setChatMessages={setChatMessages}
+                  demarches={appDemarches}
+                  setDemarches={setDemarches}
+                  justificatifPacks={justificatifPacks}
+                  setJustificatifPacks={setJustificatifPacks}
+                  onAddTransaction={handleAddTransaction}
+                  onAddEventDirect={handleAddEvent}
+                  onAddEvent={handleAddEvent}
+                  memories={memories}
+                  setMemories={setMemories}
+                  votes={appVotes}
+                  setVotes={setVotes}
+                  schoolTasks={schoolTasks}
+                  setSchoolTasks={setSchoolTasks}
+                  grades={grades}
+                  setGrades={setGrades}
+                  schedule={schedule}
+                  setSchedule={setSchedule}
+                  dishes={dishes}
+                  setDishes={setDishes}
+                  isPremium={isPremium}
+                  setIsPremium={setIsPremium}
+                  onTriggerPaywall={() => setPaywallOpen(true)}
+                  accounts={accounts}
+                  isKidMode={true}
+                  setSavingGoals={setSavingGoals}
+                  setTasks={setTasks}
+                />
+              </div>
             </div>
           );
         }
@@ -11345,6 +11573,8 @@ function App() {
           setIsPremium={setIsPremium}
           onTriggerPaywall={() => setPaywallOpen(true)}
           accounts={accounts}
+          setSavingGoals={setSavingGoals}
+          setTasks={setTasks}
         />
       );
     }
