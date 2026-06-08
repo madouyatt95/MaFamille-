@@ -753,6 +753,16 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
   // Boutique Config State
   const [newBoutiqueTitle, setNewBoutiqueTitle] = useState('');
+  
+  // Boutique edit state
+  const [editingBoutiqueId, setEditingBoutiqueId] = useState<string | null>(null);
+  const [editBoutiqueTitle, setEditBoutiqueTitle] = useState('');
+  const [editBoutiqueCostPoints, setEditBoutiqueCostPoints] = useState(50);
+  const [editBoutiqueCostMoney, setEditBoutiqueCostMoney] = useState(5);
+  const [editBoutiqueIcon, setEditBoutiqueIcon] = useState('🎁');
+  const [editBoutiqueSubCategory, setEditBoutiqueSubCategory] = useState('Cadeau');
+  const [editBoutiqueValidationRequired, setEditBoutiqueValidationRequired] = useState(true);
+  const [editBoutiqueAvail, setEditBoutiqueAvail] = useState(true);
   const [newBoutiqueCostPoints, setNewBoutiqueCostPoints] = useState(50);
   const [newBoutiqueCostMoney, setNewBoutiqueCostMoney] = useState(5);
   const [newBoutiqueIcon, setNewBoutiqueIcon] = useState('🎁');
@@ -6425,7 +6435,36 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           const resolvedRewardId = meta ? meta.reward_id : rewardId;
           const resolvedPaymentMethod = meta ? meta.payment_type : paymentMethod;
 
-          const child = pocketMoney.find(c => c.id === resolvedChildId);
+           let child = pocketMoney.find(c => c.id === resolvedChildId);
+          if (!child) {
+            const memberObj = members.find(m => m.id === resolvedChildId);
+            if (memberObj) {
+              const tempChildRecord = {
+                id: resolvedChildId,
+                name: memberObj.name,
+                balance: 0,
+                points: 0,
+                avatar: memberObj.photoUrl || ''
+              };
+              child = tempChildRecord;
+              // Save to Supabase on-the-fly
+              try {
+                const client = getSupabaseClient();
+                if (client && foyer) {
+                  await client.from('pocket_money').insert({
+                    id: resolvedChildId,
+                    foyer_id: foyer.id,
+                    name: tempChildRecord.name,
+                    balance: 0,
+                    points: 0,
+                    avatar: tempChildRecord.avatar
+                  });
+                }
+              } catch (err) {
+                console.error("Error creating pocket money row on the fly:", err);
+              }
+            }
+          }
           if (!child) return;
 
           let reward: any = rewardsList.find(r => r.id === resolvedRewardId);
@@ -6469,7 +6508,14 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           const updatedPoints = (resolvedPaymentMethod === 'points' ? child.points - cost : child.points) + 5;
           const updatedBalance = resolvedPaymentMethod === 'money' ? child.balance - cost : child.balance;
 
-          setPocketMoney(prev => prev.map(c => c.id === resolvedChildId ? { ...c, points: updatedPoints, balance: updatedBalance } : c));
+           setPocketMoney(prev => {
+            const exists = prev.some(c => c.id === resolvedChildId);
+            if (exists) {
+              return prev.map(c => c.id === resolvedChildId ? { ...c, points: updatedPoints, balance: updatedBalance } : c);
+            } else {
+              return [...prev, { ...child!, points: updatedPoints, balance: updatedBalance }];
+            }
+          });
 
           if (onAddTransaction) {
             onAddTransaction({
@@ -6624,6 +6670,60 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           } catch (err) {
             console.error("Error updating boutique reward availability:", err);
           }
+        };
+
+         const handleEditBoutiqueItem = async (goalId: string) => {
+          if (!setSavingGoals) return;
+          
+          setSavingGoals(prev => prev.map(g => {
+            if (g.id !== goalId) return g;
+            const firstCont = g.contributions?.[0] as any || {};
+            return {
+              ...g,
+              title: editBoutiqueTitle.trim(),
+              targetAmount: editBoutiqueCostPoints,
+              contributions: [
+                {
+                  ...firstCont,
+                  costPoints: editBoutiqueCostPoints,
+                  costMoney: editBoutiqueCostMoney,
+                  icon: editBoutiqueIcon,
+                  subCategory: editBoutiqueSubCategory,
+                  validationRequired: editBoutiqueValidationRequired,
+                  avail: editBoutiqueAvail
+                } as any
+              ]
+            };
+          }));
+
+          try {
+            const client = getSupabaseClient();
+            if (client && foyer) {
+              const updatedContributions = [
+                {
+                  costPoints: editBoutiqueCostPoints,
+                  costMoney: editBoutiqueCostMoney,
+                  icon: editBoutiqueIcon,
+                  subCategory: editBoutiqueSubCategory,
+                  validationRequired: editBoutiqueValidationRequired,
+                  avail: editBoutiqueAvail
+                }
+              ];
+              await client.from('saving_goals')
+                .update({ 
+                  title: editBoutiqueTitle.trim(),
+                  target_amount: editBoutiqueCostPoints,
+                  contributions: updatedContributions 
+                })
+                .eq('id', goalId)
+                .eq('foyer_id', foyer.id);
+            }
+          } catch (err) {
+            console.error("Error updating boutique reward:", err);
+          }
+
+          setEditingBoutiqueId(null);
+          alert("Récompense mise à jour !");
         };
 
         const handleDeleteBoutiqueItem = async (goalId: string) => {
@@ -7257,38 +7357,164 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3 font-sans text-left">
                     <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Articles Boutique configurés ({dbRewards.length})</span>
                     <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                      {dbRewards.map(item => (
-                        <div key={item.id} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 text-xs font-bold">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-base">{item.icon}</span>
-                            <div>
-                              <p className="text-white">{item.title}</p>
-                              <p className="text-[9px] text-white/40">
-                                {item.category} • {item.costPoints} Pts / {formatMoney(item.costMoney)} • {item.avail ? 'Visible' : 'Masqué'}
-                              </p>
+                      {dbRewards.map(item => {
+                        const isEditing = editingBoutiqueId === item.id;
+                        if (isEditing) {
+                          return (
+                            <div key={item.id} className="p-3 rounded-xl bg-[#112240] border border-[#6C5CFF] text-xs font-bold space-y-2.5">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Nom du cadeau</label>
+                                  <input
+                                    type="text"
+                                    value={editBoutiqueTitle}
+                                    onChange={e => setEditBoutiqueTitle(e.target.value)}
+                                    className="w-full bg-[#07111F] border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Icône (Emoji)</label>
+                                  <input
+                                    type="text"
+                                    value={editBoutiqueIcon}
+                                    onChange={e => setEditBoutiqueIcon(e.target.value)}
+                                    className="w-full bg-[#07111F] border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none text-center"
+                                  />
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-3 gap-2">
+                                <div>
+                                  <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Étoiles</label>
+                                  <input
+                                    type="number"
+                                    value={editBoutiqueCostPoints}
+                                    onChange={e => setEditBoutiqueCostPoints(Number(e.target.value))}
+                                    className="w-full bg-[#07111F] border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Cash (€)</label>
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    value={editBoutiqueCostMoney}
+                                    onChange={e => setEditBoutiqueCostMoney(Number(e.target.value))}
+                                    className="w-full bg-[#07111F] border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Catégorie</label>
+                                  <select
+                                    value={editBoutiqueSubCategory}
+                                    onChange={e => setEditBoutiqueSubCategory(e.target.value)}
+                                    className="w-full bg-[#07111F] border border-white/10 rounded-lg px-1 py-1 text-[11px] text-white focus:outline-none"
+                                  >
+                                    <option value="Écran">Écran</option>
+                                    <option value="Repas">Repas</option>
+                                    <option value="Sommeil">Sommeil</option>
+                                    <option value="Gourmandise">Gourmandise</option>
+                                    <option value="Sortie">Sortie</option>
+                                    <option value="Cadeau">Cadeau</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Validation requise</label>
+                                  <select
+                                    value={editBoutiqueValidationRequired ? 'true' : 'false'}
+                                    onChange={e => setEditBoutiqueValidationRequired(e.target.value === 'true')}
+                                    className="w-full bg-[#07111F] border border-white/10 rounded-lg px-1.5 py-1 text-[11px] text-white focus:outline-none"
+                                  >
+                                    <option value="true">Oui</option>
+                                    <option value="false">Non (Auto)</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Visibilité</label>
+                                  <select
+                                    value={editBoutiqueAvail ? 'true' : 'false'}
+                                    onChange={e => setEditBoutiqueAvail(e.target.value === 'true')}
+                                    className="w-full bg-[#07111F] border border-white/10 rounded-lg px-1.5 py-1 text-[11px] text-white focus:outline-none"
+                                  >
+                                    <option value="true">Afficher</option>
+                                    <option value="false">Masquer</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div className="flex justify-end space-x-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingBoutiqueId(null)}
+                                  className="px-2.5 py-1 bg-white/10 hover:bg-white/15 text-white rounded-lg text-[10px]"
+                                >
+                                  Annuler
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditBoutiqueItem(item.id)}
+                                  className="px-2.5 py-1 bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white rounded-lg text-[10px]"
+                                >
+                                  Enregistrer
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex space-x-1.5 items-center">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleRewardAvailability(item.id, item.avail)}
-                              className={`p-1 rounded text-[10px] ${item.avail ? 'text-amber-400' : 'text-gray-400'}`}
-                              title={item.avail ? 'Masquer' : 'Afficher'}
-                            >
-                              {item.avail ? '👁️' : '👁️‍🗨️'}
-                            </button>
-                            {item.supprimable !== false && (
+                          );
+                        }
+
+                        return (
+                          <div key={item.id} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 text-xs font-bold">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-base">{item.icon}</span>
+                              <div>
+                                <p className="text-white">{item.title}</p>
+                                <p className="text-[9px] text-white/40">
+                                  {item.category} • {item.costPoints} Pts / {formatMoney(item.costMoney)} • {item.avail ? 'Visible' : 'Masqué'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex space-x-1.5 items-center">
                               <button
                                 type="button"
-                                onClick={() => handleDeleteBoutiqueItem(item.id)}
-                                className="p-1 text-red-400 hover:bg-red-500/10 rounded transition cursor-pointer"
+                                onClick={() => {
+                                  setEditingBoutiqueId(item.id);
+                                  setEditBoutiqueTitle(item.title);
+                                  setEditBoutiqueCostPoints(item.costPoints);
+                                  setEditBoutiqueCostMoney(item.costMoney);
+                                  setEditBoutiqueIcon(item.icon);
+                                  setEditBoutiqueSubCategory(item.category);
+                                  setEditBoutiqueValidationRequired(item.validationRequired !== false);
+                                  setEditBoutiqueAvail(item.avail !== false);
+                                }}
+                                className="p-1 text-[#6C5CFF] hover:bg-white/5 rounded transition cursor-pointer"
+                                title="Modifier"
                               >
-                                🗑️
+                                ✏️
                               </button>
-                            )}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleRewardAvailability(item.id, item.avail)}
+                                className={`p-1 rounded text-[10px] ${item.avail ? 'text-amber-400' : 'text-gray-400'}`}
+                                title={item.avail ? 'Masquer' : 'Afficher'}
+                              >
+                                {item.avail ? '👁️' : '👁️‍🗨️'}
+                              </button>
+                              {item.supprimable !== false && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteBoutiqueItem(item.id)}
+                                  className="p-1 text-red-400 hover:bg-red-500/10 rounded transition cursor-pointer"
+                                >
+                                  🗑️
+                                </button>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {dbRewards.length === 0 && (
                         <p className="text-xs text-white/30 text-center py-6 font-bold">Aucun cadeau configuré (les cadeaux par défaut s'affichent pour les enfants).</p>
                       )}

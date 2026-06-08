@@ -14,6 +14,7 @@ interface KidMissionsProps {
   onBack: () => void;
   defaultTab?: 'missions' | 'boutique' | 'argent';
   setAlerts?: React.Dispatch<React.SetStateAction<NotificationAlert[]>>;
+  alerts?: NotificationAlert[];
   foyer?: Foyer | null;
   transactions?: Transaction[];
   setTransactions?: React.Dispatch<React.SetStateAction<Transaction[]>>;
@@ -46,6 +47,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   onBack,
   defaultTab,
   setAlerts,
+  alerts = [],
   foyer,
   transactions = [],
   setTransactions,
@@ -778,17 +780,32 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
                         </span>
                       </div>
 
-                      <button
-                        onClick={() => handleRedeemReward(reward)}
-                        disabled={!canAfford}
-                        className={`w-full py-2 mt-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                          canAfford 
-                            ? 'bg-[#FFB020] text-[#07111F] active:scale-95 shadow-md shadow-[#FFB020]/10' 
-                            : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5 opacity-50'
-                        }`}
-                      >
-                        {canAfford ? 'Acheter 🎁' : 'Fonds insuffisants'}
-                      </button>
+                      {(() => {
+                        const isPending = (alerts || []).some(a => a.id.startsWith(`req-rew-${member.id}-${reward.id}-`));
+                        if (isPending) {
+                          return (
+                            <button
+                              disabled
+                              className="w-full py-2 mt-2 rounded-xl text-[10px] font-black uppercase tracking-wider bg-white/10 text-white/50 border border-white/10 cursor-not-allowed opacity-70"
+                            >
+                              Demande en attente... ⏳
+                            </button>
+                          );
+                        }
+                        return (
+                          <button
+                            onClick={() => handleRedeemReward(reward)}
+                            disabled={!canAfford}
+                            className={`w-full py-2 mt-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                              canAfford 
+                                ? 'bg-[#FFB020] text-[#07111F] active:scale-95 shadow-md shadow-[#FFB020]/10' 
+                                : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5 opacity-50'
+                            }`}
+                          >
+                            {canAfford ? 'Acheter 🎁' : 'Fonds insuffisants'}
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
                 );

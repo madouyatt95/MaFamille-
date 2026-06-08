@@ -1304,6 +1304,49 @@ function App() {
     }
   }, [foyer]);
 
+  // Auto-initialize pocket money records for kids/teens
+  useEffect(() => {
+    if (!isSyncReady || !foyer || !members.length) return;
+    
+    // Find children/teens who don't have a pocket money record
+    const kids = members.filter(m => {
+      const r = (m.role || '').toLowerCase();
+      return !['chef de famille', 'chef_famille', 'gestionnaire', 'admin', 'parent'].includes(r) && m.id !== '1' && m.id !== '2';
+    });
+
+    const missingKids = kids.filter(k => !pocketMoney.some(pm => pm.id === k.id));
+
+    if (missingKids.length > 0) {
+      const newPmRecords = missingKids.map(k => ({
+        id: k.id,
+        name: k.name,
+        balance: 0,
+        points: 0,
+        avatar: k.photoUrl || ''
+      }));
+
+      // Update state
+      setPocketMoney(prev => [...prev, ...newPmRecords]);
+
+      // Insert into Supabase
+      const client = getSupabaseClient();
+      if (client) {
+        Promise.all(newPmRecords.map(pm => {
+          return client.from('pocket_money').insert({
+            id: pm.id,
+            foyer_id: foyer.id,
+            name: pm.name,
+            balance: 0,
+            points: 0,
+            avatar: pm.avatar
+          });
+        })).catch(err => {
+          console.error("Failed to seed missing pocket money records:", err);
+        });
+      }
+    }
+  }, [isSyncReady, foyer, members, pocketMoney]);
+
   const [hasCheckedDefaultRewards, setHasCheckedDefaultRewards] = useState(false);
 
   useEffect(() => {
@@ -11614,6 +11657,7 @@ function App() {
               onBack={() => setActiveModule('')}
               defaultTab={activeModule === 'argent' ? 'argent' : activeModule === 'boutique' ? 'boutique' : 'missions'}
               setAlerts={setAlerts}
+              alerts={appFilteredAlerts}
               foyer={appFoyer}
               transactions={appTransactions}
               setTransactions={setTransactions}
