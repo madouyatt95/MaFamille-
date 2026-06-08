@@ -6422,7 +6422,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             }
           }
 
-          const updatedPoints = paymentMethod === 'points' ? child.points - cost : child.points;
+          const updatedPoints = (paymentMethod === 'points' ? child.points - cost : child.points) + 5;
           const updatedBalance = paymentMethod === 'money' ? child.balance - cost : child.balance;
 
           setPocketMoney(prev => prev.map(c => c.id === childId ? { ...c, points: updatedPoints, balance: updatedBalance } : c));

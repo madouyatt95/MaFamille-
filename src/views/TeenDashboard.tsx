@@ -918,7 +918,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
       alert(`Demande d'achat envoyée aux parents ! Ils vont la valider très vite. 🚀`);
     } else {
       // Direct purchase (no validation required)
-      const updatedPoints = paymentMethod === 'points' ? (myAccount.points || 0) - cost : (myAccount.points || 0);
+      const updatedPoints = (paymentMethod === 'points' ? (myAccount.points || 0) - cost : (myAccount.points || 0)) + 5;
       const updatedBalance = paymentMethod === 'money' ? (myAccount.balance || 0) - cost : (myAccount.balance || 0);
       setPocketMoney(prev => prev.map(p => p.id === member.id ? { ...p, points: updatedPoints, balance: updatedBalance } : p));
 
@@ -937,11 +937,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
       try {
         const client = getSupabaseClient();
         if (client && foyer) {
-          if (paymentMethod === 'points') {
-            await client.from('pocket_money').update({ points: updatedPoints }).eq('id', member.id);
-          } else {
-            await client.from('pocket_money').update({ balance: updatedBalance }).eq('id', member.id);
-          }
+          await client.from('pocket_money').update({ points: updatedPoints, balance: updatedBalance }).eq('id', member.id);
           await client.from('transactions').insert({
             id: newTx.id, foyer_id: foyer.id, amount: newTx.amount, type: newTx.type,
             category: newTx.category, date: newTx.date, title: newTx.title,
