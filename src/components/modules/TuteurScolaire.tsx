@@ -504,15 +504,14 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   const studentList = members && members.length > 0
     ? members.filter(m => {
         const r = (m.role || '').toLowerCase();
-        return r.includes('enfant') || r.includes('ado') || r.includes('collège') || r.includes('lycée') || r.includes('primaire') || r.includes('ans') || m.id === '3' || m.id === '4';
+        return r === 'child' || r.includes('enfant') || r.includes('ado') || r.includes('collège') || r.includes('lycée') || r.includes('primaire') || r.includes('ans');
       })
-    : [
-        { id: '3', name: 'Amadou', role: 'Ado' },
-        { id: '4', name: 'Awa', role: 'Enfant' }
-      ];
+    : activeMember
+      ? [{ id: activeMemberId, name: activeMember.name || 'Moi', role: isParent ? 'Parent' : 'Élève' }]
+      : [];
 
   const getChildName = (id: string) => {
-    return studentList.find(s => s.id === id)?.name || (id === '3' ? 'Amadou' : 'Awa');
+    return studentList.find(s => s.id === id)?.name || id;
   };
 
   // Lesson & Multiplication Table States
@@ -3570,9 +3569,9 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                       let memberXp = 120;
                       if (m.id === activeMemberId) {
                         memberXp = stats.xp + (stats.level - 1) * 300;
-                      } else if (m.role?.toLowerCase().includes('ado') || m.id === '3') {
+                      } else if (m.role?.toLowerCase().includes('ado')) {
                         memberXp = 450;
-                      } else if (m.role?.toLowerCase().includes('enfant') || m.id === '4') {
+                      } else if (m.role?.toLowerCase().includes('enfant')) {
                         memberXp = 220;
                       } else {
                         memberXp = 90;
@@ -3585,10 +3584,8 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                       };
                     }).sort((a, b) => b.xp - a.xp)
                   : [
-                      { id: '3', name: 'Amadou', photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80', xp: 450 },
-                      { id: activeMemberId, name: activeMember?.name || 'Ado', photoUrl: activeMember?.photoUrl || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=100&q=80', xp: stats.xp + (stats.level - 1) * 300 },
-                      { id: '4', name: 'Awa', photoUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80', xp: 220 }
-                    ].sort((a, b) => b.xp - a.xp);
+                      { id: activeMemberId, name: activeMember?.name || 'Moi', photoUrl: activeMember?.photoUrl || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=100&q=80', xp: stats.xp + (stats.level - 1) * 300 }
+                    ];
 
                 return leaderboardList.map((user, idx) => {
                   const isMe = user.id === activeMemberId;

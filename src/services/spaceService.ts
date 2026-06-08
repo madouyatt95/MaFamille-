@@ -142,18 +142,6 @@ export const spaceService = {
     if (stored) {
       try { return JSON.parse(stored); } catch (e) {}
     }
-    
-    // Default schedule templates for initial setups
-    if (estId === 'est-1') {
-      return [
-        { id: 's-1', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Mathématiques', startTime: '08:30', endTime: '09:30', room: 'Salle 102' },
-        { id: 's-2', studentId: '3', studentName: 'Amadou', day: 'Lundi', subject: 'Histoire-Géographie', startTime: '09:30', endTime: '10:30', room: 'Salle 204' }
-      ];
-    } else if (estId === 'est-2') {
-      return [
-        { id: 's-3', studentId: '4', studentName: 'Awa', day: 'Mardi', subject: 'Français', startTime: '10:45', endTime: '11:45', room: 'Classe A2' }
-      ];
-    }
     return [];
   },
 
@@ -167,50 +155,10 @@ export const spaceService = {
   getSchoolTasksForEstablishment(estId: string): any[] {
     const key = `school_tasks_${estId}`;
     const stored = localStorage.getItem(key);
-    let tasks: any[] = [];
-    let isNew = false;
-    
     if (stored) {
-      try { 
-        tasks = JSON.parse(stored); 
-      } catch (e) {
-        tasks = [];
-      }
-    } else {
-      isNew = true;
-      // Default homework templates for initial setups
-      if (estId === 'est-1') {
-        tasks = [
-          { id: 'st-1', title: 'Exercices sur les fonctions affines', subject: 'Mathématiques', difficulty: 'medium', assignedMemberId: '3', dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], done: false },
-          { id: 'st-2', title: 'Rédiger un paragraphe argumentatif', subject: 'Français', difficulty: 'easy', assignedMemberId: '3', dueDate: new Date(Date.now() + 172800000).toISOString().split('T')[0], done: false },
-          { id: 'st-eval-1', title: 'Évaluation sur le Théorème de Pythagore', subject: 'Mathématiques', difficulty: 'hard', assignedMemberId: '3', dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], done: false }
-        ];
-      } else if (estId === 'est-2') {
-        tasks = [
-          { id: 'st-3', title: 'Dictée : Le pluriel des noms en -al', subject: 'Français', difficulty: 'easy', assignedMemberId: '4', dueDate: new Date(Date.now() + 259200000).toISOString().split('T')[0], done: false },
-          { id: 'st-4', title: 'Exercices sur les tables d\'additions', subject: 'Mathématiques', difficulty: 'easy', assignedMemberId: '4', dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], done: false }
-        ];
-      }
+      try { return JSON.parse(stored); } catch (e) {}
     }
-
-    // Migration patch for old default tasks
-    let modified = false;
-    tasks = tasks.map((t: any) => {
-      if (t.id === 'st-eval-1' && t.title.includes('multiplication') && t.assignedMemberId === '3') {
-        modified = true;
-        return { ...t, title: 'Évaluation sur le Théorème de Pythagore', difficulty: 'hard' };
-      }
-      if (t.id === 'st-3' && t.title.includes('Révolution') && t.assignedMemberId === '4') {
-        modified = true;
-        return { ...t, title: 'Dictée : Le pluriel des noms en -al', subject: 'Français', difficulty: 'easy' };
-      }
-      return t;
-    });
-
-    if (isNew || modified) {
-      localStorage.setItem(key, JSON.stringify(tasks));
-    }
-    return tasks;
+    return [];
   },
 
   saveSchoolTasksForEstablishment(estId: string, tasks: any[]): void {
