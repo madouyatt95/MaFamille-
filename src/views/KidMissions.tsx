@@ -275,7 +275,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
       setTimeout(() => setShowConfetti(false), 4000);
     } else {
       // Direct purchase (no validation required)
-      const updatedPoints = (paymentMethod === 'points' ? (myAccount.points || 0) - cost : (myAccount.points || 0)) + 5;
+      const updatedPoints = paymentMethod === 'points' ? (myAccount.points || 0) - cost : (myAccount.points || 0);
       const updatedBalance = paymentMethod === 'money' ? (myAccount.balance || 0) - cost : (myAccount.balance || 0);
       setPocketMoney(prev => prev.map(p => p.id === member.id ? { ...p, points: updatedPoints, balance: updatedBalance } : p));
 

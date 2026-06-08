@@ -6505,7 +6505,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             }
           }
 
-          const updatedPoints = (resolvedPaymentMethod === 'points' ? child.points - cost : child.points) + 5;
+          const updatedPoints = resolvedPaymentMethod === 'points' ? child.points - cost : child.points;
           const updatedBalance = resolvedPaymentMethod === 'money' ? child.balance - cost : child.balance;
 
            setPocketMoney(prev => {

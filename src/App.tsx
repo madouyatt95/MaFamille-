@@ -4054,6 +4054,14 @@ function App() {
     });
 
     const subAlerts = foyerService.subscribeToChanges('alerts', foyer.id, (payload: any) => {
+      if (payload && payload.eventType === 'DELETE') {
+        const deletedId = payload.old?.id;
+        if (deletedId) {
+          setAlerts(prev => prev.filter(a => a.id !== deletedId));
+          return;
+        }
+      }
+
       const client = getSupabaseClient();
       if (!client) return;
       
