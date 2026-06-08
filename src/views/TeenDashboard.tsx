@@ -242,6 +242,8 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   const totalUnreadChat = (chatGroups || []).reduce((acc, g) => acc + (g.unreadCount || 0), 0);
   const [suggestionText, setSuggestionText] = useState('');
   const [suggestionPts, setSuggestionPts] = useState(25);
+  const [selectedRewardForRedeem, setSelectedRewardForRedeem] = useState<any | null>(null);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
   // Suggested rewards states
   const [sugRewardTitle, setSugRewardTitle] = useState('');
@@ -865,37 +867,25 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   };
 
   // Buy a boutique reward
-  const handleRedeemReward = async (reward: any) => {
+  const handleRedeemReward = (reward: any) => {
+    setSelectedRewardForRedeem(reward);
+    setPaymentModalOpen(true);
+  };
+
+  const executePurchase = async (paymentMethod: 'points' | 'money') => {
+    if (!selectedRewardForRedeem) return;
+    const reward = selectedRewardForRedeem;
+    const cost = paymentMethod === 'points' ? reward.costPoints : reward.costMoney;
+    
+    // Check balance
     const myPoints = myAccount.points || 0;
     const myBalance = myAccount.balance || 0;
-    const canPoints = myPoints >= reward.costPoints;
-    const canMoney = myBalance >= reward.costMoney;
+    if (paymentMethod === 'points' && myPoints < reward.costPoints) return;
+    if (paymentMethod === 'money' && myBalance < reward.costMoney) return;
 
-    if (!canPoints && !canMoney) {
-      alert(`Oups ! Il te manque des étoiles (${reward.costPoints} pts requis) ou de l'argent dans ta tirelire (${reward.costMoney.toFixed(2)} € requis) pour t'offrir "${reward.title}" ! 💪`);
-      return;
-    }
+    setPaymentModalOpen(false);
 
-    let paymentMethod: 'points' | 'money' | null = null;
-    if (canPoints && canMoney) {
-      const choice = window.confirm(
-        `Comment souhaites-tu régler "${reward.title}" ?\n\n- Cliquez sur [OK] pour payer en Étoiles (🌟 ${reward.costPoints} pts)\n- Cliquez sur [Annuler] pour payer en Argent (💰 ${reward.costMoney.toFixed(2)} €)`
-      );
-      paymentMethod = choice ? 'points' : 'money';
-    } else if (canPoints) {
-      if (window.confirm(`Confirmer l'achat de "${reward.title}" avec tes Étoiles (🌟 ${reward.costPoints} pts) ?`)) {
-        paymentMethod = 'points';
-      }
-    } else {
-      if (window.confirm(`Confirmer l'achat de "${reward.title}" avec ta Tirelire (💰 ${reward.costMoney.toFixed(2)} €) ?`)) {
-        paymentMethod = 'money';
-      }
-    }
-
-    if (!paymentMethod) return;
-    const cost = paymentMethod === 'points' ? reward.costPoints : reward.costMoney;
-
-    if (reward.validationRequired) {
+    if (reward.validationRequired !== false) {
       const timestamp = Date.now();
       const newAlert: NotificationAlert = {
         id: `req-rew-${member.id}-${reward.id}-${paymentMethod}-${timestamp}`,
@@ -962,7 +952,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
       } catch (err) {
         console.error("[TeenDashboard] Direct redeem failed:", err);
       }
-      alert(`Félicitations ! Achat direct réussi. ${paymentMethod === 'points' ? `${cost} points` : `${cost.toFixed(2)} €`} déduits ! 🎉`);
+      alert(`Félicitations ! Achat direct réussi. ${paymentMethod === 'points' ? `${cost} points` : `${cost.toFixed(2)} €`} déduits ! 🎉 (+5 XP de bonus)`);
     }
   };
 
@@ -3573,6 +3563,103 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Premium React Purchase Modal */}
+      {paymentModalOpen && selectedRewardForRedeem && (() => {
+        const reward = selectedRewardForRedeem;
+        const myPoints = myAccount.points || 0;
+        const myBalance = myAccount.balance || 0;
+        const canPoints = myPoints >= reward.costPoints;
+        const canMoney = myBalance >= reward.costMoney;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md animate-fade-in font-sans text-white">
+            <div className="bg-[#112240] border-2 border-[#FFB020]/50 rounded-[32px] p-6 text-center max-w-sm w-full space-y-5 shadow-2xl relative">
+              <button 
+                onClick={() => setPaymentModalOpen(false)}
+                className="absolute top-4 right-4 text-white/50 hover:text-white cursor-pointer text-lg font-bold w-8 h-8 rounded-full bg-white/5 flex items-center justify-center border-none"
+              >
+                ✕
+              </button>
+              
+              <div className="w-16 h-16 bg-[#FFB020]/15 border border-[#FFB020]/30 rounded-2xl flex items-center justify-center text-3xl mx-auto">
+                {reward.icon}
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] font-black text-[#FFB020] uppercase tracking-widest">{reward.category}</span>
+                <h3 className="text-lg font-extrabold text-white">{reward.title}</h3>
+              </div>
+
+              {/* Pricing comparison */}
+              <div className="grid grid-cols-2 gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 text-xs">
+                <div className="space-y-1 text-center">
+                  <span className="text-white/50 block">Étoiles requises</span>
+                  <span className="text-[#FFB020] font-black text-sm flex items-center justify-center space-x-1">
+                    <Star className="w-4 h-4 fill-[#FFB020] text-[#FFB020]" />
+                    <span>{reward.costPoints} pts</span>
+                  </span>
+                  <span className="text-[9px] text-white/35 block">Solde: {myPoints} pts</span>
+                </div>
+                <div className="space-y-1 border-l border-white/10 text-center">
+                  <span className="text-white/50 block">Argent requis</span>
+                  <span className="text-[#00D26A] font-black text-sm block">
+                    {reward.costMoney.toFixed(2)} €
+                  </span>
+                  <span className="text-[9px] text-white/35 block">Solde: {myBalance.toFixed(2)} €</span>
+                </div>
+              </div>
+
+              {/* Purchase options */}
+              <div className="space-y-2">
+                {/* Points Option */}
+                {canPoints ? (
+                  <button
+                    onClick={() => executePurchase('points')}
+                    className="w-full py-3 bg-gradient-to-r from-[#FFB020] to-[#FF8C00] text-[#07111F] font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer hover:opacity-90 active:scale-95 transition-all shadow-md"
+                  >
+                    🌟 Payer avec mes Étoiles
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setPaymentModalOpen(false);
+                      setActiveModule('taches');
+                    }}
+                    className="w-full py-3 bg-white/5 border border-white/10 text-[#FFB020] font-extrabold text-xs rounded-xl cursor-pointer hover:bg-white/10 active:scale-95 transition-all flex flex-col items-center justify-center"
+                  >
+                    <span>⭐ Étoiles insuffisantes !</span>
+                    <span className="text-[9px] text-white/40 mt-0.5">Clique pour gagner plus de points 🚀</span>
+                  </button>
+                )}
+
+                {/* Cash Option */}
+                {canMoney ? (
+                  <button
+                    onClick={() => executePurchase('money')}
+                    className="w-full py-3 bg-[#00D26A] text-[#07111F] font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer hover:opacity-90 active:scale-95 transition-all shadow-md"
+                  >
+                    💰 Payer avec ma Tirelire
+                  </button>
+                ) : (
+                  <button
+                    disabled
+                    className="w-full py-3 bg-white/5 border border-white/5 text-[#FF4D6D] font-extrabold text-xs rounded-xl opacity-60"
+                  >
+                    💸 Solde de tirelire insuffisant !
+                  </button>
+                )}
+              </div>
+
+              <p className="text-[9px] text-white/40 leading-normal font-medium">
+                {reward.validationRequired !== false 
+                  ? "⚠️ Une validation de tes parents est requise pour cette récompense."
+                  : "⚡ Achat direct ! La récompense sera débloquée immédiatement."}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       </div>
     </div>

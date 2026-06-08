@@ -442,6 +442,8 @@ function App() {
     return safeGetLocalStorage('mf_saving_goals', []);
   });
 
+
+
   const [alerts, setAlerts] = useState<NotificationAlert[]>(() => {
     return safeGetLocalStorage('mf_alerts', []);
   });
@@ -1301,6 +1303,478 @@ function App() {
       safeRemoveLocalStorage('mf_cached_foyer');
     }
   }, [foyer]);
+
+  const [hasCheckedDefaultRewards, setHasCheckedDefaultRewards] = useState(false);
+
+  useEffect(() => {
+    if (!foyer) return;
+    if (hasCheckedDefaultRewards) return;
+
+    // Check if we already have any boutique_reward
+    const boutiqueRewards = (savingGoals || []).filter(sg => sg.category === 'boutique_reward');
+    if (boutiqueRewards.length === 0) {
+      const defaultRewardsList: SavingGoal[] = [
+        {
+          id: `sg-def-1`,
+          title: "30 min de console 🎮",
+          targetAmount: 30,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 30,
+              costMoney: 3.0,
+              icon: "🎮",
+              subCategory: "Écran",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-2`,
+          title: "1h de console 🎮",
+          targetAmount: 50,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 50,
+              costMoney: 5.0,
+              icon: "🎮",
+              subCategory: "Écran",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-3`,
+          title: "30 min d'écran supplémentaire 📱",
+          targetAmount: 30,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 30,
+              costMoney: 3.0,
+              icon: "📱",
+              subCategory: "Écran",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-4`,
+          title: "1h d'écran supplémentaire 📱",
+          targetAmount: 50,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 50,
+              costMoney: 5.0,
+              icon: "📱",
+              subCategory: "Écran",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-5`,
+          title: "Fast-food en famille 🍔",
+          targetAmount: 100,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 100,
+              costMoney: 10.0,
+              icon: "🍔",
+              subCategory: "Repas",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-6`,
+          title: "Soirée Pizza 🍕",
+          targetAmount: 80,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 80,
+              costMoney: 8.0,
+              icon: "🍕",
+              subCategory: "Repas",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-7`,
+          title: "Crêpes / Gaufres maison 🥞",
+          targetAmount: 40,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 40,
+              costMoney: 4.0,
+              icon: "🥞",
+              subCategory: "Repas",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-8`,
+          title: "Glace au choix 🍦",
+          targetAmount: 20,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 20,
+              costMoney: 2.0,
+              icon: "🍦",
+              subCategory: "Gourmandise",
+              avail: true,
+              validationRequired: false
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-9`,
+          title: "Sachet de bonbons 🍭",
+          targetAmount: 15,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 15,
+              costMoney: 1.5,
+              icon: "🍭",
+              subCategory: "Gourmandise",
+              avail: true,
+              validationRequired: false
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-10`,
+          title: "Donut / Pâtisserie 🍩",
+          targetAmount: 20,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 20,
+              costMoney: 2.0,
+              icon: "🍩",
+              subCategory: "Gourmandise",
+              avail: true,
+              validationRequired: false
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-11`,
+          title: "Veillée tardive (30 min) ⏰",
+          targetAmount: 30,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 30,
+              costMoney: 3.0,
+              icon: "⏰",
+              subCategory: "Sommeil",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-12`,
+          title: "Veillée tardive (1h de +) ⏰",
+          targetAmount: 50,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 50,
+              costMoney: 5.0,
+              icon: "⏰",
+              subCategory: "Sommeil",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-13`,
+          title: "Grasse matinée autorisée 💤",
+          targetAmount: 30,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 30,
+              costMoney: 3.0,
+              icon: "💤",
+              subCategory: "Sommeil",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-14`,
+          title: "Camping dans le salon ⛺",
+          targetAmount: 60,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 60,
+              costMoney: 6.0,
+              icon: "⛺",
+              subCategory: "Sommeil",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-15`,
+          title: "Sortie Cinéma 🎬",
+          targetAmount: 120,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 120,
+              costMoney: 12.0,
+              icon: "🎬",
+              subCategory: "Sortie",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-16`,
+          title: "Parc d'attraction / Trampoline 🎢",
+          targetAmount: 200,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 200,
+              costMoney: 20.0,
+              icon: "🎢",
+              subCategory: "Sortie",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-17`,
+          title: "Piscine en famille 🏊",
+          targetAmount: 70,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 70,
+              costMoney: 7.0,
+              icon: "🏊",
+              subCategory: "Sortie",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-18`,
+          title: "Partie de Bowling 🎳",
+          targetAmount: 60,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 60,
+              costMoney: 6.0,
+              icon: "🎳",
+              subCategory: "Sortie",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-19`,
+          title: "Petit jouet au choix 🎁",
+          targetAmount: 80,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 80,
+              costMoney: 8.0,
+              icon: "🎁",
+              subCategory: "Cadeau",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-20`,
+          title: "Peluche au choix 🧸",
+          targetAmount: 100,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 100,
+              costMoney: 10.0,
+              icon: "🧸",
+              subCategory: "Cadeau",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-21`,
+          title: "Livre / BD au choix 📘",
+          targetAmount: 70,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 70,
+              costMoney: 7.0,
+              icon: "📘",
+              subCategory: "Cadeau",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-22`,
+          title: "Jeu de société 🧩",
+          targetAmount: 120,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 120,
+              costMoney: 12.0,
+              icon: "🧩",
+              subCategory: "Cadeau",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-23`,
+          title: "Atelier Bricolage/Cuisine 🛠️",
+          targetAmount: 40,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 40,
+              costMoney: 4.0,
+              icon: "🛠️",
+              subCategory: "Cadeau",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        },
+        {
+          id: `sg-def-24`,
+          title: "Bon d'achat de 10€ 💸",
+          targetAmount: 100,
+          currentAmount: 0,
+          targetDate: '',
+          category: 'boutique_reward',
+          contributions: [
+            {
+              costPoints: 100,
+              costMoney: 10.0,
+              icon: "💸",
+              subCategory: "Cadeau",
+              avail: true,
+              validationRequired: true
+            } as any
+          ]
+        }
+      ];
+
+      console.log("[MaFamille+ Boutique] Populating default rewards...");
+      setSavingGoals(prev => [...prev, ...defaultRewardsList]);
+
+      const client = getSupabaseClient();
+      if (client && foyer.id) {
+        Promise.all(defaultRewardsList.map(sg => {
+          return client.from('saving_goals').insert({
+            id: sg.id,
+            foyer_id: foyer.id,
+            title: sg.title,
+            target_amount: sg.targetAmount,
+            current_amount: sg.currentAmount,
+            target_date: sg.targetDate,
+            category: sg.category,
+            contributions: sg.contributions
+          });
+        })).then(() => {
+          console.log("[MaFamille+ Boutique] Default rewards successfully uploaded to Supabase.");
+        }).catch(err => {
+          console.error("[MaFamille+ Boutique] Error uploading default rewards:", err);
+        });
+      }
+      setHasCheckedDefaultRewards(true);
+    } else {
+      setHasCheckedDefaultRewards(true);
+    }
+  }, [foyer, savingGoals, hasCheckedDefaultRewards]);
 
   useEffect(() => {
     setVoiceContext(null);
