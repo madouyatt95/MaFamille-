@@ -451,7 +451,8 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
 
   // Calculate subject progress
   const getSubjectProgress = (subj: AcademySubject): number => {
-    const lessons = staticAcademyLessons.filter(l => l.matiere === subj);
+    const studentCycle = getCycleForLevel(studentProfile.level);
+    const lessons = staticAcademyLessons.filter(l => l.matiere === subj && l.cycles.includes(studentCycle));
     if (lessons.length === 0) return 0;
     const total = lessons.reduce((acc, curr) => acc + getChapterProgressPercent(curr.id), 0);
     return Math.round(total / lessons.length);
@@ -1999,7 +2000,8 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
               }
 
               const getChildSubjectProgress = (subj: AcademySubject): number => {
-                const lessons = staticAcademyLessons.filter(l => l.matiere === subj);
+                const childCycle = getCycleForLevel(profile.level);
+                const lessons = staticAcademyLessons.filter(l => l.matiere === subj && l.cycles.includes(childCycle));
                 if (lessons.length === 0) return 0;
                 const total = lessons.reduce((acc, curr) => {
                   const p = progress[curr.id];
@@ -3185,28 +3187,33 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                   Voici des fiches de cours clés recommandées pour tes évaluations à venir :
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {staticAcademyLessons.slice(0, 4).map(les => (
-                    <button
-                      key={les.id}
-                      onClick={() => {
-                        setSelectedLesson(les);
-                        setSelectedLessonCategory(
-                          les.matiere === 'Mathématiques' ? 'maths' :
-                          les.matiere === 'Français' ? 'français' :
-                          les.matiere === 'Sciences' || les.matiere === 'Découverte' ? 'sciences' :
-                          'langues'
-                        );
-                        setActiveSubTab('cours');
-                      }}
-                      className="p-3 bg-white/5 border border-white/5 rounded-2xl hover:bg-[#6C5CFF]/15 hover:border-[#6C5CFF]/30 transition text-left cursor-pointer flex items-center justify-between"
-                    >
-                      <div className="min-w-0">
-                        <span className="text-[8px] text-[#6C5CFF] font-black uppercase tracking-wider block">{les.matiere}</span>
-                        <span className="text-xs font-bold text-white truncate block mt-0.5">{les.title}</span>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-white/30 shrink-0" />
-                    </button>
-                  ))}
+                  {(() => {
+                    const studentCycle = getCycleForLevel(studentProfile.level);
+                    const recommended = staticAcademyLessons.filter(les => les.cycles.includes(studentCycle)).slice(0, 4);
+                    const list = recommended.length > 0 ? recommended : staticAcademyLessons.slice(0, 4);
+                    return list.map(les => (
+                      <button
+                        key={les.id}
+                        onClick={() => {
+                          setSelectedLesson(les);
+                          setSelectedLessonCategory(
+                            les.matiere === 'Mathématiques' ? 'maths' :
+                            les.matiere === 'Français' ? 'français' :
+                            les.matiere === 'Sciences' || les.matiere === 'Découverte' ? 'sciences' :
+                            'langues'
+                          );
+                          setActiveSubTab('cours');
+                        }}
+                        className="p-3 bg-white/5 border border-white/5 rounded-2xl hover:bg-[#6C5CFF]/15 hover:border-[#6C5CFF]/30 transition text-left cursor-pointer flex items-center justify-between"
+                      >
+                        <div className="min-w-0">
+                          <span className="text-[8px] text-[#6C5CFF] font-black uppercase tracking-wider block">{les.matiere}</span>
+                          <span className="text-xs font-bold text-white truncate block mt-0.5">{les.title}</span>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-white/30 shrink-0" />
+                      </button>
+                    ));
+                  })()}
                 </div>
               </div>
             </div>

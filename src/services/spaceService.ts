@@ -167,23 +167,50 @@ export const spaceService = {
   getSchoolTasksForEstablishment(estId: string): any[] {
     const key = `school_tasks_${estId}`;
     const stored = localStorage.getItem(key);
+    let tasks: any[] = [];
+    let isNew = false;
+    
     if (stored) {
-      try { return JSON.parse(stored); } catch (e) {}
+      try { 
+        tasks = JSON.parse(stored); 
+      } catch (e) {
+        tasks = [];
+      }
+    } else {
+      isNew = true;
+      // Default homework templates for initial setups
+      if (estId === 'est-1') {
+        tasks = [
+          { id: 'st-1', title: 'Exercices sur les fonctions affines', subject: 'Mathématiques', difficulty: 'medium', assignedMemberId: '3', dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], done: false },
+          { id: 'st-2', title: 'Rédiger un paragraphe argumentatif', subject: 'Français', difficulty: 'easy', assignedMemberId: '3', dueDate: new Date(Date.now() + 172800000).toISOString().split('T')[0], done: false },
+          { id: 'st-eval-1', title: 'Évaluation sur le Théorème de Pythagore', subject: 'Mathématiques', difficulty: 'hard', assignedMemberId: '3', dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], done: false }
+        ];
+      } else if (estId === 'est-2') {
+        tasks = [
+          { id: 'st-3', title: 'Dictée : Le pluriel des noms en -al', subject: 'Français', difficulty: 'easy', assignedMemberId: '4', dueDate: new Date(Date.now() + 259200000).toISOString().split('T')[0], done: false },
+          { id: 'st-4', title: 'Exercices sur les tables d\'additions', subject: 'Mathématiques', difficulty: 'easy', assignedMemberId: '4', dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], done: false }
+        ];
+      }
     }
 
-    // Default homework templates for initial setups
-    if (estId === 'est-1') {
-      return [
-        { id: 'st-1', title: 'Exercices de géométrie', subject: 'Mathématiques', difficulty: 'medium', assignedMemberId: '3', dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], done: false },
-        { id: 'st-2', title: 'Lire le chapitre 3', subject: 'Français', difficulty: 'easy', assignedMemberId: '3', dueDate: new Date(Date.now() + 172800000).toISOString().split('T')[0], done: false },
-        { id: 'st-eval-1', title: 'Évaluation sur les tables de multiplication (6 à 9)', subject: 'Mathématiques', difficulty: 'medium', assignedMemberId: '3', dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], done: false }
-      ];
-    } else if (estId === 'est-2') {
-      return [
-        { id: 'st-3', title: 'Préparer l\'exposé sur la Révolution', subject: 'Histoire-Géographie', difficulty: 'hard', assignedMemberId: '4', dueDate: new Date(Date.now() + 259200000).toISOString().split('T')[0], done: false }
-      ];
+    // Migration patch for old default tasks
+    let modified = false;
+    tasks = tasks.map((t: any) => {
+      if (t.id === 'st-eval-1' && t.title.includes('multiplication') && t.assignedMemberId === '3') {
+        modified = true;
+        return { ...t, title: 'Évaluation sur le Théorème de Pythagore', difficulty: 'hard' };
+      }
+      if (t.id === 'st-3' && t.title.includes('Révolution') && t.assignedMemberId === '4') {
+        modified = true;
+        return { ...t, title: 'Dictée : Le pluriel des noms en -al', subject: 'Français', difficulty: 'easy' };
+      }
+      return t;
+    });
+
+    if (isNew || modified) {
+      localStorage.setItem(key, JSON.stringify(tasks));
     }
-    return [];
+    return tasks;
   },
 
   saveSchoolTasksForEstablishment(estId: string, tasks: any[]): void {

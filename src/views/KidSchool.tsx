@@ -1330,10 +1330,10 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
               </span>
             </div>
 
-            <div className="text-center space-y-1">
-              <span className="text-[8px] font-black text-white/30 uppercase tracking-widest block">Chapitre actif</span>
-              <h2 className="text-lg font-black text-white leading-tight">{selectedLesson.title}</h2>
-              <div className="w-32 h-1.5 bg-white/5 rounded-full mx-auto mt-2 overflow-hidden border border-white/5">
+            <div className="text-center space-y-3 py-4">
+              <span className="text-[10px] font-black text-[#6C5CFF] uppercase tracking-widest block">Chapitre actif</span>
+              <h2 className="text-2xl font-black text-white leading-tight">{selectedLesson.title}</h2>
+              <div className="w-40 h-2 bg-white/5 rounded-full mx-auto mt-2 overflow-hidden border border-white/5">
                 <div className="h-full bg-[#00D26A]" style={{ width: `${getChapterProgressPercent(selectedLesson.id)}%` }} />
               </div>
             </div>
@@ -1395,43 +1395,77 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
             
             {/* Step 0: Cours */}
             {activeStepTab === 0 && (
-              <div className="space-y-4 animate-fadeIn">
-                <div className="bg-[#112240] border border-white/5 rounded-3xl p-5 space-y-4 text-left">
-                  <div className="border-b border-white/5 pb-3">
-                    <span className="text-[9px] font-black text-white/40 uppercase tracking-widest block">Définition</span>
-                    <p className="text-xs text-white leading-relaxed font-semibold mt-1">
-                      {selectedLesson.definition}
+              <div className="space-y-6 animate-fadeIn">
+                {selectedLesson.introduction && (
+                  <p className="text-sm sm:text-base text-white/80 leading-relaxed font-semibold italic border-l-4 border-[#6C5CFF] pl-4 my-6">
+                    {selectedLesson.introduction}
+                  </p>
+                )}
+
+                {/* 1. Définition */}
+                <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/20 rounded-3xl p-6 space-y-3 shadow-md">
+                  <span className="text-xs font-black text-[#5c9eff] uppercase tracking-wider block">📚 Définition</span>
+                  <p className="text-sm sm:text-base text-white leading-relaxed font-semibold">
+                    {selectedLesson.definition}
+                  </p>
+                </div>
+
+                {/* 2. Explication */}
+                <div className="bg-[#112240]/80 border border-white/8 rounded-3xl p-6 space-y-3 shadow-md">
+                  <span className="text-xs font-black text-[#6C5CFF] uppercase tracking-wider block">📝 Explication Complète</span>
+                  <p className="text-sm sm:text-base text-white/95 leading-relaxed font-medium">
+                    {selectedLesson.explication}
+                  </p>
+                </div>
+
+                {/* 3. Exemple */}
+                {(selectedLesson.exemple || (selectedLesson.schemas && selectedLesson.schemas.length > 0)) && (
+                  <div className="bg-[#00D26A]/5 border border-[#00D26A]/15 rounded-3xl p-6 space-y-3 shadow-md">
+                    <span className="text-xs font-black text-[#00D26A] uppercase tracking-wider block">🔍 Exemple & Illustration</span>
+                    {selectedLesson.exemple && (
+                      <p className="text-sm sm:text-base text-emerald-200/90 leading-relaxed font-semibold">
+                        {selectedLesson.exemple}
+                      </p>
+                    )}
+                    {selectedLesson.schemas && selectedLesson.schemas.length > 0 && (
+                      <div className="bg-black/40 p-4 rounded-2xl border border-white/5 font-mono text-xs text-[#00D26A] whitespace-pre overflow-x-auto mt-2 leading-relaxed">
+                        {selectedLesson.schemas.join('\n')}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 4. Astuce */}
+                {selectedLesson.astuce && (
+                  <div className="bg-amber-500/5 border border-amber-500/15 rounded-3xl p-6 space-y-3 shadow-md">
+                    <span className="text-xs font-black text-[#FFB020] uppercase tracking-wider block">💡 Astuce du Professeur</span>
+                    <p className="text-sm sm:text-base text-amber-200/90 leading-relaxed font-semibold">
+                      {selectedLesson.astuce}
                     </p>
                   </div>
+                )}
 
-                  <div>
-                    <span className="text-[9px] font-black text-[#6C5CFF] uppercase tracking-widest block">Explication Complète</span>
-                    <p className="text-xs text-white/80 leading-relaxed font-medium mt-1">
-                      {selectedLesson.explication}
-                    </p>
-                  </div>
-
-                  {selectedLesson.schemas && selectedLesson.schemas.length > 0 && (
-                    <div className="bg-black/30 p-3 rounded-2xl border border-white/5 font-mono text-[9px] text-[#00D26A] whitespace-pre overflow-x-auto">
-                      {selectedLesson.schemas.join('\n')}
-                    </div>
-                  )}
-
-                  <div className="border-t border-white/5 pt-3">
-                    <span className="text-[9px] font-black text-[#00D26A] uppercase tracking-widest block">Méthode à suivre</span>
-                    <p className="text-xs text-white/80 leading-relaxed font-medium mt-1 whitespace-pre-line">
-                      {selectedLesson.methode}
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 bg-rose-500/5 border border-rose-500/15 rounded-2xl space-y-1">
-                    <span className="text-[8px] font-black text-rose-400 uppercase tracking-wider block">⚠️ Pièges fréquents :</span>
-                    <p className="text-xs text-white/80 font-medium leading-relaxed">
+                {/* 5. Piège fréquent */}
+                {selectedLesson.pieges && (
+                  <div className="bg-rose-500/5 border border-rose-500/15 rounded-3xl p-6 space-y-3 shadow-md">
+                    <span className="text-xs font-black text-rose-400 uppercase tracking-wider block">⚠️ Pièges fréquents à éviter</span>
+                    <p className="text-sm sm:text-base text-rose-200/90 leading-relaxed font-semibold">
                       {selectedLesson.pieges}
                     </p>
                   </div>
+                )}
 
-                  {/* Read validate button */}
+                {/* 6. À retenir */}
+                {(selectedLesson.memo || selectedLesson.methode) && (
+                  <div className="bg-purple-500/5 border border-purple-500/15 rounded-3xl p-6 space-y-3 shadow-md">
+                    <span className="text-xs font-black text-[#9E94FF] uppercase tracking-wider block">📌 À retenir</span>
+                    <p className="text-sm sm:text-base text-white/95 leading-relaxed font-medium whitespace-pre-line">
+                      {selectedLesson.memo || selectedLesson.methode}
+                    </p>
+                  </div>
+                )}
+
+                <div className="pt-6 pb-8">
                   {!(lessonProgress[selectedLesson.id]?.read) ? (
                     <button
                       onClick={() => {
@@ -1440,14 +1474,14 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
                         alert("📖 Leçon lue ! Tu gagnes +10 XP. Place aux exercices ! ✏️");
                         setActiveStepTab(1);
                       }}
-                      className="w-full py-3 bg-[#00D26A] text-[#07111F] font-black text-xs rounded-2xl shadow-md hover:bg-[#00FF87] transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                      className="w-full py-4 bg-[#00D26A] text-[#07111F] font-black text-sm rounded-2xl shadow-lg hover:bg-[#00FF87] active:scale-95 transition-all flex items-center justify-center space-x-2 cursor-pointer"
                     >
                       <span>J'ai compris le cours ! (+10 XP) 👍</span>
                     </button>
                   ) : (
                     <button
                       onClick={() => setActiveStepTab(1)}
-                      className="w-full py-3 bg-white/5 border border-white/10 text-white font-black text-xs rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                      className="w-full py-4 bg-white/5 border border-white/10 text-white font-black text-sm rounded-2xl hover:bg-white/10 active:scale-95 transition-all flex items-center justify-center space-x-2 cursor-pointer"
                     >
                       <span>Continuer vers les Exercices ✏️</span>
                     </button>
