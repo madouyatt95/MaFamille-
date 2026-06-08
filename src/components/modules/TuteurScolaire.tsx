@@ -441,7 +441,9 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     Langues: ["Wolof", "Espagnol de base", "Allemand de base"],
     Technologie: ["Fonctionnement de l'ordinateur", "Internet et le Web", "Algorithmes simples"],
     "Culture générale": ["Familles d'instruments", "Monuments célèbres", "Grandes découvertes"],
-    "Éducation civique": ["Valeurs de la République", "Droits de l'enfant", "La citoyenneté"],
+    EMC: ["Valeurs de la République", "Droits de l'enfant", "La citoyenneté"],
+    SVT: ["ADN et Génétique", "Écosystèmes", "Corps humain et santé"],
+    "Physique-Chimie": ["Circuits électriques", "Matière et mélanges", "Forces et mouvements"],
     Logique: ["Énigmes logiques", "Suites de nombres", "Formes et motifs"],
     Programmation: ["Découverte de Python", "Le binaire", "Créer sa première page HTML"],
     Orientation: ["Les métiers d'avenir", "Choisir son parcours scolaire", "CV et lettre de motivation"]
@@ -2290,11 +2292,13 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                   { id: 'Histoire', label: '🏺 Histoire' },
                   { id: 'Géographie', label: '🗺️ Géographie' },
                   { id: 'Sciences', label: '🧬 Sciences' },
+                  { id: 'SVT', label: '🌿 SVT' },
+                  { id: 'Physique-Chimie', label: '🧪 Physique-Chimie' },
                   { id: 'Anglais', label: '🇬🇧 Anglais' },
                   { id: 'Langues', label: '🗣️ Langues' },
                   { id: 'Technologie', label: '💻 Technologie' },
                   { id: 'Culture générale', label: '💡 Culture générale' },
-                  { id: 'Éducation civique', label: '🇫🇷 Éducation civique' },
+                  { id: 'EMC', label: '🗳️ EMC' },
                   { id: 'Logique', label: '🧩 Logique' },
                   { id: 'Programmation', label: '🐍 Programmation' },
                   { id: 'Orientation', label: '🎯 Orientation' }
@@ -2318,11 +2322,13 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                            cat.id === 'Histoire' ? '🏺' :
                            cat.id === 'Géographie' ? '🗺️' :
                            cat.id === 'Sciences' ? '🧬' :
+                           cat.id === 'SVT' ? '🌿' :
+                           cat.id === 'Physique-Chimie' ? '🧪' :
                            cat.id === 'Anglais' ? '🇬🇧' :
                            cat.id === 'Langues' ? '🗣️' :
                            cat.id === 'Technologie' ? '💻' :
                            cat.id === 'Culture générale' ? '💡' :
-                           cat.id === 'Éducation civique' ? '🇫🇷' :
+                           cat.id === 'EMC' ? '🗳️' :
                            cat.id === 'Logique' ? '🧩' :
                            cat.id === 'Programmation' ? '🐍' : '🎯'}
                         </div>
@@ -2418,9 +2424,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                         <div className="p-3 divide-y divide-white/5">
                           {lessons.map((les, idx) => {
                             const progressPct = getChapterProgressPercent(les.id);
-                            const isFirst = idx === 0;
-                            const prevLessonProgress = isFirst ? 100 : getChapterProgressPercent(lessons[idx - 1].id);
-                            const isUnlocked = learningMode === 'library' || isFirst || prevLessonProgress >= 40;
+                            const isUnlocked = true; // Toujours débloqué pour une exploration libre
 
                             return (
                               <button

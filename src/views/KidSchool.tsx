@@ -364,12 +364,16 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
     Histoire: ["Préhistoire", "Antiquité", "Égypte", "Rome", "Moyen Âge", "Renaissance", "Révolution française", "Première Guerre mondiale", "Seconde Guerre mondiale", "Monde contemporain"],
     Géographie: ["Continents et Océans", "Pays et Capitales", "Reliefs et Climats", "Populations du monde", "Cartographie", "Environnement"],
     Sciences: ["Corps humain", "Animaux", "Plantes", "Énergie", "Électricité", "Espace", "Planètes", "Génétique", "Chimie", "Physique"],
-    Anglais: ["Les couleurs", "Les nombres", "Les salutations", "Les animaux", "Verbes irréguliers", "Vocabulaire du quotidien"],
+    SVT: ["ADN et Génétique", "Écosystèmes", "Corps humain et santé"],
+    "Physique-Chimie": ["Circuits électriques", "Matière et mélanges", "Forces et mouvements"],
+    Anglais: ["Les couleurs", "Les nombres", "Les salutations", "Les animals", "Verbes irréguliers", "Vocabulaire du quotidien"],
     Langues: ["Wolof", "Espagnol de base", "Allemand de base"],
     Technologie: ["Fonctionnement de l'ordinateur", "Internet et le Web", "Algorithmes simples"],
     "Culture générale": ["Familles d'instruments", "Monuments célèbres", "Grandes découvertes"],
-    "Éducation civique": ["Valeurs de la République", "Droits de l'enfant", "La citoyenneté"],
-    Logique: ["Énigmes logiques", "Suites de nombres", "Formes et motifs"]
+    EMC: ["Valeurs de la République", "Droits de l'enfant", "La citoyenneté"],
+    Logique: ["Énigmes logiques", "Suites de nombres", "Formes et motifs"],
+    Programmation: ["Découverte de Python", "Le binaire", "Créer sa première page HTML"],
+    Orientation: ["Les métiers d'avenir", "Choisir son parcours scolaire", "CV et lettre de motivation"]
   };
 
   const startMemoryGame = (lesson: Lesson) => {
@@ -924,12 +928,17 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
                              subj === 'Histoire' ? '🏺' :
                              subj === 'Géographie' ? '🗺️' :
                              subj === 'Sciences' ? '🧬' :
+                             subj === 'SVT' ? '🔬' :
+                             subj === 'Physique-Chimie' ? '🧪' :
                              subj === 'Anglais' ? '🇬🇧' :
                              subj === 'Langues' ? '🗣️' :
                              subj === 'Technologie' ? '💻' :
                              subj === 'Culture générale' ? '💡' :
-                             subj === 'Éducation civique' ? '🇫🇷' :
-                             '🧩'}
+                             subj === 'EMC' ? '🇫🇷' :
+                             subj === 'Logique' ? '🧩' :
+                             subj === 'Programmation' ? '⚙️' :
+                             subj === 'Orientation' ? '🧭' :
+                             '🎓'}
                           </div>
                           <div>
                             <h4 className="text-xs font-black text-white">{subj}</h4>
