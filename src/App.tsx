@@ -6998,8 +6998,20 @@ function App() {
         "on doit acheter quoi", "qu est ce qu on doit acheter", "qu'est-ce qu'on doit acheter",
         "montre les courses", "affiche les courses", "ouvre les courses", "fais voir les courses",
         "affiche la liste", "fais voir la liste", "voir la liste des courses", "voir les articles restants",
-        "voir les achats restants", "courses restantes", "liste restante"
+        "voir les achats restants", "courses restantes", "liste restante",
+        "il reste quoi à acheter", "il reste quoi dans les courses", "il reste quoi sur la liste",
+        "il reste quoi à prendre", "il reste quoi à faire comme courses", "il manque quoi à acheter",
+        "il manque quoi dans les courses", "il manque quoi sur la liste", "il manque quoi à prendre",
+        "qu’est-ce qu’il reste", "qu’est-ce qu’il reste à acheter", "qu’est-ce qui reste",
+        "qu’est-ce qui reste à acheter", "qu’est-ce qui manque", "qu’est-ce qui manque à acheter",
+        "que manque-t-il", "que manque-t-il à acheter", "c’est quoi ce qu’il reste",
+        "c’est quoi ce qu’il manque", "montre ce qu’il reste", "montre ce qu’il reste à acheter",
+        "montre les articles restants", "affiche ce qu’il reste", "affiche ce qu’il manque",
+        "liste ce qu’il reste", "liste les courses restantes", "qu’est-ce qu’on doit encore acheter",
+        "qu’est-ce qu’il faut encore acheter", "qu’est-ce qu’il faut acheter", "on doit encore acheter quoi",
+        "il nous faut encore quoi", "il nous manque quoi", "il nous manque quoi à acheter"
       ];
+
 
       // Budget open synonyms
       const budgetSynonyms = [
