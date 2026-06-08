@@ -412,12 +412,17 @@ export const foyerService = {
 
       // Si erreur de schéma liée à has_exemption, réessayer sans has_exemption
       const errorMsg = rpcError.message || '';
-      if (errorMsg.includes('has_exemption') || errorMsg.includes('hasExemption') || errorMsg.includes('column') || errorMsg.includes('parameter')) {
+      if ((errorMsg.includes('has_exemption') || errorMsg.includes('hasExemption') || errorMsg.includes('column') || errorMsg.includes('parameter'))
+          && !errorMsg.includes('latitude')
+          && !errorMsg.includes('longitude')
+          && !errorMsg.includes('location_status')
+          && !errorMsg.includes('last_located_at')) {
         console.warn('[MaFamille+ DB] Schema cache error detected on RPC, retrying without has_exemption:', errorMsg);
         const { error: retryError } = await runRpc(false);
         if (retryError) throw retryError;
         return;
       }
+
 
       // Fallback direct si RPC n'existe pas
       console.warn('[MaFamille+ DB] RPC failed with non-schema error, falling back to direct update:', errorMsg);
