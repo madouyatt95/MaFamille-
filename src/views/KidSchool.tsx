@@ -156,6 +156,8 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
   const [selectedSubject, setSelectedSubject] = useState<'Mathématiques' | 'Français' | 'Découverte' | 'Langues' | 'Sciences' | 'Histoire' | 'Géographie' | 'Lecture' | 'Culture' | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+  const [learningMode, setLearningMode] = useState<'guided' | 'library'>('guided');
+  const [activeStepTab, setActiveStepTab] = useState<number>(0);
 
   // Lesson progression tracking: 'none' | 'lesson_read' | 'exercises_done' | 'challenge_done' | 'completed'
   const [lessonProgress, setLessonProgress] = useState<Record<string, 'none' | 'lesson_read' | 'exercises_done' | 'challenge_done' | 'completed'>>(() => {
@@ -168,6 +170,23 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
     const key = `academy_lesson_progress_${member.id}`;
     localStorage.setItem(key, JSON.stringify(lessonProgress));
   }, [lessonProgress, member.id]);
+
+  useEffect(() => {
+    if (selectedLesson) {
+      const progress = lessonProgress[selectedLesson.id] || 'none';
+      if (progress === 'none') {
+        setActiveStepTab(0);
+      } else if (progress === 'lesson_read') {
+        setActiveStepTab(4);
+      } else if (progress === 'exercises_done') {
+        setActiveStepTab(5);
+      } else if (progress === 'challenge_done') {
+        setActiveStepTab(6);
+      } else if (progress === 'completed') {
+        setActiveStepTab(7);
+      }
+    }
+  }, [selectedLesson, lessonProgress]);
 
   // Local stats state. All skills start at 0%
   const [stats, setStats] = useState<{
@@ -448,6 +467,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
             ...prev,
             [selectedLesson.id]: 'challenge_done'
           }));
+          setActiveStepTab(6); // Advance to Evaluation!
           setStats(prev => ({
             ...prev,
             xp: prev.xp + 20,
@@ -626,6 +646,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
             ...prev,
             [selectedLesson.id]: 'exercises_done'
           }));
+          setActiveStepTab(5); // Advance to memory game!
           setTimeout(() => {
             alert(`🎉 Entraînement réussi ! Score : ${cleanScore}/${activeQuiz.questions.length}\nLe Mini-jeu est maintenant débloqué ! 🎮`);
           }, 800);
@@ -637,6 +658,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
               ...prev,
               [selectedLesson.id]: 'completed'
             }));
+            setActiveStepTab(7); // Advance to badge/progress!
 
             // Submit pocket money validation task to parents
             const pocketMoneyTask: SchoolTask = {
@@ -1130,8 +1152,32 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
                 </span>
               </div>
 
+              {/* Learning Mode Selector */}
+              <div className="bg-[#112240] p-1.5 rounded-2xl border border-white/5 grid grid-cols-2 gap-1.5 max-w-xs mx-auto shadow-inner mb-4">
+                <button
+                  onClick={() => setLearningMode('guided')}
+                  className={`py-1.5 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
+                    learningMode === 'guided'
+                      ? 'bg-gradient-to-r from-[#00D26A] to-[#00FF87] text-[#07111F] shadow-md'
+                      : 'text-white/40 hover:text-white/60'
+                  }`}
+                >
+                  🛣️ Parcours Guidé
+                </button>
+                <button
+                  onClick={() => setLearningMode('library')}
+                  className={`py-1.5 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
+                    learningMode === 'library'
+                      ? 'bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white shadow-md'
+                      : 'text-white/40 hover:text-white/60'
+                  }`}
+                >
+                  📚 Bibliothèque
+                </button>
+              </div>
+
               {/* PATH MAP */}
-              <div className="relative flex flex-col items-center py-6">
+              <div className="relative flex flex-col items-center py-6 animate-fadeIn">
                 <div className="absolute top-0 bottom-0 w-1 bg-gradient-to-b from-[#00D26A]/40 to-[#00D26A]/5 border-dashed border-l-2 border-[#00D26A]/20" />
                 
                 {(() => {
@@ -1152,7 +1198,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
                   return filteredLessons.map((les, idx) => {
                     const progress = lessonProgress[les.id] || 'none';
                     const isCompleted = progress === 'completed';
-                    const isUnlocked = idx === 0 || (lessonProgress[filteredLessons[idx - 1].id] === 'completed');
+                    const isUnlocked = learningMode === 'library' || idx === 0 || (lessonProgress[filteredLessons[idx - 1].id] === 'completed');
 
                     let bgStyle = "bg-white/5 border-white/10 text-white/40 cursor-not-allowed";
                     let icon = "🔒";
@@ -1225,7 +1271,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
 
               {/* GAME VIEW OVERLAY */}
               {activeGame && (
-                <div className="bg-[#112240] border-2 border-[#00D26A]/30 rounded-[32px] p-5 space-y-4">
+                <div className="bg-[#112240] border-2 border-[#00D26A]/30 rounded-[32px] p-5 space-y-4 animate-fadeIn">
                   <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center space-x-1.5">
                     <span>🎮 Mini-Jeu : Le Memory de la leçon</span>
                   </h4>
@@ -1264,27 +1310,68 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
               )}
 
               {!activeGame && (
-                <div className="space-y-4">
+                <div className="space-y-6 animate-fadeIn">
                   
-                  {/* STEP 1: LESSON PAGE */}
-                  <div className="bg-[#112240] border border-white/5 rounded-[32px] p-5 space-y-4">
-                    <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-lg">📖</span>
-                        <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 1 : Le Cours</h4>
-                      </div>
-                      {lessonProgress[selectedLesson.id] && lessonProgress[selectedLesson.id] !== 'none' ? (
-                        <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase">Lu ✓</span>
-                      ) : (
-                        <span className="text-[9px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full uppercase">À Lire</span>
-                      )}
-                    </div>
+                  {/* Step Selector Tab Bar (8 Phases) */}
+                  <div className="flex justify-between items-center bg-white/5 border border-white/8 p-2 rounded-2xl overflow-x-auto gap-1">
+                    {[
+                      { label: '📖 Cours', idx: 0 },
+                      { label: '💡 Astuce', idx: 1 },
+                      { label: '🎬 Exemple', idx: 2 },
+                      { label: '⚠️ Pièges', idx: 3 },
+                      { label: '✍️ Exercices', idx: 4 },
+                      { label: '🎮 Jeu', idx: 5 },
+                      { label: '📝 Éval', idx: 6 },
+                      { label: '🏆 Badge', idx: 7 }
+                    ].map((step) => {
+                      const isPast = activeStepTab > step.idx;
+                      const isCurrent = activeStepTab === step.idx;
+                      const isLocked = step.idx > 3 && (
+                        (step.idx === 4 && (lessonProgress[selectedLesson.id] === 'none' || !lessonProgress[selectedLesson.id])) ||
+                        (step.idx === 5 && (lessonProgress[selectedLesson.id] === 'none' || lessonProgress[selectedLesson.id] === 'lesson_read')) ||
+                        (step.idx === 6 && (lessonProgress[selectedLesson.id] === 'none' || lessonProgress[selectedLesson.id] === 'lesson_read' || lessonProgress[selectedLesson.id] === 'exercises_done')) ||
+                        (step.idx === 7 && lessonProgress[selectedLesson.id] !== 'completed')
+                      ) && learningMode !== 'library';
 
-                    <div className="space-y-3.5">
+                      let btnStyle = "text-white/40 border-transparent hover:text-white/60";
+                      if (isCurrent) {
+                        btnStyle = "bg-[#6C5CFF]/20 border-[#6C5CFF]/40 text-[#9E94FF] font-black";
+                      } else if (isPast) {
+                        btnStyle = "text-emerald-400 font-bold border-transparent";
+                      } else if (isLocked) {
+                        btnStyle = "text-white/10 cursor-not-allowed opacity-40 border-transparent";
+                      } else {
+                        btnStyle = "text-white/60 font-medium border-transparent";
+                      }
+
+                      return (
+                        <button
+                          key={step.idx}
+                          disabled={isLocked}
+                          onClick={() => {
+                            setActiveStepTab(step.idx);
+                            setActiveGame(false);
+                          }}
+                          className={`px-3 py-1.5 rounded-xl border text-[10px] whitespace-nowrap transition cursor-pointer flex items-center space-x-1 shrink-0 ${btnStyle}`}
+                        >
+                          <span>{step.label}</span>
+                          {isPast && <span className="text-[8px]">✓</span>}
+                          {isLocked && <span className="text-[8px]">🔒</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* ACTIVE TAB CONTENT DISPLAY */}
+                  {activeStepTab === 0 && (
+                    <div className="bg-[#112240] border border-white/5 rounded-[32px] p-5 space-y-4 text-left">
+                      <div className="flex items-center space-x-2 border-b border-white/5 pb-3">
+                        <span className="text-lg">📖</span>
+                        <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 1 : Leçon Complète</h4>
+                      </div>
                       <p className="text-xs text-white/80 leading-relaxed font-medium">
                         {selectedLesson.explication}
                       </p>
-
                       {selectedLesson.schemas && selectedLesson.schemas.length > 0 && (
                         <div className="bg-black/30 p-3.5 rounded-2xl border border-white/5 font-mono text-[10px] text-emerald-400 whitespace-pre overflow-x-auto">
                           {selectedLesson.schemas.map((s, idx) => (
@@ -1292,181 +1379,188 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
                           ))}
                         </div>
                       )}
+                      <button
+                        onClick={() => setActiveStepTab(1)}
+                        className="w-full mt-2 py-3 bg-[#00D26A] text-[#07111F] font-black text-xs rounded-2xl shadow-md hover:bg-[#00FF87] transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                      >
+                        <span>Continuer vers l'Astuce 💡</span>
+                      </button>
+                    </div>
+                  )}
 
-                      <div className="p-4 bg-blue-500/5 border border-blue-500/15 rounded-2xl space-y-1">
-                        <span className="text-[9px] font-black text-blue-400 uppercase tracking-wider block">🎬 Exemple :</span>
-                        <p className="text-xs text-white/85 font-medium leading-relaxed">
-                          {selectedLesson.exemple}
-                        </p>
+                  {activeStepTab === 1 && (
+                    <div className="bg-[#112240] border border-white/5 rounded-[32px] p-5 space-y-4 text-left">
+                      <div className="flex items-center space-x-2 border-b border-white/5 pb-3">
+                        <span className="text-lg">💡</span>
+                        <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 2 : Astuce & Mémo</h4>
                       </div>
-
                       <div className="p-4 bg-[#6C5CFF]/5 border border-[#6C5CFF]/15 rounded-2xl space-y-1">
-                        <span className="text-[9px] font-black text-[#9E94FF] uppercase tracking-wider block">💡 Astuce :</span>
+                        <span className="text-[9px] font-black text-[#9E94FF] uppercase tracking-wider block">Astuce du Coach :</span>
                         <p className="text-xs text-white/85 italic leading-relaxed">
                           {selectedLesson.astuce}
                         </p>
                       </div>
-
-                      {selectedLesson.pieges && (
-                        <div className="p-4 bg-rose-500/5 border border-rose-500/15 rounded-2xl space-y-1">
-                          <span className="text-[9px] font-black text-rose-400 uppercase tracking-wider block">⚠️ Pièges à éviter :</span>
-                          <p className="text-xs text-white/85 font-medium leading-relaxed">
-                            {selectedLesson.pieges}
-                          </p>
-                        </div>
-                      )}
-
                       <div className="bg-black/10 border border-white/5 p-4 rounded-2xl space-y-2">
-                        <span className="text-[9px] font-black text-white/40 uppercase tracking-wider block">📝 Résumé Mémo :</span>
+                        <span className="text-[9px] font-black text-white/40 uppercase tracking-wider block">Résumé Mémo :</span>
                         <ul className="list-disc pl-4 space-y-1.5 text-xs text-white/70 font-medium">
                           {selectedLesson.memo.split('\n').map((line, lIdx) => (
                             <li key={lIdx}>{line.replace(/^- /, '')}</li>
                           ))}
                         </ul>
                       </div>
-                    </div>
-
-                    {(!lessonProgress[selectedLesson.id] || lessonProgress[selectedLesson.id] === 'none') && (
                       <button
-                        onClick={() => {
-                          setLessonProgress(prev => ({ ...prev, [selectedLesson.id]: 'lesson_read' }));
-                          setStats(prev => ({ ...prev, xp: prev.xp + 10 }));
-                          alert("📖 Leçon lue ! Tu gagnes +10 XP. L'entraînement est débloqué ! ✍️");
-                        }}
-                        className="w-full mt-2 py-3 bg-[#00D26A] text-[#07111F] font-black text-xs rounded-2xl shadow-md hover:bg-[#00FF87] transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                        onClick={() => setActiveStepTab(2)}
+                        className="w-full mt-2 py-3 bg-[#6C5CFF] text-white font-black text-xs rounded-2xl shadow-md hover:bg-[#5849E0] transition-all flex items-center justify-center space-x-2 cursor-pointer"
                       >
-                        <span>J'ai compris le cours ! (+10 XP) 👍</span>
+                        <span>Continuer vers l'Exemple 🎬</span>
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
-                  {/* STEP 2: PRACTICE */}
-                  {(() => {
-                    const progress = lessonProgress[selectedLesson.id] || 'none';
-                    const isUnlocked = progress !== 'none';
-                    const isCompleted = progress !== 'none' && progress !== 'lesson_read';
+                  {activeStepTab === 2 && (
+                    <div className="bg-[#112240] border border-white/5 rounded-[32px] p-5 space-y-4 text-left">
+                      <div className="flex items-center space-x-2 border-b border-white/5 pb-3">
+                        <span className="text-lg">🎬</span>
+                        <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 3 : Exemple Détaillé</h4>
+                      </div>
+                      <div className="p-4 bg-blue-500/5 border border-blue-500/15 rounded-2xl space-y-1">
+                        <span className="text-[9px] font-black text-blue-400 uppercase tracking-wider block">Exemple d'illustration :</span>
+                        <p className="text-xs text-white/85 font-medium leading-relaxed">
+                          {selectedLesson.exemple}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setActiveStepTab(3)}
+                        className="w-full mt-2 py-3 bg-[#6C5CFF] text-white font-black text-xs rounded-2xl shadow-md hover:bg-[#5849E0] transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                      >
+                        <span>Continuer vers les Pièges à éviter ⚠️</span>
+                      </button>
+                    </div>
+                  )}
 
-                    return (
-                      <div className={`bg-[#112240] border border-white/5 rounded-[32px] p-5 space-y-4 ${!isUnlocked ? 'opacity-40' : ''}`}>
-                        <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-lg">✍️</span>
-                            <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 2 : Je m'entraîne</h4>
-                          </div>
-                          {isCompleted ? (
-                            <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase">Fait ✓</span>
-                          ) : !isUnlocked ? (
-                            <span className="text-[9px] font-bold text-white/30 bg-white/5 px-2 py-0.5 rounded-full uppercase">Bloqué</span>
-                          ) : (
-                            <span className="text-[9px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full uppercase">Prêt</span>
-                          )}
+                  {activeStepTab === 3 && (
+                    <div className="bg-[#112240] border border-white/5 rounded-[32px] p-5 space-y-4 text-left">
+                      <div className="flex items-center space-x-2 border-b border-white/5 pb-3">
+                        <span className="text-lg">⚠️</span>
+                        <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 4 : Pièges Fréquents</h4>
+                      </div>
+                      <div className="p-4 bg-rose-500/5 border border-rose-500/15 rounded-2xl space-y-1">
+                        <span className="text-[9px] font-black text-rose-400 uppercase tracking-wider block">Pièges à éviter absolument :</span>
+                        <p className="text-xs text-white/85 font-medium leading-relaxed">
+                          {selectedLesson.pieges || "Aucun piège majeur identifié sur cette notion. Sois attentif aux consignes !"}
+                        </p>
+                      </div>
+
+                      {(!lessonProgress[selectedLesson.id] || lessonProgress[selectedLesson.id] === 'none') ? (
+                        <button
+                          onClick={() => {
+                            setLessonProgress(prev => ({ ...prev, [selectedLesson.id]: 'lesson_read' }));
+                            setStats(prev => ({ ...prev, xp: prev.xp + 10 }));
+                            setActiveStepTab(4);
+                            alert("📖 Leçon lue ! Tu gagnes +10 XP. Place aux exercices ! ✍️");
+                          }}
+                          className="w-full mt-2 py-3 bg-[#00D26A] text-[#07111F] font-black text-xs rounded-2xl shadow-md hover:bg-[#00FF87] transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                        >
+                          <span>J'ai compris la leçon, place aux Exercices ! (+10 XP) 👍</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setActiveStepTab(4)}
+                          className="w-full mt-2 py-3 bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white font-black text-xs rounded-2xl shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                        >
+                          <span>Accéder aux Exercices ✍️</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {activeStepTab === 4 && (
+                    <div className="bg-[#112240] border border-white/5 rounded-[32px] p-5 space-y-4 text-left">
+                      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-lg">✍️</span>
+                          <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 5 : Exercices Guidés</h4>
                         </div>
-
-                        {isUnlocked && !isCompleted && (
-                          <div className="space-y-4">
-                            <div className="space-y-1.5">
-                              <span className="text-[9px] font-black text-white/40 uppercase block">Nombre d'exercices à générer :</span>
-                              <div className="grid grid-cols-4 gap-2">
-                                {[10, 20, 50, 100].map(cnt => (
-                                  <button
-                                    key={cnt}
-                                    type="button"
-                                    onClick={() => setExerciseLength(cnt)}
-                                    className={`py-2 rounded-xl text-xs font-black border transition ${
-                                      exerciseLength === cnt 
-                                        ? 'bg-[#6C5CFF] border-[#6C5CFF] text-white shadow-md' 
-                                        : 'bg-white/5 border-white/10 text-white/70'
-                                    }`}
-                                  >
-                                    {cnt}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => startKidExercises(selectedLesson, exerciseLength)}
-                              className="w-full py-3 bg-[#6C5CFF] text-white font-black text-xs rounded-2xl shadow-md hover:bg-[#5849E0] transition-all flex items-center justify-center space-x-2 cursor-pointer"
-                            >
-                              <span>Lancer l'entraînement ({exerciseLength} exercices) ✍️</span>
-                            </button>
-                          </div>
+                        {lessonProgress[selectedLesson.id] !== 'none' && lessonProgress[selectedLesson.id] !== 'lesson_read' ? (
+                          <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase">Fait ✓</span>
+                        ) : (
+                          <span className="text-[9px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full uppercase">À Faire</span>
                         )}
                       </div>
-                    );
-                  })()}
+                      
+                      <div className="space-y-4">
+                        <p className="text-xs text-white/75 leading-relaxed font-semibold">
+                          Prépare ton cerveau avec une session de 5 exercices guidés avec indices !
+                        </p>
+                        <button
+                          onClick={() => startKidExercises(selectedLesson, 5)}
+                          className="w-full py-3 bg-[#6C5CFF] text-white font-black text-xs rounded-2xl shadow-md hover:bg-[#5849E0] transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                        >
+                          <span>Lancer les 5 exercices guidés ✍️</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-                  {/* STEP 3: PLAY / MINI-GAME */}
-                  {(() => {
-                    const progress = lessonProgress[selectedLesson.id] || 'none';
-                    const isUnlocked = progress === 'exercises_done' || progress === 'challenge_done' || progress === 'completed';
-                    const isCompleted = progress === 'challenge_done' || progress === 'completed';
-
-                    return (
-                      <div className={`bg-[#112240] border border-white/5 rounded-[32px] p-5 space-y-4 ${!isUnlocked ? 'opacity-40' : ''}`}>
-                        <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-lg">🎯</span>
-                            <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 3 : Le Mini-Jeu</h4>
-                          </div>
-                          {isCompleted ? (
-                            <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase">Réussi ✓</span>
-                          ) : !isUnlocked ? (
-                            <span className="text-[9px] font-bold text-white/30 bg-white/5 px-2 py-0.5 rounded-full uppercase">Bloqué</span>
-                          ) : (
-                            <span className="text-[9px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full uppercase">Prêt</span>
-                          )}
+                  {activeStepTab === 5 && (
+                    <div className="bg-[#112240] border border-white/5 rounded-[32px] p-5 space-y-4 text-left">
+                      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-lg">🎮</span>
+                          <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 6 : Le Mini-Jeu</h4>
                         </div>
-
-                        {isUnlocked && !isCompleted && (
-                          <button
-                            onClick={() => startMemoryGame(selectedLesson)}
-                            className="w-full py-3 bg-gradient-to-r from-[#FFB020] to-[#FF8C00] text-[#07111F] font-black text-xs rounded-2xl shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer"
-                          >
-                            <span>Lancer le Jeu (Memory interactif) 🎮</span>
-                          </button>
+                        {(lessonProgress[selectedLesson.id] === 'challenge_done' || lessonProgress[selectedLesson.id] === 'completed') ? (
+                          <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase">Fait ✓</span>
+                        ) : (
+                          <span className="text-[9px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full uppercase">À Faire</span>
                         )}
                       </div>
-                    );
-                  })()}
 
-                  {/* STEP 4: CONTROL */}
-                  {(() => {
-                    const progress = lessonProgress[selectedLesson.id] || 'none';
-                    const isUnlocked = progress === 'challenge_done' || progress === 'completed';
-                    const isCompleted = progress === 'completed';
+                      <div className="space-y-4">
+                        <p className="text-xs text-white/75 leading-relaxed font-semibold">
+                          Mémorise ta leçon en t'amusant avec un jeu de memory interactif !
+                        </p>
+                        <button
+                          onClick={() => startMemoryGame(selectedLesson)}
+                          className="w-full py-3 bg-gradient-to-r from-[#FFB020] to-[#FF8C00] text-[#07111F] font-black text-xs rounded-2xl shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                        >
+                          <span>Lancer le Jeu Memory 🎮</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-                    return (
-                      <div className={`bg-[#112240] border border-white/5 rounded-[32px] p-5 space-y-4 ${!isUnlocked ? 'opacity-40' : ''}`}>
-                        <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-lg">📝</span>
-                            <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 4 : L'Évaluation</h4>
-                          </div>
-                          {isCompleted ? (
-                            <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase">Validé ✓</span>
-                          ) : !isUnlocked ? (
-                            <span className="text-[9px] font-bold text-white/30 bg-white/5 px-2 py-0.5 rounded-full uppercase">Bloqué</span>
-                          ) : (
-                            <span className="text-[9px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full uppercase">Prêt</span>
-                          )}
+                  {activeStepTab === 6 && (
+                    <div className="bg-[#112240] border border-white/5 rounded-[32px] p-5 space-y-4 text-left">
+                      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-lg">📝</span>
+                          <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 7 : L'Évaluation</h4>
                         </div>
-
-                        {isUnlocked && !isCompleted && (
-                          <button
-                            onClick={() => startKidEvaluation(selectedLesson)}
-                            className="w-full py-3 bg-[#00D26A] text-[#07111F] font-black text-xs rounded-2xl shadow-md hover:bg-[#00FF87] transition-all flex items-center justify-center space-x-2 cursor-pointer"
-                          >
-                            <span>Lancer le Contrôle (10 questions) 📝</span>
-                          </button>
+                        {lessonProgress[selectedLesson.id] === 'completed' ? (
+                          <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase">Validé ✓</span>
+                        ) : (
+                          <span className="text-[9px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full uppercase">À Faire</span>
                         )}
                       </div>
-                    );
-                  })()}
 
-                  {/* STEP 5: REWARDS */}
-                  {lessonProgress[selectedLesson.id] === 'completed' && (
-                    <div className="bg-gradient-to-br from-[#FFB020]/15 to-[#FF8C00]/10 border-2 border-[#FFB020]/30 rounded-[32px] p-6 text-center space-y-4 relative overflow-hidden">
-                      <span className="text-3xl animate-bounce block">🏆</span>
+                      <div className="space-y-4">
+                        <p className="text-xs text-white/75 leading-relaxed font-semibold">
+                          Le contrôle final ! Obtiens au moins 8/10 sur 10 questions pour débloquer ton badge et proposer de l'argent de poche !
+                        </p>
+                        <button
+                          onClick={() => startKidEvaluation(selectedLesson)}
+                          className="w-full py-3 bg-[#00D26A] text-[#07111F] font-black text-xs rounded-2xl shadow-md hover:bg-[#00FF87] transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                        >
+                          <span>Lancer l'Évaluation (10 Qs) 📝</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeStepTab === 7 && (
+                    <div className="bg-gradient-to-br from-[#FFB020]/15 to-[#FF8C00]/10 border-2 border-[#FFB020]/30 rounded-[32px] p-6 text-center space-y-5 relative overflow-hidden">
+                      <span className="text-4xl animate-bounce block">🏆</span>
                       <h3 className="text-base font-black text-white">Félicitations, Leçon validée !</h3>
                       <p className="text-xs text-white/75 font-semibold">
                         Tu as maîtrisé cette leçon avec succès. Voici tes récompenses :
@@ -1492,6 +1586,16 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
                       <div className="p-3 bg-white/5 border border-white/5 rounded-2xl text-[9px] text-white/50 leading-relaxed font-bold">
                         💡 Une demande de validation d'argent de poche a été transmise aux parents.
                       </div>
+
+                      <button
+                        onClick={() => {
+                          setSelectedLesson(null);
+                          setActiveGame(false);
+                        }}
+                        className="w-full py-3 bg-[#6C5CFF] hover:bg-[#5849E0] text-white font-black text-xs rounded-2xl shadow-md transition-all cursor-pointer"
+                      >
+                        Retourner à la Bibliothèque
+                      </button>
                     </div>
                   )}
 

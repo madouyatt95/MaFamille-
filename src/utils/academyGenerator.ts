@@ -1,4 +1,5 @@
 import type { AcademyQuestion } from '../data/academyData';
+import { staticAcademyQuestions } from '../data/academyData';
 
 // --- French Conjugation Helper ---
 const verbsData: Record<string, {
@@ -387,6 +388,52 @@ export function generateQuestionForLesson(
 ): AcademyQuestion {
   const id = `lesson_q_${lessonId}_${Math.floor(Math.random() * 100000)}`;
 
+  // 1. Try to find static questions matching the lessonId first
+  const matches = staticAcademyQuestions.filter((q) => q.lessonId === lessonId);
+  if (matches.length > 0) {
+    const chosen = matches[Math.floor(Math.random() * matches.length)];
+    return {
+      ...chosen,
+      id: `${chosen.id}_${Math.floor(Math.random() * 100000)}`,
+      niveau
+    };
+  }
+
+  // 2. Procedural Multiplication Table Generator
+  if (lessonId.startsWith('les_mat_mult') || lessonId === 'les_ce2_mat_mult7') {
+    let tableNum = 7; // default
+    if (lessonId === 'les_ce2_mat_mult7') {
+      tableNum = 7;
+    } else if (lessonId === 'les_mat_mult_rev' || lessonId === 'les_mat_mult_defi') {
+      tableNum = Math.floor(Math.random() * 9) + 2; // 2 to 10
+    } else {
+      const numStr = lessonId.replace('les_mat_mult', '');
+      const num = parseInt(numStr, 10);
+      if (!isNaN(num)) tableNum = num;
+    }
+
+    const mult = Math.floor(Math.random() * 10) + 1;
+    const ans = tableNum * mult;
+    const distractors = getRandomDistractors(ans, 3, 8);
+    return {
+      id,
+      niveau,
+      matiere: 'Mathématiques',
+      competence: 'calcul',
+      chapitre: `Table de ${tableNum}`,
+      question: `Combien font ${tableNum} × ${mult} ?`,
+      options: shuffle([String(ans), ...distractors.map(String)]),
+      reponse: String(ans),
+      explication: `Car ${tableNum} fois ${mult} font ${ans}.`,
+      indice: `Tu peux faire l'addition de ${tableNum} plusieurs fois de suite.`,
+      difficulte: 2,
+      xp: 10,
+      etoiles: 1,
+      lessonId
+    };
+  }
+
+  // 3. Procedural Additions
   if (lessonId === 'les_cp_mat_add') {
     const a = Math.floor(Math.random() * 6) + 1;
     const b = Math.floor(Math.random() * 4) + 1;
@@ -404,426 +451,68 @@ export function generateQuestionForLesson(
       indice: "Compte 1 par 1 en partant du premier nombre !",
       difficulte: 1,
       xp: 10,
-      etoiles: 1
+      etoiles: 1,
+      lessonId
     };
   }
 
-  if (lessonId === 'les_ce2_mat_mult7') {
-    const mult = Math.floor(Math.random() * 10) + 1;
-    const ans = 7 * mult;
-    return {
-      id,
-      niveau,
-      matiere: 'Mathématiques',
-      competence: 'calcul',
-      chapitre: 'Table de 7',
-      question: `Combien font 7 × ${mult} ?`,
-      options: shuffle([String(ans), ...getRandomDistractors(ans, 3, 8).map(String)]),
-      reponse: String(ans),
-      explication: `7 fois ${mult} font ${ans}.`,
-      indice: "Répète 7 plusieurs fois de suite !",
-      difficulte: 2,
-      xp: 12,
-      etoiles: 1
-    };
-  }
+  // 4. Procedural Conjugation
+  if (lessonId.startsWith('les_fra_conj_')) {
+    let tense: 'present' | 'imparfait' | 'futur' | 'passeCompose' = 'present';
+    if (lessonId.includes('_pres')) tense = 'present';
+    else if (lessonId.includes('_fut')) tense = 'futur';
+    else if (lessonId.includes('_imp')) tense = 'imparfait';
+    else if (lessonId.includes('_pc')) tense = 'passeCompose';
 
-  if (lessonId === 'les_cm1_mat_frac') {
-    const list = [
-      { q: "Si on coupe une tarte en 4 parts et qu'on en mange 3, quelle fraction reste-t-il ?", ans: "1/4", opt: ["1/4", "3/4", "2/4", "1/2"], exp: "Il reste 1 part sur les 4 d'origine, donc 1/4." },
-      { q: "Dans la fraction 2/3, comment s'appelle le nombre 2 ?", ans: "Le numérateur", opt: ["Le numérateur", "Le dénominateur", "Le diviseur", "L'unité"], exp: "Le nombre du haut est le numérateur." },
-      { q: "Quelle fraction représente la moitié d'un objet ?", ans: "1/2", opt: ["1/2", "1/3", "1/4", "2/3"], exp: "La moitié se note 1/2." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Mathématiques',
-      competence: 'calcul',
-      chapitre: 'Fractions',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "Pense au numérateur en haut et au dénominateur en bas !",
-      difficulte: 2,
-      xp: 12,
-      etoiles: 1
-    };
-  }
+    // Choose a verb based on subgroup
+    let verb = 'aimer';
+    if (lessonId.includes('_etre_avoir')) {
+      verb = Math.random() > 0.5 ? 'être' : 'avoir';
+    } else if (lessonId.includes('_1er')) {
+      verb = 'aimer';
+    } else if (lessonId.includes('_2e')) {
+      verb = 'finir';
+    } else if (lessonId.includes('_freq')) {
+      const freqVerbs = ['aller', 'faire', 'avoir', 'être'];
+      verb = freqVerbs[Math.floor(Math.random() * freqVerbs.length)];
+    } else {
+      const verbList = Object.keys(verbsData);
+      verb = verbList[Math.floor(Math.random() * verbList.length)];
+    }
 
-  if (lessonId === 'les_3e_mat_pyth') {
-    const list = [
-      { q: "Dans un triangle rectangle de côtés adjacents 6 cm et 8 cm, quelle est la longueur de l'hypoténuse ?", ans: "10 cm", opt: ["10 cm", "14 cm", "12 cm", "9 cm"], exp: "Hypoténuse² = 6² + 8² = 36 + 64 = 100. Racine de 100 = 10." },
-      { q: "Comment s'appelle le côté le plus long opposé à l'angle droit ?", ans: "L'hypoténuse", opt: ["L'hypoténuse", "Le côté adjacent", "L'ordonnée", "L'abscisse"], exp: "C'est l'hypoténuse." },
-      { q: "Si un triangle ABC est rectangle en A, d'après Pythagore :", ans: "BC² = AB² + AC²", opt: ["BC² = AB² + AC²", "AB² = BC² + AC²", "AC² = AB² + BC²", "AB = BC + AC"], exp: "Le carré de l'hypoténuse BC est égal à la somme des carrés des autres côtés." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Mathématiques',
-      competence: 'calcul',
-      chapitre: 'Théorème de Pythagore',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "Applique la formule a² + b² = c².",
-      difficulte: 2,
-      xp: 15,
-      etoiles: 2
-    };
-  }
+    const pronounIdx = Math.floor(Math.random() * 6);
+    const correctVal = verbsData[verb][tense][pronounIdx];
+    const pronoun = pronouns[pronounIdx];
+    const tenseName = tenseNames[tense];
 
-  if (lessonId === 'les_lyc_mat_deriv') {
-    const list = [
-      { q: "Quelle est la dérivée de f(x) = 5x + 3 ?", ans: "5", opt: ["5", "3", "5x", "0"], exp: "La dérivée de ax + b est a, donc ici c'est 5." },
-      { q: "Quelle est la dérivée de f(x) = 2x² ?", ans: "4x", opt: ["4x", "2x", "4", "x²"], exp: "La dérivée de x² est 2x, donc 2 * 2x = 4x." },
-      { q: "Si f'(x) < 0 sur un intervalle, alors la fonction f est :", ans: "Décroissante", opt: ["Décroissante", "Croissante", "Constante", "Nulle"], exp: "Une dérivée strictement négative implique une fonction décroissante." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Mathématiques',
-      competence: 'calcul',
-      chapitre: 'Dérivées',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "Pense au coefficient directeur de la tangente !",
-      difficulte: 2,
-      xp: 15,
-      etoiles: 2
-    };
-  }
+    const distractorsSet = new Set<string>();
+    verbsData[verb][tense].forEach(form => {
+      if (form !== correctVal) distractorsSet.add(form);
+    });
+    const selectedDistractors = shuffle(Array.from(distractorsSet)).slice(0, 3);
+    while (selectedDistractors.length < 3) {
+      selectedDistractors.push(correctVal + "es");
+    }
 
-  if (lessonId === 'les_cp_fra_ou') {
-    const list = [
-      { q: "Quel mot s'écrit avec les lettres 'o' et 'u' pour faire [ou] ?", ans: "La poule", opt: ["La poule", "La tortue", "Le chat", "Le vélo"], exp: "Poule s'écrit p-o-u-l-e, et contient bien le son [ou]." },
-      { q: "Quel mot contient le son [ou] ?", ans: "Un loup", opt: ["Un loup", "Une moto", "Un nid", "Un mur"], exp: "Loup se termine par o-u-p, formant le son [ou]." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Français',
-      competence: 'orthographe',
-      chapitre: 'Le son [ou]',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "Prononce les mots à voix haute pour entendre 'ou' !",
-      difficulte: 1,
-      xp: 10,
-      etoiles: 1
-    };
-  }
-
-  if (lessonId === 'les_ce2_fra_sujver') {
-    const list = [
-      { q: "Dans 'Le chien cour___ après la balle', comment se termine le verbe ?", ans: "t", opt: ["t", "ent", "es", "ons"], exp: "Le sujet is 'Le chien' (il), la terminaison du verbe courir est donc 't' (court)." },
-      { q: "Dans 'Les enfants jou___ dehors', comment se termine le verbe ?", ans: "ent", opt: ["ent", "e", "ons", "ez"], exp: "Le sujet est 'Les enfants' (ils), donc la terminaison au pluriel est '-ent' (jouent)." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
     return {
       id,
       niveau,
       matiere: 'Français',
       competence: 'conjugaison',
-      chapitre: 'Accord sujet-verbe',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "Trouve qui fait l'action pour accorder le verbe !",
+      chapitre: 'Conjugaison',
+      question: `Conjugue le verbe "${verb}" au ${tenseName} avec le pronom "${pronoun}" :`,
+      options: shuffle([correctVal, ...selectedDistractors]),
+      reponse: correctVal,
+      explication: `Avec "${pronoun}", la forme correcte est "${correctVal}".`,
+      indice: `Pense au radical et aux terminaisons régulières du ${tenseName}.`,
       difficulte: 2,
       xp: 12,
-      etoiles: 1
+      etoiles: 1,
+      lessonId
     };
   }
 
-  if (lessonId === 'les_cm1_fra_al') {
-    const list = [
-      { q: "Quel est le pluriel de 'Un animal' ?", ans: "Des animaux", opt: ["Des animaux", "Des animals", "Des originale", "Des animalux"], exp: "Le pluriel des mots en -al se fait en -aux, sauf exceptions." },
-      { q: "Quel est le pluriel de 'Un festival' (exception) ?", ans: "Des festivals", opt: ["Des festivals", "Des festivaux", "Des festivales", "Des festivalx"], exp: "Festival fait partie des exceptions et prend un simple 's' au pluriel." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Français',
-      competence: 'orthographe',
-      chapitre: 'Pluriel en -al',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "Est-ce une exception de la liste (bal, carnaval, festival...) ?",
-      difficulte: 2,
-      xp: 12,
-      etoiles: 1
-    };
-  }
-
-  if (lessonId === 'les_3e_fra_cond') {
-    const list = [
-      { q: "Comment conjugue-t-on 'chanter' à la première personne du singulier au conditionnel présent ?", ans: "Je chanterais", opt: ["Je chanterais", "Je chanterai", "Je chantois", "Je chanteras"], exp: "Radical du futur (chanter-) + terminaison de l'imparfait (-ais) = chanterais." },
-      { q: "Quelle forme correspond à 'Vous (finir)' au conditionnel présent ?", ans: "Vous finiriez", opt: ["Vous finiriez", "Vous finirez", "Vous finissiez", "Vous finiriezs"], exp: "Radical du futur (finir-) + terminaison de l'imparfait (-iez) = finiriez." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Français',
-      competence: 'conjugaison',
-      chapitre: 'Conditionnel présent',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "Pense au radical du futur suivi des terminaisons de l'imparfait.",
-      difficulte: 2,
-      xp: 12,
-      etoiles: 1
-    };
-  }
-
-  if (lessonId === 'les_ce2_dec_eau') {
-    const list = [
-      { q: "Comment appelle-t-on l'eau sous forme de gaz ?", ans: "La vapeur d'eau", opt: ["La vapeur d'eau", "La glace", "La pluie", "La grêle"], exp: "L'eau gazeuse s'appelle la vapeur d'eau." },
-      { q: "Quel changement d'état se produit quand la glace devient de l'eau liquide ?", ans: "La fusion", opt: ["La fusion", "La solidification", "L'évaporation", "La condensation"], exp: "Le passage solide ➔ liquide est la fusion." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Découverte',
-      competence: 'sciences',
-      chapitre: 'États de l\'eau',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "Pense à la chaleur qui fait fondre la glace.",
-      difficulte: 1,
-      xp: 10,
-      etoiles: 1
-    };
-  }
-
-  if (lessonId === 'les_cm1_dec_pharaons') {
-    const list = [
-      { q: "Comment les Égyptiens de l'Antiquité conservaient-ils les corps des pharaons ?", ans: "Par la momification", opt: ["Par la momification", "Par enterrement direct", "Par congélation", "Par crémation"], exp: "Le corps était vidé, salé et enveloppé de bandelettes pour devenir une momie." },
-      { q: "Quel fleuve vital coulait en Égypte ancienne ?", ans: "Le Nil", opt: ["Le Nil", "Le Danube", "L'Euphrate", "Le Gange"], exp: "Le Nil permettait l'agriculture grâce à ses crues fertiles." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Découverte',
-      competence: 'culture',
-      chapitre: 'Égypte ancienne',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "On enroulait des bandelettes autour du corps.",
-      difficulte: 1,
-      xp: 12,
-      etoiles: 1
-    };
-  }
-
-  if (lessonId === 'les_6e_lan_irregular') {
-    const list = [
-      { q: "Quel est le prétérit du verbe irrégulier 'to see' (voir) ?", ans: "saw", opt: ["saw", "seed", "seen", "was"], exp: "La conjugaison de see est see ➔ saw ➔ seen." },
-      { q: "Quel est le prétérit du verbe irrégulier 'to make' (faire) ?", ans: "made", opt: ["made", "maked", "make", "done"], exp: "La conjugaison de make est make ➔ made ➔ made." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Anglais',
-      competence: 'anglais',
-      chapitre: 'Verbes irréguliers',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "C'est une forme courte.",
-      difficulte: 2,
-      xp: 12,
-      etoiles: 1
-    };
-  }
-
-  if (lessonId === 'les_cp_lan_colors') {
-    const list = [
-      { q: "Comment dit-on 'Rouge' en anglais ?", ans: "Red", opt: ["Red", "Blue", "Green", "Yellow"], exp: "Red est la traduction de rouge en anglais." },
-      { q: "Quelle est la couleur 'Yellow' ?", ans: "Jaune", opt: ["Jaune", "Vert", "Bleu", "Blanc"], exp: "Yellow se traduit par jaune." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Langues',
-      competence: 'anglais',
-      chapitre: 'Colors',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "Pense au soleil pour yellow, au feu pour red.",
-      difficulte: 1,
-      xp: 10,
-      etoiles: 1
-    };
-  }
-
-  if (lessonId === 'les_ce2_lan_wolof') {
-    const list = [
-      { q: "En Wolof, que signifie 'Na nga def ?' ?", ans: "Comment vas-tu ?", opt: ["Comment vas-tu ?", "Merci", "Au revoir", "S'il te plaît"], exp: "C'est la salutation habituelle en Wolof." },
-      { q: "Comment dit-on 'Merci' en Wolof ?", ans: "Jërëjëf", opt: ["Jërëjëf", "Mangi fi", "Na nga def", "Waaw"], exp: "Jërëjëf signifie merci." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Langues',
-      competence: 'culture',
-      chapitre: 'Wolof de base',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "Na nga def est une question, Jërëjëf est un remerciement.",
-      difficulte: 1,
-      xp: 10,
-      etoiles: 1
-    };
-  }
-
-  if (lessonId === 'les_geo_oceans') {
-    const list = [
-      { q: "Quel est le plus grand océan de la Terre ?", ans: "L'océan Pacifique", opt: ["L'océan Pacifique", "L'océan Atlantique", "L'océan Indien", "L'océan Arctique"], exp: "L'océan Pacifique couvre environ 30% de la surface de la Terre." },
-      { q: "Combien y a-t-il de continents sur Terre ?", ans: "6", opt: ["6", "5", "7", "8"], exp: "Il y a 6 grands continents : Asie, Afrique, Amérique, Europe, Océanie, Antarctique." },
-      { q: "Sur quel continent se trouve l'Égypte ?", ans: "L'Afrique", opt: ["L'Afrique", "L'Asie", "L'Europe", "L'Amérique"], exp: "L'Égypte est située dans le nord-est de l'Afrique." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Géographie',
-      competence: 'culture',
-      chapitre: 'Océans et Continents',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "C'est une grande étendue d'eau ou de terre.",
-      difficulte: 1,
-      xp: 10,
-      etoiles: 1
-    };
-  }
-
-  if (lessonId === 'les_lecture_recit') {
-    const list = [
-      { q: "Comment s'appelle le personnage principal d'une histoire ?", ans: "Le héros ou l'héroïne", opt: ["Le héros ou l'héroïne", "L'opposant", "Le narrateur", "L'allié"], exp: "Le héros ou l'héroïne mène l'histoire et réalise la quête." },
-      { q: "Quel personnage aide le héros dans sa mission ?", ans: "L'allié", opt: ["L'allié", "L'opposant", "L'antagoniste", "Le figurant"], exp: "Les alliés soutiennent le héros dans ses épreuves." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Lecture',
-      competence: 'lecture',
-      chapitre: 'Récits',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "Pense au rôle qu'il joue pour ou contre le personnage principal.",
-      difficulte: 1,
-      xp: 10,
-      etoiles: 1
-    };
-  }
-
-  if (lessonId === 'les_culture_instruments') {
-    const list = [
-      { q: "À quelle famille appartient la guitare ?", ans: "Les cordes", opt: ["Les cordes", "Les vents", "Les percussions", "Les cuivres"], exp: "Le musicien pince les cordes de la guitare pour produire des notes." },
-      { q: "Lequel de ces instruments fait partie des percussions ?", ans: "Le tambour", opt: ["Le tambour", "Le violon", "La flûte", "La trompette"], exp: "On tape sur le tambour pour faire résonner sa membrane." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Culture',
-      competence: 'culture',
-      chapitre: 'Musique',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "Demande-toi si on souffle, si on gratte ou si on tape dessus !",
-      difficulte: 1,
-      xp: 10,
-      etoiles: 1
-    };
-  }
-
-  if (lessonId === 'les_6e_hist_moyenage') {
-    const list = [
-      { q: "Quel groupe de la société médiévale faisait la guerre ?", ans: "La Noblesse", opt: ["La Noblesse", "Le Clergé", "Les Paysans", "Les Serfs"], exp: "Les chevaliers et seigneurs faisaient partie de la Noblesse et devaient défendre le royaume." },
-      { q: "Où vivait le seigneur pour se protéger des attaques ?", ans: "Dans un château fort", opt: ["Dans un château fort", "Dans un monastère", "Dans une chaumière", "Dans une villa"], exp: "Le château fort offrait une protection militaire grâce à ses remparts." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Histoire',
-      competence: 'culture',
-      chapitre: 'Le Moyen Âge',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "Ils portaient des armures et des épées.",
-      difficulte: 2,
-      xp: 12,
-      etoiles: 1
-    };
-  }
-
-  if (lessonId === 'les_5e_sci_volcans') {
-    const list = [
-      { q: "Comment s'appelle la roche fondue qui sort d'un volcan en éruption ?", ans: "La lave", opt: ["La lave", "Le magma", "Le granite", "Le basalte"], exp: "Le magma devient de la lave lorsqu'il sort à la surface et perd ses gaz." },
-      { q: "Quel volcan d'Italie a détruit la ville de Pompéi dans l'Antiquité ?", ans: "Le Vésuve", opt: ["Le Vésuve", "L'Etna", "Le Stromboli", "Le Piton de la Fournaise"], exp: "Le Vésuve a enseveli Pompéi sous les cendres en l'an 79." }
-    ];
-    const item = list[Math.floor(Math.random() * list.length)];
-    return {
-      id,
-      niveau,
-      matiere: 'Sciences',
-      competence: 'sciences',
-      chapitre: 'Les Volcans',
-      question: item.q,
-      options: shuffle(item.opt),
-      reponse: item.ans,
-      explication: item.exp,
-      indice: "C'est un volcan européen très célèbre et explosif.",
-      difficulte: 2,
-      xp: 12,
-      etoiles: 1
-    };
-  }
-
-  // Fallback to general generator
+  // 5. Fallback to general generator
   const mat: 'Mathématiques' | 'Français' | 'Langues' = 
     lessonId.includes('_mat_') ? 'Mathématiques' : 
     (lessonId.includes('_fra_') ? 'Français' : 'Langues');

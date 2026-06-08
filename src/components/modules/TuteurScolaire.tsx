@@ -202,6 +202,8 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     localStorage.setItem(key, String(targetAverage));
   }, [targetAverage, activeMemberId]);
 
+  const [learningMode, setLearningMode] = useState<'guided' | 'library'>('guided');
+
   const [currentFlashIndex, setCurrentFlashIndex] = useState(0);
   const [isFlashFlipped, setIsFlashFlipped] = useState(false);
 
@@ -344,7 +346,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   };
 
   // Lesson & Multiplication Table States
-  const [selectedLessonCategory, setSelectedLessonCategory] = useState<'maths' | 'français' | 'sciences' | 'langues' | null>(null);
+  const [selectedLessonCategory, setSelectedLessonCategory] = useState<'maths' | 'français' | 'sciences' | 'langues' | 'histoire' | 'géographie' | 'anglais' | 'culture' | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
 
@@ -742,7 +744,15 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
           id: `grade-teen-exam-${Date.now()}`,
           studentId: activeMemberId,
           studentName: getChildName(activeMemberId),
-          subject: selectedLessonCategory ? (selectedLessonCategory === 'maths' ? 'Mathématiques' : selectedLessonCategory === 'français' ? 'Français' : selectedLessonCategory === 'sciences' ? 'Sciences / SVT' : 'Langues') : 'Mathématiques',
+          subject: selectedLessonCategory ? (
+            selectedLessonCategory === 'maths' ? 'Mathématiques' :
+            selectedLessonCategory === 'français' ? 'Français' :
+            selectedLessonCategory === 'histoire' ? 'Histoire' :
+            selectedLessonCategory === 'géographie' ? 'Géographie' :
+            selectedLessonCategory === 'sciences' ? 'Sciences / SVT' :
+            selectedLessonCategory === 'anglais' ? 'Anglais' :
+            selectedLessonCategory === 'culture' ? 'Culture générale' : 'Langues'
+          ) : 'Mathématiques',
           value: finalGrade,
           max: 20,
           coef: 1,
@@ -1556,20 +1566,20 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
           📚 Mes cours
         </button>
         <button
+          onClick={() => { setActiveSubTab('devoirs' as any); setActiveQuiz(null); }}
+          className={`py-2 rounded-xl text-[9px] sm:text-xs font-bold transition-all cursor-pointer ${
+            activeSubTab === 'devoirs' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'
+          }`}
+        >
+          📝 Devoirs
+        </button>
+        <button
           onClick={() => { setActiveSubTab('revisions' as any); setActiveQuiz(null); }}
           className={`py-2 rounded-xl text-[9px] sm:text-xs font-bold transition-all cursor-pointer ${
             activeSubTab === 'revisions' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'
           }`}
         >
-          📝 Révisions
-        </button>
-        <button
-          onClick={() => { setActiveSubTab('defis' as any); setActiveQuiz(null); }}
-          className={`py-2 rounded-xl text-[9px] sm:text-xs font-bold transition-all cursor-pointer ${
-            activeSubTab === 'defis' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'
-          }`}
-        >
-          🎯 Défis
+          🎯 Flash
         </button>
         <button
           onClick={() => { setActiveSubTab('notes'); setActiveQuiz(null); }}
@@ -1577,7 +1587,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
             activeSubTab === 'notes' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'
           }`}
         >
-          📊 Notes
+          📊 Bulletins
         </button>
         <button
           onClick={() => { setActiveSubTab('progression' as any); setActiveQuiz(null); }}
@@ -1700,12 +1710,40 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
           <div className="space-y-3">
             <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">Matières disponibles :</span>
             <div className="bg-white/5 border border-white/8 rounded-[32px] p-5 space-y-4">
+              
+              {/* Learning Mode Toggle */}
+              <div className="bg-[#07111F]/60 p-1.5 rounded-2xl border border-white/5 grid grid-cols-2 gap-1.5 max-w-xs mx-auto shadow-inner mb-2">
+                <button
+                  onClick={() => setLearningMode('guided')}
+                  className={`py-1.5 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
+                    learningMode === 'guided'
+                      ? 'bg-[#6C5CFF] text-white shadow-md'
+                      : 'text-white/40 hover:text-white/60'
+                  }`}
+                >
+                  🛣️ Parcours Guidé
+                </button>
+                <button
+                  onClick={() => setLearningMode('library')}
+                  className={`py-1.5 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
+                    learningMode === 'library'
+                      ? 'bg-[#6C5CFF] text-white shadow-md'
+                      : 'text-white/40 hover:text-white/60'
+                  }`}
+                >
+                  📚 Bibliothèque
+                </button>
+              </div>
+
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { id: 'maths', label: '🧮 Mathématiques' },
+                  { id: 'maths', label: '🧮 Maths' },
                   { id: 'français', label: '✍️ Français' },
-                  { id: 'sciences', label: '🧬 Sciences / SVT' },
-                  { id: 'langues', label: '🌍 Langues' }
+                  { id: 'histoire', label: '🏺 Histoire' },
+                  { id: 'géographie', label: '🗺️ Géographie' },
+                  { id: 'sciences', label: '🧬 Sciences' },
+                  { id: 'anglais', label: '🇬🇧 Anglais' },
+                  { id: 'culture', label: '💡 Culture G' }
                 ].map(cat => (
                   <button
                     key={cat.id}
@@ -1728,7 +1766,15 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                 <div className="space-y-4 pt-4 border-t border-white/5 animate-fadeIn">
                   <div className="flex justify-between items-center">
                     <h5 className="text-xs font-black text-white uppercase tracking-wider">
-                      Fiches en {selectedLessonCategory === 'maths' ? 'Mathématiques' : selectedLessonCategory === 'français' ? 'Français' : selectedLessonCategory === 'sciences' ? 'Sciences / SVT' : 'Langues'}
+                      Fiches en {
+                        selectedLessonCategory === 'maths' ? 'Mathématiques' :
+                        selectedLessonCategory === 'français' ? 'Français' :
+                        selectedLessonCategory === 'histoire' ? 'Histoire' :
+                        selectedLessonCategory === 'géographie' ? 'Géographie' :
+                        selectedLessonCategory === 'sciences' ? 'Sciences' :
+                        selectedLessonCategory === 'anglais' ? 'Anglais' :
+                        'Culture générale'
+                      }
                     </h5>
                     <button 
                       onClick={() => setSelectedLessonCategory(null)}
@@ -1740,39 +1786,44 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
 
                   <div className="space-y-2">
                     {(() => {
-                      const lessons = staticAcademyLessons.filter(l => l.niveau === currentGrade && 
+                      const lessons = staticAcademyLessons.filter(l => 
                         (selectedLessonCategory === 'maths' ? l.matiere === 'Mathématiques' : 
                          selectedLessonCategory === 'français' ? l.matiere === 'Français' : 
-                         selectedLessonCategory === 'sciences' ? l.matiere === 'Découverte' : 
-                         l.matiere === 'Langues')
+                         selectedLessonCategory === 'histoire' ? l.matiere === 'Histoire' : 
+                         selectedLessonCategory === 'géographie' ? l.matiere === 'Géographie' : 
+                         selectedLessonCategory === 'sciences' ? (l.matiere === 'Sciences' || l.matiere === 'Découverte') : 
+                         selectedLessonCategory === 'anglais' ? (l.matiere === 'Anglais' || l.matiere === 'Langues') : 
+                         (l.matiere === 'Culture G' || l.matiere === 'Culture'))
                       );
-                      
-                      const displayLessons = lessons.length > 0 
-                        ? lessons 
-                        : staticAcademyLessons.filter(l => 
-                            (selectedLessonCategory === 'maths' ? l.matiere === 'Mathématiques' : 
-                             selectedLessonCategory === 'français' ? l.matiere === 'Français' : 
-                             selectedLessonCategory === 'sciences' ? l.matiere === 'Découverte' : 
-                             l.matiere === 'Langues')
-                          );
 
-                      if (displayLessons.length === 0) {
+                      if (lessons.length === 0) {
                         return <p className="text-xs text-white/30 italic py-2">Aucune fiche de cours disponible pour ce niveau.</p>;
                       }
 
-                      return displayLessons.map((les) => (
-                        <button
-                          key={les.id}
-                          onClick={() => setSelectedLesson(les)}
-                          className="w-full p-3.5 bg-white/3 hover:bg-[#6C5CFF]/15 border border-white/5 rounded-2xl text-left text-xs font-black text-white flex justify-between items-center transition-all cursor-pointer"
-                        >
-                          <div className="flex items-center space-x-2.5">
-                            <BookOpen className="w-4 h-4 text-[#6C5CFF]" />
-                            <span>{les.title}</span>
-                          </div>
-                          <ChevronRight className="w-4.5 h-4.5 text-white/30" />
-                        </button>
-                      ));
+                      return lessons.map((les, idx) => {
+                        const isCompleted = stats.completedQuizzesCount > idx * 2;
+                        const isUnlocked = learningMode === 'library' || idx === 0 || isCompleted;
+
+                        return (
+                          <button
+                            key={les.id}
+                            disabled={!isUnlocked}
+                            onClick={() => setSelectedLesson(les)}
+                            className={`w-full p-3.5 border rounded-2xl text-left text-xs font-black text-white flex justify-between items-center transition-all cursor-pointer ${
+                              isUnlocked ? 'bg-white/3 hover:bg-[#6C5CFF]/15 border-white/5' : 'bg-white/1 border-white/2 opacity-40 cursor-not-allowed'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-2.5">
+                              <span className="text-sm">{isUnlocked ? '📖' : '🔒'}</span>
+                              <span>{les.title}</span>
+                            </div>
+                            <div className="flex items-center space-x-1.5">
+                              {isCompleted && <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-black uppercase">Fait</span>}
+                              <ChevronRight className="w-4.5 h-4.5 text-white/30" />
+                            </div>
+                          </button>
+                        );
+                      });
                     })()}
                   </div>
                 </div>
@@ -1969,6 +2020,35 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
             </div>
           </div>
 
+          {/* Contrôle Blanc Launcher */}
+          <div className="space-y-3">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">📝 Contrôle Blanc (Évaluation Finale) :</span>
+            <div className="bg-gradient-to-r from-[#E040FB]/15 to-[#6C5CFF]/5 border border-[#E040FB]/20 rounded-[32px] p-5 space-y-3">
+              <div className="space-y-1">
+                <h4 className="text-xs font-black text-white">Évaluation Finale Mature</h4>
+                <p className="text-[11px] text-white/60 leading-snug">
+                  Un examen blanc de 10 questions sur la matière de ton choix. Ta note sur 20 sera enregistrée dans ton bulletin.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                {[
+                  { label: "🧮 Maths", sub: "Mathématiques" },
+                  { label: "✍️ Français", sub: "Français" },
+                  { label: "🧬 Sciences", sub: "Sciences" },
+                  { label: "🇬🇧 Anglais", sub: "Langues" }
+                ].map(item => (
+                  <button
+                    key={item.sub}
+                    onClick={() => launchTeenExam(item.sub)}
+                    className="py-2.5 bg-[#E040FB] hover:bg-[#c513e0] text-white rounded-xl text-[10px] font-black cursor-pointer transition-all shadow-md animate-pulse"
+                  >
+                    📝 {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           {/* Exercises Bank */}
           <div className="space-y-3">
             <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">🎯 Banque d'Exercices Directs :</span>
@@ -2055,145 +2135,214 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
         </div>
       )}
 
-      {activeSubTab === 'defis' && !activeQuiz && (
+      {activeSubTab === 'devoirs' && !activeQuiz && (
         <div className="space-y-6 text-left animate-fadeIn">
-          {/* Header Card */}
-          <div className="bg-gradient-to-br from-[#E040FB]/15 to-[#6C5CFF]/5 border border-[#E040FB]/20 rounded-[32px] p-5 shadow-lg flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-[9px] font-black text-[#E040FB] uppercase tracking-wider">Arène des Défis</span>
-              <h3 className="text-base font-black text-white">Prêt à affronter tes limites ?</h3>
-              <p className="text-[10px] text-white/50">Mesure-toi à la famille et gagne des bonus d'XP !</p>
+          {/* Homework Summary Card */}
+          <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 shadow-lg space-y-3 relative overflow-hidden">
+            <div className="absolute top-[-20%] right-[-10%] w-[40%] h-[40%] rounded-full bg-[#6C5CFF]/10 blur-xl pointer-events-none" />
+            <div className="flex justify-between items-center">
+              <div className="space-y-1">
+                <span className="text-[9px] font-black text-[#6C5CFF] uppercase tracking-wider">Cahier de Textes Ado</span>
+                <h3 className="text-base font-black text-white">
+                  {schoolTasks.filter(t => t.assignedMemberId === activeMemberId && t.done).length} sur {schoolTasks.filter(t => t.assignedMemberId === activeMemberId).length} devoirs faits !
+                </h3>
+              </div>
+              <span className="text-3xl">📝</span>
             </div>
-            <span className="text-3xl">🎯</span>
+            
+            <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
+              <div 
+                className="h-full bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] rounded-full transition-all" 
+                style={{ 
+                  width: `${schoolTasks.filter(t => t.assignedMemberId === activeMemberId).length > 0 
+                    ? (schoolTasks.filter(t => t.assignedMemberId === activeMemberId && t.done).length / schoolTasks.filter(t => t.assignedMemberId === activeMemberId).length) * 100 
+                    : 100}%` 
+                }}
+              />
+            </div>
           </div>
 
-          {/* Daily & Weekly Challenges cards */}
-          <div className="grid grid-cols-1 gap-3">
-            <button 
-              onClick={launchDailyChallenge} 
-              className="bg-gradient-to-br from-[#FFB020]/15 to-[#FF8C00]/5 border-2 border-[#FFB020]/30 rounded-[28px] p-5 text-left flex items-start space-x-4 hover:border-[#FFB020]/50 transition-all cursor-pointer w-full"
-            >
-              <span className="p-3 bg-[#FFB020]/20 rounded-2xl text-xl shrink-0">🏆</span>
-              <div className="space-y-1 min-w-0 flex-1">
-                <h4 className="text-xs font-black text-white flex items-center gap-1.5">
-                  Défi Quotidien 
-                  <span className="text-[8px] bg-[#FFB020]/20 text-[#FFB020] px-1.5 py-0.5 rounded-full font-black uppercase">XP DOUBLE</span>
-                </h4>
-                <p className="text-[10px] text-white/60 font-semibold leading-snug">
-                  10 questions mélangées. Reçois le double de récompenses (+100 XP / +10 Étoiles) !
-                </p>
-              </div>
-            </button>
+          {/* Agenda Grid */}
+          <div className="grid grid-cols-1 gap-4">
+            
+            {/* Overdue (Retards) or Priority Tasks */}
+            {(() => {
+              const myTasks = schoolTasks.filter(t => t.assignedMemberId === activeMemberId);
+              const overdueTasks = myTasks.filter(t => !t.done && (t.dueDate.toLowerCase().includes('hier') || t.difficulty === 'hard'));
+              if (overdueTasks.length === 0) return null;
 
-            <button 
-              onClick={launchWeeklyEvaluation} 
-              className="bg-gradient-to-br from-[#E040FB]/15 to-[#6C5CFF]/5 border-2 border-[#E040FB]/25 rounded-[28px] p-5 text-left flex items-start space-x-4 hover:border-[#E040FB]/45 transition-all cursor-pointer w-full"
-            >
-              <span className="p-3 bg-[#E040FB]/20 rounded-2xl text-xl shrink-0">⚡</span>
-              <div className="space-y-1 min-w-0 flex-1">
-                <h4 className="text-xs font-black text-white flex items-center gap-1.5">
-                  Évaluation Hebdomadaire
-                  <span className="text-[8px] bg-[#E040FB]/20 text-[#E040FB] px-1.5 py-0.5 rounded-full font-black uppercase">Badge</span>
-                </h4>
-                <p className="text-[10px] text-white/60 font-semibold leading-snug">
-                  10 questions pour valider ton assiduité de la semaine et débloquer ton badge.
-                </p>
-              </div>
-            </button>
-          </div>
-
-          {/* Gamified Leaderboard */}
-          <div className="space-y-3">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">🏆 Classement XP Familial (Hebdo) :</span>
-            <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 space-y-3.5">
-              {(() => {
-                const leaderboardList = members && members.length > 0 
-                  ? members.map(m => {
-                      let memberXp = 120;
-                      if (m.id === activeMemberId) {
-                        memberXp = stats.xp + (stats.level - 1) * 300;
-                      } else if (m.role?.toLowerCase().includes('ado') || m.id === '3') {
-                        memberXp = 450;
-                      } else if (m.role?.toLowerCase().includes('enfant') || m.id === '4') {
-                        memberXp = 220;
-                      } else {
-                        memberXp = 90;
-                      }
-                      return {
-                        id: m.id,
-                        name: m.name,
-                        photoUrl: m.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80',
-                        xp: memberXp
-                      };
-                    }).sort((a, b) => b.xp - a.xp)
-                  : [
-                      { id: '3', name: 'Amadou', photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80', xp: 450 },
-                      { id: activeMemberId, name: activeMember?.name || 'Ado', photoUrl: activeMember?.photoUrl || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=100&q=80', xp: stats.xp + (stats.level - 1) * 300 },
-                      { id: '4', name: 'Awa', photoUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80', xp: 220 }
-                    ].sort((a, b) => b.xp - a.xp);
-
-                return leaderboardList.map((user, idx) => {
-                  const isMe = user.id === activeMemberId;
-                  const rankEmojis = ['👑', '🥈', '🥉'];
+              return (
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold text-rose-400 uppercase tracking-widest flex items-center space-x-1.5 bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-full w-fit">
+                    <span className="animate-pulse">⚠️</span>
+                    <span>Tâches Prioritaires / Retards</span>
+                  </span>
                   
-                  return (
-                    <div 
-                      key={user.id} 
-                      className={`flex items-center justify-between p-3 rounded-2xl transition-all ${
-                        isMe ? 'bg-[#6C5CFF]/15 border border-[#6C5CFF]/30' : 'bg-white/5 border border-white/5'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3 min-w-0">
-                        <span className="text-xs shrink-0 w-5 text-center font-black text-white/40">
-                          {rankEmojis[idx] || `${idx + 1}.`}
-                        </span>
-                        <img 
-                          src={user.photoUrl} 
-                          alt={user.name} 
-                          className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0"
-                        />
-                        <span className={`text-xs font-black truncate block ${isMe ? 'text-white' : 'text-white/80'}`}>
-                          {user.name} {isMe ? '(Moi)' : ''}
-                        </span>
-                      </div>
+                  <div className="space-y-2 animate-fadeIn">
+                    {overdueTasks.map(task => {
+                      const matchedLesson = staticAcademyLessons.find(l => 
+                        task.title.toLowerCase().includes(l.title.toLowerCase()) ||
+                        task.title.toLowerCase().includes(l.category.toLowerCase()) ||
+                        task.subject.toLowerCase().includes(l.category.toLowerCase())
+                      );
 
-                      <div className="flex items-center space-x-2 shrink-0">
-                        <span className="text-[10px] font-black text-[#FFB020] bg-[#FFB020]/10 px-2.5 py-1 rounded-xl">
-                          {user.xp} XP
-                        </span>
-                        
-                        {!isMe && (
-                          <button
-                            onClick={() => {
-                              const questions: AcademyQuestion[] = [];
-                              for (let i = 0; i < 10; i++) {
-                                questions.push(generateProceduralQuestion(currentGrade, i % 2 === 0 ? 'Mathématiques' : 'Français'));
-                              }
-                              setActiveQuiz({
-                                type: 'teen_exercise',
-                                questions,
-                                currentIndex: 0,
-                                score: 0,
-                                answers: [],
-                                selectedOption: null,
-                                showCorrection: false,
-                                xpEarned: 0,
-                                starsEarned: 0,
-                                showHint: false
-                              });
-                              alert(`⚔️ Lancement du Duel contre ${user.name} ! Obtiens au moins 8/10 pour gagner.`);
-                            }}
-                            className="p-1.5 bg-[#E040FB]/10 border border-[#E040FB]/20 hover:bg-[#E040FB]/25 text-[#E040FB] rounded-xl text-[9px] font-black uppercase cursor-pointer transition-all"
-                          >
-                            ⚔️ Duel
-                          </button>
-                        )}
+                      return (
+                        <div key={task.id} className="p-4 rounded-2xl bg-rose-500/5 border border-rose-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                              {task.title}
+                              <span className="text-[8px] bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded-full font-black uppercase">Urgent</span>
+                            </h4>
+                            <p className="text-[10px] text-white/50 mt-1">Matière: {task.subject} • Échéance: {task.dueDate}</p>
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            {matchedLesson && (
+                              <button
+                                onClick={() => {
+                                  setSelectedLesson(matchedLesson);
+                                  setSelectedLessonCategory(
+                                    matchedLesson.matiere === 'Mathématiques' ? 'maths' :
+                                    matchedLesson.matiere === 'Français' ? 'français' :
+                                    matchedLesson.matiere === 'Sciences' || matchedLesson.matiere === 'Découverte' ? 'sciences' :
+                                    'langues'
+                                  );
+                                  setActiveSubTab('cours');
+                                }}
+                                className="px-3 py-2 rounded-xl bg-[#6C5CFF]/20 border border-[#6C5CFF]/30 text-[#9E94FF] font-bold text-[9px] uppercase tracking-wider cursor-pointer"
+                              >
+                                Voir le cours 📖
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                setSchoolTasks(prev => prev.map(t => t.id === task.id ? { ...t, done: true } : t));
+                                setStats(s => ({ ...s, xp: s.xp + 15, stars: s.stars + 2 }));
+                                alert("Bravo ! Devoir terminé ! Tu gagnes +15 XP et +2 Étoiles. 🏆");
+                              }}
+                              className="px-3 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-bold text-[9px] uppercase tracking-wider cursor-pointer"
+                            >
+                              Terminer ✓
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* General Cahier de textes */}
+            <div className="space-y-3 animate-fadeIn">
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Agenda & Devoirs :</span>
+              
+              <div className="space-y-2.5">
+                {(() => {
+                  const myTasks = schoolTasks.filter(t => t.assignedMemberId === activeMemberId);
+                  if (myTasks.length === 0) {
+                    return <p className="text-xs text-white/40 italic">Aucun devoir programmé.</p>;
+                  }
+
+                  return myTasks.map(task => {
+                    const matchedLesson = staticAcademyLessons.find(l => 
+                      task.title.toLowerCase().includes(l.title.toLowerCase()) ||
+                      task.title.toLowerCase().includes(l.category.toLowerCase()) ||
+                      task.subject.toLowerCase().includes(l.category.toLowerCase())
+                    );
+
+                    return (
+                      <div key={task.id} className={`p-4 rounded-2xl border transition-all ${task.done ? 'bg-white/2 border-white/5 opacity-60' : 'bg-white/5 border-white/8'}`}>
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-1">
+                            <h4 className={`text-xs font-bold ${task.done ? 'line-through text-white/40' : 'text-white'}`}>{task.title}</h4>
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                              <span className="text-[9px] bg-white/5 border border-white/5 px-2 py-0.5 rounded-full text-white/60 font-semibold">{task.subject}</span>
+                              <span className="text-[9px] text-white/40 font-semibold">• Échéance: {task.dueDate}</span>
+                              {task.difficulty === 'hard' && (
+                                <span className="text-[8px] bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full text-rose-400 font-black uppercase">Difficile</span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex space-x-2 shrink-0">
+                            {matchedLesson && !task.done && (
+                              <button
+                                onClick={() => {
+                                  setSelectedLesson(matchedLesson);
+                                  setSelectedLessonCategory(
+                                    matchedLesson.matiere === 'Mathématiques' ? 'maths' :
+                                    matchedLesson.matiere === 'Français' ? 'français' :
+                                    matchedLesson.matiere === 'Sciences' || matchedLesson.matiere === 'Découverte' ? 'sciences' :
+                                    'langues'
+                                  );
+                                  setActiveSubTab('cours');
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-[#9E94FF] font-bold text-[9px] uppercase transition hover:bg-[#6C5CFF]/25 cursor-pointer"
+                              >
+                                Réviser le cours
+                              </button>
+                            )}
+                            
+                            <button
+                              onClick={() => {
+                                setSchoolTasks(prev => prev.map(t => t.id === task.id ? { ...t, done: !t.done } : t));
+                                if (!task.done) {
+                                  setStats(s => ({ ...s, xp: s.xp + 10, stars: s.stars + 1 }));
+                                  alert("Devoir coché ! Tu gagnes +10 XP. 📚✨");
+                                }
+                              }}
+                              className={`px-2.5 py-1.5 rounded-lg font-bold text-[9px] uppercase transition cursor-pointer ${
+                                task.done 
+                                  ? 'bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A]' 
+                                  : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/10'
+                              }`}
+                            >
+                              {task.done ? 'Fait ✓' : 'Marquer fait'}
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  );
-                });
-              })()}
+                    );
+                  });
+                })()}
+              </div>
             </div>
+
+            {/* Study/Review Recommendations (Révisions conseillées) */}
+            <div className="space-y-3">
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Révisions Conseillées :</span>
+              <div className="bg-[#112240]/40 border border-white/5 rounded-[32px] p-5 space-y-3">
+                <p className="text-[10px] text-white/50 leading-relaxed font-semibold">
+                  Voici des fiches de cours clés recommandées pour tes évaluations à venir :
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {staticAcademyLessons.slice(0, 4).map(les => (
+                    <button
+                      key={les.id}
+                      onClick={() => {
+                        setSelectedLesson(les);
+                        setSelectedLessonCategory(
+                          les.matiere === 'Mathématiques' ? 'maths' :
+                          les.matiere === 'Français' ? 'français' :
+                          les.matiere === 'Sciences' || les.matiere === 'Découverte' ? 'sciences' :
+                          'langues'
+                        );
+                        setActiveSubTab('cours');
+                      }}
+                      className="p-3 bg-white/5 border border-white/5 rounded-2xl hover:bg-[#6C5CFF]/15 hover:border-[#6C5CFF]/30 transition text-left cursor-pointer flex items-center justify-between"
+                    >
+                      <div className="min-w-0">
+                        <span className="text-[8px] text-[#6C5CFF] font-black uppercase tracking-wider block">{les.matiere}</span>
+                        <span className="text-xs font-bold text-white truncate block mt-0.5">{les.title}</span>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-white/30 shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
@@ -2496,6 +2645,137 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Challenges & Leaderboard (Merged from old Defis tab) */}
+          <div className="space-y-3 pt-4 border-t border-white/5">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">🎯 Défis & Évaluations :</span>
+            <div className="grid grid-cols-1 gap-3">
+              <button 
+                onClick={launchDailyChallenge} 
+                className="bg-gradient-to-br from-[#FFB020]/15 to-[#FF8C00]/5 border-2 border-[#FFB020]/30 rounded-[28px] p-5 text-left flex items-start space-x-4 hover:border-[#FFB020]/50 transition-all cursor-pointer w-full"
+              >
+                <span className="p-3 bg-[#FFB020]/20 rounded-2xl text-xl shrink-0">🏆</span>
+                <div className="space-y-1 min-w-0 flex-1">
+                  <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                    Défi Quotidien 
+                    <span className="text-[8px] bg-[#FFB020]/20 text-[#FFB020] px-1.5 py-0.5 rounded-full font-black uppercase">XP DOUBLE</span>
+                  </h4>
+                  <p className="text-[10px] text-white/60 font-semibold leading-snug">
+                    10 questions mélangées. Reçois le double de récompenses (+100 XP / +10 Étoiles) !
+                  </p>
+                </div>
+              </button>
+
+              <button 
+                onClick={launchWeeklyEvaluation} 
+                className="bg-gradient-to-br from-[#E040FB]/15 to-[#6C5CFF]/5 border-2 border-[#E040FB]/25 rounded-[28px] p-5 text-left flex items-start space-x-4 hover:border-[#E040FB]/45 transition-all cursor-pointer w-full"
+              >
+                <span className="p-3 bg-[#E040FB]/20 rounded-2xl text-xl shrink-0">⚡</span>
+                <div className="space-y-1 min-w-0 flex-1">
+                  <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                    Évaluation Hebdomadaire
+                    <span className="text-[8px] bg-[#E040FB]/20 text-[#E040FB] px-1.5 py-0.5 rounded-full font-black uppercase">Badge</span>
+                  </h4>
+                  <p className="text-[10px] text-white/60 font-semibold leading-snug">
+                    10 questions pour valider ton assiduité de la semaine et débloquer ton badge.
+                  </p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <span className="text-[10px] font-black text-white/40 tracking-widest block">🏆 Classement Familial :</span>
+            <div className="bg-[#112240] border border-white/8 rounded-[32px] p-5 space-y-3">
+              {(() => {
+                const leaderboardList = members && members.length > 0 
+                  ? members.map(m => {
+                      let memberXp = 120;
+                      if (m.id === activeMemberId) {
+                        memberXp = stats.xp + (stats.level - 1) * 300;
+                      } else if (m.role?.toLowerCase().includes('ado') || m.id === '3') {
+                        memberXp = 450;
+                      } else if (m.role?.toLowerCase().includes('enfant') || m.id === '4') {
+                        memberXp = 220;
+                      } else {
+                        memberXp = 90;
+                      }
+                      return {
+                        id: m.id,
+                        name: m.name,
+                        photoUrl: m.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80',
+                        xp: memberXp
+                      };
+                    }).sort((a, b) => b.xp - a.xp)
+                  : [
+                      { id: '3', name: 'Amadou', photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80', xp: 450 },
+                      { id: activeMemberId, name: activeMember?.name || 'Ado', photoUrl: activeMember?.photoUrl || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=100&q=80', xp: stats.xp + (stats.level - 1) * 300 },
+                      { id: '4', name: 'Awa', photoUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80', xp: 220 }
+                    ].sort((a, b) => b.xp - a.xp);
+
+                return leaderboardList.map((user, idx) => {
+                  const isMe = user.id === activeMemberId;
+                  const rankEmojis = ['👑', '🥈', '🥉'];
+                  
+                  return (
+                    <div 
+                      key={user.id} 
+                      className={`flex items-center justify-between p-3 rounded-2xl transition-all ${
+                        isMe ? 'bg-[#6C5CFF]/15 border border-[#6C5CFF]/30' : 'bg-white/5 border border-white/5'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <span className="text-xs shrink-0 w-5 text-center font-black text-white/40">
+                          {rankEmojis[idx] || `${idx + 1}.`}
+                        </span>
+                        <img 
+                          src={user.photoUrl} 
+                          alt={user.name} 
+                          className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0"
+                        />
+                        <span className={`text-xs font-black truncate block ${isMe ? 'text-white' : 'text-white/80'}`}>
+                          {user.name} {isMe ? '(Moi)' : ''}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center space-x-2 shrink-0">
+                        <span className="text-[10px] font-black text-[#FFB020] bg-[#FFB020]/10 px-2.5 py-1 rounded-xl">
+                          {user.xp} XP
+                        </span>
+                        
+                        {!isMe && (
+                          <button
+                            onClick={() => {
+                              const questions: AcademyQuestion[] = [];
+                              for (let i = 0; i < 10; i++) {
+                                questions.push(generateProceduralQuestion(currentGrade, i % 2 === 0 ? 'Mathématiques' : 'Français'));
+                              }
+                              setActiveQuiz({
+                                type: 'teen_exercise',
+                                questions,
+                                currentIndex: 0,
+                                score: 0,
+                                answers: [],
+                                selectedOption: null,
+                                showCorrection: false,
+                                xpEarned: 0,
+                                starsEarned: 0,
+                                showHint: false
+                              });
+                              alert(`⚔️ Lancement du Duel contre ${user.name} ! Obtiens au moins 8/10 pour gagner.`);
+                            }}
+                            className="p-1.5 bg-[#E040FB]/10 border border-[#E040FB]/20 hover:bg-[#E040FB]/25 text-[#E040FB] rounded-xl text-[9px] font-black uppercase cursor-pointer transition-all"
+                          >
+                            ⚔️ Duel
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
 
