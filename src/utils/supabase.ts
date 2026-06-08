@@ -254,3 +254,13 @@ export function logQueryVolume(tableName: string, action: string, data: any) {
     console.warn("[Supabase Network Log] Failed to calculate size:", e);
   }
 }
+
+export function getCleanDescription(description: string | null | undefined): string {
+  if (!description) return '';
+  const str = description.trim();
+  if (str.startsWith('__METADATA__:') && str.includes('__DESCRIPTION__:')) {
+    const idx = str.indexOf('__DESCRIPTION__:');
+    return str.substring(idx + '__DESCRIPTION__:'.length);
+  }
+  return description;
+}

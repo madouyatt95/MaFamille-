@@ -904,12 +904,12 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
         payment_type: paymentMethod,
         created_at: new Date().toISOString()
       };
-      const userFriendlyDesc = `${member.name} souhaite dépenser ${paymentMethod === 'points' ? `${cost} points` : `${cost.toFixed(2)} €`} pour "${reward.title}".`;
+      const userFriendlyDesc = `${member.name} souhaite échanger ${paymentMethod === 'points' ? `${cost} ⭐` : `${cost.toFixed(2)} €`} contre ${reward.title}.`;
       const serializedDescription = `__METADATA__:${JSON.stringify(metadata)}__DESCRIPTION__:${userFriendlyDesc}`;
 
       const newAlert: NotificationAlert = {
         id: `req-rew-${member.id}-${reward.id}-${paymentMethod}-${timestamp}`,
-        title: `Achat Ado : ${reward.title}`,
+        title: `🎁 Demande de récompense : ${reward.title}`,
         description: serializedDescription,
         time: new Date().toISOString(),
         type: 'warning',

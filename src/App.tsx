@@ -122,7 +122,7 @@ import { PasswordRecoveryView } from './components/PasswordRecoveryView';
 import { foyerService } from './services/foyerService';
 import { spaceService, type Space } from './services/spaceService';
 import { CommuneHub } from './components/modules/CommuneHub';
-import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction, serializeEventDescription, deserializeEventDescription, logQueryVolume } from './utils/supabase';
+import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction, serializeEventDescription, deserializeEventDescription, logQueryVolume, getCleanDescription } from './utils/supabase';
 import { notificationService } from './services/notificationService';
 import type { Foyer, FoyerMember } from './types';
 import { compressImageToBlob, uploadBlobToStorage } from './utils/imageCompressor';
@@ -1069,7 +1069,7 @@ function App() {
 
     setActiveToast({
       title: newAlert.title,
-      description: newAlert.description
+      description: getCleanDescription(newAlert.description)
     });
 
     await saveAlertToCloud(newAlert);
@@ -1077,7 +1077,7 @@ function App() {
     if ('Notification' in window && Notification.permission === 'granted') {
       try {
         new Notification(newAlert.title, {
-          body: newAlert.description,
+          body: getCleanDescription(newAlert.description),
           icon: '/favicon.svg'
         });
       } catch (err) {
@@ -1310,9 +1310,9 @@ function App() {
     if (!foyer) return;
     if (hasCheckedDefaultRewards) return;
 
-    // Check if we already have any boutique_reward
-    const boutiqueRewards = (savingGoals || []).filter(sg => sg.category === 'boutique_reward');
-    if (boutiqueRewards.length === 0) {
+    // Check if we already have any default boutique_rewards seeded
+    const hasDefaultRewards = (savingGoals || []).some(sg => sg.id.startsWith('sg-def-'));
+    if (!hasDefaultRewards) {
       const defaults = [
         { title: "30 min console", points: 50, money: 5, icon: "🎮", cat: "Écran" },
         { title: "1h console", points: 100, money: 10, icon: "🎮", cat: "Écran" },
@@ -1332,7 +1332,7 @@ function App() {
       ];
 
       const defaultRewardsList: SavingGoal[] = defaults.map((item, idx) => ({
-        id: `sg-def-${idx + 1}-${Date.now()}`,
+        id: `sg-def-${foyer.id}-${idx + 1}`,
         title: item.title,
         targetAmount: item.points,
         currentAmount: 0,
@@ -2082,7 +2082,7 @@ function App() {
             // Afficher une notification système si autorisé
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification(newAlert.title, {
-                body: newAlert.description,
+                body: getCleanDescription(newAlert.description),
                 icon: '/pwa-192x192.png'
               });
             }
@@ -13869,7 +13869,7 @@ function App() {
                           {!isRead && <span className="w-2 h-2 rounded-full bg-[#FFB020] animate-pulse"></span>}
                         </h4>
                       </div>
-                      <p className="text-[10px] text-white/50 leading-relaxed">{al.description}</p>
+                      <p className="text-[10px] text-white/50 leading-relaxed">{getCleanDescription(al.description)}</p>
                       <span className="text-[9px] text-white/30 block font-bold tracking-wider">
                         {formatRelativeTime(al.createdAt, al.time)}
                       </span>
