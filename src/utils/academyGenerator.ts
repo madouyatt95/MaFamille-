@@ -1,5 +1,5 @@
-import type { AcademyQuestion } from '../data/academyData';
-import { staticAcademyQuestions } from '../data/academyData';
+import type { AcademyQuestion, AcademySubject } from '../data/academyData';
+import { staticAcademyQuestions, staticAcademyLessons } from '../data/academyData';
 
 // --- French Conjugation Helper ---
 const verbsData: Record<string, {
@@ -122,7 +122,7 @@ function getRandomDistractors(correctVal: number, count = 3, range = 10): number
 // --- MAIN QUESTION GENERATOR ---
 export function generateProceduralQuestion(
   niveau: 'CP' | 'CE1' | 'CE2' | 'CM1' | 'CM2' | '6e' | '5e' | '4e' | '3e' | 'Lycée',
-  matiere: 'Mathématiques' | 'Français' | 'Langues'
+  matiere: AcademySubject
 ): AcademyQuestion {
   const id = `procedural_${niveau}_${matiere.substring(0, 3)}_${Math.floor(Math.random() * 100000)}`;
   
@@ -130,8 +130,40 @@ export function generateProceduralQuestion(
     return generateMathQuestion(niveau, id);
   } else if (matiere === 'Français') {
     return generateFrenchQuestion(niveau, id);
+  } else if (matiere === 'Langues' || matiere === 'Anglais') {
+    return generateLanguageQuestion(niveau, id, matiere);
   } else {
-    return generateLanguageQuestion(niveau, id);
+    // Pour toutes les autres matières (Histoire, Géo, Sciences, Logique, etc.)
+    // On essaye de récupérer une question statique
+    const matches = staticAcademyQuestions.filter(q => q.matiere === matiere);
+    if (matches.length > 0) {
+      const levelMatches = matches.filter(q => q.niveau === niveau);
+      const chosen = levelMatches.length > 0 
+        ? levelMatches[Math.floor(Math.random() * levelMatches.length)]
+        : matches[Math.floor(Math.random() * matches.length)];
+      return {
+        ...chosen,
+        id: `${chosen.id}_${Math.floor(Math.random() * 100000)}`,
+        niveau
+      };
+    }
+    
+    // Générateur par défaut de secours ultime pour éviter les crashs
+    return {
+      id,
+      niveau,
+      matiere,
+      competence: 'culture',
+      chapitre: 'Général',
+      question: `Parmi ces propositions, laquelle est correcte concernant le cours de ${matiere} ?`,
+      options: ["La proposition A (correcte)", "La proposition B", "La proposition C", "La proposition D"],
+      reponse: "La proposition A (correcte)",
+      explication: `Ceci est une question de révision générale pour la matière ${matiere}.`,
+      indice: "Choisis la première option.",
+      difficulte: 1,
+      xp: 10,
+      etoiles: 1
+    };
   }
 }
 
@@ -151,7 +183,7 @@ function generateMathQuestion(
   let etoiles = 1;
 
   if (niveau === 'CP' || niveau === 'CE1') {
-    chapitre = 'Additions simples';
+    chapitre = 'Additions';
     const a = Math.floor(Math.random() * 10) + 1;
     const b = Math.floor(Math.random() * 10) + 1;
     const ans = a + b;
@@ -163,7 +195,7 @@ function generateMathQuestion(
     indice = "Compte sur tes doigts si besoin !";
   } 
   else if (niveau === 'CE2') {
-    chapitre = 'Tables de multiplication';
+    chapitre = 'Multiplications';
     const a = Math.floor(Math.random() * 8) + 2;
     const b = Math.floor(Math.random() * 8) + 2;
     const ans = a * b;
@@ -177,7 +209,7 @@ function generateMathQuestion(
     xp = 12;
   }
   else if (niveau === 'CM1') {
-    chapitre = 'Divisions entières';
+    chapitre = 'Divisions';
     const quotient = Math.floor(Math.random() * 8) + 2;
     const diviseur = Math.floor(Math.random() * 8) + 2;
     const dividende = quotient * diviseur;
@@ -191,7 +223,7 @@ function generateMathQuestion(
     xp = 12;
   }
   else if (niveau === 'CM2') {
-    chapitre = 'Fractions équivalentes';
+    chapitre = 'Fractions';
     const list = [
       { q: "Quelle fraction est égale à 1/2 ?", ans: "2/4", options: ["2/4", "2/3", "1/3", "3/5"], exp: "Si on multiplie le haut et le bas de 1/2 par 2, on obtient 2/4." },
       { q: "Quelle fraction est égale à 3/4 ?", ans: "6/8", options: ["6/8", "3/8", "1/2", "5/6"], exp: "Si on multiplie le haut et le bas de 3/4 par 2, on obtient 6/8." },
@@ -208,7 +240,7 @@ function generateMathQuestion(
     etoiles = 2;
   }
   else if (niveau === '6e' || niveau === '5e') {
-    chapitre = 'Équations simples';
+    chapitre = 'Équations';
     const x = Math.floor(Math.random() * 10) + 1;
     const a = Math.floor(Math.random() * 9) + 2;
     const b = x + a;
@@ -222,7 +254,7 @@ function generateMathQuestion(
     xp = 15;
   }
   else if (niveau === '4e' || niveau === '3e') {
-    chapitre = 'Puissances de 10';
+    chapitre = 'Géométrie';
     const power = Math.floor(Math.random() * 4) + 2; // 10^2 to 10^5
     const ans = Math.pow(10, power);
     question = `Quelle est l'écriture décimale de 10 puissance ${power} (10^${power}) ?`;
@@ -236,7 +268,7 @@ function generateMathQuestion(
   }
   else {
     // Lycée
-    chapitre = 'Probabilités basiques';
+    chapitre = 'Probabilités';
     question = "On tire une carte dans un jeu de 32 cartes. Quelle est la probabilité d'obtenir un As ?";
     reponse = "1/8";
     options = ["1/8", "1/32", "4/32", "1/4"];
@@ -301,7 +333,7 @@ function generateFrenchQuestion(
   
   // Ensure we have exactly 3 distractors
   while (selectedDistractors.length < 3) {
-    selectedDistractors.push(correctVal + "es"); // dummy error fallback
+    selectedDistractors.push(correctVal + "es");
   }
 
   const pronoun = pronouns[pronounIdx];
@@ -312,12 +344,12 @@ function generateFrenchQuestion(
     niveau,
     matiere: 'Français',
     competence: 'conjugaison',
-    chapitre: 'Conjugaison des verbes',
+    chapitre: 'Conjugaison',
     question: `Comment conjugue-t-on le verbe "${selectedVerb}" au ${tenseName} avec le pronom "${pronoun}" ?`,
     options: shuffle([correctVal, ...selectedDistractors]),
     reponse: correctVal,
     explication: `Avec "${pronoun}", le verbe "${selectedVerb}" au ${tenseName} s'écrit : "${correctVal}".`,
-    indice: `Pense aux terminaisons régulières du ${tenseName} pour les verbes en -er ou -ir.`,
+    indice: `Pense aux terminaisons du ${tenseName} pour ce pronom.`,
     difficulte: 2,
     xp: 12,
     etoiles: 1
@@ -327,11 +359,16 @@ function generateFrenchQuestion(
 // 3. Translation/Language Questions Generator
 function generateLanguageQuestion(
   niveau: 'CP' | 'CE1' | 'CE2' | 'CM1' | 'CM2' | '6e' | '5e' | '4e' | '3e' | 'Lycée',
-  id: string
+  id: string,
+  matiere: AcademySubject
 ): AcademyQuestion {
-  // Select dynamic language (Wolof or Anglais or Espagnol)
-  const languages = ['anglais', 'wolof', 'espagnol'];
-  const lang = languages[Math.floor(Math.random() * languages.length)];
+  // Select language based on subject
+  let lang = 'anglais';
+  if (matiere === 'Langues') {
+    const langs = ['wolof', 'espagnol'];
+    lang = langs[Math.floor(Math.random() * langs.length)];
+  }
+
   const vocabList = vocabData[lang];
   const index = Math.floor(Math.random() * vocabList.length);
   const item = vocabList[index];
@@ -342,7 +379,7 @@ function generateLanguageQuestion(
   let reponse = '';
   let options: string[] = [];
 
-  // Get wrong answers from other words of the same dictionary
+  // Get wrong answers
   const correctVal = toFrench ? item.french : item.foreign;
   const distractorsSet = new Set<string>();
   
@@ -368,14 +405,14 @@ function generateLanguageQuestion(
   return {
     id,
     niveau,
-    matiere: 'Langues',
+    matiere,
     competence: lang === 'anglais' ? 'anglais' : 'culture',
     chapitre: `Vocabulaire ${displayLangName}`,
     question,
     options,
     reponse,
     explication: `En ${displayLangName}, "${item.foreign}" correspond à "${item.french}" en français.`,
-    indice: `C'est un mot de la vie de tous les jours.`,
+    indice: `C'est un mot de la vie courante.`,
     difficulte: 1,
     xp: 12,
     etoiles: 1
@@ -401,11 +438,9 @@ export function generateQuestionForLesson(
 
   // 2. Procedural Multiplication Table Generator
   if (lessonId.startsWith('les_mat_mult') || lessonId === 'les_ce2_mat_mult7') {
-    let tableNum = 7; // default
+    let tableNum = 7;
     if (lessonId === 'les_ce2_mat_mult7') {
       tableNum = 7;
-    } else if (lessonId === 'les_mat_mult_rev' || lessonId === 'les_mat_mult_defi') {
-      tableNum = Math.floor(Math.random() * 9) + 2; // 2 to 10
     } else {
       const numStr = lessonId.replace('les_mat_mult', '');
       const num = parseInt(numStr, 10);
@@ -443,7 +478,7 @@ export function generateQuestionForLesson(
       niveau,
       matiere: 'Mathématiques',
       competence: 'calcul',
-      chapitre: 'Additions simples',
+      chapitre: 'Additions',
       question: `Combien font ${a} + ${b} ?`,
       options: shuffle([String(ans), ...getRandomDistractors(ans, 3, 4).map(String)]),
       reponse: String(ans),
@@ -456,7 +491,30 @@ export function generateQuestionForLesson(
     };
   }
 
-  // 4. Procedural Conjugation
+  // 4. Procedural Soustractions
+  if (lessonId === 'les_cp_mat_sub') {
+    const a = Math.floor(Math.random() * 6) + 5; // 5 to 10
+    const b = Math.floor(Math.random() * 4) + 1; // 1 to 4
+    const ans = a - b;
+    return {
+      id,
+      niveau,
+      matiere: 'Mathématiques',
+      competence: 'calcul',
+      chapitre: 'Soustractions',
+      question: `Combien font ${a} - ${b} ?`,
+      options: shuffle([String(ans), ...getRandomDistractors(ans, 3, 4).map(String)]),
+      reponse: String(ans),
+      explication: `On retire ${b} à ${a}, ce qui donne ${ans}.`,
+      indice: "Recule sur la file numérique.",
+      difficulte: 1,
+      xp: 10,
+      etoiles: 1,
+      lessonId
+    };
+  }
+
+  // 5. Procedural Conjugation
   if (lessonId.startsWith('les_fra_conj_')) {
     let tense: 'present' | 'imparfait' | 'futur' | 'passeCompose' = 'present';
     if (lessonId.includes('_pres')) tense = 'present';
@@ -464,22 +522,8 @@ export function generateQuestionForLesson(
     else if (lessonId.includes('_imp')) tense = 'imparfait';
     else if (lessonId.includes('_pc')) tense = 'passeCompose';
 
-    // Choose a verb based on subgroup
-    let verb = 'aimer';
-    if (lessonId.includes('_etre_avoir')) {
-      verb = Math.random() > 0.5 ? 'être' : 'avoir';
-    } else if (lessonId.includes('_1er')) {
-      verb = 'aimer';
-    } else if (lessonId.includes('_2e')) {
-      verb = 'finir';
-    } else if (lessonId.includes('_freq')) {
-      const freqVerbs = ['aller', 'faire', 'avoir', 'être'];
-      verb = freqVerbs[Math.floor(Math.random() * freqVerbs.length)];
-    } else {
-      const verbList = Object.keys(verbsData);
-      verb = verbList[Math.floor(Math.random() * verbList.length)];
-    }
-
+    const verbList = Object.keys(verbsData);
+    const verb = verbList[Math.floor(Math.random() * verbList.length)];
     const pronounIdx = Math.floor(Math.random() * 6);
     const correctVal = verbsData[verb][tense][pronounIdx];
     const pronoun = pronouns[pronounIdx];
@@ -504,7 +548,7 @@ export function generateQuestionForLesson(
       options: shuffle([correctVal, ...selectedDistractors]),
       reponse: correctVal,
       explication: `Avec "${pronoun}", la forme correcte est "${correctVal}".`,
-      indice: `Pense au radical et aux terminaisons régulières du ${tenseName}.`,
+      indice: `Pense aux terminaisons régulières du ${tenseName}.`,
       difficulte: 2,
       xp: 12,
       etoiles: 1,
@@ -512,10 +556,8 @@ export function generateQuestionForLesson(
     };
   }
 
-  // 5. Fallback to general generator
-  const mat: 'Mathématiques' | 'Français' | 'Langues' = 
-    lessonId.includes('_mat_') ? 'Mathématiques' : 
-    (lessonId.includes('_fra_') ? 'Français' : 'Langues');
+  // 6. Fallback to general generator
+  const lesson = staticAcademyLessons.find(l => l.id === lessonId);
+  const mat = lesson ? lesson.matiere : 'Mathématiques';
   return generateProceduralQuestion(niveau, mat);
 }
-

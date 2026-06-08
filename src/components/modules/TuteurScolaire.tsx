@@ -30,8 +30,31 @@ import {
 import { getSupabaseClient } from '../../utils/supabase';
 import type { SchoolTask } from '../../types';
 import { staticAcademyQuestions, staticAcademyLessons } from '../../data/academyData';
-import type { AcademyQuestion, Lesson } from '../../data/academyData';
+import type { AcademyQuestion, Lesson, AcademySubject } from '../../data/academyData';
 import { generateProceduralQuestion, generateQuestionForLesson } from '../../utils/academyGenerator';
+
+export interface ChapterProgress {
+  read: boolean;
+  exercises: boolean;
+  game: boolean;
+  flash: boolean;
+  challenge: boolean;
+}
+
+export interface StudentProfile {
+  level: 'CP' | 'CE1' | 'CE2' | 'CM1' | 'CM2' | '6e' | '5e' | '4e' | '3e' | 'Lycée';
+  country: string;
+}
+
+export interface WeeklyEvalItem {
+  id: string;
+  date: string;
+  score: number;
+  max: number;
+  xpBonus: number;
+  starsBonus: number;
+  subjects: string[];
+}
 
 export interface GradeItem {
   id: string;
@@ -271,35 +294,179 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     }
   }, [stats, activeMemberId, isParent]);
 
-  // Calculate age-based level
-  const getSchoolGrade = (): 'CP' | 'CE1' | 'CE2' | 'CM1' | 'CM2' | '6e' | '5e' | '4e' | '3e' | 'Lycée' => {
-    const targetMember = activeMember || { age: '14', birthDate: undefined };
-    let parsedAge = 14; // Default to 3e (14 years old)
-    if (targetMember.age) {
-      const num = parseInt(targetMember.age, 10);
-      if (!isNaN(num)) parsedAge = num;
-    } else if (targetMember.birthDate) {
-      const birth = new Date(targetMember.birthDate);
-      if (!isNaN(birth.getTime())) {
-        const ageDifMs = Date.now() - birth.getTime();
-        const ageDate = new Date(ageDifMs);
-        parsedAge = Math.abs(ageDate.getUTCFullYear() - 1970);
-      }
+  // Student Profile
+  const [studentProfile, setStudentProfile] = useState<StudentProfile>(() => {
+    const key = `academy_student_profile_${activeMemberId}`;
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      try { return JSON.parse(stored); } catch (e) {}
     }
-    
-    if (parsedAge <= 6) return 'CP';
-    if (parsedAge === 7) return 'CE1';
-    if (parsedAge === 8) return 'CE2';
-    if (parsedAge === 9) return 'CM1';
-    if (parsedAge === 10) return 'CM2';
-    if (parsedAge === 11) return '6e';
-    if (parsedAge === 12) return '5e';
-    if (parsedAge === 13) return '4e';
-    if (parsedAge === 14) return '3e';
+    // Fallback: estimate from age
+    let estimatedLevel: 'CP' | 'CE1' | 'CE2' | 'CM1' | 'CM2' | '6e' | '5e' | '4e' | '3e' | 'Lycée' = '3e';
+    const targetMember = activeMember || { age: '14' };
+    const parsedAge = parseInt(targetMember.age, 10);
+    if (!isNaN(parsedAge)) {
+      if (parsedAge <= 6) estimatedLevel = 'CP';
+      else if (parsedAge === 7) estimatedLevel = 'CE1';
+      else if (parsedAge === 8) estimatedLevel = 'CE2';
+      else if (parsedAge === 9) estimatedLevel = 'CM1';
+      else if (parsedAge === 10) estimatedLevel = 'CM2';
+      else if (parsedAge === 11) estimatedLevel = '6e';
+      else if (parsedAge === 12) estimatedLevel = '5e';
+      else if (parsedAge === 13) estimatedLevel = '4e';
+      else if (parsedAge === 14) estimatedLevel = '3e';
+      else estimatedLevel = 'Lycée';
+    }
+    return { level: estimatedLevel, country: 'France' };
+  });
+
+  const getCycleForLevel = (lvl: string): 'Cycle 2' | 'Cycle 3' | 'Cycle 4' | 'Lycée' => {
+    if (['CP', 'CE1', 'CE2'].includes(lvl)) return 'Cycle 2';
+    if (['CM1', 'CM2', '6e'].includes(lvl)) return 'Cycle 3';
+    if (['5e', '4e', '3e'].includes(lvl)) return 'Cycle 4';
     return 'Lycée';
   };
 
-  const currentGrade = getSchoolGrade();
+  const [expandedCycles, setExpandedCycles] = useState<Record<string, boolean>>({
+    'Cycle 2': false,
+    'Cycle 3': false,
+    'Cycle 4': true,
+    'Lycée': false
+  });
+
+  // Save student profile and auto-expand cycle
+  useEffect(() => {
+    localStorage.setItem(`academy_student_profile_${activeMemberId}`, JSON.stringify(studentProfile));
+    const cycle = getCycleForLevel(studentProfile.level);
+    setExpandedCycles({
+      'Cycle 2': cycle === 'Cycle 2',
+      'Cycle 3': cycle === 'Cycle 3',
+      'Cycle 4': cycle === 'Cycle 4',
+      'Lycée': cycle === 'Lycée'
+    });
+  }, [studentProfile, activeMemberId]);
+
+  const currentGrade = studentProfile.level;
+
+  // Lesson states & Progress
+  const [selectedSubject, setSelectedSubject] = useState<AcademySubject | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+  const [activeStepTab, setActiveStepTab] = useState<number>(0);
+
+  // Lesson progress
+  const [lessonProgress, setLessonProgress] = useState<Record<string, ChapterProgress>>(() => {
+    const key = `academy_lesson_progress_${activeMemberId}`;
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        const migrated: Record<string, ChapterProgress> = {};
+        for (const k of Object.keys(parsed)) {
+          const val = parsed[k];
+          if (typeof val === 'string') {
+            migrated[k] = {
+              read: val !== 'none',
+              exercises: val === 'exercises_done' || val === 'challenge_done' || val === 'completed',
+              game: val === 'challenge_done' || val === 'completed',
+              flash: val === 'completed',
+              challenge: val === 'completed'
+            };
+          } else {
+            migrated[k] = val;
+          }
+        }
+        return migrated;
+      } catch (e) {
+        return {};
+      }
+    }
+    return {};
+  });
+
+  useEffect(() => {
+    localStorage.setItem(`academy_lesson_progress_${activeMemberId}`, JSON.stringify(lessonProgress));
+  }, [lessonProgress, activeMemberId]);
+
+  // Worked chapters tracking
+  const [workedChapters, setWorkedChapters] = useState<string[]>(() => {
+    const key = `academy_worked_chapters_${activeMemberId}`;
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : [];
+  });
+
+  const markChapterAsWorked = (id: string) => {
+    if (!workedChapters.includes(id)) {
+      const updated = [...workedChapters, id];
+      setWorkedChapters(updated);
+      localStorage.setItem(`academy_worked_chapters_${activeMemberId}`, JSON.stringify(updated));
+    }
+  };
+
+  // Weekly Evaluations History
+  const [weeklyEvals, setWeeklyEvals] = useState<WeeklyEvalItem[]>(() => {
+    const key = `academy_weekly_evals_${activeMemberId}`;
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem(`academy_weekly_evals_${activeMemberId}`, JSON.stringify(weeklyEvals));
+  }, [weeklyEvals, activeMemberId]);
+
+  // Helper to get chapter progress percentage
+  const getChapterProgressPercent = (lesId: string): number => {
+    const p = lessonProgress[lesId];
+    if (!p) return 0;
+    return (p.read ? 10 : 0) + (p.exercises ? 30 : 0) + (p.game ? 20 : 0) + (p.flash ? 20 : 0) + (p.challenge ? 20 : 0);
+  };
+
+  // Helper to update progress fields
+  const updateProgressField = (lesId: string, field: keyof ChapterProgress, val: boolean) => {
+    setLessonProgress(prev => {
+      const current = prev[lesId] || { read: false, exercises: false, game: false, flash: false, challenge: false };
+      const updated = { ...current, [field]: val };
+      return { ...prev, [lesId]: updated };
+    });
+    markChapterAsWorked(lesId);
+  };
+
+  // Subject Categories Map
+  const subjectCategories: Record<string, string[]> = {
+    Mathématiques: ["Numération", "Additions", "Soustractions", "Multiplications", "Divisions", "Fractions", "Décimaux", "Géométrie", "Aires", "Volumes", "Pourcentages", "Proportionnalité", "Équations", "Fonctions", "Statistiques", "Probabilités", "Théorème de Pythagore", "Théorème de Thalès"],
+    Français: ["Lecture", "Compréhension", "Orthographe", "Grammaire", "Nature des mots", "Analyse grammaticale", "Conjugaison", "Rédaction", "Dictées"],
+    Histoire: ["Préhistoire", "Antiquité", "Égypte", "Rome", "Moyen Âge", "Renaissance", "Révolution française", "Première Guerre mondiale", "Seconde Guerre mondiale", "Monde contemporain"],
+    Géographie: ["Continents et Océans", "Pays et Capitales", "Reliefs et Climats", "Populations du monde", "Cartographie", "Environnement"],
+    Sciences: ["Corps humain", "Animaux", "Plantes", "Énergie", "Électricité", "Espace", "Planètes", "Génétique", "Chimie", "Physique"],
+    Anglais: ["Les couleurs", "Les nombres", "Les salutations", "Les animaux", "Verbes irréguliers", "Vocabulaire du quotidien"],
+    Langues: ["Wolof", "Espagnol de base", "Allemand de base"],
+    Technologie: ["Fonctionnement de l'ordinateur", "Internet et le Web", "Algorithmes simples"],
+    "Culture générale": ["Familles d'instruments", "Monuments célèbres", "Grandes découvertes"],
+    "Éducation civique": ["Valeurs de la République", "Droits de l'enfant", "La citoyenneté"],
+    Logique: ["Énigmes logiques", "Suites de nombres", "Formes et motifs"],
+    Programmation: ["Découverte de Python", "Le binaire", "Créer sa première page HTML"],
+    Orientation: ["Les métiers d'avenir", "Choisir son parcours scolaire", "CV et lettre de motivation"]
+  };
+
+  // Calculate subject progress
+  const getSubjectProgress = (subj: AcademySubject): number => {
+    const lessons = staticAcademyLessons.filter(l => l.matiere === subj);
+    if (lessons.length === 0) return 0;
+    const total = lessons.reduce((acc, curr) => acc + getChapterProgressPercent(curr.id), 0);
+    return Math.round(total / lessons.length);
+  };
+
+  // Calculate global progress
+  const getGlobalProgress = (): number => {
+    const subjects = Object.keys(subjectCategories) as AcademySubject[];
+    const total = subjects.reduce((acc, curr) => acc + getSubjectProgress(curr), 0);
+    return Math.round(total / subjects.length);
+  };
+
+  // Memory game states
+  const [memoryCards, setMemoryCards] = useState<Array<{ id: number; content: string; matchId: number; isFlipped: boolean; isMatched: boolean }>>([]);
+  const [selectedCards, setSelectedCards] = useState<number[]>([]);
+  const [activeGame, setActiveGame] = useState<boolean>(false);
+  const timerRef = useRef<any>(null);
 
   // Streak update on teenager load
   useEffect(() => {
@@ -352,7 +519,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
 
   // Active Quiz State
   const [activeQuiz, setActiveQuiz] = useState<{
-    type: 'quick' | 'daily' | 'weekly' | 'tutor' | 'teen_exercise' | 'teen_flash' | 'teen_exam';
+    type: 'quick' | 'daily' | 'weekly' | 'tutor' | 'teen_exercise' | 'teen_flash' | 'teen_exam' | 'teen_flash_lesson' | 'teen_challenge' | 'teen_evaluation';
     questions: AcademyQuestion[];
     currentIndex: number;
     score: number;
@@ -362,6 +529,8 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     xpEarned: number;
     starsEarned: number;
     showHint: boolean;
+    timerRemaining?: number;
+    challengeCount?: number;
   } | null>(null);
 
   // Timed Flash Revision timer
@@ -415,7 +584,46 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     };
   }, [activeQuiz]);
 
-  // Launch functions for teen revision
+  // Challenge Timer loop (from KidSchool)
+  useEffect(() => {
+    if (activeQuiz && activeQuiz.type === 'teen_challenge') {
+      if (activeQuiz.timerRemaining !== undefined && activeQuiz.timerRemaining > 0) {
+        timerRef.current = setTimeout(() => {
+          setActiveQuiz(prev => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              timerRemaining: (prev.timerRemaining || 0) - 1
+            };
+          });
+        }, 1000);
+      } else if (activeQuiz.timerRemaining === 0) {
+        // End of time!
+        finishTimedChallenge();
+      }
+    }
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [activeQuiz]);
+
+  const finishTimedChallenge = () => {
+    if (!activeQuiz) return;
+    const finalCount = activeQuiz.challengeCount || 0;
+    const passed = finalCount >= 4;
+    
+    if (passed) {
+      if (selectedLesson) {
+        updateProgressField(selectedLesson.id, 'challenge', true);
+        alert(`🏆 Défi validé ! Tu as donné ${finalCount} bonnes réponses en temps limité.\n+20 XP remportés ! ⭐`);
+        setStats(prev => ({ ...prev, xp: prev.xp + 20 }));
+        setActiveStepTab(5); // Move to Badge step
+      }
+    } else {
+      alert(`😢 Défi échoué. Tu as donné ${finalCount} bonnes réponses, mais il en faut au moins 4. Entraîne-toi et réessaye !`);
+    }
+    setActiveQuiz(null);
+  };
   const launchTeenExercises = (lesson: Lesson) => {
     const questions: AcademyQuestion[] = [];
     for (let i = 0; i < 5; i++) {
@@ -564,27 +772,6 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     });
   };
 
-  // Launch Weekly Evaluation
-  const launchWeeklyEvaluation = () => {
-    const quizQuestions: AcademyQuestion[] = [];
-    for (let i = 0; i < 10; i++) {
-      const mat = i % 3 === 0 ? 'Mathématiques' : (i % 3 === 1 ? 'Français' : 'Langues');
-      quizQuestions.push(generateProceduralQuestion(currentGrade, mat));
-    }
-    setActiveQuiz({
-      type: 'weekly',
-      questions: quizQuestions,
-      currentIndex: 0,
-      score: 0,
-      answers: [],
-      selectedOption: null,
-      showCorrection: false,
-      xpEarned: 0,
-      starsEarned: 0,
-      showHint: false
-    });
-  };
-
   // Launch test for specific multiplication table
   const launchTableQuiz = (tableNum: number) => {
     const quizQuestions: AcademyQuestion[] = Array.from({ length: 5 }, (_, i) => {
@@ -650,6 +837,196 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     });
   };
 
+  // Launch Weekly Evaluation (updated)
+  const launchWeeklyEvaluation = () => {
+    const questions: AcademyQuestion[] = [];
+    const chaptersToUse = workedChapters.length > 0 ? workedChapters : staticAcademyLessons.filter(l => l.cycles.includes(getCycleForLevel(studentProfile.level))).map(l => l.id);
+    const finalChapters = chaptersToUse.length > 0 ? chaptersToUse : staticAcademyLessons.map(l => l.id);
+    
+    for (let i = 0; i < 10; i++) {
+      const randLessonId = finalChapters[Math.floor(Math.random() * finalChapters.length)];
+      questions.push(generateQuestionForLesson(randLessonId, studentProfile.level));
+    }
+
+    setActiveQuiz({
+      type: 'weekly',
+      questions,
+      currentIndex: 0,
+      score: 0,
+      answers: [],
+      selectedOption: null,
+      showCorrection: false,
+      xpEarned: 100,
+      starsEarned: 10,
+      showHint: false
+    });
+  };
+
+  // New chapter-step launcher helpers
+  const startTeenExercises = (lesson: Lesson, qCount = 5) => {
+    const questions: AcademyQuestion[] = [];
+    for (let i = 0; i < qCount; i++) {
+      questions.push(generateQuestionForLesson(lesson.id, studentProfile.level));
+    }
+    setActiveQuiz({
+      type: 'teen_exercise',
+      questions,
+      currentIndex: 0,
+      score: 0,
+      answers: [],
+      selectedOption: null,
+      showCorrection: false,
+      xpEarned: 20,
+      starsEarned: 2,
+      showHint: false
+    });
+  };
+
+  const startTeenFlash = (lesson: Lesson) => {
+    const questions: AcademyQuestion[] = [];
+    for (let i = 0; i < 5; i++) {
+      questions.push(generateQuestionForLesson(lesson.id, studentProfile.level));
+    }
+    setActiveQuiz({
+      type: 'teen_flash_lesson',
+      questions,
+      currentIndex: 0,
+      score: 0,
+      answers: [],
+      selectedOption: null,
+      showCorrection: false,
+      xpEarned: 20,
+      starsEarned: 1,
+      showHint: false
+    });
+  };
+
+  const startTeenChallenge = (lesson: Lesson) => {
+    const questions: AcademyQuestion[] = [];
+    for (let i = 0; i < 20; i++) {
+      questions.push(generateQuestionForLesson(lesson.id, studentProfile.level));
+    }
+    setActiveQuiz({
+      type: 'teen_challenge',
+      questions,
+      currentIndex: 0,
+      score: 0,
+      answers: [],
+      selectedOption: null,
+      showCorrection: false,
+      xpEarned: 20,
+      starsEarned: 3,
+      showHint: false,
+      timerRemaining: 45,
+      challengeCount: 0
+    });
+  };
+
+  const startTeenEvaluation = (lesson: Lesson) => {
+    const questions: AcademyQuestion[] = [];
+    for (let i = 0; i < 10; i++) {
+      questions.push(generateQuestionForLesson(lesson.id, studentProfile.level));
+    }
+    setActiveQuiz({
+      type: 'teen_evaluation',
+      questions,
+      currentIndex: 0,
+      score: 0,
+      answers: [],
+      selectedOption: null,
+      showCorrection: false,
+      xpEarned: 50,
+      starsEarned: 5,
+      showHint: false
+    });
+  };
+
+  // Memory game card generation
+  const startMemoryGame = (lesson: Lesson) => {
+    let pairs: Array<{ content: string; matchContent: string }> = [];
+    if (lesson.id === 'les_3e_mat_pyth') {
+      pairs = [
+        { content: "Hypoténuse²", matchContent: "Somme des carrés" },
+        { content: "Triangle", matchContent: "Rectangle" },
+        { content: "Côté opposé", matchContent: "Angle droit" },
+        { content: "Théorème", matchContent: "Pythagore" }
+      ];
+    } else if (lesson.id === 'les_3e_mat_thal') {
+      pairs = [
+        { content: "Thalès", matchContent: "Droites parallèles" },
+        { content: "Rapports", matchContent: "AM/AB = AN/AC" },
+        { content: "Configuration", matchContent: "Papillon ou triangle" },
+        { content: "Théorème", matchContent: "Thalès" }
+      ];
+    } else if (lesson.id === 'les_ado_prog_python') {
+      pairs = [
+        { content: "print()", matchContent: "Afficher" },
+        { content: "def my_func():", matchContent: "Fonction" },
+        { content: "x = 5", matchContent: "Variable" },
+        { content: "Python", matchContent: "Code" }
+      ];
+    } else {
+      pairs = [
+        { content: lesson.title, matchContent: "Titre" },
+        { content: "Définition", matchContent: lesson.definition.substring(0, 20) + "..." },
+        { content: "Matière", matchContent: lesson.matiere },
+        { content: "Cycle", matchContent: lesson.cycles[0] }
+      ];
+    }
+
+    const cardsList: Array<{ id: number; content: string; matchId: number; isFlipped: boolean; isMatched: boolean }> = [];
+    pairs.forEach((p, idx) => {
+      cardsList.push({ id: idx * 2, content: p.content, matchId: idx * 2 + 1, isFlipped: false, isMatched: false });
+      cardsList.push({ id: idx * 2 + 1, content: p.matchContent, matchId: idx * 2, isFlipped: false, isMatched: false });
+    });
+
+    setMemoryCards(shuffle(cardsList));
+    setSelectedCards([]);
+    setActiveGame(true);
+  };
+
+  const handleCardClick = (cardId: number) => {
+    if (selectedCards.length >= 2) return;
+    const target = memoryCards.find(c => c.id === cardId);
+    if (!target || target.isFlipped || target.isMatched) return;
+
+    setMemoryCards(prev => prev.map(c => c.id === cardId ? { ...c, isFlipped: true } : c));
+    const nextSelected = [...selectedCards, cardId];
+    setSelectedCards(nextSelected);
+
+    if (nextSelected.length === 2) {
+      const first = memoryCards.find(c => c.id === nextSelected[0])!;
+      const second = memoryCards.find(c => c.id === cardId)!;
+
+      if (first.matchId === second.id || second.matchId === first.id) {
+        setTimeout(() => {
+          setMemoryCards(prev => prev.map(c => (c.id === first.id || c.id === second.id) ? { ...c, isMatched: true } : c));
+          setSelectedCards([]);
+          // Check win
+          setMemoryCards(prev => {
+            const allMatched = prev.every(c => c.isMatched || c.id === first.id || c.id === second.id);
+            if (allMatched) {
+              setTimeout(() => {
+                setActiveGame(false);
+                if (selectedLesson) {
+                  updateProgressField(selectedLesson.id, 'game', true);
+                  setStats(prevStats => ({ ...prevStats, xp: prevStats.xp + 20 }));
+                  alert("🎉 Incroyable ! Tu as trouvé toutes les paires ! Mini-Jeu validé (+20 XP) ! 🎮");
+                }
+              }, 500);
+            }
+            return prev;
+          });
+        }, 600);
+      } else {
+        setTimeout(() => {
+          setMemoryCards(prev => prev.map(c => (c.id === first.id || c.id === second.id) ? { ...c, isFlipped: false } : c));
+          setSelectedCards([]);
+        }, 1000);
+      }
+    }
+  };
+
   // Quiz submission handler
   const handleAnswerSubmit = (option: string) => {
     if (!activeQuiz || activeQuiz.showCorrection) return;
@@ -670,6 +1047,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
 
     const nextXp = activeQuiz.xpEarned + (isCorrect ? qXp : 0);
     const nextStars = activeQuiz.starsEarned + (isCorrect ? qStars : 0);
+    const updatedChallengeCount = isCorrect && activeQuiz.type === 'teen_challenge' ? (activeQuiz.challengeCount || 0) + 1 : (activeQuiz.challengeCount || 0);
 
     setActiveQuiz(prev => prev ? {
       ...prev,
@@ -678,7 +1056,8 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
       selectedOption: option,
       showCorrection: true,
       xpEarned: nextXp,
-      starsEarned: nextStars
+      starsEarned: nextStars,
+      challengeCount: updatedChallengeCount
     } : null);
 
     // Update Skills progression dynamically
@@ -737,6 +1116,94 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
         localStorage.setItem(`academy_daily_done_${activeMemberId}`, todayStr);
       }
 
+      // Handle lesson step logic
+      if (activeQuiz.type === 'teen_exercise') {
+        if (selectedLesson) {
+          const exercisesPassed = cleanScore >= 4;
+          if (exercisesPassed) {
+            updateProgressField(selectedLesson.id, 'exercises', true);
+            setActiveStepTab(2); // Jump to game!
+            alert(`🎉 Entraînement validé ! Score : ${cleanScore}/5.\nLe Mini-Jeu est maintenant débloqué ! 🎮`);
+          } else {
+            alert(`😢 Entraînement non validé (Score : ${cleanScore}/5). Tu as besoin d'au moins 4/5. Relis la leçon et réessaye !`);
+          }
+        }
+      } else if (activeQuiz.type === 'teen_flash_lesson') {
+        if (selectedLesson) {
+          const flashPassed = cleanScore >= 4;
+          if (flashPassed) {
+            updateProgressField(selectedLesson.id, 'flash', true);
+            setActiveStepTab(4); // Jump to challenge!
+            alert(`⚡ Flash Quiz validé ! Score : ${cleanScore}/5.\n+20 XP remportés !`);
+          } else {
+            alert(`😢 Flash Quiz non validé (Score : ${cleanScore}/5). Recommence pour obtenir au moins 4/5 !`);
+          }
+        }
+      } else if (activeQuiz.type === 'teen_evaluation') {
+        if (selectedLesson) {
+          const evalPassed = cleanScore >= 8; // 80%
+          if (evalPassed) {
+            updateProgressField(selectedLesson.id, 'read', true);
+            updateProgressField(selectedLesson.id, 'exercises', true);
+            updateProgressField(selectedLesson.id, 'game', true);
+            updateProgressField(selectedLesson.id, 'flash', true);
+            updateProgressField(selectedLesson.id, 'challenge', true);
+            
+            setActiveStepTab(5); // index of Badge screen is 5 in the new 6-steps tab
+            
+            // Submit pocket money validation to parents
+            const pocketMoneyTask: SchoolTask = {
+              id: `pocket-${Date.now()}`,
+              title: `Argent de poche : validation de la leçon "${selectedLesson.title}" pour ${activeMember?.name || 'Ado'}`,
+              subject: 'Récompense',
+              difficulty: 'medium',
+              assignedMemberId: activeMemberId,
+              dueDate: 'Aujourd\'hui',
+              done: true,
+              grade: undefined
+            };
+            setSchoolTasks(prev => [...prev, pocketMoneyTask]);
+            alert(`🏆 ÉVALUATION RÉUSSIE ! Note : ${cleanScore}/10.\nLa leçon est 100% maîtrisée !\nTu obtiens ton Badge de Chapitre et une proposition d'argent de poche (+0.50€) a été envoyée ! 💶✨`);
+          } else {
+            alert(`😢 Évaluation non validée (Note : ${cleanScore}/10). Tu dois obtenir au moins 8/10. Réessaye après avoir révisé !`);
+          }
+        }
+      } else if (activeQuiz.type === 'weekly') {
+        const grade20 = Math.round((cleanScore / activeQuiz.questions.length) * 20);
+        const bonusXp = grade20 >= 16 ? 100 : grade20 >= 12 ? 50 : 20;
+        const bonusStars = grade20 >= 16 ? 10 : grade20 >= 12 ? 5 : 2;
+
+        const newEval: WeeklyEvalItem = {
+          id: `eval-${Date.now()}`,
+          date: new Date().toLocaleDateString('fr-FR'),
+          score: grade20,
+          max: 20,
+          xpBonus: bonusXp,
+          starsBonus: bonusStars,
+          subjects: workedChapters.map(id => staticAcademyLessons.find(l => l.id === id)?.matiere || 'Curriculum').filter((v, i, a) => a.indexOf(v) === i)
+        };
+
+        setWeeklyEvals(prev => [newEval, ...prev]);
+        setStats(prev => ({ ...prev, xp: prev.xp + bonusXp, stars: prev.stars + bonusStars }));
+        
+        // Also add a grade to the report card
+        const newGradeItem: GradeItem = {
+          id: `grade-weekly-${Date.now()}`,
+          studentId: activeMemberId,
+          studentName: activeMember?.displayName || activeMember?.name || 'Ado',
+          subject: 'Académie',
+          value: grade20,
+          max: 20,
+          coef: 1,
+          examTitle: 'Évaluation Hebdomadaire',
+          date: new Date().toLocaleDateString('fr-FR')
+        };
+        setGrades(prev => [...prev, newGradeItem]);
+
+        alert(`📝 Évaluation hebdomadaire terminée !\nNote : ${grade20}/20\nBonus remportés : +${bonusXp} XP et +${bonusStars} Étoiles ! ⭐️`);
+        setActiveSubTab('cours' as any);
+      }
+
       // Handle teen exam grade auto-saving
       if (activeQuiz.type === 'teen_exam') {
         const finalGrade = Math.round((cleanScore / activeQuiz.questions.length) * 20);
@@ -744,15 +1211,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
           id: `grade-teen-exam-${Date.now()}`,
           studentId: activeMemberId,
           studentName: getChildName(activeMemberId),
-          subject: selectedLessonCategory ? (
-            selectedLessonCategory === 'maths' ? 'Mathématiques' :
-            selectedLessonCategory === 'français' ? 'Français' :
-            selectedLessonCategory === 'histoire' ? 'Histoire' :
-            selectedLessonCategory === 'géographie' ? 'Géographie' :
-            selectedLessonCategory === 'sciences' ? 'Sciences / SVT' :
-            selectedLessonCategory === 'anglais' ? 'Anglais' :
-            selectedLessonCategory === 'culture' ? 'Culture générale' : 'Langues'
-          ) : 'Mathématiques',
+          subject: selectedSubject || 'Mathématiques',
           value: finalGrade,
           max: 20,
           coef: 1,
@@ -766,7 +1225,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
       }
 
       setActiveQuiz(null);
-      if (activeQuiz.type !== 'teen_flash' && activeQuiz.type !== 'teen_exam') {
+      if (activeQuiz.type !== 'teen_flash' && activeQuiz.type !== 'teen_exam' && activeQuiz.type !== 'teen_exercise' && activeQuiz.type !== 'teen_flash_lesson' && activeQuiz.type !== 'teen_evaluation' && activeQuiz.type !== 'weekly') {
         alert(`Entraînement terminé ! Score : ${cleanScore}/${activeQuiz.questions.length}\nVous remportez +${totalXp} XP et +${totalStars} Étoiles ! ⭐️`);
       }
     }
@@ -778,40 +1237,64 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     if (!userInput.trim()) return;
 
     const query = userInput.trim();
-    setChatMessages(prev => [...prev, { sender: 'user', text: query }]);
+    setChatMessages((prev: any[]) => [...prev, { sender: 'user', text: query }]);
     setUserInput('');
     setIsTyping(true);
 
     setTimeout(() => {
       const cleanQuery = query.toLowerCase();
-      let responseText = '';
-      let matchedLesson: LocalTutorLesson | undefined;
+      let matchedLesson: Lesson | undefined;
 
-      for (const lesson of localLessons) {
-        if (lesson.keywords.some(k => cleanQuery.includes(k)) || cleanQuery.includes(lesson.subject.toLowerCase())) {
-          matchedLesson = lesson;
-          break;
+      // 1. Exact match on subject or title or category
+      matchedLesson = staticAcademyLessons.find(l => 
+        cleanQuery.includes(l.title.toLowerCase()) ||
+        cleanQuery.includes(l.category.toLowerCase()) ||
+        cleanQuery.includes(l.matiere.toLowerCase())
+      );
+
+      // 2. Word occurrence match if no exact match
+      if (!matchedLesson) {
+        const words = cleanQuery.split(/\s+/).filter((w: string) => w.length > 3);
+        let bestScore = 0;
+        for (const lesson of staticAcademyLessons) {
+          let score = 0;
+          for (const w of words) {
+            if (lesson.title.toLowerCase().includes(w)) score += 10;
+            if (lesson.category.toLowerCase().includes(w)) score += 8;
+            if (lesson.explication.toLowerCase().includes(w)) score += 3;
+            if (lesson.memo.toLowerCase().includes(w)) score += 2;
+          }
+          if (score > bestScore && score >= 3) {
+            bestScore = score;
+            matchedLesson = lesson;
+          }
         }
       }
 
+      let responseText = '';
       if (matchedLesson) {
-        responseText = `J'ai trouvé une leçon utile pour toi ! 📚\n\n**${matchedLesson.title}** (${matchedLesson.subject})\n\n${matchedLesson.content}\n\n💡 *Exemple :* ${matchedLesson.example}\n\nEs-tu prêt à relever le défi avec un mini-test de 3 questions ?`;
+        responseText = `J'ai trouvé une fiche de cours sur **${matchedLesson.title}** (${matchedLesson.matiere}) ! 📖\n\n**Définition :** ${matchedLesson.definition}\n\n**Explication :** ${matchedLesson.explication}\n\n**Exemple :** ${matchedLesson.exemple}\n\n💡 *Méthode / Astuce (Pièges) :* ${matchedLesson.pieges}\n\nPrêt à réviser ce chapitre ? Clique sur le bouton ci-dessous !`;
+        const targetLesson = matchedLesson;
         
-        setChatMessages(prev => [
+        setChatMessages((prev: any[]) => [
           ...prev,
           { 
             sender: 'ai', 
             text: responseText,
             action: {
-              label: `Lancer le mini-test en ${matchedLesson?.subject} 🎯`,
-              onClick: () => launchTutorQuiz(matchedLesson?.subject || 'Mathématiques')
+              label: `Ouvrir le cours : ${targetLesson.title} 📚`,
+              onClick: () => {
+                setSelectedSubject(targetLesson.matiere);
+                setSelectedLesson(targetLesson);
+                setActiveStepTab(0);
+                setActiveSubTab('cours' as any);
+              }
             }
           }
         ]);
       } else {
-        responseText = `Je n'ai pas trouvé de fiche spécifique pour "${query}". 🧐\n\nTu peux me poser des questions sur :\n- "Pythagore" 🔺\n- "Les dérivées" 📈\n- "Les fractions" 🍰\n- "Le conditionnel" 🗣️\n- "Les pharaons" 🏺\n- "Salutations en Wolof" 🇸🇳\n\nQue souhaites-tu réviser ?`;
-        
-        setChatMessages(prev => [...prev, { sender: 'ai', text: responseText }]);
+        responseText = `Je n'ai pas trouvé de fiche spécifique pour "${query}". 🧐\n\nPose-moi une question sur un sujet du programme comme :\n- "multiplications" ✖️\n- "fractions" 🍰\n- "corps humain" 🧠\n- "pharaons" 🏺\n- "pythagore" 🔺\n- "binaire" 💻\n- "python" 🐍\n- "wolof" 🗣️\n\nQuelle matière veux-tu étudier aujourd'hui ?`;
+        setChatMessages((prev: any[]) => [...prev, { sender: 'ai', text: responseText }]);
       }
       setIsTyping(false);
     }, 800);
@@ -1483,37 +1966,127 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
         {activeSubTab === 'academie_preview' && (
           <div className="space-y-4 text-left">
             <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Suivi d'activité des enfants (Académie locale) :</span>
+            
             {studentList.map(s => {
-              const kidKey = `academy_stats_${s.id}`;
-              const kidRaw = localStorage.getItem(kidKey);
+              const statsKey = `academy_stats_${s.id}`;
+              const statsRaw = localStorage.getItem(statsKey);
               let kidStats = { level: 1, xp: 0, stars: 0, streak: 0, completedQuizzesCount: 0 };
-              if (kidRaw) {
-                try { kidStats = JSON.parse(kidRaw); } catch (e) {}
+              if (statsRaw) {
+                try { kidStats = JSON.parse(statsRaw); } catch (e) {}
               }
 
+              const profileKey = `academy_student_profile_${s.id}`;
+              const profileRaw = localStorage.getItem(profileKey);
+              let profile = { level: 'CE2', country: 'France' };
+              if (profileRaw) {
+                try { profile = JSON.parse(profileRaw); } catch (e) {}
+              }
+
+              const progressKey = `academy_lesson_progress_${s.id}`;
+              const progressRaw = localStorage.getItem(progressKey);
+              let progress: Record<string, ChapterProgress> = {};
+              if (progressRaw) {
+                try { progress = JSON.parse(progressRaw); } catch (e) {}
+              }
+
+              const evalsKey = `academy_weekly_evals_${s.id}`;
+              const evalsRaw = localStorage.getItem(evalsKey);
+              let evalsList: WeeklyEvalItem[] = [];
+              if (evalsRaw) {
+                try { evalsList = JSON.parse(evalsRaw); } catch (e) {}
+              }
+
+              const getChildSubjectProgress = (subj: AcademySubject): number => {
+                const lessons = staticAcademyLessons.filter(l => l.matiere === subj);
+                if (lessons.length === 0) return 0;
+                const total = lessons.reduce((acc, curr) => {
+                  const p = progress[curr.id];
+                  if (!p) return acc;
+                  const pct = (p.read ? 10 : 0) + (p.exercises ? 30 : 0) + (p.game ? 20 : 0) + (p.flash ? 20 : 0) + (p.challenge ? 20 : 0);
+                  return acc + pct;
+                }, 0);
+                return Math.round(total / lessons.length);
+              };
+
+              const getChildGlobalProgress = (): number => {
+                const subjects = Object.keys(subjectCategories) as AcademySubject[];
+                const total = subjects.reduce((acc, curr) => acc + getChildSubjectProgress(curr), 0);
+                return Math.round(total / subjects.length);
+              };
+
+              const globalProgress = getChildGlobalProgress();
+
               return (
-                <div key={s.id} className="glass-panel border border-white/8 rounded-[24px] p-5 space-y-3">
+                <div key={s.id} className="glass-panel border border-white/8 rounded-[24px] p-5 space-y-4 bg-[#112240]/45">
                   <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                    <h4 className="text-sm font-extrabold text-white">{s.name}</h4>
-                    <span className="text-xs bg-[#6C5CFF]/15 text-[#6C5CFF] px-2.5 py-0.5 rounded-full font-bold">Niveau {kidStats.level}</span>
+                    <div>
+                      <h4 className="text-sm font-extrabold text-white">{s.name}</h4>
+                      <p className="text-[9px] text-[#00D26A] font-bold uppercase tracking-wider mt-0.5">
+                        🌍 {profile.country} • 🎓 Classe : {profile.level}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-black text-white">{globalProgress}% Global</span>
+                      <div className="w-16 h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5 mt-0.5">
+                        <div className="h-full bg-[#6C5CFF]" style={{ width: `${globalProgress}%` }} />
+                      </div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <div className="space-y-0.5 font-bold">
-                      <p className="text-white/40">Étoiles remportées</p>
-                      <p className="text-yellow-400 flex items-center space-x-1 text-sm"><Star className="w-4 h-4 fill-yellow-400 text-yellow-400" /> <span>{kidStats.stars}</span></p>
+
+                  {/* Micro stats grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[10px] font-bold bg-black/15 p-3 rounded-2xl border border-white/5">
+                    <div>
+                      <p className="text-white/40">Étoiles</p>
+                      <p className="text-yellow-400 flex items-center space-x-1 mt-0.5"><Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" /> <span>{kidStats.stars}</span></p>
                     </div>
-                    <div className="space-y-0.5 font-bold">
-                      <p className="text-white/40">Série actuelle</p>
-                      <p className="text-orange-400 flex items-center space-x-1 text-sm"><Flame className="w-4 h-4 fill-orange-400 text-orange-400" /> <span>{kidStats.streak} jours</span></p>
+                    <div>
+                      <p className="text-white/40">Série active</p>
+                      <p className="text-orange-400 flex items-center space-x-1 mt-0.5"><Flame className="w-3.5 h-3.5 fill-orange-400 text-orange-400" /> <span>{kidStats.streak} j</span></p>
                     </div>
-                    <div className="space-y-0.5 font-bold">
-                      <p className="text-white/40">Quiz complétés</p>
-                      <p className="text-white text-sm">{kidStats.completedQuizzesCount}</p>
+                    <div>
+                      <p className="text-white/40">Quiz faits</p>
+                      <p className="text-white mt-0.5">{kidStats.completedQuizzesCount}</p>
                     </div>
-                    <div className="space-y-0.5 font-bold">
-                      <p className="text-white/40">XP actuelle</p>
-                      <p className="text-emerald-400 text-sm">{kidStats.xp} XP</p>
+                    <div>
+                      <p className="text-white/40">XP du niveau</p>
+                      <p className="text-emerald-400 mt-0.5">{kidStats.xp} XP</p>
                     </div>
+                  </div>
+
+                  {/* Competencies Progress details */}
+                  <div className="space-y-2">
+                    <span className="text-[9px] font-black text-white/40 uppercase tracking-widest block">📊 Détail des compétences (Matières) :</span>
+                    <div className="grid grid-cols-2 gap-2 text-[10px] max-h-[160px] overflow-y-auto pr-1">
+                      {Object.keys(subjectCategories).map(subj => {
+                        const subProgress = getChildSubjectProgress(subj as AcademySubject);
+                        return (
+                          <div key={subj} className="bg-white/3 p-2 rounded-xl flex items-center justify-between border border-white/5">
+                            <span className="text-white/80 font-bold truncate max-w-[90px]">{subj}</span>
+                            <span className="font-extrabold text-[#00D26A]">{subProgress}%</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Weekly Evaluations scores list */}
+                  <div className="space-y-2 pt-2 border-t border-white/5">
+                    <span className="text-[9px] font-black text-white/40 uppercase tracking-widest block">📝 Notes aux Évaluations Hebdomadaires :</span>
+                    {evalsList.length === 0 ? (
+                      <p className="text-[10px] text-white/30 italic">Aucune évaluation réalisée pour le moment.</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1">
+                        {evalsList.map(ev => (
+                          <div key={ev.id} className="flex justify-between items-center bg-white/3 px-3 py-2 rounded-xl text-[10px]">
+                            <div className="space-y-0.5">
+                              <span className="text-[9px] font-bold text-white/60">{ev.date}</span>
+                              <span className="text-[8px] text-white/30 block truncate max-w-[180px]">{ev.subjects.join(', ')}</span>
+                            </div>
+                            <span className="font-extrabold text-[#FFB020]">{ev.score} / {ev.max}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -1707,17 +2280,98 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
           </div>
 
           {/* Subject Categories */}
-          <div className="space-y-3">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">Matières disponibles :</span>
-            <div className="bg-white/5 border border-white/8 rounded-[32px] p-5 space-y-4">
-              
-              {/* Learning Mode Toggle */}
-              <div className="bg-[#07111F]/60 p-1.5 rounded-2xl border border-white/5 grid grid-cols-2 gap-1.5 max-w-xs mx-auto shadow-inner mb-2">
+          {selectedSubject === null && (
+            <div className="space-y-3">
+              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">Matières disponibles :</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {[
+                  { id: 'Mathématiques', label: '🧮 Mathématiques' },
+                  { id: 'Français', label: '✍️ Français' },
+                  { id: 'Histoire', label: '🏺 Histoire' },
+                  { id: 'Géographie', label: '🗺️ Géographie' },
+                  { id: 'Sciences', label: '🧬 Sciences' },
+                  { id: 'Anglais', label: '🇬🇧 Anglais' },
+                  { id: 'Langues', label: '🗣️ Langues' },
+                  { id: 'Technologie', label: '💻 Technologie' },
+                  { id: 'Culture générale', label: '💡 Culture générale' },
+                  { id: 'Éducation civique', label: '🇫🇷 Éducation civique' },
+                  { id: 'Logique', label: '🧩 Logique' },
+                  { id: 'Programmation', label: '🐍 Programmation' },
+                  { id: 'Orientation', label: '🎯 Orientation' }
+                ].map(cat => {
+                  const progress = getSubjectProgress(cat.id as AcademySubject);
+                  const count = staticAcademyLessons.filter(l => l.matiere === cat.id).length;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => {
+                        setSelectedSubject(cat.id as AcademySubject);
+                        setSelectedLesson(null);
+                        setSelectedTable(null);
+                      }}
+                      className="p-4 rounded-3xl bg-[#112240] border border-white/8 hover:bg-[#1b2f54] text-left transition flex items-center justify-between cursor-pointer group shadow-sm"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/8 flex items-center justify-center text-lg shadow-inner group-hover:scale-105 transition-transform">
+                          {cat.id === 'Mathématiques' ? '🧮' :
+                           cat.id === 'Français' ? '✍️' :
+                           cat.id === 'Histoire' ? '🏺' :
+                           cat.id === 'Géographie' ? '🗺️' :
+                           cat.id === 'Sciences' ? '🧬' :
+                           cat.id === 'Anglais' ? '🇬🇧' :
+                           cat.id === 'Langues' ? '🗣️' :
+                           cat.id === 'Technologie' ? '💻' :
+                           cat.id === 'Culture générale' ? '💡' :
+                           cat.id === 'Éducation civique' ? '🇫🇷' :
+                           cat.id === 'Logique' ? '🧩' :
+                           cat.id === 'Programmation' ? '🐍' : '🎯'}
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-white">{cat.id}</h4>
+                          <p className="text-[9px] text-white/40 font-extrabold uppercase mt-0.5">{count} chapitres</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3">
+                        <div className="text-right">
+                          <span className="text-[10px] font-black text-[#6C5CFF]">{progress}%</span>
+                          <div className="w-14 h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5 mt-0.5">
+                            <div className="h-full bg-[#6C5CFF]" style={{ width: `${progress}%` }} />
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/60 transition" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Subject Detailed Area with Cycle Grouping Accordions */}
+          {selectedSubject !== null && !selectedLesson && (
+            <div className="space-y-6 animate-fadeIn">
+              {/* Back Bar */}
+              <div className="flex items-center justify-between">
+                <button 
+                  onClick={() => setSelectedSubject(null)}
+                  className="px-3.5 py-1.5 rounded-xl bg-white/5 border border-white/8 hover:bg-white/10 text-white font-extrabold text-[10px] uppercase tracking-wider flex items-center space-x-1 cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Matières</span>
+                </button>
+                <span className="text-[10px] font-black text-[#6C5CFF] bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 px-3 py-1 rounded-full uppercase">
+                  {selectedSubject}
+                </span>
+              </div>
+
+              {/* Mode switch */}
+              <div className="bg-[#112240] p-1.5 rounded-2xl border border-white/5 grid grid-cols-2 gap-1.5 max-w-xs mx-auto shadow-inner">
                 <button
                   onClick={() => setLearningMode('guided')}
                   className={`py-1.5 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
                     learningMode === 'guided'
-                      ? 'bg-[#6C5CFF] text-white shadow-md'
+                      ? 'bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white shadow-md'
                       : 'text-white/40 hover:text-white/60'
                   }`}
                 >
@@ -1727,7 +2381,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                   onClick={() => setLearningMode('library')}
                   className={`py-1.5 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
                     learningMode === 'library'
-                      ? 'bg-[#6C5CFF] text-white shadow-md'
+                      ? 'bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] text-white shadow-md'
                       : 'text-white/40 hover:text-white/60'
                   }`}
                 >
@@ -1735,198 +2389,408 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { id: 'maths', label: '🧮 Maths' },
-                  { id: 'français', label: '✍️ Français' },
-                  { id: 'histoire', label: '🏺 Histoire' },
-                  { id: 'géographie', label: '🗺️ Géographie' },
-                  { id: 'sciences', label: '🧬 Sciences' },
-                  { id: 'anglais', label: '🇬🇧 Anglais' },
-                  { id: 'culture', label: '💡 Culture G' }
-                ].map(cat => (
-                  <button
-                    key={cat.id}
-                    onClick={() => {
-                      setSelectedLessonCategory(cat.id as any);
-                      setSelectedLesson(null);
-                      setSelectedTable(null);
-                    }}
-                    className={`p-3 rounded-2xl border text-xs font-black transition cursor-pointer ${
-                      selectedLessonCategory === cat.id ? 'bg-[#6C5CFF]/25 border-[#6C5CFF] text-[#9E94FF]' : 'bg-white/5 border-white/5 text-white/70'
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
+              {/* Cycles List Accordion */}
+              <div className="space-y-3">
+                {['Cycle 2', 'Cycle 3', 'Cycle 4', 'Lycée'].map(cycle => {
+                  const lessons = staticAcademyLessons.filter(l => l.matiere === selectedSubject && l.cycles.includes(cycle as any));
+                  const isUserCycle = getCycleForLevel(studentProfile.level) === cycle;
+                  
+                  if (lessons.length === 0) return null;
+
+                  return (
+                    <div key={cycle} className="glass-panel border border-white/5 rounded-3xl overflow-hidden bg-[#112240]/45">
+                      {/* Header toggle */}
+                      <button
+                        onClick={() => setExpandedCycles(prev => ({ ...prev, [cycle]: !prev[cycle] }))}
+                        className="w-full p-4 flex items-center justify-between border-b border-white/5 hover:bg-white/3 transition cursor-pointer"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <h4 className="text-xs font-black text-white">{cycle}</h4>
+                          {isUserCycle && (
+                            <span className="text-[8px] bg-[#00D26A]/10 text-[#00D26A] border border-[#00D26A]/20 px-2 py-0.5 rounded-full font-black uppercase">Recommandé</span>
+                          )}
+                        </div>
+                        <span className="text-xs text-white/40 font-bold">{lessons.length} cours</span>
+                      </button>
+
+                      {/* Expanded lessons list */}
+                      {expandedCycles[cycle] && (
+                        <div className="p-3 divide-y divide-white/5">
+                          {lessons.map((les, idx) => {
+                            const progressPct = getChapterProgressPercent(les.id);
+                            const isFirst = idx === 0;
+                            const prevLessonProgress = isFirst ? 100 : getChapterProgressPercent(lessons[idx - 1].id);
+                            const isUnlocked = learningMode === 'library' || isFirst || prevLessonProgress >= 40;
+
+                            return (
+                              <button
+                                key={les.id}
+                                disabled={!isUnlocked}
+                                onClick={() => {
+                                  setSelectedLesson(les);
+                                  setActiveStepTab(0);
+                                }}
+                                className={`w-full py-3.5 px-2 flex justify-between items-center text-left transition ${
+                                  isUnlocked ? 'hover:bg-white/5 opacity-100 cursor-pointer' : 'opacity-35 cursor-not-allowed'
+                                }`}
+                              >
+                                <div className="space-y-1">
+                                  <h5 className="text-[11px] font-black text-white">{les.title}</h5>
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-[8px] font-bold text-white/40 uppercase">{les.category}</span>
+                                    {isUnlocked && (
+                                      <span className="text-[9px] font-black text-[#00D26A]">{progressPct}% complet</span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center space-x-2">
+                                  {isUnlocked ? (
+                                    progressPct === 100 ? (
+                                      <Trophy className="w-4 h-4 text-yellow-400 fill-yellow-400/20" />
+                                    ) : (
+                                      <div className="w-5 h-5 rounded-full bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 flex items-center justify-center text-[9px] text-[#9E94FF] font-black">
+                                        ▶
+                                      </div>
+                                    )
+                                  ) : (
+                                    <span className="text-xs">🔒</span>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Chapter step view */}
+          {selectedLesson && (
+            <div className="space-y-6 animate-fadeIn">
+              {/* Back Bar */}
+              <div className="flex items-center justify-between">
+                <button 
+                  onClick={() => {
+                    setSelectedLesson(null);
+                    setActiveGame(false);
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-white/5 border border-white/8 hover:bg-white/10 text-white font-extrabold text-[10px] uppercase tracking-wider flex items-center space-x-1 cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Chapitres</span>
+                </button>
+                <span className="text-[9px] font-black text-[#9E94FF] bg-[#6C5CFF]/10 px-3 py-1 rounded-full uppercase">
+                  {selectedLesson.title}
+                </span>
               </div>
 
-              {/* Subject Detailed Area */}
-              {selectedLessonCategory !== null && !selectedLesson && (
-                <div className="space-y-4 pt-4 border-t border-white/5 animate-fadeIn">
-                  <div className="flex justify-between items-center">
-                    <h5 className="text-xs font-black text-white uppercase tracking-wider">
-                      Fiches en {
-                        selectedLessonCategory === 'maths' ? 'Mathématiques' :
-                        selectedLessonCategory === 'français' ? 'Français' :
-                        selectedLessonCategory === 'histoire' ? 'Histoire' :
-                        selectedLessonCategory === 'géographie' ? 'Géographie' :
-                        selectedLessonCategory === 'sciences' ? 'Sciences' :
-                        selectedLessonCategory === 'anglais' ? 'Anglais' :
-                        'Culture générale'
-                      }
-                    </h5>
-                    <button 
-                      onClick={() => setSelectedLessonCategory(null)}
-                      className="text-[9px] text-[#6C5CFF] hover:underline uppercase font-bold cursor-pointer"
+              {/* 6-step tabs scrollable indicator */}
+              <div className="flex space-x-1 overflow-x-auto pb-1.5 scrollbar-thin">
+                {[
+                  { label: '📖 Leçon', idx: 0, field: 'read' },
+                  { label: '✏️ Exercices', idx: 1, field: 'exercises' },
+                  { label: '🎮 Mini-Jeu', idx: 2, field: 'game' },
+                  { label: '⚡ Flash', idx: 3, field: 'flash' },
+                  { label: '🏆 Défi', idx: 4, field: 'challenge' },
+                  { label: '⭐ Badge', idx: 5, field: null }
+                ].map((step) => {
+                  const currentProgress = lessonProgress[selectedLesson.id] || { read: false, exercises: false, game: false, flash: false, challenge: false };
+                  const isCurrent = activeStepTab === step.idx;
+                  const isDone = step.field ? (currentProgress as any)[step.field] : getChapterProgressPercent(selectedLesson.id) === 100;
+                  
+                  let isLocked = false;
+                  if (learningMode === 'guided') {
+                    if (step.idx === 1 && !currentProgress.read) isLocked = true;
+                    if (step.idx === 2 && !currentProgress.exercises) isLocked = true;
+                    if (step.idx === 3 && !currentProgress.game) isLocked = true;
+                    if (step.idx === 4 && !currentProgress.flash) isLocked = true;
+                    if (step.idx === 5 && getChapterProgressPercent(selectedLesson.id) < 100) isLocked = true;
+                  }
+
+                  let btnStyle = "text-white/40 border-transparent hover:text-white/60";
+                  if (isCurrent) {
+                    btnStyle = "bg-[#6C5CFF]/25 border-[#6C5CFF]/40 text-[#9E94FF] font-black";
+                  } else if (isDone) {
+                    btnStyle = "text-emerald-400 font-bold border-transparent";
+                  } else if (isLocked) {
+                    btnStyle = "text-white/10 cursor-not-allowed opacity-35 border-transparent";
+                  } else {
+                    btnStyle = "text-white/60 font-semibold border-transparent";
+                  }
+
+                  return (
+                    <button
+                      key={step.idx}
+                      disabled={isLocked}
+                      onClick={() => setActiveStepTab(step.idx)}
+                      className={`px-3 py-1.5 rounded-xl border text-[9px] whitespace-nowrap transition cursor-pointer flex items-center space-x-1 shrink-0 ${btnStyle}`}
                     >
-                      Fermer
+                      <span>{step.label}</span>
+                      {isDone && <span className="text-[8px] text-emerald-400">✓</span>}
+                      {isLocked && <span className="text-[8px]">🔒</span>}
                     </button>
-                  </div>
+                  );
+                })}
+              </div>
 
-                  <div className="space-y-2">
-                    {(() => {
-                      const lessons = staticAcademyLessons.filter(l => 
-                        (selectedLessonCategory === 'maths' ? l.matiere === 'Mathématiques' : 
-                         selectedLessonCategory === 'français' ? l.matiere === 'Français' : 
-                         selectedLessonCategory === 'histoire' ? l.matiere === 'Histoire' : 
-                         selectedLessonCategory === 'géographie' ? l.matiere === 'Géographie' : 
-                         selectedLessonCategory === 'sciences' ? (l.matiere === 'Sciences' || l.matiere === 'Découverte') : 
-                         selectedLessonCategory === 'anglais' ? (l.matiere === 'Anglais' || l.matiere === 'Langues') : 
-                         (l.matiere === 'Culture G' || l.matiere === 'Culture'))
-                      );
+              {/* Step Content */}
+              {activeStepTab === 0 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="bg-[#112240] border border-white/5 rounded-3xl p-5 space-y-4 text-left">
+                    <div className="border-b border-white/5 pb-3">
+                      <span className="text-[9px] font-black text-white/40 uppercase tracking-widest block">Définition</span>
+                      <p className="text-xs text-white leading-relaxed font-semibold mt-1">
+                        {selectedLesson.definition}
+                      </p>
+                    </div>
 
-                      if (lessons.length === 0) {
-                        return <p className="text-xs text-white/30 italic py-2">Aucune fiche de cours disponible pour ce niveau.</p>;
-                      }
-
-                      return lessons.map((les, idx) => {
-                        const isCompleted = stats.completedQuizzesCount > idx * 2;
-                        const isUnlocked = learningMode === 'library' || idx === 0 || isCompleted;
-
-                        return (
-                          <button
-                            key={les.id}
-                            disabled={!isUnlocked}
-                            onClick={() => setSelectedLesson(les)}
-                            className={`w-full p-3.5 border rounded-2xl text-left text-xs font-black text-white flex justify-between items-center transition-all cursor-pointer ${
-                              isUnlocked ? 'bg-white/3 hover:bg-[#6C5CFF]/15 border-white/5' : 'bg-white/1 border-white/2 opacity-40 cursor-not-allowed'
-                            }`}
-                          >
-                            <div className="flex items-center space-x-2.5">
-                              <span className="text-sm">{isUnlocked ? '📖' : '🔒'}</span>
-                              <span>{les.title}</span>
-                            </div>
-                            <div className="flex items-center space-x-1.5">
-                              {isCompleted && <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-black uppercase">Fait</span>}
-                              <ChevronRight className="w-4.5 h-4.5 text-white/30" />
-                            </div>
-                          </button>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-              )}
-
-              {/* Course detailed view */}
-              {selectedLesson && (
-                <div className="space-y-4 pt-4 border-t border-white/5 animate-fadeIn">
-                  <div className="flex justify-between items-center">
-                    <button 
-                      onClick={() => setSelectedLesson(null)}
-                      className="text-[10px] font-black text-white/50 hover:text-white flex items-center space-x-1 cursor-pointer"
-                    >
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                      <span>Retour aux fiches</span>
-                    </button>
-                    <span className="text-[9px] font-bold text-white/40 uppercase bg-white/5 border border-white/5 px-2.5 py-0.5 rounded-full">
-                      {selectedLesson.matiere}
-                    </span>
-                  </div>
-
-                  <div className="space-y-3.5">
-                    <h4 className="text-sm font-extrabold text-white leading-snug">{selectedLesson.title}</h4>
-                    
-                    <div className="space-y-2">
-                      <span className="text-[9px] font-black text-white/40 uppercase tracking-wider block">📖 Explication simple :</span>
-                      <p className="text-xs text-white/80 leading-relaxed font-medium bg-black/20 p-4 rounded-2xl border border-white/5">
+                    <div>
+                      <span className="text-[9px] font-black text-[#6C5CFF] uppercase tracking-widest block">Explication Complète</span>
+                      <p className="text-xs text-white/80 leading-relaxed font-medium mt-1">
                         {selectedLesson.explication}
                       </p>
                     </div>
 
                     {selectedLesson.schemas && selectedLesson.schemas.length > 0 && (
-                      <div className="space-y-2">
-                        <span className="text-[9px] font-black text-white/40 uppercase tracking-wider block">🎨 Illustration visuelle :</span>
-                        <div className="bg-black/35 p-4 rounded-2xl border border-white/5 font-mono text-[10px] text-[#9E94FF] whitespace-pre overflow-x-auto">
-                          {selectedLesson.schemas.map((s, idx) => <div key={idx}>{s}</div>)}
-                        </div>
+                      <div className="bg-black/30 p-3 rounded-2xl border border-white/5 font-mono text-[9px] text-[#00D26A] whitespace-pre overflow-x-auto">
+                        {selectedLesson.schemas.join('\n')}
                       </div>
                     )}
 
-                    <div className="p-3 bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 rounded-xl text-[10.5px] text-[#9E94FF] font-semibold italic">
-                      <span className="font-bold text-white/40 uppercase tracking-wider text-[8.5px] not-italic mr-1.5 block">💡 Exemple concret :</span>
-                      {selectedLesson.exemple}
+                    <div className="border-t border-white/5 pt-3">
+                      <span className="text-[9px] font-black text-[#00D26A] uppercase tracking-widest block">Méthode à suivre</span>
+                      <p className="text-xs text-white/80 leading-relaxed font-medium mt-1 whitespace-pre-line">
+                        {selectedLesson.methode}
+                      </p>
                     </div>
 
-                    {selectedLesson.pieges && (
-                      <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-[10.5px] text-red-300 font-semibold italic">
-                        <span className="font-bold text-white/40 uppercase tracking-wider text-[8.5px] not-italic mr-1.5 block">⚠️ Piège à éviter :</span>
+                    <div className="p-3.5 bg-rose-500/5 border border-rose-500/15 rounded-2xl space-y-1">
+                      <span className="text-[8px] font-black text-rose-400 uppercase tracking-wider block">⚠️ Pièges fréquents :</span>
+                      <p className="text-xs text-white/80 font-medium leading-relaxed">
                         {selectedLesson.pieges}
-                      </div>
-                    )}
-
-                    <div className="bg-white/3 border border-white/5 p-4 rounded-2xl space-y-2">
-                      <span className="text-[9px] font-black text-white/40 uppercase tracking-wider block">📌 Résumé / Mémo :</span>
-                      <ul className="list-disc pl-4 space-y-1 text-xs text-white/70 font-medium">
-                        {selectedLesson.memo.split('\n').map((line, idx) => (
-                          <li key={idx}>{line.replace(/^- /, '')}</li>
-                        ))}
-                      </ul>
+                      </p>
                     </div>
-                  </div>
 
-                  <button
-                    onClick={() => { launchTeenExercises(selectedLesson); setSelectedLesson(null); }}
-                    className="w-full py-3 rounded-2xl bg-[#6C5CFF] text-white font-extrabold text-xs shadow-md hover:bg-[#5849E0] transition-all flex items-center justify-center space-x-2 cursor-pointer"
-                  >
-                    <span>S'entraîner sur cette fiche (5 Qs) ✍️</span>
-                  </button>
+                    {!(lessonProgress[selectedLesson.id]?.read) ? (
+                      <button
+                        onClick={() => {
+                          updateProgressField(selectedLesson.id, 'read', true);
+                          setStats(prev => ({ ...prev, xp: prev.xp + 10 }));
+                          alert("📖 Leçon lue ! Tu gagnes +10 XP. Place aux exercices ! ✏️");
+                          setActiveStepTab(1);
+                        }}
+                        className="w-full py-3 bg-[#00D26A] text-[#07111F] font-black text-xs rounded-2xl shadow-md hover:bg-[#00FF87] transition flex items-center justify-center space-x-2 cursor-pointer animate-pulse"
+                      >
+                        <span>J'ai compris le cours ! (+10 XP) 👍</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setActiveStepTab(1)}
+                        className="w-full py-3 bg-white/5 border border-white/10 text-white font-black text-xs rounded-2xl hover:bg-white/10 transition flex items-center justify-center space-x-2 cursor-pointer"
+                      >
+                        <span>Continuer vers les Exercices ✏️</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeStepTab === 1 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="bg-[#112240] border border-white/5 rounded-3xl p-5 space-y-4 text-left">
+                    <div className="flex items-center space-x-2 border-b border-white/5 pb-3">
+                      <span className="text-xl">✏️</span>
+                      <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 2 : Exercices d'entraînement</h4>
+                    </div>
+                    <p className="text-xs text-white/75 leading-relaxed font-semibold">
+                      Entraîne-toi avec 5 questions interactives. Obtiens au moins 4/5 pour débloquer la suite.
+                    </p>
+                    <button
+                      onClick={() => startTeenExercises(selectedLesson)}
+                      className="w-full py-3.5 bg-[#6C5CFF] text-white font-black text-xs rounded-2xl shadow-md hover:bg-[#5849E0] transition flex items-center justify-center space-x-2 cursor-pointer"
+                    >
+                      <span>Lancer les Exercices ✏️</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeStepTab === 2 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="bg-[#112240] border border-white/5 rounded-3xl p-5 space-y-4 text-left">
+                    <div className="flex items-center space-x-2 border-b border-white/5 pb-3">
+                      <span className="text-xl">🎮</span>
+                      <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 3 : Le Mini-Jeu Memory</h4>
+                    </div>
+                    <p className="text-xs text-white/75 leading-relaxed font-semibold">
+                      Associe les concepts clés de cette leçon le plus vite possible !
+                    </p>
+
+                    {activeGame ? (
+                      <div className="grid grid-cols-4 gap-2 pt-2 animate-scaleIn">
+                        {memoryCards.map(card => (
+                          <button
+                            key={card.id}
+                            onClick={() => handleCardClick(card.id)}
+                            className={`aspect-square rounded-xl text-[8px] font-black border p-1 transition-all flex items-center justify-center ${
+                              card.isMatched 
+                                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 opacity-60' 
+                                : card.isFlipped 
+                                ? 'bg-[#6C5CFF]/25 border-[#6C5CFF]/50 text-[#9E94FF]' 
+                                : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10'
+                            }`}
+                          >
+                            {(card.isFlipped || card.isMatched) ? card.content : '❓'}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => startMemoryGame(selectedLesson)}
+                        className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-[#07111F] font-black text-xs rounded-2xl shadow-md transition flex items-center justify-center space-x-2 cursor-pointer"
+                      >
+                        <span>Lancer le Jeu Memory 🎮</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeStepTab === 3 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="bg-[#112240] border border-white/5 rounded-3xl p-5 space-y-4 text-left">
+                    <div className="flex items-center space-x-2 border-b border-white/5 pb-3">
+                      <span className="text-xl">⚡</span>
+                      <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 4 : Le Flash Quiz</h4>
+                    </div>
+                    <p className="text-xs text-white/75 leading-relaxed font-semibold">
+                      5 questions rapides. Il te faut 4/5 pour pouvoir relever le Défi Final.
+                    </p>
+                    <button
+                      onClick={() => startTeenFlash(selectedLesson)}
+                      className="w-full py-3.5 bg-gradient-to-r from-teal-500 to-[#00D26A] text-white font-black text-xs rounded-2xl shadow-md transition flex items-center justify-center space-x-2 cursor-pointer"
+                    >
+                      <span>Lancer le Flash Quiz ⚡</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeStepTab === 4 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="bg-[#112240] border border-white/5 rounded-3xl p-5 space-y-4 text-left">
+                    <div className="flex items-center space-x-2 border-b border-white/5 pb-3">
+                      <span className="text-xl">🏆</span>
+                      <h4 className="text-xs font-black text-white uppercase tracking-wider">Étape 5 : Le Défi Chronométré</h4>
+                    </div>
+                    <p className="text-xs text-white/75 leading-relaxed font-semibold">
+                      Réponds à au moins 4 questions en moins de 45 secondes pour débloquer ton Badge de chapitre !
+                    </p>
+                    <button
+                      onClick={() => startTeenChallenge(selectedLesson)}
+                      className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black text-xs rounded-2xl shadow-md transition flex items-center justify-center space-x-2 cursor-pointer"
+                    >
+                      <span>Lancer le Défi (45s) 🏆</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeStepTab === 5 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="bg-gradient-to-br from-[#FFB020]/15 to-[#FF8C00]/10 border-2 border-[#FFB020]/30 rounded-[32px] p-6 text-center space-y-5 relative overflow-hidden">
+                    <span className="text-4xl animate-bounce block">🏆</span>
+                    <h3 className="text-base font-black text-white">Leçon 100% Maîtrisée !</h3>
+                    <p className="text-xs text-white/75 font-semibold">
+                      Tu as validé toutes les compétences de ce chapitre. Voici tes récompenses :
+                    </p>
+
+                    <div className="flex items-center justify-center space-x-4">
+                      <div className="bg-white/5 px-4 py-2 rounded-2xl border border-white/10 text-center">
+                        <span className="text-[8px] text-white/40 font-black uppercase block">XP gagnés</span>
+                        <span className="text-sm font-black text-emerald-400">+50 XP</span>
+                      </div>
+                      <div className="bg-white/5 px-4 py-2 rounded-2xl border border-white/10 text-center">
+                        <span className="text-[8px] text-white/40 font-black uppercase block">Étoiles</span>
+                        <span className="text-sm font-black text-yellow-400 flex items-center justify-center space-x-1">
+                          <span>+5</span> <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                        </span>
+                      </div>
+                      <div className="bg-white/5 px-4 py-2 rounded-2xl border border-white/10 text-center">
+                        <span className="text-[8px] text-white/40 font-black uppercase block">Argent de poche</span>
+                        <span className="text-sm font-black text-indigo-300">+0.50€ 💶</span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-white/5 border border-white/5 rounded-2xl text-[9px] text-white/50 leading-relaxed font-bold">
+                      💡 Une demande de validation d'argent de poche a été transmise aux parents.
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setSelectedLesson(null);
+                        setActiveGame(false);
+                      }}
+                      className="w-full py-3 bg-[#6C5CFF] hover:bg-[#5849E0] text-white font-black text-xs rounded-2xl shadow-md transition cursor-pointer"
+                    >
+                      Retourner au Programme
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Study Methods */}
-          <div className="space-y-3">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">🧠 Méthodes de révision :</span>
-            <div className="grid grid-cols-1 gap-3">
-              {[
-                { 
-                  title: "💡 La Technique Feynman", 
-                  desc: "Explique un concept difficile avec des mots très simples, comme si tu l'expliquais à un enfant de 10 ans. Si tu bloques, c'est là que réside ta lacune." 
-                },
-                { 
-                  title: "⏱️ La Méthode Pomodoro", 
-                  desc: "Répartis ton travail en sessions de 25 minutes de concentration intense, suivies de 5 minutes de pause complète. Répète cela 4 fois." 
-                },
-                { 
-                  title: "⚡ L'Active Recall (Rappel Actif)", 
-                  desc: "Ferme ton cours et essaie d'écrire de mémoire tout ce dont tu te souviens sur une feuille blanche. C'est 10x plus efficace que de relire passivement." 
-                }
-              ].map((m, idx) => (
-                <div key={idx} className="bg-white/5 border border-white/8 rounded-2xl p-4 text-left space-y-1">
-                  <h4 className="text-xs font-black text-[#9E94FF]">{m.title}</h4>
-                  <p className="text-[11px] text-white/60 leading-relaxed font-medium">{m.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          )}
         </div>
       )}
 
       {activeSubTab === 'revisions' && !activeQuiz && (
         <div className="space-y-6 text-left animate-fadeIn">
+          {/* Weekly Evaluation Launcher & History */}
+          <div className="space-y-3">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">📝 Évaluation Hebdomadaire Ado :</span>
+            <div className="bg-gradient-to-r from-[#6C5CFF]/15 to-[#E040FB]/5 border border-[#6C5CFF]/20 rounded-[32px] p-5 space-y-4">
+              <div className="space-y-1">
+                <h4 className="text-xs font-black text-white">Bilan Hebdomadaire (Note / 20)</h4>
+                <p className="text-[11px] text-white/60 leading-snug">
+                  Lance un test de 10 questions mélangées sur les matières que tu as travaillées cette semaine. Ta note sera enregistrée officiellement et visible par tes parents.
+                </p>
+              </div>
+
+              <button
+                onClick={launchWeeklyEvaluation}
+                className="w-full py-3 bg-[#6C5CFF] text-white font-extrabold text-xs rounded-2xl shadow-md hover:bg-[#5849E0] transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <span>Démarrer mon Évaluation Hebdomadaire 📝</span>
+              </button>
+
+              {/* History list */}
+              {weeklyEvals.length > 0 && (
+                <div className="pt-3 border-t border-white/5 space-y-2">
+                  <span className="text-[9px] font-black text-white/40 uppercase tracking-widest block">Historique des notes :</span>
+                  <div className="space-y-1.5 max-h-[150px] overflow-y-auto pr-1">
+                    {weeklyEvals.map(ev => (
+                      <div key={ev.id} className="flex justify-between items-center bg-white/3 px-3 py-2 rounded-xl text-xs">
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] font-bold text-white">{ev.date}</span>
+                          <span className="text-[8px] text-white/40 block truncate max-w-[180px]">{ev.subjects.join(', ')}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-extrabold text-[#FFB020]">{ev.score} / {ev.max}</span>
+                          <span className="text-[8px] text-emerald-400 block">+ {ev.xpBonus} XP</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Flash Cards Card */}
           <div className="space-y-3">
             <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">📝 Flashcards de Révision :</span>
