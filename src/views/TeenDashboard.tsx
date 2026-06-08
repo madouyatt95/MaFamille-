@@ -807,6 +807,8 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
     let subCat = 'Cadeau';
     let avail = true;
     let valReq = true;
+    let modifiable = true;
+    let supprimable = true;
     if (sg.contributions && sg.contributions.length > 0) {
       const meta = sg.contributions[0] as any;
       if (meta.icon) icon = meta.icon;
@@ -815,6 +817,8 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
       if (meta.subCategory) subCat = meta.subCategory;
       if (meta.avail !== undefined) avail = meta.avail;
       if (meta.validationRequired !== undefined) valReq = meta.validationRequired;
+      if (meta.modifiable !== undefined) modifiable = meta.modifiable;
+      if (meta.supprimable !== undefined) supprimable = meta.supprimable;
     }
     return {
       id: sg.id,
@@ -824,7 +828,9 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
       icon,
       category: subCat,
       avail,
-      validationRequired: valReq
+      validationRequired: valReq,
+      modifiable,
+      supprimable
     };
   };
 
@@ -887,10 +893,24 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
 
     if (reward.validationRequired !== false) {
       const timestamp = Date.now();
+      const metadata = {
+        reward_id: reward.id,
+        reward_title: reward.title,
+        reward_category: reward.category,
+        reward_price_points: reward.costPoints,
+        reward_price_money: reward.costMoney,
+        child_id: member.id,
+        child_name: member.name,
+        payment_type: paymentMethod,
+        created_at: new Date().toISOString()
+      };
+      const userFriendlyDesc = `${member.name} souhaite dépenser ${paymentMethod === 'points' ? `${cost} points` : `${cost.toFixed(2)} €`} pour "${reward.title}".`;
+      const serializedDescription = `__METADATA__:${JSON.stringify(metadata)}__DESCRIPTION__:${userFriendlyDesc}`;
+
       const newAlert: NotificationAlert = {
         id: `req-rew-${member.id}-${reward.id}-${paymentMethod}-${timestamp}`,
         title: `Achat Ado : ${reward.title}`,
-        description: `${member.name} souhaite dépenser ${paymentMethod === 'points' ? `${cost} points` : `${cost.toFixed(2)} €`} pour "${reward.title}".`,
+        description: serializedDescription,
         time: new Date().toISOString(),
         type: 'warning',
         read: false,

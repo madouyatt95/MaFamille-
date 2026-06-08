@@ -33,6 +33,8 @@ interface RewardItem {
   category: string;
   avail: boolean;
   validationRequired?: boolean;
+  modifiable?: boolean;
+  supprimable?: boolean;
 }
 
 export const KidMissions: React.FC<KidMissionsProps> = ({
@@ -116,6 +118,8 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
     let subCategory = 'Cadeau';
     let avail = true;
     let validationRequired = true;
+    let modifiable = true;
+    let supprimable = true;
     
     if (sg.contributions && sg.contributions.length > 0) {
       const meta = sg.contributions[0] as any;
@@ -125,6 +129,8 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
       if (meta.subCategory) subCategory = meta.subCategory;
       if (meta.avail !== undefined) avail = meta.avail;
       if (meta.validationRequired !== undefined) validationRequired = meta.validationRequired;
+      if (meta.modifiable !== undefined) modifiable = meta.modifiable;
+      if (meta.supprimable !== undefined) supprimable = meta.supprimable;
     }
     
     return {
@@ -135,7 +141,9 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
       icon,
       category: subCategory,
       avail,
-      validationRequired
+      validationRequired,
+      modifiable,
+      supprimable
     };
   };
 
@@ -208,10 +216,24 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
 
     if (reward.validationRequired !== false) {
       const timestamp = Date.now();
+      const metadata = {
+        reward_id: reward.id,
+        reward_title: reward.title,
+        reward_category: reward.category,
+        reward_price_points: reward.costPoints,
+        reward_price_money: reward.costMoney,
+        child_id: member.id,
+        child_name: member.name,
+        payment_type: paymentMethod,
+        created_at: new Date().toISOString()
+      };
+      const userFriendlyDesc = `${member.name} souhaite échanger ${paymentMethod === 'points' ? `${cost} étoiles` : `${cost.toFixed(2)} €`} contre "${reward.title}".`;
+      const serializedDescription = `__METADATA__:${JSON.stringify(metadata)}__DESCRIPTION__:${userFriendlyDesc}`;
+
       const newAlert: NotificationAlert = {
         id: `req-rew-${member.id}-${reward.id}-${paymentMethod}-${timestamp}`,
         title: `Demande de récompense : ${reward.title}`,
-        description: `${member.name} souhaite échanger ${paymentMethod === 'points' ? `${cost} étoiles` : `${cost.toFixed(2)} €`} contre "${reward.title}".`,
+        description: serializedDescription,
         time: new Date().toISOString(),
         type: 'warning',
         read: false,

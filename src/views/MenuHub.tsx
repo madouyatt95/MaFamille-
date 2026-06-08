@@ -6236,6 +6236,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           let costMoney = Math.round(costPoints / 10);
           let category = 'Cadeau';
           let avail = true;
+          let validationRequired = true;
+          let modifiable = true;
+          let supprimable = true;
           
           if (sg.contributions && sg.contributions.length > 0) {
             const meta = sg.contributions[0] as any;
@@ -6253,7 +6256,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             costMoney,
             icon,
             category,
-            avail
+            avail,
+            validationRequired,
+            modifiable,
+            supprimable
           };
         };
 
@@ -6262,12 +6268,21 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           .map(mapSavingGoalToReward);
 
         const rewardsList = dbRewards.length > 0 ? dbRewards : [
-          { id: 'rew-1', title: '30 min de console 🎮', costPoints: 50, costMoney: 5, icon: '🎮', category: 'Écran', avail: true },
-          { id: 'rew-2', title: 'Choisir le menu du dîner 🍕', costPoints: 80, costMoney: 8, icon: '🍕', category: 'Repas', avail: true },
-          { id: 'rew-3', title: 'Coucher tardif (+30 min) 🌙', costPoints: 100, costMoney: 10, icon: '🌙', category: 'Sommeil', avail: true },
-          { id: 'rew-4', title: 'Double boule de glace 🍦', costPoints: 120, costMoney: 12, icon: '🍦', category: 'Gourmandise', avail: true },
-          { id: 'rew-5', title: 'Cinéma en famille 🎬', costPoints: 250, costMoney: 25, icon: '🎬', category: 'Sortie', avail: true },
-          { id: 'rew-6', title: 'Nouveau jouet au choix 🧸', costPoints: 400, costMoney: 40, icon: '🧸', category: 'Cadeau', avail: true }
+          { id: 'rew-1', title: '30 min console', costPoints: 50, costMoney: 5, icon: '🎮', category: 'Écran', avail: true, validationRequired: true, modifiable: true, supprimable: true },
+          { id: 'rew-2', title: '1h console', costPoints: 100, costMoney: 10, icon: '🎮', category: 'Écran', avail: true, validationRequired: true, modifiable: true, supprimable: true },
+          { id: 'rew-3', title: 'Choisir le menu du soir', costPoints: 20, costMoney: 2, icon: '🍽️', category: 'Privilège', avail: true, validationRequired: true, modifiable: true, supprimable: true },
+          { id: 'rew-4', title: 'Pizza maison', costPoints: 30, costMoney: 3, icon: '🍕', category: 'Repas', avail: true, validationRequired: true, modifiable: true, supprimable: true },
+          { id: 'rew-5', title: 'Glace', costPoints: 15, costMoney: 1.5, icon: '🍦', category: 'Gourmandise', avail: true, validationRequired: true, modifiable: true, supprimable: true },
+          { id: 'rew-6', title: 'Bonbons', costPoints: 10, costMoney: 1, icon: '🍬', category: 'Gourmandise', avail: true, validationRequired: true, modifiable: true, supprimable: true },
+          { id: 'rew-7', title: 'Cinéma en famille', costPoints: 150, costMoney: 15, icon: '🍿', category: 'Sortie', avail: true, validationRequired: true, modifiable: true, supprimable: true },
+          { id: 'rew-8', title: 'Piscine', costPoints: 80, costMoney: 8, icon: '🏊', category: 'Sortie', avail: true, validationRequired: true, modifiable: true, supprimable: true },
+          { id: 'rew-9', title: 'Bowling', costPoints: 100, costMoney: 10, icon: '🎳', category: 'Sortie', avail: true, validationRequired: true, modifiable: true, supprimable: true },
+          { id: 'rew-10', title: 'Inviter un ami', costPoints: 40, costMoney: 4, icon: '👥', category: 'Privilège', avail: true, validationRequired: true, modifiable: true, supprimable: true },
+          { id: 'rew-11', title: 'Veillée +30 min', costPoints: 30, costMoney: 3, icon: '⏰', category: 'Privilège', avail: true, validationRequired: true, modifiable: true, supprimable: true },
+          { id: 'rew-12', title: 'Choisir le film familial', costPoints: 20, costMoney: 2, icon: '🎬', category: 'Privilège', avail: true, validationRequired: true, modifiable: true, supprimable: true },
+          { id: 'rew-13', title: 'Livre', costPoints: 60, costMoney: 6, icon: '📚', category: 'Cadeau', avail: true, validationRequired: true, modifiable: true, supprimable: true },
+          { id: 'rew-14', title: 'Jouet', costPoints: 120, costMoney: 12, icon: '🧸', category: 'Cadeau', avail: true, validationRequired: true, modifiable: true, supprimable: true },
+          { id: 'rew-15', title: 'Carte cadeau', costPoints: 200, costMoney: 20, icon: '💳', category: 'Cadeau', avail: true, validationRequired: true, modifiable: true, supprimable: true }
         ];
 
         // Quick adjust handler
@@ -6394,14 +6409,52 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
         // Approve boutique request
         const handleApproveBoutiqueRequest = async (alertItem: NotificationAlert, childId: string, rewardId: string, paymentMethod: string) => {
-          const child = pocketMoney.find(c => c.id === childId);
-          if (!child) return;
-          const reward = rewardsList.find(r => r.id === rewardId);
-          if (!reward) return;
+          let meta: any = null;
+          const desc = alertItem.description || '';
+          if (desc.startsWith('__METADATA__:') && desc.includes('__DESCRIPTION__:')) {
+            try {
+              const idx = desc.indexOf('__DESCRIPTION__:');
+              const jsonStr = desc.substring('__METADATA__:'.length, idx);
+              meta = JSON.parse(jsonStr);
+            } catch (e) {
+              console.error("Failed to parse alert metadata in approval:", e);
+            }
+          }
 
-          const cost = paymentMethod === 'points' ? reward.costPoints : reward.costMoney;
+          const resolvedChildId = meta ? meta.child_id : childId;
+          const resolvedRewardId = meta ? meta.reward_id : rewardId;
+          const resolvedPaymentMethod = meta ? meta.payment_type : paymentMethod;
+
+          const child = pocketMoney.find(c => c.id === resolvedChildId);
+          if (!child) return;
+
+          let reward: any = rewardsList.find(r => r.id === resolvedRewardId);
+          if (!reward && meta) {
+            reward = {
+              id: meta.reward_id,
+              title: meta.reward_title,
+              costPoints: meta.reward_price_points,
+              costMoney: meta.reward_price_money,
+              icon: meta.reward_emoji || '🎁',
+              category: meta.reward_category,
+              avail: true
+            } as any;
+          }
+          if (!reward) {
+            reward = {
+              id: resolvedRewardId,
+              title: alertItem.title.replace("Achat Ado : ", "").replace("Achat Enfant : ", "").replace("Demande de récompense : ", ""),
+              costPoints: resolvedPaymentMethod === 'points' ? 50 : 0,
+              costMoney: resolvedPaymentMethod === 'money' ? 5 : 0,
+              icon: '🎁',
+              category: 'Cadeau',
+              avail: true
+            } as any;
+          }
+
+          const cost = resolvedPaymentMethod === 'points' ? reward.costPoints : reward.costMoney;
           
-          if (paymentMethod === 'points') {
+          if (resolvedPaymentMethod === 'points') {
             if (child.points < cost) {
               alert(`Solde insuffisant : ${child.name} a ${child.points} Pts, mais le cadeau coûte ${cost} Pts.`);
               return;
@@ -6413,18 +6466,18 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             }
           }
 
-          const updatedPoints = (paymentMethod === 'points' ? child.points - cost : child.points) + 5;
-          const updatedBalance = paymentMethod === 'money' ? child.balance - cost : child.balance;
+          const updatedPoints = (resolvedPaymentMethod === 'points' ? child.points - cost : child.points) + 5;
+          const updatedBalance = resolvedPaymentMethod === 'money' ? child.balance - cost : child.balance;
 
-          setPocketMoney(prev => prev.map(c => c.id === childId ? { ...c, points: updatedPoints, balance: updatedBalance } : c));
+          setPocketMoney(prev => prev.map(c => c.id === resolvedChildId ? { ...c, points: updatedPoints, balance: updatedBalance } : c));
 
           if (onAddTransaction) {
             onAddTransaction({
-              amount: paymentMethod === 'money' ? cost : 0,
+              amount: resolvedPaymentMethod === 'money' ? cost : 0,
               type: 'expense',
               category: 'Argent de Poche',
               date: new Date().toISOString().split('T')[0],
-              title: `Achat boutique validé (${paymentMethod === 'points' ? 'Points' : 'Cash'}) : ${reward.title}`,
+              title: `Achat boutique validé (${resolvedPaymentMethod === 'points' ? 'Points' : 'Cash'}) : ${reward.title}`,
               memberName: child.name
             });
           }
@@ -6439,7 +6492,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               await client.from('alerts').delete().eq('id', alertItem.id);
               await client.from('pocket_money')
                 .update({ points: updatedPoints, balance: updatedBalance })
-                .eq('id', childId);
+                .eq('id', resolvedChildId);
             }
           } catch (err) {
             console.error("Error approving request:", err);
@@ -6827,24 +6880,60 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                         // 1. Check if purchase request req-rew-*
                         const isPurchase = alertItem.id.startsWith('req-rew-');
                         if (isPurchase) {
+                          let meta: any = null;
+                          const desc = alertItem.description || '';
+                          if (desc.startsWith('__METADATA__:') && desc.includes('__DESCRIPTION__:')) {
+                            try {
+                              const idx = desc.indexOf('__DESCRIPTION__:');
+                              const jsonStr = desc.substring('__METADATA__:'.length, idx);
+                              meta = JSON.parse(jsonStr);
+                            } catch (e) {
+                              console.error("Failed to parse alert metadata:", e);
+                            }
+                          }
+
                           const match = alertItem.id.match(/^req-rew-(.*?)-(.*?)-(points|money)-(\d+)$/);
-                          if (!match) return null;
-                          const rewardId = match[2];
-                          const paymentMethod = match[3];
-                          const reward = rewardsList.find(r => r.id === rewardId);
-                          const cost = paymentMethod === 'points' ? reward?.costPoints : reward?.costMoney;
+                          const resolvedChildId = meta ? meta.child_id : (match ? match[1] : resolvedChild?.id);
+                          const resolvedChildName = meta ? meta.child_name : (resolvedChild?.name || 'L\'enfant');
+                          const rewardId = meta ? meta.reward_id : (match ? match[2] : '');
+                          const paymentMethod = meta ? meta.payment_type : (match ? match[3] : 'points');
+
+                          let rewardTitle = 'Cadeau';
+                          let costPoints = 50;
+                          let costMoney = 5.0;
+
+                          if (meta) {
+                            rewardTitle = meta.reward_title;
+                            costPoints = meta.reward_price_points;
+                            costMoney = meta.reward_price_money;
+                          } else {
+                            const dbReward = rewardsList.find(r => r.id === rewardId);
+                            if (dbReward) {
+                              rewardTitle = dbReward.title;
+                              costPoints = dbReward.costPoints;
+                              costMoney = dbReward.costMoney;
+                            } else {
+                              rewardTitle = alertItem.title.replace("Achat Ado : ", "").replace("Achat Enfant : ", "").replace("Demande de récompense : ", "");
+                              const ptsMatch = alertItem.description.match(/(\d+)\s*points|étoiles/i);
+                              if (ptsMatch) costPoints = parseInt(ptsMatch[1]);
+                              const eurMatch = alertItem.description.match(/([\d.,]+)\s*(?:€|euro)/i);
+                              if (eurMatch) costMoney = parseFloat(eurMatch[1].replace(',', '.'));
+                            }
+                          }
+
+                          const costText = paymentMethod === 'points' ? `${costPoints} étoiles` : `${costMoney.toFixed(2)} €`;
 
                           return (
                             <div key={alertItem.id} className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
                               <div>
-                                <p className="font-bold text-white">Achat boutique : {reward?.title || 'Cadeau inconnu'}</p>
-                                <p className="text-[10px] text-white/50">
-                                  Méthode de paiement demandée : <span className="font-bold text-[#6C5CFF]">{paymentMethod === 'points' ? 'Étoiles/Points' : 'Cash'}</span> • Coût : <span className="font-bold text-[#00D26A]">{paymentMethod === 'points' ? `${cost} Pts` : `${cost} €`}</span>
+                                <p className="font-bold text-white">{resolvedChildName} demande : {rewardTitle}</p>
+                                <p className="text-[10px] text-white/50 mt-1">
+                                  Paiement : <span className="font-bold text-[#FFB020]">{costText}</span>
                                 </p>
                               </div>
                               <div className="flex space-x-2 shrink-0">
                                 <button type="button" onClick={() => handleRefuseRequest(alertItem.id)} className="px-3 py-1 bg-red-500/20 text-red-400 rounded-xl font-bold cursor-pointer">Refuser</button>
-                                <button type="button" onClick={() => handleApproveBoutiqueRequest(alertItem, resolvedChild.id, rewardId, paymentMethod)} className="px-3 py-1 bg-[#00D26A] text-[#07111F] rounded-xl font-bold cursor-pointer">Approuver</button>
+                                <button type="button" onClick={() => handleApproveBoutiqueRequest(alertItem, resolvedChildId, rewardId, paymentMethod)} className="px-3 py-1 bg-[#00D26A] text-[#07111F] rounded-xl font-bold cursor-pointer">Approuver</button>
                               </div>
                             </div>
                           );
@@ -7188,13 +7277,15 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                             >
                               {item.avail ? '👁️' : '👁️‍🗨️'}
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteBoutiqueItem(item.id)}
-                              className="p-1 text-red-400 hover:bg-red-500/10 rounded transition cursor-pointer"
-                            >
-                              🗑️
-                            </button>
+                            {item.supprimable !== false && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBoutiqueItem(item.id)}
+                                className="p-1 text-red-400 hover:bg-red-500/10 rounded transition cursor-pointer"
+                              >
+                                🗑️
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}
