@@ -6483,7 +6483,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
         // Create boutique item
         const handleCreateBoutiqueItem = async (e: React.FormEvent) => {
           e.preventDefault();
-          if (!newBoutiqueTitle.trim() || !newBoutiqueCostPoints || !setSavingGoals) return;
+          if (!newBoutiqueTitle.trim() || newBoutiqueCostPoints < 0 || newBoutiqueCostMoney < 0 || !setSavingGoals) return;
 
           const newGoal: SavingGoal = {
             id: `sg-rew-${Date.now()}`,
