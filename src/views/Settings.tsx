@@ -507,6 +507,56 @@ export const Settings: React.FC<SettingsProps> = ({
         </form>
       )}
 
+      {/* Modifier mon mot de passe */}
+      {user && (
+        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 animate-fade-in">
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+            <Lock className="w-4 h-4 text-[#FF4D6D]" />
+            <span>Sécurité & Mot de passe</span>
+          </h3>
+          <p className="text-xs text-white/50 leading-relaxed font-medium">
+            Mettez à jour le mot de passe de votre compte de connexion Supabase.
+          </p>
+
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            const pwd = (e.target as any).newPassword.value;
+            if (pwd.length < 6) {
+              alert("Le mot de passe doit faire au moins 6 caractères.");
+              return;
+            }
+            try {
+              const supabase = getSupabaseClient();
+              if (!supabase) throw new Error("Supabase n'est pas disponible.");
+              const { error } = await supabase.auth.updateUser({ password: pwd });
+              if (error) throw error;
+              alert("Mot de passe mis à jour avec succès ! ✨");
+              (e.target as any).reset();
+            } catch (err: any) {
+              alert(err.message || "Impossible de mettre à jour le mot de passe.");
+            }
+          }} className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Nouveau mot de passe</label>
+              <input
+                type="password"
+                name="newPassword"
+                required
+                placeholder="••••••••"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-[#6C5CFF]"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3 rounded-xl bg-[#6C5CFF]/15 hover:bg-[#6C5CFF]/25 border border-[#6C5CFF]/30 text-white text-xs font-bold active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center space-x-2"
+            >
+              <span>Mettre à jour le mot de passe</span>
+            </button>
+          </form>
+        </div>
+      )}
+
       {/* Sélecteur de Mode d'Apparence */}
       <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
