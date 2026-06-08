@@ -6197,27 +6197,18 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           return !['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(m.role) && m.id !== '1' && m.id !== '2';
         });
 
-        const selectedChild = pocketMoney.find(c => c.id === pmSelectedChildId) || pocketMoney.find(c => foyerKids.some(k => k.id === c.id));
-        const resolvedChild = selectedChild ? {
-          id: selectedChild.id,
-          name: selectedChild.name,
-          balance: selectedChild.balance || 0,
-          points: selectedChild.points || 0,
-          avatar: selectedChild.avatar || '',
-          goalTitle: selectedChild.goalTitle || '',
-          goalAmount: selectedChild.goalAmount,
-          goalType: selectedChild.goalType || 'money',
-          rules: selectedChild.rules || []
-        } : foyerKids.length > 0 ? {
-          id: foyerKids[0].id,
-          name: foyerKids[0].name,
-          balance: 0,
-          points: 0,
-          avatar: foyerKids[0].photoUrl || '',
-          goalTitle: '',
-          goalAmount: undefined,
-          goalType: 'money' as const,
-          rules: []
+        const selectedKid = foyerKids.find(k => k.id === pmSelectedChildId) || foyerKids[0];
+        const pmChild = selectedKid ? pocketMoney.find(c => c.id === selectedKid.id) : null;
+        const resolvedChild = selectedKid ? {
+          id: selectedKid.id,
+          name: selectedKid.name,
+          balance: pmChild?.balance || 0,
+          points: pmChild?.points || 0,
+          avatar: selectedKid.photoUrl || pmChild?.avatar || '',
+          goalTitle: pmChild?.goalTitle || '',
+          goalAmount: pmChild?.goalAmount,
+          goalType: pmChild?.goalType || 'money',
+          rules: pmChild?.rules || []
         } : null;
 
         const getAge = (birthDate?: string) => {
@@ -6836,7 +6827,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                         // 1. Check if purchase request req-rew-*
                         const isPurchase = alertItem.id.startsWith('req-rew-');
                         if (isPurchase) {
-                          const match = alertItem.id.match(/^req-rew-(.+)-(.+)-(points|money)-(\d+)$/);
+                          const match = alertItem.id.match(/^req-rew-(.*?)-(.*?)-(points|money)-(\d+)$/);
                           if (!match) return null;
                           const rewardId = match[2];
                           const paymentMethod = match[3];

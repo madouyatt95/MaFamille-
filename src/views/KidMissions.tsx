@@ -723,7 +723,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
                   <div 
                     key={reward.id} 
                     className={`bg-[#112240] border-2 rounded-[28px] p-4 flex flex-col justify-between space-y-3 relative shadow-lg transition-all duration-300 ${
-                      canAfford ? 'border-[#FFB020]/40' : 'border-white/5 opacity-80'
+                      canAfford ? 'border-[#FFB020]/40' : 'border-white/5 opacity-40 grayscale'
                     }`}
                   >
                     <div className="space-y-1.5">
@@ -758,13 +758,14 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
 
                       <button
                         onClick={() => handleRedeemReward(reward)}
+                        disabled={!canAfford}
                         className={`w-full py-2 mt-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                           canAfford 
                             ? 'bg-[#FFB020] text-[#07111F] active:scale-95 shadow-md shadow-[#FFB020]/10' 
-                            : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5'
+                            : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5 opacity-50'
                         }`}
                       >
-                        Acheter 🎁
+                        {canAfford ? 'Acheter 🎁' : 'Fonds insuffisants'}
                       </button>
                     </div>
                   </div>

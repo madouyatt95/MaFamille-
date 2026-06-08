@@ -226,6 +226,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   }, [targetAverage, activeMemberId]);
 
   const [learningMode, setLearningMode] = useState<'guided' | 'library'>('guided');
+  const [showBasics, setShowBasics] = useState<boolean>(false);
 
   const [currentFlashIndex, setCurrentFlashIndex] = useState(0);
   const [isFlashFlipped, setIsFlashFlipped] = useState(false);
@@ -2305,7 +2306,9 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                   { id: 'Orientation', label: '🎯 Orientation' }
                 ].map(cat => {
                   const progress = getSubjectProgress(cat.id as AcademySubject);
-                  const count = staticAcademyLessons.filter(l => l.matiere === cat.id).length;
+                  const studentCycle = getCycleForLevel(studentProfile.level);
+                  const count = staticAcademyLessons.filter(l => l.matiere === cat.id && l.cycles.includes(studentCycle)).length;
+                  if (count === 0) return null;
                   return (
                     <button
                       key={cat.id}
@@ -2396,13 +2399,43 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                 </button>
               </div>
 
+              {learningMode === 'library' && (
+                <div className="flex justify-center mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowBasics(prev => !prev)}
+                    className={`px-4 py-2 rounded-2xl border text-xs font-black transition-all cursor-pointer flex items-center space-x-2 ${
+                      showBasics
+                        ? 'bg-[#6C5CFF] border-[#6C5CFF] text-white shadow-md'
+                        : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    <span>💡 Réviser les bases</span>
+                    <span className="text-[10px] opacity-70">({showBasics ? 'Activé' : 'Désactivé'})</span>
+                  </button>
+                </div>
+              )}
+
               {/* Cycles List Accordion */}
               <div className="space-y-3">
                 {['Cycle 2', 'Cycle 3', 'Cycle 4', 'Lycée'].map(cycle => {
                   const lessons = staticAcademyLessons.filter(l => l.matiere === selectedSubject && l.cycles.includes(cycle as any));
-                  const isUserCycle = getCycleForLevel(studentProfile.level) === cycle;
-                  
                   if (lessons.length === 0) return null;
+
+                  const studentCycle = getCycleForLevel(studentProfile.level);
+                  const isUserCycle = studentCycle === cycle;
+
+                  // Filter cycles based on learningMode and showBasics
+                  if (learningMode === 'guided') {
+                    if (cycle !== studentCycle) return null;
+                  } else {
+                    const cycleOrder = ['Cycle 2', 'Cycle 3', 'Cycle 4', 'Lycée'];
+                    const studentCycleIndex = cycleOrder.indexOf(studentCycle);
+                    const currentCycleIndex = cycleOrder.indexOf(cycle);
+                    if (currentCycleIndex < studentCycleIndex && !showBasics) {
+                      return null;
+                    }
+                  }
 
                   return (
                     <div key={cycle} className="glass-panel border border-white/5 rounded-3xl overflow-hidden bg-[#112240]/45">
