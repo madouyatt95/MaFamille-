@@ -6232,7 +6232,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
         const mapSavingGoalToReward = (sg: SavingGoal) => {
           let icon = '🎁';
-          let costPoints = sg.targetAmount || 50;
+          let costPoints = (sg.targetAmount !== undefined && sg.targetAmount !== null) ? sg.targetAmount : 50;
           let costMoney = Math.round(costPoints / 10);
           let category = 'Cadeau';
           let avail = true;

@@ -802,7 +802,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   // Load boutique reward items from saving_goals category = 'boutique_reward'
   const mapSavingGoalToReward = (sg: SavingGoal) => {
     let icon = '🎁';
-    let costPoints = sg.targetAmount || 50;
+    let costPoints = (sg.targetAmount !== undefined && sg.targetAmount !== null) ? sg.targetAmount : 50;
     let costMoney = Math.round(costPoints / 10);
     let subCat = 'Cadeau';
     let avail = true;

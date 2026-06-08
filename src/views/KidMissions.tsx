@@ -111,7 +111,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   // Mapper from SavingGoal to RewardItem
   const mapSavingGoalToReward = (sg: SavingGoal): RewardItem => {
     let icon = '🎁';
-    let costPoints = sg.targetAmount || 50;
+    let costPoints = (sg.targetAmount !== undefined && sg.targetAmount !== null) ? sg.targetAmount : 50;
     let costMoney = Math.round(costPoints / 10);
     let subCategory = 'Cadeau';
     let avail = true;
