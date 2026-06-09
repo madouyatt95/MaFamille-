@@ -8,6 +8,31 @@ const firebaseProject = "mafamilleplus";
 // Initialisation du client admin de Supabase (pour bypasser les politiques RLS)
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
+function getTargetUrl(targetModule: string, record: any): string {
+  if (targetModule === "messagerie") {
+    const groupId = record.group_id || "";
+    return `/?tab=menu&module=messagerie${groupId ? `&groupId=${groupId}` : ""}`;
+  }
+  if (targetModule === "agenda") {
+    return "/?tab=menu&module=agenda";
+  }
+  if (targetModule && targetModule !== "other") {
+    return `/?tab=menu&module=${targetModule}`;
+  }
+  return "/";
+}
+
+async function clearInvalidFcmToken(fcmToken: string) {
+  const { error } = await supabaseAdmin
+    .from("foyer_members")
+    .update({ fcm_token: null })
+    .eq("fcm_token", fcmToken);
+
+  if (error) {
+    console.error("[Send-Push] Impossible de nettoyer le token invalide :", error.message);
+  }
+}
+
 // Encodage Base64URL conforme aux specs JWT
 function base64UrlEncode(str: string): string {
   const binary = new TextEncoder().encode(str);
@@ -220,6 +245,7 @@ serve(async (req) => {
     // Filtrer pour ne pas l'envoyer à l'expéditeur
     const targetTokens = members
       .filter(m => m.id !== senderId && m.fcm_token)
+      .filter(m => !String(m.fcm_token).startsWith("native-fallback-"))
       .map(m => m.fcm_token);
 
     if (targetTokens.length === 0) {
@@ -236,6 +262,7 @@ serve(async (req) => {
 
     const credentials = JSON.parse(serviceAccountJson);
     const token = await getGoogleAccessToken(credentials.client_email, credentials.private_key);
+    const targetUrl = getTargetUrl(targetModule, record);
 
     // 4. Envoyer les requêtes HTTP vers FCM v1 pour chaque token
     const sendPromises = targetTokens.map(async (fcmToken) => {
@@ -252,10 +279,44 @@ serve(async (req) => {
             token: fcmToken,
             notification: { title, body },
             data: {
-              click_action: "/",
+              click_action: targetUrl,
               module: targetModule,
-              id: record.id,
-              groupId: record.group_id || ""
+              id: String(record.id || ""),
+              groupId: String(record.group_id || ""),
+              title,
+              body
+            },
+            webpush: {
+              headers: {
+                Urgency: "high"
+              },
+              notification: {
+                icon: "/icon-192x192.png",
+                badge: "/favicon.svg",
+                tag: `${targetModule}-${record.id || Date.now()}`,
+                renotify: true
+              },
+              fcm_options: {
+                link: targetUrl
+              }
+            },
+            apns: {
+              headers: {
+                "apns-priority": "10",
+                "apns-push-type": "alert"
+              },
+              payload: {
+                aps: {
+                  alert: { title, body },
+                  sound: "default"
+                }
+              }
+            },
+            android: {
+              priority: "high",
+              notification: {
+                sound: "default"
+              }
             }
           }
         })
@@ -264,6 +325,13 @@ serve(async (req) => {
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`[Send-Push] Échec d'envoi pour token ${fcmToken.substring(0, 10)}... :`, errorText);
+        if (
+          errorText.includes("UNREGISTERED") ||
+          errorText.includes("registration-token-not-registered") ||
+          errorText.includes("Requested entity was not found")
+        ) {
+          await clearInvalidFcmToken(fcmToken);
+        }
       } else {
         console.log(`[Send-Push] Push envoyé avec succès à ${fcmToken.substring(0, 10)}...`);
       }

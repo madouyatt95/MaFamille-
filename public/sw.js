@@ -1,5 +1,40 @@
 // Service Worker MaFamille+ (Fusionné avec Firebase Cloud Messaging)
 
+// Clic sur la notification.
+// Doit rester avant l'import Firebase pour éviter que FCM ne remplace ce comportement.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  
+  const notificationData = event.notification.data || {};
+  const module = notificationData.module || '';
+  const clickAction = notificationData.click_action || notificationData.clickAction;
+  
+  let targetUrl = clickAction || '/';
+  if (!clickAction && (module === 'chat' || module === 'messagerie')) {
+    const groupId = notificationData.groupId || notificationData.chatGroupId || '';
+    targetUrl = `/?tab=menu&module=messagerie${groupId ? `&groupId=${groupId}` : ''}`;
+  } else if (!clickAction && (module === 'agenda' || module === 'calendar')) {
+    targetUrl = '/?tab=menu&module=agenda';
+  } else if (!clickAction && module) {
+    targetUrl = `/?tab=menu&module=${module}`;
+  }
+  
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (let i = 0; i < windowClients.length; i++) {
+        const client = windowClients[i];
+        if ('focus' in client && 'navigate' in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+
 // Importations Firebase Compat
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
@@ -37,41 +72,6 @@ messaging.onBackgroundMessage((payload) => {
     };
     self.registration.showNotification(title, options);
   }
-});
-
-// Clic sur la notification
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  
-  const notificationData = event.notification.data || {};
-  const module = notificationData.module || '';
-  
-  let targetUrl = '/';
-  if (module === 'chat' || module === 'messagerie') {
-    const groupId = notificationData.groupId || notificationData.chatGroupId || '';
-    targetUrl = `/?tab=menu&module=messagerie&groupId=${groupId}`;
-  } else if (module === 'agenda' || module === 'calendar') {
-    targetUrl = `/?tab=agenda`;
-  } else if (module) {
-    targetUrl = `/?tab=menu&module=${module}`;
-  }
-  
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Si une fenêtre de l'application est déjà ouverte, on la redirige et on la focalise
-      for (let i = 0; i < windowClients.length; i++) {
-        const client = windowClients[i];
-        if ('focus' in client && 'navigate' in client) {
-          client.navigate(targetUrl);
-          return client.focus();
-        }
-      }
-      // Sinon, on ouvre une nouvelle fenêtre avec l'URL cible
-      if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
-      }
-    })
-  );
 });
 
 // PARTIE CACHING PWA

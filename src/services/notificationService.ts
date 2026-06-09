@@ -5,6 +5,10 @@ import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { FCM } from '@capacitor-community/fcm';
 
+type InitializeFCMOptions = {
+  requestPermission?: boolean;
+};
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDZE7aW6Yv9XGadcRxwXWD75tI_KDhh84c",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "mafamilleplus.firebaseapp.com",
@@ -57,7 +61,13 @@ export const notificationService = {
   /**
    * Demander la permission et enregistrer le token FCM/APNs pour le membre connecté
    */
-  async initializeFCM(memberId: string, onMessageReceived?: (payload: any) => void): Promise<string | null> {
+  async initializeFCM(
+    memberId: string,
+    onMessageReceived?: (payload: any) => void,
+    options: InitializeFCMOptions = {}
+  ): Promise<string | null> {
+    const { requestPermission = true } = options;
+
     if (!this.isSupported()) {
       console.warn('[FCM] Les notifications push ne sont pas supportées sur cette plateforme/navigateur.');
       return null;
@@ -68,40 +78,18 @@ export const notificationService = {
       return new Promise<string | null>(async (resolve) => {
         let resolved = false;
 
-        // Fallback helper to enable toggle even on registration failure
-        const triggerFallback = async () => {
+        const failNativeRegistration = (reason: string) => {
           if (resolved) return;
           resolved = true;
-          const fallbackToken = `native-fallback-${memberId}-${Date.now()}`;
-          console.log('[FCM Native Fallback] APNs failed/timeout, using fallback token:', fallbackToken);
-          
-          const supabase = getSupabaseClient();
-          if (supabase) {
-            try {
-              const { error } = await supabase
-                .from('foyer_members')
-                .update({ fcm_token: fallbackToken })
-                .eq('id', memberId);
-
-              if (error) {
-                console.error('[FCM Native Fallback] Supabase sync error:', error.message);
-              } else {
-                console.log('[FCM Native Fallback] Fallback token synced in Supabase');
-              }
-            } catch (e) {
-              console.error('[FCM Native Fallback] Supabase connection error:', e);
-            }
-          }
-          
-          localStorage.setItem('mf_fcm_active', 'true');
-          localStorage.setItem('mf_fcm_token', fallbackToken);
-          resolve(fallbackToken);
+          console.warn('[FCM Native] Enregistrement abandonné :', reason);
+          localStorage.setItem('mf_fcm_active', 'false');
+          localStorage.removeItem('mf_fcm_token');
+          resolve(null);
         };
 
-        // Timeout of 2.5s to trigger fallback if no registration callback happens
         const timeoutId = setTimeout(() => {
-          triggerFallback();
-        }, 2500);
+          failNativeRegistration('aucun retour APNs/FCM après 15 secondes');
+        }, 15000);
 
         try {
           // Supprimer les anciens écouteurs pour éviter les doublons
@@ -125,7 +113,14 @@ export const notificationService = {
               fcmTokenValue = fcmTokenRes.token;
               console.log('[FCM Native] Token FCM obtenu via le plugin community FCM:', fcmTokenValue);
             } catch (e) {
-              console.warn('[FCM Native] Échec de la récupération du token FCM, utilisation du token APNs brut:', e);
+              console.error('[FCM Native] Échec de la récupération du token FCM. Le token APNs brut ne peut pas être envoyé via FCM v1.', e);
+              failNativeRegistration('token FCM indisponible');
+              return;
+            }
+
+            if (!fcmTokenValue || fcmTokenValue === token.value) {
+              failNativeRegistration('token FCM absent ou identique au token APNs');
+              return;
             }
             
             const supabase = getSupabaseClient();
@@ -151,7 +146,7 @@ export const notificationService = {
           await PushNotifications.addListener('registrationError', (err) => {
             console.error('[FCM Native] Erreur lors de l\'enregistrement push natif:', err);
             clearTimeout(timeoutId);
-            triggerFallback();
+            failNativeRegistration('erreur registration APNs');
           });
 
           // Écouteur de réception d'une notification push en premier plan (Foreground)
@@ -170,6 +165,11 @@ export const notificationService = {
 
           // Demande de permission
           let permStatus = await PushNotifications.checkPermissions();
+          if (permStatus.receive === 'prompt' && !requestPermission) {
+            clearTimeout(timeoutId);
+            failNativeRegistration('permission non demandée hors action utilisateur');
+            return;
+          }
           if (permStatus.receive === 'prompt') {
             permStatus = await PushNotifications.requestPermissions();
           }
@@ -186,7 +186,7 @@ export const notificationService = {
         } catch (err) {
           console.error('[FCM Native] Erreur lors de l\'initialisation native:', err);
           clearTimeout(timeoutId);
-          triggerFallback();
+          failNativeRegistration('exception native');
         }
       });
     }
@@ -199,7 +199,14 @@ export const notificationService = {
 
     try {
       // 1. Demander la permission système
-      const permission = await Notification.requestPermission();
+      let permission = Notification.permission;
+      if (permission === 'default' && !requestPermission) {
+        console.log('[FCM] Permission non demandée hors action utilisateur.');
+        return null;
+      }
+      if (permission === 'default') {
+        permission = await Notification.requestPermission();
+      }
       if (permission !== 'granted') {
         console.warn('[FCM] Permission de notifications refusée par l\'utilisateur.');
         return null;

@@ -2142,7 +2142,7 @@ function App() {
                 icon: '/pwa-192x192.png'
               });
             }
-          });
+          }, { requestPermission: false });
         } catch (err) {
           console.error("[App] Échec de l'initialisation des notifications push :", err);
         }
