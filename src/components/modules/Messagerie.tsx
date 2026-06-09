@@ -52,22 +52,22 @@ const VoiceMessagePlayer: React.FC<{ content: string; isMe: boolean }> = ({ cont
     if (!audioRef.current) {
       const audio = new Audio(audioSrc);
       audio.preload = 'auto';
-      
+
       audio.addEventListener('timeupdate', () => {
         setCurrentTime(audio.currentTime);
       });
-      
+
       audio.addEventListener('ended', () => {
         setIsPlaying(false);
         setCurrentTime(0);
       });
-      
+
       audio.addEventListener('loadedmetadata', () => {
         if (!displayDuration) {
           setDuration(audio.duration);
         }
       });
-      
+
       audioRef.current = audio;
     }
 
@@ -98,8 +98,8 @@ const VoiceMessagePlayer: React.FC<{ content: string; isMe: boolean }> = ({ cont
 
   return (
     <div className="flex items-center space-x-3 py-1">
-      <button 
-        type="button" 
+      <button
+        type="button"
         onClick={togglePlay}
         className={`p-2 rounded-full transition-all active:scale-90 flex items-center justify-center shrink-0 ${isMe ? 'bg-black/15 hover:bg-black/25 text-black' : 'bg-[#6C5CFF]/20 hover:bg-[#6C5CFF]/35 text-[#00D26A]'}`}
       >
@@ -111,8 +111,8 @@ const VoiceMessagePlayer: React.FC<{ content: string; isMe: boolean }> = ({ cont
       </button>
       <div className="flex flex-col min-w-[130px] justify-center">
         <div className="w-full h-1 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden relative">
-          <div 
-            className={`h-full rounded-full ${isMe ? 'bg-black' : 'bg-[#00D26A]'}`} 
+          <div
+            className={`h-full rounded-full ${isMe ? 'bg-black' : 'bg-[#00D26A]'}`}
             style={{ width: `${progress}%` }}
           ></div>
         </div>
@@ -139,8 +139,8 @@ interface MessagerieProps {
   onTriggerPaywall?: () => void;
 }
 
-export const Messagerie: React.FC<MessagerieProps> = ({ 
-  members, 
+export const Messagerie: React.FC<MessagerieProps> = ({
+  members,
   activeMemberId,
   groups,
   setGroups,
@@ -151,7 +151,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   onTriggerPaywall
 }) => {
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
-  
+
   const [newMessage, setNewMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [showCanvas, setShowCanvas] = useState(false);
@@ -243,7 +243,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
     const channel = client.channel(`typing:${foyerId}:${activeGroupId}`);
     activeTypingChannelRef.current = channel;
-    
+
     channel
       .on('broadcast', { event: 'typing' }, ({ payload }) => {
         const { memberId, name, isTyping } = payload;
@@ -312,7 +312,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
   const prevInitialGroupId = useRef<string | undefined>(undefined);
 
-  // Initialization of groups is handled by App.tsx. 
+  // Initialization of groups is handled by App.tsx.
   // We can just automatically select the first group if none is selected.
   useEffect(() => {
     if (initialGroupId && initialGroupId !== prevInitialGroupId.current) {
@@ -388,8 +388,8 @@ Réponds de manière claire, concise et joyeuse en français. Utilise des émoji
 Demande de l'utilisateur : "${userText}"`;
 
         const useLocalKey = import.meta.env.DEV && import.meta.env.VITE_GROQ_API_KEY;
-        const groqEndpoint = useLocalKey 
-          ? 'https://api.groq.com/openai/v1/chat/completions' 
+        const groqEndpoint = useLocalKey
+          ? 'https://api.groq.com/openai/v1/chat/completions'
           : (import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/groq' : '/api/groq');
 
         const headers: Record<string, string> = {
@@ -441,13 +441,13 @@ Demande de l'utilisateur : "${userText}"`;
     // Version locale de repli si quota dépassé ou clé manquante
     setTimeout(() => {
       setIsAiTyping(false);
-      
+
       const query = userText.toLowerCase();
       const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
       const isQuotaFallback = isPremium && remainingCalls === 0;
 
       let reply = "Je suis votre Assistant Familial IA 🤖. Je peux vous aider à planifier les repas, organiser les corvées des enfants ou résoudre des questions scolaires. Que souhaitez-vous savoir ?";
-      
+
       if (query.includes('recette') || query.includes('manger') || query.includes('cuisine') || query.includes('dîner') || query.includes('repas') || query.includes('faim')) {
         reply = "Voici une idée de recette familiale saine, économique et anti-gaspi : *Gratin de Pâtes aux Tomates & Mozzarella* 🍅🧀.\n\n• Préparation : 10 min\n• Cuisson : 15 min au four\n• Ingrédients : Pâtes penne, sauce tomate basilic, mozzarella fraîche, parmesan.\n\n• Conseil Anti-Gaspi : Vous pouvez y ajouter des restes de poulet rôti ou des légumes cuits de la veille ! Bon appétit !";
       } else if (query.includes('devoir') || query.includes('école') || query.includes('exercice') || query.includes('apprendre') || query.includes('math') || query.includes('histoire') || query.includes('classe')) {
@@ -477,7 +477,7 @@ Demande de l'utilisateur : "${userText}"`;
       } else {
         reply += "\n\n✨ (IA Locale simulée : configurez VITE_GROQ_API_KEY dans votre fichier .env.local)";
       }
-      
+
       const aiMsg: ChatMessage = {
         id: `msg_ai_${Date.now()}`,
         groupId: 'g_ai_assistant',
@@ -488,7 +488,7 @@ Demande de l'utilisateur : "${userText}"`;
         timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
         readBy: [activeMemberId]
       };
-      
+
       setMessages(prev => [...prev, aiMsg]);
       setGroups(prev => prev.map(g => g.id === 'g_ai_assistant' ? { ...g, lastMessage: aiMsg.content.substring(0, 30) + '...', lastMessageTime: aiMsg.timestamp } : g));
     }, 1500);
@@ -604,7 +604,7 @@ Demande de l'utilisateur : "${userText}"`;
           setMessages(prev => [...prev, newMsg]);
           setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: `📄 ${file.name}`, lastMessageTime: newMsg.timestamp } : g));
           saveMessageToCloud(newMsg);
-          
+
           const activeGroup = groups.find(g => g.id === activeGroupId);
           if (activeGroup) {
             saveGroupToCloud({
@@ -675,7 +675,7 @@ Demande de l'utilisateur : "${userText}"`;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       let mediaRecorder;
       let selectedMimeType = '';
-      
+
       const mimeTypes = [
         'audio/mp4',
         'audio/aac',
@@ -684,14 +684,14 @@ Demande de l'utilisateur : "${userText}"`;
         'audio/ogg',
         'audio/wav'
       ];
-      
+
       for (const mime of mimeTypes) {
         if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(mime)) {
           selectedMimeType = mime;
           break;
         }
       }
-      
+
       try {
         if (selectedMimeType) {
           mediaRecorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
@@ -701,7 +701,7 @@ Demande de l'utilisateur : "${userText}"`;
       } catch (e) {
         mediaRecorder = new MediaRecorder(stream);
       }
-      
+
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -883,7 +883,7 @@ Demande de l'utilisateur : "${userText}"`;
     const newGroupId = `dm_${sortedIds[0]}_${sortedIds[1]}`;
 
     const existingGroup = groups.find(g => g.id === newGroupId);
-    
+
     if (existingGroup) {
       setActiveGroupId(existingGroup.id);
     } else {
@@ -937,23 +937,103 @@ Demande de l'utilisateur : "${userText}"`;
     return g.memberIds.includes(activeMemberId);
   });
 
+  const getGroupMessages = (groupId: string) => {
+    return messages.filter(m => m.groupId === groupId && !deletedMessageIds.includes(m.id));
+  };
+
+  const getLatestGroupMessage = (groupId: string) => {
+    const groupMessages = getGroupMessages(groupId);
+    return groupMessages[groupMessages.length - 1] || null;
+  };
+
+  const getMessagePreview = (msg?: ChatMessage | null, fallback?: string) => {
+    if (!msg) return fallback || 'Aucun message pour le moment';
+    if (msg.type === 'image') return 'Photo partagée';
+    if (msg.type === 'voice') return 'Message vocal';
+    if (msg.type === 'document') return msg.content.startsWith('data:') ? 'Document partagé' : msg.content;
+
+    let text = msg.content || '';
+    if (text.startsWith('{"replyToId":')) {
+      try {
+        text = JSON.parse(text).text || text;
+      } catch {}
+    }
+
+    return text.trim() || fallback || 'Message';
+  };
+
+  const getConversationMeta = (group: ChatGroup) => {
+    const participants = members.filter(m => group.memberIds.includes(m.id));
+    const otherParticipants = participants.filter(m => m.id !== activeMemberId);
+    const latestMessage = getLatestGroupMessage(group.id);
+    const unreadCount = getGroupMessages(group.id).filter(m => m.senderId !== activeMemberId && !m.readBy.includes(activeMemberId)).length;
+
+    let title = group.name;
+    let subtitle = '';
+    let icon = 'group' as 'ai' | 'private' | 'group';
+
+    if (group.id === 'g_ai_assistant' || group.id.startsWith('g_ai')) {
+      title = 'Assistant IA familial';
+      subtitle = 'Aide et idées pour la famille';
+      icon = 'ai';
+    } else if (group.isPrivate) {
+      icon = 'private';
+      title = otherParticipants.length > 0
+        ? otherParticipants.map(m => m.name).join(', ')
+        : group.name || 'Conversation privée';
+      subtitle = otherParticipants.length === 1
+        ? `Privé avec ${otherParticipants[0].name}`
+        : `Conversation privée • ${participants.length} membres`;
+    } else {
+      title = group.name || 'Discussion de famille';
+      subtitle = `${Math.max(group.memberIds.length || participants.length, participants.length)} membres`;
+    }
+
+    const preview = latestMessage
+      ? `${latestMessage.senderId === activeMemberId ? 'Vous' : latestMessage.senderName} : ${getMessagePreview(latestMessage)}`
+      : (group.lastMessage && group.lastMessage !== 'Nouvelle conversation' ? group.lastMessage : subtitle);
+
+    return {
+      title,
+      subtitle,
+      preview,
+      time: latestMessage?.timestamp || group.lastMessageTime || '',
+      unreadCount,
+      icon,
+      otherAvatar: group.isPrivate && otherParticipants.length === 1 ? otherParticipants[0].photoUrl : undefined
+    };
+  };
+
   // LIST VIEW
   if (!activeGroupId) {
     // Filter by search query
-    const filteredGroups = visibleGroups.filter(g => 
-      g.name.toLowerCase().includes(searchQuery.toLowerCase())
+    const filteredGroups = visibleGroups.filter(g => {
+      const meta = getConversationMeta(g);
+      const haystack = `${meta.title} ${meta.subtitle} ${meta.preview}`.toLowerCase();
+      return haystack.includes(searchQuery.toLowerCase());
+    });
+    const memberIdsWithExistingDirectGroup = new Set(
+      visibleGroups
+        .filter(g => g.isPrivate && g.memberIds.length === 2 && g.memberIds.includes(activeMemberId))
+        .flatMap(g => g.memberIds.filter(id => id !== activeMemberId))
     );
-    const filteredMembers = members.filter(m => 
-      m.id !== activeMemberId && m.name.toLowerCase().includes(searchQuery.toLowerCase())
+    const filteredMembers = members.filter(m =>
+      m.id !== activeMemberId &&
+      !memberIdsWithExistingDirectGroup.has(m.id) &&
+      m.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    // Sort groups: pinned first
+    // Sort groups: pinned first, then active conversations first.
     const sortedGroups = [...filteredGroups].sort((a, b) => {
       const aPinned = pinnedGroupIds.includes(a.id);
       const bPinned = pinnedGroupIds.includes(b.id);
       if (aPinned && !bPinned) return -1;
       if (!aPinned && bPinned) return 1;
-      return 0;
+      const aHasMessages = getGroupMessages(a.id).length > 0;
+      const bHasMessages = getGroupMessages(b.id).length > 0;
+      if (aHasMessages && !bHasMessages) return -1;
+      if (!aHasMessages && bHasMessages) return 1;
+      return (getConversationMeta(b).time || '').localeCompare(getConversationMeta(a).time || '');
     });
 
     const unarchivedGroups = sortedGroups.filter(g => !archivedGroupIds.includes(g.id));
@@ -973,8 +1053,8 @@ Demande de l'utilisateur : "${userText}"`;
                 <p className="text-[10px] font-medium text-white/40">Connecté : {activeUser?.name}</p>
               </div>
             </div>
-            <button 
-              onClick={() => setShowSearch(!showSearch)} 
+            <button
+              onClick={() => setShowSearch(!showSearch)}
               className={`p-2 rounded-full transition-all active:scale-95 border border-white/5 ${showSearch ? 'bg-white/15 text-white' : 'hover:bg-white/10 text-white/70 hover:text-white'}`}
             >
               <Search className="w-4 h-4" />
@@ -1009,29 +1089,55 @@ Demande de l'utilisateur : "${userText}"`;
               <h4 className="text-[10px] font-black text-white/35 uppercase tracking-widest pl-2 mb-1">Discussions</h4>
               {unarchivedGroups.map(group => {
                 const isPinned = pinnedGroupIds.includes(group.id);
+                const meta = getConversationMeta(group);
                 return (
-                  <div 
-                    key={group.id} 
+                  <div
+                    key={group.id}
                     onClick={() => setActiveGroupId(group.id)}
-                    className="flex items-center p-3.5 rounded-2xl border border-white/0 hover:border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98] group relative"
+                    className="flex items-center p-3.5 rounded-2xl border border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98] group relative"
                   >
                     <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 mr-4 shadow-lg transition-transform group-hover:scale-105 ${
-                      group.id === 'g_ai_assistant' 
-                        ? 'bg-gradient-to-br from-[#FFB020] to-[#FF4D6D] shadow-[#FFB020]/20' 
+                      meta.icon === 'ai'
+                        ? 'bg-gradient-to-br from-[#FFB020] to-[#FF4D6D] shadow-[#FFB020]/20'
                         : 'bg-gradient-to-br from-[#6C5CFF] to-[#00D26A] shadow-[#6C5CFF]/20'
                     }`}>
-                      {group.id === 'g_ai_assistant' ? <Sparkles className="w-5 h-5 text-white" /> : group.isPrivate ? <Users className="w-5 h-5 text-white" /> : <MessageCircle className="w-5 h-5 text-white" />}
+                      {meta.otherAvatar ? (
+                        <img src={meta.otherAvatar} alt={meta.title} className="w-full h-full rounded-full object-cover" />
+                      ) : meta.icon === 'ai' ? (
+                        <Sparkles className="w-5 h-5 text-white" />
+                      ) : meta.icon === 'private' ? (
+                        <Users className="w-5 h-5 text-white" />
+                      ) : (
+                        <MessageCircle className="w-5 h-5 text-white" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-center mb-0.5">
                         <div className="flex items-center space-x-1.5 min-w-0">
-                          <h3 className="font-bold text-sm text-white/95 group-hover:text-white truncate">{group.name}</h3>
+                          <h3 className="font-bold text-sm text-white/95 group-hover:text-white truncate">{meta.title}</h3>
                           {isPinned && <Pin className="w-3 h-3 text-[#FFB020] fill-[#FFB020] shrink-0" />}
                         </div>
-                        <span className="text-[10px] font-mono text-white/40">{group.lastMessageTime}</span>
+                        <span className="text-[10px] font-mono text-white/40 shrink-0 ml-2">{meta.time}</span>
                       </div>
-                      <p className="text-xs text-white/50 group-hover:text-white/70 truncate">{group.lastMessage}</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md border ${
+                          meta.icon === 'private'
+                            ? 'text-[#00D26A] bg-[#00D26A]/10 border-[#00D26A]/15'
+                            : meta.icon === 'ai'
+                              ? 'text-[#FFB020] bg-[#FFB020]/10 border-[#FFB020]/15'
+                              : 'text-[#6C5CFF] bg-[#6C5CFF]/10 border-[#6C5CFF]/15'
+                        }`}>
+                          {meta.icon === 'private' ? 'Privé' : meta.icon === 'ai' ? 'IA' : 'Groupe'}
+                        </span>
+                        <span className="text-[10px] text-white/35 truncate">{meta.subtitle}</span>
+                      </div>
+                      <p className={`text-xs truncate ${meta.unreadCount > 0 ? 'text-white font-bold' : 'text-white/50 group-hover:text-white/70'}`}>{meta.preview}</p>
                     </div>
+                    {meta.unreadCount > 0 && (
+                      <div className="ml-3 min-w-5 h-5 px-1.5 rounded-full bg-[#FF4D6D] text-white text-[10px] font-black flex items-center justify-center shadow-lg shadow-[#FF4D6D]/20">
+                        {meta.unreadCount > 9 ? '9+' : meta.unreadCount}
+                      </div>
+                    )}
 
                     {/* Pin/Archive actions */}
                     <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity bg-[#090D1A] pl-2 rounded-l-full py-1">
@@ -1055,14 +1161,14 @@ Demande de l'utilisateur : "${userText}"`;
               })}
             </>
           )}
-          
+
           {/* Members Direct Messages (Mocked) */}
           {filteredMembers.length > 0 && (
             <div className="pt-4 space-y-2">
               <h4 className="text-[10px] font-black text-white/35 uppercase tracking-widest pl-2 mb-1">Messages Privés</h4>
               {filteredMembers.map(member => (
-                <div 
-                  key={member.id} 
+                <div
+                  key={member.id}
                   onClick={() => handleOpenDirectMessage(member)}
                   className="flex items-center p-3 rounded-2xl border border-white/0 hover:border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98] group"
                 >
@@ -1082,7 +1188,7 @@ Demande de l'utilisateur : "${userText}"`;
           {/* Archived groups list toggle */}
           {archivedGroups.length > 0 && (
             <div className="pt-4">
-              <button 
+              <button
                 onClick={() => setShowArchived(!showArchived)}
                 className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-xs font-bold text-white/70 transition-colors flex items-center justify-center space-x-2"
               >
@@ -1092,28 +1198,37 @@ Demande de l'utilisateur : "${userText}"`;
 
               {showArchived && (
                 <div className="mt-2 space-y-2 p-2 bg-white/5 rounded-2xl border border-white/5 animate-fade-in">
-                  {archivedGroups.map(group => (
-                    <div 
-                      key={group.id} 
-                      onClick={() => setActiveGroupId(group.id)}
-                      className="flex items-center p-2.5 rounded-xl hover:bg-white/5 cursor-pointer transition-all group relative"
-                    >
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center shrink-0 mr-3">
-                        {group.isPrivate ? <Users className="w-4 h-4 text-white/75" /> : <MessageCircle className="w-4 h-4 text-white/75" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-xs text-white/90 truncate">{group.name}</h3>
-                        <p className="text-[11px] text-white/40 truncate">{group.lastMessage}</p>
-                      </div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleArchiveGroup(group.id); }}
-                        className="p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity bg-[#090D1A]"
-                        title="Désarchiver"
+                  {archivedGroups.map(group => {
+                    const meta = getConversationMeta(group);
+                    return (
+                      <div
+                        key={group.id}
+                        onClick={() => setActiveGroupId(group.id)}
+                        className="flex items-center p-2.5 rounded-xl hover:bg-white/5 cursor-pointer transition-all group relative"
                       >
-                        <Archive className="w-3.5 h-3.5 text-[#00D26A]" />
-                      </button>
-                    </div>
-                  ))}
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center shrink-0 mr-3 overflow-hidden">
+                          {meta.otherAvatar ? (
+                            <img src={meta.otherAvatar} alt={meta.title} className="w-full h-full object-cover" />
+                          ) : meta.icon === 'private' ? (
+                            <Users className="w-4 h-4 text-white/75" />
+                          ) : (
+                            <MessageCircle className="w-4 h-4 text-white/75" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-xs text-white/90 truncate">{meta.title}</h3>
+                          <p className="text-[11px] text-white/40 truncate">{meta.preview}</p>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleArchiveGroup(group.id); }}
+                          className="p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity bg-[#090D1A]"
+                          title="Désarchiver"
+                        >
+                          <Archive className="w-3.5 h-3.5 text-[#00D26A]" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1124,25 +1239,32 @@ Demande de l'utilisateur : "${userText}"`;
   }
 
   // CHAT VIEW
+  const activeGroupMeta = activeGroup ? getConversationMeta(activeGroup) : null;
   return (
     <div className="flex flex-col h-[75vh] bg-[#0A0D18] text-white rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative z-10">
       {/* Chat Header */}
       <div className="flex items-center justify-between p-3 border-b border-white/10 bg-[#112240]/90 backdrop-blur-md">
         <div className="flex items-center space-x-3 min-w-0">
-          <button 
+          <button
             onClick={() => { setActiveGroupId(null); setReplyingToMessage(null); }}
             className="p-2 hover:bg-white/10 rounded-full transition-colors mr-1"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg overflow-hidden shrink-0 ${activeGroupId === 'g_ai_assistant' ? 'bg-gradient-to-br from-[#FFB020] to-[#FF4D6D]' : 'bg-gradient-to-br from-[#6C5CFF] to-[#00D26A]'}`}>
-            {activeGroupId === 'g_ai_assistant' ? <Sparkles className="w-5 h-5 text-white" /> : activeGroup?.isPrivate && activeGroup.memberIds.length === 2 ? (
-              <img src={members.find(m => m.id !== activeMemberId && activeGroup.memberIds.includes(m.id))?.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
-            ) : activeGroup?.isPrivate ? <Users className="w-5 h-5 text-white" /> : <MessageCircle className="w-5 h-5 text-white" />}
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg overflow-hidden shrink-0 ${activeGroupMeta?.icon === 'ai' ? 'bg-gradient-to-br from-[#FFB020] to-[#FF4D6D]' : 'bg-gradient-to-br from-[#6C5CFF] to-[#00D26A]'}`}>
+            {activeGroupMeta?.otherAvatar ? (
+              <img src={activeGroupMeta.otherAvatar} alt={activeGroupMeta.title} className="w-full h-full object-cover" />
+            ) : activeGroupMeta?.icon === 'ai' ? (
+              <Sparkles className="w-5 h-5 text-white" />
+            ) : activeGroupMeta?.icon === 'private' ? (
+              <Users className="w-5 h-5 text-white" />
+            ) : (
+              <MessageCircle className="w-5 h-5 text-white" />
+            )}
           </div>
           <div className="min-w-0">
-            <h2 className="text-base font-bold truncate">{activeGroup?.name}</h2>
-            <p className="text-[10px] text-white/50">{activeGroupId === 'g_ai_assistant' ? 'IA locale • Hors ligne' : `${activeGroup?.memberIds.length} membres`}</p>
+            <h2 className="text-base font-bold truncate">{activeGroupMeta?.title || activeGroup?.name}</h2>
+            <p className="text-[10px] text-white/50 truncate">{activeGroupMeta?.subtitle || `${activeGroup?.memberIds.length || 0} membres`}</p>
           </div>
         </div>
 
@@ -1154,7 +1276,7 @@ Demande de l'utilisateur : "${userText}"`;
           >
             <Search className="w-5 h-5" />
           </button>
-          
+
           <div className="relative">
             <button
               onClick={() => setShowGroupMenu(!showGroupMenu)}
@@ -1163,7 +1285,7 @@ Demande de l'utilisateur : "${userText}"`;
             >
               <MoreVertical className="w-5 h-5" />
             </button>
-            
+
             {showGroupMenu && (
               <div className="absolute right-0 mt-2 w-48 bg-[#0F1626]/95 border border-white/10 rounded-2xl shadow-2xl py-2 z-50 text-xs text-left animate-fade-in backdrop-blur-xl">
                 <button
@@ -1187,7 +1309,7 @@ Demande de l'utilisateur : "${userText}"`;
                   onClick={() => {
                     setShowGroupMenu(false);
                     const isArchived = archivedGroupIds.includes(activeGroupId!);
-                    const next = isArchived 
+                    const next = isArchived
                       ? archivedGroupIds.filter(id => id !== activeGroupId)
                       : [...archivedGroupIds, activeGroupId!];
                     setArchivedGroupIds(next);
@@ -1283,14 +1405,14 @@ Demande de l'utilisateur : "${userText}"`;
       {(() => {
         const pinnedMsg = activeMessages.find(m => m.id === activeGroup?.pinnedMessageId);
         if (!pinnedMsg) return null;
-        
+
         let displayPinnedContent = pinnedMsg.content;
         if (pinnedMsg.content.startsWith('{"replyToId":')) {
           try { displayPinnedContent = JSON.parse(pinnedMsg.content).text; } catch {}
         }
-        
+
         return (
-          <div 
+          <div
             onClick={() => {
               const el = document.getElementById(`msg-${pinnedMsg.id}`);
               el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1332,7 +1454,7 @@ Demande de l'utilisateur : "${userText}"`;
               actualContent = parsed.text;
             } catch {}
           }
-          
+
           return (
             <div key={msg.id} id={`msg-${msg.id}`} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group/msg relative`}>
               {!isMe && <span className="text-[10px] text-white/50 mb-1 ml-2">{isAiMsg ? '🤖 Assistant IA' : msg.senderName}</span>}
@@ -1345,19 +1467,19 @@ Demande de l'utilisateur : "${userText}"`;
                     <Sparkles className="w-3 h-3 text-white" />
                   </div>
                 )}
-                
+
                 <div className={`p-3 rounded-2xl relative transition-all ${
-                  isAiMsg 
-                    ? 'bg-gradient-to-br from-[#FFB020]/10 to-[#FF4D6D]/10 text-white rounded-2xl rounded-tl-sm border border-[#FFB020]/35 shadow-lg shadow-[#FF4D6D]/5' 
-                    : isMe 
-                      ? 'bg-gradient-to-br from-[#00D26A] to-[#00B050] text-black font-medium rounded-2xl rounded-tr-sm shadow-lg shadow-[#00D26A]/10' 
+                  isAiMsg
+                    ? 'bg-gradient-to-br from-[#FFB020]/10 to-[#FF4D6D]/10 text-white rounded-2xl rounded-tl-sm border border-[#FFB020]/35 shadow-lg shadow-[#FF4D6D]/5'
+                    : isMe
+                      ? 'bg-gradient-to-br from-[#00D26A] to-[#00B050] text-black font-medium rounded-2xl rounded-tr-sm shadow-lg shadow-[#00D26A]/10'
                       : 'bg-white/5 border border-white/10 text-white rounded-2xl rounded-tl-sm backdrop-blur-sm shadow-sm'
                 }`}>
                   {/* Replied message preview box */}
                   {replyToId && (() => {
                     const repliedMsg = messages.find(m => m.id === replyToId);
                     if (!repliedMsg) return null;
-                    
+
                     let repliedCleanContent = repliedMsg.content;
                     if (repliedMsg.content.startsWith('{"replyToId":')) {
                       try { repliedCleanContent = JSON.parse(repliedMsg.content).text; } catch {}
@@ -1398,7 +1520,7 @@ Demande de l'utilisateur : "${userText}"`;
                       </div>
                     );
                   })()}
-                  
+
                   <div className={`flex items-center justify-end space-x-1 mt-1.5 ${isMe ? 'text-black/60' : 'text-white/40'}`}>
                     <span className="text-[9px] font-mono">{msg.timestamp}</span>
                     {isMe && <CheckCheck className="w-3 h-3 text-black/60" />}
@@ -1495,9 +1617,9 @@ Demande de l'utilisateur : "${userText}"`;
                           <span>{emoji}</span>
                           <span className="text-[10px] text-white/70 font-black">{(names as string[]).length}</span>
                         </button>
-                        
+
                         {isTooltipActive && (
-                          <div 
+                          <div
                             className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-[#0F1A30]/95 backdrop-blur-md border border-[#6C5CFF]/30 text-white text-[9px] px-2.5 py-1.5 rounded-xl shadow-xl z-50 whitespace-nowrap animate-fade-in flex flex-col items-center gap-0.5"
                             onClick={(e) => e.stopPropagation()}
                           >
@@ -1663,32 +1785,32 @@ Demande de l'utilisateur : "${userText}"`;
           </div>
         ) : (
           <form onSubmit={handleSendMessage} className="flex items-center space-x-2 bg-white/5 p-1.5 rounded-full border border-white/10 focus-within:border-white/20 focus-within:bg-white/10 transition-all">
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              className="hidden" 
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
               accept="image/*,application/pdf,text/plain"
               onChange={handleMediaUpload}
             />
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
               className="p-2 hover:bg-white/10 rounded-full text-white/60 transition-colors"
               title="Ajouter un fichier (Image, PDF, Texte)"
             >
               <Paperclip className="w-5 h-5" />
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setShowCanvas(true)}
               className="p-2 hover:bg-white/10 rounded-full text-white/60 transition-colors"
               title="Dessiner"
             >
               <Palette className="w-5 h-5" />
             </button>
-            
-            <input 
-              type="text" 
+
+            <input
+              type="text"
               value={newMessage}
               onChange={(e) => {
                 setNewMessage(e.target.value);
@@ -1714,20 +1836,20 @@ Demande de l'utilisateur : "${userText}"`;
                   }
                 }
               }}
-              placeholder="Votre message..." 
+              placeholder="Votre message..."
               className="flex-1 bg-transparent border-none text-sm text-white focus:outline-none focus:ring-0 placeholder-white/30"
             />
-            
+
             {newMessage.trim() ? (
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="p-2.5 bg-[#00D26A] text-black rounded-full hover:scale-105 transition-transform"
               >
                 <Send className="w-4 h-4 ml-0.5" />
               </button>
             ) : (
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={startVoiceRecording}
                 className="p-2.5 bg-[#6C5CFF] text-white rounded-full hover:scale-105 transition-transform"
                 title="Enregistrer un message vocal"
