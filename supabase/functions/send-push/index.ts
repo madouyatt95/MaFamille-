@@ -366,6 +366,36 @@ serve(async (req) => {
           return new Response(JSON.stringify({ message: "No significant changes on grocery item" }), { status: 200 });
         }
       }
+    } else if (payload.table === "malus_applied") {
+      if (payload.type !== "INSERT") {
+        return new Response(JSON.stringify({ message: "Ignored UPDATE for malus_applied" }), { status: 200 });
+      }
+      targetModule = "taches";
+      
+      let kidName = "Un enfant";
+      try {
+        const { data: memberData } = await supabaseAdmin
+          .from("foyer_members")
+          .select("display_name")
+          .eq("id", record.member_id)
+          .single();
+        if (memberData?.display_name) {
+          kidName = memberData.display_name;
+        }
+      } catch (err) {
+        console.error("[Send-Push] Failed to fetch member display_name:", err);
+      }
+
+      if (record.shield_used) {
+        title = `🛡️ Bouclier activé !`;
+        body = `Le bouclier de ${kidName} a bloqué le malus "${record.title}". Ouf !`;
+      } else {
+        title = `⚠️ Malus appliqué`;
+        body = `${record.emoji || "⚠️"} ${record.title} : -${record.stars_removed || 0} ⭐ et -${record.xp_removed || 0} XP pour ${kidName}.`;
+        if (record.comment) {
+          body += ` Commentaire : "${record.comment}"`;
+        }
+      }
     } else {
       return new Response(JSON.stringify({ message: "Table not supported for push" }), { status: 200 });
     }

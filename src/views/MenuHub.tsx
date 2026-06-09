@@ -70,7 +70,9 @@ import type {
   PocketMoneyRule,
   ArchivedList,
   Account,
-  Transaction
+  Transaction,
+  MalusTemplate,
+  AppliedMalus
 } from '../types';
 import { getDefaultPermissions, parseChoreTitle, serializeChoreTitle, parsePocketMoneyTitle, serializePocketMoneyTitle } from '../types';
 import type { ModulePermissions, FamilyModule } from '../types';
@@ -204,6 +206,10 @@ interface MenuHubProps {
   onToggleFavoriteGrocery: (id: string) => void;
   
   // Custom states
+  malusTemplates: MalusTemplate[];
+  setMalusTemplates: React.Dispatch<React.SetStateAction<MalusTemplate[]>>;
+  appliedMaluses: AppliedMalus[];
+  setAppliedMaluses: React.Dispatch<React.SetStateAction<AppliedMalus[]>>;
   activeMemberId?: string;
   memories: MemoryLog[];
   setMemories: React.Dispatch<React.SetStateAction<MemoryLog[]>>;
@@ -267,7 +273,8 @@ const modIdToFamilyModule: Record<string, FamilyModule> = {
   'peacemaker': 'peacemaker',
   'settings': 'parametres',
   'carte': 'carte_familiale',
-  'menus': 'menu_semaine'
+  'menus': 'menu_semaine',
+  'argent': 'taches'
 };
 
 const getTripDuration = (start: string, end: string) => {
@@ -386,6 +393,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   onCleanGroceryList,
   onToggleFavoriteGrocery,
   externalGroceryFilter,
+  malusTemplates,
+  setMalusTemplates,
+  appliedMaluses,
+  setAppliedMaluses,
   
   activeMemberId = '1',
   memories,
@@ -752,6 +763,42 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     }
   }, [pmSelectedChildId]);
 
+  const [pmSubTab, setPmSubTab] = useState<'finance' | 'boutique' | 'karma'>('finance');
+  
+  // Malus States
+  const [newMalusTitle, setNewMalusTitle] = useState('');
+  const [newMalusEmoji, setNewMalusEmoji] = useState('⚠️');
+  const [newMalusCategory, setNewMalusCategory] = useState('Comportement');
+  const [newMalusStarsRemoved, setNewMalusStarsRemoved] = useState(5);
+  const [newMalusXpRemoved, setNewMalusXpRemoved] = useState(10);
+  const [newMalusLossStreak, setNewMalusLossStreak] = useState(false);
+  const [newMalusLossShield, setNewMalusLossShield] = useState(true);
+  const [newMalusCommentRequired, setNewMalusCommentRequired] = useState(false);
+  const [newMalusDoubleParentValidation, setNewMalusDoubleParentValidation] = useState(false);
+  const [editingMalusId, setEditingMalusId] = useState<string | null>(null);
+  
+  // Edit Malus States
+  const [editMalusTitle, setEditMalusTitle] = useState('');
+  const [editMalusEmoji, setEditMalusEmoji] = useState('⚠️');
+  const [editMalusCategory, setEditMalusCategory] = useState('Comportement');
+  const [editMalusStarsRemoved, setEditMalusStarsRemoved] = useState(5);
+  const [editMalusXpRemoved, setEditMalusXpRemoved] = useState(10);
+  const [editMalusLossStreak, setEditMalusLossStreak] = useState(false);
+  const [editMalusLossShield, setEditMalusLossShield] = useState(true);
+  const [editMalusCommentRequired, setEditMalusCommentRequired] = useState(false);
+  const [editMalusDoubleParentValidation, setEditMalusDoubleParentValidation] = useState(false);
+
+  // Apply Malus States
+  const [selectedMalusTemplateId, setSelectedMalusTemplateId] = useState<string | null>(null);
+  const [applyMalusComment, setApplyMalusComment] = useState('');
+  const [useShieldForMalus, setUseShieldForMalus] = useState(false);
+  const [showApplyMalusForm, setShowApplyMalusForm] = useState(false);
+
+  // Link Reparation Task State
+  const [linkingMalusId, setLinkingMalusId] = useState<string | null>(null);
+  const [reparationTaskTitle, setReparationTaskTitle] = useState('');
+  const [reparationTaskPoints, setReparationTaskPoints] = useState(0);
+
   // Boutique Config State
   const [newBoutiqueTitle, setNewBoutiqueTitle] = useState('');
   
@@ -797,6 +844,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     { id: 'conseil', title: 'Conseil de Famille', desc: 'Sondages actifs & Charte de vie', badge: 'Coopération', icon: Users, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
     { id: 'conteur', title: 'Histoires du Soir', desc: 'Contes IA personnalisés interactifs', badge: 'Premium', icon: BookOpen, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
     { id: 'taches', title: 'Tâches', desc: 'Répartition des tâches et suivi', badge: `${tasks.filter(t => !t.done).length} en cours`, icon: Brush, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
+    { id: 'argent', title: 'Argent de Poche & Karma', desc: 'Missions, boutique, et suivi du comportement', badge: 'Karma', icon: Coins, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
     { id: 'ecole', title: 'École & Devoirs', desc: 'Tuteur IA, devoirs & quizzes', badge: `${schoolTasks.filter(t => !t.done).length} devoirs`, icon: GraduationCap, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
     { id: 'logement', title: 'Logement', desc: 'Maintenance et garanties', badge: 'Équipements', icon: HomeIcon, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
     { id: 'agenda', title: 'Agenda Familial', desc: 'Calendrier partagé de la maison', badge: 'Calendrier', icon: Calendar, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
@@ -6216,6 +6264,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           balance: pmChild?.balance || 0,
           points: pmChild?.points || 0,
           avatar: selectedKid.photoUrl || pmChild?.avatar || '',
+          shields: pmChild?.shields !== undefined ? pmChild.shields : 3,
+          streak: pmChild?.streak !== undefined ? pmChild.streak : 0,
           goalTitle: pmChild?.goalTitle || '',
           goalAmount: pmChild?.goalAmount,
           goalType: pmChild?.goalType || 'money',
@@ -6737,9 +6787,315 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 await client.from('saving_goals').delete().eq('id', goalId).eq('foyer_id', foyer.id);
               }
             } catch (err) {
-              console.error("Failed to delete boutique item:", err);
+              console.error("Error deleting boutique item:", err);
             }
           }
+        };
+
+        const handleCreateMalusTemplate = async (e: React.FormEvent) => {
+          e.preventDefault();
+          if (!newMalusTitle.trim() || !foyer) return;
+
+          const newTemplate = {
+            id: `malus_temp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            foyer_id: foyer.id,
+            title: newMalusTitle.trim(),
+            emoji: newMalusEmoji,
+            category: newMalusCategory,
+            stars_removed: newMalusStarsRemoved,
+            xp_removed: newMalusXpRemoved,
+            loss_streak: newMalusLossStreak,
+            loss_shield: newMalusLossShield,
+            comment_required: newMalusCommentRequired,
+            double_parent_validation: newMalusDoubleParentValidation
+          };
+
+          setMalusTemplates(prev => [...prev, {
+            id: newTemplate.id,
+            foyerId: newTemplate.foyer_id,
+            title: newTemplate.title,
+            emoji: newTemplate.emoji,
+            category: newTemplate.category,
+            starsRemoved: newTemplate.stars_removed,
+            xpRemoved: newTemplate.xp_removed,
+            lossStreak: newTemplate.loss_streak,
+            lossShield: newTemplate.loss_shield,
+            commentRequired: newTemplate.comment_required,
+            doubleParentValidation: newTemplate.double_parent_validation
+          }]);
+
+          try {
+            const client = getSupabaseClient();
+            if (client) {
+              await client.from('malus_templates').insert(newTemplate);
+            }
+          } catch (err) {
+            console.error("Error creating malus template:", err);
+          }
+
+          setNewMalusTitle('');
+          setNewMalusEmoji('⚠️');
+          setNewMalusCategory('Comportement');
+          setNewMalusStarsRemoved(5);
+          setNewMalusXpRemoved(10);
+          setNewMalusLossStreak(false);
+          setNewMalusLossShield(true);
+          setNewMalusCommentRequired(false);
+          setNewMalusDoubleParentValidation(false);
+          alert("Modèle de malus créé avec succès ! ✨");
+        };
+
+        const handleSaveEditedMalus = async (templateId: string) => {
+          if (!editMalusTitle.trim() || !foyer) return;
+
+          setMalusTemplates(prev => prev.map(m => m.id === templateId ? {
+            ...m,
+            title: editMalusTitle.trim(),
+            emoji: editMalusEmoji,
+            category: editMalusCategory,
+            starsRemoved: editMalusStarsRemoved,
+            xpRemoved: editMalusXpRemoved,
+            lossStreak: editMalusLossStreak,
+            lossShield: editMalusLossShield,
+            commentRequired: editMalusCommentRequired,
+            doubleParentValidation: editMalusDoubleParentValidation
+          } : m));
+
+          try {
+            const client = getSupabaseClient();
+            if (client) {
+              await client.from('malus_templates').update({
+                title: editMalusTitle.trim(),
+                emoji: editMalusEmoji,
+                category: editMalusCategory,
+                stars_removed: editMalusStarsRemoved,
+                xp_removed: editMalusXpRemoved,
+                loss_streak: editMalusLossStreak,
+                loss_shield: editMalusLossShield,
+                comment_required: editMalusCommentRequired,
+                double_parent_validation: editMalusDoubleParentValidation
+              }).eq('id', templateId);
+            }
+          } catch (err) {
+            console.error("Error updating malus template:", err);
+          }
+
+          setEditingMalusId(null);
+          alert("Modèle de malus mis à jour ! ✨");
+        };
+
+        const handleDeleteMalusTemplate = async (templateId: string) => {
+          if (window.confirm("Voulez-vous vraiment supprimer ce modèle de malus ?")) {
+            setMalusTemplates(prev => prev.filter(m => m.id !== templateId));
+            try {
+              const client = getSupabaseClient();
+              if (client) {
+                await client.from('malus_templates').delete().eq('id', templateId);
+              }
+            } catch (err) {
+              console.error("Error deleting malus template:", err);
+            }
+          }
+        };
+
+        const handleApplyMalusToChild = async (e: React.FormEvent, childId: string) => {
+          e.preventDefault();
+          if (!selectedMalusTemplateId || !foyer) return;
+
+          const template = malusTemplates.find(t => t.id === selectedMalusTemplateId);
+          if (!template) return;
+
+          const child = pocketMoney.find(c => c.id === childId);
+          if (!child) return;
+
+          if (template.commentRequired && !applyMalusComment.trim()) {
+            alert("Un commentaire est obligatoire pour ce type de malus.");
+            return;
+          }
+
+          const maxMalusPerDay = foyer.malusSettings?.max_malus_per_day || 3;
+          const todayStr = new Date().toISOString().split('T')[0];
+          const todaysMaluses = appliedMaluses.filter(m => 
+            m.memberId === childId && 
+            m.createdAt.split('T')[0] === todayStr
+          );
+          if (todaysMaluses.length >= maxMalusPerDay) {
+            alert(`Limite journalière atteinte : cet enfant a déjà reçu ${todaysMaluses.length} malus aujourd'hui.`);
+            return;
+          }
+
+          const shieldEnabled = foyer.malusSettings?.shields_enabled !== false;
+          const childHasShields = (child.shields || 0) > 0;
+          const shieldWillBeUsed = shieldEnabled && useShieldForMalus && childHasShields && template.lossShield;
+
+          let finalStarsRemoved = template.starsRemoved;
+          let finalXpRemoved = template.xpRemoved;
+          let finalLossStreak = template.lossStreak;
+          let newShieldsCount = child.shields || 0;
+
+          if (shieldWillBeUsed) {
+            finalStarsRemoved = 0;
+            finalXpRemoved = 0;
+            finalLossStreak = false;
+            newShieldsCount = Math.max(0, newShieldsCount - 1);
+          }
+
+          const appliedObj = {
+            id: `malus_app_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            foyer_id: foyer.id,
+            member_id: childId,
+            title: template.title,
+            emoji: template.emoji,
+            description: template.description || '',
+            stars_removed: finalStarsRemoved,
+            xp_removed: finalXpRemoved,
+            loss_streak: finalLossStreak,
+            loss_shield: template.lossShield,
+            comment: applyMalusComment.trim(),
+            shield_used: shieldWillBeUsed,
+            repaired: false,
+            repaired_at: null,
+            reparation_task_id: null,
+            created_at: new Date().toISOString()
+          };
+
+          setAppliedMaluses(prev => [{
+            id: appliedObj.id,
+            foyerId: appliedObj.foyer_id,
+            memberId: appliedObj.member_id,
+            title: appliedObj.title,
+            emoji: appliedObj.emoji,
+            description: appliedObj.description,
+            starsRemoved: appliedObj.stars_removed,
+            xpRemoved: appliedObj.xp_removed,
+            lossStreak: appliedObj.loss_streak,
+            lossShield: appliedObj.loss_shield,
+            comment: appliedObj.comment,
+            shieldUsed: appliedObj.shield_used,
+            repaired: appliedObj.repaired,
+            reparationTaskId: '',
+            createdAt: appliedObj.created_at
+          }, ...prev]);
+
+          const updatedPoints = Math.max(0, child.points - finalStarsRemoved);
+          const updatedStreak = finalLossStreak ? 0 : (child.streak || 0);
+
+          setPocketMoney(prev => prev.map(c => c.id === childId ? {
+            ...c,
+            points: updatedPoints,
+            shields: newShieldsCount,
+            streak: updatedStreak
+          } : c));
+
+          try {
+            const client = getSupabaseClient();
+            if (client) {
+              await client.from('malus_applied').insert(appliedObj);
+              await client.from('pocket_money').update({
+                points: updatedPoints,
+                shields: newShieldsCount,
+                streak: updatedStreak
+              }).eq('id', childId);
+
+              if (onAddTransaction) {
+                onAddTransaction({
+                  amount: 0,
+                  type: 'expense',
+                  category: 'Argent de Poche',
+                  date: todayStr,
+                  title: `Malus appliqué : ${template.emoji} ${template.title}${shieldWillBeUsed ? ' (Bouclier consommé 🛡️)' : ` (-${finalStarsRemoved} Pts)`}`,
+                  memberName: child.name,
+                  comment: applyMalusComment.trim()
+                });
+              }
+            }
+          } catch (err) {
+            console.error("Error applying malus:", err);
+          }
+
+          if (onSendNotification && appliedObj.stars_removed > 0) {
+            onSendNotification(
+              `⚠️ Info comportement`,
+              `${child.name} a reçu un malus "${template.title}" (-${finalStarsRemoved} étoiles).`,
+              'taches',
+              'warning'
+            );
+          }
+
+          setSelectedMalusTemplateId(null);
+          setApplyMalusComment('');
+          setUseShieldForMalus(false);
+          setShowApplyMalusForm(false);
+          alert(shieldWillBeUsed ? "Malus bloqué par le bouclier de l'enfant ! 🛡️" : "Malus appliqué avec succès !");
+        };
+
+        const handleLinkReparationTask = async (e: React.FormEvent, malusId: string) => {
+          e.preventDefault();
+          if (!reparationTaskTitle.trim() || !foyer) return;
+
+          const malus = appliedMaluses.find(m => m.id === malusId);
+          if (!malus) return;
+
+          const taskId = `task-rep-${Date.now()}`;
+          const newChore = {
+            id: taskId,
+            foyer_id: foyer.id,
+            title: serializeChoreTitle({
+              title: `🔧 Rattrapage : ${reparationTaskTitle.trim()}`,
+              status: 'todo',
+              attributionMode: 'wall',
+              isArchived: false
+            }),
+            description: `Mission de rattrapage pour réparer le malus "${malus.title}". Une fois cette tâche validée, tu récupères tes étoiles perdues ! 💪`,
+            reward_points: 0,
+            reward_amount: 0,
+            assigned_member_id: malus.memberId,
+            assigned_member_name: members.find(m => m.id === malus.memberId)?.name || 'Enfant',
+            done: false,
+            validated_by_parent: false,
+            difficulty: 'medium',
+            category: 'Rattrapage',
+            created_at_text: new Date().toLocaleDateString('fr-FR')
+          };
+
+          if (setTasks) {
+            setTasks(prev => [{
+              id: newChore.id,
+              title: newChore.title,
+              description: newChore.description,
+              rewardPoints: 0,
+              rewardAmount: 0,
+              assignedMemberId: newChore.assigned_member_id,
+              assignedMemberName: newChore.assigned_member_name,
+              done: false,
+              rotation: 'none',
+              validatedByParent: false,
+              dueDate: '',
+              difficulty: 'medium',
+              category: 'Rattrapage'
+            }, ...prev]);
+          }
+
+          setAppliedMaluses(prev => prev.map(m => m.id === malusId ? {
+            ...m,
+            reparationTaskId: taskId
+          } : m));
+
+          try {
+            const client = getSupabaseClient();
+            if (client) {
+              await client.from('chore_tasks').insert(newChore);
+              await client.from('malus_applied').update({
+                reparation_task_id: taskId
+              }).eq('id', malusId);
+            }
+          } catch (err) {
+            console.error("Error creating reparation task:", err);
+          }
+
+          setLinkingMalusId(null);
+          setReparationTaskTitle('');
+          alert("Mission de rattrapage créée et assignée à l'enfant ! 💪");
         };
 
         const RULE_TYPES_INFO = [
@@ -6823,7 +7179,29 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             </div>
 
             {resolvedChild && (
-              <div className="space-y-6">
+              <div className="space-y-6 animate-fade-in">
+                {/* Pocket Money Sub-Tabs Switcher */}
+                <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-white/5 border border-white/8 p-1">
+                  {[
+                    { id: 'finance', label: '💶 Soldes & Règles' },
+                    { id: 'boutique', label: '🎁 Boutique Cadeaux' },
+                    { id: 'karma', label: '🛡️ Karma & Malus' }
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setPmSubTab(tab.id as typeof pmSubTab)}
+                      className={`py-2.5 rounded-xl text-[10.5px] font-extrabold transition-all cursor-pointer ${
+                        pmSubTab === tab.id
+                          ? 'bg-[#6C5CFF] text-white shadow-md shadow-[#6C5CFF]/20 font-black'
+                          : 'text-white/45 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
                 {/* 6-Card Dashboard Overview */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                   <div className="bg-white/5 border border-white/5 rounded-3xl p-4 text-center space-y-1">
@@ -6837,9 +7215,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     <p className="text-base font-black text-[#00D26A]">{formatMoney(resolvedChild.balance)}</p>
                   </div>
                   <div className="bg-white/5 border border-white/5 rounded-3xl p-4 text-center space-y-1">
-                    <span className="text-xl">🎁</span>
-                    <span className="text-[9px] font-bold text-white/40 block uppercase tracking-wide">Récompenses</span>
-                    <p className="text-base font-black text-white">{validatedRewardsCount}</p>
+                    <span className="text-xl">🛡️</span>
+                    <span className="text-[9px] font-bold text-white/40 block uppercase tracking-wide">Boucliers</span>
+                    <p className="text-base font-black text-[#00D26A]">{resolvedChild.shields !== undefined ? resolvedChild.shields : 3}</p>
                   </div>
                   <div className="bg-white/5 border border-white/5 rounded-3xl p-4 text-center space-y-1">
                     <span className="text-xl">🛒</span>
@@ -6854,674 +7232,511 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   <div className="bg-white/5 border border-white/5 rounded-3xl p-4 text-center space-y-1">
                     <span className="text-xl">🔥</span>
                     <span className="text-[9px] font-bold text-white/40 block uppercase tracking-wide">Série</span>
-                    <p className="text-base font-black text-[#FFB020]">{missionStreak} j</p>
+                    <p className="text-base font-black text-[#FFB020]">{resolvedChild.streak !== undefined ? resolvedChild.streak : missionStreak} j</p>
                   </div>
                 </div>
 
-                {/* Quick actions buttons */}
-                <div className="space-y-3">
-                  <div className="flex space-x-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAdjustmentType('add');
-                        setAdjustmentAsset('points');
-                        setShowQuickForm(prev => prev && adjustmentAsset === 'points' && adjustmentType === 'add' ? false : true);
-                      }}
-                      className="flex-1 py-3 px-4 bg-gradient-to-r from-[#6C5CFF] to-[#6C5CFF]/70 text-white font-extrabold text-xs rounded-2xl shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer"
-                    >
-                      <span>⭐ Ajouter des étoiles</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAdjustmentType('add');
-                        setAdjustmentAsset('money');
-                        setShowQuickForm(prev => prev && adjustmentAsset === 'money' && adjustmentType === 'add' ? false : true);
-                      }}
-                      className="flex-1 py-3 px-4 bg-gradient-to-r from-[#00D26A] to-[#00D26A]/70 text-white font-extrabold text-xs rounded-2xl shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer"
-                    >
-                      <span>💶 Ajouter de l'argent</span>
-                    </button>
-                  </div>
-
-                  {/* Collapsible Adjustment Form */}
-                  {showQuickForm && (
-                    <form onSubmit={handleApplyDirectAdjustment} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 text-left font-sans">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block">
-                          Ajustement rapide : {adjustmentType === 'add' ? 'Ajouter' : 'Retirer'} {adjustmentAsset === 'points' ? 'des Points (Stars)' : 'du Cash (€)'}
-                        </span>
-                        <select
-                          value={adjustmentType}
-                          onChange={e => setAdjustmentType(e.target.value as any)}
-                          className="bg-white/5 border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white focus:outline-none"
+                {/* Sub-Tab 1: Finance */}
+                {pmSubTab === 'finance' && (
+                  <div className="space-y-6 animate-fade-in">
+                    {/* Quick actions buttons */}
+                    <div className="space-y-3">
+                      <div className="flex space-x-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdjustmentType('add');
+                            setAdjustmentAsset('points');
+                            setShowQuickForm(prev => prev && adjustmentAsset === 'points' && adjustmentType === 'add' ? false : true);
+                          }}
+                          className="flex-1 py-3 px-4 bg-gradient-to-r from-[#6C5CFF] to-[#6C5CFF]/70 text-white font-extrabold text-xs rounded-2xl shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer"
                         >
-                          <option value="add">Ajouter (+)</option>
-                          <option value="remove">Retirer (-)</option>
-                        </select>
+                          <span>⭐ Ajuster les étoiles</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdjustmentType('add');
+                            setAdjustmentAsset('money');
+                            setShowQuickForm(prev => prev && adjustmentAsset === 'money' && adjustmentType === 'add' ? false : true);
+                          }}
+                          className="flex-1 py-3 px-4 bg-gradient-to-r from-[#00D26A] to-[#00D26A]/70 text-white font-extrabold text-xs rounded-2xl shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                        >
+                          <span>💶 Ajuster l'argent</span>
+                        </button>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Montant / Quantité</label>
-                          <input
-                            type="number"
-                            step="any"
-                            required
-                            placeholder={adjustmentAsset === 'points' ? 'ex: 50' : 'ex: 5.00'}
-                            value={adjustmentAmount}
-                            onChange={e => setAdjustmentAmount(e.target.value)}
-                            className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
-                          />
-                        </div>
+                      {/* Collapsible Adjustment Form */}
+                      {showQuickForm && (
+                        <form onSubmit={handleApplyDirectAdjustment} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 text-left font-sans">
+                          <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Ajustement rapide</span>
+                          
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Type d'opération</label>
+                              <select 
+                                value={adjustmentType}
+                                onChange={e => setAdjustmentType(e.target.value as any)}
+                                className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none"
+                              >
+                                <option value="add">Créditer (+)</option>
+                                <option value="remove">Débiter (-)</option>
+                              </select>
+                            </div>
 
-                        <div>
-                          {adjustmentAsset === 'money' ? (
-                            <>
-                              <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Débiter le compte parent</label>
+                            <div>
+                              <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Actif ciblé</label>
+                              <input 
+                                type="text"
+                                disabled 
+                                value={adjustmentAsset === 'money' ? 'Argent (€)' : 'Étoiles (pts)'}
+                                className="w-full bg-white/5 border border-white/8 rounded-xl px-2 py-2 text-xs text-white/60 focus:outline-none text-center"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Montant / Quantité</label>
+                              <input
+                                type="number"
+                                required
+                                min="0.01"
+                                step="any"
+                                placeholder={adjustmentAsset === 'money' ? 'ex: 2.50' : 'ex: 10'}
+                                value={adjustmentAmount}
+                                onChange={e => setAdjustmentAmount(e.target.value)}
+                                className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none text-center"
+                              />
+                            </div>
+                          </div>
+
+                          {adjustmentAsset === 'money' && adjustmentType === 'add' && (
+                            <div>
+                              <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Compte bancaire parent débité</label>
                               <select
                                 value={adjustmentAccountId}
                                 onChange={e => setAdjustmentAccountId(e.target.value)}
-                                className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
-                                required
+                                className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none"
                               >
-                                <option value="">Sélectionner...</option>
+                                <option value="">Choisir un compte...</option>
                                 {accounts.map(acc => (
                                   <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toFixed(2)}€)</option>
                                 ))}
                               </select>
-                            </>
-                          ) : (
-                            <div className="pt-6 text-white/40 text-[10px] font-bold">Aucun compte bancaire requis pour les points.</div>
+                            </div>
                           )}
+
+                          <div>
+                            <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Motif / Commentaire</label>
+                            <input
+                              type="text"
+                              placeholder="ex: Récompense tâches ménagères, Bonne note en Maths..."
+                              value={adjustmentReason}
+                              onChange={e => setAdjustmentReason(e.target.value)}
+                              className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                              required
+                            />
+                          </div>
+
+                          <div className="flex space-x-2 pt-2">
+                            <button
+                              type="button"
+                              onClick={() => setShowQuickForm(false)}
+                              className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white rounded-xl text-xs font-bold"
+                            >
+                              Annuler
+                            </button>
+                            <button
+                              type="submit"
+                              className="flex-1 py-2 bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white text-xs font-bold rounded-xl"
+                            >
+                              Confirmer l'opération
+                            </button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+
+                    {/* Goal Card (Tirelire & Objectif) */}
+                    <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 text-left font-sans">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Cagnotte & Objectif</span>
+                        <span className="text-[10px] font-extrabold text-[#6C5CFF]">Épargne active</span>
+                      </div>
+                      
+                      {resolvedChild.goalTitle ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between text-xs">
+                            <div>
+                              <h4 className="font-extrabold text-white text-sm">🎯 {resolvedChild.goalTitle}</h4>
+                              <p className="text-[10px] text-white/55 mt-0.5">
+                                Cible : <span className="font-bold text-[#00D26A]">{resolvedChild.goalType === 'points' ? `${resolvedChild.goalAmount} points` : formatMoney(resolvedChild.goalAmount || 0)}</span>
+                              </p>
+                            </div>
+                            <span className="text-sm font-black text-white">
+                              {Math.round(
+                                ((resolvedChild.goalType === 'points' ? resolvedChild.points : resolvedChild.balance) / (resolvedChild.goalAmount || 1)) * 100
+                              )}%
+                            </span>
+                          </div>
+
+                          {/* Progress Thermometer */}
+                          <div className="w-full h-3 bg-white/5 border border-white/10 rounded-full overflow-hidden p-[1px]">
+                            <div 
+                              className="h-full rounded-full bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] transition-all duration-500 shadow-[0_0_8px_rgba(108,92,255,0.4)]"
+                              style={{ 
+                                width: `${Math.min(100, Math.round(
+                                  ((resolvedChild.goalType === 'points' ? resolvedChild.points : resolvedChild.balance) / (resolvedChild.goalAmount || 1)) * 100
+                                ))}%` 
+                              }}
+                            />
+                          </div>
+
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const title = window.prompt("Modifier le nom de l'objectif :", resolvedChild.goalTitle || '');
+                              if (!title) return;
+                              const amt = parseFloat(window.prompt("Modifier le montant / score cible :", String(resolvedChild.goalAmount || 50)) || '');
+                              if (isNaN(amt) || amt <= 0) return;
+                              const type = window.confirm("Cible en Étoiles/Points ? (OK = Étoiles/Points, Annuler = Euros/Cash)") ? 'points' : 'money';
+                              handleSaveGoal(resolvedChild.id, title, amt, type);
+                            }}
+                            className="text-[10px] text-[#6C5CFF] font-bold hover:underline"
+                          >
+                            ⚙️ Modifier l'objectif de cagnotte
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 space-y-2">
+                          <p className="text-xs text-white/50 italic">Aucun objectif de cagnotte défini pour cet enfant.</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const title = window.prompt("Entrez le titre de l'objectif (ex: Vélo neuf, Console...) :");
+                              if (!title) return;
+                              const amt = parseFloat(window.prompt("Entrez le montant/points cible (ex: 150) :") || '');
+                              if (isNaN(amt) || amt <= 0) return;
+                              const type = window.confirm("Cible en Étoiles/Points ? (OK = Étoiles/Points, Annuler = Euros/Cash)") ? 'points' : 'money';
+                              handleSaveGoal(resolvedChild.id, title, amt, type);
+                            }}
+                            className="px-4 py-2 bg-[#6C5CFF]/15 border border-[#6C5CFF]/20 rounded-xl text-xs font-bold text-white hover:bg-[#6C5CFF]/30 active:scale-95 transition-all cursor-pointer"
+                          >
+                            + Définir un objectif
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Automatic transfer rules */}
+                    <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3 text-left font-sans">
+                      <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Règles automatiques (Versements)</span>
+                      
+                      <div className="space-y-2">
+                        {((resolvedChild.rules || []) as PocketMoneyRule[]).map((rule, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 text-xs font-bold">
+                            <div>
+                              <p className="text-white">💰 {rule.type === 'weekly' ? 'Versement hebdomadaire' : 'Versement mensuel'}</p>
+                              <p className="text-[9px] text-white/40 mt-0.5">
+                                {rule.amount > 0 && `${rule.amount.toFixed(2)} €`}
+                                {rule.amount > 0 && rule.points > 0 && ' et '}
+                                {rule.points > 0 && `${rule.points} Pts`}
+                              </p>
+                            </div>
+                            
+                            <div className="flex items-center space-x-2">
+                              <span className="text-[9px] text-[#00D26A] bg-[#00D26A]/10 border border-[#00D26A]/20 px-2 py-0.5 rounded-full uppercase">Actif</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm("Supprimer cette règle automatique ?")) {
+                                    const updated = (resolvedChild.rules || []).filter((_, i) => i !== idx);
+                                    handleSaveChildRules(resolvedChild.id, updated);
+                                  }
+                                }}
+                                className="text-red-400 hover:text-red-300 font-extrabold text-[10px]"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Add Rule Button Form */}
+                        <div className="pt-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const amount = parseFloat(window.prompt("Entrez le montant automatique (€) (0 si aucun) :", "2.00") || '0');
+                              const points = parseInt(window.prompt("Entrez le nombre d'étoiles/points automatique (0 si aucun) :", "10") || '0', 10);
+                              if (amount <= 0 && points <= 0) return;
+                              const type = window.confirm("Fréquence Hebdomadaire (OK) ou Mensuelle (Annuler) ?") ? 'weekly' : 'monthly';
+                              
+                              const newRule: PocketMoneyRule = {
+                                id: Date.now().toString(),
+                                type,
+                                amount,
+                                points,
+                                active: true
+                              };
+                              const updated = [...(resolvedChild.rules || []), newRule];
+                              handleSaveChildRules(resolvedChild.id, updated);
+                            }}
+                            className="text-[10px] font-extrabold text-[#00D26A] hover:underline"
+                          >
+                            + Ajouter un versement automatique récurrent
+                          </button>
                         </div>
                       </div>
-
-                      <div>
-                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Motif / Commentaire</label>
-                        <input
-                          type="text"
-                          placeholder="ex: Récompense tâches ménagères, Bonne note en Maths..."
-                          value={adjustmentReason}
-                          onChange={e => setAdjustmentReason(e.target.value)}
-                          className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
-                          required
-                        />
-                      </div>
-
-                      <div className="flex space-x-2 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowQuickForm(false)}
-                          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white rounded-xl text-xs font-bold"
-                        >
-                          Annuler
-                        </button>
-                        <button
-                          type="submit"
-                          className="flex-1 py-2 bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white text-xs font-bold rounded-xl"
-                        >
-                          Confirmer l'opération
-                        </button>
-                      </div>
-                    </form>
-                  )}
-                </div>
-
-                {/* Validation Requests (alerts req-rew-* & sug-rew-*) */}
-                {pendingRequests.length > 0 && (
-                  <div className="glass-panel rounded-[28px] border-2 border-amber-500/20 bg-amber-500/5 p-5 space-y-3 text-left">
-                    <div className="flex items-center space-x-2 text-amber-500">
-                      <span>🔔</span>
-                      <h4 className="text-xs font-extrabold uppercase tracking-wider">Demandes en attente de validation ({resolvedChild.name})</h4>
                     </div>
-                    <div className="space-y-2">
-                      {pendingRequests.map(alertItem => {
-                        // 1. Check if purchase request req-rew-*
-                        const isPurchase = alertItem.id.startsWith('req-rew-');
-                        if (isPurchase) {
-                          let meta: any = null;
-                          const desc = alertItem.description || '';
-                          if (desc.startsWith('__METADATA__:') && desc.includes('__DESCRIPTION__:')) {
-                            try {
-                              const idx = desc.indexOf('__DESCRIPTION__:');
-                              const jsonStr = desc.substring('__METADATA__:'.length, idx);
-                              meta = JSON.parse(jsonStr);
-                            } catch (e) {
-                              console.error("Failed to parse alert metadata:", e);
-                            }
-                          }
 
-                          const match = alertItem.id.match(/^req-rew-(.*?)-(.*?)-(points|money)-(\d+)$/);
-                          const resolvedChildId = meta ? meta.child_id : (match ? match[1] : resolvedChild?.id);
-                          const resolvedChildName = meta ? meta.child_name : (resolvedChild?.name || 'L\'enfant');
-                          const rewardId = meta ? meta.reward_id : (match ? match[2] : '');
-                          const paymentMethod = meta ? meta.payment_type : (match ? match[3] : 'points');
-
-                          let rewardTitle = 'Cadeau';
-                          let costPoints = 50;
-                          let costMoney = 5.0;
-
-                          if (meta) {
-                            rewardTitle = meta.reward_title;
-                            costPoints = meta.reward_price_points;
-                            costMoney = meta.reward_price_money;
-                          } else {
-                            const dbReward = rewardsList.find(r => r.id === rewardId);
-                            if (dbReward) {
-                              rewardTitle = dbReward.title;
-                              costPoints = dbReward.costPoints;
-                              costMoney = dbReward.costMoney;
-                            } else {
-                              rewardTitle = alertItem.title.replace("Achat Ado : ", "").replace("Achat Enfant : ", "").replace("Demande de récompense : ", "");
-                              const ptsMatch = alertItem.description.match(/(\d+)\s*points|étoiles/i);
-                              if (ptsMatch) costPoints = parseInt(ptsMatch[1]);
-                              const eurMatch = alertItem.description.match(/([\d.,]+)\s*(?:€|euro)/i);
-                              if (eurMatch) costMoney = parseFloat(eurMatch[1].replace(',', '.'));
-                            }
-                          }
-
-                          const costText = paymentMethod === 'points' ? `${costPoints} étoiles` : `${costMoney.toFixed(2)} €`;
-
+                    {/* Transactions history list for this child */}
+                    <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-3 text-left">
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">Historique de la tirelire ({resolvedChild.name})</h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {childTransactions.map(tx => {
+                          const isCredit = tx.amount > 0 || (tx.type as string) === 'credit' || tx.type === 'income';
+                          const displayAmt = Math.abs(tx.amount);
                           return (
-                            <div key={alertItem.id} className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+                            <div key={tx.id} className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 text-xs font-bold">
                               <div>
-                                <p className="font-bold text-white">{resolvedChildName} demande : {rewardTitle}</p>
-                                <p className="text-[10px] text-white/50 mt-1">
-                                  Paiement : <span className="font-bold text-[#FFB020]">{costText}</span>
-                                </p>
+                                <p className="text-white">{tx.title}</p>
+                                <p className="text-[9px] text-white/40">{tx.date}</p>
                               </div>
-                              <div className="flex space-x-2 shrink-0">
-                                <button type="button" onClick={() => handleRefuseRequest(alertItem.id)} className="px-3 py-1 bg-red-500/20 text-red-400 rounded-xl font-bold cursor-pointer">Refuser</button>
-                                <button type="button" onClick={() => handleApproveBoutiqueRequest(alertItem, resolvedChildId, rewardId, paymentMethod)} className="px-3 py-1 bg-[#00D26A] text-[#07111F] rounded-xl font-bold cursor-pointer">Approuver</button>
-                              </div>
+                              {tx.amount !== 0 ? (
+                                <span className={isCredit ? 'text-[#00D26A]' : 'text-[#FF4D6D]'}>
+                                  {isCredit ? '+' : '-'}{displayAmt.toFixed(2)} €
+                                </span>
+                              ) : (
+                                <span className="text-[#FFB020] text-[10px] font-black">Opération points</span>
+                              )}
                             </div>
                           );
-                        } else {
-                          // Suggestion sug-rew-*
-                          return (
-                            <div key={alertItem.id} className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
-                              <div>
-                                <p className="font-bold text-white">Suggestion de cadeau personnalisé 💡</p>
-                                <p className="text-[10px] text-white/50">{alertItem.description}</p>
-                              </div>
-                              <div className="flex space-x-2 shrink-0">
-                                <button type="button" onClick={() => handleRefuseRequest(alertItem.id)} className="px-3 py-1 bg-red-500/20 text-red-400 rounded-xl font-bold cursor-pointer">Ignorer</button>
-                                <button 
-                                  type="button" 
-                                  onClick={() => {
-                                    // Pre-fill boutique creator
-                                    setNewBoutiqueTitle(alertItem.title.replace("Suggestion : ", ""));
-                                    setNewBoutiqueCostPoints(100);
-                                    setNewBoutiqueCostMoney(10);
-                                    setNewBoutiqueIcon('🎁');
-                                    alert("Formulaire de boutique pré-rempli ci-dessous !");
-                                    // Remove alert
-                                    handleRefuseRequest(alertItem.id);
-                                  }} 
-                                  className="px-3 py-1 bg-[#6C5CFF] text-white rounded-xl font-bold cursor-pointer"
-                                >
-                                  Créer le cadeau
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        }
-                      })}
+                        })}
+                        {childTransactions.length === 0 && (
+                          <p className="text-xs text-white/30 text-center py-4">Aucune transaction enregistrée.</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* Savings goal thermometer editor */}
-                <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 text-left">
-                  <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block flex items-center space-x-1.5">
-                    <span>🎯 Objectif d'épargne (Cagnotte)</span>
-                  </span>
-                  
-                  {resolvedChild.goalTitle ? (
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center text-xs">
-                        <div>
-                          <p className="font-bold text-white">🎯 {resolvedChild.goalTitle}</p>
-                          <p className="text-[10px] text-white/40">Cible : {resolvedChild.goalType === 'points' ? `${resolvedChild.goalAmount} Pts` : `${resolvedChild.goalAmount} €`}</p>
+                {/* Sub-Tab 2: Boutique */}
+                {pmSubTab === 'boutique' && (
+                  <div className="space-y-6 animate-fade-in">
+                    {/* Validation Requests (alerts req-rew-* & sug-rew-*) */}
+                    {pendingRequests.length > 0 && (
+                      <div className="glass-panel rounded-[28px] border-2 border-amber-500/20 bg-amber-500/5 p-5 space-y-3 text-left">
+                        <div className="flex items-center space-x-2 text-amber-500">
+                          <span>🔔</span>
+                          <h4 className="text-xs font-extrabold uppercase tracking-wider">Demandes en attente de validation ({resolvedChild.name})</h4>
                         </div>
+                        <div className="space-y-2">
+                          {pendingRequests.map(alertItem => {
+                            const isPurchase = alertItem.id.startsWith('req-rew-');
+                            if (isPurchase) {
+                              let meta: any = null;
+                              const desc = alertItem.description || '';
+                              if (desc.startsWith('__METADATA__:') && desc.includes('__DESCRIPTION__:')) {
+                                try {
+                                  const idx = desc.indexOf('__DESCRIPTION__:');
+                                  const jsonStr = desc.substring('__METADATA__:'.length, idx);
+                                  meta = JSON.parse(jsonStr);
+                                } catch (e) {
+                                  console.error("Failed to parse alert metadata:", e);
+                                }
+                              }
+
+                              const match = alertItem.id.match(/^req-rew-(.*?)-(.*?)-(points|money)-(\d+)$/);
+                              const resolvedChildId = meta ? meta.child_id : (match ? match[1] : resolvedChild?.id);
+                              const resolvedChildName = meta ? meta.child_name : (resolvedChild?.name || 'L\'enfant');
+                              const rewardId = meta ? meta.reward_id : (match ? match[2] : '');
+                              const paymentMethod = meta ? meta.payment_type : (match ? match[3] : 'points');
+
+                              let rewardTitle = 'Cadeau';
+                              let costPoints = 50;
+                              let costMoney = 5.0;
+
+                              if (meta) {
+                                rewardTitle = meta.reward_title;
+                                costPoints = meta.reward_price_points;
+                                costMoney = meta.reward_price_money;
+                              } else {
+                                const dbReward = rewardsList.find(r => r.id === rewardId);
+                                if (dbReward) {
+                                  rewardTitle = dbReward.title;
+                                  costPoints = dbReward.costPoints;
+                                  costMoney = dbReward.costMoney;
+                                } else {
+                                  rewardTitle = alertItem.title.replace("Achat Ado : ", "").replace("Achat Enfant : ", "").replace("Demande de récompense : ", "");
+                                  const ptsMatch = alertItem.description.match(/(\d+)\s*points/i);
+                                  if (ptsMatch) costPoints = parseInt(ptsMatch[1]);
+                                  const eurMatch = alertItem.description.match(/([\d.,]+)\s*(?:€|euro)/i);
+                                  if (eurMatch) costMoney = parseFloat(eurMatch[1].replace(',', '.'));
+                                }
+                              }
+
+                              const costText = paymentMethod === 'points' ? `${costPoints} étoiles` : `${costMoney.toFixed(2)} €`;
+
+                              return (
+                                <div key={alertItem.id} className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+                                  <div>
+                                    <p className="font-bold text-white">{resolvedChildName} demande : {rewardTitle}</p>
+                                    <p className="text-[10px] text-white/50 mt-1">
+                                      Paiement : <span className="font-bold text-[#FFB020]">{costText}</span>
+                                    </p>
+                                  </div>
+                                  <div className="flex space-x-2 shrink-0">
+                                    <button type="button" onClick={() => handleRefuseRequest(alertItem.id)} className="px-3 py-1 bg-red-500/20 text-red-400 rounded-xl font-bold cursor-pointer">Refuser</button>
+                                    <button type="button" onClick={() => handleApproveBoutiqueRequest(alertItem, resolvedChildId, rewardId, paymentMethod)} className="px-3 py-1 bg-[#00D26A] text-[#07111F] rounded-xl font-bold cursor-pointer">Approuver</button>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Boutique Configuration Editor */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                      {/* Formulaire de création de récompense */}
+                      <form onSubmit={handleCreateBoutiqueItem} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 text-left font-sans">
+                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Ajouter une récompense à la boutique 🎁</span>
+                        
+                        <div className="space-y-1.5 font-medium">
+                          <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Nom du cadeau / privilège</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="ex: 30 minutes de console supplémentaire..."
+                            value={newBoutiqueTitle}
+                            onChange={e => setNewBoutiqueTitle(e.target.value)}
+                            className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Prix en étoiles (pts)</label>
+                            <input
+                              type="number"
+                              required
+                              min="0"
+                              value={newBoutiqueCostPoints}
+                              onChange={e => setNewBoutiqueCostPoints(Math.max(0, parseInt(e.target.value) || 0))}
+                              className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none text-center"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Icône (Emoji)</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="🎮, 🍕, 🍦"
+                              value={newBoutiqueIcon}
+                              onChange={e => setNewBoutiqueIcon(e.target.value)}
+                              className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none text-center"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Catégorie</label>
+                            <select
+                              value={newBoutiqueSubCategory}
+                              onChange={e => setNewBoutiqueSubCategory(e.target.value)}
+                              className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none"
+                            >
+                              <option value="Écran">Écran</option>
+                              <option value="Repas">Repas</option>
+                              <option value="Sommeil">Sommeil</option>
+                              <option value="Gourmandise">Gourmandise</option>
+                              <option value="Sortie">Sortie</option>
+                              <option value="Cadeau">Cadeau</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Validation requise</label>
+                            <select
+                              value={newBoutiqueValidationRequired ? 'true' : 'false'}
+                              onChange={e => setNewBoutiqueValidationRequired(e.target.value === 'true')}
+                              className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none"
+                            >
+                              <option value="true">Oui</option>
+                              <option value="false">Non (Auto)</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Visible pour enfants</label>
+                            <select
+                              value={newBoutiqueAvail ? 'true' : 'false'}
+                              onChange={e => setNewBoutiqueAvail(e.target.value === 'true')}
+                              className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none"
+                            >
+                              <option value="true">Afficher</option>
+                              <option value="false">Masquer</option>
+                            </select>
+                          </div>
+                        </div>
+
                         <button
-                          type="button"
-                          onClick={() => handleSaveGoal(resolvedChild.id, '', 0, 'money')}
-                          className="text-red-400 hover:text-red-300 text-xs font-bold"
+                          type="submit"
+                          className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white text-xs font-extrabold cursor-pointer border border-[#6C5CFF]/20 active:scale-95 transition-all text-center"
                         >
-                          Supprimer
+                          Ajouter l'article à la boutique
                         </button>
-                      </div>
-                      
-                      {/* Thermometer */}
-                      {(() => {
-                        const current = resolvedChild.goalType === 'points' ? resolvedChild.points : resolvedChild.balance;
-                        const target = resolvedChild.goalAmount || 1;
-                        const pct = Math.min(100, Math.round((current / target) * 100));
-                        return (
-                          <div className="space-y-1">
-                            <div className="w-full h-3 rounded-full bg-white/5 overflow-hidden border border-white/5 flex items-center pr-1.5">
-                              <div 
-                                className="h-full bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] transition-all"
-                                style={{ width: `${pct}%` }}
-                              ></div>
-                            </div>
-                            <div className="flex justify-between text-[10px] text-white/40">
-                              <span>Progression : {pct}%</span>
-                              <span>{resolvedChild.goalType === 'points' ? `${current} Pts / ${target} Pts` : `${formatMoney(current)} / ${formatMoney(target)}`}</span>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  ) : (
-                    <div className="p-4 border border-dashed border-white/10 rounded-2xl text-center space-y-3">
-                      <p className="text-xs text-white/40 font-bold">Aucun objectif d'épargne défini pour cet enfant.</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const title = window.prompt("Quel est l'objectif d'épargne ? (ex: VTT, PlayStation...) :");
-                          if (!title) return;
-                          const amtStr = window.prompt("Quel est le montant cible ? (ex: 200) :");
-                          if (!amtStr) return;
-                          const amount = parseFloat(amtStr);
-                          if (isNaN(amount)) return;
-                          const type = window.confirm("L'objectif est-il mesuré en Argent (€) ? (Cliquez sur Annuler pour les Étoiles/Points)") ? 'money' : 'points';
-                          handleSaveGoal(resolvedChild.id, title, amount, type);
-                        }}
-                        className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-bold border border-white/10"
-                      >
-                        + Configurer un objectif
-                      </button>
-                    </div>
-                  )}
-                </div>
+                      </form>
 
-                {/* Automatic rules configs */}
-                <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 text-left">
-                  <h3 className="text-sm font-extrabold text-white flex items-center space-x-2">
-                    <span>⚙️ Règles de versement automatique</span>
-                  </h3>
-                  <p className="text-[11px] text-white/50 font-bold">Configurez des versements automatiques en cash (€) ou en étoiles (Pts) selon 7 conditions clés.</p>
-                  
-                  <div className="space-y-4">
-                    {RULE_TYPES_INFO.map(rType => {
-                      const childRules = (resolvedChild.rules || []) as PocketMoneyRule[];
-                      const currentRule: PocketMoneyRule = childRules.find(r => r.type === rType.type) || {
-                        id: `rule-${resolvedChild.id}-${rType.type}`,
-                        type: rType.type,
-                        active: false,
-                        amount: 0,
-                        points: 0,
-                        conditionValue: rType.type === 'after_grade' || rType.type === 'after_average' ? '>= 15' : undefined
-                      };
-
-                      const handleToggleRuleActive = (active: boolean) => {
-                        const exists = childRules.some(r => r.type === rType.type);
-                        const updated = exists 
-                          ? childRules.map(r => r.type === rType.type ? { ...r, active } : r)
-                          : [...childRules, { ...currentRule, active }];
-                        handleSaveChildRules(resolvedChild.id, updated);
-                      };
-
-                      const handleUpdateRuleValues = (amt: number, pts: number, cond?: string) => {
-                        const exists = childRules.some(r => r.type === rType.type);
-                        const updatedRule = { ...currentRule, amount: amt, points: pts, conditionValue: cond };
-                        const updated = exists
-                          ? childRules.map(r => r.type === rType.type ? updatedRule : r)
-                          : [...childRules, updatedRule];
-                        handleSaveChildRules(resolvedChild.id, updated);
-                      };
-
-                      const needsCondition = rType.type === 'after_grade' || rType.type === 'after_average';
-
-                      return (
-                        <div key={rType.type} className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-                          <div className="space-y-1 flex-1">
-                            <div className="flex items-center space-x-2">
-                              <span className="font-extrabold text-white">{rType.label}</span>
-                              <span className={`px-2 py-0.5 rounded-full text-[8px] font-black ${currentRule.active ? 'bg-[#00D26A]/20 text-[#00D26A]' : 'bg-white/10 text-white/40'}`}>
-                                {currentRule.active ? 'Actif' : 'Inactif'}
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-white/40 font-bold">{rType.desc}</p>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-3 shrink-0">
-                            {needsCondition && (
-                              <div className="flex flex-col space-y-1">
-                                <span className="text-[8px] font-bold text-white/40 uppercase">Seuil/Condition</span>
-                                <input
-                                  type="text"
-                                  placeholder="ex: >= 15"
-                                  value={currentRule.conditionValue || ''}
-                                  onChange={e => handleUpdateRuleValues(currentRule.amount || 0, currentRule.points || 0, e.target.value)}
-                                  className="w-16 bg-[#07111F] border border-white/8 rounded-xl px-2 py-1 text-center font-bold text-white focus:outline-none"
-                                />
+                      {/* Current boutique items list */}
+                      <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 font-sans text-left">
+                        <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block font-sans">🎁 Récompenses Boutique Actuelles</span>
+                        
+                        <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                          {dbRewards.map(item => (
+                            <div key={item.id} className="p-3 bg-white/5 border border-white/5 rounded-2xl flex items-center justify-between text-xs font-bold text-white">
+                              <div className="flex items-center space-x-2.5">
+                                <span className="text-xl shrink-0">{item.icon}</span>
+                                <div>
+                                  <h5 className="font-extrabold text-white leading-tight">{item.title}</h5>
+                                  <p className="text-[9px] text-white/40 leading-none mt-1">
+                                    {item.category} • {item.costPoints} pts / {item.costMoney ? `${item.costMoney.toFixed(2)} €` : '0.00 €'}
+                                  </p>
+                                </div>
                               </div>
-                            )}
-
-                            <div className="flex flex-col space-y-1">
-                              <span className="text-[8px] font-bold text-white/40 uppercase">Montant (€)</span>
-                              <input
-                                type="number"
-                                step="any"
-                                placeholder="0"
-                                value={currentRule.amount || ''}
-                                onChange={e => handleUpdateRuleValues(parseFloat(e.target.value) || 0, currentRule.points || 0, currentRule.conditionValue)}
-                                className="w-16 bg-[#07111F] border border-white/8 rounded-xl px-2 py-1 text-center font-bold text-white focus:outline-none"
-                              />
+                              <div className="flex space-x-1.5 items-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleRewardAvailability(item.id, item.avail)}
+                                  className={`p-1 rounded text-[10px] ${item.avail ? 'text-amber-400' : 'text-gray-400'}`}
+                                  title={item.avail ? 'Masquer' : 'Afficher'}
+                                >
+                                  {item.avail ? '👁️' : '👁️‍🗨️'}
+                                </button>
+                                {item.supprimable !== false && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteBoutiqueItem(item.id)}
+                                    className="p-1 text-red-400 hover:bg-red-500/10 rounded transition cursor-pointer"
+                                  >
+                                    🗑️
+                                  </button>
+                                )}
+                              </div>
                             </div>
-
-                            <div className="flex flex-col space-y-1">
-                              <span className="text-[8px] font-bold text-white/40 uppercase">Étoiles (Pts)</span>
-                              <input
-                                type="number"
-                                placeholder="0"
-                                value={currentRule.points || ''}
-                                onChange={e => handleUpdateRuleValues(currentRule.amount || 0, parseInt(e.target.value, 10) || 0, currentRule.conditionValue)}
-                                className="w-16 bg-[#07111F] border border-white/8 rounded-xl px-2 py-1 text-center font-bold text-[#6C5CFF] focus:outline-none"
-                              />
-                            </div>
-
-                            <div className="flex items-center pt-3">
-                              <button
-                                type="button"
-                                onClick={() => handleToggleRuleActive(!currentRule.active)}
-                                className={`px-3 py-1 rounded-xl font-bold transition cursor-pointer text-[10px] ${
-                                  currentRule.active
-                                    ? 'bg-red-500/20 text-red-400'
-                                    : 'bg-[#00D26A] text-[#07111F]'
-                                }`}
-                              >
-                                {currentRule.active ? 'Désactiver' : 'Activer'}
-                              </button>
-                            </div>
-                          </div>
+                          ))}
+                          {dbRewards.length === 0 && (
+                            <p className="text-xs text-white/30 text-center py-6 font-bold">Aucun cadeau configuré (les cadeaux par défaut s'affichent pour les enfants).</p>
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Boutique Configuration Editor */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-                  {/* Create item form */}
-                  <form onSubmit={handleCreateBoutiqueItem} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 font-sans text-left">
-                    <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block">➕ Configurer un article de la Boutique</span>
-                    
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Nom du cadeau</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="ex: 30m console, Sortie ciné..."
-                          value={newBoutiqueTitle}
-                          onChange={e => setNewBoutiqueTitle(e.target.value)}
-                          className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-                        />
                       </div>
-                      <div>
-                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Prix (en Étoiles/Points)</label>
-                        <input
-                          type="number"
-                          required
-                          placeholder="ex: 100"
-                          value={newBoutiqueCostPoints}
-                          onChange={e => setNewBoutiqueCostPoints(Number(e.target.value))}
-                          className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Prix Cash (€)</label>
-                        <input
-                          type="number"
-                          step="any"
-                          required
-                          placeholder="ex: 10"
-                          value={newBoutiqueCostMoney}
-                          onChange={e => setNewBoutiqueCostMoney(Number(e.target.value))}
-                          className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none text-center"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Icône (Emoji)</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="🎮, 🍕, 🍦"
-                          value={newBoutiqueIcon}
-                          onChange={e => setNewBoutiqueIcon(e.target.value)}
-                          className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none text-center"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Catégorie</label>
-                        <select
-                          value={newBoutiqueSubCategory}
-                          onChange={e => setNewBoutiqueSubCategory(e.target.value)}
-                          className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none"
-                        >
-                          <option value="Écran">Écran</option>
-                          <option value="Repas">Repas</option>
-                          <option value="Sommeil">Sommeil</option>
-                          <option value="Gourmandise">Gourmandise</option>
-                          <option value="Sortie">Sortie</option>
-                          <option value="Cadeau">Cadeau</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Validation requise</label>
-                        <select
-                          value={newBoutiqueValidationRequired ? 'true' : 'false'}
-                          onChange={e => setNewBoutiqueValidationRequired(e.target.value === 'true')}
-                          className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none"
-                        >
-                          <option value="true">Oui</option>
-                          <option value="false">Non (Auto)</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Visible pour enfants</label>
-                        <select
-                          value={newBoutiqueAvail ? 'true' : 'false'}
-                          onChange={e => setNewBoutiqueAvail(e.target.value === 'true')}
-                          className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none"
-                        >
-                          <option value="true">Afficher</option>
-                          <option value="false">Masquer</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full py-2 bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white text-xs font-bold rounded-xl cursor-pointer"
-                    >
-                      Ajouter l'article à la boutique
-                    </button>
-                  </form>
-
-                  {/* List custom rewards */}
-                  <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3 font-sans text-left">
-                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Articles Boutique configurés ({dbRewards.length})</span>
-                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                      {dbRewards.map(item => {
-                        const isEditing = editingBoutiqueId === item.id;
-                        if (isEditing) {
-                          return (
-                            <div key={item.id} className="p-3 rounded-xl bg-[#112240] border border-[#6C5CFF] text-xs font-bold space-y-2.5">
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Nom du cadeau</label>
-                                  <input
-                                    type="text"
-                                    value={editBoutiqueTitle}
-                                    onChange={e => setEditBoutiqueTitle(e.target.value)}
-                                    className="w-full bg-[#07111F] border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Icône (Emoji)</label>
-                                  <input
-                                    type="text"
-                                    value={editBoutiqueIcon}
-                                    onChange={e => setEditBoutiqueIcon(e.target.value)}
-                                    className="w-full bg-[#07111F] border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none text-center"
-                                  />
-                                </div>
-                              </div>
-                              
-                              <div className="grid grid-cols-3 gap-2">
-                                <div>
-                                  <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Étoiles</label>
-                                  <input
-                                    type="number"
-                                    value={editBoutiqueCostPoints}
-                                    onChange={e => setEditBoutiqueCostPoints(Number(e.target.value))}
-                                    className="w-full bg-[#07111F] border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Cash (€)</label>
-                                  <input
-                                    type="number"
-                                    step="any"
-                                    value={editBoutiqueCostMoney}
-                                    onChange={e => setEditBoutiqueCostMoney(Number(e.target.value))}
-                                    className="w-full bg-[#07111F] border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Catégorie</label>
-                                  <select
-                                    value={editBoutiqueSubCategory}
-                                    onChange={e => setEditBoutiqueSubCategory(e.target.value)}
-                                    className="w-full bg-[#07111F] border border-white/10 rounded-lg px-1 py-1 text-[11px] text-white focus:outline-none"
-                                  >
-                                    <option value="Écran">Écran</option>
-                                    <option value="Repas">Repas</option>
-                                    <option value="Sommeil">Sommeil</option>
-                                    <option value="Gourmandise">Gourmandise</option>
-                                    <option value="Sortie">Sortie</option>
-                                    <option value="Cadeau">Cadeau</option>
-                                  </select>
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Validation requise</label>
-                                  <select
-                                    value={editBoutiqueValidationRequired ? 'true' : 'false'}
-                                    onChange={e => setEditBoutiqueValidationRequired(e.target.value === 'true')}
-                                    className="w-full bg-[#07111F] border border-white/10 rounded-lg px-1.5 py-1 text-[11px] text-white focus:outline-none"
-                                  >
-                                    <option value="true">Oui</option>
-                                    <option value="false">Non (Auto)</option>
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Visibilité</label>
-                                  <select
-                                    value={editBoutiqueAvail ? 'true' : 'false'}
-                                    onChange={e => setEditBoutiqueAvail(e.target.value === 'true')}
-                                    className="w-full bg-[#07111F] border border-white/10 rounded-lg px-1.5 py-1 text-[11px] text-white focus:outline-none"
-                                  >
-                                    <option value="true">Afficher</option>
-                                    <option value="false">Masquer</option>
-                                  </select>
-                                </div>
-                              </div>
-
-                              <div className="flex justify-end space-x-2 pt-1">
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingBoutiqueId(null)}
-                                  className="px-2.5 py-1 bg-white/10 hover:bg-white/15 text-white rounded-lg text-[10px]"
-                                >
-                                  Annuler
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditBoutiqueItem(item.id)}
-                                  className="px-2.5 py-1 bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white rounded-lg text-[10px]"
-                                >
-                                  Enregistrer
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div key={item.id} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 text-xs font-bold">
-                            <div className="flex items-center space-x-2">
-                              <span className="text-base">{item.icon}</span>
-                              <div>
-                                <p className="text-white">{item.title}</p>
-                                <p className="text-[9px] text-white/40">
-                                  {item.category} • {item.costPoints} Pts / {formatMoney(item.costMoney)} • {item.avail ? 'Visible' : 'Masqué'}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex space-x-1.5 items-center">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingBoutiqueId(item.id);
-                                  setEditBoutiqueTitle(item.title);
-                                  setEditBoutiqueCostPoints(item.costPoints);
-                                  setEditBoutiqueCostMoney(item.costMoney);
-                                  setEditBoutiqueIcon(item.icon);
-                                  setEditBoutiqueSubCategory(item.category);
-                                  setEditBoutiqueValidationRequired(item.validationRequired !== false);
-                                  setEditBoutiqueAvail(item.avail !== false);
-                                }}
-                                className="p-1 text-[#6C5CFF] hover:bg-white/5 rounded transition cursor-pointer"
-                                title="Modifier"
-                              >
-                                ✏️
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleRewardAvailability(item.id, item.avail)}
-                                className={`p-1 rounded text-[10px] ${item.avail ? 'text-amber-400' : 'text-gray-400'}`}
-                                title={item.avail ? 'Masquer' : 'Afficher'}
-                              >
-                                {item.avail ? '👁️' : '👁️‍🗨️'}
-                              </button>
-                              {item.supprimable !== false && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteBoutiqueItem(item.id)}
-                                  className="p-1 text-red-400 hover:bg-red-500/10 rounded transition cursor-pointer"
-                                >
-                                  🗑️
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {dbRewards.length === 0 && (
-                        <p className="text-xs text-white/30 text-center py-6 font-bold">Aucun cadeau configuré (les cadeaux par défaut s'affichent pour les enfants).</p>
-                      )}
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Recurring transfers list for this child */}
                 {(() => {

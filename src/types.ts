@@ -41,6 +41,14 @@ export type FamilyModule =
   | 'commune'
   | 'etablissement';
 
+export interface MalusSettings {
+  enabled: boolean;
+  shields_enabled: boolean;
+  weekly_shields: number;
+  reparation_enabled: boolean;
+  max_malus_per_day: number;
+}
+
 export interface Foyer {
   id: string;
   name: string;
@@ -51,6 +59,7 @@ export interface Foyer {
   isPremium: boolean;
   maxMembers: number;
   parentPin?: string;
+  malusSettings?: MalusSettings;
 }
 
 export interface FoyerMember {
@@ -670,6 +679,10 @@ export interface PocketMoneyChild {
   balance: number;
   points: number;
   avatar: string;
+  shields?: number;
+  streak?: number;
+  lastShieldReset?: string;
+  lastConnection?: string;
   goalTitle?: string;
   goalAmount?: number;
   goalType?: 'points' | 'money';
@@ -763,4 +776,39 @@ export function parsePocketMoneyTitle(rawTitle: string): { goalTitle?: string; g
 
 export function serializePocketMoneyTitle(metadata: { goalTitle?: string; goalType?: 'points' | 'money'; rules?: PocketMoneyRule[] }): string {
   return JSON.stringify(metadata);
+}
+
+export interface MalusTemplate {
+  id: string;
+  foyerId: string;
+  title: string;
+  emoji: string;
+  description?: string;
+  category: string;
+  starsRemoved: number;
+  xpRemoved: number;
+  lossStreak: boolean;
+  lossShield: boolean;
+  commentRequired: boolean;
+  doubleParentValidation: boolean;
+  createdAt?: string;
+}
+
+export interface AppliedMalus {
+  id: string;
+  foyerId: string;
+  memberId: string;
+  title: string;
+  emoji: string;
+  description?: string;
+  starsRemoved: number;
+  xpRemoved: number;
+  lossStreak: boolean;
+  lossShield: boolean;
+  comment?: string;
+  shieldUsed: boolean;
+  repaired: boolean;
+  repairedAt?: string;
+  reparationTaskId?: string;
+  createdAt: string;
 }

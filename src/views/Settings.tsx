@@ -91,6 +91,35 @@ export const Settings: React.FC<SettingsProps> = ({
   const [localCommune, setLocalCommune] = useState(communeName);
   const [localSchool, setLocalSchool] = useState(schoolName);
 
+  const [malusSettings, setMalusSettings] = useState(() => {
+    return foyer?.malusSettings || {
+      enabled: true,
+      shields_enabled: true,
+      weekly_shields: 3,
+      reparation_enabled: true,
+      max_malus_per_day: 3
+    };
+  });
+
+  useEffect(() => {
+    if (foyer?.malusSettings) {
+      setMalusSettings(foyer.malusSettings);
+    }
+  }, [foyer]);
+
+  const handleSaveMalusSettings = async (updates: Partial<typeof malusSettings>) => {
+    const newSettings = { ...malusSettings, ...updates };
+    setMalusSettings(newSettings);
+    if (foyer && user) {
+      try {
+        await foyerService.updateFoyerMalusSettings(foyer.id, newSettings);
+        if (onRefreshFoyer) onRefreshFoyer();
+      } catch (err: any) {
+        console.error("Error saving malus settings to database:", err);
+      }
+    }
+  };
+
   useEffect(() => {
     setLocalCommune(communeName);
   }, [communeName]);
@@ -838,6 +867,120 @@ export const Settings: React.FC<SettingsProps> = ({
                 >
                   Enregistrer les Rattachements
                 </button>
+              </div>
+            </div>
+          )}
+
+          <div className="pt-2"></div>
+
+          {/* Malus Settings Card */}
+          {(!myMemberProfile || ['admin', 'parent'].includes(myMemberProfile.role)) && (
+            <div className="p-5 rounded-2xl bg-white/3 border border-white/5 space-y-4">
+              <div className="flex items-center space-x-2 text-[#FFB020]">
+                <SettingsIcon className="w-4 h-4 text-[#FFB020]" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white">Système de Malus & Boucliers</h4>
+              </div>
+              <p className="text-[10px] text-white/50 leading-relaxed font-sans">
+                Configurez le système de malus pour responsabiliser vos enfants de manière positive et bienveillante.
+              </p>
+              
+              <div className="space-y-4 pt-1 font-sans">
+                {/* Enable Malus */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-white/3 border border-white/5">
+                  <div>
+                    <span className="text-xs font-bold text-white block">Activer les Malus</span>
+                    <span className="text-[9px] text-white/40">Permet d'appliquer des pénalités configurées</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveMalusSettings({ enabled: !malusSettings.enabled })}
+                    className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none cursor-pointer ${
+                      malusSettings.enabled ? 'bg-[#00D26A]' : 'bg-white/10'
+                    }`}
+                  >
+                    <div
+                      className={`w-4.5 h-4.5 rounded-full bg-white shadow-md transform duration-200 ${
+                        malusSettings.enabled ? 'translate-x-4.5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Enable Shields */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-white/3 border border-white/5">
+                  <div>
+                    <span className="text-xs font-bold text-white block">Boucliers protecteurs</span>
+                    <span className="text-[9px] text-white/40">Permet d'annuler les malus avec des boucliers</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveMalusSettings({ shields_enabled: !malusSettings.shields_enabled })}
+                    className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none cursor-pointer ${
+                      malusSettings.shields_enabled ? 'bg-[#00D26A]' : 'bg-white/10'
+                    }`}
+                  >
+                    <div
+                      className={`w-4.5 h-4.5 rounded-full bg-white shadow-md transform duration-200 ${
+                        malusSettings.shields_enabled ? 'translate-x-4.5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Weekly Shields Count */}
+                {malusSettings.shields_enabled && (
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Boucliers par semaine</label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={malusSettings.weekly_shields}
+                        onChange={(e) => handleSaveMalusSettings({ weekly_shields: Math.max(1, parseInt(e.target.value) || 3) })}
+                        className="w-20 px-3.5 py-2 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-[#6C5CFF]"
+                      />
+                      <span className="text-[10px] text-white/55">bouclier(s) par enfant (renouvelé le lundi)</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Enable Reparation / Recovery tasks */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-white/3 border border-white/5">
+                  <div>
+                    <span className="text-xs font-bold text-white block">Missions de rattrapage</span>
+                    <span className="text-[9px] text-white/40">Permet de récupérer les points perdus après une tâche</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveMalusSettings({ reparation_enabled: !malusSettings.reparation_enabled })}
+                    className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none cursor-pointer ${
+                      malusSettings.reparation_enabled ? 'bg-[#00D26A]' : 'bg-white/10'
+                    }`}
+                  >
+                    <div
+                      className={`w-4.5 h-4.5 rounded-full bg-white shadow-md transform duration-200 ${
+                        malusSettings.reparation_enabled ? 'translate-x-4.5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Max Malus Per Day */}
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Limite de malus par jour</label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={malusSettings.max_malus_per_day}
+                      onChange={(e) => handleSaveMalusSettings({ max_malus_per_day: Math.max(1, parseInt(e.target.value) || 3) })}
+                      className="w-20 px-3.5 py-2 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-[#6C5CFF]"
+                    />
+                    <span className="text-[10px] text-white/55">malus maximum par jour par enfant</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}

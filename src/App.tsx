@@ -38,7 +38,9 @@ import type {
   Debt,
   MemberRole,
   ModulePermissions,
-  FamilyModule
+  FamilyModule,
+  MalusTemplate,
+  AppliedMalus
 } from './types';
 
 const formatRelativeTime = (dateInput: string | Date | undefined, fallback: string): string => {
@@ -449,6 +451,12 @@ function App() {
   });
   const [pocketMoney, setPocketMoney] = useState<PocketMoneyChild[]>(() => {
     return safeGetLocalStorage('mf_pocket_money', []);
+  });
+  const [malusTemplates, setMalusTemplates] = useState<MalusTemplate[]>(() => {
+    return safeGetLocalStorage('mf_malus_templates', []);
+  });
+  const [appliedMaluses, setAppliedMaluses] = useState<AppliedMalus[]>(() => {
+    return safeGetLocalStorage('mf_applied_maluses', []);
   });
 
   const [savingGoals, setSavingGoals] = useState<SavingGoal[]>(() => {
@@ -2506,7 +2514,9 @@ function App() {
       wrapQuery('custom_categories', client.from('custom_categories').select('*').eq('foyer_id', foyerId)),
       wrapQuery('accounts', client.from('accounts').select('*').eq('foyer_id', foyerId)),
       wrapQuery('abonnements', client.from('abonnements').select('*').eq('foyer_id', foyerId)),
-      wrapQuery('debts', client.from('debts').select('*').eq('foyer_id', foyerId))
+      wrapQuery('debts', client.from('debts').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('malus_templates', client.from('malus_templates').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('malus_applied', client.from('malus_applied').select('*').eq('foyer_id', foyerId))
     ]).then(([
       membersList,
       userRes,
@@ -2535,7 +2545,9 @@ function App() {
       customCategoriesRes,
       accountsRes,
       abonnementsRes,
-      debtsRes
+      debtsRes,
+      malusTemplatesRes,
+      malusAppliedRes
     ]) => {
       // Log query volumes for optimization audit
       logQueryVolume('transactions', 'loadFoyerData', transactionsRes?.data);
@@ -2962,12 +2974,106 @@ function App() {
             balance: Number(p.balance || 0),
             points: Number(p.points || 0),
             avatar: p.avatar || '',
+            shields: p.shields !== undefined && p.shields !== null ? Number(p.shields) : 3,
+            streak: p.streak !== undefined && p.streak !== null ? Number(p.streak) : 0,
+            lastShieldReset: p.last_shield_reset || undefined,
+            lastConnection: p.last_connection || undefined,
             goalTitle: meta.goalTitle || '',
             goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined,
             goalType: meta.goalType || 'money',
             rules: meta.rules || []
           };
         }));
+      }
+
+      // Set malusTemplates & defaultMaluses initialization
+      if (malusTemplatesRes.success && malusTemplatesRes.data) {
+        if (malusTemplatesRes.data.length === 0) {
+          const defaultMaluses = [
+            { title: "Chambre non rangée", emoji: "🛏️", category: "Rangement", starsRemoved: 5, xpRemoved: 10, lossStreak: false, lossShield: true, commentRequired: false, doubleParentValidation: false },
+            { title: "Devoir non fait", emoji: "📚", category: "Travail scolaire", starsRemoved: 10, xpRemoved: 20, lossStreak: true, lossShield: true, commentRequired: false, doubleParentValidation: false },
+            { title: "Retard", emoji: "⏰", category: "Ponctualité", starsRemoved: 5, xpRemoved: 10, lossStreak: false, lossShield: true, commentRequired: false, doubleParentValidation: false },
+            { title: "Téléphone après l'heure autorisée", emoji: "📱", category: "Écrans", starsRemoved: 10, xpRemoved: 15, lossStreak: false, lossShield: true, commentRequired: false, doubleParentValidation: false },
+            { title: "Insolence", emoji: "🗣️", category: "Comportement", starsRemoved: 15, xpRemoved: 30, lossStreak: true, lossShield: true, commentRequired: true, doubleParentValidation: false },
+            { title: "Brosse à dents oubliée", emoji: "🪥", category: "Hygiène", starsRemoved: 2, xpRemoved: 5, lossStreak: false, lossShield: true, commentRequired: false, doubleParentValidation: false },
+            { title: "Sac d'école non préparé", emoji: "🎒", category: "Organisation", starsRemoved: 5, xpRemoved: 10, lossStreak: false, lossShield: true, commentRequired: false, doubleParentValidation: false },
+            { title: "Vêtements laissés au sol", emoji: "👕", category: "Rangement", starsRemoved: 3, xpRemoved: 5, lossStreak: false, lossShield: true, commentRequired: false, doubleParentValidation: false },
+            { title: "Aide refusée à la maison", emoji: "❌", category: "Entraide", starsRemoved: 5, xpRemoved: 10, lossStreak: false, lossShield: true, commentRequired: false, doubleParentValidation: false },
+            { title: "Temps d'écran dépassé", emoji: "⏳", category: "Écrans", starsRemoved: 8, xpRemoved: 15, lossStreak: false, lossShield: true, commentRequired: false, doubleParentValidation: false }
+          ];
+
+          const initialTemplates = defaultMaluses.map(dm => ({
+            id: `malus_temp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            foyer_id: foyerId,
+            title: dm.title,
+            emoji: dm.emoji,
+            description: '',
+            category: dm.category,
+            stars_removed: dm.starsRemoved,
+            xp_removed: dm.xpRemoved,
+            loss_streak: dm.lossStreak,
+            loss_shield: dm.lossShield,
+            comment_required: dm.commentRequired,
+            double_parent_validation: dm.doubleParentValidation
+          }));
+
+          client.from('malus_templates').insert(initialTemplates).then(({ error }) => {
+            if (!error) {
+              setMalusTemplates(initialTemplates.map(m => ({
+                id: m.id,
+                foyerId: m.foyer_id,
+                title: m.title,
+                emoji: m.emoji,
+                description: m.description,
+                category: m.category,
+                starsRemoved: m.stars_removed,
+                xpRemoved: m.xp_removed,
+                lossStreak: m.loss_streak,
+                lossShield: m.loss_shield,
+                commentRequired: m.comment_required,
+                doubleParentValidation: m.double_parent_validation
+              })));
+            }
+          });
+        } else {
+          setMalusTemplates(malusTemplatesRes.data.map((m: any) => ({
+            id: m.id,
+            foyerId: m.foyer_id,
+            title: m.title,
+            emoji: m.emoji,
+            description: m.description || '',
+            category: m.category,
+            starsRemoved: Number(m.stars_removed || 0),
+            xpRemoved: Number(m.xp_removed || 0),
+            lossStreak: !!m.loss_streak,
+            lossShield: !!m.loss_shield,
+            commentRequired: !!m.comment_required,
+            doubleParentValidation: !!m.double_parent_validation,
+            createdAt: m.created_at
+          })));
+        }
+      }
+
+      // Set appliedMaluses
+      if (malusAppliedRes.success && malusAppliedRes.data) {
+        setAppliedMaluses(malusAppliedRes.data.map((m: any) => ({
+          id: m.id,
+          foyerId: m.foyer_id,
+          memberId: m.member_id,
+          title: m.title,
+          emoji: m.emoji,
+          description: m.description || '',
+          starsRemoved: Number(m.stars_removed || 0),
+          xpRemoved: Number(m.xp_removed || 0),
+          lossStreak: !!m.loss_streak,
+          lossShield: !!m.loss_shield,
+          comment: m.comment || '',
+          shieldUsed: !!m.shield_used,
+          repaired: !!m.repaired,
+          repairedAt: m.repaired_at,
+          reparationTaskId: m.reparation_task_id || '',
+          createdAt: m.created_at
+        })));
       }
 
       // Set artisans
@@ -3216,6 +3322,43 @@ function App() {
           await client.from('alerts').insert(alertObj);
         } catch (err) {
           console.error("Error updating recurring chore task rotation:", err);
+        }
+      }
+    }
+
+    // 4. Process weekly shield resets for kids
+    const maxShields = foyer?.malusSettings?.weekly_shields !== undefined ? foyer.malusSettings.weekly_shields : 3;
+    const nowIso = new Date().toISOString();
+
+    const shouldResetWeeklyShields = (lastResetDateStr: string | undefined): boolean => {
+      if (!lastResetDateStr) return true;
+      const lastReset = new Date(lastResetDateStr);
+      const now = new Date();
+      
+      const getStartOfWeek = (d: Date) => {
+        const date = new Date(d);
+        const day = date.getDay();
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+        const start = new Date(date.setDate(diff));
+        start.setHours(0, 0, 0, 0);
+        return start;
+      };
+      
+      const lastResetWeekStart = getStartOfWeek(lastReset);
+      const currentWeekStart = getStartOfWeek(now);
+      
+      return currentWeekStart.getTime() > lastResetWeekStart.getTime();
+    };
+
+    for (const kid of dbPocketMoney) {
+      if (shouldResetWeeklyShields(kid.last_shield_reset || kid.lastShieldReset)) {
+        try {
+          await client.from('pocket_money').update({
+            shields: maxShields,
+            last_shield_reset: nowIso
+          }).eq('id', kid.id);
+        } catch (err) {
+          console.error(`Error resetting shields for kid ${kid.id}:`, err);
         }
       }
     }
@@ -4068,6 +4211,10 @@ function App() {
               balance: Number(p.balance || 0),
               points: Number(p.points || 0),
               avatar: p.avatar || '',
+              shields: p.shields !== undefined && p.shields !== null ? Number(p.shields) : 3,
+              streak: p.streak !== undefined && p.streak !== null ? Number(p.streak) : 0,
+              lastShieldReset: p.last_shield_reset || undefined,
+              lastConnection: p.last_connection || undefined,
               goalTitle: meta.goalTitle || '',
               goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined,
               goalType: meta.goalType || 'money',
@@ -4350,6 +4497,53 @@ function App() {
       });
     });
 
+    const subMalusTemplates = foyerService.subscribeToChanges('malus_templates', foyer.id, () => {
+      foyerService.fetchTableData('malus_templates', foyer.id).then(templatesData => {
+        if (templatesData) {
+          setMalusTemplates(templatesData.map((m: any) => ({
+            id: m.id,
+            foyerId: m.foyer_id,
+            title: m.title,
+            emoji: m.emoji,
+            description: m.description || '',
+            category: m.category,
+            starsRemoved: Number(m.stars_removed || 0),
+            xpRemoved: Number(m.xp_removed || 0),
+            lossStreak: !!m.loss_streak,
+            lossShield: !!m.loss_shield,
+            commentRequired: !!m.comment_required,
+            doubleParentValidation: !!m.double_parent_validation,
+            createdAt: m.created_at
+          })));
+        }
+      });
+    });
+
+    const subAppliedMaluses = foyerService.subscribeToChanges('malus_applied', foyer.id, () => {
+      foyerService.fetchTableData('malus_applied', foyer.id).then(appliedData => {
+        if (appliedData) {
+          setAppliedMaluses(appliedData.map((m: any) => ({
+            id: m.id,
+            foyerId: m.foyer_id,
+            memberId: m.member_id,
+            title: m.title,
+            emoji: m.emoji,
+            description: m.description || '',
+            starsRemoved: Number(m.stars_removed || 0),
+            xpRemoved: Number(m.xp_removed || 0),
+            lossStreak: !!m.loss_streak,
+            lossShield: !!m.loss_shield,
+            comment: m.comment || '',
+            shieldUsed: !!m.shield_used,
+            repaired: !!m.repaired,
+            repairedAt: m.repaired_at,
+            reparationTaskId: m.reparation_task_id || '',
+            createdAt: m.created_at
+          })));
+        }
+      });
+    });
+
     return () => {
       if (subEvents) subEvents.unsubscribe();
       if (subGroceries) subGroceries.unsubscribe();
@@ -4375,6 +4569,8 @@ function App() {
       if (subAccounts) subAccounts.unsubscribe();
       if (subAbonnements) subAbonnements.unsubscribe();
       if (subDebts) subDebts.unsubscribe();
+      if (subMalusTemplates) subMalusTemplates.unsubscribe();
+      if (subAppliedMaluses) subAppliedMaluses.unsubscribe();
     };
   }, [foyer]);
 
@@ -4843,6 +5039,10 @@ function App() {
         balance: p.balance || 0,
         points: p.points || 0,
         avatar: p.avatar || null,
+        shields: p.shields !== undefined && p.shields !== null ? p.shields : 3,
+        streak: p.streak !== undefined && p.streak !== null ? p.streak : 0,
+        last_shield_reset: p.lastShieldReset || null,
+        last_connection: p.lastConnection || null,
         goal_title: p.goalTitle || null,
         goal_amount: p.goalAmount || null
       }), true);
@@ -9352,6 +9552,14 @@ function App() {
   }, [pocketMoney]);
 
   useEffect(() => {
+    safeSetLocalStorage('mf_malus_templates', JSON.stringify(malusTemplates));
+  }, [malusTemplates]);
+
+  useEffect(() => {
+    safeSetLocalStorage('mf_applied_maluses', JSON.stringify(appliedMaluses));
+  }, [appliedMaluses]);
+
+  useEffect(() => {
     safeSetLocalStorage('mf_artisans', JSON.stringify(artisans));
   }, [artisans]);
 
@@ -10336,6 +10544,37 @@ function App() {
       if (t.id === id) {
         // Parent bank account to debit from
         const parentAccountId = accounts.find(a => a.type === 'bank')?.id || accounts[0]?.id || null;
+        const client = getSupabaseClient();
+
+        // Intercept reparation validation
+        const linkedMalus = appliedMaluses.find(m => m.reparationTaskId === id);
+        let refundStars = 0;
+        if (linkedMalus && !linkedMalus.repaired) {
+          refundStars = linkedMalus.starsRemoved;
+          setAppliedMaluses(prev => prev.map(m => m.id === linkedMalus.id ? {
+            ...m,
+            repaired: true,
+            repairedAt: new Date().toISOString()
+          } : m));
+
+          if (client) {
+            client.from('malus_applied')
+              .update({ repaired: true, repaired_at: new Date().toISOString() })
+              .eq('id', linkedMalus.id)
+              .then(({ error }) => {
+                if (error) console.error("Error updating repaired status on malus_applied:", error);
+              });
+          }
+
+          handleAddTransaction({
+            amount: 0,
+            type: 'income',
+            category: 'Argent de Poche',
+            date: new Date().toISOString().split('T')[0],
+            title: `Rattrapage validé (+${refundStars} Pts) : ${t.title}`,
+            memberName: t.assignedMemberName
+          });
+        }
 
         // Ajouter la récompense financière correspondante au budget épargne (points)
         // Ex: 10 points = 1.00 €
@@ -10353,7 +10592,7 @@ function App() {
           setPocketMoney(prev => prev.map(child => {
             if (child.id === t.assignedMemberId || child.name.toLowerCase() === t.assignedMemberName?.toLowerCase()) {
               let updatedBalance = child.balance;
-              let pointsReward = child.points + t.rewardPoints;
+              let pointsReward = child.points + t.rewardPoints + refundStars;
 
               // Si une récompense financière en cash (rewardAmount) est définie
               if (t.rewardAmount && t.rewardAmount > 0) {
@@ -10402,7 +10641,6 @@ function App() {
               });
 
               // Mettre à jour dans Supabase
-              const client = getSupabaseClient();
               if (client) {
                 client.from('pocket_money')
                   .update({ balance: updatedBalance, points: pointsReward })
@@ -10436,7 +10674,6 @@ function App() {
         );
 
         // Mettre à jour dans Supabase
-        const client = getSupabaseClient();
         if (client) {
           client.from('chore_tasks')
             .update({ title: serialized, done: true, validated_by_parent: true })
@@ -11509,6 +11746,10 @@ function App() {
           setActiveTab={setActiveTab}
           activeModule={activeModule}
           setActiveModule={setActiveModule}
+          malusTemplates={malusTemplates}
+          setMalusTemplates={setMalusTemplates}
+          appliedMaluses={appliedMaluses}
+          setAppliedMaluses={setAppliedMaluses}
           tasks={appTasks}
           setTasks={setTasks}
           schoolTasks={schoolTasks}
@@ -11721,6 +11962,8 @@ function App() {
               setTasks={setTasks}
               pocketMoney={appPocketMoney}
               setPocketMoney={setPocketMoney}
+              appliedMaluses={appliedMaluses}
+              setAppliedMaluses={setAppliedMaluses}
               onBack={() => setActiveModule('')}
               defaultTab={activeModule === 'argent' ? 'argent' : activeModule === 'boutique' ? 'boutique' : 'missions'}
               setAlerts={setAlerts}
@@ -11857,6 +12100,10 @@ function App() {
                 <MenuHub 
                   foyer={appFoyer}
                   memberPermissions={memberPermissions}
+                  malusTemplates={malusTemplates}
+                  setMalusTemplates={setMalusTemplates}
+                  appliedMaluses={appliedMaluses}
+                  setAppliedMaluses={setAppliedMaluses}
                   initialChatGroupId={initialChatGroupId}
                   documents={appDocuments}
                   setDocuments={setDocuments}
@@ -12089,6 +12336,10 @@ function App() {
                 <MenuHub 
                   foyer={appFoyer}
                   memberPermissions={memberPermissions}
+                  malusTemplates={malusTemplates}
+                  setMalusTemplates={setMalusTemplates}
+                  appliedMaluses={appliedMaluses}
+                  setAppliedMaluses={setAppliedMaluses}
                   initialChatGroupId={initialChatGroupId}
                   documents={appDocuments}
                   setDocuments={setDocuments}
@@ -12302,6 +12553,10 @@ function App() {
         <MenuHub 
           foyer={appFoyer}
           memberPermissions={memberPermissions}
+          malusTemplates={malusTemplates}
+          setMalusTemplates={setMalusTemplates}
+          appliedMaluses={appliedMaluses}
+          setAppliedMaluses={setAppliedMaluses}
           initialChatGroupId={initialChatGroupId}
           documents={appDocuments}
           setDocuments={setDocuments}

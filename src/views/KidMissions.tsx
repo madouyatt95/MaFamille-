@@ -11,8 +11,10 @@ interface KidMissionsProps {
   setTasks: React.Dispatch<React.SetStateAction<ChoreTask[]>>;
   pocketMoney: any[];
   setPocketMoney: React.Dispatch<React.SetStateAction<any[]>>;
+  appliedMaluses?: any[];
+  setAppliedMaluses?: React.Dispatch<React.SetStateAction<any[]>>;
   onBack: () => void;
-  defaultTab?: 'missions' | 'boutique' | 'argent';
+  defaultTab?: 'missions' | 'boutique' | 'argent' | 'karma';
   setAlerts?: React.Dispatch<React.SetStateAction<NotificationAlert[]>>;
   alerts?: NotificationAlert[];
   foyer?: Foyer | null;
@@ -44,6 +46,8 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   setTasks,
   pocketMoney,
   setPocketMoney,
+  appliedMaluses = [],
+  setAppliedMaluses,
   onBack,
   defaultTab,
   setAlerts,
@@ -57,7 +61,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   onTakeWallTask,
   onSendNotification
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'missions' | 'boutique' | 'argent'>(defaultTab || 'missions');
+  const [activeSubTab, setActiveSubTab] = useState<'missions' | 'boutique' | 'argent' | 'karma'>(defaultTab || 'missions');
   const [requestText, setRequestText] = useState('');
   const [requestPoints, setRequestPoints] = useState(20);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -469,7 +473,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
       </div>
 
       {/* Tabs */}
-      <div className="bg-white/5 p-1 rounded-2xl border border-white/5 grid grid-cols-3 gap-1 mb-6">
+      <div className="bg-white/5 p-1 rounded-2xl border border-white/5 grid grid-cols-4 gap-1 mb-6">
         <button
           onClick={() => setActiveSubTab('missions')}
           className={`py-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
@@ -502,6 +506,17 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
         >
           <span>🪙</span>
           <span>Argent</span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab('karma')}
+          className={`py-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
+            activeSubTab === 'karma' 
+              ? 'bg-[#FFB020] text-[#07111F] shadow-md shadow-[#FFB020]/20' 
+              : 'text-white/50 hover:text-white/80'
+          }`}
+        >
+          <span>🛡️</span>
+          <span>Karma</span>
         </button>
       </div>
 
@@ -1089,6 +1104,200 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
                   })
                 )}
               </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* CONTENT: Karma & Behavior */}
+      {activeSubTab === 'karma' && (() => {
+        const shieldsCount = myAccount.shields !== undefined ? myAccount.shields : 3;
+        const streakCount = myAccount.streak !== undefined ? myAccount.streak : 0;
+        const myApplied = (appliedMaluses || []).filter(m => m.memberId === member.id);
+        const activeReparations = myApplied.filter(m => m.reparationTaskId && !m.repaired);
+
+        // Calculate recovery rate or general karma index
+        const totalApplied = myApplied.length;
+        const activeMaluses = myApplied.filter(m => !m.shieldUsed && !m.repaired);
+
+        return (
+          <div className="space-y-6 text-left">
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Shields Card */}
+              <div className="bg-gradient-to-br from-[#6C5CFF]/20 to-[#6C5CFF]/5 border border-[#6C5CFF]/30 rounded-[32px] p-5 text-center space-y-2 shadow-xl relative overflow-hidden">
+                <span className="text-3xl block">🛡️</span>
+                <p className="text-2xl font-black text-[#6C5CFF] tracking-tight">{shieldsCount} / 3</p>
+                <p className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Boucliers de Protection</p>
+                <div className="flex justify-center space-x-1 mt-1">
+                  {[1, 2, 3].map(i => (
+                    <span key={i} className={`text-base ${i <= shieldsCount ? 'opacity-100 filter drop-shadow-[0_0_4px_rgba(108,92,255,0.6)]' : 'opacity-20 grayscale'}`}>🛡️</span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Streak Card */}
+              <div className="bg-gradient-to-br from-[#FF8C00]/20 to-[#FF8C00]/5 border border-[#FF8C00]/30 rounded-[32px] p-5 text-center space-y-2 shadow-xl relative overflow-hidden">
+                <span className="text-3xl block">🔥</span>
+                <p className="text-2xl font-black text-[#FF8C00] tracking-tight">{streakCount} jour{streakCount > 1 ? 's' : ''}</p>
+                <p className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Série de Connexion</p>
+                <p className="text-[8px] text-[#FF8C00] font-black uppercase">Reste assidu !</p>
+              </div>
+            </div>
+
+            {/* General Karma Index Visualizer */}
+            <div className="bg-white/5 border border-white/8 rounded-[32px] p-5 space-y-3">
+              <div className="flex justify-between items-center text-xs">
+                <div>
+                  <span className="text-[9px] font-bold text-white/40 uppercase block">Indice de Karma :</span>
+                  <span className="font-extrabold text-white text-sm">
+                    {activeMaluses.length === 0 ? "Comportement au Top ! ✨" : "Tâches à réparer ! ⚠️"}
+                  </span>
+                </div>
+                <span className="font-black text-[#FFB020]">
+                  {activeMaluses.length === 0 ? "100%" : `${Math.max(10, Math.round((1 - activeMaluses.length / (totalApplied || 1)) * 100))}%`}
+                </span>
+              </div>
+              <div className="w-full h-3 rounded-full bg-white/5 overflow-hidden border border-white/8">
+                <div 
+                  className={`h-full transition-all duration-500 rounded-full ${activeMaluses.length === 0 ? 'bg-[#00D26A]' : 'bg-[#FFB020]'}`}
+                  style={{ width: `${activeMaluses.length === 0 ? 100 : Math.max(10, Math.round((1 - activeMaluses.length / (totalApplied || 1)) * 100))}%` }}
+                />
+              </div>
+              <p className="text-[9px] text-white/40 leading-relaxed font-medium">
+                Garde un bon karma pour prouver ton sérieux et obtenir les plus beaux cadeaux de la boutique !
+              </p>
+            </div>
+
+            {/* Active Reparations Section */}
+            <div className="space-y-3">
+              <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block">🔧 Missions de rattrapage actives :</span>
+              {activeReparations.length === 0 ? (
+                <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 text-center space-y-1">
+                  <span className="text-2xl block">🎉</span>
+                  <p className="text-xs font-black text-white">Aucune tâche de rattrapage !</p>
+                  <p className="text-[10px] text-white/45 font-medium">Bonne nouvelle, aucun malus à rattraper.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {activeReparations.map(malus => {
+                    const task = tasks.find(t => t.id === malus.reparationTaskId);
+                    if (!task) return null;
+                    return (
+                      <div key={malus.id} className="bg-[#112240] border border-[#6C5CFF]/30 rounded-2xl p-4 flex items-center justify-between">
+                        <div className="space-y-1 pr-2">
+                          <span className="text-[9px] font-bold bg-[#FFB020]/20 text-[#FFB020] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            Rattrapage 💡
+                          </span>
+                          <h4 className="text-xs font-black text-white leading-tight">{task.title}</h4>
+                          <p className="text-[9px] text-white/50">Lié à la pénalité : {malus.emoji} {malus.title}</p>
+                          <p className="text-[10px] text-[#00D26A] font-bold flex items-center gap-1 mt-1">
+                            <span>Permet de récupérer :</span>
+                            <span className="flex items-center gap-0.5"><Star className="w-3 h-3 fill-[#FFB020] text-[#FFB020]"/>+{malus.starsRemoved} pts</span>
+                          </p>
+                        </div>
+                        {task.done ? (
+                          <span className="text-[10px] font-black text-[#FFB020] bg-[#FFB020]/10 px-3 py-1.5 rounded-xl uppercase tracking-wider flex items-center gap-1 shrink-0">
+                            <Clock className="w-3 h-3 animate-spin" />
+                            <span>Vérification parent</span>
+                          </span>
+                        ) : (
+                          <button 
+                            onClick={async () => {
+                              // Mark task as done
+                              const targetTask = tasks.find(t => t.id === task.id);
+                              if (!targetTask) return;
+                              const meta = parseChoreTitle(targetTask.title);
+                              meta.status = 'pending_validation';
+                              meta.title = meta.title || targetTask.title;
+                              const serializedTitle = serializeChoreTitle(meta);
+
+                              setTasks(prev => prev.map(t => t.id === task.id ? { 
+                                ...t, 
+                                title: serializedTitle,
+                                done: true,
+                                status: 'pending_validation'
+                              } : t));
+
+                              try {
+                                const client = getSupabaseClient();
+                                if (client) {
+                                  await client.from('chore_tasks').update({ 
+                                    title: serializedTitle,
+                                    done: true,
+                                    validated_by_parent: false 
+                                  }).eq('id', task.id);
+                                }
+                                alert("Mission de rattrapage complétée ! En attente de validation parent pour récupérer tes étoiles ! 🎉");
+                              } catch (err) {
+                                console.error("[KidMissions] Failed to complete reparation task:", err);
+                              }
+                            }}
+                            className="px-3 py-2 bg-[#00D26A] text-[#07111F] font-black text-[10px] uppercase tracking-wider rounded-xl cursor-pointer shadow-md shrink-0"
+                          >
+                            Valider
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Behavior & Penalties History */}
+            <div className="space-y-3">
+              <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block">📜 Historique comportemental :</span>
+              {myApplied.length === 0 ? (
+                <p className="text-xs text-white/40 text-center py-4 italic">Zéro faute ! Félicitations ! 🌟</p>
+              ) : (
+                <div className="bg-white/5 border border-white/8 rounded-[32px] p-2 space-y-2">
+                  {myApplied.map(malus => {
+                    const dateStr = new Date(malus.createdAt).toLocaleDateString('fr-FR', {
+                      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                    });
+                    return (
+                      <div key={malus.id} className="bg-white/5 rounded-2xl p-4 space-y-2 flex flex-col justify-between">
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center space-x-2.5">
+                            <span className="text-2xl">{malus.emoji || '⚠️'}</span>
+                            <div className="text-left">
+                              <h4 className="text-xs font-black text-white leading-tight">{malus.title}</h4>
+                              <p className="text-[8px] text-white/35 font-bold">{dateStr}</p>
+                            </div>
+                          </div>
+
+                          {malus.shieldUsed ? (
+                            <span className="text-[9px] font-black text-[#6C5CFF] bg-[#6C5CFF]/10 border border-[#6C5CFF]/25 px-2 py-1 rounded-xl uppercase tracking-wider flex items-center gap-1 shrink-0">
+                              🛡️ Bouclier Utilisé
+                            </span>
+                          ) : malus.repaired ? (
+                            <span className="text-[9px] font-black text-[#00D26A] bg-[#00D26A]/10 border border-[#00D26A]/25 px-2 py-1 rounded-xl uppercase tracking-wider flex items-center gap-1 shrink-0">
+                              ✅ Rattrapage Réussi
+                            </span>
+                          ) : (
+                            <div className="text-right shrink-0">
+                              <span className="text-xs font-black text-[#FF4D6D] bg-[#FF4D6D]/10 px-2 py-1 rounded-xl uppercase tracking-wider flex items-center gap-1">
+                                -{malus.starsRemoved} ⭐
+                              </span>
+                              {malus.xpRemoved > 0 && (
+                                <p className="text-[8px] text-white/45 mt-0.5">-{malus.xpRemoved} XP</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {malus.comment && (
+                          <div className="bg-black/20 p-2.5 rounded-xl border border-white/5 text-[10px] text-white/60 font-medium">
+                            <span className="text-white/40 font-bold block mb-0.5">Commentaire parent :</span>
+                            "{malus.comment}"
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         );

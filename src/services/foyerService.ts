@@ -75,7 +75,8 @@ export const foyerService = {
           createdAt: foyerData.created_at,
           isPremium: foyerData.is_premium,
           maxMembers: foyerData.max_members,
-          parentPin: foyerData.parent_pin
+          parentPin: foyerData.parent_pin,
+          malusSettings: foyerData.malus_settings
         };
 
         const member: FoyerMember = {
@@ -166,7 +167,8 @@ export const foyerService = {
       createdAt: foyerData.created_at,
       isPremium: foyerData.is_premium,
       maxMembers: foyerData.max_members,
-      parentPin: foyerData.parent_pin
+      parentPin: foyerData.parent_pin,
+      malusSettings: foyerData.malus_settings
     };
 
     const member: FoyerMember = {
@@ -317,6 +319,21 @@ export const foyerService = {
     const { error } = await supabase
       .from('foyers')
       .update({ parent_pin: pinCode })
+      .eq('id', foyerId);
+
+    if (error) throw error;
+  },
+
+  /**
+   * Mettre à jour les paramètres de malus du foyer
+   */
+  async updateFoyerMalusSettings(foyerId: string, settings: any): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Supabase n'est pas configuré");
+
+    const { error } = await supabase
+      .from('foyers')
+      .update({ malus_settings: settings })
       .eq('id', foyerId);
 
     if (error) throw error;
