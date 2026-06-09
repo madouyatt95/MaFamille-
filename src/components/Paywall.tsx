@@ -14,6 +14,7 @@ import {
   HeartHandshake
 } from 'lucide-react';
 import { PREMIUM_FEATURES } from '../utils/premiumFeatures';
+import { PREMIUM_MONTHLY_EQUIVALENT, PREMIUM_PRICING, PREMIUM_YEARLY_SAVE } from '../utils/premiumPricing';
 
 interface PaywallProps {
   isOpen: boolean;
@@ -26,10 +27,11 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
   const [simulating, setSimulating] = useState(false);
 
   const isWeb = Capacitor.getPlatform() === 'web';
-  const priceMonthly = isWeb ? '3,99 €' : '4,99 €';
-  const priceYearly = isWeb ? '29,99 €' : '39,99 €';
-  const priceMonthlyEquivalent = isWeb ? '2,50 €' : '3,33 €';
-  const priceYearlySave = isWeb ? '-37%' : '-33%';
+  const platform = isWeb ? 'web' : 'ios';
+  const priceMonthly = PREMIUM_PRICING[platform].monthly;
+  const priceYearly = PREMIUM_PRICING[platform].yearly;
+  const priceMonthlyEquivalent = PREMIUM_MONTHLY_EQUIVALENT[platform];
+  const priceYearlySave = PREMIUM_YEARLY_SAVE[platform];
 
   if (!isOpen) return null;
 
@@ -38,7 +40,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
     setTimeout(() => {
       setSimulating(false);
       onUnlockPremium();
-      alert('🎉 Félicitations ! Votre abonnement MyFamily+ Premium est maintenant activé ! Toutes les fonctionnalités et la synchronisation cloud en temps réel sont déverrouillées.');
+      alert('Mode test Premium activé. Aucun paiement réel n’a été lancé.');
       onClose();
     }, 1800);
   };
@@ -126,7 +128,10 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
             <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-[9px] font-extrabold text-white tracking-wider uppercase">Premium</span>
           </h2>
           <p className="text-xs text-white/50 max-w-xs mx-auto">
-            Activez le centre névralgique de votre maison et restez connectés avec tous vos proches.
+            Débloquez les outils avancés du foyer : IA réelle, exports, démarches, grande famille et modules créatifs.
+          </p>
+          <p className="text-[9.5px] text-[#00D26A] font-bold uppercase tracking-wider">
+            Paiement réel désactivé pendant les tests
           </p>
         </div>
 
@@ -196,18 +201,18 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
               {simulating ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Validation de la période d'essai...</span>
+                  <span>Activation du mode test...</span>
                 </>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 animate-bounce" />
-                  <span>Essayer Gratuitement pendant 7 jours</span>
+                  <span>Activer Premium pour tester</span>
                 </>
               )}
             </button>
             
             <p className="text-[9.5px] text-white/30 text-center font-sans">
-              🔒 Zéro prélèvement aujourd'hui. Sécurisé via {isWeb ? 'Stripe' : 'App Store & Google Play'}. Annulable à tout moment.
+              Aucun prélèvement aujourd’hui. Le paiement réel sera branché plus tard via {isWeb ? 'Stripe' : 'App Store'}.
             </p>
           </div>
 
