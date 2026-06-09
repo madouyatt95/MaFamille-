@@ -2147,15 +2147,23 @@ function App() {
     let bloodGroup = fm.bloodGroup || 'O+';
     let phone = '';
     
-    if (fm.bloodGroup && fm.bloodGroup.startsWith('ROLE:')) {
+    if (fm.role === 'admin') {
+      // The database role is authoritative for ownership. Older records can
+      // still carry a stale ROLE:parent marker in blood_group.
+      preciseRole = 'chef_famille';
+      if (fm.bloodGroup?.startsWith('ROLE:')) {
+        const parts = fm.bloodGroup.substring(5).split('|');
+        bloodGroup = parts[1] || 'O+';
+        phone = parts[2] || '';
+      }
+    } else if (fm.bloodGroup && fm.bloodGroup.startsWith('ROLE:')) {
       const parts = fm.bloodGroup.substring(5).split('|');
       preciseRole = parts[0];
       bloodGroup = parts[1] || 'O+';
       phone = parts[2] || '';
     } else {
       // Fallback inference if not yet serialized
-      if (fm.role === 'admin') preciseRole = 'chef_famille';
-      else if (fm.role === 'parent') {
+      if (fm.role === 'parent') {
         preciseRole = 'parent';
       } else if (fm.role === 'child') {
         const ageNum = parseInt(fm.age || '0');
