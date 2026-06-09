@@ -217,6 +217,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
   const lastTypingSentRef = useRef<number>(0);
   const activeTypingChannelRef = useRef<any>(null);
+  const hasAutoSelectedGroupRef = useRef(false);
 
   const togglePinGroup = (groupId: string) => {
     setPinnedGroupIds(prev => {
@@ -313,9 +314,28 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   useEffect(() => {
     if (initialGroupId && initialGroupId !== prevInitialGroupId.current) {
       setActiveGroupId(initialGroupId);
+      hasAutoSelectedGroupRef.current = true;
       prevInitialGroupId.current = initialGroupId;
     }
   }, [initialGroupId]);
+
+  useEffect(() => {
+    const visibleGroup = groups.find(g => {
+      if (hiddenGroupIds.includes(g.id)) return false;
+      if (!g.isPrivate) return true;
+      return g.memberIds.includes(activeMemberId);
+    });
+
+    if (activeGroupId && !groups.some(g => g.id === activeGroupId)) {
+      setActiveGroupId(visibleGroup?.id || null);
+      return;
+    }
+
+    if (!activeGroupId && visibleGroup && !hasAutoSelectedGroupRef.current) {
+      hasAutoSelectedGroupRef.current = true;
+      setActiveGroupId(visibleGroup.id);
+    }
+  }, [activeGroupId, activeMemberId, groups, hiddenGroupIds]);
 
 
 
