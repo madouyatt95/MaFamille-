@@ -927,6 +927,7 @@ function App() {
   const activeMemberIdRef = useRef(activeMemberId);
   const membersRef = useRef(members);
   const syncSessionIdRef = useRef(0);
+  const pendingPinActionRef = useRef<(() => void | Promise<void>) | null>(null);
 
   useEffect(() => {
     activeMemberIdRef.current = activeMemberId;
@@ -1988,10 +1989,57 @@ function App() {
     rawSetActiveModule(modName);
   };
 
+  const requestParentPin = (targetMemberId: string | null, pendingAction?: () => void | Promise<void>) => {
+    pendingPinActionRef.current = pendingAction || null;
+    setPinTargetMemberId(targetMemberId);
+    setPinInput("");
+    setPinError(false);
+    setPinVerificationOpen(true);
+  };
+
+  const switchActiveMember = (targetMemberId: string) => {
+    if (targetMemberId !== activeMemberId) {
+      requestParentPin(targetMemberId);
+      return;
+    }
+    setProfileSwitcherOpen(false);
+    setActiveTab("accueil");
+    setActiveModule("");
+  };
+
+  const switchActiveFoyerMembership = async (membership: any) => {
+    setProfileSwitcherOpen(false);
+    setSpaceSelectorOpen(false);
+    setIsSyncReady(false);
+    setFoyer(membership.foyer);
+    setMyMemberProfile(membership.member);
+    setActiveMemberId(membership.member.id);
+    localStorage.setItem('mf_cloud_foyer_id', membership.foyer.id);
+    localStorage.setItem('mf_active_foyer_id', membership.foyer.id);
+    await loadFoyerData(membership.foyer.id);
+    setActiveTab('accueil');
+    setActiveModule('');
+  };
+
+  const requestActiveFoyerMembership = (membership: any) => {
+    const sameFoyer = membership.foyer.id === foyer?.id;
+    const sameMember = membership.member.id === activeMemberId;
+    if (sameFoyer && sameMember) {
+      setProfileSwitcherOpen(false);
+      setSpaceSelectorOpen(false);
+      return;
+    }
+    requestParentPin(null, () => switchActiveFoyerMembership(membership));
+  };
+
   const handleVerifyPin = (inputCode: string) => {
     const savedPin = foyer?.parentPin || localStorage.getItem('mf_parent_pin') || '0000';
-    if (inputCode === savedPin || inputCode === '0000' || inputCode === '1234') {
-      if (pinTargetMemberId) {
+    if (inputCode === savedPin) {
+      const pendingAction = pendingPinActionRef.current;
+      pendingPinActionRef.current = null;
+      if (pendingAction) {
+        void pendingAction();
+      } else if (pinTargetMemberId) {
         setActiveMemberId(pinTargetMemberId);
       }
       setPinVerificationOpen(false);
@@ -12780,16 +12828,7 @@ function App() {
                         }`}
                       >
                         <button
-                          onClick={async () => {
-                            setSpaceSelectorOpen(false);
-                            setIsSyncReady(false);
-                            setFoyer(fItem.foyer);
-                            setMyMemberProfile(fItem.member);
-                            setActiveMemberId(fItem.member.id);
-                            localStorage.setItem('mf_cloud_foyer_id', fItem.foyer.id);
-                            localStorage.setItem('mf_active_foyer_id', fItem.foyer.id);
-                            await loadFoyerData(fItem.foyer.id);
-                          }}
+                          onClick={() => requestActiveFoyerMembership(fItem)}
                           className="flex-1 text-left flex items-center space-x-2.5 cursor-pointer font-bold text-xs bg-transparent border-0 text-white focus:outline-none"
                         >
                           <span>👨‍👩‍👧‍👦</span>
@@ -14026,19 +14065,7 @@ function App() {
                 return (
                   <button
                     key={m.id}
-                    onClick={() => {
-                      if (isParent) {
-                        setPinTargetMemberId(m.id);
-                        setPinInput("");
-                        setPinError(false);
-                        setPinVerificationOpen(true);
-                      } else {
-                        setActiveMemberId(m.id);
-                        setProfileSwitcherOpen(false);
-                        setActiveTab("accueil");
-                        setActiveModule("");
-                      }
-                    }}
+                    onClick={() => switchActiveMember(m.id)}
                     className={`p-4 rounded-[24px] border text-left transition-all relative cursor-pointer flex flex-col items-center justify-center text-center space-y-2.5 ${
                       isActive 
                         ? "bg-[#6C5CFF]/15 border-[#6C5CFF] shadow-[0_0_15px_rgba(108,92,255,0.25)]" 
@@ -14077,18 +14104,7 @@ function App() {
                   return (
                     <button
                       key={fItem.foyer.id}
-                      onClick={async () => {
-                        setProfileSwitcherOpen(false);
-                        setIsSyncReady(false);
-                        setFoyer(fItem.foyer);
-                        setMyMemberProfile(fItem.member);
-                        setActiveMemberId(fItem.member.id);
-                        localStorage.setItem('mf_cloud_foyer_id', fItem.foyer.id);
-                        localStorage.setItem('mf_active_foyer_id', fItem.foyer.id);
-                        await loadFoyerData(fItem.foyer.id);
-                        setActiveTab('accueil');
-                        setActiveModule('');
-                      }}
+                      onClick={() => requestActiveFoyerMembership(fItem)}
                       className={`w-full p-3 rounded-2xl border text-left transition-all flex items-center justify-between cursor-pointer ${
                         isCurrent 
                           ? "bg-[#6C5CFF]/15 border-[#6C5CFF]/30 text-white" 
@@ -14212,21 +14228,6 @@ function App() {
               <p className="text-xs text-white/50 leading-relaxed">
                 Veuillez saisir le code PIN parent à 4 chiffres pour accéder à ce profil.
               </p>
-              {(() => {
-                const savedPin = foyer?.parentPin || localStorage.getItem('mf_parent_pin') || '0000';
-                return (
-                  <div className="pt-1.5 flex flex-col items-center">
-                    <button
-                      type="button"
-                      onClick={() => handleVerifyPin(savedPin)}
-                      className="text-[10px] text-[#6C5CFF] hover:underline font-bold px-2 py-1 rounded bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 cursor-pointer active:scale-95 transition-all"
-                    >
-                      ⚡ Déverrouillage Dev Rapide
-                    </button>
-                    <span className="text-[9px] text-white/30 mt-1">(Aide Dev : Le PIN actuel est {savedPin})</span>
-                  </div>
-                );
-              })()}
             </div>
 
             {/* PIN Code Dots Indicator */}
@@ -14270,6 +14271,7 @@ function App() {
                   setPinInput('');
                   setPinVerificationOpen(false);
                   setPinTargetMemberId(null);
+                  pendingPinActionRef.current = null;
                 }}
                 className="w-14 h-14 rounded-full bg-red-950/20 hover:bg-red-950/40 border border-red-500/10 text-xs font-black uppercase flex items-center justify-center transition-all cursor-pointer text-red-400 active:scale-95"
               >
