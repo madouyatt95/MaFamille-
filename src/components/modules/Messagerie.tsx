@@ -217,7 +217,6 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
   const lastTypingSentRef = useRef<number>(0);
   const activeTypingChannelRef = useRef<any>(null);
-  const hasAutoSelectedGroupRef = useRef(false);
 
   const togglePinGroup = (groupId: string) => {
     setPinnedGroupIds(prev => {
@@ -312,31 +311,24 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
   const prevInitialGroupId = useRef<string | undefined>(undefined);
 
-  // Initialization of groups is handled by App.tsx.
-  // We can just automatically select the first group if none is selected.
+  // Initialization of groups is handled by App.tsx. Stay on the conversation
+  // list by default, except when a notification explicitly targets a group.
   useEffect(() => {
     if (initialGroupId && initialGroupId !== prevInitialGroupId.current) {
       setActiveGroupId(initialGroupId);
-      hasAutoSelectedGroupRef.current = true;
       prevInitialGroupId.current = initialGroupId;
     }
   }, [initialGroupId]);
 
   useEffect(() => {
-    const visibleGroup = groups.find(g => {
+    const isVisibleGroup = (g: ChatGroup) => {
       if (hiddenGroupIds.includes(g.id)) return false;
       if (!g.isPrivate) return true;
       return g.memberIds.includes(activeMemberId);
-    });
+    };
 
-    if (activeGroupId && !groups.some(g => g.id === activeGroupId)) {
-      setActiveGroupId(visibleGroup?.id || null);
-      return;
-    }
-
-    if (!activeGroupId && visibleGroup && !hasAutoSelectedGroupRef.current) {
-      hasAutoSelectedGroupRef.current = true;
-      setActiveGroupId(visibleGroup.id);
+    if (activeGroupId && !groups.some(g => g.id === activeGroupId && isVisibleGroup(g))) {
+      setActiveGroupId(null);
     }
   }, [activeGroupId, activeMemberId, groups, hiddenGroupIds]);
 
