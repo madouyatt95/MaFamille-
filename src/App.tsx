@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { parseSmartNaturalSentence, detectGroceryCategory, getGroceryItemEmoji, parseGroceryAction, formatGroceryQty } from './utils/groceryParser';
@@ -97,27 +97,8 @@ import { BottomNav } from './components/BottomNav';
 import { Sidebar } from './components/Sidebar';
 import { QuickActionsSheet } from './components/QuickActionsSheet';
 
-import { Accueil } from './views/Accueil';
-import { Timeline } from './views/Timeline';
-import { Agenda } from './views/Agenda';
-import { Budget, DEFAULT_CATEGORIES } from './views/Budget';
-import { MenuHub } from './views/MenuHub';
-import { FamilyMap } from './views/FamilyMap';
-import { Settings } from './views/Settings';
-import { Membres } from './views/Membres';
-import { SharedPackView } from './components/modules/SharedPackView';
-import { ConteurIA } from './components/modules/ConteurIA';
-import { KidsDashboard } from './views/KidsDashboard';
-import { TeenDashboard } from './views/TeenDashboard';
-import { KidMissions } from './views/KidMissions';
-import { KidSchool } from './views/KidSchool';
-import { KidStories } from './views/KidStories';
-import { KidProfile } from './views/KidProfile';
+import { DEFAULT_CATEGORIES } from './data/budgetCategories';
 import { Paywall } from './components/Paywall';
-import { PeaceMaker } from './components/modules/PeaceMaker';
-import { CapsuleTemporelle } from './components/modules/CapsuleTemporelle';
-import { ConseilFamille } from './components/modules/ConseilFamille';
-import { Onboarding } from './views/Onboarding';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
 import { foyerService } from './services/foyerService';
 import { spaceService, type Space } from './services/spaceService';
@@ -130,6 +111,38 @@ import { compressImageToBlob, uploadBlobToStorage } from './utils/imageCompresso
 import { getUnifiedEvents } from './utils/agendaHelper';
 import type { ExternalEvent } from './utils/icalParser';
 import { Volume2, Mic, Bell, X, ChevronRight, ChevronDown, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check, Star, ArrowLeft } from 'lucide-react';
+
+const Accueil = lazy(() => import('./views/Accueil').then(module => ({ default: module.Accueil })));
+const Timeline = lazy(() => import('./views/Timeline').then(module => ({ default: module.Timeline })));
+const Agenda = lazy(() => import('./views/Agenda').then(module => ({ default: module.Agenda })));
+const Budget = lazy(() => import('./views/Budget').then(module => ({ default: module.Budget })));
+const MenuHub = lazy(() => import('./views/MenuHub').then(module => ({ default: module.MenuHub })));
+const FamilyMap = lazy(() => import('./views/FamilyMap').then(module => ({ default: module.FamilyMap })));
+const Settings = lazy(() => import('./views/Settings').then(module => ({ default: module.Settings })));
+const Membres = lazy(() => import('./views/Membres').then(module => ({ default: module.Membres })));
+const SharedPackView = lazy(() => import('./components/modules/SharedPackView').then(module => ({ default: module.SharedPackView })));
+const ConteurIA = lazy(() => import('./components/modules/ConteurIA').then(module => ({ default: module.ConteurIA })));
+const KidsDashboard = lazy(() => import('./views/KidsDashboard').then(module => ({ default: module.KidsDashboard })));
+const TeenDashboard = lazy(() => import('./views/TeenDashboard').then(module => ({ default: module.TeenDashboard })));
+const KidMissions = lazy(() => import('./views/KidMissions').then(module => ({ default: module.KidMissions })));
+const KidSchool = lazy(() => import('./views/KidSchool').then(module => ({ default: module.KidSchool })));
+const KidStories = lazy(() => import('./views/KidStories').then(module => ({ default: module.KidStories })));
+const KidProfile = lazy(() => import('./views/KidProfile').then(module => ({ default: module.KidProfile })));
+const PeaceMaker = lazy(() => import('./components/modules/PeaceMaker').then(module => ({ default: module.PeaceMaker })));
+const CapsuleTemporelle = lazy(() => import('./components/modules/CapsuleTemporelle').then(module => ({ default: module.CapsuleTemporelle })));
+const ConseilFamille = lazy(() => import('./components/modules/ConseilFamille').then(module => ({ default: module.ConseilFamille })));
+const Onboarding = lazy(() => import('./views/Onboarding').then(module => ({ default: module.Onboarding })));
+
+const AppLoadingFallback = () => (
+  <div className="min-h-screen bg-[#07111F] text-white flex items-center justify-center px-4 font-sans">
+    <div className="text-center space-y-4">
+      <div className="mx-auto w-12 h-12 rounded-3xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/25 flex items-center justify-center animate-pulse">
+        <span className="text-2xl">👨‍👩‍👧‍👦</span>
+      </div>
+      <p className="text-xs font-black uppercase tracking-[0.24em] text-white/45">Chargement</p>
+    </div>
+  </div>
+);
 
 const keywordRules = [
   // TRANSPORT
@@ -12398,11 +12411,13 @@ function App() {
 
   if (shouldShowOnboarding) {
     return (
-      <Onboarding 
-        onSuccess={handleOnboardingSuccess} 
-        onLogout={handleLogout} 
-        userEmail={user?.email || ''} 
-      />
+      <Suspense fallback={<AppLoadingFallback />}>
+        <Onboarding 
+          onSuccess={handleOnboardingSuccess} 
+          onLogout={handleLogout} 
+          userEmail={user?.email || ''} 
+        />
+      </Suspense>
     );
   }
 
@@ -12543,7 +12558,11 @@ function App() {
   }
 
   if (sharedPackId) {
-    return renderContent();
+    return (
+      <Suspense fallback={<AppLoadingFallback />}>
+        {renderContent()}
+      </Suspense>
+    );
   }
 
   const appFoyer = foyer;
@@ -12696,7 +12715,9 @@ function App() {
 
       {/* Dynamic render active layout page views */}
       <main className="w-full pb-28 md:pb-32">
-        {renderContent()}
+        <Suspense fallback={<AppLoadingFallback />}>
+          {renderContent()}
+        </Suspense>
       </main>
 
       {/* Global Sidebar hamburger drawer menu */}

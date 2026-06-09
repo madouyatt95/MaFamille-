@@ -1,7 +1,7 @@
 {
-  "name": "MyFamily+",
-  "short_name": "MyFamily+",
-  "description": "Système d'exploitation complet de la famille (Finances, Agenda, Santé, École, IA).",
+  "name": "MaFamille+",
+  "short_name": "MaFamille+",
+  "description": "Application familiale tout-en-un pour gérer agenda, budget, tâches, école, documents et IA.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#07111F",
@@ -13,7 +13,7 @@
       "name": "Ajouter une Dépense",
       "short_name": "+ Dépense",
       "description": "Ajouter rapidement une dépense à votre foyer",
-      "url": "/?tab=finances&action=add-expense",
+      "url": "/?tab=budget&action=add-expense",
       "icons": [
         {
           "src": "/favicon.svg",

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { lazy, Suspense, useState, useMemo } from 'react';
 import { 
   PiggyBank, 
   Plus, 
@@ -12,6 +12,7 @@ import {
   X, 
   AlertTriangle,
   Clock,
+  FileSpreadsheet,
   RefreshCw
 } from 'lucide-react';
 import type { 
@@ -25,8 +26,21 @@ import type {
   FoyerMember
 } from '../types';
 import { getSupabaseClient, serializeCategoryIcon, serializeTransactionComment, getModuleIdFromTransaction } from '../utils/supabase';
-import { BudgetExport } from './BudgetExport';
-import { BudgetImport } from './BudgetImport';
+import { DEFAULT_CATEGORIES } from '../data/budgetCategories';
+
+const BudgetExport = lazy(() => import('./BudgetExport').then(module => ({ default: module.BudgetExport })));
+const BudgetImport = lazy(() => import('./BudgetImport').then(module => ({ default: module.BudgetImport })));
+
+const BudgetToolFallback = () => (
+  <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="glass-panel border border-white/10 rounded-[24px] px-6 py-5 text-center text-white">
+      <div className="mx-auto mb-3 w-10 h-10 rounded-2xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/25 flex items-center justify-center animate-pulse">
+        <FileSpreadsheet className="w-5 h-5 text-[#6C5CFF]" />
+      </div>
+      <p className="text-xs font-black uppercase tracking-[0.22em] text-white/50">Chargement</p>
+    </div>
+  </div>
+);
 
 interface BudgetProps {
   transactions: Transaction[];
@@ -58,23 +72,7 @@ interface BudgetProps {
 
 type FinanceTab = 'dashboard' | 'transactions' | 'revenus' | 'depenses' | 'categories' | 'goals' | 'accounts' | 'abonnements' | 'budgets_modules' | 'imports' | 'exports' | 'reports';
 
-// Default categories and subcategories mapping
-export const DEFAULT_CATEGORIES = [
-  { name: 'Alimentation', icon: '🛒', color: '#10B981', budget: 0, sub: ['Supermarché', 'Restaurant', 'Boulangerie', 'Épicerie', 'Café'] },
-  { name: 'Transport', icon: '🚗', color: '#F59E0B', budget: 0, sub: ['Taxi', 'Uber', 'Essence', 'Péage', 'Transport public'] },
-  { name: 'Santé', icon: '🩺', color: '#EF4444', budget: 0, sub: ['Médecin', 'Pharmacie', 'Dentiste', 'Vaccin', 'Analyse', 'Mutuelle'] },
-  { name: 'Logement', icon: '🏠', color: '#3B82F6', budget: 0, sub: ['Loyer', 'Électricité', 'Eau', 'Internet', 'Assurance habitation', 'Travaux', 'Maintenance'] },
-  { name: 'Éducation', icon: '🎓', color: '#8B5CF6', budget: 0, sub: ['Inscriptions', 'Livres', 'Cours particuliers', 'Activités', 'Cantine'] },
-  { name: 'Véhicules', icon: '🔧', color: '#F59E0B', budget: 0, sub: ['Essence', 'Péage', 'Lavage', 'Assurance auto', 'Contrôle technique', 'Entretien', 'Réparation'] },
-  { name: 'Voyages', icon: '✈️', color: '#06B6D4', budget: 0, sub: ['Billets', 'Hôtel', 'Transport', 'Activités', 'Repas'] },
-  { name: 'Administratif', icon: '📂', color: '#6B7280', budget: 0, sub: ['Frais administratifs', 'Passeport', 'Visa', 'Carte identité', 'Timbres fiscaux'] },
-  { name: 'Animaux', icon: '🐶', color: '#10B981', budget: 0, sub: ['Nourriture', 'Vétérinaire', 'Médicaments', 'Jouets'] },
-  { name: 'Loisirs', icon: '🎨', color: '#EC4899', budget: 0, sub: ['Cinéma', 'Concert', 'Musée', 'Cadeaux', 'Sport'] },
-  { name: 'Abonnements', icon: '🔄', color: '#6366F1', budget: 0, sub: ['Streaming', 'Téléphone', 'Logiciels'] },
-  { name: 'Argent de poche', icon: '🪙', color: '#8B5CF6', budget: 0, sub: ['Allocation enfant', 'Récompense'] },
-  { name: 'Épargne', icon: '🐷', color: '#10B981', budget: 0, sub: ['Cagnotte', 'Placement'] },
-  { name: 'Autres', icon: '✨', color: '#6B7280', budget: 0, sub: ['Divers', 'Imprévu'] }
-];
+export { DEFAULT_CATEGORIES } from '../data/budgetCategories';
 
 export const Budget: React.FC<BudgetProps> = ({
   transactions,
@@ -2761,38 +2759,42 @@ export const Budget: React.FC<BudgetProps> = ({
 
         {/* --- TABS: IMPORTS / EXPORTS (Transversal) --- */}
         {activeTab === 'imports' && (
-          <BudgetImport 
-            isOpen={activeTab === 'imports'}
-            onClose={() => setActiveTab('dashboard')} 
-            transactions={transactions}
-            accounts={accounts}
-            customCategories={customCategories}
-            foyerId={foyerId}
-            myMemberProfile={myMemberProfile}
-            activeMemberId={activeMemberId}
-            activeMemberObj={members.find(m => m.id === activeMemberId)}
-            onImportComplete={(addedTxs) => {
-              setTransactions(prev => [...addedTxs, ...prev]);
-              setActiveTab('dashboard');
-            }}
-          />
+          <Suspense fallback={<BudgetToolFallback />}>
+            <BudgetImport 
+              isOpen={activeTab === 'imports'}
+              onClose={() => setActiveTab('dashboard')} 
+              transactions={transactions}
+              accounts={accounts}
+              customCategories={customCategories}
+              foyerId={foyerId}
+              myMemberProfile={myMemberProfile}
+              activeMemberId={activeMemberId}
+              activeMemberObj={members.find(m => m.id === activeMemberId)}
+              onImportComplete={(addedTxs) => {
+                setTransactions(prev => [...addedTxs, ...prev]);
+                setActiveTab('dashboard');
+              }}
+            />
+          </Suspense>
         )}
 
         {activeTab === 'exports' && (
-          <BudgetExport 
-            isOpen={activeTab === 'exports'}
-            onClose={() => setActiveTab('dashboard')} 
-            transactions={transactions} 
-            savingGoals={savingGoals}
-            members={members}
-            customCategories={customCategories}
-            accounts={accounts}
-            abonnements={abonnements}
-            foyerId={foyerId}
-            myMemberProfile={myMemberProfile}
-            currencySymbol={_currencySymbol}
-            trips={trips}
-          />
+          <Suspense fallback={<BudgetToolFallback />}>
+            <BudgetExport 
+              isOpen={activeTab === 'exports'}
+              onClose={() => setActiveTab('dashboard')} 
+              transactions={transactions} 
+              savingGoals={savingGoals}
+              members={members}
+              customCategories={customCategories}
+              accounts={accounts}
+              abonnements={abonnements}
+              foyerId={foyerId}
+              myMemberProfile={myMemberProfile}
+              currencySymbol={_currencySymbol}
+              trips={trips}
+            />
+          </Suspense>
         )}
 
       </div>
