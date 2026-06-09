@@ -237,6 +237,28 @@ serve(async (req) => {
       if (payload.type !== "INSERT") {
         return new Response(JSON.stringify({ message: "Ignored UPDATE for alerts" }), { status: 200 });
       }
+      const alertModule = String(record.module || "other").toLowerCase();
+      const modulesWithDedicatedPush = new Set([
+        "agenda",
+        "capsule",
+        "chat",
+        "conseil",
+        "courses",
+        "grocery",
+        "groceries",
+        "messagerie",
+        "memories",
+        "taches",
+        "tasks"
+      ]);
+
+      if (modulesWithDedicatedPush.has(alertModule)) {
+        return new Response(
+          JSON.stringify({ message: `Ignored alert push for module with dedicated trigger: ${alertModule}` }),
+          { status: 200 }
+        );
+      }
+
       senderId = record.sender_member_id || "";
       senderUserId = record.sender_user_id || "";
       senderName = record.sender_name || "";

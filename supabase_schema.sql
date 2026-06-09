@@ -968,11 +968,10 @@ CREATE TRIGGER tr_chat_messages_send_push
 AFTER INSERT ON public.chat_messages
 FOR EACH ROW EXECUTE FUNCTION public.trigger_send_push();
 
--- Créer le trigger pour les alertes de famille
+-- Les alertes alimentent le centre de notifications interne.
+-- Elles ne declenchent pas de push systeme pour eviter les doublons avec les
+-- triggers metier (chat, courses, agenda, taches, etc.).
 DROP TRIGGER IF EXISTS tr_alerts_send_push ON public.alerts;
-CREATE TRIGGER tr_alerts_send_push
-AFTER INSERT ON public.alerts
-FOR EACH ROW EXECUTE FUNCTION public.trigger_send_push();
 
 -- Créer le trigger pour le mur des souvenirs (memories)
 DROP TRIGGER IF EXISTS tr_memories_send_push ON public.memories;
@@ -1041,5 +1040,4 @@ CREATE POLICY "academy_questions_write" ON public.academy_questions FOR ALL
         SELECT 1 FROM public.foyer_members 
         WHERE user_id = auth.uid() AND role IN ('admin', 'parent')
     ));
-
 

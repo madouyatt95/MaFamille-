@@ -1,8 +1,14 @@
-# Déploiement des Notifications Push en temps réel avec Supabase & FCM
+# Déploiement des notifications push avec Supabase & FCM
 
-Pour que les notifications push de chat et d'alertes soient automatiquement distribuées entre les appareils de votre famille, vous devez déployer la Supabase Edge Function `send-push`.
+Pour eviter les doublons, le projet utilise un seul circuit de push :
 
-## 📦 Étape 1 : Déployer l'Edge Function `send-push`
+1. Les triggers SQL appellent l'Edge Function `send-push`.
+2. Les lignes `alerts` alimentent le centre d'alertes interne de l'application.
+3. Les `alerts` ne doivent pas avoir de webhook push separe dans le Dashboard Supabase.
+
+Important : ne configurez pas en meme temps les triggers SQL du schema et des Webhooks Dashboard vers `send-push`, sinon une meme action peut envoyer plusieurs notifications identiques.
+
+## 1. Deployer l'Edge Function `send-push`
 
 Si vous possédez le Supabase CLI sur votre machine, exécutez la commande suivante à la racine de votre projet :
 
@@ -17,7 +23,7 @@ supabase functions deploy send-push
 
 ---
 
-## 🔑 Étape 2 : Configurer les variables d'environnement dans Supabase
+## 2. Configurer les variables d'environnement dans Supabase
 
 Pour signer les requêtes vers l'API Firebase FCM v1, la fonction requiert la clé de votre compte de service Google Firebase.
 
@@ -34,25 +40,26 @@ supabase secrets set FIREBASE_SERVICE_ACCOUNT_JSON='{"type": "service_account", 
 
 ---
 
-## ⚡ Étape 3 : Créer les Webhooks de base de données dans la console Supabase
+## 3. Appliquer les migrations
 
-Pour déclencher automatiquement la fonction lors d'un nouveau message ou d'une alerte :
+Les migrations creent la table anti-doublons, ajoutent les champs manquants pour les courses et desactivent le trigger push direct sur `alerts`.
 
-1. Allez sur votre **Supabase Dashboard** > **Database** > **Webhooks**.
-2. Cliquez sur **Enable Webhooks** (si non activé).
-3. Créez un premier Webhook pour le Chat :
-   * **Name** : `send_chat_push`
-   * **Table** : `public.chat_messages`
-   * **Events** : `Insert` uniquement
-   * **Type** : `Supabase Edge Functions`
-   * **Function** : Sélectionnez `send-push`
-   * **HTTP Method** : `POST`
-4. Créez un second Webhook pour les Alertes :
-   * **Name** : `send_alert_push`
-   * **Table** : `public.alerts`
-   * **Events** : `Insert` uniquement
-   * **Type** : `Supabase Edge Functions`
-   * **Function** : Sélectionnez `send-push`
-   * **HTTP Method** : `POST`
+```bash
+supabase db push
+```
 
-Dès qu'un membre écrira dans le Chat ou qu'une alerte sera créée, les autres membres du foyer recevront instantanément une notification push sur leur écran, même verrouillé !
+---
+
+## 4. Nettoyer les anciens Webhooks Dashboard
+
+Dans **Supabase Dashboard > Database > Webhooks**, supprimez ou desactivez tout webhook qui appelle `send-push`, en particulier ceux sur :
+
+- `public.alerts`
+- `public.chat_messages`
+- `public.groceries`
+- `public.events`
+- `public.chore_tasks`
+- `public.memories`
+- `public.votes`
+
+Les triggers SQL du schema suffisent pour envoyer les notifications push.
