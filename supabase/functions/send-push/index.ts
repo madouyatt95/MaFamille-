@@ -305,8 +305,11 @@ serve(async (req) => {
       targetModule = "conseil";
     } else if (payload.table === "groceries") {
       targetModule = "courses";
+      senderId = record.sender_member_id || "";
+      senderUserId = record.sender_user_id || "";
+      senderName = record.sender_name || record.added_by || "";
       if (payload.type === "INSERT") {
-        title = `🛒 Liste de courses : Nouvel article`;
+        title = `Article ajouté aux courses`;
         body = `"${record.name}" (${record.quantity || "1"}) a été ajouté par ${record.added_by || "un membre"}.`;
       } else if (payload.type === "UPDATE") {
         const checkedChanged = oldRecord?.checked !== record.checked;

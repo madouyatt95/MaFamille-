@@ -135,6 +135,12 @@ CREATE TABLE IF NOT EXISTS public.groceries (
     checked BOOLEAN DEFAULT FALSE,
     in_stock BOOLEAN DEFAULT FALSE,
     expiry_date TEXT,
+    meal TEXT,
+    added_by TEXT,
+    is_favorite BOOLEAN DEFAULT FALSE,
+    sender_user_id UUID,
+    sender_member_id TEXT,
+    sender_name TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (id, foyer_id)
 );
@@ -1035,6 +1041,5 @@ CREATE POLICY "academy_questions_write" ON public.academy_questions FOR ALL
         SELECT 1 FROM public.foyer_members 
         WHERE user_id = auth.uid() AND role IN ('admin', 'parent')
     ));
-
 
 

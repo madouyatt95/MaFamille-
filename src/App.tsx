@@ -10663,17 +10663,16 @@ function App() {
     };
 
     setGroceries(prev => [newItem, ...prev]);
-    sendLocalNotification(
-      "Article ajouté aux courses",
-      `🛒 L'article "${name}" (qté: ${qty || '1'}) a été ajouté aux courses par ${defaultAddedBy}.`,
-      "courses"
-    );
+    setActiveToast({
+      title: "Article ajouté aux courses",
+      description: `L'article "${name}" (qté: ${qty || '1'}) a été ajouté aux courses.`
+    });
 
     if (foyer) {
       const client = getSupabaseClient();
       if (client) {
         try {
-          await client.from('groceries').insert({
+          const groceryPayload = {
             id,
             foyer_id: foyer.id,
             name,
@@ -10683,10 +10682,32 @@ function App() {
             in_stock: false,
             meal: meal || null,
             added_by: defaultAddedBy,
-            is_favorite: isFavorite
-          });
+            is_favorite: isFavorite,
+            sender_user_id: user?.id || null,
+            sender_member_id: activeMemberId,
+            sender_name: defaultAddedBy
+          };
+          const { error } = await client.from('groceries').insert(groceryPayload);
+          if (error) {
+            console.warn("[Groceries Add] Full insert failed, retrying with base columns:", error.message);
+            const { error: fallbackError } = await client.from('groceries').insert({
+              id,
+              foyer_id: foyer.id,
+              name,
+              category,
+              quantity: qty,
+              checked: false,
+              in_stock: false
+            });
+            if (fallbackError) throw fallbackError;
+          }
         } catch (err) {
           console.error("Erreur lors de l'ajout cloud de la course :", err);
+          setGroceries(prev => prev.filter(g => g.id !== id));
+          setActiveToast({
+            title: "Ajout impossible",
+            description: "L'article n'a pas pu être enregistré dans la liste partagée."
+          });
         }
       }
     }
