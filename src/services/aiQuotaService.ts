@@ -153,7 +153,11 @@ export const aiQuotaService = {
       ? `${provider} API ${response.status}: ${detail}`
       : `${provider} API ${response.status}`;
 
-    return new Error(message);
+    const error = new Error(message);
+    (error as any).status = response.status;
+    (error as any).provider = provider;
+    (error as any).isQuotaError = response.status === 429 || /quota|limit|limite|épuisé|epuise/i.test(detail);
+    return error;
   },
 
   getQuotaFromResponse(response: Response, isPremium: boolean): { remaining: number; limit: number } {
@@ -164,5 +168,21 @@ export const aiQuotaService = {
       : Math.max(0, Number(remainingHeader) || 0);
 
     return { remaining, limit };
+  },
+
+  getFallbackLabel(error?: unknown): string {
+    const err = error as any;
+    if (err?.isQuotaError || err?.status === 429) {
+      return 'Quota IA réel épuisé : réponse locale utilisée pour continuer sans bloquer.';
+    }
+    return 'Service IA momentanément indisponible : réponse locale utilisée.';
+  },
+
+  getFallbackDescription(error?: unknown): string {
+    const err = error as any;
+    if (err?.isQuotaError || err?.status === 429) {
+      return 'Votre quota quotidien d’IA réelle est atteint. Le module reste utilisable avec une génération locale.';
+    }
+    return 'La connexion à l’IA réelle n’a pas répondu correctement. Le module reste utilisable avec une génération locale.';
   }
 };

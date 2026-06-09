@@ -308,12 +308,12 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
         age: m.role === 'Enfant' ? (m.id === '3' ? '12 ans' : m.id === '4' ? '8 ans' : 'Enfant') : m.role
       }))
     : [
-        { name: 'Amadou', photoUrl: '/avatars/amadou.png', age: '12 ans' },
-        { name: 'Awa', photoUrl: '/avatars/awa.png', age: '8 ans' }
+        { name: 'Mon enfant', photoUrl: '', age: 'Enfant' }
       ];
+  const firstHeroName = member?.name || defaultHeroes[0]?.name || 'Mon enfant';
 
   // Config state
-  const [selectedHero, setSelectedHero] = useState<string>(member ? member.name : 'Awa'); // Default select Awa or member
+  const [selectedHero, setSelectedHero] = useState<string>(firstHeroName);
   const [isCustomHero, setIsCustomHero] = useState<boolean>(false);
   const [customHeroName, setCustomHeroName] = useState<string>('');
 
@@ -384,7 +384,7 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
         setSelectedHero(members[0].name);
       }
     } else {
-      setSelectedHero('Amadou');
+      setSelectedHero('Mon enfant');
     }
   }, [members, member]);
 
@@ -942,7 +942,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     <button 
                       onClick={() => {
                         setIsCustomHero(false);
-                        setSelectedHero('Awa');
+                        setSelectedHero(firstHeroName);
                       }}
                       className="text-[9.5px] font-black text-pink-400 hover:text-pink-300 uppercase tracking-widest transition-colors cursor-pointer"
                     >

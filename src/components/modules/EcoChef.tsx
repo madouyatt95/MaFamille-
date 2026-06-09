@@ -31,6 +31,7 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, isPremium = 
   const [generating, setGenerating] = useState(false);
   const [recipes, setRecipes] = useState<any[]>([]);
   const [customIngredient, setCustomIngredient] = useState('');
+  const [fallbackMessage, setFallbackMessage] = useState('');
 
   const [recipeImages, setRecipeImages] = useState<Record<string, string>>({});
   const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({});
@@ -70,6 +71,8 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, isPremium = 
 
     setGenerating(true);
     setRecipes([]);
+    setFallbackMessage('');
+    let fallbackReason = '';
 
     // Tente d'utiliser l'IA réelle si le quota est disponible (soit via clé locale VITE_, soit via le proxy serveurless)
     const useRealAI = aiQuotaService.consumeAIQuota(isPremium);
@@ -87,7 +90,7 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
 - missing (tableau de strings d'ingrédients manquants réalistes à acheter pour compléter le plat)
 - time (ex: '15 min')
 - difficulty (ex: 'Très Facile', 'Facile' ou 'Moyen')
-- rating (avis fictif fun de la famille ex: 'Papa ⭐️5, Amadou ⭐️4.8')
+- rating (avis fictif fun et neutre de la famille ex: 'Famille ⭐️4.8')
 - promptKeywords (mots-clés très descriptifs en anglais séparés par des virgules pour générer la photo culinaire ex: 'creamy chicken soup with warm bread, hyper detailed food photography, Pixar style 3d')`;
 
         const geminiEndpoint = import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini';
@@ -147,25 +150,26 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
         }
       } catch (err) {
         console.warn("[EcoChef] Erreur de génération IA en direct, basculement sur la simulation locale :", err);
+        fallbackReason = aiQuotaService.getFallbackLabel(err);
+        setFallbackMessage(fallbackReason);
       }
     }
 
     // Version locale simulée en cas de quota épuisé ou clé absente
     setTimeout(() => {
       const ingNames = [...activeInFull];
-      const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
-      const isQuotaFallback = isPremium && remainingCalls === 0;
+      const localFallback = fallbackReason || aiQuotaService.getFallbackLabel();
 
       const dynamicRecipes = [
         {
           id: 'rec-1',
           title: `Poêlée Express : ${ingNames.slice(0, 2).join(' & ')}`,
-          desc: `Une cuisson rapide et savoureuse à la poêle pour sublimer vos restes de ${ingNames.join(', ').toLowerCase()} en quelques minutes.${isQuotaFallback ? ' ✨ (IA Locale simulée : votre quota quotidien d\'IA réelle est épuisé !)' : ' ✨ (IA Locale simulée : l\'IA réelle est indisponible pour le moment)'}`,
+          desc: `Une cuisson rapide et savoureuse à la poêle pour sublimer vos restes de ${ingNames.join(', ').toLowerCase()} en quelques minutes. ${localFallback}`,
           uses: activeInFull,
           missing: ['Huile d\'olive', 'Oignon blanc', 'Herbes de Provence'],
           time: '12 min',
           difficulty: 'Très Facile',
-          rating: 'Maman ⭐️4.9, Awa ⭐️4.6',
+          rating: 'Famille ⭐️4.8',
           promptKeywords: `pan-seared gourmet meal with ${ingNames.slice(0, 2).join(' and ').toLowerCase()}, colorful steam, fresh herbs, delicious food photography, pixar style`
         },
         {
@@ -176,7 +180,7 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
           missing: ['Crème fraîche', 'Fromage râpé', 'Gousse d\'ail'],
           time: '22 min',
           difficulty: 'Facile',
-          rating: 'Papa ⭐️5, Amadou ⭐️4.8',
+          rating: 'Famille ⭐️4.9',
           promptKeywords: `hot bubbling oven baked gratin casserole with ${ingNames.slice(0, 2).join(' and ').toLowerCase()}, melted cheese pull, warm studio lighting, Pixar movie style food`
         },
         {

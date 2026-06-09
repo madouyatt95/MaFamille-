@@ -269,14 +269,8 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       finalImages.push(img);
     }
     
-    const author = activeMember ? activeMember.name : (activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa');
-    const authorPic = activeMember ? activeMember.photoUrl : (activeMemberId === '1' 
-      ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80' 
-      : activeMemberId === '2' 
-        ? 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=150&auto=format&fit=crop&q=80'
-        : activeMemberId === '3'
-          ? 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150&auto=format&fit=crop&q=80'
-          : 'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=150&auto=format&fit=crop&q=80');
+    const author = activeMember?.name || 'Membre du foyer';
+    const authorPic = activeMember?.photoUrl || 'https://api.dicebear.com/7.x/adventurer/svg?seed=family-member';
 
     const newMemory: MemoryLog = {
       id: `mem-${Date.now()}`,
@@ -370,8 +364,8 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       } else {
         chapters.push({
           title: "L'exploration de la Nébuleuse des Arbres Sacrés",
-          desc: "Le vaillant Chef Papa et son clan s'aventurent au cœur de la forêt des murmures célestes, découvrant le secret des runes dorées cachées sous les écorces millénaires !",
-          author: "Papa",
+          desc: "Le clan familial s'aventure au cœur de la forêt des murmures célestes, découvrant le secret des runes dorées cachées sous les écorces millénaires !",
+          author: "La famille",
           photo: "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=500&auto=format&fit=crop&q=80"
         });
       }
@@ -387,8 +381,8 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       } else {
         chapters.push({
           title: "L'Invocation du Lion d'Or",
-          desc: "Le jeune Mage Amadou canalise l'esprit de l'art magique pour matérialiser le Lion Céleste aux crins de braise, protecteur éternel du salon de la maisonnée !",
-          author: "Amadou",
+          desc: "Un jeune artiste canalise l'esprit de l'art magique pour matérialiser le Lion Céleste aux crins de braise, protecteur éternel du salon de la maisonnée !",
+          author: "Un artiste du foyer",
           photo: "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=500&auto=format&fit=crop&q=80"
         });
       }
@@ -405,7 +399,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
         chapters.push({
           title: "Le Festin Cosmique des Pizzas Étoilées",
           desc: "Le clan se réunit autour d'un grand Banquet Lunaire de Pizzas Cosmiques aux fromages coulants de la Voie Lactée, célébrant la paix et les rires du royaume !",
-          author: "Maman",
+          author: "Le foyer",
           photo: "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=80"
         });
       }
@@ -469,8 +463,8 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       imageUrl: comicImage,
       imageUrls: [comicImage],
       date: new Date().toLocaleDateString('fr-FR'),
-      authorName: activeMemberId === '1' ? 'Papa' : 'Maman',
-      authorPhoto: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+      authorName: activeMember?.name || 'Membre du foyer',
+      authorPhoto: activeMember?.photoUrl || 'https://api.dicebear.com/7.x/adventurer/svg?seed=family-member',
       likesCount: 0,
       theme: '🦸 Gazette BD',
       isPrivate: false
@@ -671,7 +665,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                     <Lock className="w-4 h-4 text-[#FF4D6D]" />
                     <div>
                       <p className="text-[11px] font-bold text-white">🔒 Rendre ce souvenir privé</p>
-                      <p className="text-[9px] text-white/40">Visible uniquement par Papa & Maman</p>
+                      <p className="text-[9px] text-white/40">Visible uniquement par les parents</p>
                     </div>
                   </div>
                   <button

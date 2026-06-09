@@ -16,13 +16,14 @@ export const PeaceMaker: React.FC<PeaceMakerProps> = ({ isPremium = false, onTri
   const [conflictDesc, setConflictDesc] = useState('');
   const [mediating, setMediating] = useState(false);
   const [compromise, setCompromise] = useState<any | null>(null);
+  const [fallbackMessage, setFallbackMessage] = useState('');
 
   const presets = [
-    { id: '1', label: 'Partage de la manette 🎮', text: 'Amadou a pris ma manette de console de jeu sans me demander mon avis et y joue depuis plus d\'une heure ! (Awa)' },
-    { id: '2', label: 'Bruit pendant les devoirs 📚', text: 'Awa fait trop de bruit dans le salon et crie pendant que j\'essaie de me concentrer sur mon devoir de maths du Tuteur IA ! (Amadou)' },
-    { id: '3', label: 'Corvée de vaisselle 🍽️', text: 'C\'était au tour d\'Amadou de débarrasser la table ce soir, mais il fait semblant d\'avoir oublié pour aller jouer. (Maman)' },
-    { id: '4', label: 'Temps d\'écran dépassé 📱', text: 'Awa refuse de lâcher la tablette alors que son heure autorisée est dépassée depuis 20 minutes et que c\'est l\'heure du dîner. (Papa)' },
-    { id: '5', label: 'Chambre en désordre 🧸', text: 'Amadou a laissé toutes ses affaires de foot et ses livres éparpillés par terre dans sa chambre et refuse de ranger. (Maman)' }
+    { id: '1', label: 'Partage d’un jeu 🎮', text: 'Deux enfants se disputent un jeu vidéo : l’un l’utilise depuis longtemps, l’autre aimerait aussi avoir son tour.' },
+    { id: '2', label: 'Bruit pendant les devoirs 📚', text: 'Un enfant essaie de se concentrer sur ses devoirs pendant qu’un autre joue bruyamment dans la même pièce.' },
+    { id: '3', label: 'Corvée oubliée 🍽️', text: 'Une tâche prévue dans la maison n’a pas été faite, ce qui crée de la frustration chez le parent et de la résistance chez l’enfant.' },
+    { id: '4', label: 'Temps d’écran dépassé 📱', text: 'Un enfant refuse d’arrêter l’écran alors que la limite familiale est dépassée et que le repas approche.' },
+    { id: '5', label: 'Chambre en désordre 🧸', text: 'La chambre est très en désordre et l’enfant refuse de ranger, pendant que le parent souhaite retrouver un cadre plus calme.' }
   ];
 
   const handleSelectPreset = (text: string) => {
@@ -41,6 +42,8 @@ export const PeaceMaker: React.FC<PeaceMakerProps> = ({ isPremium = false, onTri
 
     setMediating(true);
     setCompromise(null);
+    setFallbackMessage('');
+    let fallbackReason = '';
 
     // Tente d'utiliser l'IA réelle si le quota est disponible (soit via clé locale VITE_, soit via le proxy serveurless)
     const useRealAI = aiQuotaService.consumeAIQuota(isPremium);
@@ -95,6 +98,8 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
         }
       } catch (err) {
         console.warn("[PeaceMaker] Erreur lors de l'appel de l'IA réelle Groq, repli local :", err);
+        fallbackReason = aiQuotaService.getFallbackLabel(err);
+        setFallbackMessage(fallbackReason);
       }
     }
 
@@ -105,7 +110,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
         needA: 'Reconnaissance de son espace de jeu & Respect du partage',
         feelingB: 'Irrité & Stressé',
         needB: 'Calme & Concentration pour ses examens scolaires',
-        compromiseText: 'Amadou s\'engage à prêter la manette à Awa à partir de 17h30. En échange, Awa accepte de jouer calmement dans sa chambre pour préserver la révision d\'Amadou pendant encore 45 minutes.',
+        compromiseText: 'La personne qui joue termine sa partie en cours avec un minuteur court, puis laisse un vrai tour à l’autre. En échange, l’autre accepte d’attendre ce délai sans interrompre.',
         mediationTip: 'Chacun fait un pas vers l\'autre : le temps de révision d\'abord, le jeu partagé ensuite. Accord scellé sous le regard bienveillant des parents !'
       };
 
@@ -115,7 +120,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           needA: 'Silence pour mener à bien ses objectifs du Tuteur IA',
           feelingB: 'Pleine d\'énergie & Amusée',
           needB: 'Espace d\'expression créative & divertissement',
-          compromiseText: 'Awa accepte d\'utiliser son casque audio pour regarder son dessin animé, ou d\'aller jouer dans la salle de jeux. Amadou s\'engage en contrepartie à lui accorder 15 minutes d\'aide sur ses devoirs de dessin ensuite.',
+          compromiseText: 'La personne qui fait du bruit choisit une activité plus calme ou change de pièce pendant le temps de devoirs. En échange, un moment de jeu partagé est prévu juste après.',
           mediationTip: 'Le calme est préservé sans bloquer le besoin de jeu. La collaboration renforce l\'empathie fraternelle !'
         };
       } else if (conflictDesc.includes('vaisselle') || conflictDesc.includes('table')) {
@@ -124,16 +129,16 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           needA: 'Soutien concret dans le foyer & Respect de la répartition des tâches',
           feelingB: 'Fatigué par l\'école & Distrait',
           needB: 'Repos de fin de journée & temps libre immédiat',
-          compromiseText: 'Amadou s\'engage à débarrasser immédiatement les verres et assiettes en 3 minutes de chronomètre chrono. Maman l\'autorise ensuite à jouer sans culpabilité pour le reste de la soirée.',
+          compromiseText: 'La tâche est faite immédiatement avec un minuteur court pour éviter que cela traîne. Une fois terminée, le parent reconnaît l’effort et laisse un vrai temps libre.',
           mediationTip: 'Une tâche rapide d\'abord, la liberté ensuite (méthode de la récompense immédiate) !'
         };
       } else if (conflictDesc.includes('tablette') || conflictDesc.includes('écran') || conflictDesc.includes('téléphone')) {
         analysis = {
           feelingA: 'Inquiet & Soucieux',
-          needA: 'Respect des règles familiales & Sommeil de qualité pour Awa',
+          needA: 'Respect des règles familiales & Sommeil de qualité',
           feelingB: 'Captivée & Résistante',
           needB: 'Finir son activité ludique & Besoin d\'autonomie',
-          compromiseText: 'Awa s\'engage à éteindre la tablette immédiatement et à la brancher sur son socle de charge. En contrepartie, Papa lui accordera 10 minutes d\'histoire supplémentaire lue par le Conteur IA ce soir.',
+          compromiseText: 'L’écran est posé et chargé dans un endroit commun, sans négociation supplémentaire. En échange, l’enfant choisit une activité calme de transition avant le coucher.',
           mediationTip: 'Remplacer une transition d\'écran par une transition de connexion humaine et douce facilitera grandement le coucher !'
         };
       } else if (conflictDesc.includes('chambre') || conflictDesc.includes('ranger') || conflictDesc.includes('désordre')) {
@@ -142,20 +147,14 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           needA: 'Ordre visuel, clarté dans la maison & Respect du travail partagé',
           feelingB: 'Fatigué & Surchargé',
           needB: 'Liberté de son espace personnel & Repos après l\'entraînement',
-          compromiseText: 'Amadou s\'engage à ranger uniquement ses affaires de foot et ses manuels en 5 minutes de chrono musical. Il pourra laisser ses autres livres de côté jusqu\'au lendemain matin.',
+          compromiseText: 'L’enfant range une petite zone prioritaire pendant 5 minutes avec un minuteur. Le reste peut être planifié pour plus tard afin d’éviter une demande trop lourde d’un coup.',
           mediationTip: 'Ranger en musique par petits blocs rend la corvée ludique et évite le sentiment d\'oppression !'
         };
       }
 
       setCompromise(analysis);
       setMediating(false);
-      
-      const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
-      if (isPremium && remainingCalls === 0) {
-        console.info("[PeaceMaker] Quota quotidien d'IA réelle épuisé. Basculement sur le médiateur local.");
-      } else {
-        console.info("[PeaceMaker] Basculement sur le médiateur local.");
-      }
+      setFallbackMessage(prev => prev || fallbackReason || aiQuotaService.getFallbackLabel());
     }, 1200);
   };
 
@@ -195,7 +194,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           <textarea 
             required
             rows={3}
-            placeholder="Exprimez ce qui ne va pas (ex: Awa a emprunté mon pull sans demander, on se chamaille pour le film de ce soir)..." 
+            placeholder="Exprimez ce qui ne va pas (ex: un pull emprunté sans demander, un désaccord sur le film de ce soir)..."
             value={conflictDesc}
             onChange={(e) => setConflictDesc(e.target.value)}
             className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#00D26A] resize-none"
@@ -217,6 +216,12 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
         <div className="glass-panel border border-[#00D26A]/30 rounded-[28px] p-5 space-y-4 relative overflow-hidden bg-gradient-to-br from-[#122A23]/40 to-[#0A1A15]/60">
           <div className="absolute top-0 right-0 w-32 h-32 bg-[#00D26A]/5 rounded-full blur-2xl pointer-events-none"></div>
 
+          {fallbackMessage && (
+            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-bold leading-relaxed">
+              {fallbackMessage}
+            </div>
+          )}
+
           <div className="flex items-center space-x-2 text-[#00D26A] border-b border-white/5 pb-3">
             <ShieldCheck className="w-5 h-5 shrink-0" />
             <span className="text-xs font-extrabold uppercase tracking-wider">Résolution PeaceMaker IA</span>
@@ -225,12 +230,12 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           {/* Underling feelings */}
           <div className="grid grid-cols-2 gap-4 text-xs">
             <div className="p-3 rounded-2xl bg-white/5 border border-white/5 space-y-1">
-              <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest block">Pour Amadou :</span>
+              <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest block">Pour la partie A :</span>
               <p className="text-white"><span className="text-white/40">Émotion:</span> {compromise.feelingB}</p>
               <p className="text-white/70 mt-1 leading-normal"><span className="text-white/40">Besoin:</span> {compromise.needB}</p>
             </div>
             <div className="p-3 rounded-2xl bg-white/5 border border-white/5 space-y-1">
-              <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest block">Pour Awa :</span>
+              <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest block">Pour la partie B :</span>
               <p className="text-white"><span className="text-white/40">Émotion:</span> {compromise.feelingA}</p>
               <p className="text-white/70 mt-1 leading-normal"><span className="text-white/40">Besoin:</span> {compromise.needA}</p>
             </div>

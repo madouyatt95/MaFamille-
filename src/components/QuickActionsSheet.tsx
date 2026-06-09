@@ -119,7 +119,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
           }
         } catch (err: any) {
           console.error("OCR Extraction error:", err);
-          setOcrError("L'IA n'a pas réussi à analyser ce ticket. Saisie manuelle disponible.");
+          setOcrError(`${aiQuotaService.getFallbackDescription(err)} Vous pouvez saisir le ticket manuellement.`);
         } finally {
           setOcrLoading(false);
         }

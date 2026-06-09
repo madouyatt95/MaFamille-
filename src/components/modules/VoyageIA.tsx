@@ -37,6 +37,7 @@ export const VoyageIA: React.FC<VoyageIAProps> = ({
   const [weather, setWeather] = useState('sunny');
   const [generating, setGenerating] = useState(false);
   const [packingLists, setPackingLists] = useState<MemberPackingList[] | null>(null);
+  const [fallbackMessage, setFallbackMessage] = useState('');
 
   const travelMembers = members.slice(0, 5).map((member, index) => {
     const age = member.age ? `, ${member.age} ans` : '';
@@ -70,6 +71,8 @@ export const VoyageIA: React.FC<VoyageIAProps> = ({
 
     setGenerating(true);
     setPackingLists(null);
+    setFallbackMessage('');
+    let fallbackReason = '';
 
     // Tente d'utiliser l'IA réelle si le quota est disponible (soit via clé locale VITE_, soit via le proxy serveurless)
     const useRealAI = aiQuotaService.consumeAIQuota(isPremium);
@@ -132,14 +135,13 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par membre. N'invente aucun pr
         }
       } catch (err) {
         console.warn("[VoyageIA] Erreur de connexion avec l'IA réelle Groq, repli sur le planificateur local :", err);
+        fallbackReason = aiQuotaService.getFallbackLabel(err);
+        setFallbackMessage(fallbackReason);
       }
     }
 
     // Version locale de repli
     setTimeout(() => {
-      const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
-      const isQuotaFallback = isPremium && remainingCalls === 0;
-
       const lists = fallbackMembers.map(member => ({
         memberId: member.id,
         memberName: member.name,
@@ -148,13 +150,8 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par membre. N'invente aucun pr
       }));
 
       setPackingLists(lists);
+      setFallbackMessage(prev => prev || fallbackReason || aiQuotaService.getFallbackLabel());
       setGenerating(false);
-
-      if (isQuotaFallback) {
-        console.info("[VoyageIA] Quota quotidien d'IA réelle épuisé. Basculement sur le planificateur local.");
-      } else {
-        console.info("[VoyageIA] Basculement sur le planificateur de voyage local.");
-      }
     }, 1000);
   };
 
@@ -255,6 +252,11 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par membre. N'invente aucun pr
       {/* Generated Packing Checklists */}
       {packingLists && (
         <div className="space-y-4">
+          {fallbackMessage && (
+            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-bold leading-relaxed">
+              {fallbackMessage}
+            </div>
+          )}
           <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Valises personnalisées :</span>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
