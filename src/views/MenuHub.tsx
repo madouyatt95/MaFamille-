@@ -7738,6 +7738,443 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   </div>
                 )}
 
+                {/* Sub-Tab 3: Karma & Malus */}
+                {pmSubTab === 'karma' && (
+                  <div className="space-y-6 animate-fade-in text-left">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      
+                      {/* CARD 1: Apply Malus */}
+                      <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 font-sans">
+                        <span className="text-[10px] font-bold text-[#FF4D6D] uppercase tracking-widest block">⚠️ Appliquer un malus ({resolvedChild.name})</span>
+                        
+                        {malusTemplates.length === 0 ? (
+                          <div className="text-center py-6 bg-white/5 rounded-2xl border border-white/5 space-y-2">
+                            <p className="text-xs text-white/55 italic">Aucun modèle de malus configuré.</p>
+                            <p className="text-[10px] text-white/35">Créez un modèle à droite pour pouvoir l'appliquer.</p>
+                          </div>
+                        ) : (
+                          <form onSubmit={(e) => handleApplyMalusToChild(e, resolvedChild.id)} className="space-y-4">
+                            <div>
+                              <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Motif du malus</label>
+                              <select
+                                value={selectedMalusTemplateId || ''}
+                                onChange={e => {
+                                  setSelectedMalusTemplateId(e.target.value || null);
+                                  const t = malusTemplates.find(x => x.id === e.target.value);
+                                  setUseShieldForMalus(t ? t.lossShield : false);
+                                }}
+                                required
+                                className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                              >
+                                <option value="">-- Sélectionner un motif --</option>
+                                {malusTemplates.map(t => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.emoji} {t.title} (-{t.starsRemoved}⭐, -{t.xpRemoved}XP)
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {selectedMalusTemplateId && (() => {
+                              const t = malusTemplates.find(x => x.id === selectedMalusTemplateId);
+                              if (!t) return null;
+                              const childShields = resolvedChild.shields !== undefined ? resolvedChild.shields : 3;
+                              const shieldEnabled = foyer?.malusSettings?.shields_enabled !== false;
+                              const canUseShield = shieldEnabled && childShields > 0 && t.lossShield;
+
+                              return (
+                                <div className="space-y-4 animate-fade-in bg-white/5 p-3 rounded-2xl border border-white/5">
+                                  {t.lossShield && (
+                                    <div className="flex items-center justify-between text-xs">
+                                      <div>
+                                        <p className="font-extrabold text-white">🛡️ Activer le bouclier de l'enfant</p>
+                                        <p className="text-[9px] text-white/50">
+                                          {canUseShield 
+                                            ? `Consommera 1 bouclier (Reste : ${childShields}) pour annuler la perte.` 
+                                            : !shieldEnabled ? "Les boucliers sont désactivés dans les paramètres." : "Aucun bouclier disponible."}
+                                        </p>
+                                      </div>
+                                      <input 
+                                        type="checkbox"
+                                        disabled={!canUseShield}
+                                        checked={useShieldForMalus && canUseShield}
+                                        onChange={e => setUseShieldForMalus(e.target.checked)}
+                                        className="w-4 h-4 rounded border-white/10 text-[#6C5CFF] focus:ring-0 focus:ring-offset-0 cursor-pointer disabled:opacity-40"
+                                      />
+                                    </div>
+                                  )}
+
+                                  <div>
+                                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">
+                                      Commentaire {t.commentRequired && <span className="text-red-400">* (Obligatoire)</span>}
+                                    </label>
+                                    <input
+                                      type="text"
+                                      required={t.commentRequired}
+                                      placeholder="ex: Retard ou chambre en désordre..."
+                                      value={applyMalusComment}
+                                      onChange={e => setApplyMalusComment(e.target.value)}
+                                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
+                            <button
+                              type="submit"
+                              className="w-full py-3 rounded-2xl bg-[#FF4D6D] hover:bg-[#FF4D6D]/90 text-[#07111F] text-xs font-extrabold cursor-pointer border border-[#FF4D6D]/20 active:scale-95 transition-all text-center"
+                            >
+                              Appliquer le malus ⚠️
+                            </button>
+                          </form>
+                        )}
+                      </div>
+
+                      {/* CARD 2: Manage Templates */}
+                      <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 font-sans">
+                        <span className="text-[10px] font-bold text-[#6C5CFF] uppercase tracking-widest block">⚙️ Modèles de malus</span>
+                        
+                        {editingMalusId ? (
+                          <div className="p-4 bg-white/5 border border-white/5 rounded-2xl space-y-3 animate-fade-in">
+                            <span className="text-[10px] font-black uppercase text-[#FFB020] block">Modifier le modèle</span>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Titre</label>
+                                <input
+                                  type="text"
+                                  value={editMalusTitle}
+                                  onChange={e => setEditMalusTitle(e.target.value)}
+                                  className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Emoji / Icône</label>
+                                <input
+                                  type="text"
+                                  value={editMalusEmoji}
+                                  onChange={e => setEditMalusEmoji(e.target.value)}
+                                  className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none text-center"
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Étoiles perdues</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={editMalusStarsRemoved}
+                                  onChange={e => setEditMalusStarsRemoved(Math.max(0, parseInt(e.target.value) || 0))}
+                                  className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none text-center"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">XP retirés</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={editMalusXpRemoved}
+                                  onChange={e => setEditMalusXpRemoved(Math.max(0, parseInt(e.target.value) || 0))}
+                                  className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none text-center"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 pt-1">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-white/60">Le bouclier protège de ce malus 🛡️</span>
+                                <input
+                                  type="checkbox"
+                                  checked={editMalusLossShield}
+                                  onChange={e => setEditMalusLossShield(e.target.checked)}
+                                  className="w-3.5 h-3.5 rounded border-white/10 text-[#6C5CFF]"
+                                />
+                              </div>
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-white/60">Commentaire obligatoire ✍️</span>
+                                <input
+                                  type="checkbox"
+                                  checked={editMalusCommentRequired}
+                                  onChange={e => setEditMalusCommentRequired(e.target.checked)}
+                                  className="w-3.5 h-3.5 rounded border-white/10 text-[#6C5CFF]"
+                                />
+                              </div>
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-white/60">Brise la série de connexions 🔥</span>
+                                <input
+                                  type="checkbox"
+                                  checked={editMalusLossStreak}
+                                  onChange={e => setEditMalusLossStreak(e.target.checked)}
+                                  className="w-3.5 h-3.5 rounded border-white/10 text-[#6C5CFF]"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex space-x-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setEditingMalusId(null)}
+                                className="px-3 py-1.5 bg-white/5 text-white/70 hover:text-white rounded-xl text-[10.5px] font-bold"
+                              >
+                                Annuler
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSaveEditedMalus(editingMalusId)}
+                                className="flex-1 py-1.5 bg-[#00D26A] text-[#07111F] rounded-xl text-[10.5px] font-black"
+                              >
+                                Enregistrer
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <form onSubmit={handleCreateMalusTemplate} className="p-4 bg-white/5 border border-white/5 rounded-2xl space-y-3">
+                            <span className="text-[10px] font-black uppercase text-[#6C5CFF] block">+ Créer un modèle</span>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Titre du modèle</label>
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="ex: Chambre en désordre..."
+                                  value={newMalusTitle}
+                                  onChange={e => setNewMalusTitle(e.target.value)}
+                                  className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Emoji / Icône</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={newMalusEmoji}
+                                  onChange={e => setNewMalusEmoji(e.target.value)}
+                                  className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none text-center"
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Étoiles perdues</label>
+                                <input
+                                  type="number"
+                                  required
+                                  min="0"
+                                  value={newMalusStarsRemoved}
+                                  onChange={e => setNewMalusStarsRemoved(Math.max(0, parseInt(e.target.value) || 0))}
+                                  className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none text-center"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">XP retirés</label>
+                                <input
+                                  type="number"
+                                  required
+                                  min="0"
+                                  value={newMalusXpRemoved}
+                                  onChange={e => setNewMalusXpRemoved(Math.max(0, parseInt(e.target.value) || 0))}
+                                  className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2 py-2 text-xs text-white focus:outline-none text-center"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 pt-1">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-white/60">Le bouclier protège de ce malus 🛡️</span>
+                                <input
+                                  type="checkbox"
+                                  checked={newMalusLossShield}
+                                  onChange={e => setNewMalusLossShield(e.target.checked)}
+                                  className="w-3.5 h-3.5 rounded border-white/10 text-[#6C5CFF]"
+                                />
+                              </div>
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-white/60">Commentaire obligatoire ✍️</span>
+                                <input
+                                  type="checkbox"
+                                  checked={newMalusCommentRequired}
+                                  onChange={e => setNewMalusCommentRequired(e.target.checked)}
+                                  className="w-3.5 h-3.5 rounded border-white/10 text-[#6C5CFF]"
+                                />
+                              </div>
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-white/60">Brise la série de connexions 🔥</span>
+                                <input
+                                  type="checkbox"
+                                  checked={newMalusLossStreak}
+                                  onChange={e => setNewMalusLossStreak(e.target.checked)}
+                                  className="w-3.5 h-3.5 rounded border-white/10 text-[#6C5CFF]"
+                                />
+                              </div>
+                            </div>
+
+                            <button
+                              type="submit"
+                              className="w-full py-2 bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white text-xs font-bold rounded-xl active:scale-95 transition-all text-center cursor-pointer"
+                            >
+                              Créer le modèle de malus
+                            </button>
+                          </form>
+                        )}
+
+                        <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                          {malusTemplates.map(t => (
+                            <div key={t.id} className="p-3 bg-white/5 border border-white/5 rounded-2xl flex items-center justify-between text-xs font-bold text-white">
+                              <div className="flex items-center space-x-2.5">
+                                <span className="text-xl shrink-0">{t.emoji}</span>
+                                <div>
+                                  <h5 className="font-extrabold text-white leading-tight">{t.title}</h5>
+                                  <p className="text-[9px] text-white/40 leading-none mt-1">
+                                    -{t.starsRemoved}⭐ • -{t.xpRemoved}XP {t.lossShield && '🛡️'} {t.commentRequired && '✍️'}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex space-x-1.5 items-center">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingMalusId(t.id);
+                                    setEditMalusTitle(t.title);
+                                    setEditMalusEmoji(t.emoji);
+                                    setEditMalusCategory(t.category || 'Comportement');
+                                    setEditMalusStarsRemoved(t.starsRemoved);
+                                    setEditMalusXpRemoved(t.xpRemoved);
+                                    setEditMalusLossStreak(t.lossStreak || false);
+                                    setEditMalusLossShield(t.lossShield || false);
+                                    setEditMalusCommentRequired(t.commentRequired || false);
+                                    setEditMalusDoubleParentValidation(t.doubleParentValidation || false);
+                                  }}
+                                  className="p-1 text-[#FFB020] hover:bg-[#FFB020]/10 rounded transition cursor-pointer"
+                                  title="Modifier"
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMalusTemplate(t.id)}
+                                  className="p-1 text-red-400 hover:bg-red-500/10 rounded transition cursor-pointer"
+                                  title="Supprimer"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* SECTION 3: Behavioral History */}
+                    <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4 font-sans text-left">
+                      <span className="text-[10px] font-bold text-[#FFB020] uppercase tracking-widest block font-sans">🛡️ Historique comportemental ({resolvedChild.name})</span>
+                      
+                      {(() => {
+                        const childMaluses = appliedMaluses.filter(m => m.memberId === resolvedChild.id);
+                        if (childMaluses.length === 0) {
+                          return (
+                            <p className="text-xs text-white/30 text-center py-6 font-bold">Aucun événement comportemental ou malus enregistré pour cet enfant.</p>
+                          );
+                        }
+
+                        return (
+                          <div className="space-y-3">
+                            {childMaluses.map(m => {
+                              const isShielded = m.shieldUsed;
+                              const isRepaired = m.reparationTaskId && tasks.find(t => t.id === m.reparationTaskId)?.validatedByParent;
+                              const isPendingReparation = m.reparationTaskId && !isRepaired;
+                              
+                              let statusLabel = "Appliqué";
+                              let statusColor = "text-[#FF4D6D] bg-[#FF4D6D]/10 border-[#FF4D6D]/20";
+                              
+                              if (isShielded) {
+                                statusLabel = "Bloqué par bouclier 🛡️";
+                                statusColor = "text-[#00D26A] bg-[#00D26A]/10 border-[#00D26A]/20";
+                              } else if (isRepaired) {
+                                statusLabel = "Réparé ✅";
+                                statusColor = "text-[#00D26A] bg-[#00D26A]/10 border-[#00D26A]/20";
+                              } else if (isPendingReparation) {
+                                statusLabel = "Rattrapage en cours 🔧";
+                                statusColor = "text-amber-400 bg-amber-400/10 border-amber-400/20";
+                              }
+
+                              return (
+                                <div key={m.id} className="p-4 bg-white/5 border border-white/5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                                  <div className="space-y-1">
+                                    <div className="flex items-center space-x-2">
+                                      <span className="text-lg">{m.emoji}</span>
+                                      <span className="font-extrabold text-white text-sm">{m.title}</span>
+                                      <span className={`text-[8.5px] px-2 py-0.5 rounded-full border font-black uppercase tracking-wider ${statusColor}`}>
+                                        {statusLabel}
+                                      </span>
+                                    </div>
+                                    <p className="text-[10px] text-white/45 font-bold">
+                                      {new Date(m.createdAt).toLocaleDateString('fr-FR')} • Perte : {isShielded ? 'Aucune (Bouclier)' : `-${m.starsRemoved}⭐ / -${m.xpRemoved}XP`}
+                                    </p>
+                                    {m.comment && (
+                                      <p className="text-[10.5px] text-white/70 italic font-medium bg-white/5 p-2 rounded-xl mt-1 border border-white/5">
+                                        " {m.comment} "
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  {!isShielded && !m.reparationTaskId && (
+                                    <div className="shrink-0 flex items-center space-x-2 pt-2 md:pt-0">
+                                      {linkingMalusId === m.id ? (
+                                        <form onSubmit={(e) => handleLinkReparationTask(e, m.id)} className="flex items-center space-x-2">
+                                          <input
+                                            type="text"
+                                            required
+                                            placeholder="Tâche de rattrapage (ex: Nettoyer la cuisine)..."
+                                            value={reparationTaskTitle}
+                                            onChange={e => setReparationTaskTitle(e.target.value)}
+                                            className="bg-[#07111F] border border-white/8 rounded-lg px-2 py-1.5 text-[10px] text-white focus:outline-none w-48"
+                                          />
+                                          <button type="submit" className="px-2.5 py-1.5 bg-[#00D26A] text-[#07111F] rounded-lg font-black text-[10px]">Assigner</button>
+                                          <button type="button" onClick={() => setLinkingMalusId(null)} className="px-2 py-1.5 bg-white/5 text-white/60 rounded-lg text-[10px]">Annuler</button>
+                                        </form>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setLinkingMalusId(m.id);
+                                            setReparationTaskTitle('');
+                                          }}
+                                          className="px-3 py-2 bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-white font-extrabold text-[10px] rounded-xl hover:bg-[#6C5CFF]/30 active:scale-95 transition-all cursor-pointer"
+                                        >
+                                          🔧 Proposer un rattrapage
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {m.reparationTaskId && (() => {
+                                    const linkedTask = tasks.find(t => t.id === m.reparationTaskId);
+                                    if (!linkedTask) return null;
+                                    return (
+                                      <div className="text-[10px] bg-white/5 px-3 py-2 rounded-xl border border-white/5 text-left text-white/60 space-y-0.5">
+                                        <span className="text-[8px] font-black uppercase text-[#FFB020] block">Mission de rattrapage</span>
+                                        <p className="font-extrabold text-white text-xs truncate max-w-xs">{linkedTask.title.replace("🔧 Rattrapage : ", "")}</p>
+                                        <p className="text-[8.5px] font-bold">
+                                          Statut : {linkedTask.validatedByParent 
+                                            ? <span className="text-[#00D26A] font-black">Validée (Étoiles récupérées ! 🎉)</span> 
+                                            : linkedTask.done ? <span className="text-amber-400 font-black">À valider par parent ⏳</span> : "À faire par l'enfant"}
+                                        </p>
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                  </div>
+                )}
+
                 {/* Recurring transfers list for this child */}
                 {(() => {
                   const childRecurringTransfers = transactions.filter(t => 
