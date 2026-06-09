@@ -2162,13 +2162,16 @@ function App() {
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
     }
-  }, []);  // Configuration des notifications push FCM au chargement du membre actif
+  }, []);
+
+  // Configuration des notifications push FCM pour le membre rattaché au compte connecté.
   useEffect(() => {
     const isPushDisabled = localStorage.getItem('mf_fcm_active') === 'false';
-    if (activeMemberId && !isPushDisabled) {
+    const pushMemberId = myMemberProfile?.id || activeMemberId;
+    if (pushMemberId && !isPushDisabled) {
       const setupPushNotifications = async () => {
         try {
-          await notificationService.initializeFCM(activeMemberId, (payload) => {
+          await notificationService.initializeFCM(pushMemberId, (payload) => {
             console.log("[App] Notification push reçue au premier plan :", payload);
             const newAlert = {
               id: payload.data?.id || `alert-${Date.now()}`,
@@ -2198,7 +2201,7 @@ function App() {
       };
       setupPushNotifications();
     }
-  }, [activeMemberId]);
+  }, [activeMemberId, myMemberProfile?.id]);
 
   // Helper map function from FoyerMember to UI Member
   const mapFoyerMemberToMember = (fm: FoyerMember): Member => {

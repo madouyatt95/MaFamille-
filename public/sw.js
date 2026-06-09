@@ -75,7 +75,7 @@ messaging.onBackgroundMessage((payload) => {
 });
 
 // PARTIE CACHING PWA
-const CACHE_NAME = 'mafamille-plus-cache-v1';
+const CACHE_NAME = 'myfamily-plus-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -110,7 +110,8 @@ self.addEventListener('activate', (event) => {
 
 // Fetch Event
 self.addEventListener('fetch', (event) => {
-  const url = event.request.url;
+  const request = event.request;
+  const url = request.url;
 
   // Ne pas intercepter les requêtes de dev local
   if (url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1')) {
@@ -126,31 +127,52 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // stale-while-revalidate silencieux
-        fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, networkResponse);
-            });
-          }
-        }).catch(() => {});
-        
-        return cachedResponse;
-      }
+  const isNavigation = request.mode === 'navigate';
+  const isAppShellAsset = url.includes('/assets/') || url.endsWith('/index.html');
 
-      return fetch(event.request).then((response) => {
+  if (isNavigation || isAppShellAsset) {
+    event.respondWith(
+      fetch(request).then((response) => {
         if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
-
         const responseToCache = response.clone();
         caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
+          cache.put(request, responseToCache);
         });
+        return response;
+      }).catch(() => {
+        return caches.match(request).then((cachedResponse) => {
+          if (cachedResponse) return cachedResponse;
+          if (isNavigation) return caches.match('/index.html');
+          return undefined;
+        });
+      })
+    );
+    return;
+  }
 
+  event.respondWith(
+    caches.match(request).then((cachedResponse) => {
+      if (cachedResponse) {
+        fetch(request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, networkResponse);
+            });
+          }
+        }).catch(() => {});
+        return cachedResponse;
+      }
+
+      return fetch(request).then((response) => {
+        if (!response || response.status !== 200 || response.type !== 'basic') {
+          return response;
+        }
+        const responseToCache = response.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(request, responseToCache);
+        });
         return response;
       });
     })

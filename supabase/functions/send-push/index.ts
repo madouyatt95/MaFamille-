@@ -240,6 +240,7 @@ serve(async (req) => {
     let senderName = "";
     let senderUserId = "";
     let targetModule = "other";
+    let chatRecipientMemberIds: string[] | null = null;
 
     if (payload.table === "chat_messages") {
       if (payload.type !== "INSERT") {
@@ -257,6 +258,21 @@ serve(async (req) => {
         body = record.content || "";
       }
       targetModule = "messagerie";
+
+      if (record.group_id) {
+        const { data: groupData, error: groupError } = await supabaseAdmin
+          .from("chat_groups")
+          .select("member_ids")
+          .eq("foyer_id", foyerId)
+          .eq("id", record.group_id)
+          .maybeSingle();
+
+        if (groupError) {
+          console.warn("[Send-Push] Impossible de récupérer les membres du groupe chat :", groupError.message);
+        } else if (Array.isArray(groupData?.member_ids)) {
+          chatRecipientMemberIds = groupData.member_ids.map((id: unknown) => String(id));
+        }
+      }
     } else if (payload.table === "alerts") {
       if (payload.type !== "INSERT") {
         return new Response(JSON.stringify({ message: "Ignored UPDATE for alerts" }), { status: 200 });
@@ -416,8 +432,9 @@ serve(async (req) => {
     const rawTargetTokens = members
       .filter(m => {
         if (!m.fcm_token) return false;
+        if (chatRecipientMemberIds && !chatRecipientMemberIds.includes(String(m.id))) return false;
         if (senderId && String(m.id) === String(senderId)) return false;
-        if (senderUserId && String(m.user_id) === String(senderUserId)) return false;
+        if (payload.table !== "chat_messages" && senderUserId && String(m.user_id) === String(senderUserId)) return false;
         if (senderName && normalizeIdentity(m.display_name) === normalizeIdentity(senderName)) return false;
         if (!allowsModulePush(m, targetModule)) {
           console.log(`[Send-Push] Préférence utilisateur : module ${targetModule} désactivé pour ${m.display_name || m.id}.`);
