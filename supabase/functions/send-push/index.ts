@@ -27,6 +27,68 @@ function getNotificationDedupKey(table: string, targetModule: string, record: an
   return `${table || "unknown"}-${targetModule || "other"}-${recordId}`;
 }
 
+async function sha256(input: string): Promise<string> {
+  const bytes = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(hash))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function getPushEventKey(payload: any): Promise<string> {
+  const record = payload.record || {};
+  const oldRecord = payload.old_record || {};
+  const signature = {
+    table: payload.table || "unknown",
+    type: payload.type || "unknown",
+    id: record.id || record.group_id || "",
+    foyer_id: record.foyer_id || "",
+    updated_at: record.updated_at || record.created_at || "",
+    title: record.title || "",
+    content: record.content || "",
+    done: record.done ?? "",
+    checked: record.checked ?? "",
+    validated_by_parent: record.validated_by_parent ?? "",
+    old_done: oldRecord.done ?? "",
+    old_checked: oldRecord.checked ?? "",
+    old_validated_by_parent: oldRecord.validated_by_parent ?? ""
+  };
+
+  return `${signature.table}:${signature.type}:${await sha256(JSON.stringify(signature))}`;
+}
+
+async function claimPushEvent(payload: any, foyerId: string): Promise<boolean> {
+  const eventKey = await getPushEventKey(payload);
+  const recordId = payload.record?.id || payload.record?.group_id || null;
+
+  const { error } = await supabaseAdmin
+    .from("push_delivery_log")
+    .insert({
+      event_key: eventKey,
+      foyer_id: String(foyerId || ""),
+      table_name: payload.table || "unknown",
+      event_type: payload.type || "unknown",
+      record_id: recordId ? String(recordId) : null
+    });
+
+  if (!error) {
+    return true;
+  }
+
+  if (error.code === "23505") {
+    console.log("[Send-Push] Événement déjà traité, push ignoré :", eventKey);
+    return false;
+  }
+
+  if (error.code === "42P01") {
+    console.warn("[Send-Push] Table push_delivery_log absente. Déployez la migration Supabase anti-doublons.");
+    return true;
+  }
+
+  console.error("[Send-Push] Erreur anti-doublon, push ignoré par sécurité :", error.message);
+  return false;
+}
+
 async function clearInvalidFcmToken(fcmToken: string) {
   const { error } = await supabaseAdmin
     .from("foyer_members")
@@ -129,6 +191,19 @@ serve(async (req) => {
     if (!foyerId) {
       return new Response(JSON.stringify({ error: "No foyer_id found in record" }), { status: 400 });
     }
+
+    const shouldSend = await claimPushEvent(payload, foyerId);
+    if (!shouldSend) {
+      return new Response(JSON.stringify({ message: "Duplicate push event ignored" }), { status: 200 });
+    }
+
+    supabaseAdmin
+      .from("push_delivery_log")
+      .delete()
+      .lt("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+      .then(({ error }) => {
+        if (error) console.warn("[Send-Push] Nettoyage push_delivery_log ignoré :", error.message);
+      });
 
     // 1. Déterminer le titre et le corps de la notification
     let title = "";
