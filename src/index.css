@@ -49,44 +49,44 @@
 
 .theme-light {
   color-scheme: light;
-  --glow-color: rgba(79, 140, 255, 0.16);
-  background-color: #EDF3FA;
+  --glow-color: rgba(91, 78, 250, 0.14);
+  background-color: #F6F8FC;
 
   /* Core design tokens (Clair / Light) */
-  --family-bg: #EDF3FA;
-  --family-surface: rgba(255, 255, 255, 0.82);
-  --family-border: rgba(30, 41, 59, 0.10);
+  --family-bg: #F6F8FC;
+  --family-surface: rgba(255, 255, 255, 0.90);
+  --family-border: rgba(30, 41, 59, 0.11);
   --family-primary: #5B4EFA;
   --family-secondary: #2563EB;
   --family-success: #059669;
   --family-danger: #E11D48;
   --family-warning: #B7791F;
-  --family-text: #172033;
-  --family-text-secondary: rgba(23, 32, 51, 0.68);
-  --family-shadow: rgba(30, 41, 59, 0.12);
-  --glass-bg: rgba(255, 255, 255, 0.78);
-  --glass-border: rgba(30, 41, 59, 0.09);
+  --family-text: #111827;
+  --family-text-secondary: rgba(17, 24, 39, 0.66);
+  --family-shadow: rgba(15, 23, 42, 0.11);
+  --glass-bg: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(15, 23, 42, 0.10);
 }
 
 .theme-sepia {
   color-scheme: light;
-  --glow-color: rgba(127, 84, 37, 0.18);
-  background-color: #F6EEDC;
+  --glow-color: rgba(154, 91, 47, 0.17);
+  background-color: #F7EFDF;
 
   /* Core design tokens (Sépia / Sepia) */
-  --family-bg: #F6EEDC;
-  --family-surface: rgba(255, 250, 240, 0.82);
-  --family-border: rgba(91, 64, 41, 0.12);
-  --family-primary: #7C4DFF;
-  --family-secondary: #9A5B2F;
+  --family-bg: #F7EFDF;
+  --family-surface: rgba(255, 249, 236, 0.90);
+  --family-border: rgba(91, 64, 41, 0.14);
+  --family-primary: #7A4E2D;
+  --family-secondary: #A4643C;
   --family-success: #2F7D52;
   --family-danger: #B7414A;
   --family-warning: #9A650F;
-  --family-text: #3F2D22;
-  --family-text-secondary: rgba(63, 45, 34, 0.70);
-  --family-shadow: rgba(91, 64, 41, 0.16);
-  --glass-bg: rgba(255, 250, 240, 0.82);
-  --glass-border: rgba(91, 64, 41, 0.10);
+  --family-text: #3A291F;
+  --family-text-secondary: rgba(58, 41, 31, 0.68);
+  --family-shadow: rgba(91, 64, 41, 0.15);
+  --glass-bg: rgba(255, 249, 236, 0.90);
+  --glass-border: rgba(91, 64, 41, 0.12);
 }
 
 body {
@@ -203,6 +203,20 @@ body {
   color: var(--family-text) !important;
 }
 
+.theme-light body {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(91, 78, 250, 0.09), transparent 32rem),
+    radial-gradient(circle at 92% 18%, rgba(79, 140, 255, 0.10), transparent 30rem),
+    linear-gradient(180deg, #F7F9FF 0%, #F4F7FB 48%, #EFF4FA 100%) !important;
+}
+
+.theme-sepia body {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(154, 91, 47, 0.11), transparent 30rem),
+    radial-gradient(circle at 90% 22%, rgba(255, 176, 32, 0.11), transparent 28rem),
+    linear-gradient(180deg, #FBF4E7 0%, #F7EFDF 55%, #F2E7D3 100%) !important;
+}
+
 .theme-light .text-white,
 .theme-sepia .text-white {
   color: var(--family-text) !important;
@@ -240,7 +254,7 @@ body {
 .theme-light .bg-white\/20,
 .theme-light .bg-white\/30,
 .theme-light .bg-white\/40 {
-  background-color: rgba(30, 41, 59, 0.055) !important;
+  background-color: rgba(15, 23, 42, 0.045) !important;
 }
 
 .theme-sepia .bg-white\/3,
@@ -250,7 +264,7 @@ body {
 .theme-sepia .bg-white\/20,
 .theme-sepia .bg-white\/30,
 .theme-sepia .bg-white\/40 {
-  background-color: rgba(91, 64, 41, 0.065) !important;
+  background-color: rgba(91, 64, 41, 0.060) !important;
 }
 
 .theme-light .border-white\/5,
@@ -272,7 +286,18 @@ body {
 .theme-sepia .glass-panel {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
-  box-shadow: 0 18px 40px color-mix(in srgb, var(--family-shadow) 72%, transparent);
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--family-shadow) 78%, transparent);
+}
+
+.theme-light .glass-panel-hover:hover,
+.theme-sepia .glass-panel-hover:hover,
+.theme-light .hover\:bg-white\/10:hover,
+.theme-light .hover\:bg-white\/8:hover,
+.theme-light .hover\:bg-white\/\[0\.06\]:hover,
+.theme-sepia .hover\:bg-white\/10:hover,
+.theme-sepia .hover\:bg-white\/8:hover,
+.theme-sepia .hover\:bg-white\/\[0\.06\]:hover {
+  background-color: color-mix(in srgb, var(--family-surface) 76%, var(--family-primary) 7%) !important;
 }
 
 .theme-light [class*="bg-[#07111F]"],
@@ -281,8 +306,13 @@ body {
 .theme-light [class*="bg-[#0A0D18]"],
 .theme-light [class*="bg-[#0F1E3D]"],
 .theme-light [class*="bg-[#112240]"],
-.theme-light [class*="bg-[#070e17]"] {
-  background-color: #F8FAFC !important;
+.theme-light [class*="bg-[#070e17]"],
+.theme-light [class*="bg-[#0b1726]"],
+.theme-light [class*="bg-[#1C1830]"],
+.theme-light [class*="bg-[#07111F]/"],
+.theme-light [class*="bg-[#081225]/"],
+.theme-light [class*="bg-[#112240]/"] {
+  background-color: rgba(255, 255, 255, 0.92) !important;
 }
 
 .theme-sepia [class*="bg-[#07111F]"],
@@ -291,8 +321,21 @@ body {
 .theme-sepia [class*="bg-[#0A0D18]"],
 .theme-sepia [class*="bg-[#0F1E3D]"],
 .theme-sepia [class*="bg-[#112240]"],
-.theme-sepia [class*="bg-[#070e17]"] {
-  background-color: #FFF8EA !important;
+.theme-sepia [class*="bg-[#070e17]"],
+.theme-sepia [class*="bg-[#0b1726]"],
+.theme-sepia [class*="bg-[#1C1830]"],
+.theme-sepia [class*="bg-[#07111F]/"],
+.theme-sepia [class*="bg-[#081225]/"],
+.theme-sepia [class*="bg-[#112240]/"] {
+  background-color: rgba(255, 249, 236, 0.94) !important;
+}
+
+.theme-light [class*="bg-black/"] {
+  background-color: rgba(15, 23, 42, 0.24) !important;
+}
+
+.theme-sepia [class*="bg-black/"] {
+  background-color: rgba(58, 41, 31, 0.28) !important;
 }
 
 .theme-light [class*="ring-[#07111F]"] {
@@ -301,6 +344,28 @@ body {
 
 .theme-sepia [class*="ring-[#07111F]"] {
   --tw-ring-color: #F6EEDC !important;
+}
+
+.theme-light [class*="shadow-[0_-10px_30px"],
+.theme-light [class*="shadow-[0_-15px_40px"] {
+  box-shadow: 0 -14px 34px rgba(15, 23, 42, 0.14) !important;
+}
+
+.theme-sepia [class*="shadow-[0_-10px_30px"],
+.theme-sepia [class*="shadow-[0_-15px_40px"] {
+  box-shadow: 0 -14px 34px rgba(91, 64, 41, 0.16) !important;
+}
+
+.theme-light .premium-glow-purple {
+  background:
+    radial-gradient(circle at top right, rgba(91, 78, 250, 0.10), transparent 30rem),
+    radial-gradient(circle at 15% 24%, rgba(79, 140, 255, 0.07), transparent 26rem);
+}
+
+.theme-sepia .premium-glow-purple {
+  background:
+    radial-gradient(circle at top right, rgba(154, 91, 47, 0.11), transparent 30rem),
+    radial-gradient(circle at 12% 24%, rgba(255, 176, 32, 0.09), transparent 24rem);
 }
 
 .theme-light [class*="bg-[#6C5CFF]"],
