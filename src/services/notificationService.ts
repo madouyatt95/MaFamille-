@@ -9,6 +9,8 @@ type InitializeFCMOptions = {
   requestPermission?: boolean;
 };
 
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDZE7aW6Yv9XGadcRxwXWD75tI_KDhh84c",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "mafamilleplus.firebaseapp.com",
@@ -75,6 +77,22 @@ export const notificationService = {
 
     // --- SUPPORT NATION NATIVE CAPACITOR (iOS / Android) ---
     if (Capacitor.isNativePlatform()) {
+      const getNativeFcmTokenWithRetry = async (apnsToken: string): Promise<string | null> => {
+        for (let attempt = 1; attempt <= 5; attempt += 1) {
+          try {
+            const fcmTokenRes = attempt === 1 ? await FCM.getToken() : await FCM.refreshToken();
+            const fcmTokenValue = fcmTokenRes.token;
+            if (fcmTokenValue && fcmTokenValue !== apnsToken) {
+              return fcmTokenValue;
+            }
+          } catch (e) {
+            console.warn(`[FCM Native] Token FCM indisponible tentative ${attempt}/5:`, e);
+          }
+          await wait(700);
+        }
+        return null;
+      };
+
       return new Promise<string | null>(async (resolve) => {
         let resolved = false;
 
@@ -99,6 +117,12 @@ export const notificationService = {
             console.warn('[FCM Native] Impossible de supprimer les écouteurs précédents:', e);
           }
 
+          try {
+            await FCM.setAutoInit({ enabled: true });
+          } catch (e) {
+            console.warn('[FCM Native] Impossible d’activer l’auto-init FCM:', e);
+          }
+
           // Écouteur de succès d'enregistrement du Token
           await PushNotifications.addListener('registration', async (token) => {
             clearTimeout(timeoutId);
@@ -106,22 +130,14 @@ export const notificationService = {
             resolved = true;
             console.log('[FCM Native] Token d\'enregistrement APNs obtenu:', token.value);
             
-            let fcmTokenValue = token.value;
-            try {
-              // Convertir le token APNs en token FCM via le plugin FCM
-              const fcmTokenRes = await FCM.getToken();
-              fcmTokenValue = fcmTokenRes.token;
-              console.log('[FCM Native] Token FCM obtenu via le plugin community FCM:', fcmTokenValue);
-            } catch (e) {
-              console.error('[FCM Native] Échec de la récupération du token FCM. Le token APNs brut ne peut pas être envoyé via FCM v1.', e);
+            const fcmTokenValue = await getNativeFcmTokenWithRetry(token.value);
+
+            if (!fcmTokenValue) {
+              console.error('[FCM Native] Échec de la récupération du token FCM après plusieurs tentatives.');
               failNativeRegistration('token FCM indisponible');
               return;
             }
-
-            if (!fcmTokenValue || fcmTokenValue === token.value) {
-              failNativeRegistration('token FCM absent ou identique au token APNs');
-              return;
-            }
+            console.log('[FCM Native] Token FCM obtenu via le plugin community FCM:', fcmTokenValue);
             
             const supabase = getSupabaseClient();
             if (supabase) {
