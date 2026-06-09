@@ -27,9 +27,9 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
 
   const isWeb = Capacitor.getPlatform() === 'web';
   const priceMonthly = isWeb ? '3,99 €' : '4,99 €';
-  const priceYearly = isWeb ? '24,99 €' : '29,99 €';
-  const priceMonthlyEquivalent = isWeb ? '2,08 €' : '2,49 €';
-  const priceYearlySave = isWeb ? '-48%' : '-50%';
+  const priceYearly = isWeb ? '29,99 €' : '39,99 €';
+  const priceMonthlyEquivalent = isWeb ? '2,50 €' : '3,33 €';
+  const priceYearlySave = isWeb ? '-37%' : '-33%';
 
   if (!isOpen) return null;
 
