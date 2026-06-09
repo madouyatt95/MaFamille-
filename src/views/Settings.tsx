@@ -157,13 +157,21 @@ export const Settings: React.FC<SettingsProps> = ({
     }
   };
 
-  // Apparence thématique : seul le mode sombre est publie pour l'instant.
-  const [theme, setTheme] = useState<'dark'>('dark');
+  // Apparence thématique (Sombre / Clair / Sépia)
+  const [theme, setTheme] = useState<'dark' | 'light' | 'sepia'>(() => {
+    const savedTheme = localStorage.getItem('app_appearance_mode');
+    return savedTheme === 'light' || savedTheme === 'sepia' ? savedTheme : 'dark';
+  });
 
   useEffect(() => {
     document.body.classList.remove('theme-light', 'theme-sepia');
-    localStorage.setItem('app_appearance_mode', 'dark');
-  }, []);
+    if (theme === 'light') {
+      document.body.classList.add('theme-light');
+    } else if (theme === 'sepia') {
+      document.body.classList.add('theme-sepia');
+    }
+    localStorage.setItem('app_appearance_mode', theme);
+  }, [theme]);
 
   // Notification module preferences (groceries, tasks, agenda, finances, chat, health, vault, sos)
   const [localPrefs, setLocalPrefs] = useState<any>(() => {
@@ -632,17 +640,19 @@ export const Settings: React.FC<SettingsProps> = ({
           <span>Apparence & Mode visuel</span>
         </h3>
         <p className="text-xs text-white/50 leading-relaxed font-medium">
-          Le mode sombre est le design principal de MaFamille+. Les variantes claires seront remises quand elles seront vraiment propres.
+          Choisissez une ambiance lisible pour toute l'interface : sombre, claire ou lecture chaude.
         </p>
         
-        <div className="grid grid-cols-1 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {[
-            { id: 'dark', label: 'Sombre adapte 🌗' }
+            { id: 'dark', label: 'Sombre 🌗' },
+            { id: 'light', label: 'Clair ☀️' },
+            { id: 'sepia', label: 'Sépia 📜' }
           ].map((mode) => (
             <button
               type="button"
               key={mode.id}
-              onClick={() => setTheme('dark')}
+              onClick={() => setTheme(mode.id as typeof theme)}
               className={`py-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-center justify-center space-y-1.5 active:scale-95 ${
                 theme === mode.id
                   ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] text-white shadow-md shadow-[#6C5CFF]/10 font-black'

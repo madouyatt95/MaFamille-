@@ -49,44 +49,44 @@
 
 .theme-light {
   color-scheme: light;
-  --glow-color: rgba(108, 92, 255, 0.15);
-  background-color: #F3F4F6;
+  --glow-color: rgba(79, 140, 255, 0.16);
+  background-color: #EDF3FA;
 
   /* Core design tokens (Clair / Light) */
-  --family-bg: #F3F4F6;
-  --family-surface: rgba(0, 0, 0, 0.04);
-  --family-border: rgba(0, 0, 0, 0.08);
-  --family-primary: #6C5CFF;
-  --family-secondary: #4F8CFF;
-  --family-success: #00D26A;
-  --family-danger: #FF4D6D;
-  --family-warning: #FFB020;
-  --family-text: #1F2937;
-  --family-text-secondary: rgba(31, 41, 55, 0.70);
-  --family-shadow: rgba(0, 0, 0, 0.1);
-  --glass-bg: rgba(255, 255, 255, 0.75);
-  --glass-border: rgba(0, 0, 0, 0.06);
+  --family-bg: #EDF3FA;
+  --family-surface: rgba(255, 255, 255, 0.82);
+  --family-border: rgba(30, 41, 59, 0.10);
+  --family-primary: #5B4EFA;
+  --family-secondary: #2563EB;
+  --family-success: #059669;
+  --family-danger: #E11D48;
+  --family-warning: #B7791F;
+  --family-text: #172033;
+  --family-text-secondary: rgba(23, 32, 51, 0.68);
+  --family-shadow: rgba(30, 41, 59, 0.12);
+  --glass-bg: rgba(255, 255, 255, 0.78);
+  --glass-border: rgba(30, 41, 59, 0.09);
 }
 
 .theme-sepia {
   color-scheme: light;
-  --glow-color: rgba(139, 92, 26, 0.2);
-  background-color: #F4EBD0;
+  --glow-color: rgba(127, 84, 37, 0.18);
+  background-color: #F6EEDC;
 
   /* Core design tokens (Sépia / Sepia) */
-  --family-bg: #F4EBD0;
-  --family-surface: rgba(90, 70, 50, 0.05);
-  --family-border: rgba(90, 70, 50, 0.09);
-  --family-primary: #8B5A2B;
-  --family-secondary: #A0522D;
-  --family-success: #2E8B57;
-  --family-danger: #CD5C5C;
-  --family-warning: #B8860B;
-  --family-text: #4A3525;
-  --family-text-secondary: rgba(74, 53, 37, 0.70);
-  --family-shadow: rgba(90, 70, 50, 0.15);
-  --glass-bg: rgba(253, 246, 227, 0.8);
-  --glass-border: rgba(90, 70, 50, 0.08);
+  --family-bg: #F6EEDC;
+  --family-surface: rgba(255, 250, 240, 0.82);
+  --family-border: rgba(91, 64, 41, 0.12);
+  --family-primary: #7C4DFF;
+  --family-secondary: #9A5B2F;
+  --family-success: #2F7D52;
+  --family-danger: #B7414A;
+  --family-warning: #9A650F;
+  --family-text: #3F2D22;
+  --family-text-secondary: rgba(63, 45, 34, 0.70);
+  --family-shadow: rgba(91, 64, 41, 0.16);
+  --glass-bg: rgba(255, 250, 240, 0.82);
+  --glass-border: rgba(91, 64, 41, 0.10);
 }
 
 body {
@@ -191,111 +191,160 @@ body {
 }
 
 /* ==========================================================================
-   ADVANCED THEME OVERRIDES (Light & Sepia Modes)
-   Protects text readability and box styling against hardcoded dark styles.
+   POLISHED LIGHT & SEPIA THEME OVERRIDES
+   The app is dark-first, so these rules translate the hardcoded dark glass
+   surfaces into coherent bright reading surfaces without dulling action buttons.
    ========================================================================== */
 
-/* LIGHT MODE OVERRIDES */
-.theme-light, .theme-light body {
+.theme-light,
+.theme-light body,
+.theme-sepia,
+.theme-sepia body {
   color: var(--family-text) !important;
 }
 
-.theme-light .text-white {
-  color: var(--family-text) !important;
-}
-
-.theme-light .text-white\/90 { color: rgba(31, 41, 55, 0.90) !important; }
-.theme-light .text-white\/80 { color: rgba(31, 41, 55, 0.80) !important; }
-.theme-light .text-white\/70 { color: rgba(31, 41, 55, 0.70) !important; }
-.theme-light .text-white\/60 { color: rgba(31, 41, 55, 0.60) !important; }
-.theme-light .text-white\/50 { color: rgba(31, 41, 55, 0.50) !important; }
-.theme-light .text-white\/40 { color: rgba(31, 41, 55, 0.40) !important; }
-.theme-light .text-white\/30 { color: rgba(31, 41, 55, 0.30) !important; }
-.theme-light .text-white\/20 { color: rgba(31, 41, 55, 0.20) !important; }
-
-/* Invert glass backgrounds for Light Mode to be darker or solid grey-white */
-.theme-light .bg-white\/3 { background-color: rgba(0, 0, 0, 0.02) !important; }
-.theme-light .bg-white\/5 { background-color: rgba(0, 0, 0, 0.035) !important; }
-.theme-light .bg-white\/10 { background-color: rgba(0, 0, 0, 0.06) !important; }
-.theme-light .bg-white\/15 { background-color: rgba(0, 0, 0, 0.09) !important; }
-.theme-light .bg-white\/20 { background-color: rgba(0, 0, 0, 0.12) !important; }
-.theme-light .bg-white\/30 { background-color: rgba(0, 0, 0, 0.18) !important; }
-.theme-light .bg-white\/40 { background-color: rgba(0, 0, 0, 0.24) !important; }
-
-/* Border overrides */
-.theme-light .border-white\/5,
-.theme-light .border-white\/6,
-.theme-light .border-white\/8,
-.theme-light .border-white\/10,
-.theme-light .border-white\/20 {
-  border-color: rgba(0, 0, 0, 0.08) !important;
-}
-
-/* Specific view element overrides for better contrast */
-.theme-light .glass-panel {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.04);
-}
-
-.theme-light [class*="ring-[#07111F]"] {
-  --tw-ring-color: #F3F4F6 !important;
-}
-
-.theme-light [class*="bg-[#07111F]"] {
-  background-color: var(--family-bg) !important;
-}
-
-
-/* SEPIA MODE OVERRIDES */
-.theme-sepia, .theme-sepia body {
-  color: var(--family-text) !important;
-}
-
+.theme-light .text-white,
 .theme-sepia .text-white {
   color: var(--family-text) !important;
 }
 
-.theme-sepia .text-white\/90 { color: rgba(74, 53, 37, 0.90) !important; }
-.theme-sepia .text-white\/80 { color: rgba(74, 53, 37, 0.80) !important; }
-.theme-sepia .text-white\/70 { color: rgba(74, 53, 37, 0.70) !important; }
-.theme-sepia .text-white\/60 { color: rgba(74, 53, 37, 0.60) !important; }
-.theme-sepia .text-white\/50 { color: rgba(74, 53, 37, 0.50) !important; }
-.theme-sepia .text-white\/40 { color: rgba(74, 53, 37, 0.40) !important; }
-.theme-sepia .text-white\/30 { color: rgba(74, 53, 37, 0.30) !important; }
-.theme-sepia .text-white\/20 { color: rgba(74, 53, 37, 0.20) !important; }
+.theme-light .text-white\/90,
+.theme-light .text-white\/80,
+.theme-sepia .text-white\/90,
+.theme-sepia .text-white\/80 {
+  color: color-mix(in srgb, var(--family-text) 88%, transparent) !important;
+}
 
-/* Invert glass backgrounds for Sepia Mode to brown translucencies */
-.theme-sepia .bg-white\/3 { background-color: rgba(90, 70, 50, 0.02) !important; }
-.theme-sepia .bg-white\/5 { background-color: rgba(90, 70, 50, 0.04) !important; }
-.theme-sepia .bg-white\/10 { background-color: rgba(90, 70, 50, 0.07) !important; }
-.theme-sepia .bg-white\/15 { background-color: rgba(90, 70, 50, 0.10) !important; }
-.theme-sepia .bg-white\/20 { background-color: rgba(90, 70, 50, 0.14) !important; }
-.theme-sepia .bg-white\/30 { background-color: rgba(90, 70, 50, 0.20) !important; }
-.theme-sepia .bg-white\/40 { background-color: rgba(90, 70, 50, 0.26) !important; }
+.theme-light .text-white\/70,
+.theme-light .text-white\/60,
+.theme-sepia .text-white\/70,
+.theme-sepia .text-white\/60 {
+  color: color-mix(in srgb, var(--family-text) 66%, transparent) !important;
+}
 
-/* Border overrides */
+.theme-light .text-white\/50,
+.theme-light .text-white\/40,
+.theme-light .text-white\/30,
+.theme-light .text-white\/20,
+.theme-sepia .text-white\/50,
+.theme-sepia .text-white\/40,
+.theme-sepia .text-white\/30,
+.theme-sepia .text-white\/20 {
+  color: color-mix(in srgb, var(--family-text) 48%, transparent) !important;
+}
+
+.theme-light .bg-white\/3,
+.theme-light .bg-white\/5,
+.theme-light .bg-white\/10,
+.theme-light .bg-white\/15,
+.theme-light .bg-white\/20,
+.theme-light .bg-white\/30,
+.theme-light .bg-white\/40 {
+  background-color: rgba(30, 41, 59, 0.055) !important;
+}
+
+.theme-sepia .bg-white\/3,
+.theme-sepia .bg-white\/5,
+.theme-sepia .bg-white\/10,
+.theme-sepia .bg-white\/15,
+.theme-sepia .bg-white\/20,
+.theme-sepia .bg-white\/30,
+.theme-sepia .bg-white\/40 {
+  background-color: rgba(91, 64, 41, 0.065) !important;
+}
+
+.theme-light .border-white\/5,
+.theme-light .border-white\/6,
+.theme-light .border-white\/8,
+.theme-light .border-white\/10,
+.theme-light .border-white\/15,
+.theme-light .border-white\/20,
 .theme-sepia .border-white\/5,
 .theme-sepia .border-white\/6,
 .theme-sepia .border-white\/8,
 .theme-sepia .border-white\/10,
+.theme-sepia .border-white\/15,
 .theme-sepia .border-white\/20 {
-  border-color: rgba(90, 70, 50, 0.10) !important;
+  border-color: var(--family-border) !important;
 }
 
-/* Specific view element overrides for better contrast */
+.theme-light .glass-panel,
 .theme-sepia .glass-panel {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
-  box-shadow: 0 8px 32px 0 rgba(139, 92, 26, 0.04);
+  box-shadow: 0 18px 40px color-mix(in srgb, var(--family-shadow) 72%, transparent);
+}
+
+.theme-light [class*="bg-[#07111F]"],
+.theme-light [class*="bg-[#081225]"],
+.theme-light [class*="bg-[#0A0D18]"],
+.theme-light [class*="bg-[#0F1E3D]"],
+.theme-light [class*="bg-[#112240]"],
+.theme-light [class*="bg-[#070e17]"] {
+  background-color: #F8FAFC !important;
+}
+
+.theme-sepia [class*="bg-[#07111F]"],
+.theme-sepia [class*="bg-[#081225]"],
+.theme-sepia [class*="bg-[#0A0D18]"],
+.theme-sepia [class*="bg-[#0F1E3D]"],
+.theme-sepia [class*="bg-[#112240]"],
+.theme-sepia [class*="bg-[#070e17]"] {
+  background-color: #FFF8EA !important;
+}
+
+.theme-light [class*="ring-[#07111F]"] {
+  --tw-ring-color: #EDF3FA !important;
 }
 
 .theme-sepia [class*="ring-[#07111F]"] {
-  --tw-ring-color: #F4EBD0 !important;
+  --tw-ring-color: #F6EEDC !important;
 }
 
-.theme-sepia [class*="bg-[#07111F]"] {
-  background-color: var(--family-bg) !important;
+.theme-light [class*="bg-[#6C5CFF]"],
+.theme-light [class*="bg-[#5B4EFA]"],
+.theme-light [class*="bg-[#4F8CFF]"],
+.theme-light [class*="bg-[#FF4D6D]"],
+.theme-light [class*="bg-[#00D26A]"],
+.theme-light [class*="bg-gradient-to"],
+.theme-sepia [class*="bg-[#6C5CFF]"],
+.theme-sepia [class*="bg-[#5B4EFA]"],
+.theme-sepia [class*="bg-[#4F8CFF]"],
+.theme-sepia [class*="bg-[#FF4D6D]"],
+.theme-sepia [class*="bg-[#00D26A]"],
+.theme-sepia [class*="bg-gradient-to"] {
+  color: #FFFFFF !important;
+}
+
+.theme-light [class*="bg-[#6C5CFF]"] .text-white,
+.theme-light [class*="bg-[#5B4EFA]"] .text-white,
+.theme-light [class*="bg-[#4F8CFF]"] .text-white,
+.theme-light [class*="bg-[#FF4D6D]"] .text-white,
+.theme-light [class*="bg-gradient-to"] .text-white,
+.theme-sepia [class*="bg-[#6C5CFF]"] .text-white,
+.theme-sepia [class*="bg-[#5B4EFA]"] .text-white,
+.theme-sepia [class*="bg-[#4F8CFF]"] .text-white,
+.theme-sepia [class*="bg-[#FF4D6D]"] .text-white,
+.theme-sepia [class*="bg-gradient-to"] .text-white {
+  color: #FFFFFF !important;
+}
+
+.theme-light input,
+.theme-light textarea,
+.theme-light select,
+.theme-sepia input,
+.theme-sepia textarea,
+.theme-sepia select {
+  color: var(--family-text) !important;
+  background-color: color-mix(in srgb, var(--family-surface) 86%, transparent) !important;
+  border-color: var(--family-border) !important;
+}
+
+.theme-light input::placeholder,
+.theme-light textarea::placeholder,
+.theme-sepia input::placeholder,
+.theme-sepia textarea::placeholder {
+  color: color-mix(in srgb, var(--family-text) 38%, transparent) !important;
 }
 
 /* iOS Safe Area Utilities */

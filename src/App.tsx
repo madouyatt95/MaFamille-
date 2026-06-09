@@ -2115,8 +2115,13 @@ function App() {
   }, [isPremium]);
   // Chargement et application du thème visuel au démarrage
   useEffect(() => {
+    const savedTheme = localStorage.getItem('app_appearance_mode') || 'dark';
     document.body.classList.remove('theme-light', 'theme-sepia');
-    localStorage.setItem('app_appearance_mode', 'dark');
+    if (savedTheme === 'light') {
+      document.body.classList.add('theme-light');
+    } else if (savedTheme === 'sepia') {
+      document.body.classList.add('theme-sepia');
+    }
   }, []);
 
   // Gestion de la redirection depuis les notifications push (via paramètres URL)
