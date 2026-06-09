@@ -22,6 +22,11 @@ function getTargetUrl(targetModule: string, record: any): string {
   return "/";
 }
 
+function getNotificationDedupKey(table: string, targetModule: string, record: any): string {
+  const recordId = record?.id || record?.group_id || Date.now();
+  return `${table || "unknown"}-${targetModule || "other"}-${recordId}`;
+}
+
 async function clearInvalidFcmToken(fcmToken: string) {
   const { error } = await supabaseAdmin
     .from("foyer_members")
@@ -243,10 +248,17 @@ serve(async (req) => {
     }
 
     // Filtrer pour ne pas l'envoyer à l'expéditeur
-    const targetTokens = members
+    const rawTargetTokens = members
       .filter(m => m.id !== senderId && m.fcm_token)
       .filter(m => !String(m.fcm_token).startsWith("native-fallback-"))
-      .map(m => m.fcm_token);
+      .map(m => String(m.fcm_token));
+    const targetTokens = [...new Set(rawTargetTokens)];
+
+    if (rawTargetTokens.length !== targetTokens.length) {
+      console.log(
+        `[Send-Push] Tokens dupliqués ignorés : ${rawTargetTokens.length} lignes -> ${targetTokens.length} token(s) unique(s).`
+      );
+    }
 
     if (targetTokens.length === 0) {
       console.log("[Send-Push] Aucun token destinataire actif trouvé.");
@@ -263,6 +275,7 @@ serve(async (req) => {
     const credentials = JSON.parse(serviceAccountJson);
     const token = await getGoogleAccessToken(credentials.client_email, credentials.private_key);
     const targetUrl = getTargetUrl(targetModule, record);
+    const dedupKey = getNotificationDedupKey(payload.table, targetModule, record);
 
     // 4. Envoyer les requêtes HTTP vers FCM v1 pour chaque token
     const sendPromises = targetTokens.map(async (fcmToken) => {
@@ -293,7 +306,7 @@ serve(async (req) => {
               notification: {
                 icon: "/icon-192x192.png",
                 badge: "/favicon.svg",
-                tag: `${targetModule}-${record.id || Date.now()}`,
+                tag: dedupKey,
                 renotify: true
               },
               fcm_options: {
@@ -303,12 +316,14 @@ serve(async (req) => {
             apns: {
               headers: {
                 "apns-priority": "10",
-                "apns-push-type": "alert"
+                "apns-push-type": "alert",
+                "apns-collapse-id": dedupKey
               },
               payload: {
                 aps: {
                   alert: { title, body },
-                  sound: "default"
+                  sound: "default",
+                  "thread-id": targetModule || "mafamille"
                 }
               }
             },
