@@ -74,7 +74,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           })
         });
 
-        if (!response.ok) throw new Error('Groq API call failed');
+        if (!response.ok) throw await aiQuotaService.getAIResponseError(response, 'Groq');
         const data = await response.json();
         let textResult = data.choices?.[0]?.message?.content || '';
         textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();

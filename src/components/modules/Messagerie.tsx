@@ -392,7 +392,7 @@ Demande de l'utilisateur : "${userText}"`;
           })
         });
 
-        if (!response.ok) throw new Error('Groq API call failed');
+        if (!response.ok) throw await aiQuotaService.getAIResponseError(response, 'Groq');
         const data = await response.json();
         let reply = data.choices?.[0]?.message?.content || '';
 

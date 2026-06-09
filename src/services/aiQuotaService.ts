@@ -134,5 +134,25 @@ export const aiQuotaService = {
     }
 
     return headers;
+  },
+
+  async getAIResponseError(response: Response, provider: string): Promise<Error> {
+    let detail = '';
+    try {
+      const data = await response.clone().json();
+      detail = data?.error?.message || data?.error || data?.quota?.reason || JSON.stringify(data);
+    } catch {
+      try {
+        detail = await response.clone().text();
+      } catch {
+        detail = '';
+      }
+    }
+
+    const message = detail
+      ? `${provider} API ${response.status}: ${detail}`
+      : `${provider} API ${response.status}`;
+
+    return new Error(message);
   }
 };

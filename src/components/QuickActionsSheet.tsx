@@ -101,7 +101,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
           });
 
           if (!response.ok) {
-            throw new Error(`Erreur API Gemini: ${response.status}`);
+            throw await aiQuotaService.getAIResponseError(response, 'Gemini');
           }
 
           const result = await response.json();

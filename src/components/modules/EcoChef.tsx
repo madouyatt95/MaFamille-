@@ -101,12 +101,16 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
               parts: [{
                 text: prompt
               }]
-            }]
+            }],
+            generationConfig: {
+              responseMimeType: "application/json",
+              temperature: 0.6
+            }
           })
         });
 
         if (!response.ok) {
-          throw new Error('Gemini API request failed');
+          throw await aiQuotaService.getAIResponseError(response, 'Gemini');
         }
 
         const data = await response.json();
@@ -143,9 +147,7 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
           throw new Error("Le format JSON reçu n'est pas un tableau valide.");
         }
       } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
         console.warn("[EcoChef] Erreur de génération IA en direct, basculement sur la simulation locale :", err);
-        alert("[EcoChef Gemini Error]: " + errMsg);
       }
     }
 

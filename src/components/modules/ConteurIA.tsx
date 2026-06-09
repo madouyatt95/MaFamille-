@@ -569,7 +569,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           })
         });
 
-        if (!response.ok) throw new Error('Gemini API call failed');
+        if (!response.ok) throw await aiQuotaService.getAIResponseError(response, 'Gemini');
         const data = await response.json();
         let textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
