@@ -5861,7 +5861,7 @@ function App() {
   };
 
   const detectCreationContext = (promptLower: string, text: string) => {
-    const isCreation = /ajoute|ajouter|crée|creer|créer|cree|planifie|planifier|enregistre|enregistrer|note|noter/i.test(promptLower);
+    const isCreation = /ajoute|ajouter|crée|creer|créer|cree|planifie|planifier|programme|programmer|enregistre|enregistrer|note|noter|prends|prendre/i.test(promptLower);
     if (!isCreation) return null;
 
     // 1. VOYAGE
@@ -6011,7 +6011,25 @@ function App() {
     }
 
     // 8. AGENDA / EVENT
-    if (promptLower.includes('rendez-vous') || promptLower.includes('rendez vous') || promptLower.includes('rdv') || promptLower.includes('événement') || promptLower.includes('evenement')) {
+    if (
+      promptLower.includes('rendez-vous') ||
+      promptLower.includes('rendez vous') ||
+      promptLower.includes('rdv') ||
+      promptLower.includes('événement') ||
+      promptLower.includes('evenement') ||
+      promptLower.includes('réunion') ||
+      promptLower.includes('reunion') ||
+      promptLower.includes('visite') ||
+      promptLower.includes('médecin') ||
+      promptLower.includes('medecin') ||
+      promptLower.includes('docteur') ||
+      promptLower.includes('dentiste') ||
+      promptLower.includes('pédiatre') ||
+      promptLower.includes('pediatre') ||
+      promptLower.includes('ophtalmo') ||
+      promptLower.includes('ostéo') ||
+      promptLower.includes('osteo')
+    ) {
       const dateRegex = /(?:le\s+)?(\d+\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i;
       const dateMatch = promptLower.match(dateRegex);
       const rawDateStr = dateMatch ? dateMatch[1] : (promptLower.includes('demain') ? 'demain' : undefined);
@@ -6021,7 +6039,11 @@ function App() {
       const time = timeMatch ? timeMatch[1] : undefined;
 
       let title = 'Rendez-vous';
-      const restText = text.replace(/ajoute|ajouter|crée|creer|créer|cree|un|le|rdv|rendez-vous|rendez vous/gi, '').replace(/\b(\d+h\d*|\d+:\d+)\b/g, '').replace(dateRegex, '').trim();
+      const restText = text
+        .replace(/ajoute|ajouter|crée|creer|créer|cree|planifie|planifier|programme|programmer|prends|prendre|un|le|rdv|rendez-vous|rendez vous/gi, '')
+        .replace(/\b(\d+h\d*|\d+:\d+)\b/g, '')
+        .replace(dateRegex, '')
+        .trim();
       if (restText) title = restText.charAt(0).toUpperCase() + restText.slice(1);
 
       return {
