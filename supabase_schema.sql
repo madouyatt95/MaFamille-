@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS public.foyer_members (
     emergency_contact_relation TEXT,
     school_or_employer TEXT,
     has_exemption BOOLEAN DEFAULT FALSE,
+    notification_prefs JSONB DEFAULT '{}'::jsonb,
     approved BOOLEAN DEFAULT TRUE,
     joined_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(foyer_id, user_id)
@@ -1040,4 +1041,3 @@ CREATE POLICY "academy_questions_write" ON public.academy_questions FOR ALL
         SELECT 1 FROM public.foyer_members 
         WHERE user_id = auth.uid() AND role IN ('admin', 'parent')
     ));
-

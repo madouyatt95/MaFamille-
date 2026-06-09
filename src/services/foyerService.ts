@@ -100,7 +100,8 @@ export const foyerService = {
           longitude: memberData.longitude,
           locationStatus: memberData.location_status,
           lastLocatedAt: memberData.last_located_at,
-          approved: memberData.approved !== false
+          approved: memberData.approved !== false,
+          notificationPrefs: memberData.notification_prefs || undefined
         };
 
         return { foyer, member };
@@ -190,7 +191,8 @@ export const foyerService = {
       longitude: memberData.longitude,
       locationStatus: memberData.location_status,
       lastLocatedAt: memberData.last_located_at,
-      approved: memberData.approved !== false
+      approved: memberData.approved !== false,
+      notificationPrefs: memberData.notification_prefs || undefined
     };
 
     return { foyer, member };
@@ -235,7 +237,8 @@ export const foyerService = {
       longitude: m.longitude,
       locationStatus: m.location_status,
       lastLocatedAt: m.last_located_at,
-      approved: m.approved !== false
+      approved: m.approved !== false,
+      notificationPrefs: m.notification_prefs || undefined
     }));
   },
 
@@ -594,7 +597,8 @@ export const foyerService = {
       latitude: data.latitude,
       longitude: data.longitude,
       locationStatus: data.location_status,
-      lastLocatedAt: data.last_located_at
+      lastLocatedAt: data.last_located_at,
+      notificationPrefs: data.notification_prefs || undefined
     };
   },
 

@@ -76,6 +76,7 @@ export interface FoyerMember {
   lastLocatedAt?: string;
   hasExemption?: boolean;
   approved?: boolean;
+  notificationPrefs?: Record<string, boolean>;
 }
 
 export interface FoyerInvitation {

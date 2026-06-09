@@ -104,6 +104,30 @@ function normalizeIdentity(value: unknown): string {
   return String(value || "").trim().toLowerCase();
 }
 
+function getPreferenceKeyForModule(targetModule: string): string | null {
+  const moduleName = normalizeIdentity(targetModule);
+
+  if (["courses", "grocery", "groceries"].includes(moduleName)) return "groceries";
+  if (["taches", "tasks", "chore_tasks"].includes(moduleName)) return "tasks";
+  if (["agenda", "events", "calendar"].includes(moduleName)) return "agenda";
+  if (["budget", "finances", "transactions", "saving_goals"].includes(moduleName)) return "finances";
+  if (["messagerie", "chat", "messages"].includes(moduleName)) return "chat";
+  if (["sante", "health", "vaccines"].includes(moduleName)) return "health";
+  if (["vault", "documents", "demarches", "justificatif_packs"].includes(moduleName)) return "vault";
+
+  return null;
+}
+
+function allowsModulePush(member: any, targetModule: string): boolean {
+  const preferenceKey = getPreferenceKeyForModule(targetModule);
+  if (!preferenceKey) return true;
+
+  const prefs = member?.notification_prefs;
+  if (!prefs || typeof prefs !== "object") return true;
+
+  return prefs[preferenceKey] !== false;
+}
+
 // Encodage Base64URL conforme aux specs JWT
 function base64UrlEncode(str: string): string {
   const binary = new TextEncoder().encode(str);
@@ -349,7 +373,7 @@ serve(async (req) => {
     // 2. Récupérer les tokens FCM des autres membres du foyer
     const { data: members, error: membersError } = await supabaseAdmin
       .from("foyer_members")
-      .select("id, display_name, user_id, fcm_token")
+      .select("id, display_name, user_id, fcm_token, notification_prefs")
       .eq("foyer_id", foyerId)
       .not("fcm_token", "is", null);
 
@@ -365,6 +389,10 @@ serve(async (req) => {
         if (senderId && String(m.id) === String(senderId)) return false;
         if (senderUserId && String(m.user_id) === String(senderUserId)) return false;
         if (senderName && normalizeIdentity(m.display_name) === normalizeIdentity(senderName)) return false;
+        if (!allowsModulePush(m, targetModule)) {
+          console.log(`[Send-Push] Préférence utilisateur : module ${targetModule} désactivé pour ${m.display_name || m.id}.`);
+          return false;
+        }
         return true;
       })
       .filter(m => !String(m.fcm_token).startsWith("native-fallback-"))

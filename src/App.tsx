@@ -2030,6 +2030,12 @@ function App() {
 
   useEffect(() => {
     const key = `mf_notif_prefs_${foyer?.id || 'simulated'}_${user?.id || 'guest'}`;
+    if (myMemberProfile?.notificationPrefs) {
+      setNotificationPrefs(myMemberProfile.notificationPrefs);
+      localStorage.setItem(key, JSON.stringify(myMemberProfile.notificationPrefs));
+      return;
+    }
+
     const cached = localStorage.getItem(key);
     if (cached) {
       try {
@@ -2046,7 +2052,7 @@ function App() {
         vault: true
       });
     }
-  }, [foyer?.id, user?.id]);
+  }, [foyer?.id, user?.id, myMemberProfile?.notificationPrefs]);
 
   useEffect(() => {
     localStorage.setItem('mf_is_premium', String(isPremium));
