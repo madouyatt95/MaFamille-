@@ -59,5 +59,9 @@
 	<string>Cette application accède à votre bibliothèque de photos pour vous permettre de sélectionner des photos de souvenirs, de justificatifs et d'avatars.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Cette application requiert l'accès pour enregistrer des photos dans votre bibliothèque.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>
