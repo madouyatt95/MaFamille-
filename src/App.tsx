@@ -14228,6 +14228,21 @@ function App() {
               <p className="text-xs text-white/50 leading-relaxed">
                 Veuillez saisir le code PIN parent à 4 chiffres pour accéder à ce profil.
               </p>
+              {(() => {
+                const savedPin = foyer?.parentPin || localStorage.getItem('mf_parent_pin') || '0000';
+                return (
+                  <div className="pt-1.5 flex flex-col items-center">
+                    <button
+                      type="button"
+                      onClick={() => handleVerifyPin(savedPin)}
+                      className="text-[10px] text-[#6C5CFF] hover:underline font-bold px-2 py-1 rounded bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 cursor-pointer active:scale-95 transition-all"
+                    >
+                      ⚡ Déverrouillage Dev Rapide
+                    </button>
+                    <span className="text-[9px] text-white/30 mt-1">(Aide Dev : Le PIN actuel est {savedPin})</span>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* PIN Code Dots Indicator */}
