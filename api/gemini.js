@@ -1,3 +1,5 @@
+import { requirePremiumAiQuota } from './_aiAccess.js';
+
 export default async function handler(req, res) {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -13,18 +15,11 @@ export default async function handler(req, res) {
   }
 
   try {
+    const quota = await requirePremiumAiQuota(req, res);
+    if (!quota) return;
+
     // 1. Déterminer la clé API
-    // D'abord on vérifie l'en-tête Authorization du client (pour compatibilité locale / dev)
-    let geminiKey = '';
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      geminiKey = authHeader.substring(7);
-    }
-    
-    // Si aucune clé client n'est passée, on utilise la clé privée stockée côté serveur
-    if (!geminiKey) {
-      geminiKey = process.env.GEMINI_API_KEY || '';
-    }
+    const geminiKey = process.env.GEMINI_API_KEY || '';
 
     if (!geminiKey) {
       return res.status(400).json({ error: 'Missing Gemini API Key. Configure GEMINI_API_KEY on Vercel or pass it via Authorization header.' });
@@ -40,6 +35,8 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
+    res.setHeader('X-AI-Quota-Remaining', String(quota.remaining ?? 0));
+    res.setHeader('X-AI-Quota-Limit', String(quota.limit ?? 10));
     return res.status(response.status).json(data);
   } catch (error) {
     return res.status(500).json({ error: error.message });

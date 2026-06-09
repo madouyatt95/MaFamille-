@@ -1,3 +1,5 @@
+import { getSupabaseClient } from '../utils/supabase';
+
 /**
  * Service centralisé pour la gestion de l'accès Premium et des quotas d'IA réelle.
  */
@@ -7,7 +9,7 @@ interface DailyAiUsage {
   count: number;
 }
 
-const DAILY_LIMIT = 20;
+const DAILY_LIMIT = 10;
 
 export const aiQuotaService = {
   /**
@@ -76,7 +78,8 @@ export const aiQuotaService = {
   },
 
   /**
-   * Consomme une unité du quota d'IA réelle si l'utilisateur est Premium et a du quota disponible.
+   * Autorise une tentative d'IA réelle côté client.
+   * Le quota réel est consommé côté serveur/Supabase pour être commun à PWA, iOS et autres appareils.
    * Renvoie `true` si le quota d'IA réelle est alloué avec succès (utilisation de la vraie IA).
    * Renvoie `false` si le quota est dépassé (ou si non Premium), forçant le basculement transparent vers la version locale simulée.
    */
@@ -85,16 +88,7 @@ export const aiQuotaService = {
       return false;
     }
 
-    const usage = this.getUsage();
-    if (usage.count < DAILY_LIMIT) {
-      usage.count += 1;
-      this.saveUsage(usage);
-      console.log(`[aiQuotaService] Appel IA réelle consommé. (${usage.count}/${DAILY_LIMIT} aujourd'hui)`);
-      return true;
-    }
-
-    console.warn(`[aiQuotaService] Quota d'IA réelle épuisé (${usage.count}/${DAILY_LIMIT}). Basculement vers l'IA simulée locale.`);
-    return false;
+    return true;
   },
 
   /**
@@ -104,8 +98,7 @@ export const aiQuotaService = {
     if (!isPremium) {
       return 0;
     }
-    const usage = this.getUsage();
-    return Math.max(0, DAILY_LIMIT - usage.count);
+    return DAILY_LIMIT;
   },
 
   /**
@@ -121,5 +114,25 @@ export const aiQuotaService = {
   resetQuota(): void {
     localStorage.removeItem('mf_daily_ai_usage');
     console.log('[aiQuotaService] Quota réinitialisé avec succès.');
+  },
+
+  async getAIProxyHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+
+    const foyerId = localStorage.getItem('mf_cloud_foyer_id') || localStorage.getItem('mf_active_foyer_id');
+    if (foyerId) {
+      headers['X-Foyer-Id'] = foyerId;
+    }
+
+    const supabase = getSupabaseClient();
+    const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+    const token = data.session?.access_token;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    return headers;
   }
 };

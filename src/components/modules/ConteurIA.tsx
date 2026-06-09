@@ -557,15 +557,8 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
   ]
 }`;
 
-        const useProxy = !import.meta.env.DEV || !import.meta.env.VITE_GEMINI_API_KEY;
-        const geminiEndpoint = useProxy
-          ? (import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini')
-          : `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
-
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (!useProxy && import.meta.env.VITE_GEMINI_API_KEY) {
-          headers['Authorization'] = `Bearer ${import.meta.env.VITE_GEMINI_API_KEY}`;
-        }
+        const geminiEndpoint = import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini';
+        const headers = await aiQuotaService.getAIProxyHeaders();
 
         const response = await fetch(geminiEndpoint, {
           method: 'POST',
@@ -650,8 +643,8 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
 
           if (isQuotaFallback) {
             console.info("[ConteurIA] Quota quotidien d'IA réelle épuisé. Basculement sur le Conteur local.");
-          } else if (!import.meta.env.VITE_GEMINI_API_KEY) {
-            console.info("[ConteurIA] Clé VITE_GEMINI_API_KEY absente. Basculement sur le Conteur local.");
+          } else if (isPremium) {
+            console.info("[ConteurIA] IA réelle indisponible. Basculement sur le Conteur local.");
           } else {
             console.info("[ConteurIA] Basculement sur le Conteur local (compte non-Premium).");
           }

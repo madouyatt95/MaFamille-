@@ -1,3 +1,5 @@
+import { requirePremiumAiQuota } from './_aiAccess.js';
+
 export default async function handler(req, res) {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -14,18 +16,11 @@ export default async function handler(req, res) {
 
   try {
     const { messages, model, temperature } = req.body;
+    const quota = await requirePremiumAiQuota(req, res);
+    if (!quota) return;
     
     // 1. Déterminer la clé API Groq
-    let groqKey = '';
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      groqKey = authHeader.substring(7).trim();
-    }
-
-    // Si aucune clé client n'est passée, on utilise la clé privée stockée côté serveur
-    if (!groqKey) {
-      groqKey = process.env.GROQ_API_KEY || '';
-    }
+    const groqKey = process.env.GROQ_API_KEY || '';
 
     if (!groqKey) {
       return res.status(400).json({ error: 'Missing Groq API Key. Configure GROQ_API_KEY on Vercel or pass it via Authorization header.' });
@@ -46,6 +41,8 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
+    res.setHeader('X-AI-Quota-Remaining', String(quota.remaining ?? 0));
+    res.setHeader('X-AI-Quota-Limit', String(quota.limit ?? 10));
     return res.status(response.status).json(data);
   } catch (error) {
     return res.status(500).json({ error: error.message });

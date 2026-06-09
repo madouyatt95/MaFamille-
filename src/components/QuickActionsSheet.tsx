@@ -13,6 +13,7 @@ import {
   Loader
 } from 'lucide-react';
 import type { Member, EventType, TransactionType } from '../types';
+import { aiQuotaService } from '../services/aiQuotaService';
 
 interface QuickActionsSheetProps {
   isOpen: boolean;
@@ -68,10 +69,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
           const base64Data = (reader.result as string).split(',')[1];
           const mimeType = file.type || 'image/jpeg';
           
-          const useProxy = !import.meta.env.DEV || !import.meta.env.VITE_GEMINI_API_KEY;
-          const geminiEndpoint = useProxy
-            ? (import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini')
-            : `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
+          const geminiEndpoint = import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini';
 
           const requestBody = {
             contents: [
@@ -94,12 +92,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
             }
           };
 
-          const headers: Record<string, string> = {
-            'Content-Type': 'application/json'
-          };
-          if (!useProxy && import.meta.env.VITE_GEMINI_API_KEY) {
-            headers['Authorization'] = `Bearer ${import.meta.env.VITE_GEMINI_API_KEY}`;
-          }
+          const headers = await aiQuotaService.getAIProxyHeaders();
 
           const response = await fetch(geminiEndpoint, {
             method: 'POST',

@@ -90,15 +90,8 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
 - rating (avis fictif fun de la famille ex: 'Papa ⭐️5, Amadou ⭐️4.8')
 - promptKeywords (mots-clés très descriptifs en anglais séparés par des virgules pour générer la photo culinaire ex: 'creamy chicken soup with warm bread, hyper detailed food photography, Pixar style 3d')`;
 
-        const useProxy = !import.meta.env.DEV || !import.meta.env.VITE_GEMINI_API_KEY;
-        const geminiEndpoint = useProxy
-          ? (import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini')
-          : `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
-
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (!useProxy && import.meta.env.VITE_GEMINI_API_KEY) {
-          headers['Authorization'] = `Bearer ${import.meta.env.VITE_GEMINI_API_KEY}`;
-        }
+        const geminiEndpoint = import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini';
+        const headers = await aiQuotaService.getAIProxyHeaders();
 
         const response = await fetch(geminiEndpoint, {
           method: 'POST',
@@ -166,7 +159,7 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
         {
           id: 'rec-1',
           title: `Poêlée Express : ${ingNames.slice(0, 2).join(' & ')}`,
-          desc: `Une cuisson rapide et savoureuse à la poêle pour sublimer vos restes de ${ingNames.join(', ').toLowerCase()} en quelques minutes.${isQuotaFallback ? ' ✨ (IA Locale simulée : votre quota quotidien d\'IA réelle est épuisé !)' : ' ✨ (IA Locale simulée : configurez VITE_GEMINI_API_KEY dans votre fichier .env.local)'}`,
+          desc: `Une cuisson rapide et savoureuse à la poêle pour sublimer vos restes de ${ingNames.join(', ').toLowerCase()} en quelques minutes.${isQuotaFallback ? ' ✨ (IA Locale simulée : votre quota quotidien d\'IA réelle est épuisé !)' : ' ✨ (IA Locale simulée : l\'IA réelle est indisponible pour le moment)'}`,
           uses: activeInFull,
           missing: ['Huile d\'olive', 'Oignon blanc', 'Herbes de Provence'],
           time: '12 min',
