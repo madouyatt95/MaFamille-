@@ -517,37 +517,43 @@ export const Settings: React.FC<SettingsProps> = ({
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoFile} className="hidden" />
             <input ref={galleryInputRef} type="file" accept="image/*" onChange={handlePhotoFile} className="hidden" />
 
-            {/* Preset avatars */}
-            <div className="space-y-2 w-full">
-              <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block text-center">Ou choisir un avatar</span>
-              <div className="flex flex-wrap gap-2 justify-center">
-                {presetAvatars.map((av) => (
-                  <button
-                    type="button"
-                    key={av.url}
-                    onClick={() => setProfilePhoto(av.url)}
-                    className={`p-2 rounded-xl bg-white/5 border text-sm hover:bg-white/10 active:scale-95 transition-all cursor-pointer ${
-                      profilePhoto === av.url ? 'border-[#6C5CFF] bg-[#6C5CFF]/10 scale-110 shadow-md' : 'border-transparent'
-                    }`}
-                    title={av.label}
-                  >
-                    {av.emoji}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <details className="group w-full rounded-2xl bg-white/3 border border-white/5 overflow-hidden">
+              <summary className="px-3.5 py-3 text-[10px] font-extrabold text-white/55 uppercase tracking-wider cursor-pointer list-none flex items-center justify-between">
+                <span>Options avatar avancées</span>
+                <span className="text-white/30 group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <div className="px-3.5 pb-3 space-y-3 border-t border-white/5">
+                <div className="space-y-2 w-full pt-3">
+                  <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block text-center">Choisir un avatar</span>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {presetAvatars.map((av) => (
+                      <button
+                        type="button"
+                        key={av.url}
+                        onClick={() => setProfilePhoto(av.url)}
+                        className={`p-2 rounded-xl bg-white/5 border text-sm hover:bg-white/10 active:scale-95 transition-all cursor-pointer ${
+                          profilePhoto === av.url ? 'border-[#6C5CFF] bg-[#6C5CFF]/10 scale-110 shadow-md' : 'border-transparent'
+                        }`}
+                        title={av.label}
+                      >
+                        {av.emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Custom URL Input */}
-            <div className="w-full space-y-1">
-              <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Ou coller l'URL d'une image</label>
-              <input
-                type="text"
-                placeholder="https://images.unsplash.com/..."
-                value={profilePhoto}
-                onChange={(e) => setProfilePhoto(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
-              />
-            </div>
+                <div className="w-full space-y-1">
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">URL d'une image</label>
+                  <input
+                    type="text"
+                    placeholder="https://images.unsplash.com/..."
+                    value={profilePhoto}
+                    onChange={(e) => setProfilePhoto(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
+                  />
+                </div>
+              </div>
+            </details>
           </div>
 
           {/* Display Name input */}
@@ -648,20 +654,23 @@ export const Settings: React.FC<SettingsProps> = ({
         
         <div className="grid grid-cols-3 gap-2">
           {[
-            { id: 'dark', label: 'Sombre 🌗' },
-            { id: 'light', label: 'Clair ☀️' },
-            { id: 'sepia', label: 'Sépia 📜' }
+            { id: 'dark', label: 'Sombre', bg: 'from-[#07111F] to-[#111C33]', dot: 'bg-[#6C5CFF]' },
+            { id: 'light', label: 'Clair', bg: 'from-[#F8FAFF] to-[#EAF0FA]', dot: 'bg-[#4F8CFF]' },
+            { id: 'sepia', label: 'Sépia', bg: 'from-[#FBF4E7] to-[#EAD8B8]', dot: 'bg-[#9A650F]' }
           ].map((mode) => (
             <button
               type="button"
               key={mode.id}
               onClick={() => setTheme(mode.id as typeof theme)}
-              className={`py-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-center justify-center space-y-1.5 active:scale-95 ${
+              className={`p-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-stretch justify-center space-y-2 active:scale-95 ${
                 theme === mode.id
                   ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] text-white shadow-md shadow-[#6C5CFF]/10 font-black'
                   : 'bg-white/5 border-transparent text-white/50 hover:text-white hover:bg-white/10'
               }`}
             >
+              <span className={`h-9 rounded-lg bg-gradient-to-br ${mode.bg} border border-white/20 flex items-end justify-end p-1.5`}>
+                <span className={`w-3 h-3 rounded-full ${mode.dot} shadow-sm`} />
+              </span>
               <span>{mode.label}</span>
             </button>
           ))}
@@ -877,8 +886,53 @@ export const Settings: React.FC<SettingsProps> = ({
 
           <div className="pt-2"></div>
 
+        </div>
+      ) : (
+        /* 3. Authentication Panel (Show if not logged in) */
+        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 animate-fade-in text-center">
+          <div className="space-y-2 py-4">
+            <div className="w-12 h-12 rounded-full bg-[#6C5CFF]/10 flex items-center justify-center mx-auto text-[#6C5CFF]">
+              <Lock className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                Portail de Connexion
+              </h3>
+              <p className="text-[10px] text-white/50 max-w-xs mx-auto leading-normal">
+                Rejoignez votre famille ou créez votre propre foyer pour synchroniser vos agendas, listes et photos.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenOnboarding) {
+                onOpenOnboarding();
+              }
+            }}
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs uppercase tracking-wider shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+          >
+            Se connecter / Rejoindre / S'inscrire
+          </button>
+        </div>
+      ))}
+
+      {/* Réglages parentaux avancés */}
+      {settingsTab === 'avance' && user && foyer && (!myMemberProfile || ['admin', 'parent'].includes(myMemberProfile.role)) && (
+        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-5 animate-fade-in">
+          <div>
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+              <SettingsIcon className="w-4 h-4 text-[#FFB020]" />
+              <span>Contrôles parentaux avancés</span>
+            </h3>
+            <p className="text-xs text-white/50 mt-2 leading-relaxed">
+              Options utiles pour régler finement le comportement des profils enfants.
+            </p>
+          </div>
+
           {/* Malus Settings Card */}
-          {(!myMemberProfile || ['admin', 'parent'].includes(myMemberProfile.role)) && (
+          {
             <div className="p-5 rounded-2xl bg-white/3 border border-white/5 space-y-4">
               <div className="flex items-center space-x-2 text-[#FFB020]">
                 <SettingsIcon className="w-4 h-4 text-[#FFB020]" />
@@ -987,12 +1041,12 @@ export const Settings: React.FC<SettingsProps> = ({
                 </div>
               </div>
             </div>
-          )}
+          }
 
           <div className="pt-2"></div>
 
           {/* Parent PIN Lock Card */}
-          {(!myMemberProfile || ['admin', 'parent'].includes(myMemberProfile.role)) && (
+          {
             <div className="p-5 rounded-2xl bg-white/3 border border-white/5 space-y-4">
               <div className="flex items-center space-x-2 text-[#FF4D6D]">
                 <Lock className="w-4 h-4" />
@@ -1035,12 +1089,13 @@ export const Settings: React.FC<SettingsProps> = ({
                 </button>
               </div>
             </div>
-          )}
+          }
+        </div>
+      )}
 
-          <div className="pt-2"></div>
-
-          {/* Database Maintenance and Cleansing Section */}
-          <div className="p-5 rounded-2xl bg-white/3 border border-white/5 space-y-4">
+      {/* Maintenance cloud */}
+      {settingsTab === 'avance' && user && foyer && (
+          <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 animate-fade-in">
             <div className="flex items-center space-x-2 text-[#FFB020]">
               <Database className="w-4 h-4" />
               <h4 className="text-xs font-bold uppercase tracking-wider text-white">Maintenance BDD & Données Cloud</h4>
@@ -1074,40 +1129,7 @@ export const Settings: React.FC<SettingsProps> = ({
               )}
             </div>
           </div>
-
-
-
-        </div>
-      ) : (
-        /* 3. Authentication Panel (Show if not logged in) */
-        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 animate-fade-in text-center">
-          <div className="space-y-2 py-4">
-            <div className="w-12 h-12 rounded-full bg-[#6C5CFF]/10 flex items-center justify-center mx-auto text-[#6C5CFF]">
-              <Lock className="w-6 h-6" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-                Portail de Connexion
-              </h3>
-              <p className="text-[10px] text-white/50 max-w-xs mx-auto leading-normal">
-                Rejoignez votre famille ou créez votre propre foyer pour synchroniser vos agendas, listes et photos.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (onOpenOnboarding) {
-                onOpenOnboarding();
-              }
-            }}
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs uppercase tracking-wider shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
-          >
-            Se connecter / Rejoindre / S'inscrire
-          </button>
-        </div>
-      ))}
+      )}
 
       {/* 4. Données locales & Sauvegarde */}
       {settingsTab === 'avance' && !user && (

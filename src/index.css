@@ -100,6 +100,12 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+html,
+#root {
+  min-height: 100%;
+  background-color: var(--family-bg);
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
@@ -210,7 +216,23 @@ body {
     linear-gradient(180deg, #F7F9FF 0%, #F4F7FB 48%, #EFF4FA 100%) !important;
 }
 
+.theme-light,
+.theme-light #root {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(91, 78, 250, 0.09), transparent 32rem),
+    radial-gradient(circle at 92% 18%, rgba(79, 140, 255, 0.10), transparent 30rem),
+    linear-gradient(180deg, #F7F9FF 0%, #F4F7FB 48%, #EFF4FA 100%) !important;
+}
+
 .theme-sepia body {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(154, 91, 47, 0.11), transparent 30rem),
+    radial-gradient(circle at 90% 22%, rgba(255, 176, 32, 0.11), transparent 28rem),
+    linear-gradient(180deg, #FBF4E7 0%, #F7EFDF 55%, #F2E7D3 100%) !important;
+}
+
+.theme-sepia,
+.theme-sepia #root {
   background:
     radial-gradient(circle at 12% 0%, rgba(154, 91, 47, 0.11), transparent 30rem),
     radial-gradient(circle at 90% 22%, rgba(255, 176, 32, 0.11), transparent 28rem),
@@ -315,6 +337,22 @@ body {
   background-color: rgba(255, 255, 255, 0.92) !important;
 }
 
+.theme-light [class*="from-[#07111F]"],
+.theme-light [class*="from-[#04060C]"],
+.theme-light [class*="from-[#090D1A]"],
+.theme-light [class*="from-[#0A0D18]"] {
+  --tw-gradient-from: #F7F9FF var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(247, 249, 255, 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position)) !important;
+}
+
+.theme-light [class*="to-[#07111F]"],
+.theme-light [class*="to-[#04060C]"],
+.theme-light [class*="to-[#0A0D18]"],
+.theme-light [class*="to-[#121829]"] {
+  --tw-gradient-to: #EEF3FA var(--tw-gradient-to-position) !important;
+}
+
 .theme-sepia [class*="bg-[#07111F]"],
 .theme-sepia [class*="bg-[#1a2b4c]"],
 .theme-sepia [class*="bg-[#081225]"],
@@ -328,6 +366,22 @@ body {
 .theme-sepia [class*="bg-[#081225]/"],
 .theme-sepia [class*="bg-[#112240]/"] {
   background-color: rgba(255, 249, 236, 0.94) !important;
+}
+
+.theme-sepia [class*="from-[#07111F]"],
+.theme-sepia [class*="from-[#04060C]"],
+.theme-sepia [class*="from-[#090D1A]"],
+.theme-sepia [class*="from-[#0A0D18]"] {
+  --tw-gradient-from: #FBF4E7 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(251, 244, 231, 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position)) !important;
+}
+
+.theme-sepia [class*="to-[#07111F]"],
+.theme-sepia [class*="to-[#04060C]"],
+.theme-sepia [class*="to-[#0A0D18]"],
+.theme-sepia [class*="to-[#121829]"] {
+  --tw-gradient-to: #F2E7D3 var(--tw-gradient-to-position) !important;
 }
 
 .theme-light [class*="bg-black/"] {
