@@ -2253,12 +2253,7 @@ function App() {
         setIsSyncReady(false);
         setFoyer(myFoyer);
         setMyMemberProfile(myMember);
-        const savedActiveMemberId = localStorage.getItem('mf_active_member_id');
-        if (savedActiveMemberId) {
-          setActiveMemberId(savedActiveMemberId);
-        } else {
-          setActiveMemberId(myMember.id);
-        }
+        setActiveMemberId(myMember.id);
         
         const localPremium = localStorage.getItem('mf_is_premium');
         if (localPremium !== null) {
@@ -2327,12 +2322,16 @@ function App() {
             setFoyer(JSON.parse(restoredData['mf_cached_foyer']!));
           } catch(e){}
         }
+        let restoredMemberProfile: FoyerMember | null = null;
         if (restoredData['mf_cached_member_profile']) {
           try {
-            setMyMemberProfile(JSON.parse(restoredData['mf_cached_member_profile']!));
+            restoredMemberProfile = JSON.parse(restoredData['mf_cached_member_profile']!);
+            setMyMemberProfile(restoredMemberProfile);
           } catch(e){}
         }
-        if (restoredData['mf_active_member_id']) {
+        if (restoredMemberProfile?.id) {
+          setActiveMemberId(restoredMemberProfile.id);
+        } else if (restoredData['mf_active_member_id']) {
           setActiveMemberId(restoredData['mf_active_member_id']!);
         }
         if (restoredData['mf_members']) {
