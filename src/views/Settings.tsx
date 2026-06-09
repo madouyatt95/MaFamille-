@@ -68,6 +68,7 @@ export const Settings: React.FC<SettingsProps> = ({
   onUpdateFoyerConfig
 }) => {
   const [savingBackup, setSavingBackup] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'compte' | 'famille' | 'alertes' | 'avance'>('compte');
 
   const [parentPinInput, setParentPinInput] = useState(() => {
     return foyer?.parentPin || localStorage.getItem('mf_parent_pin') || '0000';
@@ -406,8 +407,30 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
       </div>
 
+      <div className="grid grid-cols-4 gap-1.5 rounded-2xl bg-white/5 border border-white/8 p-1">
+        {[
+          { id: 'compte', label: 'Compte' },
+          { id: 'famille', label: 'Famille' },
+          { id: 'alertes', label: 'Alertes' },
+          { id: 'avance', label: 'Avancé' }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setSettingsTab(tab.id as typeof settingsTab)}
+            className={`py-2.5 rounded-xl text-[10px] font-extrabold transition-all cursor-pointer ${
+              settingsTab === tab.id
+                ? 'bg-[#6C5CFF] text-white shadow-md shadow-[#6C5CFF]/20'
+                : 'text-white/45 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {/* 0. Mon Profil */}
-      {(myMemberProfile || activeMemberId) && (
+      {settingsTab === 'compte' && (myMemberProfile || activeMemberId) && (
         <form onSubmit={handleSaveProfile} className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-5 animate-fade-in">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
@@ -530,7 +553,7 @@ export const Settings: React.FC<SettingsProps> = ({
       )}
 
       {/* Modifier mon mot de passe */}
-      {user && (
+      {settingsTab === 'compte' && user && (
         <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 animate-fade-in">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
             <Lock className="w-4 h-4 text-[#FF4D6D]" />
@@ -580,6 +603,7 @@ export const Settings: React.FC<SettingsProps> = ({
       )}
 
       {/* Sélecteur de Mode d'Apparence */}
+      {settingsTab === 'compte' && (
       <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
           <Sparkles className="w-4 h-4 text-[#6C5CFF]" />
@@ -610,8 +634,10 @@ export const Settings: React.FC<SettingsProps> = ({
           ))}
         </div>
       </div>
+      )}
 
       {/* Notifications Push */}
+      {settingsTab === 'alertes' && (
       <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
@@ -648,8 +674,10 @@ export const Settings: React.FC<SettingsProps> = ({
           )}
         </button>
       </div>
+      )}
 
       {/* Toggles de personnalisation par module */}
+      {settingsTab === 'alertes' && (
       <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
@@ -693,8 +721,10 @@ export const Settings: React.FC<SettingsProps> = ({
           })}
         </div>
       </div>
+      )}
 
       {/* 1. Devise Section */}
+      {settingsTab === 'compte' && (
       <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
           <Coins className="w-4 h-4 text-[#FFB020]" />
@@ -724,9 +754,10 @@ export const Settings: React.FC<SettingsProps> = ({
           ))}
         </div>
       </div>
+      )}
 
       {/* 2. Foyer Management Section */}
-      {user && foyer ? (
+      {settingsTab === 'famille' && (user && foyer ? (
         <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-5 animate-fade-in">
           
           <div className="flex items-center justify-between">
@@ -929,10 +960,10 @@ export const Settings: React.FC<SettingsProps> = ({
             Se connecter / Rejoindre / S'inscrire
           </button>
         </div>
-      )}
+      ))}
 
       {/* 4. Données locales & Sauvegarde */}
-      {!user && (
+      {settingsTab === 'avance' && !user && (
         <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
             <Database className="w-4 h-4 text-[#00D26A]" />
@@ -969,6 +1000,7 @@ export const Settings: React.FC<SettingsProps> = ({
       )}
 
       {/* 5. Charte RGPD & Mentions Légales */}
+      {settingsTab === 'avance' && (
       <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
@@ -1031,6 +1063,7 @@ export const Settings: React.FC<SettingsProps> = ({
           </details>
         </div>
       </div>
+      )}
 
     </div>
   );
