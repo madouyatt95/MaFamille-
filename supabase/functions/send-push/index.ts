@@ -214,6 +214,7 @@ serve(async (req) => {
     let body = "";
     let senderId = "";
     let senderName = "";
+    let senderUserId = "";
     let targetModule = "other";
 
     if (payload.table === "chat_messages") {
@@ -221,6 +222,7 @@ serve(async (req) => {
         return new Response(JSON.stringify({ message: "Ignored UPDATE for chat_messages" }), { status: 200 });
       }
       senderId = record.sender_id;
+      senderUserId = record.sender_user_id || "";
       senderName = record.sender_name || "";
       title = `${record.sender_name || "Un membre"} dans le Chat`;
       if (record.type === "image") {
@@ -335,6 +337,7 @@ serve(async (req) => {
       .filter(m => {
         if (!m.fcm_token) return false;
         if (senderId && String(m.id) === String(senderId)) return false;
+        if (senderUserId && String(m.user_id) === String(senderUserId)) return false;
         if (senderName && normalizeIdentity(m.display_name) === normalizeIdentity(senderName)) return false;
         return true;
       })

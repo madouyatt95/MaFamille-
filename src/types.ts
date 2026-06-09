@@ -572,6 +572,7 @@ export interface ChatMessage {
   id: string;
   groupId: string;
   senderId: string;
+  senderUserId?: string;
   senderName: string;
   type: MessageType;
   content: string; // text or base64 data for media

@@ -273,10 +273,13 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     const foyerId = localStorage.getItem('mf_cloud_foyer_id');
     if (!foyerId) return;
     try {
+      const client = getSupabaseClient();
+      const { data: { user } } = client ? await client.auth.getUser() : { data: { user: null } };
       await foyerService.upsertItem('chat_messages', foyerId, {
         id: msg.id,
         group_id: msg.groupId,
         sender_id: msg.senderId,
+        sender_user_id: msg.senderUserId || user?.id || null,
         sender_name: msg.senderName,
         type: msg.type,
         content: msg.content,
