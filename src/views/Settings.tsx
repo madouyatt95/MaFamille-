@@ -144,7 +144,9 @@ export const Settings: React.FC<SettingsProps> = ({
 
   // Notification module preferences (groceries, tasks, agenda, finances, chat, health, vault, sos)
   const [localPrefs, setLocalPrefs] = useState<any>(() => {
-    if (myMemberProfile?.notificationPrefs) return myMemberProfile.notificationPrefs;
+    if (myMemberProfile?.notificationPrefs && Object.keys(myMemberProfile.notificationPrefs).length > 0) {
+      return myMemberProfile.notificationPrefs;
+    }
 
     const key = `mf_notif_prefs_${foyer?.id || 'simulated'}_${user?.id || 'guest'}`;
     const cached = localStorage.getItem(key);
@@ -164,7 +166,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
   useEffect(() => {
     const key = `mf_notif_prefs_${foyer?.id || 'simulated'}_${user?.id || 'guest'}`;
-    if (myMemberProfile?.notificationPrefs) {
+    if (myMemberProfile?.notificationPrefs && Object.keys(myMemberProfile.notificationPrefs).length > 0) {
       setLocalPrefs(myMemberProfile.notificationPrefs);
       localStorage.setItem(key, JSON.stringify(myMemberProfile.notificationPrefs));
       return;

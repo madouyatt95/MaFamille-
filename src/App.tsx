@@ -2030,7 +2030,7 @@ function App() {
 
   useEffect(() => {
     const key = `mf_notif_prefs_${foyer?.id || 'simulated'}_${user?.id || 'guest'}`;
-    if (myMemberProfile?.notificationPrefs) {
+    if (myMemberProfile?.notificationPrefs && Object.keys(myMemberProfile.notificationPrefs).length > 0) {
       setNotificationPrefs(myMemberProfile.notificationPrefs);
       localStorage.setItem(key, JSON.stringify(myMemberProfile.notificationPrefs));
       return;
