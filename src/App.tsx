@@ -2135,13 +2135,8 @@ function App() {
               return [newAlert, ...prev];
             });
 
-            // Afficher une notification système si autorisé
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification(newAlert.title, {
-                body: getCleanDescription(newAlert.description),
-                icon: '/pwa-192x192.png'
-              });
-            }
+            // Les notifications système sont affichées par FCM/service worker.
+            // Ici on ne met à jour que le centre de notifications interne.
           }, { requestPermission: false });
         } catch (err) {
           console.error("[App] Échec de l'initialisation des notifications push :", err);
@@ -3854,16 +3849,7 @@ function App() {
           lastMessageTime: newMsg.timestamp 
         } : g));
 
-        // Trigger browser notification for other family members
-        const currentActiveMemberId = activeMemberIdRef.current;
-        if (payload.new.sender_id !== currentActiveMemberId) {
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(`💬 Nouveau message de ${payload.new.sender_name}`, {
-              body: payload.new.content.startsWith('data:') ? '📷 [Image]' : payload.new.content,
-              icon: '/favicon.svg'
-            });
-          }
-        }
+        // Le push système est géré par FCM. Le realtime met seulement l'UI à jour.
       }
       else if (payload.eventType === 'UPDATE') {
         const reactionsVal = payload.new.reactions;
@@ -3913,17 +3899,7 @@ function App() {
           return [newItem, ...prev];
         });
 
-        // Trigger browser notification for other family members
-        const currentActiveMember = membersRef.current.find(m => m.id === activeMemberIdRef.current);
-        const currentActiveMemberName = currentActiveMember?.name;
-        if (payload.new.author_name !== currentActiveMemberName) {
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(`📸 Nouveau moment partagé par ${payload.new.author_name} !`, {
-              body: `« ${payload.new.title} » a été ajouté au Mur des Moments.`,
-              icon: '/favicon.svg'
-            });
-          }
-        }
+        // Le push système est géré par FCM. Le realtime met seulement l'UI à jour.
       }
       else if (payload.eventType === 'UPDATE') {
         const updatedItem: MemoryLog = {
@@ -4113,12 +4089,6 @@ function App() {
             title: payload.new.title || 'Nouvelle notification',
             description: payload.new.description || ''
           });
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(payload.new.title, {
-              body: payload.new.description,
-              icon: '/favicon.svg'
-            });
-          }
         }
       }
     });
@@ -13848,12 +13818,6 @@ function App() {
                         };
                         setAlerts(prev => [newAlert, ...prev]);
                         saveAlertToCloud(newAlert);
-                        if ('Notification' in window && Notification.permission === 'granted') {
-                          new Notification(newAlert.title, {
-                            body: newAlert.description,
-                            icon: '/favicon.svg'
-                          });
-                        }
                       });
                       if (token) {
                         alert("🎉 Notifications push activées avec succès sur cet appareil !");

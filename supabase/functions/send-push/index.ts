@@ -100,6 +100,10 @@ async function clearInvalidFcmToken(fcmToken: string) {
   }
 }
 
+function normalizeIdentity(value: unknown): string {
+  return String(value || "").trim().toLowerCase();
+}
+
 // Encodage Base64URL conforme aux specs JWT
 function base64UrlEncode(str: string): string {
   const binary = new TextEncoder().encode(str);
@@ -209,6 +213,7 @@ serve(async (req) => {
     let title = "";
     let body = "";
     let senderId = "";
+    let senderName = "";
     let targetModule = "other";
 
     if (payload.table === "chat_messages") {
@@ -216,6 +221,7 @@ serve(async (req) => {
         return new Response(JSON.stringify({ message: "Ignored UPDATE for chat_messages" }), { status: 200 });
       }
       senderId = record.sender_id;
+      senderName = record.sender_name || "";
       title = `${record.sender_name || "Un membre"} dans le Chat`;
       if (record.type === "image") {
         body = "📷 Image partagée";
@@ -230,6 +236,7 @@ serve(async (req) => {
         return new Response(JSON.stringify({ message: "Ignored UPDATE for alerts" }), { status: 200 });
       }
       senderId = record.sender_member_id || "";
+      senderName = record.sender_name || "";
       title = record.title || "Alerte de Famille";
       body = record.description || "";
       targetModule = record.module || "other";
@@ -238,6 +245,7 @@ serve(async (req) => {
         return new Response(JSON.stringify({ message: "Ignored UPDATE for memories" }), { status: 200 });
       }
       title = `✨ Nouveau souvenir de ${record.author_name || "la famille"}`;
+      senderName = record.author_name || "";
       body = record.title || "";
       targetModule = "capsule";
     } else if (payload.table === "events") {
@@ -313,7 +321,7 @@ serve(async (req) => {
     // 2. Récupérer les tokens FCM des autres membres du foyer
     const { data: members, error: membersError } = await supabaseAdmin
       .from("foyer_members")
-      .select("id, fcm_token")
+      .select("id, display_name, user_id, fcm_token")
       .eq("foyer_id", foyerId)
       .not("fcm_token", "is", null);
 
@@ -324,7 +332,12 @@ serve(async (req) => {
 
     // Filtrer pour ne pas l'envoyer à l'expéditeur
     const rawTargetTokens = members
-      .filter(m => m.id !== senderId && m.fcm_token)
+      .filter(m => {
+        if (!m.fcm_token) return false;
+        if (senderId && String(m.id) === String(senderId)) return false;
+        if (senderName && normalizeIdentity(m.display_name) === normalizeIdentity(senderName)) return false;
+        return true;
+      })
       .filter(m => !String(m.fcm_token).startsWith("native-fallback-"))
       .map(m => String(m.fcm_token));
     const targetTokens = [...new Set(rawTargetTokens)];
