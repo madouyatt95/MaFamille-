@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useRef, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
+import { getConfiguredSupabaseAnonKey, getConfiguredSupabaseUrl } from './config/supabaseConfig';
 import { parseSmartNaturalSentence, detectGroceryCategory, getGroceryItemEmoji, parseGroceryAction, formatGroceryQty } from './utils/groceryParser';
 import { DICTIONARIES } from './utils/dictionaries';
 
@@ -607,18 +608,18 @@ function App() {
     return localStorage.getItem('mf_currency') || 'EUR (€)';
   });
   const [supabaseUrl] = useState(() => {
-    const raw = (import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('mf_sb_url') || '').trim();
+    const raw = (getConfiguredSupabaseUrl() || localStorage.getItem('mf_sb_url') || '').trim();
     return raw.replace(/^['"]|['"]$/g, '');
   });
   const [supabaseKey] = useState(() => {
-    const raw = (import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('mf_sb_key') || '').trim();
+    const raw = (getConfiguredSupabaseAnonKey() || localStorage.getItem('mf_sb_key') || '').trim();
     return raw.replace(/^['"]|['"]$/g, '');
   });
   const [syncActive, setSyncActive] = useState(() => {
     const cached = localStorage.getItem('mf_sync_active');
     if (cached !== null) return cached === 'true';
-    const envUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
-    const envKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+    const envUrl = getConfiguredSupabaseUrl().trim();
+    const envKey = getConfiguredSupabaseAnonKey().trim();
     return !!(envUrl && envKey && envKey.replace(/^['"]|['"]$/g, '').startsWith('eyJ'));
   });
 

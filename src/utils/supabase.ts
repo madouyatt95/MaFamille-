@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Preferences } from '@capacitor/preferences';
+import { getConfiguredSupabaseAnonKey, getConfiguredSupabaseUrl } from '../config/supabaseConfig';
 
 const capacitorPreferencesStorage = {
   getItem: async (key: string): Promise<string | null> => {
@@ -44,8 +45,8 @@ const cleanInput = (val: string): string => {
 
 export const getSupabaseClient = (customUrl?: string, customKey?: string): SupabaseClient | null => {
 
-  const envUrl = cleanInput(import.meta.env.VITE_SUPABASE_URL || '');
-  const envKey = cleanInput(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
+  const envUrl = cleanInput(getConfiguredSupabaseUrl());
+  const envKey = cleanInput(getConfiguredSupabaseAnonKey());
 
   // Log de debug sécurisé et informatif pour l'administrateur
   console.log("[MaFamille+ DB Debug] URL détectée :", envUrl ? `'${envUrl}'` : "VIDE", "| Clé valide :", envKey.startsWith('eyJ'));
