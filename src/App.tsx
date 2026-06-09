@@ -2116,10 +2116,13 @@ function App() {
   // Chargement et application du thème visuel au démarrage
   useEffect(() => {
     const savedTheme = localStorage.getItem('app_appearance_mode') || 'dark';
+    document.documentElement.classList.remove('theme-light', 'theme-sepia');
     document.body.classList.remove('theme-light', 'theme-sepia');
     if (savedTheme === 'light') {
+      document.documentElement.classList.add('theme-light');
       document.body.classList.add('theme-light');
     } else if (savedTheme === 'sepia') {
+      document.documentElement.classList.add('theme-sepia');
       document.body.classList.add('theme-sepia');
     }
   }, []);
@@ -13013,7 +13016,7 @@ function App() {
   }
 
   return (
-    <div className={`min-h-screen ${syncActive ? 'bg-[#1a2b4c]' : 'bg-[var(--family-bg)]'} text-[var(--family-text)] font-sans transition-colors duration-1000 relative ios-safe-container`}>
+    <div className="min-h-screen bg-[var(--family-bg)] text-[var(--family-text)] font-sans transition-colors duration-1000 relative ios-safe-container">
       
 
       {/* Dynamic render active layout page views */}

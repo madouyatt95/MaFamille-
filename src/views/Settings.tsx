@@ -164,10 +164,13 @@ export const Settings: React.FC<SettingsProps> = ({
   });
 
   useEffect(() => {
+    document.documentElement.classList.remove('theme-light', 'theme-sepia');
     document.body.classList.remove('theme-light', 'theme-sepia');
     if (theme === 'light') {
+      document.documentElement.classList.add('theme-light');
       document.body.classList.add('theme-light');
     } else if (theme === 'sepia') {
+      document.documentElement.classList.add('theme-sepia');
       document.body.classList.add('theme-sepia');
     }
     localStorage.setItem('app_appearance_mode', theme);

@@ -276,6 +276,7 @@ body {
 }
 
 .theme-light [class*="bg-[#07111F]"],
+.theme-light [class*="bg-[#1a2b4c]"],
 .theme-light [class*="bg-[#081225]"],
 .theme-light [class*="bg-[#0A0D18]"],
 .theme-light [class*="bg-[#0F1E3D]"],
@@ -285,6 +286,7 @@ body {
 }
 
 .theme-sepia [class*="bg-[#07111F]"],
+.theme-sepia [class*="bg-[#1a2b4c]"],
 .theme-sepia [class*="bg-[#081225]"],
 .theme-sepia [class*="bg-[#0A0D18]"],
 .theme-sepia [class*="bg-[#0F1E3D]"],
