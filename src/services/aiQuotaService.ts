@@ -154,5 +154,15 @@ export const aiQuotaService = {
       : `${provider} API ${response.status}`;
 
     return new Error(message);
+  },
+
+  getQuotaFromResponse(response: Response, isPremium: boolean): { remaining: number; limit: number } {
+    const limit = Number(response.headers.get('X-AI-Quota-Limit')) || DAILY_LIMIT;
+    const remainingHeader = response.headers.get('X-AI-Quota-Remaining');
+    const remaining = remainingHeader === null
+      ? this.getRemainingCalls(isPremium)
+      : Math.max(0, Number(remainingHeader) || 0);
+
+    return { remaining, limit };
   }
 };

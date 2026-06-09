@@ -396,8 +396,7 @@ Demande de l'utilisateur : "${userText}"`;
         const data = await response.json();
         let reply = data.choices?.[0]?.message?.content || '';
 
-        const remaining = aiQuotaService.getRemainingCalls(isPremium);
-        const limit = aiQuotaService.getDailyLimit();
+        const { remaining, limit } = aiQuotaService.getQuotaFromResponse(response, isPremium);
         reply += `\n\n✨ (Réponse en direct par Groq Llama 3 • Quota restant : ${remaining}/${limit})`;
 
         setIsAiTyping(false);

@@ -121,8 +121,7 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
 
         const parsedRecipes = JSON.parse(textResult);
         if (Array.isArray(parsedRecipes) && parsedRecipes.length > 0) {
-          const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
-          const dailyLimit = aiQuotaService.getDailyLimit();
+          const { remaining: remainingCalls, limit: dailyLimit } = aiQuotaService.getQuotaFromResponse(response, isPremium);
           
           // Ajouter une indication discrète sur le quota dans les descriptions
           const recipesWithQuotaInfo = parsedRecipes.map((rec, index) => {

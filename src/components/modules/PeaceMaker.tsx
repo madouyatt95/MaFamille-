@@ -81,8 +81,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
 
         const parsedCompromise = JSON.parse(textResult);
         if (parsedCompromise.feelingA && parsedCompromise.feelingB && parsedCompromise.compromiseText) {
-          const remaining = aiQuotaService.getRemainingCalls(isPremium);
-          const limit = aiQuotaService.getDailyLimit();
+          const { remaining, limit } = aiQuotaService.getQuotaFromResponse(response, isPremium);
           
           setCompromise({
             ...parsedCompromise,

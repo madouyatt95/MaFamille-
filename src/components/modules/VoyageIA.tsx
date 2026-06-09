@@ -6,18 +6,28 @@ import {
   CloudRain, 
   Snowflake
 } from 'lucide-react';
-import type { Trip } from '../../types';
+import type { Member, Trip } from '../../types';
 import { aiQuotaService } from '../../services/aiQuotaService';
 
 interface VoyageIAProps {
   trips: Trip[];
+  members: Member[];
   formatMoney: (amount: number) => string;
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
 }
 
+type PackingListItem = { text: string; checked: boolean };
+type MemberPackingList = {
+  memberId: string;
+  memberName: string;
+  memberLabel: string;
+  items: PackingListItem[];
+};
+
 export const VoyageIA: React.FC<VoyageIAProps> = ({ 
   trips, 
+  members,
   formatMoney, 
   isPremium = false, 
   onTriggerPaywall 
@@ -26,7 +36,29 @@ export const VoyageIA: React.FC<VoyageIAProps> = ({
   const [days, setDays] = useState('7');
   const [weather, setWeather] = useState('sunny');
   const [generating, setGenerating] = useState(false);
-  const [packingLists, setPackingLists] = useState<any | null>(null);
+  const [packingLists, setPackingLists] = useState<MemberPackingList[] | null>(null);
+
+  const travelMembers = members.slice(0, 5).map((member, index) => {
+    const age = member.age ? `, ${member.age} ans` : '';
+    const role = member.role ? `, rôle ${member.role}` : '';
+    return {
+      ...member,
+      label: `${member.name}${age}${role}`,
+      key: `member_${index + 1}`
+    };
+  });
+
+  const fallbackMembers = travelMembers.length > 0
+    ? travelMembers
+    : [{ id: 'family', name: 'Famille', label: 'Famille', key: 'member_1' } as Member & { label: string; key: string }];
+
+  const buildLocalItemsForMember = (memberName: string): PackingListItem[] => [
+    { text: `Papiers et documents utiles pour ${memberName}`, checked: false },
+    { text: 'Chargeur, câble et batterie externe', checked: false },
+    { text: `Vêtements adaptés à ${destination}`, checked: false },
+    { text: weather === 'rainy' ? 'Veste imperméable ou parapluie' : weather === 'snowy' ? 'Vêtements chauds et gants' : 'Protection solaire et lunettes', checked: false },
+    { text: 'Trousse de toilette et médicaments personnels', checked: false }
+  ];
 
   const generatePackingChecklist = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,27 +76,24 @@ export const VoyageIA: React.FC<VoyageIAProps> = ({
 
     if (useRealAI) {
       try {
+        const memberLines = fallbackMembers
+          .map((member, index) => `${index + 1}. ${member.label}`)
+          .join('\n');
+        const expectedJsonShape = fallbackMembers
+          .map(member => `  "${member.key}": [\n    {"text": "Objet précis à emporter pour ${member.name}", "checked": false}\n  ]`)
+          .join(',\n');
+
         const prompt = `Tu es le planificateur de voyages IA de l'application MaFamille+.
-Génère des checklists de bagages extrêmement pertinentes et personnalisées pour 3 membres de la famille :
-1. Papa (affaires d'adulte responsable, papiers d'identité, chargeurs, pharmacie, etc.)
-2. Amadou (garçon de 12 ans autonome, jeux de voyage, livres, vêtements adaptés)
-3. Awa (fillette de 8 ans, doudou, cahier de coloriage, vêtements adaptés)
+Génère des checklists de bagages extrêmement pertinentes et personnalisées pour ces membres réels du foyer :
+${memberLines}
 
 Le voyage est prévu pour la destination : ${destination}, pour une durée de ${days} jours, sous une météo de type : ${weather === 'sunny' ? 'ensoleillée et chaude ☀️' : weather === 'rainy' ? 'pluvieuse et humide 🌧️' : 'hivernale et froide ❄️'}.
 
 Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\`\`json), sans texte explicatif avant ou après, contenant exactement cette structure :
 {
-  "papa": [
-    {"text": "Objet précis à emporter", "checked": false}
-  ],
-  "amadou": [
-    {"text": "Objet précis à emporter", "checked": false}
-  ],
-  "awa": [
-    {"text": "Objet précis à emporter", "checked": false}
-  ]
+${expectedJsonShape}
 }
-Génère EXACTEMENT 5 éléments ultra-pertinents par personne.`;
+Génère EXACTEMENT 5 éléments ultra-pertinents par membre. N'invente aucun prénom absent de la liste.`;
 
         const groqEndpoint = import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/groq' : '/api/groq';
         const headers = await aiQuotaService.getAIProxyHeaders();
@@ -85,11 +114,17 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par personne.`;
         textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
 
         const parsedLists = JSON.parse(textResult);
-        if (parsedLists.papa && parsedLists.amadou && parsedLists.awa) {
-          setPackingLists(parsedLists);
+        const normalizedLists = fallbackMembers.map(member => ({
+          memberId: member.id,
+          memberName: member.name,
+          memberLabel: member.label,
+          items: Array.isArray(parsedLists[member.key]) ? parsedLists[member.key] : buildLocalItemsForMember(member.name)
+        }));
+
+        if (normalizedLists.every(list => list.items.length > 0)) {
+          setPackingLists(normalizedLists);
           setGenerating(false);
-          const remaining = aiQuotaService.getRemainingCalls(isPremium);
-          const limit = aiQuotaService.getDailyLimit();
+          const { remaining, limit } = aiQuotaService.getQuotaFromResponse(response, isPremium);
           alert(`💼 Valises personnalisées générées en temps réel par l'IA Groq Llama 3 ! (Quota réel restant : ${remaining}/${limit} aujourd'hui)`);
           return;
         } else {
@@ -105,27 +140,12 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par personne.`;
       const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
       const isQuotaFallback = isPremium && remainingCalls === 0;
 
-      const lists = {
-        papa: [
-          { text: 'Passeports & Billets d\'avion', checked: false },
-          { text: 'Cartes bancaires & Devises', checked: true },
-          { text: 'Dossier imprimé de réservations', checked: false },
-          { text: 'Lunettes de soleil & Crème solaire 50+', checked: true },
-          { text: 'Chargeurs et adaptateurs universels', checked: false },
-        ],
-        amadou: [
-          { text: 'Console Nintendo Switch + Chargeur', checked: false },
-          { text: '3 Shorts & 5 T-shirts légers', checked: true },
-          { text: 'Livre de lecture vacances', checked: false },
-          { text: 'Casquette & Maillot de bain', checked: false },
-        ],
-        awa: [
-          { text: 'Peluche préférée (Doudou) 🧸', checked: true },
-          { text: 'Cahier de coloriage & Feutres', checked: false },
-          { text: 'Lunettes de soleil de piscine', checked: false },
-          { text: 'Brassards & Chapeau de soleil', checked: true },
-        ]
-      };
+      const lists = fallbackMembers.map(member => ({
+        memberId: member.id,
+        memberName: member.name,
+        memberLabel: member.label,
+        items: buildLocalItemsForMember(member.name)
+      }));
 
       setPackingLists(lists);
       setGenerating(false);
@@ -138,10 +158,15 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par personne.`;
     }, 1000);
   };
 
-  const handleToggleItem = (category: 'papa' | 'amadou' | 'awa', idx: number) => {
+  const handleToggleItem = (memberId: string, idx: number) => {
     if (!packingLists) return;
-    const updated = { ...packingLists };
-    updated[category][idx].checked = !updated[category][idx].checked;
+    const updated = packingLists.map(list => {
+      if (list.memberId !== memberId) return list;
+      return {
+        ...list,
+        items: list.items.map((item, itemIdx) => itemIdx === idx ? { ...item, checked: !item.checked } : item)
+      };
+    });
     setPackingLists(updated);
   };
 
@@ -233,15 +258,18 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par personne.`;
           <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Valises personnalisées :</span>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            
-            {/* Papa / Parents */}
-            <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3">
-              <span className="text-[10px] font-bold text-[#4F8CFF] uppercase tracking-wider block">Valise Papa 👑</span>
-              <div className="space-y-2">
-                {packingLists.papa.map((item: any, idx: number) => (
+            {packingLists.map((list, listIndex) => {
+              const colors = ['text-[#4F8CFF]', 'text-[#FFB020]', 'text-[#FF4D6D]', 'text-[#00D26A]', 'text-[#A78BFA]'];
+              return (
+                <div key={list.memberId} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3">
+                  <span className={`text-[10px] font-bold uppercase tracking-wider block ${colors[listIndex % colors.length]}`}>
+                    Valise {list.memberName} ✨
+                  </span>
+                  <div className="space-y-2">
+                    {list.items.map((item: any, idx: number) => (
                   <button
                     key={idx}
-                    onClick={() => handleToggleItem('papa', idx)}
+                    onClick={() => handleToggleItem(list.memberId, idx)}
                     className="w-full flex items-center space-x-2 text-left text-xs cursor-pointer py-0.5"
                   >
                     <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[10px] shrink-0 ${
@@ -251,52 +279,11 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par personne.`;
                     </span>
                     <span className={`${item.checked ? 'line-through text-white/40' : 'text-white'}`}>{item.text}</span>
                   </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Amadou */}
-            <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3">
-              <span className="text-[10px] font-bold text-[#FFB020] uppercase tracking-wider block">Valise Amadou ⭐️ (12 ans)</span>
-              <div className="space-y-2">
-                {packingLists.amadou.map((item: any, idx: number) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleToggleItem('amadou', idx)}
-                    className="w-full flex items-center space-x-2 text-left text-xs cursor-pointer py-0.5"
-                  >
-                    <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[10px] shrink-0 ${
-                      item.checked ? 'bg-[#00D26A] border-[#00D26A] text-white' : 'border-white/30 text-transparent'
-                    }`}>
-                      ✓
-                    </span>
-                    <span className={`${item.checked ? 'line-through text-white/40' : 'text-white'}`}>{item.text}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Awa */}
-            <div className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3">
-              <span className="text-[10px] font-bold text-[#FF4D6D] uppercase tracking-wider block">Valise Awa ⭐️ (8 ans)</span>
-              <div className="space-y-2">
-                {packingLists.awa.map((item: any, idx: number) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleToggleItem('awa', idx)}
-                    className="w-full flex items-center space-x-2 text-left text-xs cursor-pointer py-0.5"
-                  >
-                    <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[10px] shrink-0 ${
-                      item.checked ? 'bg-[#00D26A] border-[#00D26A] text-white' : 'border-white/30 text-transparent'
-                    }`}>
-                      ✓
-                    </span>
-                    <span className={`${item.checked ? 'line-through text-white/40' : 'text-white'}`}>{item.text}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

@@ -5939,6 +5939,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           <div className="border-t border-white/5 pt-6">
             <VoyageIA 
               trips={trips} 
+              members={members}
               formatMoney={formatMoney} 
               isPremium={isPremium}
               onTriggerPaywall={onTriggerPaywall}

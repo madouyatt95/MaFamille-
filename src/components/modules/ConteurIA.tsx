@@ -576,8 +576,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
         const parsedStory = cleanAndParseJSON(textResult);
         if (parsedStory.title && parsedStory.chapters && parsedStory.chapters.length === 3) {
           setGenStep(3);
-          const remaining = aiQuotaService.getRemainingCalls(isPremium);
-          const limit = aiQuotaService.getDailyLimit();
+          const { remaining, limit } = aiQuotaService.getQuotaFromResponse(response, isPremium);
           
           const story = {
             title: parsedStory.title,
