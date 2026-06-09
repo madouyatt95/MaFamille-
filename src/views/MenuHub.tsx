@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { detectGroceryCategory, parseSmartNaturalSentence, getGroceryItemEmoji, formatGroceryQty, POPULAR_GROCERIES } from '../utils/groceryParser';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
+import { PREMIUM_MODULE_FEATURES } from '../utils/premiumFeatures';
 import { 
   FolderLock, 
   HeartPulse, 
@@ -1448,8 +1449,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 <button
                   key={mod.id}
                   onClick={() => {
-                    // Check premium for specific modules
-                    if (['conteur', 'peacemaker'].includes(mod.id) && !isPremium) {
+                    const premiumFeature = PREMIUM_MODULE_FEATURES[mod.id];
+                    if (premiumFeature && !isPremium) {
                       onTriggerPaywall?.();
                       return;
                     }

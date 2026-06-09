@@ -8,8 +8,12 @@ import {
   BookOpen, 
   FolderLock, 
   RefreshCw, 
-  Users 
+  Users,
+  Download,
+  Plane,
+  HeartHandshake
 } from 'lucide-react';
+import { PREMIUM_FEATURES } from '../utils/premiumFeatures';
 
 interface PaywallProps {
   isOpen: boolean;
@@ -41,34 +45,58 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
 
   const premiumFeatures = [
     { 
-      title: "Éco-Chef IA & Recettes anti-gaspi", 
-      desc: "L'assistant intelligent qui génère instantanément des idées de menus et recettes savoureuses avec vos restes de frigo.", 
+      title: PREMIUM_FEATURES.real_ai.title,
+      desc: PREMIUM_FEATURES.real_ai.description,
       icon: Sparkles, 
       color: "text-[#6C5CFF] bg-[#6C5CFF]/10" 
     },
     { 
-      title: "Gazette BD IA & Contes Riches", 
-      desc: "Générez des histoires fantastiques sur mesure et des bandes dessinées interactives uniques créées par l'IA.", 
+      title: PREMIUM_FEATURES.exports.title,
+      desc: PREMIUM_FEATURES.exports.description,
+      icon: Download,
+      color: "text-[#00D26A] bg-[#00D26A]/10"
+    },
+    {
+      title: PREMIUM_FEATURES.demarches.title,
+      desc: PREMIUM_FEATURES.demarches.description,
+      icon: FolderLock,
+      color: "text-[#4F8CFF] bg-[#4F8CFF]/10"
+    },
+    {
+      title: PREMIUM_FEATURES.members_over_3.title,
+      desc: PREMIUM_FEATURES.members_over_3.description,
+      icon: Users,
+      color: "text-[#FF4D6D] bg-[#FF4D6D]/10"
+    },
+    {
+      title: PREMIUM_FEATURES.eco_chef_ai.title,
+      desc: PREMIUM_FEATURES.eco_chef_ai.description,
+      icon: Sparkles,
+      color: "text-[#6C5CFF] bg-[#6C5CFF]/10"
+    },
+    {
+      title: PREMIUM_FEATURES.voyage_ai.title,
+      desc: PREMIUM_FEATURES.voyage_ai.description,
+      icon: Plane,
+      color: "text-[#FF4D6D] bg-[#FF4D6D]/10"
+    },
+    {
+      title: PREMIUM_FEATURES.capsule_gazette_bd_ai.title,
+      desc: PREMIUM_FEATURES.capsule_gazette_bd_ai.description,
       icon: BookOpen, 
       color: "text-[#FFB020] bg-[#FFB020]/10" 
     },
     { 
-      title: "Liste de Courses intelligente par Micro", 
-      desc: "Dictez vos courses naturellement de vive voix, l'IA sépare les ingrédients et les catégories en 1 seconde.", 
+      title: PREMIUM_FEATURES.bedtime_stories_ai.title,
+      desc: PREMIUM_FEATURES.bedtime_stories_ai.description,
       icon: Mic, 
       color: "text-[#00D26A] bg-[#00D26A]/10" 
     },
     { 
-      title: "Démarches Administratives illimitées", 
-      desc: "Gérez vos justificatifs et suivez vos démarches complexes sereinement dans le Coffre-Fort Avancé.", 
-      icon: FolderLock, 
-      color: "text-[#4F8CFF] bg-[#4F8CFF]/10" 
-    },
-    { 
-      title: "Agenda & Membres Illimités", 
-      desc: "Dépassez la limite de 10 événements d'agenda par mois et de 3 membres familiaux par foyer.", 
-      icon: Users, 
-      color: "text-[#FF4D6D] bg-[#FF4D6D]/10" 
+      title: PREMIUM_FEATURES.peacemaker_ai.title,
+      desc: PREMIUM_FEATURES.peacemaker_ai.description,
+      icon: HeartHandshake,
+      color: "text-[#00D26A] bg-[#00D26A]/10"
     }
   ];
 

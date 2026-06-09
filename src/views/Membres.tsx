@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { foyerService } from '../services/foyerService';
 import { getSupabaseClient } from '../utils/supabase';
+import { shouldBlockMemberAdd } from '../utils/premiumFeatures';
 import { ALL_FAMILY_MODULES, getDefaultPermissions } from '../types';
 import type { Member, Foyer, FoyerMember, MemberRole, ModulePermissions, FamilyModule } from '../types';
 
@@ -38,6 +39,8 @@ interface MembresProps {
   onLeaveFoyer?: () => Promise<void> | void;
   memberPermissions?: Record<string, Record<FamilyModule, ModulePermissions>>;
   onUpdatePermissions?: (memberId: string, modulePermissions: Record<FamilyModule, ModulePermissions>) => void;
+  isPremium?: boolean;
+  onTriggerPaywall?: () => void;
 }
 
 export const Membres: React.FC<MembresProps> = ({ 
@@ -54,7 +57,9 @@ export const Membres: React.FC<MembresProps> = ({
   onLogout,
   onLeaveFoyer,
   memberPermissions,
-  onUpdatePermissions
+  onUpdatePermissions,
+  isPremium = false,
+  onTriggerPaywall
 }) => {
   // Invitation réelle & Ajout unifié
   const [isAddingMember, setIsAddingMember] = useState(false);
@@ -111,7 +116,14 @@ export const Membres: React.FC<MembresProps> = ({
   const [copiedCode, setCopiedCode] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
 
+  const blockFreeMemberLimit = () => {
+    if (!shouldBlockMemberAdd(isPremium, members.length)) return false;
+    onTriggerPaywall?.();
+    return true;
+  };
+
   const handleAddMemberClick = () => {
+    if (blockFreeMemberLimit()) return;
     setSelectedMember(null);
     setIsEditing(false);
     setIsAddingMember(true);
@@ -120,6 +132,7 @@ export const Membres: React.FC<MembresProps> = ({
   const handleCreateMemberSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!onAddMember) return;
+    if (blockFreeMemberLimit()) return;
     setSubmittingAdd(true);
     try {
       const dbRole: MemberRole = 
@@ -175,6 +188,7 @@ export const Membres: React.FC<MembresProps> = ({
   const handleSendInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!foyer || !inviteEmail.trim()) return;
+    if (blockFreeMemberLimit()) return;
     setInviteLoading(true);
     setInviteMessage(null);
     try {
@@ -1630,6 +1644,7 @@ export const Membres: React.FC<MembresProps> = ({
             <form 
               onSubmit={async (e) => {
                 e.preventDefault();
+                if (blockFreeMemberLimit()) return;
                 setSavingProfile(true);
                 try {
                   const dbRole: any = 

@@ -68,6 +68,8 @@ interface BudgetProps {
   moduleBudgets: Record<string, { budget: number; recurrence: string }>;
   setModuleBudgets: React.Dispatch<React.SetStateAction<Record<string, { budget: number; recurrence: string }>>>;
   userId?: string;
+  isPremium?: boolean;
+  onTriggerPaywall?: () => void;
 }
 
 type FinanceTab = 'dashboard' | 'transactions' | 'revenus' | 'depenses' | 'categories' | 'goals' | 'accounts' | 'abonnements' | 'budgets_modules' | 'imports' | 'exports' | 'reports';
@@ -99,7 +101,9 @@ export const Budget: React.FC<BudgetProps> = ({
   activeSubView,
   onClearActiveSubView,
   moduleBudgets,
-  setModuleBudgets
+  setModuleBudgets,
+  isPremium = false,
+  onTriggerPaywall
 }) => {
   const [activeTab, setActiveTab] = useState<FinanceTab>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
@@ -364,6 +368,12 @@ export const Budget: React.FC<BudgetProps> = ({
   React.useEffect(() => {
     if (activeSubView) {
       if (activeSubView.type === 'export') {
+        if (!isPremium) {
+          onTriggerPaywall?.();
+          setActiveTab('dashboard');
+          onClearActiveSubView?.();
+          return;
+        }
         setActiveTab('exports');
       } else if (activeSubView.type === 'import') {
         setActiveTab('imports');
@@ -1411,6 +1421,10 @@ export const Budget: React.FC<BudgetProps> = ({
             <button
               key={tab.id}
               onClick={() => {
+                if (tab.id === 'exports' && !isPremium) {
+                  onTriggerPaywall?.();
+                  return;
+                }
                 setActiveTab(tab.id as FinanceTab);
                 if (onClearActiveSubView) onClearActiveSubView();
               }}

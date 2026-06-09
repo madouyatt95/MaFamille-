@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, Briefcase, Car, Home, Plane, CreditCard, User, AlertTriangle, ArrowLeft, Trash2, Download, Share2, CheckCircle2, ChevronRight, Calendar, Users, Scan, Lock } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 import type { DocumentFile, DocumentCategory, Member, Demarche, JustificatifPack, DemarcheTemplate } from '../../types';
@@ -34,6 +34,13 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     return localStorage.getItem('mf_vault_rgpd_accepted') === 'true';
   });
   const [showRgpdCenter, setShowRgpdCenter] = useState(false);
+
+  useEffect(() => {
+    if (!isPremium && mainTab === 'demarches') {
+      setMainTab('docs');
+      onTriggerPaywall?.();
+    }
+  }, [isPremium, mainTab, onTriggerPaywall]);
 
   const handleDocumentClick = (doc: DocumentFile) => {
     if (doc.isSecure) {

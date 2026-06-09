@@ -11641,6 +11641,8 @@ function App() {
           onClearActiveSubView={() => setBudgetActiveSubView(null)}
           moduleBudgets={moduleBudgets}
           setModuleBudgets={setModuleBudgets}
+          isPremium={isPremium}
+          onTriggerPaywall={() => setPaywallOpen(true)}
         />
       );
     }
@@ -12200,6 +12202,8 @@ function App() {
               memberPermissions={memberPermissions}
               onUpdatePermissions={handleUpdateMemberPermissions}
               myMemberProfile={myMemberProfile}
+              isPremium={isPremium}
+              onTriggerPaywall={() => setPaywallOpen(true)}
             />
           </div>
         );
@@ -12960,6 +12964,8 @@ function App() {
           setActiveModule('membres');
           setQuickActionsOpen(false);
         }}
+        isPremium={isPremium}
+        onTriggerPaywall={() => setPaywallOpen(true)}
 
       />
 

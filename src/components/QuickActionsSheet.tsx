@@ -23,6 +23,8 @@ interface QuickActionsSheetProps {
   onAddTask: (task: any) => void;
   onNavigateToVault?: () => void;
   onNavigateToMembers?: () => void;
+  isPremium?: boolean;
+  onTriggerPaywall?: () => void;
 }
 
 type AddTab = 'event' | 'transaction' | 'task' | 'document' | 'member';
@@ -35,7 +37,9 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   onAddTransaction,
   onAddTask,
   onNavigateToVault,
-  onNavigateToMembers
+  onNavigateToMembers,
+  isPremium = false,
+  onTriggerPaywall
 }) => {
   const [activeTab, setActiveTab] = useState<AddTab>('event');
   const [showSuccess, setShowSuccess] = useState(false);
@@ -48,6 +52,11 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   const handleOcrFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!isPremium) {
+      e.target.value = '';
+      onTriggerPaywall?.();
+      return;
+    }
 
     setOcrLoading(true);
     setOcrError('');
@@ -470,7 +479,13 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
                     ) : (
                       <button
                         type="button"
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={() => {
+                          if (!isPremium) {
+                            onTriggerPaywall?.();
+                            return;
+                          }
+                          fileInputRef.current?.click();
+                        }}
                         className="w-full py-2.5 bg-[#6C5CFF] hover:bg-[#6C5CFF]/90 text-white font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center space-x-2 transition-all active:scale-[0.98] cursor-pointer"
                       >
                         <Camera className="w-4 h-4" />
