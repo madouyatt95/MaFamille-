@@ -1086,17 +1086,6 @@ function App() {
     });
 
     await saveAlertToCloud(newAlert);
-
-    if ('Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification(newAlert.title, {
-          body: getCleanDescription(newAlert.description),
-          icon: '/favicon.svg'
-        });
-      } catch (err) {
-        console.warn("Could not fire native notification:", err);
-      }
-    }
   }
 
   const handleDeleteUnifiedEvent = async (id: string, moduleName: string) => {
@@ -13820,7 +13809,6 @@ function App() {
                           createdAt: new Date().toISOString()
                         };
                         setAlerts(prev => [newAlert, ...prev]);
-                        saveAlertToCloud(newAlert);
                       });
                       if (token) {
                         alert("🎉 Notifications push activées avec succès sur cet appareil !");

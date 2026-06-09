@@ -238,6 +238,7 @@ serve(async (req) => {
         return new Response(JSON.stringify({ message: "Ignored UPDATE for alerts" }), { status: 200 });
       }
       senderId = record.sender_member_id || "";
+      senderUserId = record.sender_user_id || "";
       senderName = record.sender_name || "";
       title = record.title || "Alerte de Famille";
       body = record.description || "";
@@ -387,6 +388,9 @@ serve(async (req) => {
               module: targetModule,
               id: String(record.id || ""),
               groupId: String(record.group_id || ""),
+              senderUserId: String(senderUserId || ""),
+              senderMemberId: String(senderId || ""),
+              senderName: String(senderName || ""),
               title,
               body
             },
