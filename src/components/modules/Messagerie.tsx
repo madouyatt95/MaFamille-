@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Search, Palette, X, Pin, PinOff, Smile, Sparkles, Play, Pause, Archive, Download, FileText, Reply, Trash2, MoreVertical } from 'lucide-react';
+import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Search, Palette, X, Pin, PinOff, Smile, Play, Pause, Archive, Download, FileText, Reply, Trash2, MoreVertical } from 'lucide-react';
 import type { Member, ChatMessage, ChatGroup } from '../../types';
 import { foyerService } from '../../services/foyerService';
 import { getSupabaseClient } from '../../utils/supabase';
-import { aiQuotaService } from '../../services/aiQuotaService';
 import { compressImage } from '../../utils/imageCompressor';
 
 // Player de messages vocaux interactif et esthétique
@@ -146,9 +145,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   setGroups,
   messages,
   setMessages,
-  initialGroupId,
-  isPremium = false,
-  onTriggerPaywall
+  initialGroupId
 }) => {
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
@@ -159,7 +156,6 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   const [isDrawing, setIsDrawing] = useState(false);
   const [showReactionsForId, setShowReactionsForId] = useState<string | null>(null);
   const [activeReactionTooltip, setActiveReactionTooltip] = useState<{ msgId: string, emoji: string } | null>(null);
-  const [isAiTyping, setIsAiTyping] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -322,6 +318,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
   useEffect(() => {
     const isVisibleGroup = (g: ChatGroup) => {
+      if (g.id === 'g_ai_assistant' || g.id.startsWith('g_ai')) return false;
       if (hiddenGroupIds.includes(g.id)) return false;
       if (!g.isPrivate) return true;
       return g.memberIds.includes(activeMemberId);
@@ -359,122 +356,6 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeGroupId]);
-
-  const simulateAiResponse = async (userText: string) => {
-    setIsAiTyping(true);
-
-    // 1. Contrôle d'accès Premium obligatoire
-    if (!aiQuotaService.checkAIPremiumAccess(isPremium, onTriggerPaywall)) {
-      setIsAiTyping(false);
-      return;
-    }
-
-    // Tente d'utiliser l'IA réelle si le quota est disponible (soit via clé locale VITE_, soit via le proxy serveurless)
-    const useRealAI = aiQuotaService.consumeAIQuota(isPremium);
-
-    if (useRealAI) {
-      try {
-        const prompt = `Tu es l'Assistant Familial IA chaleureux, intelligent et bienveillant de l'application MaFamille+.
-Aide la famille à s'organiser, cuisiner anti-gaspillage, résoudre des devoirs scolaires, ou conseille-les sur l'éducation positive.
-Réponds de manière claire, concise et joyeuse en français. Utilise des émojis et des listes si cela améliore la lisibilité.
-Demande de l'utilisateur : "${userText}"`;
-
-        const groqEndpoint = import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/groq' : '/api/groq';
-        const headers = await aiQuotaService.getAIProxyHeaders();
-
-        const response = await fetch(groqEndpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            model: 'llama-3.1-8b-instant',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.6
-          })
-        });
-
-        if (!response.ok) throw await aiQuotaService.getAIResponseError(response, 'Groq');
-        const data = await response.json();
-        let reply = data.choices?.[0]?.message?.content || '';
-
-        const { remaining, limit } = aiQuotaService.getQuotaFromResponse(response, isPremium);
-        reply += `\n\n✨ (Réponse en direct par Groq Llama 3 • Quota restant : ${remaining}/${limit})`;
-
-        setIsAiTyping(false);
-
-        const aiMsg: ChatMessage = {
-          id: `msg_ai_${Date.now()}`,
-          groupId: 'g_ai_assistant',
-          senderId: 'ai',
-          senderName: 'Assistant IA',
-          type: 'text',
-          content: reply,
-          timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-          readBy: [activeMemberId]
-        };
-
-        setMessages(prev => [...prev, aiMsg]);
-        setGroups(prev => prev.map(g => g.id === 'g_ai_assistant' ? { ...g, lastMessage: aiMsg.content.substring(0, 30) + '...', lastMessageTime: aiMsg.timestamp } : g));
-        return;
-      } catch (err) {
-        console.warn("[Messagerie] Erreur lors de l'appel Groq en direct, repli sur l'IA locale :", err);
-      }
-    }
-
-    // Version locale de repli si quota dépassé ou clé manquante
-    setTimeout(() => {
-      setIsAiTyping(false);
-
-      const query = userText.toLowerCase();
-      const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
-      const isQuotaFallback = isPremium && remainingCalls === 0;
-
-      let reply = "Je suis votre Assistant Familial IA 🤖. Je peux vous aider à planifier les repas, organiser les corvées des enfants ou résoudre des questions scolaires. Que souhaitez-vous savoir ?";
-
-      if (query.includes('recette') || query.includes('manger') || query.includes('cuisine') || query.includes('dîner') || query.includes('repas') || query.includes('faim')) {
-        reply = "Voici une idée de recette familiale saine, économique et anti-gaspi : *Gratin de Pâtes aux Tomates & Mozzarella* 🍅🧀.\n\n• Préparation : 10 min\n• Cuisson : 15 min au four\n• Ingrédients : Pâtes penne, sauce tomate basilic, mozzarella fraîche, parmesan.\n\n• Conseil Anti-Gaspi : Vous pouvez y ajouter des restes de poulet rôti ou des légumes cuits de la veille ! Bon appétit !";
-      } else if (query.includes('devoir') || query.includes('école') || query.includes('exercice') || query.includes('apprendre') || query.includes('math') || query.includes('histoire') || query.includes('classe')) {
-        reply = "Besoin d'aide pour les devoirs ? 📚 Pas de panique ! L'agenda scolaire et le Tuteur IA sont vos meilleurs alliés. Pour une révision efficace :\n\n1. Divisez le travail en sessions de 25 minutes (méthode Pomodoro).\n2. Utilisez le *Générateur de Quiz IA ✨* dans l'École pour valider les acquis de manière ludique !";
-      } else if (query.includes('organisation') || query.includes('tâche') || query.includes('corvée') || query.includes('ménage') || query.includes('ranger') || query.includes('lit')) {
-        reply = "Pour motiver les enfants à accomplir les corvées de la maison 🧹, attribuez-leur des tâches équitablement dans le module *Tâches*. Les enfants accumulent des points de récompense qu'ils peuvent ensuite convertir dans leur tirelire !";
-      } else if (query.includes('argent') || query.includes('points') || query.includes('tirelire') || query.includes('sous') || query.includes('coffre')) {
-        reply = "Le module *Argent de Poche* 🪙 permet de responsabiliser les enfants. Vous pouvez y fixer des objectifs précis (ex: s'offrir un livre ou un jouet) et y ajouter des gains pour chaque tâche accomplie avec succès !";
-      } else if (query.includes('vacances') || query.includes('voyage') || query.includes('valise') || query.includes('bagage') || query.includes('départ')) {
-        reply = "Vous préparez un départ ? ✈️ Le module *Voyages & Valise IA* est conçu pour cela ! Renseignez la destination, la durée et la météo, et l'IA concevra instantanément la liste idéale de bagages pour chaque membre de la famille.";
-      } else if (query.includes('sport') || query.includes('foot') || query.includes('danse') || query.includes('activité') || query.includes('loisir')) {
-        reply = "Le sport et les activités artistiques ⚽🎨 sont essentiels pour le bien-être familial. N'hésitez pas à les planifier dans l'agenda commun de l'application afin que chacun soit au courant du planning de la semaine !";
-      } else if (query.includes('sommeil') || query.includes('coucher') || query.includes('dodo') || query.includes('histoire') || query.includes('conteur')) {
-        reply = "L'heure du coucher approche ? 🌙 C'est le moment idéal pour lancer le *Conteur d'Histoires IA* ! Choisissez ensemble le héros, le monde imaginaire et la morale, et laissez le Conteur Céleste concevoir un conte merveilleux et apaisant.";
-      } else if (query.includes('écran') || query.includes('téléphone') || query.includes('tablette') || query.includes('jeu') || query.includes('console')) {
-        reply = "La gestion des écrans 📱 est un enjeu pour toutes les familles. Le médiateur *PeaceMaker IA* propose d'excellents compromis en CNV en cas de désaccord. Nous recommandons de fixer des limites claires et de remplacer l'écran du soir par un conte audio.";
-      } else if (query.includes('météo') || query.includes('climat') || query.includes('pluie') || query.includes('soleil') || query.includes('température')) {
-        reply = "Pour planifier vos sorties familiales en fonction de la météo ☀️🌧️, vous pouvez utiliser le module *Voyages* qui intègre des recommandations intelligentes d'activités selon les conditions climatiques réelles !";
-      } else if (query.includes('qui es-tu') || query.includes('fonctionne') || query.includes('assistant') || query.includes('aide')) {
-        reply = "Je suis l'Assistant IA de MaFamille+ 🤖, un conseiller virtuel et compagnon d'organisation. Je réponds à toutes vos questions quotidiennes sur l'éducation, les recettes anti-gaspi et la gestion harmonieuse du foyer.";
-      } else if (query.includes('bonjour') || query.includes('salut') || query.includes('hello') || query.includes('coucou') || query.includes('ça va')) {
-        reply = "Bonjour ! Comment se passe votre journée en famille ? Comment puis-je vous aider aujourd'hui ? 🌸";
-      }
-
-      if (isQuotaFallback) {
-        reply += "\n\n✨ (IA Locale simulée : votre quota quotidien d'IA réelle est épuisé !)";
-      } else {
-        reply += "\n\n✨ (IA Locale simulée : l'IA réelle est indisponible pour le moment)";
-      }
-
-      const aiMsg: ChatMessage = {
-        id: `msg_ai_${Date.now()}`,
-        groupId: 'g_ai_assistant',
-        senderId: 'ai',
-        senderName: 'Assistant IA',
-        type: 'text',
-        content: reply,
-        timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-        readBy: [activeMemberId]
-      };
-
-      setMessages(prev => [...prev, aiMsg]);
-      setGroups(prev => prev.map(g => g.id === 'g_ai_assistant' ? { ...g, lastMessage: aiMsg.content.substring(0, 30) + '...', lastMessageTime: aiMsg.timestamp } : g));
-    }, 1500);
-  };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -525,9 +406,6 @@ Demande de l'utilisateur : "${userText}"`;
       });
     }
 
-    if (activeGroupId === 'g_ai_assistant') {
-      simulateAiResponse(userText);
-    }
   };
 
   const handleAddReaction = (msgId: string, emoji: string) => {
@@ -914,6 +792,7 @@ Demande de l'utilisateur : "${userText}"`;
   });
 
   const visibleGroups = groups.filter(g => {
+    if (g.id === 'g_ai_assistant' || g.id.startsWith('g_ai')) return false;
     if (hiddenGroupIds.includes(g.id)) return false;
     if (!g.isPrivate) return true;
     return g.memberIds.includes(activeMemberId);
@@ -952,13 +831,9 @@ Demande de l'utilisateur : "${userText}"`;
 
     let title = group.name;
     let subtitle = '';
-    let icon = 'group' as 'ai' | 'private' | 'group';
+    let icon = 'group' as 'private' | 'group';
 
-    if (group.id === 'g_ai_assistant' || group.id.startsWith('g_ai')) {
-      title = 'Assistant IA familial';
-      subtitle = 'Aide et idées pour la famille';
-      icon = 'ai';
-    } else if (group.isPrivate) {
+    if (group.isPrivate) {
       icon = 'private';
       title = otherParticipants.length > 0
         ? otherParticipants.map(m => m.name).join(', ')
@@ -1078,15 +953,9 @@ Demande de l'utilisateur : "${userText}"`;
                     onClick={() => setActiveGroupId(group.id)}
                     className="flex items-center p-3.5 rounded-2xl border border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98] group relative"
                   >
-                    <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 mr-4 shadow-lg transition-transform group-hover:scale-105 ${
-                      meta.icon === 'ai'
-                        ? 'bg-gradient-to-br from-[#FFB020] to-[#FF4D6D] shadow-[#FFB020]/20'
-                        : 'bg-gradient-to-br from-[#6C5CFF] to-[#00D26A] shadow-[#6C5CFF]/20'
-                    }`}>
+                    <div className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 mr-4 shadow-lg transition-transform group-hover:scale-105 bg-gradient-to-br from-[#6C5CFF] to-[#00D26A] shadow-[#6C5CFF]/20">
                       {meta.otherAvatar ? (
                         <img src={meta.otherAvatar} alt={meta.title} className="w-full h-full rounded-full object-cover" />
-                      ) : meta.icon === 'ai' ? (
-                        <Sparkles className="w-5 h-5 text-white" />
                       ) : meta.icon === 'private' ? (
                         <Users className="w-5 h-5 text-white" />
                       ) : (
@@ -1105,11 +974,9 @@ Demande de l'utilisateur : "${userText}"`;
                         <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md border ${
                           meta.icon === 'private'
                             ? 'text-[#00D26A] bg-[#00D26A]/10 border-[#00D26A]/15'
-                            : meta.icon === 'ai'
-                              ? 'text-[#FFB020] bg-[#FFB020]/10 border-[#FFB020]/15'
-                              : 'text-[#6C5CFF] bg-[#6C5CFF]/10 border-[#6C5CFF]/15'
+                            : 'text-[#6C5CFF] bg-[#6C5CFF]/10 border-[#6C5CFF]/15'
                         }`}>
-                          {meta.icon === 'private' ? 'Privé' : meta.icon === 'ai' ? 'IA' : 'Groupe'}
+                          {meta.icon === 'private' ? 'Privé' : 'Groupe'}
                         </span>
                         <span className="text-[10px] text-white/35 truncate">{meta.subtitle}</span>
                       </div>
@@ -1233,11 +1100,9 @@ Demande de l'utilisateur : "${userText}"`;
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg overflow-hidden shrink-0 ${activeGroupMeta?.icon === 'ai' ? 'bg-gradient-to-br from-[#FFB020] to-[#FF4D6D]' : 'bg-gradient-to-br from-[#6C5CFF] to-[#00D26A]'}`}>
+          <div className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg overflow-hidden shrink-0 bg-gradient-to-br from-[#6C5CFF] to-[#00D26A]">
             {activeGroupMeta?.otherAvatar ? (
               <img src={activeGroupMeta.otherAvatar} alt={activeGroupMeta.title} className="w-full h-full object-cover" />
-            ) : activeGroupMeta?.icon === 'ai' ? (
-              <Sparkles className="w-5 h-5 text-white" />
             ) : activeGroupMeta?.icon === 'private' ? (
               <Users className="w-5 h-5 text-white" />
             ) : (
@@ -1304,7 +1169,7 @@ Demande de l'utilisateur : "${userText}"`;
                   {archivedGroupIds.includes(activeGroupId!) ? 'Désarchiver' : 'Archiver la discussion'}
                 </button>
 
-                {activeGroupId !== 'g_ai_assistant' && activeGroup && (
+                {activeGroup && (
                   <button
                     type="button"
                     onClick={() => {
@@ -1325,12 +1190,12 @@ Demande de l'utilisateur : "${userText}"`;
                   </button>
                 )}
 
-                {activeGroupId !== 'g_ai_assistant' && activeGroup && !activeGroup.id.startsWith('g_ai') && (() => {
+                {activeGroup && (() => {
                   const activeMemberRole = members.find(m => m.id === activeMemberId)?.role;
                   const canDelete = activeMemberRole && ['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMemberRole);
                   if (!canDelete) return null;
                   // Protect the default family group (first non-private, non-AI group)
-                  const isSystemGroup = groups.findIndex(g => !g.isPrivate && !g.id.startsWith('g_ai')) === groups.indexOf(activeGroup) && activeGroup.id === groups.find(g => !g.isPrivate && !g.id.startsWith('g_ai'))?.id;
+                  const isSystemGroup = groups.findIndex(g => !g.isPrivate) === groups.indexOf(activeGroup) && activeGroup.id === groups.find(g => !g.isPrivate)?.id;
                   if (isSystemGroup) return null;
                   return (
                     <button
@@ -1422,7 +1287,6 @@ Demande de l'utilisateur : "${userText}"`;
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-[#0A0D18] to-[#121829]">
         {filteredActiveMessages.map(msg => {
           const isMe = msg.senderId === activeUser?.id;
-          const isAiMsg = msg.senderId === 'ai';
           const sender = members.find(m => m.id === msg.senderId);
           const isPinned = activeGroup?.pinnedMessageId === msg.id;
 
@@ -1439,21 +1303,14 @@ Demande de l'utilisateur : "${userText}"`;
 
           return (
             <div key={msg.id} id={`msg-${msg.id}`} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group/msg relative`}>
-              {!isMe && <span className="text-[10px] text-white/50 mb-1 ml-2">{isAiMsg ? '🤖 Assistant IA' : msg.senderName}</span>}
+              {!isMe && <span className="text-[10px] text-white/50 mb-1 ml-2">{msg.senderName}</span>}
               <div className={`flex items-end space-x-2 max-w-[80%] ${isMe ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                {!isMe && !isAiMsg && sender && (
+                {!isMe && sender && (
                   <img src={sender.photoUrl} alt={sender.name} className="w-6 h-6 rounded-full object-cover shrink-0 mb-1" />
-                )}
-                {isAiMsg && (
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#FFB020] to-[#FF4D6D] flex items-center justify-center shrink-0 mb-1">
-                    <Sparkles className="w-3 h-3 text-white" />
-                  </div>
                 )}
 
                 <div className={`p-3 rounded-2xl relative transition-all ${
-                  isAiMsg
-                    ? 'bg-gradient-to-br from-[#FFB020]/10 to-[#FF4D6D]/10 text-white rounded-2xl rounded-tl-sm border border-[#FFB020]/35 shadow-lg shadow-[#FF4D6D]/5'
-                    : isMe
+                  isMe
                       ? 'bg-gradient-to-br from-[#00D26A] to-[#00B050] text-black font-medium rounded-2xl rounded-tr-sm shadow-lg shadow-[#00D26A]/10'
                       : 'bg-white/5 border border-white/10 text-white rounded-2xl rounded-tl-sm backdrop-blur-sm shadow-sm'
                 }`}>
@@ -1627,22 +1484,6 @@ Demande de l'utilisateur : "${userText}"`;
              </div>
           </div>
         )}
-        {isAiTyping && (
-          <div className="flex items-start">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#FFB020] to-[#FF4D6D] flex items-center justify-center shrink-0 mr-2">
-              <Sparkles className="w-3 h-3 text-white" />
-            </div>
-            <div className="p-3 rounded-2xl bg-gradient-to-br from-[#1C2C4E] to-[#2A1F4E] text-white rounded-bl-sm border border-[#6C5CFF]/20">
-              <div className="flex items-center space-x-1.5">
-                <span className="w-2 h-2 bg-[#FFB020] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                <span className="w-2 h-2 bg-[#FFB020] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                <span className="w-2 h-2 bg-[#FFB020] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                <span className="text-[10px] text-white/50 ml-2 font-medium">L'assistant rédige...</span>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Real-time family member typing indicator display */}
         {Object.keys(typingMembers).length > 0 && (
           <div className="flex items-center space-x-1.5 ml-8 text-[11px] text-[#00D26A] italic py-1 animate-pulse">

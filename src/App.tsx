@@ -5861,7 +5861,11 @@ function App() {
   };
 
   const detectCreationContext = (promptLower: string, text: string) => {
-    const isCreation = /ajoute|ajouter|crée|creer|créer|cree|planifie|planifier|programme|programmer|enregistre|enregistrer|note|noter|prends|prendre/i.test(promptLower);
+    const hasCreationVerb = /ajoute|ajouter|crée|creer|créer|cree|planifie|planifier|programme|programmer|enregistre|enregistrer|note|noter|prends|prendre/i.test(promptLower);
+    const hasMedicalKeyword = /médecin|medecin|docteur|dentiste|pédiatre|pediatre|ophtalmo|ostéo|osteo|kiné|kine|orthophoniste|dermato|cardio|hôpital|hopital|clinique|santé|sante/i.test(promptLower);
+    const hasAppointmentKeyword = /\brdv\b|rendez-vous|rendez vous|visite|consultation/i.test(promptLower);
+    const isMedicalAppointmentRequest = hasMedicalKeyword && hasAppointmentKeyword;
+    const isCreation = hasCreationVerb || isMedicalAppointmentRequest;
     if (!isCreation) return null;
 
     // 1. VOYAGE
@@ -6020,6 +6024,7 @@ function App() {
       promptLower.includes('réunion') ||
       promptLower.includes('reunion') ||
       promptLower.includes('visite') ||
+      promptLower.includes('consultation') ||
       promptLower.includes('médecin') ||
       promptLower.includes('medecin') ||
       promptLower.includes('docteur') ||
@@ -6028,7 +6033,15 @@ function App() {
       promptLower.includes('pediatre') ||
       promptLower.includes('ophtalmo') ||
       promptLower.includes('ostéo') ||
-      promptLower.includes('osteo')
+      promptLower.includes('osteo') ||
+      promptLower.includes('kiné') ||
+      promptLower.includes('kine') ||
+      promptLower.includes('orthophoniste') ||
+      promptLower.includes('dermato') ||
+      promptLower.includes('cardio') ||
+      promptLower.includes('hôpital') ||
+      promptLower.includes('hopital') ||
+      promptLower.includes('clinique')
     ) {
       const dateRegex = /(?:le\s+)?(\d+\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre))/i;
       const dateMatch = promptLower.match(dateRegex);
@@ -6041,6 +6054,7 @@ function App() {
       let title = 'Rendez-vous';
       const restText = text
         .replace(/ajoute|ajouter|crée|creer|créer|cree|planifie|planifier|programme|programmer|prends|prendre|un|le|rdv|rendez-vous|rendez vous/gi, '')
+        .replace(/\bchez\b/gi, '')
         .replace(/\b(\d+h\d*|\d+:\d+)\b/g, '')
         .replace(dateRegex, '')
         .trim();
@@ -11537,8 +11551,8 @@ function App() {
         memories: ['mem-1', 'mem-2'],
         votes: ['vote-1', 'vote-2'],
         school_tasks: ['st-1', 'st-2', 'st-3', 'st-4', 'st-5'],
-        chat_groups: ['g_family', 'g_parents', 'g_ai_assistant'],
-        chat_messages: ['m1', 'm2', 'm3', 'm_ai_init'],
+        chat_groups: ['g_family', 'g_parents'],
+        chat_messages: ['m1', 'm2', 'm3'],
         demarches: ['dem-1'],
         justificatif_packs: ['pack-1'],
         vehicles: ['v1', 'v2'],
