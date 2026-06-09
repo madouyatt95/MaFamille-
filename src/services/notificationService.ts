@@ -2,6 +2,7 @@ import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { getSupabaseClient } from '../utils/supabase';
 import { Capacitor } from '@capacitor/core';
+import { Preferences } from '@capacitor/preferences';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { FCM } from '@capacitor-community/fcm';
 
@@ -10,6 +11,82 @@ type InitializeFCMOptions = {
 };
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const getDeviceId = async (): Promise<string> => {
+  const key = 'mf_push_device_id';
+  try {
+    const { value } = await Preferences.get({ key });
+    if (value) return value;
+  } catch (e) {
+    const existing = localStorage.getItem(key);
+    if (existing) return existing;
+  }
+
+  const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `device-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  try {
+    await Preferences.set({ key, value: id });
+  } catch (e) {
+    localStorage.setItem(key, id);
+  }
+  return id;
+};
+
+const getAppSource = (): string => {
+  if (Capacitor.isNativePlatform()) {
+    return Capacitor.getPlatform() === 'ios' ? 'ios' : 'native';
+  }
+  return 'pwa';
+};
+
+const savePushSubscription = async (memberId: string, token: string) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+
+  const { data: member, error: memberError } = await supabase
+    .from('foyer_members')
+    .select('id, foyer_id, user_id')
+    .eq('id', memberId)
+    .single();
+
+  if (memberError || !member) {
+    console.error('[FCM] Impossible de retrouver le membre pour le token :', memberError?.message);
+    return;
+  }
+
+  const deviceId = await getDeviceId();
+  const appSource = getAppSource();
+
+  const { error: subscriptionError } = await supabase
+    .from('push_subscriptions')
+    .upsert({
+      foyer_id: member.foyer_id,
+      member_id: member.id,
+      user_id: member.user_id,
+      token,
+      device_id: deviceId,
+      platform: Capacitor.getPlatform(),
+      app_source: appSource,
+      enabled: true
+    }, { onConflict: 'member_id,device_id,app_source' });
+
+  if (subscriptionError) {
+    console.error('[FCM] Impossible de sauvegarder l’installation push :', subscriptionError.message);
+  } else {
+    console.log(`[FCM] Installation push synchronisée (${appSource}) pour le membre :`, memberId);
+  }
+
+  const { error: legacyError } = await supabase
+    .from('foyer_members')
+    .update({ fcm_token: token })
+    .eq('id', memberId);
+
+  if (legacyError) {
+    console.warn('[FCM] Ancien champ fcm_token non mis à jour :', legacyError.message);
+  }
+};
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDZE7aW6Yv9XGadcRxwXWD75tI_KDhh84c",
@@ -139,19 +216,7 @@ export const notificationService = {
             }
             console.log('[FCM Native] Token FCM obtenu via le plugin community FCM:', fcmTokenValue);
             
-            const supabase = getSupabaseClient();
-            if (supabase) {
-              const { error } = await supabase
-                .from('foyer_members')
-                .update({ fcm_token: fcmTokenValue })
-                .eq('id', memberId);
-
-              if (error) {
-                console.error('[FCM Native] Impossible de sauvegarder le token FCM dans Supabase :', error.message);
-              } else {
-                console.log('[FCM Native] Token synchronisé dans Supabase pour le membre :', memberId);
-              }
-            }
+            await savePushSubscription(memberId, fcmTokenValue);
             
             localStorage.setItem('mf_fcm_active', 'true');
             localStorage.setItem('mf_fcm_token', fcmTokenValue);
@@ -248,20 +313,8 @@ export const notificationService = {
       if (token) {
         console.log('[FCM] Token FCM généré avec succès :', token);
         
-        // 5. Enregistrer le token en base de données Supabase
-        const supabase = getSupabaseClient();
-        if (supabase) {
-          const { error } = await supabase
-            .from('foyer_members')
-            .update({ fcm_token: token })
-            .eq('id', memberId);
-
-          if (error) {
-            console.error('[FCM] Impossible de sauvegarder le token FCM dans Supabase :', error.message);
-          } else {
-            console.log('[FCM] Token synchronisé avec succès dans Supabase pour le membre :', memberId);
-          }
-        }
+        // 5. Enregistrer cette installation sans écraser les autres appareils du même membre
+        await savePushSubscription(memberId, token);
         
         localStorage.setItem('mf_fcm_active', 'true');
         localStorage.setItem('mf_fcm_token', token);
@@ -289,6 +342,7 @@ export const notificationService = {
    * Désactive les notifications en supprimant le token FCM de Supabase et du localStorage
    */
   async disableNotifications(memberId: string): Promise<void> {
+    const token = localStorage.getItem('mf_fcm_token');
     localStorage.setItem('mf_fcm_active', 'false');
     localStorage.removeItem('mf_fcm_token');
 
@@ -302,10 +356,23 @@ export const notificationService = {
 
     const supabase = getSupabaseClient();
     if (supabase) {
+      if (token) {
+        const { error: subscriptionError } = await supabase
+          .from('push_subscriptions')
+          .delete()
+          .eq('member_id', memberId)
+          .eq('token', token);
+
+        if (subscriptionError) {
+          console.warn('[FCM] Échec de la suppression de cette installation push :', subscriptionError.message);
+        }
+      }
+
       const { error } = await supabase
         .from('foyer_members')
         .update({ fcm_token: null })
-        .eq('id', memberId);
+        .eq('id', memberId)
+        .eq('fcm_token', token || '');
 
       if (error) {
         console.error('[FCM] Échec de la suppression du token FCM dans Supabase :', error.message);

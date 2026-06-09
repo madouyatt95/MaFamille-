@@ -90,6 +90,15 @@ async function claimPushEvent(payload: any, foyerId: string): Promise<boolean> {
 }
 
 async function clearInvalidFcmToken(fcmToken: string) {
+  const { error: subscriptionError } = await supabaseAdmin
+    .from("push_subscriptions")
+    .delete()
+    .eq("token", fcmToken);
+
+  if (subscriptionError && subscriptionError.code !== "42P01") {
+    console.error("[Send-Push] Impossible de nettoyer l'installation push invalide :", subscriptionError.message);
+  }
+
   const { error } = await supabaseAdmin
     .from("foyer_members")
     .update({ fcm_token: null })
@@ -98,6 +107,48 @@ async function clearInvalidFcmToken(fcmToken: string) {
   if (error) {
     console.error("[Send-Push] Impossible de nettoyer le token invalide :", error.message);
   }
+}
+
+async function getPushTargets(foyerId: string): Promise<any[]> {
+  const { data: subscriptions, error: subscriptionsError } = await supabaseAdmin
+    .from("push_subscriptions")
+    .select(`
+      token,
+      member_id,
+      foyer_members!inner(id, display_name, user_id, notification_prefs)
+    `)
+    .eq("foyer_id", foyerId)
+    .eq("enabled", true)
+    .not("token", "is", null);
+
+  if (!subscriptionsError && subscriptions && subscriptions.length > 0) {
+    return subscriptions.map((subscription: any) => {
+      const member = subscription.foyer_members || {};
+      return {
+        id: member.id || subscription.member_id,
+        display_name: member.display_name,
+        user_id: member.user_id,
+        notification_prefs: member.notification_prefs,
+        fcm_token: subscription.token
+      };
+    });
+  }
+
+  if (subscriptionsError && subscriptionsError.code !== "42P01") {
+    console.warn("[Send-Push] Lecture push_subscriptions impossible, fallback foyer_members :", subscriptionsError.message);
+  }
+
+  const { data: members, error: membersError } = await supabaseAdmin
+    .from("foyer_members")
+    .select("id, display_name, user_id, fcm_token, notification_prefs")
+    .eq("foyer_id", foyerId)
+    .not("fcm_token", "is", null);
+
+  if (membersError) {
+    throw membersError;
+  }
+
+  return members || [];
 }
 
 function normalizeIdentity(value: unknown): string {
@@ -416,17 +467,8 @@ serve(async (req) => {
       return new Response(JSON.stringify({ message: "Table not supported for push" }), { status: 200 });
     }
 
-    // 2. Récupérer les tokens FCM des autres membres du foyer
-    const { data: members, error: membersError } = await supabaseAdmin
-      .from("foyer_members")
-      .select("id, display_name, user_id, fcm_token, notification_prefs")
-      .eq("foyer_id", foyerId)
-      .not("fcm_token", "is", null);
-
-    if (membersError) {
-      console.error("[Send-Push] Erreur lors de la récupération des membres :", membersError.message);
-      return new Response(JSON.stringify({ error: membersError.message }), { status: 500 });
-    }
+    // 2. Récupérer les tokens FCM de chaque installation active du foyer
+    const members = await getPushTargets(foyerId);
 
     // Filtrer pour ne pas l'envoyer à l'expéditeur
     const rawTargetTokens = members
