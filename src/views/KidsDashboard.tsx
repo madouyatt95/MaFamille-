@@ -21,6 +21,10 @@ import type { Member, ChoreTask, FamilyEvent, Trip, SchoolTask, Dish, DocumentFi
 import { parseChoreTitle, serializeChoreTitle } from '../types';
 import { getSupabaseClient } from '../utils/supabase';
 
+const LEGACY_DEMO_SCHOOL_TASK_IDS = new Set(['st-1', 'st-2', 'st-3', 'st-4', 'st-5']);
+
+const isValidDate = (date: Date) => !Number.isNaN(date.getTime());
+
 interface KidsDashboardProps {
   member: Member;
   tasks: ChoreTask[];
@@ -94,7 +98,8 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
   );
   
   // 2. School tasks (homework) assigned to this kid that are not done
-  const myHomework = (schoolTasks || []).filter(t => t && t.assignedMemberId === member.id && !t.done);
+  const cleanSchoolTasks = (schoolTasks || []).filter(t => t && !LEGACY_DEMO_SCHOOL_TASK_IDS.has(String(t.id || '')));
+  const myHomework = cleanSchoolTasks.filter(t => t.assignedMemberId === member.id && !t.done);
 
   // 3. Pocket money account
   const myAccount = (pocketMoney || []).find(p => p && p.id === member.id) || { balance: 0.0, points: 0 };
@@ -193,8 +198,9 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
       if (!t) return;
       const meta = parseChoreTitle(t.title);
       const title = meta.title || t.title;
-      let dateVal = new Date();
-      if (t.dueDate) dateVal = new Date(t.dueDate);
+      if (!t.dueDate) return;
+      const dateVal = new Date(t.dueDate);
+      if (!isValidDate(dateVal)) return;
       
       let label = "";
       let icon = "🧹";
@@ -214,7 +220,7 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
         title: label,
         description: meta.description || `Attribuée à ${t.assignedMemberName || 'la famille'}. Récompense : ${t.rewardPoints} pts.`,
         date: dateVal,
-        dateText: t.dueDate || 'Aujourd\'hui',
+        dateText: t.dueDate,
         icon
       });
     });
@@ -247,6 +253,8 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
           let day = parseInt(parts[0].length === 4 ? parts[2] : parts[0]);
           let year = new Date().getFullYear();
           let bdayThisYear = new Date(year, month, day);
+          const diffDays = Math.ceil((bdayThisYear.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          if (diffDays < 0 || diffDays > 30) return;
           list.push({
             id: `bday-${m.id}`,
             type: 'Anniversaire',
@@ -263,14 +271,18 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
     // Événements
     (events || []).forEach(e => {
       if (!e || e.type === 'vaccine') return;
-      const dateVal = e.dateTime ? new Date(e.dateTime) : new Date();
+      const ev = e as any;
+      if (ev.sourceModule === 'fetes' || ev.source_module === 'fetes' || ev.type === 'holiday') return;
+      if (!e.dateTime) return;
+      const dateVal = new Date(e.dateTime);
+      if (!isValidDate(dateVal)) return;
       list.push({
         id: `evt-${e.id}`,
         type: 'Événement',
         title: e.title,
         description: `${e.description || 'Événement familial prévu.'} à ${e.time || '09:00'}.`,
         date: dateVal,
-        dateText: e.dateTime?.split('T')[0] || 'Aujourd\'hui',
+        dateText: e.dateTime.split('T')[0],
         icon: "📅"
       });
     });
@@ -278,7 +290,9 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
     // Voyages
     (trips || []).forEach(tr => {
       if (!tr) return;
-      const dateVal = tr.startDate ? new Date(tr.startDate) : new Date();
+      if (!tr.startDate) return;
+      const dateVal = new Date(tr.startDate);
+      if (!isValidDate(dateVal)) return;
       list.push({
         id: `trip-${tr.id}`,
         type: 'Voyage',
@@ -305,9 +319,11 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
     });
 
     // Devoirs
-    (schoolTasks || []).forEach(st => {
-      if (!st) return;
-      const dateVal = st.dueDate ? new Date(st.dueDate) : new Date();
+    cleanSchoolTasks.forEach(st => {
+      if (!st || st.assignedMemberId !== member.id) return;
+      if (!st.dueDate) return;
+      const dateVal = new Date(st.dueDate);
+      if (!isValidDate(dateVal)) return;
       list.push({
         id: `schooltask-${st.id}`,
         type: 'Devoir',

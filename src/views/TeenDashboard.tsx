@@ -19,6 +19,9 @@ import { MenuHub } from './MenuHub';
 import { Agenda } from './Agenda';
 import { getSupabaseClient } from '../utils/supabase';
 
+const LEGACY_DEMO_SCHOOL_TASK_IDS = new Set(['st-1', 'st-2', 'st-3', 'st-4', 'st-5']);
+const isValidDate = (date: Date) => !Number.isNaN(date.getTime());
+
 interface TeenDashboardProps {
   member: Member;
   members: Member[];
@@ -301,7 +304,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
     xp += validTasks.length * 20;
 
     // Completed homework (done: true)
-    const compHomework = schoolTasks.filter(t => t.assignedMemberId === mId && t.done);
+    const compHomework = schoolTasks.filter(t => t.assignedMemberId === mId && t.done && !LEGACY_DEMO_SCHOOL_TASK_IDS.has(String(t.id || '')));
     xp += compHomework.length * 15;
 
     // Good grades (value/max >= 0.7 or score >= 14/20)
@@ -392,7 +395,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   const getAdoBadges = (mId: string, mName: string) => {
     const list = [];
     
-    const completedHw = schoolTasks.filter(t => t.assignedMemberId === mId && t.done);
+    const completedHw = schoolTasks.filter(t => t.assignedMemberId === mId && t.done && !LEGACY_DEMO_SCHOOL_TASK_IDS.has(String(t.id || '')));
     if (completedHw.length >= 1) {
       list.push({ id: 'badge-hw', title: 'Premier devoir terminé 📚', desc: 'Tu as complété ton premier devoir scolaire.', icon: '📝' });
     }
@@ -504,8 +507,13 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   const pendingValidationTasks = myTasks.filter(t => t.status === 'pending_validation');
   const validatedTasks = myTasks.filter(t => t.status === 'validated');
 
-  const mySchoolTasks = schoolTasks.filter(t => t.assignedMemberId === member.id && !t.done);
-  const myEvents = events.filter(e => e.memberId === member.id || e.title.toLowerCase().includes(member.name.toLowerCase()));
+  const cleanSchoolTasks = schoolTasks.filter(t => t && !LEGACY_DEMO_SCHOOL_TASK_IDS.has(String(t.id || '')));
+  const mySchoolTasks = cleanSchoolTasks.filter(t => t.assignedMemberId === member.id && !t.done);
+  const myEvents = events.filter(e => {
+    const ev = e as any;
+    if (ev.sourceModule === 'fetes' || ev.source_module === 'fetes' || ev.type === 'holiday') return false;
+    return e.memberId === member.id || e.title.toLowerCase().includes(member.name.toLowerCase());
+  });
 
   // Active Council Votes where the teen hasn't voted yet
   const pendingVotes = (votes || []).filter(v => 
@@ -538,8 +546,9 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
       const title = meta.title || t.title;
       if (meta.status !== 'validated' && meta.status !== 'pending_validation') return;
       
-      let dateVal = new Date();
-      if (t.dueDate) dateVal = new Date(t.dueDate);
+      if (!t.dueDate) return;
+      const dateVal = new Date(t.dueDate);
+      if (!isValidDate(dateVal)) return;
       
       list.push({
         id: `task-${t.id}`,
@@ -547,7 +556,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
         title: meta.status === 'validated' ? `Mission validée : ${title} 🎉` : `Mission terminée : ${title} ⏳`,
         description: meta.description || `Récompense : ${t.rewardPoints} pts.`,
         date: dateVal,
-        dateText: t.dueDate || 'Aujourd\'hui',
+        dateText: t.dueDate,
         icon: meta.status === 'validated' ? "✅" : "⏳"
       });
     });
@@ -557,7 +566,9 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
       (transactions || []).forEach(tx => {
         if (!tx || tx.isArchived) return;
         if (tx.memberId !== member.id && tx.memberName !== member.name) return;
-        const dateVal = tx.date ? new Date(tx.date) : new Date();
+        if (!tx.date) return;
+        const dateVal = new Date(tx.date);
+        if (!isValidDate(dateVal)) return;
         const isExpense = tx.type === 'expense';
         
         list.push({
@@ -583,6 +594,8 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
           let day = parseInt(parts[0].length === 4 ? parts[2] : parts[0]);
           let year = new Date().getFullYear();
           let bdayThisYear = new Date(year, month, day);
+          const diffDays = Math.ceil((bdayThisYear.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          if (diffDays < 0 || diffDays > 30) return;
           list.push({
             id: `bday-${m.id}`,
             type: 'Anniversaire',
@@ -600,19 +613,23 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
     if (isModuleAllowed('agenda')) {
       (events || []).forEach(e => {
         if (!e || e.type === 'vaccine' || e.type === 'bill' || (e.type as string) === 'administrative') return;
+        const ev = e as any;
+        if (ev.sourceModule === 'fetes' || ev.source_module === 'fetes' || ev.type === 'holiday') return;
         
         // Exclude parent appointments, general days off, public holidays, banking, taxes, medical etc.
         const isBoring = /démarche|rdv administratif|facture|impôt|banque|férié|jour férié|travaux|réunion|professionnel|dentiste|médecin|contrôle/i.test(e.title || '');
         if (isBoring) return;
 
-        const dateVal = e.dateTime ? new Date(e.dateTime) : new Date();
+        if (!e.dateTime) return;
+        const dateVal = new Date(e.dateTime);
+        if (!isValidDate(dateVal)) return;
         list.push({
           id: `evt-${e.id}`,
           type: 'Événement',
           title: e.title,
           description: `${e.description || 'Événement familial prévu.'} à ${e.time || '09:00'}.`,
           date: dateVal,
-          dateText: e.dateTime?.split('T')[0] || 'Aujourd\'hui',
+          dateText: e.dateTime.split('T')[0],
           icon: "📅"
         });
       });
@@ -622,7 +639,9 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
     if (isModuleAllowed('voyages')) {
       (trips || []).forEach(tr => {
         if (!tr) return;
-        const dateVal = tr.startDate ? new Date(tr.startDate) : new Date();
+        if (!tr.startDate) return;
+        const dateVal = new Date(tr.startDate);
+        if (!isValidDate(dateVal)) return;
         list.push({
           id: `trip-${tr.id}`,
           type: 'Voyage',
@@ -655,9 +674,12 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
 
     // 7. Devoirs Complétés & Bonnes Notes
     if (isModuleAllowed('ecole')) {
-      (schoolTasks || []).forEach(st => {
+      cleanSchoolTasks.forEach(st => {
         if (!st || !st.done) return;
-        const dateVal = st.dueDate ? new Date(st.dueDate) : new Date();
+        if (st.assignedMemberId !== member.id) return;
+        if (!st.dueDate) return;
+        const dateVal = new Date(st.dueDate);
+        if (!isValidDate(dateVal)) return;
         list.push({
           id: `schooltask-${st.id}`,
           type: 'Devoir',
@@ -2201,7 +2223,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                     <span className="text-2xl">📖</span>
                     <div>
                       <h4 className="text-[10px] font-black text-white leading-tight">École & Devoirs</h4>
-                      <p className="text-[8px] font-bold text-emerald-400 mt-0.5 leading-none">{schoolTasks.filter(t => !t.done).length} devoir{schoolTasks.filter(t => !t.done).length > 1 ? 's' : ''}</p>
+                      <p className="text-[8px] font-bold text-emerald-400 mt-0.5 leading-none">{mySchoolTasks.length} devoir{mySchoolTasks.length > 1 ? 's' : ''}</p>
                     </div>
                   </button>
                 )}
@@ -2701,7 +2723,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
 
             <div className="bg-[#112240]/60 border border-white/5 rounded-[28px] p-5 space-y-2">
               <span className="text-[10px] font-black text-white/45 uppercase tracking-wider block">Devoirs Restants</span>
-              <span className="text-2xl font-black text-[#FFB020]">{schoolTasks.filter(t => !t.done).length}</span>
+              <span className="text-2xl font-black text-[#FFB020]">{mySchoolTasks.length}</span>
               <p className="text-[9px] text-white/50 leading-tight">À faire cette semaine</p>
             </div>
           </div>

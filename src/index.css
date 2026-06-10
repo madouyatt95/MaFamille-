@@ -280,28 +280,48 @@ html,
   color: var(--family-text) !important;
 }
 
+.theme-light .text-white\/95,
 .theme-light .text-white\/90,
+.theme-light .text-white\/85,
 .theme-light .text-white\/80,
+.theme-sepia .text-white\/95,
 .theme-sepia .text-white\/90,
+.theme-sepia .text-white\/85,
 .theme-sepia .text-white\/80 {
   color: color-mix(in srgb, var(--family-text) 88%, transparent) !important;
 }
 
+.theme-light .text-white\/75,
 .theme-light .text-white\/70,
+.theme-light .text-white\/65,
 .theme-light .text-white\/60,
+.theme-sepia .text-white\/75,
 .theme-sepia .text-white\/70,
+.theme-sepia .text-white\/65,
 .theme-sepia .text-white\/60 {
   color: color-mix(in srgb, var(--family-text) 66%, transparent) !important;
 }
 
+.theme-light .text-white\/55,
 .theme-light .text-white\/50,
+.theme-light .text-white\/45,
 .theme-light .text-white\/40,
+.theme-light .text-white\/35,
 .theme-light .text-white\/30,
+.theme-light .text-white\/25,
 .theme-light .text-white\/20,
+.theme-light .text-white\/15,
+.theme-light .text-white\/10,
+.theme-sepia .text-white\/55,
 .theme-sepia .text-white\/50,
+.theme-sepia .text-white\/45,
 .theme-sepia .text-white\/40,
+.theme-sepia .text-white\/35,
 .theme-sepia .text-white\/30,
-.theme-sepia .text-white\/20 {
+.theme-sepia .text-white\/25,
+.theme-sepia .text-white\/20,
+.theme-sepia .text-white\/15,
+.theme-sepia .text-white\/10 {
   color: color-mix(in srgb, var(--family-text) 48%, transparent) !important;
 }
 

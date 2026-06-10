@@ -5,6 +5,13 @@ import { foyerService } from '../../services/foyerService';
 import { getSupabaseClient } from '../../utils/supabase';
 import { compressImage } from '../../utils/imageCompressor';
 
+const blobToDataUrl = (blob: Blob): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result as string);
+  reader.onerror = () => reject(reader.error);
+  reader.readAsDataURL(blob);
+});
+
 // Player de messages vocaux interactif et esthétique
 const VoiceMessagePlayer: React.FC<{ content: string; isMe: boolean }> = ({ content, isMe }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -268,6 +275,36 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
   const activeUser = members.find(m => m.id === activeMemberId);
 
+  const uploadVoiceBlob = useCallback(async (blob: Blob, groupId: string, senderId: string): Promise<string | null> => {
+    const client = getSupabaseClient();
+    const foyerId = localStorage.getItem('mf_cloud_foyer_id');
+    if (!client || !foyerId) return null;
+
+    try {
+      const mime = blob.type || 'audio/webm';
+      const extension = mime.includes('mp4') ? 'm4a'
+        : mime.includes('aac') ? 'aac'
+        : mime.includes('ogg') ? 'ogg'
+        : mime.includes('wav') ? 'wav'
+        : 'webm';
+      const filePath = `${foyerId}/${groupId}/${senderId}_${Date.now()}.${extension}`;
+      const { error } = await client.storage
+        .from('chat-media')
+        .upload(filePath, blob, { contentType: mime, upsert: false });
+
+      if (error) {
+        console.warn('[Messagerie] Voice upload fallback to local payload:', error.message);
+        return null;
+      }
+
+      const { data } = client.storage.from('chat-media').getPublicUrl(filePath);
+      return data?.publicUrl || null;
+    } catch (err) {
+      console.warn('[Messagerie] Voice upload failed, using fallback payload:', err);
+      return null;
+    }
+  }, []);
+
   const saveMessageToCloud = useCallback(async (msg: ChatMessage) => {
     const foyerId = localStorage.getItem('mf_cloud_foyer_id');
     if (!foyerId) return;
@@ -360,6 +397,13 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeGroupId]);
+
+  useEffect(() => {
+    if (!activeGroupId) return;
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }, [activeGroupId]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -575,41 +619,43 @@ export const Messagerie: React.FC<MessagerieProps> = ({
         }
       };
 
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
         stream.getTracks().forEach(track => track.stop());
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          if (event.target?.result && activeGroupId && activeUser) {
-            const base64Data = event.target.result as string;
-            const payload = `${recordingDuration}|${base64Data}`;
+        if (!activeGroupId || !activeUser) return;
 
-            const newMsg: ChatMessage = {
-              id: `msg_${Date.now()}`,
-              groupId: activeGroupId,
-              senderId: activeUser.id,
-              senderName: activeUser.name,
-              type: 'voice',
-              content: payload,
-              timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-              readBy: [activeUser.id]
-            };
-            setMessages(prev => [...prev, newMsg]);
-            setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: '🎤 Message vocal', lastMessageTime: newMsg.timestamp } : g));
+        try {
+          const uploadedUrl = await uploadVoiceBlob(audioBlob, activeGroupId, activeUser.id);
+          const audioPayload = uploadedUrl || await blobToDataUrl(audioBlob);
+          const payload = `${recordingDuration}|${audioPayload}`;
 
-            saveMessageToCloud(newMsg);
-            const activeGroup = groups.find(g => g.id === activeGroupId);
-            if (activeGroup) {
-              saveGroupToCloud({
-                ...activeGroup,
-                lastMessage: '🎤 Message vocal',
-                lastMessageTime: newMsg.timestamp
-              });
-            }
+          const newMsg: ChatMessage = {
+            id: `msg_${Date.now()}`,
+            groupId: activeGroupId,
+            senderId: activeUser.id,
+            senderName: activeUser.name,
+            type: 'voice',
+            content: payload,
+            timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+            readBy: [activeUser.id]
+          };
+          setMessages(prev => [...prev, newMsg]);
+          setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: '🎤 Message vocal', lastMessageTime: newMsg.timestamp } : g));
+
+          saveMessageToCloud(newMsg);
+          const activeGroup = groups.find(g => g.id === activeGroupId);
+          if (activeGroup) {
+            saveGroupToCloud({
+              ...activeGroup,
+              lastMessage: '🎤 Message vocal',
+              lastMessageTime: newMsg.timestamp
+            });
           }
-        };
-        reader.readAsDataURL(audioBlob);
+        } catch (err) {
+          console.error('[Messagerie] Unable to prepare voice message:', err);
+          alert("Impossible d'envoyer ce message vocal. Réessayez dans un instant.");
+        }
       };
 
       setRecordingDuration(0);
@@ -903,7 +949,11 @@ export const Messagerie: React.FC<MessagerieProps> = ({
         : `Conversation privée • ${participants.length} membres`;
     } else {
       title = group.name || 'Discussion de famille';
-      subtitle = `${Math.max(group.memberIds.length || participants.length, participants.length)} membres`;
+      const memberNames = participants.map(m => m.name).filter(Boolean);
+      const expectedCount = Math.max(group.memberIds.length || participants.length, participants.length);
+      subtitle = memberNames.length > 0
+        ? `${expectedCount} membres : ${memberNames.join(', ')}`
+        : `${expectedCount} membres`;
     }
 
     const preview = latestMessage
@@ -1267,9 +1317,9 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   // CHAT VIEW
   const activeGroupMeta = activeGroup ? getConversationMeta(activeGroup) : null;
   return (
-    <div className="flex flex-col h-[75vh] bg-[#0A0D18] text-white rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative z-10">
+    <div className="fixed inset-x-0 top-0 bottom-0 z-[80] flex min-h-0 flex-col overflow-hidden bg-[#0A0D18] pt-[env(safe-area-inset-top,0px)] text-white shadow-2xl md:relative md:inset-auto md:z-10 md:h-[calc(100dvh-9rem)] md:rounded-3xl md:border md:border-white/10 md:pt-0">
       {/* Chat Header */}
-      <div className="flex items-center justify-between p-3 border-b border-white/10 bg-[#112240]/90 backdrop-blur-md">
+      <div className="flex shrink-0 items-center justify-between p-3 border-b border-white/10 bg-[#112240]/90 backdrop-blur-md">
         <div className="flex items-center space-x-3 min-w-0">
           <button
             onClick={() => { setActiveGroupId(null); setReplyingToMessage(null); }}
@@ -1416,7 +1466,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
       {/* Message Search Bar */}
       {showMsgSearch && (
-        <div className="p-2 border-b border-white/10 bg-[#112240]/80 flex items-center space-x-2 animate-fade-in">
+        <div className="flex shrink-0 items-center space-x-2 border-b border-white/10 bg-[#112240]/80 p-2 animate-fade-in">
           <Search className="w-4 h-4 text-white/40 ml-1 shrink-0" />
           <input
             type="text"
@@ -1449,7 +1499,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
               const el = document.getElementById(`msg-${pinnedMsg.id}`);
               el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }}
-            className="flex items-center justify-between px-4 py-2.5 bg-[#6C5CFF]/10 border-b border-[#6C5CFF]/20 cursor-pointer hover:bg-[#6C5CFF]/15 transition-colors"
+            className="flex shrink-0 items-center justify-between px-4 py-2.5 bg-[#6C5CFF]/10 border-b border-[#6C5CFF]/20 cursor-pointer hover:bg-[#6C5CFF]/15 transition-colors"
           >
             <div className="flex items-center space-x-2 truncate min-w-0">
               <Pin className="w-3.5 h-3.5 text-[#FFB020] shrink-0" />
@@ -1469,7 +1519,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
       })()}
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-[#0A0D18] to-[#121829]">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-[#0A0D18] to-[#121829]">
         {filteredActiveMessages.map(msg => {
           const isMe = msg.senderId === activeUser?.id;
           const sender = members.find(m => m.id === msg.senderId);
@@ -1742,7 +1792,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
       {/* Replying Preview Banner */}
       {replyingToMessage && (
-        <div className="flex items-center justify-between px-4 py-2 bg-[#6C5CFF]/20 border-t border-[#6C5CFF]/30 backdrop-blur-md animate-fade-in">
+        <div className="flex shrink-0 items-center justify-between px-4 py-2 bg-[#6C5CFF]/20 border-t border-[#6C5CFF]/30 backdrop-blur-md animate-fade-in">
           <div className="flex-1 min-w-0 border-l-2 border-[#00D26A] pl-2 py-0.5">
             <span className="text-[10px] font-black text-[#00D26A] block mb-0.5">Répondre à {replyingToMessage.senderName}</span>
             <span className="text-[11px] text-white/70 truncate block italic">
@@ -1766,7 +1816,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
       )}
 
       {/* Input Area */}
-      <div className="p-3 bg-white/5 border-t border-white/10 backdrop-blur-xl">
+      <div className="shrink-0 border-t border-white/10 bg-white/5 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] backdrop-blur-xl">
         {isRecording ? (
           <div className="flex items-center justify-between bg-red-500/10 border border-red-500/25 p-2 rounded-full w-full px-4 animate-pulse">
             <div className="flex items-center space-x-2">

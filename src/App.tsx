@@ -9684,6 +9684,7 @@ function App() {
 
   const filteredAlerts = allAlertsCombined
     .filter((al: any) => !deletedAlertIds.includes(al.id))
+    .filter((al: any) => !(al.read || readAlertIds.includes(al.id)))
     .filter((al: any) => {
       if (al.id.includes(`-by-${activeMemberId}`)) return false;
       
@@ -9710,18 +9711,14 @@ function App() {
     });
 
   const handleMarkAsRead = async (id: string) => {
-    if (id.startsWith('budget-')) {
-      setReadAlertIds(prev => {
-        const next = [...prev, id];
-        localStorage.setItem(`mf_read_alerts_${activeMemberId}`, JSON.stringify(next));
-        return next;
-      });
-    } else {
-      setAlerts(prev => prev.map(a => a.id === id ? { ...a, read: true } : a));
-      const client = getSupabaseClient();
-      if (client) {
-        await client.from('alerts').update({ read: true }).eq('id', id);
-      }
+    setReadAlertIds(prev => {
+      const next = prev.includes(id) ? prev : [...prev, id];
+      localStorage.setItem(`mf_read_alerts_${activeMemberId}`, JSON.stringify(next));
+      return next;
+    });
+    setAlerts(prev => prev.map(a => a.id === id ? { ...a, read: true } : a));
+    if (!id.startsWith('budget-')) {
+      await updateAlertReadStatusInCloud(id, true);
     }
   };
 
@@ -14209,16 +14206,7 @@ function App() {
                   <div 
                     key={al.id} 
                     onClick={() => {
-                      if (al.id.startsWith('budget-')) {
-                        setReadAlertIds(prev => {
-                          const next = [...prev, al.id];
-                          localStorage.setItem(`mf_read_alerts_${activeMemberId}`, JSON.stringify(next));
-                          return next;
-                        });
-                      } else {
-                        setAlerts(prev => prev.map(a => a.id === al.id ? { ...a, read: true } : a));
-                        updateAlertReadStatusInCloud(al.id, true);
-                      }
+                      handleMarkAsRead(al.id);
                       if (targetModule) {
                         const mainTabs = ['accueil', 'timeline', 'budget'];
                         if (mainTabs.includes(targetModule)) {
@@ -14311,10 +14299,10 @@ function App() {
                 markAllAlertsAsReadInCloud();
                 
                 // Also mark dynamic alerts as read
-                const dynamicIds = filteredAlerts.filter((a: any) => a.id.startsWith('budget-')).map((a: any) => a.id);
-                if (dynamicIds.length > 0) {
+                const currentIds = filteredAlerts.map((a: any) => a.id);
+                if (currentIds.length > 0) {
                   setReadAlertIds(prev => {
-                    const next = [...prev, ...dynamicIds];
+                    const next = Array.from(new Set([...prev, ...currentIds]));
                     localStorage.setItem(`mf_read_alerts_${activeMemberId}`, JSON.stringify(next));
                     return next;
                   });
