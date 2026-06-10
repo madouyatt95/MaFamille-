@@ -417,7 +417,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
       console.error("[KidMissions] Failed to save task suggestion request to cloud:", err);
     }
 
-    alert(`Demande envoyée ! Papa et Maman ont reçu ta proposition : "${requestText.trim()}" pour ${requestPoints} points.`);
+    alert(`Demande envoyée ! Les parents ont reçu ta proposition : "${requestText.trim()}" pour ${requestPoints} points.`);
     setRequestText('');
   };
 

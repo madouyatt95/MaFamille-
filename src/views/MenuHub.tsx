@@ -1308,7 +1308,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   };
 
   // Pocket Money Form states
-  const [allowanceChildId, setAllowanceChildId] = useState('3'); // Amadou
+  const [allowanceChildId, setAllowanceChildId] = useState('3');
   const [allowanceAmount, setAllowanceAmount] = useState('');
   const [allowancePoints, setAllowancePoints] = useState('');
 
@@ -1411,7 +1411,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             <h3 className="text-base font-extrabold text-white tracking-tight">Accès Parent Privé 🔒</h3>
             <p className="text-xs text-[#FF4D6D] font-bold">Module confidentiel : {activeModule.toUpperCase()}</p>
             <p className="text-xs text-white/50 leading-relaxed max-w-[280px] mx-auto">
-              Ce module contient des données financières, administratives ou de sécurité hautement réservées à Papa & Maman.
+              Ce module contient des données financières, administratives ou de sécurité réservées aux parents.
             </p>
           </div>
 
@@ -2172,7 +2172,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                                   value={editEmergencyName}
                                   onChange={(e) => setEditEmergencyName(e.target.value)}
                                   className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
-                                  placeholder="ex: Papa"
+                                  placeholder="ex: Contact parent"
                                   id="emergency_contact_name_input"
                                 />
                               </div>
@@ -2504,7 +2504,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   </div>
                   <h4 className="text-xs font-bold text-white uppercase tracking-wider">Ajout de courses verrouillé 🔒</h4>
                   <p className="text-[10px] text-white/60 leading-normal max-w-[285px] mx-auto">
-                    La liste de courses est gérée par Papa & Maman. Demandez-leur d'activer la dérogation temporaire pour ajouter vos envies !
+                    La liste de courses est gérée par les parents. Demandez-leur d'activer la dérogation temporaire pour ajouter vos envies !
                   </p>
                 </div>
               ) : (

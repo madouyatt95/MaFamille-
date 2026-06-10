@@ -87,7 +87,7 @@ export const ContactsImportants: React.FC<ContactsImportantsProps> = () => {
       },
       {
         id: 'c5',
-        name: 'Mme. Mercier (Enseignante Awa)',
+        name: 'Enseignante référente',
         category: 'school',
         role: 'Professeur principal Collège',
         phone: '+33698765432',

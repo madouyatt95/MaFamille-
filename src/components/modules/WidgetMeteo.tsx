@@ -27,7 +27,7 @@ const getWeatherDetails = (code: number) => {
 
 const getClothingAdvice = (temp: number, isRaining: boolean) => {
   if (temp < 10) {
-    return "🥶 Froid polaire. Préparez le gros manteau, le bonnet et l'écharpe pour Amadou et Awa !";
+    return "🥶 Froid polaire. Préparez le gros manteau, le bonnet et l'écharpe pour les enfants !";
   } else if (temp < 18) {
     if (isRaining) return "🌧️ Frais et humide. Un bon coupe-vent imperméable et des bottines sont conseillés.";
     return "🌤️ Temps frais. Une veste mi-saison et un pull feront l'affaire aujourd'hui.";

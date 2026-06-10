@@ -114,8 +114,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     if (stored) return JSON.parse(stored);
     return [
       { id: 'fav-1', name: "Maison principale 🏠", type: 'home', coords: [48.8566, 2.3522], detail: "Résidence Familiale" },
-      { id: 'fav-2', name: "Bureau de Papa 💼", type: 'work', coords: [48.8924, 2.2356], detail: "La Défense Paris" },
-      { id: 'fav-3', name: "École des Enfants 🏫", type: 'school', coords: [48.8606, 2.3376], detail: "Lycée international" }
+      { id: 'fav-2', name: "Bureau familial 💼", type: 'work', coords: [48.8924, 2.2356], detail: "Lieu de travail à personnaliser" },
+      { id: 'fav-3', name: "École des enfants 🏫", type: 'school', coords: [48.8606, 2.3376], detail: "Établissement à personnaliser" }
     ];
   });
 
@@ -1120,4 +1120,3 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     </div>
   );
 };
-

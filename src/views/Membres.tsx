@@ -153,7 +153,7 @@ export const Membres: React.FC<MembresProps> = ({
         treatments: addTreatments.trim() ? addTreatments.split(',').map(t => t.trim()) : ['Aucun'],
         schoolOrEmployer: addSchool.trim() || 'Non renseigné',
         emergencyContact: {
-          name: addEmergencyName.trim() || 'Maman',
+          name: addEmergencyName.trim() || 'Contact parent',
           phone: addEmergencyPhone.trim() || '',
           relation: addEmergencyRelation.trim() || 'Mère'
         },
@@ -603,7 +603,7 @@ export const Membres: React.FC<MembresProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Papa, Marie..."
+                  placeholder="Ex: Parent, Marie..."
                   value={displayNameInput}
                   onChange={(e) => setDisplayNameInput(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
@@ -641,7 +641,7 @@ export const Membres: React.FC<MembresProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Papa, Jean..."
+                  placeholder="Ex: Parent, Jean..."
                   value={displayNameInput}
                   onChange={(e) => setDisplayNameInput(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"

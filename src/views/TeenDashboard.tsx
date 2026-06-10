@@ -145,7 +145,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   onToggleTask,
   onSendNotification,
   memberPermissions,
-  communeName = 'Cormeilles-en-Parisis',
+  communeName = 'Commune à configurer',
   schoolName = 'Collège Victor Hugo',
   onToggleEventDone = () => {},
   onMoveEvent = () => {},
@@ -1686,7 +1686,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                   className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder-white/35 focus:outline-none focus:border-[#6C5CFF]"
                 />
                 <textarea 
-                  placeholder="Description (ex: On a bien ri et Amadou a perdu sa chaussure !)"
+                  placeholder="Description (ex: On a bien ri pendant cette sortie !)"
                   value={newMemoryDesc}
                   onChange={(e) => setNewMemoryDesc(e.target.value)}
                   rows={2}

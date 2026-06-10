@@ -51,7 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenSpaceSelector
 }) => {
   const activeMember = members.find(m => m.id === activeMemberId) || {
-    name: 'Papa',
+    name: 'Parent',
     role: 'Chef de famille',
     photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150'
   };

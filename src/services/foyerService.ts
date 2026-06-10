@@ -604,7 +604,7 @@ export const foyerService = {
       blood_group: member.bloodGroup || 'A+',
       allergies: member.allergies || ['Aucune'],
       treatments: member.treatments || ['Aucun'],
-      emergency_contact_name: member.emergencyContact?.name || 'Maman',
+      emergency_contact_name: member.emergencyContact?.name || 'Contact parent',
       emergency_contact_phone: member.emergencyContact?.phone || '',
       emergency_contact_relation: member.emergencyContact?.relation || 'Mère',
       school_or_employer: member.schoolOrEmployer || 'Non renseigné',
@@ -949,7 +949,7 @@ export const foyerService = {
       has_exemption: hasExemption,
       allergies: ['Aucune'],
       treatments: ['Aucun'],
-      emergency_contact_name: 'Maman',
+      emergency_contact_name: 'Contact parent',
       emergency_contact_phone: '',
       emergency_contact_relation: 'Mère',
       school_or_employer: 'Non renseigné'

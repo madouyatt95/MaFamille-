@@ -11,8 +11,8 @@ const DEFAULT_ESTABLISHMENTS: Space[] = [
 ];
 
 const DEFAULT_COMMUNES: Space[] = [
-  { id: 'com-1', name: 'Cormeilles-en-Parisis' },
-  { id: 'com-2', name: 'Ville de Paris' }
+  { id: 'com-1', name: 'Commune à configurer' },
+  { id: 'com-2', name: 'Ville à configurer' }
 ];
 
 const safeParseJSON = (key: string, fallback: any) => {

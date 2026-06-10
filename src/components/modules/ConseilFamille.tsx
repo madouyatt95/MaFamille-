@@ -90,7 +90,7 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
   const [isEditingCharter, setIsEditingCharter] = useState(false);
   const [editedRules, setEditedRules] = useState<string[]>([]);
 
-  const memberName = activeMember ? activeMember.name : (activeMemberId === '1' ? 'Papa' : activeMemberId === '2' ? 'Maman' : activeMemberId === '3' ? 'Amadou' : 'Awa');
+  const memberName = activeMember?.name || 'Membre du foyer';
 
   const handleVote = (pollId: string, optionIdx: number) => {
     let alreadyVoted = false;
@@ -556,11 +556,11 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
                 ) : (
                   <>
                     <div className="p-3 rounded-2xl bg-[#00D26A]/10 border border-[#00D26A]/20">
-                      <span className="text-[10px] font-bold text-white block">Papa</span>
+                      <span className="text-[10px] font-bold text-white block">Parent 1</span>
                       <span className="text-[9px] text-[#00D26A] font-bold mt-1.5 block">✍️ Signé</span>
                     </div>
                     <div className="p-3 rounded-2xl bg-[#00D26A]/10 border border-[#00D26A]/20">
-                      <span className="text-[10px] font-bold text-white block">Maman</span>
+                      <span className="text-[10px] font-bold text-white block">Parent 2</span>
                       <span className="text-[9px] text-[#00D26A] font-bold mt-1.5 block">✍️ Signé</span>
                     </div>
                     <div className={`p-3 rounded-2xl border transition-all ${
@@ -568,7 +568,7 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
                         ? 'bg-[#00D26A]/10 border-[#00D26A]/20' 
                         : 'bg-white/5 border-white/5'
                     }`}>
-                      <span className="text-[10px] font-bold text-white block">Amadou</span>
+                      <span className="text-[10px] font-bold text-white block">Enfant 1</span>
                       {signatures['3'] ? (
                         <span className="text-[9px] text-[#00D26A] font-bold mt-1.5 block">✍️ Signé</span>
                       ) : activeMemberId === '3' ? (
@@ -587,7 +587,7 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
                         ? 'bg-[#00D26A]/10 border-[#00D26A]/20' 
                         : 'bg-white/5 border-white/5'
                     }`}>
-                      <span className="text-[10px] font-bold text-white block">Awa</span>
+                      <span className="text-[10px] font-bold text-white block">Enfant 2</span>
                       {signatures['4'] ? (
                         <span className="text-[9px] text-[#00D26A] font-bold mt-1.5 block">✍️ Signé</span>
                       ) : activeMemberId === '4' ? (

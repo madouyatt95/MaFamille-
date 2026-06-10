@@ -326,17 +326,17 @@ function App() {
     return [
       {
         id: 'src-google-papa',
-        name: 'Google Agenda Papa',
+        name: 'Agenda personnel',
         url: 'https://calendar.google.com/calendar/ical/papa/public/basic.ics',
         color: '#2563EB',
         isActive: true
       },
       {
-        id: 'src-school-awa',
-        name: 'École Awa (Emploi du temps)',
+        id: 'src-school',
+        name: 'École (emploi du temps)',
         url: 'https://ecole.directe/awa/agenda.ics',
         color: '#EC4899',
-        memberId: '4', // Awa
+        memberId: '4',
         isActive: true
       }
     ];
@@ -357,7 +357,7 @@ function App() {
         endTime: '12:00',
         description: 'Point d\'étape sur les nouveaux projets de consulting.',
         location: 'Paris Offices',
-        sourceName: 'Google Agenda Papa',
+        sourceName: 'Agenda personnel',
         sourceColor: '#2563EB',
         isAllDay: false
       },
@@ -370,7 +370,7 @@ function App() {
         endTime: '10:30',
         description: 'Géométrie et algèbre linéaire.',
         location: 'Salle 402 - Collège',
-        sourceName: 'École Awa (Emploi du temps)',
+        sourceName: 'École (emploi du temps)',
         sourceColor: '#EC4899',
         memberId: '4',
         isAllDay: false
@@ -384,7 +384,7 @@ function App() {
         endTime: '14:00',
         description: 'Signature de contrat de partenariat.',
         location: 'L\'Atelier Bistrot',
-        sourceName: 'Google Agenda Papa',
+        sourceName: 'Agenda personnel',
         sourceColor: '#2563EB',
         isAllDay: false
       },
@@ -397,7 +397,7 @@ function App() {
         endTime: '16:00',
         description: 'Préparation du brevet oral d\'anglais.',
         location: 'Salle 105 - Collège',
-        sourceName: 'École Awa (Emploi du temps)',
+        sourceName: 'École (emploi du temps)',
         sourceColor: '#EC4899',
         memberId: '4',
         isAllDay: false
@@ -1467,7 +1467,7 @@ function App() {
   const [welcomeInviteCode, setWelcomeInviteCode] = useState("");
   const [welcomeDisplayName, setWelcomeDisplayName] = useState("");
   const [welcomeRole, setWelcomeRole] = useState<'parent' | 'child' | 'guest'>('parent');
-  const [communeName, setCommuneName] = useState("Cormeilles-en-Parisis");
+  const [communeName, setCommuneName] = useState("Commune à configurer");
   const [schoolName, setSchoolName] = useState("Collège Victor Hugo");
 
   const unifiedEvents = useMemo(() => {
@@ -9315,7 +9315,7 @@ function App() {
             setSchoolName(parsed.__config__.schoolName);
           }
         } else {
-          setCommuneName("Cormeilles-en-Parisis");
+          setCommuneName("Commune à configurer");
           setSchoolName("Collège Victor Hugo");
         }
 
@@ -9330,7 +9330,7 @@ function App() {
         console.warn("Failed to parse __foyer_permissions__.json from documents", e);
       }
     } else {
-      setCommuneName("Cormeilles-en-Parisis");
+      setCommuneName("Commune à configurer");
       setSchoolName("Collège Victor Hugo");
     }
   }, [documents]);
@@ -11530,7 +11530,7 @@ function App() {
     }
 
     const confirmPurge = window.confirm(
-      "Voulez-vous vraiment purger toutes les données d'exemple MaFamille+ (Amadou, Awa, etc.) de votre base de données en ligne ? \n\n" +
+      "Voulez-vous vraiment purger les anciennes données d'exemple MaFamille+ de votre base de données en ligne ? \n\n" +
       "Les données personnelles que vous avez créées vous-même ne seront pas supprimées."
     );
     if (!confirmPurge) return;

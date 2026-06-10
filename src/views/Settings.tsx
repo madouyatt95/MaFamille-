@@ -352,8 +352,8 @@ export const Settings: React.FC<SettingsProps> = ({
 
   const presetAvatars = [
     { emoji: '👨‍👩‍👧', label: 'Famille', url: 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=150' },
-    { emoji: '👨‍💼', label: 'Papa', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150' },
-    { emoji: '👩‍💼', label: 'Maman', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150' },
+    { emoji: '👨‍💼', label: 'Parent 1', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150' },
+    { emoji: '👩‍💼', label: 'Parent 2', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150' },
     { emoji: '🧒', label: 'Garçon', url: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150' },
     { emoji: '👧', label: 'Fille', url: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=150' },
     { emoji: '🦁', label: 'Lion', url: 'https://images.unsplash.com/photo-1546182990-dffeafbe841d?w=150' },
@@ -573,7 +573,7 @@ export const Settings: React.FC<SettingsProps> = ({
             <input
               type="text"
               required
-              placeholder="Ex: Amadou, Fatou..."
+              placeholder="Ex: prénom du membre..."
               value={profileName}
               onChange={(e) => setProfileName(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-[#6C5CFF]"
@@ -867,7 +867,7 @@ export const Settings: React.FC<SettingsProps> = ({
                   <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Commune Rattachée</label>
                   <input
                     type="text"
-                    placeholder="Ex: Cormeilles-en-Parisis"
+                    placeholder="Ex: votre commune"
                     value={localCommune}
                     onChange={(e) => setLocalCommune(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
@@ -877,7 +877,7 @@ export const Settings: React.FC<SettingsProps> = ({
                   <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Établissement Scolaire (École)</label>
                   <input
                     type="text"
-                    placeholder="Ex: École Awa"
+                    placeholder="Ex: école du quartier"
                     value={localSchool}
                     onChange={(e) => setLocalSchool(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
@@ -1113,11 +1113,11 @@ export const Settings: React.FC<SettingsProps> = ({
           <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 animate-fade-in">
             <div className="flex items-center space-x-2 text-[#FFB020]">
               <Database className="w-4 h-4" />
-              <h4 className="text-xs font-bold uppercase tracking-wider text-white">Maintenance BDD & Données Cloud</h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-white">Maintenance des données</h4>
             </div>
             
             <p className="text-[10px] text-white/50 leading-relaxed">
-              Si vous observez des données de démonstration résiduelles (ex: membres ou tâches fictives) sur votre compte en ligne, utilisez ces outils pour assainir votre base de données.
+              Si vous observez des données d'exemple résiduelles sur votre compte en ligne, utilisez ces outils pour assainir votre base de données.
             </p>
 
             <div className="grid grid-cols-1 gap-2.5 pt-1">
@@ -1128,7 +1128,7 @@ export const Settings: React.FC<SettingsProps> = ({
                   className="w-full py-3 rounded-xl border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-extrabold text-[11px] uppercase tracking-wider flex items-center justify-center space-x-1.5 active:scale-98 transition-all cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5 animate-pulse" />
-                  <span>Purger les données de démo de ma BDD</span>
+                  <span>Purger les données d'exemple</span>
                 </button>
               )}
               
@@ -1155,7 +1155,7 @@ export const Settings: React.FC<SettingsProps> = ({
           </h3>
           
           <p className="text-xs text-white/50 leading-relaxed font-medium">
-            Sauvegardez vos données locales sur votre appareil ou réinitialisez l'application pour restaurer les paramètres de démo par défaut.
+            Sauvegardez vos données locales sur votre appareil ou réinitialisez l'application pour restaurer les données locales par défaut.
           </p>
 
           <div className="grid grid-cols-2 gap-2 pt-2">
@@ -1170,7 +1170,7 @@ export const Settings: React.FC<SettingsProps> = ({
             
             <button 
               onClick={() => {
-                if (window.confirm('Voulez-vous réinitialiser le système ? Les modifications locales seront effacées et remplacées par la famille de démo.')) {
+                if (window.confirm('Voulez-vous réinitialiser le système ? Les modifications locales seront effacées et remplacées par les données locales par défaut.')) {
                   onResetData();
                 }
               }}
@@ -1206,9 +1206,9 @@ export const Settings: React.FC<SettingsProps> = ({
               <span className="text-white/30 group-open:rotate-180 transition-transform">▼</span>
             </summary>
             <div className="p-4 pt-0 text-[10px] text-white/40 leading-relaxed space-y-2 border-t border-white/5">
-              <p><strong>Éditeur de l'application :</strong> Famille Connect SAS, au capital de 10 000 €, domicilié à Paris, France.</p>
-              <p><strong>Hébergement :</strong> Serveurs Supabase & Vercel localisés au sein de l'Union Européenne (Allemagne/Irlande), hautement sécurisés.</p>
-              <p><strong>Contact :</strong> legal@mafamilleplus.fr</p>
+              <p><strong>Éditeur de l'application :</strong> à compléter avant publication commerciale.</p>
+              <p><strong>Hébergement :</strong> Supabase & Vercel, selon la configuration du projet.</p>
+              <p><strong>Contact :</strong> à compléter avant publication commerciale.</p>
             </div>
           </details>
 

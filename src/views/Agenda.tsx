@@ -1354,7 +1354,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                   required
                   value={newSourceName}
                   onChange={(e) => setNewSourceName(e.target.value)}
-                  placeholder="ex: Agenda Travail, Collège Amadou..."
+                  placeholder="ex: Agenda travail, école..."
                   className="w-full bg-white/3 border border-white/8 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF] font-sans font-medium"
                 />
               </div>
