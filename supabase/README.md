@@ -46,17 +46,17 @@ CREATE EXTENSION IF NOT EXISTS supabase_vault WITH SCHEMA vault;
 
 SELECT vault.create_secret(
   'https://ravkssbaxcfhnzsemfrh.supabase.co/functions/v1/send-push',
-  'send_push_url'
+  'send_push_url_v2'
 );
 
 SELECT vault.create_secret(
   '<votre-supabase-anon-key>',
-  'supabase_anon_key'
+  'supabase_anon_key_v2'
 );
 
 SELECT vault.create_secret(
   '<la-meme-valeur-que-PUSH_WEBHOOK_SECRET>',
-  'push_webhook_secret'
+  'push_webhook_secret_v2'
 );
 ```
 

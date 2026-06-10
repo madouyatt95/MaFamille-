@@ -947,20 +947,26 @@ DECLARE
 BEGIN
   SELECT decrypted_secret INTO v_function_url
   FROM vault.decrypted_secrets
-  WHERE name = 'send_push_url'
-  ORDER BY updated_at DESC NULLS LAST, created_at DESC
+  WHERE name IN ('send_push_url_v2', 'send_push_url')
+  ORDER BY CASE WHEN name = 'send_push_url_v2' THEN 0 ELSE 1 END,
+           updated_at DESC NULLS LAST,
+           created_at DESC
   LIMIT 1;
 
   SELECT decrypted_secret INTO v_anon_key
   FROM vault.decrypted_secrets
-  WHERE name = 'supabase_anon_key'
-  ORDER BY updated_at DESC NULLS LAST, created_at DESC
+  WHERE name IN ('supabase_anon_key_v2', 'supabase_anon_key')
+  ORDER BY CASE WHEN name = 'supabase_anon_key_v2' THEN 0 ELSE 1 END,
+           updated_at DESC NULLS LAST,
+           created_at DESC
   LIMIT 1;
 
   SELECT decrypted_secret INTO v_push_secret
   FROM vault.decrypted_secrets
-  WHERE name = 'push_webhook_secret'
-  ORDER BY updated_at DESC NULLS LAST, created_at DESC
+  WHERE name IN ('push_webhook_secret_v2', 'push_webhook_secret')
+  ORDER BY CASE WHEN name = 'push_webhook_secret_v2' THEN 0 ELSE 1 END,
+           updated_at DESC NULLS LAST,
+           created_at DESC
   LIMIT 1;
 
   v_function_url := COALESCE(NULLIF(v_function_url, ''), NULLIF(current_setting('app.send_push_url', true), ''));
@@ -968,7 +974,7 @@ BEGIN
   v_push_secret := COALESCE(NULLIF(v_push_secret, ''), NULLIF(current_setting('app.push_webhook_secret', true), ''));
 
   IF v_function_url IS NULL OR v_anon_key IS NULL OR v_push_secret IS NULL THEN
-    RAISE WARNING 'Push webhook settings missing: configure Vault secrets send_push_url, supabase_anon_key and push_webhook_secret.';
+    RAISE WARNING 'Push webhook settings missing: configure Vault secrets send_push_url_v2, supabase_anon_key_v2 and push_webhook_secret_v2.';
     RETURN NEW;
   END IF;
 
