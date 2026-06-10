@@ -14,7 +14,15 @@ import {
   HeartHandshake
 } from 'lucide-react';
 import { PREMIUM_FEATURES } from '../utils/premiumFeatures';
-import { PREMIUM_MONTHLY_EQUIVALENT, PREMIUM_PRICING, PREMIUM_YEARLY_SAVE } from '../utils/premiumPricing';
+import {
+  getPremiumPlanLabel,
+  PREMIUM_BILLING_PROVIDER,
+  PREMIUM_MONTHLY_EQUIVALENT,
+  PREMIUM_PLATFORM_LABEL,
+  PREMIUM_PRICING,
+  PREMIUM_REAL_PROVIDER_LABEL,
+  PREMIUM_YEARLY_SAVE
+} from '../utils/premiumPricing';
 
 interface PaywallProps {
   isOpen: boolean;
@@ -32,6 +40,11 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
   const priceYearly = PREMIUM_PRICING[platform].yearly;
   const priceMonthlyEquivalent = PREMIUM_MONTHLY_EQUIVALENT[platform];
   const priceYearlySave = PREMIUM_YEARLY_SAVE[platform];
+  const platformLabel = PREMIUM_PLATFORM_LABEL[platform];
+  const billingProvider = PREMIUM_BILLING_PROVIDER[platform];
+  const realProviderLabel = PREMIUM_REAL_PROVIDER_LABEL[platform];
+  const selectedPrice = selectedPlan === 'monthly' ? priceMonthly : priceYearly;
+  const selectedPlanLabel = getPremiumPlanLabel(platform, selectedPlan);
 
   if (!isOpen) return null;
 
@@ -40,7 +53,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
     setTimeout(() => {
       setSimulating(false);
       onUnlockPremium();
-      alert('Mode test Premium activé. Aucun paiement réel n’a été lancé.');
+      alert(`Mode test Premium activé pour l’offre ${selectedPlanLabel}. Aucun paiement réel n’a été lancé.`);
       onClose();
     }, 1800);
   };
@@ -130,9 +143,14 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
           <p className="text-xs text-white/50 max-w-xs mx-auto">
             Débloquez les outils avancés du foyer : IA réelle, exports, démarches, grande famille et modules créatifs.
           </p>
-          <p className="text-[9.5px] text-[#00D26A] font-bold uppercase tracking-wider">
-            Paiement réel désactivé pendant les tests
-          </p>
+          <div className="flex items-center justify-center gap-2 pt-1">
+            <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] text-white/60 font-black uppercase tracking-wider">
+              {platformLabel}
+            </span>
+            <span className="px-2.5 py-1 rounded-full bg-[#00D26A]/10 border border-[#00D26A]/20 text-[9px] text-[#00D26A] font-black uppercase tracking-wider">
+              Mode test
+            </span>
+          </div>
         </div>
 
         {/* Features scroll area */}
@@ -159,6 +177,12 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
         <div className="p-6 bg-black/40 border-t border-white/5 space-y-5 shrink-0 rounded-t-[28px]">
           
           {/* Plan Options Selector */}
+          <div className="rounded-2xl bg-white/5 border border-white/8 p-3 text-center">
+            <span className="text-[9px] text-white/35 font-black uppercase tracking-widest block">Offre sélectionnée</span>
+            <span className="text-sm text-white font-black mt-1 block">{selectedPrice}</span>
+            <span className="text-[10px] text-white/45 font-semibold block mt-0.5">{selectedPlanLabel}</span>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setSelectedPlan('monthly')}
@@ -212,7 +236,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
             </button>
             
             <p className="text-[9.5px] text-white/30 text-center font-sans">
-              Aucun prélèvement aujourd’hui. Le paiement réel sera branché plus tard via {isWeb ? 'Stripe' : 'App Store'}.
+              Aucun prélèvement aujourd’hui. Provider actuel : {billingProvider}. Le paiement réel sera branché plus tard via {realProviderLabel}.
             </p>
           </div>
 

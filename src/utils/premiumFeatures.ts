@@ -21,47 +21,47 @@ export const PREMIUM_FEATURES: Record<PremiumFeatureId, PremiumFeature> = {
   real_ai: {
     id: 'real_ai',
     title: 'IA réelle avec API',
-    description: 'Accès aux appels Grok/Gemini réels, avec 10 requêtes par foyer et par jour puis repli local.'
+    description: 'Grok et Gemini réels sur les modules clés, 10 requêtes par foyer et par jour puis repli local.'
   },
   exports: {
     id: 'exports',
     title: 'Exports PDF, Excel et historiques',
-    description: 'Exportez les données budgétaires et familiales dans des formats professionnels.'
+    description: 'Rapports budget, historiques et exports propres pour garder une trace exploitable.'
   },
   demarches: {
     id: 'demarches',
     title: 'Démarches administratives',
-    description: 'Suivez vos procédures, pièces justificatives et échéances administratives.'
+    description: 'Onglet démarches, justificatifs, échéances et suivi administratif du foyer.'
   },
   members_over_3: {
     id: 'members_over_3',
     title: 'Famille de plus de 3 membres',
-    description: 'Ajoutez tous les membres du foyer au-delà de la limite gratuite.'
+    description: 'La version gratuite reste limitée à 3 membres, Premium ouvre toute la famille.'
   },
   eco_chef_ai: {
     id: 'eco_chef_ai',
     title: 'Éco-Chef IA',
-    description: 'Générez recettes, menus et idées anti-gaspi avec l’IA.'
+    description: 'Recettes anti-gaspi, idées repas et menus intelligents à partir du frigo.'
   },
   voyage_ai: {
     id: 'voyage_ai',
     title: 'Voyage IA',
-    description: 'Générez des listes de valise et conseils de voyage personnalisés.'
+    description: 'Valises personnalisées par membre et conseils pratiques selon la destination.'
   },
   capsule_gazette_bd_ai: {
     id: 'capsule_gazette_bd_ai',
     title: 'Gazette BD IA',
-    description: 'Transformez les souvenirs familiaux en gazette BD assistée par IA.'
+    description: 'Transformez les souvenirs de la capsule temporelle en gazette BD familiale.'
   },
   bedtime_stories_ai: {
     id: 'bedtime_stories_ai',
     title: 'Histoires du soir IA',
-    description: 'Créez des contes du soir personnalisés pour les enfants.'
+    description: 'Contes personnalisés, univers magiques et lecture vocale améliorée.'
   },
   peacemaker_ai: {
     id: 'peacemaker_ai',
     title: 'PeaceMaker IA',
-    description: 'Médiation familiale assistée par IA pour apaiser les conflits.'
+    description: 'Aide à reformuler, comprendre les besoins et trouver un compromis familial.'
   }
 };
 
