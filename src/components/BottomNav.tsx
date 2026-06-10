@@ -70,8 +70,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-3 pt-2 md:px-8 max-w-7xl mx-auto pointer-events-none ios-safe-bottom-nav">
-      <div className="glass-panel rounded-t-[32px] rounded-b-[24px] pointer-events-auto shadow-[0_-10px_30px_rgba(0,0,0,0.5)] border-t border-white/10 px-6 py-2 flex items-center justify-around bg-[#081225]/90 backdrop-blur-md">
+    <div className="fixed bottom-0 left-0 right-0 z-40 px-3 pb-3 pt-2 md:px-8 max-w-7xl mx-auto pointer-events-none ios-safe-bottom-nav">
+      <div className="glass-panel family-bottom-nav rounded-t-[32px] rounded-b-[24px] pointer-events-auto shadow-[0_-10px_30px_rgba(0,0,0,0.5)] border-t border-white/10 px-2.5 sm:px-4 py-2 flex items-center justify-around gap-1 bg-[#081225]/90 backdrop-blur-md">
         
         {/* ======================================================== */}
         {/* 1. ADULT BOTTOM NAV: Accueil, Timeline, Mic, Budget, Plus */}
@@ -101,11 +101,11 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             </button>
 
             {/* Mic floating button */}
-            <div className="relative -top-3.5 flex justify-center">
+            <div className="family-nav-mic-wrap relative -top-3.5 flex justify-center">
               <div className="absolute w-14 h-14 rounded-full bg-red-500/20 blur-lg animate-pulse-slow"></div>
               <button 
                 onClick={onMicClick}
-                className="relative flex items-center justify-center w-12 h-12 rounded-full bg-[#081225] border-2 border-red-500 text-white hover:text-red-400 float-btn-halo cursor-pointer transition-all duration-300 hover:scale-110 active:scale-95 group animate-pulse-slow shadow-lg"
+                className="family-nav-mic relative flex items-center justify-center w-12 h-12 rounded-full bg-[#081225] border-2 border-red-500 text-white hover:text-red-400 float-btn-halo cursor-pointer transition-all duration-300 hover:scale-110 active:scale-95 group animate-pulse-slow shadow-lg"
                 title="Micro principal"
               >
                 <Mic className="w-5 h-5 text-white" />

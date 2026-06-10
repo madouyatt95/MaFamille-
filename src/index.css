@@ -159,6 +159,42 @@ html,
   box-shadow: 0 0 25px 4px rgba(108, 92, 255, 0.45);
 }
 
+.family-bottom-nav {
+  min-height: 76px;
+}
+
+.family-bottom-nav > button {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 76px;
+  height: 52px;
+  padding-left: 0.25rem !important;
+  padding-right: 0.25rem !important;
+}
+
+.family-bottom-nav > button span {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.family-nav-mic-wrap {
+  flex: 0 0 64px;
+}
+
+.theme-light .family-bottom-nav,
+.theme-sepia .family-bottom-nav {
+  background: color-mix(in srgb, var(--family-surface) 86%, transparent) !important;
+  border-color: var(--family-border) !important;
+}
+
+.theme-light .family-nav-mic,
+.theme-sepia .family-nav-mic {
+  background-color: var(--family-surface) !important;
+}
+
 /* Hide native scrollbar for horizontal containers */
 .no-scrollbar::-webkit-scrollbar {
   display: none;

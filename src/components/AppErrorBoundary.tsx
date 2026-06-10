@@ -32,22 +32,45 @@ export class AppErrorBoundary extends React.Component<AppErrorBoundaryProps, App
     return { error, autoReloading: false };
   }
 
+  componentDidMount() {
+    window.addEventListener('unhandledrejection', this.handleUnhandledRejection);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('unhandledrejection', this.handleUnhandledRejection);
+  }
+
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('[MyFamily+] App crashed:', error, errorInfo);
 
-    if (isStaleBundleError(error) && sessionStorage.getItem(STALE_APP_RELOAD_KEY) !== 'true') {
-      sessionStorage.setItem(STALE_APP_RELOAD_KEY, 'true');
-      this.setState({ autoReloading: true });
-      window.setTimeout(() => window.location.reload(), 600);
-      return;
-    }
-
-    sessionStorage.removeItem(STALE_APP_RELOAD_KEY);
+    this.recoverIfStaleBundle(error);
   }
 
   private handleReload = () => {
     sessionStorage.removeItem(STALE_APP_RELOAD_KEY);
     window.location.reload();
+  };
+
+  private handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+    const reason = event.reason instanceof Error
+      ? event.reason
+      : new Error(String(event.reason || 'Unhandled promise rejection'));
+
+    if (this.recoverIfStaleBundle(reason)) {
+      event.preventDefault();
+    }
+  };
+
+  private recoverIfStaleBundle = (error: Error): boolean => {
+    if (isStaleBundleError(error) && sessionStorage.getItem(STALE_APP_RELOAD_KEY) !== 'true') {
+      sessionStorage.setItem(STALE_APP_RELOAD_KEY, 'true');
+      this.setState({ error, autoReloading: true });
+      window.setTimeout(() => window.location.reload(), 600);
+      return true;
+    }
+
+    sessionStorage.removeItem(STALE_APP_RELOAD_KEY);
+    return false;
   };
 
   render() {
