@@ -13,7 +13,12 @@ import {
   Eye,
   EyeOff,
   Bell,
-  BellOff
+  BellOff,
+  UserRound,
+  Palette,
+  Shield,
+  Home,
+  SlidersHorizontal
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
@@ -435,30 +440,36 @@ export const Settings: React.FC<SettingsProps> = ({
           <SettingsIcon className="w-6 h-6" />
         </div>
         <div>
-          <h1 className="text-xl font-extrabold text-white tracking-tight">Paramètres</h1>
-          <p className="text-xs text-white/50 font-medium">Configuration globale de l'OS familial</p>
+          <h1 className="text-xl font-extrabold text-white tracking-tight">Réglages</h1>
+          <p className="text-xs text-white/50 font-medium">Compte, foyer, alertes et préférences utiles</p>
         </div>
       </div>
 
       <div className="grid grid-cols-4 gap-1.5 rounded-2xl bg-white/5 border border-white/8 p-1">
         {[
-          { id: 'compte', label: 'Compte' },
-          { id: 'famille', label: 'Famille' },
-          { id: 'alertes', label: 'Alertes' },
-          { id: 'avance', label: 'Avancé' }
+          { id: 'compte', label: 'Moi', icon: UserRound },
+          { id: 'famille', label: 'Foyer', icon: Home },
+          { id: 'alertes', label: 'Alertes', icon: Bell },
+          { id: 'avance', label: 'Plus', icon: SlidersHorizontal }
         ].map((tab) => (
+          (() => {
+            const Icon = tab.icon;
+            return (
           <button
             key={tab.id}
             type="button"
             onClick={() => setSettingsTab(tab.id as typeof settingsTab)}
-            className={`py-2.5 rounded-xl text-[10px] font-extrabold transition-all cursor-pointer ${
+            className={`py-2.5 rounded-xl text-[10px] font-extrabold transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
               settingsTab === tab.id
                 ? 'bg-[#6C5CFF] text-white shadow-md shadow-[#6C5CFF]/20'
                 : 'text-white/45 hover:text-white hover:bg-white/5'
             }`}
           >
+            <Icon className="w-3.5 h-3.5" />
             {tab.label}
           </button>
+            );
+          })()
         ))}
       </div>
 
@@ -593,13 +604,16 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* Modifier mon mot de passe */}
       {settingsTab === 'compte' && user && (
-        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 animate-fade-in">
-          <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-            <Lock className="w-4 h-4 text-[#FF4D6D]" />
-            <span>Sécurité & Mot de passe</span>
-          </h3>
-          <p className="text-xs text-white/50 leading-relaxed font-medium">
-            Mettez à jour le mot de passe de votre compte de connexion Supabase.
+        <details className="group glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 animate-fade-in">
+          <summary className="list-none cursor-pointer flex items-center justify-between gap-3">
+            <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+              <Lock className="w-4 h-4 text-[#FF4D6D]" />
+              <span>Sécurité</span>
+            </span>
+            <span className="text-[10px] text-white/35 font-black uppercase group-open:rotate-180 transition-transform">▼</span>
+          </summary>
+          <p className="text-xs text-white/50 leading-relaxed font-medium pt-1">
+            Modifier le mot de passe du compte connecté.
           </p>
 
           <form onSubmit={async (e) => {
@@ -638,25 +652,25 @@ export const Settings: React.FC<SettingsProps> = ({
               <span>Mettre à jour le mot de passe</span>
             </button>
           </form>
-        </div>
+        </details>
       )}
 
       {/* Sélecteur de Mode d'Apparence */}
       {settingsTab === 'compte' && (
       <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-          <Sparkles className="w-4 h-4 text-[#6C5CFF]" />
+          <Palette className="w-4 h-4 text-[#6C5CFF]" />
           <span>Apparence & Mode visuel</span>
         </h3>
         <p className="text-xs text-white/50 leading-relaxed font-medium">
-          Choisissez une ambiance lisible pour toute l'interface : sombre, claire ou lecture chaude.
+          Choisissez une ambiance vraiment adaptée : sombre, clair ou lecture chaude.
         </p>
         
         <div className="grid grid-cols-3 gap-2">
           {[
-            { id: 'dark', label: 'Sombre', bg: 'from-[#07111F] to-[#111C33]', dot: 'bg-[#6C5CFF]' },
-            { id: 'light', label: 'Clair', bg: 'from-[#F8FAFF] to-[#EAF0FA]', dot: 'bg-[#4F8CFF]' },
-            { id: 'sepia', label: 'Sépia', bg: 'from-[#FBF4E7] to-[#EAD8B8]', dot: 'bg-[#9A650F]' }
+            { id: 'dark', label: 'Sombre', desc: 'nuit', bg: 'from-[#07111F] to-[#111C33]', dot: 'bg-[#6C5CFF]' },
+            { id: 'light', label: 'Clair', desc: 'jour', bg: 'from-[#FFFFFF] to-[#EAF0FA]', dot: 'bg-[#2563EB]' },
+            { id: 'sepia', label: 'Sépia', desc: 'doux', bg: 'from-[#FFF7E8] to-[#EAD8B8]', dot: 'bg-[#9A650F]' }
           ].map((mode) => (
             <button
               type="button"
@@ -672,6 +686,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 <span className={`w-3 h-3 rounded-full ${mode.dot} shadow-sm`} />
               </span>
               <span>{mode.label}</span>
+              <span className="text-[8px] font-bold opacity-55 uppercase -mt-1">{mode.desc}</span>
             </button>
           ))}
         </div>
@@ -803,9 +818,9 @@ export const Settings: React.FC<SettingsProps> = ({
         <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-5 animate-fade-in">
           
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-              <Users className="w-4 h-4 text-[#6C5CFF]" />
-              <span>Mon Foyer : {foyer.name}</span>
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2 min-w-0">
+              <Users className="w-4 h-4 text-[#6C5CFF] shrink-0" />
+              <span className="truncate">Foyer : {foyer.name}</span>
             </h3>
             <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-[#00D26A]/20 text-[#00D26A]">Compte Actif</span>
           </div>
@@ -816,9 +831,9 @@ export const Settings: React.FC<SettingsProps> = ({
               <Users className="w-6 h-6" />
             </div>
             <div>
-              <h4 className="text-xs font-extrabold text-white uppercase tracking-wider">Gestion Familiale Unifiée 👨‍👩‍👧</h4>
+              <h4 className="text-xs font-extrabold text-white uppercase tracking-wider">Membres & invitations</h4>
               <p className="text-[9.5px] text-white/50 leading-relaxed max-w-[300px] mx-auto mt-1">
-                Gérez tous les membres, invitations cloud par e-mail, codes de foyer, rôles administratifs (admin, parent, invité) et dérogations d'écriture enfants depuis un panneau centralisé unique.
+                Gérez les membres, invitations, rôles et dérogations enfants depuis le panneau dédié.
               </p>
             </div>
             <button
@@ -831,7 +846,7 @@ export const Settings: React.FC<SettingsProps> = ({
               }}
               className="w-full mt-2 py-3.5 rounded-xl bg-[#6C5CFF] text-white font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-[#6C5CFF]/15 hover:opacity-90 active:scale-95 transition-all cursor-pointer"
             >
-              Gérer les Membres, Rôles & Invitations ➔
+              Ouvrir la gestion des membres
             </button>
           </div>
 
@@ -842,10 +857,10 @@ export const Settings: React.FC<SettingsProps> = ({
             <div className="p-5 rounded-2xl bg-white/3 border border-white/5 space-y-4">
               <div className="flex items-center space-x-2 text-[#6C5CFF]">
                 <Sparkles className="w-4 h-4 font-sans" />
-                <h4 className="text-xs font-bold uppercase tracking-wider text-white">Rattachements Officiels</h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-white">Commune & école</h4>
               </div>
               <p className="text-[10px] text-white/50 leading-relaxed font-sans">
-                Associez votre foyer à votre commune et à l'établissement scolaire de vos enfants pour configurer dynamiquement vos espaces.
+                Renseignez les informations utilisées par les cartes Accueil et les espaces famille.
               </p>
               <div className="space-y-3 font-sans">
                 <div className="space-y-1">
@@ -878,7 +893,7 @@ export const Settings: React.FC<SettingsProps> = ({
                   }}
                   className="w-full py-3.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5b4eff] text-white font-extrabold text-[11px] uppercase tracking-wider transition-all active:scale-95 cursor-pointer text-center"
                 >
-                  Enregistrer les Rattachements
+                  Enregistrer
                 </button>
               </div>
             </div>
@@ -923,11 +938,11 @@ export const Settings: React.FC<SettingsProps> = ({
         <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-5 animate-fade-in">
           <div>
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-              <SettingsIcon className="w-4 h-4 text-[#FFB020]" />
-              <span>Contrôles parentaux avancés</span>
+              <Shield className="w-4 h-4 text-[#FFB020]" />
+              <span>Contrôle parental</span>
             </h3>
             <p className="text-xs text-white/50 mt-2 leading-relaxed">
-              Options utiles pour régler finement le comportement des profils enfants.
+              Code PIN et règles enfants.
             </p>
           </div>
 

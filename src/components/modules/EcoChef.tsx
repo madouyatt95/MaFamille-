@@ -18,15 +18,7 @@ interface EcoChefProps {
 }
 
 export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, isPremium = false, onTriggerPaywall }) => {
-  const [fridgeIngredients, setFridgeIngredients] = useState([
-    { id: '1', name: 'Poulet rôti (Reste)', checked: true, type: 'meat' },
-    { id: '2', name: 'Pâtes cuites', checked: true, type: 'carbs' },
-    { id: '3', name: 'Ratatouille de la veille', checked: false, type: 'veggies' },
-    { id: '4', name: 'Tomates fatiguées', checked: true, type: 'veggies' },
-    { id: '5', name: 'Crème fraîche', checked: true, type: 'dairy' },
-    { id: '6', name: 'Demi-oignon', checked: false, type: 'veggies' },
-    { id: '7', name: 'Pain rassis', checked: false, type: 'bakery' },
-  ]);
+  const [fridgeIngredients, setFridgeIngredients] = useState<Array<{ id: string; name: string; checked: boolean; type: string }>>([]);
 
   const [generating, setGenerating] = useState(false);
   const [recipes, setRecipes] = useState<any[]>([]);
@@ -259,20 +251,28 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
         </div>
         
         <div className="flex flex-wrap gap-2">
-          {fridgeIngredients.map(ing => (
-            <button
-              key={ing.id}
-              onClick={() => handleToggleIngredient(ing.id)}
-              className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center space-x-2 ${
-                ing.checked 
-                  ? 'bg-[#00D26A]/15 border-[#00D26A] text-[#00D26A] shadow-[0_0_10px_rgba(0,210,106,0.15)]' 
-                  : 'bg-white/5 border-white/5 text-white/50 hover:bg-white/8'
-              }`}
-            >
-              {ing.checked && <Check className="w-3.5 h-3.5" />}
-              <span>{ing.name}</span>
-            </button>
-          ))}
+          {fridgeIngredients.length > 0 ? (
+            fridgeIngredients.map(ing => (
+              <button
+                key={ing.id}
+                onClick={() => handleToggleIngredient(ing.id)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center space-x-2 ${
+                  ing.checked 
+                    ? 'bg-[#00D26A]/15 border-[#00D26A] text-[#00D26A] shadow-[0_0_10px_rgba(0,210,106,0.15)]' 
+                    : 'bg-white/5 border-white/5 text-white/50 hover:bg-white/8'
+                }`}
+              >
+                {ing.checked && <Check className="w-3.5 h-3.5" />}
+                <span>{ing.name}</span>
+              </button>
+            ))
+          ) : (
+            <div className="w-full rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-5 text-center">
+              <ChefHat className="w-6 h-6 text-white/25 mx-auto mb-2" />
+              <p className="text-xs text-white/55 font-bold">Ajoutez les restes ou ingrédients disponibles dans votre cuisine.</p>
+              <p className="text-[10px] text-white/35 mt-1">L'Éco-Chef ne part plus de données de démonstration.</p>
+            </div>
+          )}
         </div>
 
         {/* Custom Ingredient Adder */}

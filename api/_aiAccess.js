@@ -4,6 +4,11 @@ const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ravkssbaxcfhnzsemfrh.s
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 const DAILY_LIMIT = 10;
 
+export function setAiQuotaHeaders(res, quota) {
+  res.setHeader('X-AI-Quota-Remaining', String(quota?.remaining ?? 0));
+  res.setHeader('X-AI-Quota-Limit', String(quota?.limit ?? DAILY_LIMIT));
+}
+
 export async function requirePremiumAiQuota(req, res) {
   const authHeader = req.headers.authorization || '';
   const foyerId = req.headers['x-foyer-id'] || req.body?.foyerId;
@@ -43,6 +48,7 @@ export async function requirePremiumAiQuota(req, res) {
 
   if (!data?.allowed) {
     const status = data?.reason === 'quota_exhausted' ? 429 : 402;
+    setAiQuotaHeaders(res, data || { remaining: 0, limit: DAILY_LIMIT });
     res.status(status).json({
       error: data?.reason || 'ai_access_denied',
       quota: data || { allowed: false, remaining: 0, limit: DAILY_LIMIT }

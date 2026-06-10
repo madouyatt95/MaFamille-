@@ -311,6 +311,27 @@ html,
   box-shadow: 0 16px 36px color-mix(in srgb, var(--family-shadow) 78%, transparent);
 }
 
+.theme-light .bg-black,
+.theme-light [class*="bg-black/"],
+.theme-sepia .bg-black,
+.theme-sepia [class*="bg-black/"] {
+  background-color: color-mix(in srgb, var(--family-text) 10%, transparent) !important;
+}
+
+.theme-light [class*="from-[#0"],
+.theme-light [class*="via-[#0"],
+.theme-light [class*="to-[#0"] {
+  --tw-gradient-from: #F8FAFF var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(248, 250, 255, 0) var(--tw-gradient-to-position) !important;
+}
+
+.theme-sepia [class*="from-[#0"],
+.theme-sepia [class*="via-[#0"],
+.theme-sepia [class*="to-[#0"] {
+  --tw-gradient-from: #FBF4E7 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(251, 244, 231, 0) var(--tw-gradient-to-position) !important;
+}
+
 .theme-light .glass-panel-hover:hover,
 .theme-sepia .glass-panel-hover:hover,
 .theme-light .hover\:bg-white\/10:hover,
@@ -382,14 +403,6 @@ html,
 .theme-sepia [class*="to-[#0A0D18]"],
 .theme-sepia [class*="to-[#121829]"] {
   --tw-gradient-to: #F2E7D3 var(--tw-gradient-to-position) !important;
-}
-
-.theme-light [class*="bg-black/"] {
-  background-color: rgba(15, 23, 42, 0.24) !important;
-}
-
-.theme-sepia [class*="bg-black/"] {
-  background-color: rgba(58, 41, 31, 0.28) !important;
 }
 
 .theme-light [class*="ring-[#07111F]"] {

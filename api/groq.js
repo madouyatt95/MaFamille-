@@ -1,4 +1,4 @@
-import { requirePremiumAiQuota } from './_aiAccess.js';
+import { requirePremiumAiQuota, setAiQuotaHeaders } from './_aiAccess.js';
 
 export default async function handler(req, res) {
   // CORS Headers
@@ -17,17 +17,15 @@ export default async function handler(req, res) {
 
   try {
     const { messages, model, temperature } = req.body;
-    const quota = await requirePremiumAiQuota(req, res);
-    if (!quota) return;
-    
-    // 1. Déterminer la clé API Groq
     const groqKey = process.env.GROQ_API_KEY || '';
 
     if (!groqKey) {
-      return res.status(400).json({ error: 'Missing Groq API Key. Configure GROQ_API_KEY on Vercel or pass it via Authorization header.' });
+      return res.status(503).json({ error: 'groq_api_key_missing' });
     }
 
-    // 2. Transmettre l'appel à Groq
+    const quota = await requirePremiumAiQuota(req, res);
+    if (!quota) return;
+
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -42,8 +40,7 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-    res.setHeader('X-AI-Quota-Remaining', String(quota.remaining ?? 0));
-    res.setHeader('X-AI-Quota-Limit', String(quota.limit ?? 10));
+    setAiQuotaHeaders(res, quota);
     return res.status(response.status).json(data);
   } catch (error) {
     return res.status(500).json({ error: error.message });
