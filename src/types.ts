@@ -58,6 +58,12 @@ export interface Foyer {
   createdAt: string;
   isPremium: boolean;
   maxMembers: number;
+  premiumSource?: 'test' | 'stripe' | 'appstore' | null;
+  premiumPlan?: 'monthly' | 'yearly' | null;
+  premiumStatus?: 'inactive' | 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired' | null;
+  premiumExpiresAt?: string | null;
+  stripeCustomerId?: string | null;
+  appStoreOriginalTransactionId?: string | null;
   parentPin?: string;
   malusSettings?: MalusSettings;
 }

@@ -102,6 +102,7 @@ import { QuickActionsSheet } from './components/QuickActionsSheet';
 
 import { DEFAULT_CATEGORIES } from './data/budgetCategories';
 import { Paywall } from './components/Paywall';
+import { billingService } from './services/billingService';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
 import { foyerService } from './services/foyerService';
 import { spaceService, type Space } from './services/spaceService';
@@ -2318,12 +2319,7 @@ function App() {
         setMyMemberProfile(myMember);
         setActiveMemberId(myMember.id);
         
-        const localPremium = localStorage.getItem('mf_is_premium');
-        if (localPremium !== null) {
-          setIsPremium(localPremium === 'true');
-        } else {
-          setIsPremium(myFoyer.isPremium);
-        }
+        setIsPremium(billingService.isFoyerPremium(myFoyer));
         
         setOnboardingActive(false);
         setShowWelcomeScreen(false);
@@ -13322,12 +13318,26 @@ function App() {
       <Paywall 
         isOpen={paywallOpen}
         onClose={() => setPaywallOpen(false)}
-        onUnlockPremium={async () => {
-          setIsPremium(true);
+        onUnlockPremium={async ({ platform, plan }) => {
+          const subscription = billingService.createTestSubscription(platform, plan);
+          setIsPremium(subscription.isPremium);
           if (foyer) {
             try {
-              await foyerService.updateFoyerPremium(foyer.id, true);
-              setFoyer(prev => prev ? { ...prev, isPremium: true } : null);
+              await foyerService.updateFoyerPremium(foyer.id, subscription.isPremium, {
+                source: subscription.source,
+                plan: subscription.plan,
+                status: subscription.status,
+                expiresAt: subscription.expiresAt
+              });
+              setFoyer(prev => prev ? {
+                ...prev,
+                isPremium: subscription.isPremium,
+                maxMembers: 999,
+                premiumSource: subscription.source,
+                premiumPlan: subscription.plan,
+                premiumStatus: subscription.status,
+                premiumExpiresAt: subscription.expiresAt
+              } : null);
             } catch (err) {
               console.error("[MaFamille+ Paywall] Failed to update premium status in database:", err);
             }

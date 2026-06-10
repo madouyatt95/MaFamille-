@@ -21,7 +21,13 @@ CREATE TABLE IF NOT EXISTS public.foyers (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     is_premium BOOLEAN DEFAULT FALSE,
-    max_members INT DEFAULT 3
+    max_members INT DEFAULT 3,
+    premium_source TEXT,
+    premium_plan TEXT,
+    premium_status TEXT NOT NULL DEFAULT 'inactive',
+    premium_expires_at TIMESTAMPTZ,
+    stripe_customer_id TEXT,
+    app_store_original_transaction_id TEXT
 );
 
 -- MEMBRES DU FOYER (liés aux vrais comptes Supabase)

@@ -27,7 +27,13 @@ import {
 interface PaywallProps {
   isOpen: boolean;
   onClose: () => void;
-  onUnlockPremium: () => void;
+  onUnlockPremium: (options: {
+    platform: 'web' | 'ios';
+    plan: 'monthly' | 'yearly';
+    source: 'test';
+    status: 'active';
+    expiresAt: string;
+  }) => void;
 }
 
 export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremium }) => {
@@ -52,7 +58,15 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
     setSimulating(true);
     setTimeout(() => {
       setSimulating(false);
-      onUnlockPremium();
+      const expiresAt = new Date();
+      expiresAt.setMonth(expiresAt.getMonth() + (selectedPlan === 'yearly' ? 12 : 1));
+      onUnlockPremium({
+        platform,
+        plan: selectedPlan,
+        source: 'test',
+        status: 'active',
+        expiresAt: expiresAt.toISOString()
+      });
       alert(`Mode test Premium activé pour l’offre ${selectedPlanLabel}. Aucun paiement réel n’a été lancé.`);
       onClose();
     }, 1800);

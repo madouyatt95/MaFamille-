@@ -1,6 +1,15 @@
 import { getSupabaseClient } from '../utils/supabase';
 import type { Foyer, FoyerMember } from '../types';
 
+type PremiumUpdateOptions = {
+  source?: Foyer['premiumSource'];
+  plan?: Foyer['premiumPlan'];
+  status?: Foyer['premiumStatus'];
+  expiresAt?: string | null;
+  stripeCustomerId?: string | null;
+  appStoreOriginalTransactionId?: string | null;
+};
+
 /**
  * Service pour la gestion du Foyer, des membres, des invitations
  * et de la synchronisation granulaire en temps réel.
@@ -75,6 +84,12 @@ export const foyerService = {
           createdAt: foyerData.created_at,
           isPremium: foyerData.is_premium,
           maxMembers: foyerData.max_members,
+          premiumSource: foyerData.premium_source || null,
+          premiumPlan: foyerData.premium_plan || null,
+          premiumStatus: foyerData.premium_status || null,
+          premiumExpiresAt: foyerData.premium_expires_at || null,
+          stripeCustomerId: foyerData.stripe_customer_id || null,
+          appStoreOriginalTransactionId: foyerData.app_store_original_transaction_id || null,
           parentPin: foyerData.parent_pin,
           malusSettings: foyerData.malus_settings
         };
@@ -167,6 +182,12 @@ export const foyerService = {
       createdAt: foyerData.created_at,
       isPremium: foyerData.is_premium,
       maxMembers: foyerData.max_members,
+      premiumSource: foyerData.premium_source || null,
+      premiumPlan: foyerData.premium_plan || null,
+      premiumStatus: foyerData.premium_status || null,
+      premiumExpiresAt: foyerData.premium_expires_at || null,
+      stripeCustomerId: foyerData.stripe_customer_id || null,
+      appStoreOriginalTransactionId: foyerData.app_store_original_transaction_id || null,
       parentPin: foyerData.parent_pin,
       malusSettings: foyerData.malus_settings
     };
@@ -342,16 +363,25 @@ export const foyerService = {
   /**
    * Mettre à jour le statut Premium du foyer
    */
-  async updateFoyerPremium(foyerId: string, isPremium: boolean): Promise<void> {
+  async updateFoyerPremium(foyerId: string, isPremium: boolean, options: PremiumUpdateOptions = {}): Promise<void> {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
+    const premiumStatus = options.status || (isPremium ? 'active' : 'inactive');
+    const payload: any = {
+      is_premium: isPremium,
+      max_members: isPremium ? 999 : 3,
+      premium_source: isPremium ? (options.source || 'test') : null,
+      premium_plan: isPremium ? (options.plan || 'yearly') : null,
+      premium_status: premiumStatus,
+      premium_expires_at: isPremium ? (options.expiresAt || null) : null,
+      stripe_customer_id: options.stripeCustomerId || null,
+      app_store_original_transaction_id: options.appStoreOriginalTransactionId || null
+    };
+
     const { error } = await supabase
       .from('foyers')
-      .update({ 
-        is_premium: isPremium,
-        max_members: isPremium ? 999 : 3
-      })
+      .update(payload)
       .eq('id', foyerId);
 
     if (error) throw error;
