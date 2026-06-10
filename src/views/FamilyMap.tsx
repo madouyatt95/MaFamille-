@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -15,9 +15,24 @@ import {
   EyeOff, 
   Route,
   Edit3,
-  Trash2
+  Trash2,
+  AlertCircle
 } from 'lucide-react';
 import type { Member } from '../types';
+
+const DEFAULT_MAP_CENTER: [number, number] = [46.603354, 1.888334];
+const FALLBACK_AVATAR = 'https://api.dicebear.com/7.x/adventurer/svg?seed=family-map';
+
+const getMemberCoords = (member?: Member | null): [number, number] | null => {
+  if (!member || member.latitude === undefined || member.latitude === null || member.longitude === undefined || member.longitude === null) {
+    return null;
+  }
+
+  const lat = Number(member.latitude);
+  const lng = Number(member.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return [lat, lng];
+};
 
 interface FamilyMapProps {
   members: Member[];
@@ -74,6 +89,27 @@ export interface FavoritePlace {
   coords: [number, number];
 }
 
+const readStoredFavorites = (): FavoritePlace[] => {
+  try {
+    const stored = localStorage.getItem('mf_map_favorites');
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+
+    const legacyDefaultIds = new Set(['fav-1', 'fav-2', 'fav-3']);
+    return parsed.filter((fav: FavoritePlace) => {
+      if (!fav || !fav.id || !fav.coords) return false;
+      const isLegacyDefault =
+        legacyDefaultIds.has(fav.id) &&
+        ['Maison principale 🏠', 'Bureau familial 💼', 'École des enfants 🏫'].includes(fav.name);
+      return !isLegacyDefault;
+    });
+  } catch (e) {
+    console.error('Unable to parse map favorites:', e);
+    return [];
+  }
+};
+
 const getFavoriteIcon = (type: 'home' | 'work' | 'school' | 'other') => {
   switch (type) {
     case 'home': return HomeIcon;
@@ -83,11 +119,47 @@ const getFavoriteIcon = (type: 'home' | 'work' | 'school' | 'other') => {
   }
 };
 
+const buildSearchUrl = (query: string, origin: [number, number] | null) => {
+  const params = new URLSearchParams({
+    format: 'jsonv2',
+    q: query,
+    limit: '6',
+    addressdetails: '1',
+    'accept-language': 'fr'
+  });
+
+  if (origin) {
+    const [lat, lng] = origin;
+    params.set('viewbox', `${lng - 1},${lat + 0.7},${lng + 1},${lat - 0.7}`);
+    params.set('bounded', '0');
+  }
+
+  return `https://nominatim.openstreetmap.org/search?${params.toString()}`;
+};
+
+const formatSearchResult = (result: any) => {
+  const address = result?.address || {};
+  const title =
+    result?.name ||
+    address.amenity ||
+    address.road ||
+    String(result?.display_name || 'Lieu').split(',')[0];
+  const city = address.city || address.town || address.village || address.municipality || address.county;
+  const parts = [address.house_number && address.road ? `${address.house_number} ${address.road}` : address.road, city, address.postcode, address.country]
+    .filter(Boolean);
+
+  return {
+    title,
+    subtitle: parts.join(' · ') || result?.display_name || ''
+  };
+};
+
 export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, onUpdateMemberProfile }) => {
   // Decoupled Viewport Center & User GPS Location to prevent mass teleportation
-  const [userLocation, setUserLocation] = useState<[number, number]>([48.8566, 2.3522]);
-  const [mapCenter, setMapCenter] = useState<[number, number]>([48.8566, 2.3522]);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number]>(DEFAULT_MAP_CENTER);
   const [loadingLoc, setLoadingLoc] = useState(true);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string>('Actif maintenant');
   const [isSharing, setIsSharing] = useState<boolean>(() => localStorage.getItem('mf_share_location') !== 'false');
   
@@ -98,6 +170,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   
   // Real OSRM route tracing states
   const [routeTarget, setRouteTarget] = useState<{
@@ -107,17 +180,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const [routePoints, setRoutePoints] = useState<[number, number][]>([]);
   const [routeDistance, setRouteDistance] = useState<number | null>(null);
   const [routeDuration, setRouteDuration] = useState<number | null>(null);
+  const [routeMode, setRouteMode] = useState<'driving' | 'walking'>('driving');
 
   // Dynamic Favorites saved in LocalStorage
-  const [favorites, setFavorites] = useState<FavoritePlace[]>(() => {
-    const stored = localStorage.getItem('mf_map_favorites');
-    if (stored) return JSON.parse(stored);
-    return [
-      { id: 'fav-1', name: "Maison principale 🏠", type: 'home', coords: [48.8566, 2.3522], detail: "Résidence Familiale" },
-      { id: 'fav-2', name: "Bureau familial 💼", type: 'work', coords: [48.8924, 2.2356], detail: "Lieu de travail à personnaliser" },
-      { id: 'fav-3', name: "École des enfants 🏫", type: 'school', coords: [48.8606, 2.3376], detail: "Établissement à personnaliser" }
-    ];
-  });
+  const [favorites, setFavorites] = useState<FavoritePlace[]>(readStoredFavorites);
 
   useEffect(() => {
     localStorage.setItem('mf_map_favorites', JSON.stringify(favorites));
@@ -139,27 +205,42 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   // Search Marker placed temporarily on the map
   const [searchMarker, setSearchMarker] = useState<{ name: string; coords: [number, number] } | null>(null);
 
-  const handleAddressSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
+  const searchPlaces = async (query: string, showEmptyMessage = true) => {
+    if (!query.trim()) return;
     setSearching(true);
+    setSearchError(null);
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&countrycodes=fr&addressdetails=1&email=madouyatt95@gmail.com`
-      );
+      const response = await fetch(buildSearchUrl(query, routeOrigin));
+      if (!response.ok) throw new Error('search_failed');
       const data = await response.json();
       setSearchResults(data);
+      if (showEmptyMessage && Array.isArray(data) && data.length === 0) {
+        setSearchError("Aucun lieu trouvé. Essayez avec une ville ou une adresse plus précise.");
+      }
     } catch (err) {
       console.error("Nominatim search error:", err);
+      setSearchError("La recherche d'adresse est momentanément indisponible.");
     } finally {
       setSearching(false);
     }
+  };
+
+  const handleAddressSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await searchPlaces(searchQuery, true);
   };
 
   // iOS-style bottom sheet state: 'collapsed' | 'half' | 'full'
   const [sheetState, setSheetState] = useState<'collapsed' | 'half'>('collapsed');
 
   const me = members.find(m => m.id === activeMemberId);
+  const activeMemberStoredLocation = useMemo(() => getMemberCoords(me), [me?.latitude, me?.longitude]);
+  const routeOrigin = userLocation || activeMemberStoredLocation;
+
+  useEffect(() => {
+    const bestCenter = userLocation || activeMemberStoredLocation || members.map(getMemberCoords).find(Boolean) || DEFAULT_MAP_CENTER;
+    setMapCenter(bestCenter as [number, number]);
+  }, [activeMemberId, members, userLocation]);
 
   useEffect(() => {
     if (me && me.locationStatus) {
@@ -170,6 +251,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   useEffect(() => {
     if (!isSharing) {
       setLoadingLoc(false);
+      setLocationError(null);
       if (onUpdateMemberProfile) {
         onUpdateMemberProfile(activeMemberId, {
           locationStatus: 'Position masquée 🔒',
@@ -181,6 +263,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
     // True HTML5 GPS Geolocalisation
     if (navigator.geolocation) {
+      setLoadingLoc(true);
+      setLocationError(null);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const lat = pos.coords.latitude;
@@ -200,20 +284,20 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         },
         (err) => {
           console.error("GPS Access Error:", err);
+          setLocationError("Position non disponible. Vérifiez l'autorisation GPS de l'appareil.");
           setLoadingLoc(false);
-          if (me && me.latitude && me.longitude) {
-            const lat = Number(me.latitude);
-            const lng = Number(me.longitude);
-            setUserLocation([lat, lng]);
-            setMapCenter([lat, lng]);
+          if (activeMemberStoredLocation) {
+            setUserLocation(activeMemberStoredLocation);
+            setMapCenter(activeMemberStoredLocation);
           }
         },
         { enableHighAccuracy: true }
       );
     } else {
+      setLocationError("La géolocalisation n'est pas disponible sur cet appareil.");
       setLoadingLoc(false);
     }
-  }, [activeMemberId, isSharing]);
+  }, [activeMemberId, activeMemberStoredLocation, isSharing]);
 
   // Leaflet custom circular avatar marker creator
   const createCustomIcon = (member: Member, isMe: boolean) => {
@@ -232,7 +316,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
             animation: ${isMe ? 'pulse 2s infinite' : 'none'};
           "></div>
           <img 
-            src="${member.photoUrl}" 
+            src="${member.photoUrl || FALLBACK_AVATAR}" 
             style="
               width: 40px; 
               height: 40px; 
@@ -252,10 +336,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
   const handleStatusChange = async (status: string) => {
     setSelectedStatus(status);
+    const coords = routeOrigin;
     if (onUpdateMemberProfile) {
       await onUpdateMemberProfile(activeMemberId, {
-        latitude: userLocation[0],
-        longitude: userLocation[1],
+        ...(coords ? { latitude: coords[0], longitude: coords[1] } : {}),
         locationStatus: status,
         lastLocatedAt: new Date().toISOString()
       });
@@ -265,26 +349,29 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   // Real-time Nominatim Address Suggestions Autocomplete with Debounce
   useEffect(() => {
     if (searchQuery.trim().length < 3) {
+      setSearchResults([]);
+      setSearchError(null);
       return;
     }
     const delayDebounce = setTimeout(async () => {
       try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&countrycodes=fr&addressdetails=1&email=madouyatt95@gmail.com`
-        );
+        const response = await fetch(buildSearchUrl(searchQuery, routeOrigin));
+        if (!response.ok) throw new Error('search_failed');
         const data = await response.json();
         setSearchResults(data);
+        setSearchError(null);
       } catch (err) {
         console.error("Nominatim autocompletion error:", err);
+        setSearchError("La recherche d'adresse est momentanément indisponible.");
       }
     }, 400);
 
     return () => clearTimeout(delayDebounce);
-  }, [searchQuery]);
+  }, [routeOrigin, searchQuery]);
 
   // Real OSRM Routing calculation
   useEffect(() => {
-    if (!routeTarget) {
+    if (!routeTarget || !routeOrigin) {
       setRoutePoints([]);
       setRouteDistance(null);
       setRouteDuration(null);
@@ -293,9 +380,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
     const fetchRoute = async () => {
       try {
-        const start = userLocation;
+        const start = routeOrigin;
         const end = routeTarget.coords;
-        const url = `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`;
+        const profile = routeMode === 'walking' ? 'foot' : 'driving';
+        const url = `https://router.project-osrm.org/route/v1/${profile}/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`;
         const res = await fetch(url);
         const data = await res.json();
         
@@ -315,7 +403,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       } catch (err) {
         console.error("OSRM Route calculation error:", err);
         // Fallback to straight line
-        const start = userLocation;
+        const start = routeOrigin;
         const end = routeTarget.coords;
         setRoutePoints([start, end]);
         const d = getHaversineDistance(start[0], start[1], end[0], end[1]);
@@ -325,7 +413,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     };
 
     fetchRoute();
-  }, [userLocation, routeTarget]);
+  }, [routeMode, routeOrigin, routeTarget]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.round(seconds / 60);
@@ -348,45 +436,51 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     setSearchQuery('');
   };
 
-  // Mapped members with dynamically computed offsets and distances (stable around homeCoords)
+  const startRouteTo = (name: string, coords: [number, number]) => {
+    setMapCenter(coords);
+    if (!routeOrigin) {
+      alert("Activez ou autorisez votre position pour calculer un itinéraire depuis votre emplacement.");
+      return;
+    }
+    setRouteTarget({ name, coords });
+  };
+
+  const openRouteInNativeMaps = () => {
+    if (!routeTarget) return;
+    const [lat, lng] = routeTarget.coords;
+    const isAppleDevice = /iPad|iPhone|iPod|Macintosh/i.test(navigator.userAgent);
+    const travelMode = routeMode === 'walking' ? 'walking' : 'driving';
+    const appleMode = routeMode === 'walking' ? 'w' : 'd';
+    const url = isAppleDevice
+      ? `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=${appleMode}`
+      : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=${travelMode}`;
+
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  // Mapped members with real coordinates only. Unknown locations stay explicit in the list.
   const mappedMembers = members.map((m, idx) => {
     const isMe = m.id === activeMemberId;
-    const hasCoords = m.latitude !== undefined && m.latitude !== null && 
-                      m.longitude !== undefined && m.longitude !== null;
-    
-    // Stable home base coordinates to prevent teleportation when mapCenter/userLocation changes
-    const homeCoords: [number, number] = [48.8566, 2.3522];
-    
-    let lat = userLocation[0];
-    let lng = userLocation[1];
+    const storedCoords = getMemberCoords(m);
+    const pos = isMe ? routeOrigin : storedCoords;
+    const hasLocation = !!pos;
+    const distance = routeOrigin && pos ? getHaversineDistance(routeOrigin[0], routeOrigin[1], pos[0], pos[1]) : null;
+    const eta = distance !== null ? getEstimatedTime(distance) : null;
 
-    if (!isMe) {
-      if (hasCoords) {
-        lat = Number(m.latitude);
-        lng = Number(m.longitude);
-      } else {
-        // Safe relative offsets around stable home coordinates
-        const offsetLat = (idx % 2 === 0 ? 0.0025 : -0.0018) * (idx + 1);
-        const offsetLng = (idx % 3 === 0 ? -0.0022 : 0.0035) * (idx + 1);
-        lat = homeCoords[0] + offsetLat;
-        lng = homeCoords[1] + offsetLng;
-      }
-    }
-
-    const distance = getHaversineDistance(userLocation[0], userLocation[1], lat, lng);
-    const eta = getEstimatedTime(distance);
-
-    const status = isMe ? selectedStatus : m.locationStatus || (idx === 1 ? '🏫 À l\'école' : idx === 2 ? '💼 Au bureau' : '🚗 En déplacement');
+    const status = isMe
+      ? (isSharing ? selectedStatus : 'Position masquée 🔒')
+      : m.locationStatus || (hasLocation ? 'Position partagée' : 'Position non partagée');
     const lastUpdate = m.lastLocatedAt ? new Date(m.lastLocatedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : "à l'instant";
 
     return {
       ...m,
       isMe,
-      pos: [lat, lng] as [number, number],
+      pos,
       status,
       lastUpdate,
       distance,
-      eta
+      eta,
+      hasLocation
     };
   });
 
@@ -434,18 +528,48 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
           </button>
         </form>
 
+        <div className="mt-2 flex gap-1.5 overflow-x-auto no-scrollbar">
+          {['École', 'Médecin', 'Pharmacie', 'Courses'].map((label) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                setSearchQuery(label);
+                searchPlaces(label, true);
+              }}
+              className="shrink-0 px-2.5 py-1.5 rounded-xl bg-[#0F1E36]/85 border border-white/10 text-[9px] font-extrabold text-white/70 backdrop-blur-xl active:scale-95"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* Nominatim Search Results Floating Panel */}
         {searchResults.length > 0 && (
           <div className="mt-2 bg-[#0F1E36]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-2 max-h-[180px] overflow-y-auto shadow-2xl space-y-1">
-            {searchResults.map((res, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSelectSearchResult(res)}
-                className="w-full text-left p-2 rounded-xl text-[10px] text-white hover:bg-white/5 truncate transition block font-medium"
-              >
-                📍 {res.display_name}
-              </button>
-            ))}
+            {searchResults.map((res, idx) => {
+              const formatted = formatSearchResult(res);
+              return (
+                <button
+                  key={idx}
+                  onClick={() => handleSelectSearchResult(res)}
+                  className="w-full text-left p-2.5 rounded-xl text-white hover:bg-white/5 transition block font-medium"
+                >
+                  <span className="text-[11px] font-extrabold text-white flex items-center gap-1.5">
+                    <span>📍</span>
+                    <span className="truncate">{formatted.title}</span>
+                  </span>
+                  <span className="text-[9px] text-white/45 block truncate mt-0.5">{formatted.subtitle}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {searchError && (
+          <div className="mt-2 bg-[#FF4D6D]/15 backdrop-blur-xl border border-[#FF4D6D]/25 rounded-2xl p-3 shadow-2xl flex items-start space-x-2">
+            <AlertCircle className="w-4 h-4 text-[#FF4D6D] shrink-0 mt-0.5" />
+            <p className="text-[10px] text-white/80 font-semibold leading-normal">{searchError}</p>
           </div>
         )}
       </div>
@@ -492,10 +616,12 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                   const lng = pos.coords.longitude;
                   setUserLocation([lat, lng]);
                   setMapCenter([lat, lng]);
+                  setLocationError(null);
                   setLoadingLoc(false);
                 },
                 (err) => {
                   console.error(err);
+                  setLocationError("Position non disponible. Vérifiez l'autorisation GPS de l'appareil.");
                   setLoadingLoc(false);
                 }
               );
@@ -563,7 +689,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                   position={routePoints[0]}
                   icon={L.divIcon({
                     className: 'start-route-marker',
-                    html: `<div style="font-size: 20px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">🏎️</div>`,
+                    html: `<div style="font-size: 20px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">${routeMode === 'walking' ? '🚶' : '🚗'}</div>`,
                     iconSize: [24, 24],
                     iconAnchor: [12, 12]
                   })}
@@ -676,7 +802,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                       <div className="flex flex-col space-y-1">
                         <button
                           onClick={() => {
-                            setRouteTarget({ name: searchMarker.name, coords: searchMarker.coords });
+                            startRouteTo(searchMarker.name, searchMarker.coords);
                           }}
                           className="w-full py-1.5 rounded bg-[#00D26A] hover:bg-[#00B85C] text-white text-[9px] font-bold transition cursor-pointer"
                         >
@@ -707,8 +833,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
             )}
 
             {/* Mapped Family Members Markers */}
-            {mappedMembers.map((m) => (
-              <Marker key={m.id} position={m.pos} icon={createCustomIcon(m as Member, m.isMe)}>
+            {mappedMembers.filter((m) => m.pos).map((m) => (
+              <Marker key={m.id} position={m.pos as [number, number]} icon={createCustomIcon(m as Member, m.isMe)}>
                 <Popup closeButton={false}>
                   <div className="text-center min-w-[120px]">
                     <div className="flex items-center justify-center space-x-1.5 mb-1">
@@ -717,7 +843,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                     </div>
                     <p className="text-[10px] text-white/80 font-medium bg-white/5 py-1 px-2 rounded-lg inline-block border border-white/5">{m.status}</p>
                     
-                    {!m.isMe && (
+                    {!m.isMe && m.distance !== null && m.eta && (
                       <p className="text-[9px] text-[#FFB020] font-bold mt-1">
                         Distance: {m.distance.toFixed(2)} km ({m.eta})
                       </p>
@@ -763,17 +889,53 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
         {/* Route Details Overlay Banner */}
         {routeTarget && (
-          <div className="absolute top-28 left-4 right-4 z-[999] bg-[#00D26A] text-black font-extrabold text-xs uppercase px-4 py-3 rounded-2xl flex items-center justify-between shadow-2xl animate-bounce">
-            <div className="flex items-center space-x-2">
-              <Route className="w-4 h-4 animate-spin" />
-              <span>Itinéraire vers {routeTarget.name} {routeDistance ? `(${routeDistance.toFixed(1)} km${routeDuration ? ` • ${formatDuration(routeDuration)}` : ''})` : ''}</span>
+          <div className="absolute top-28 left-4 right-4 z-[999] bg-[#0F1E36]/95 backdrop-blur-xl text-white border border-[#00D26A]/30 px-3.5 py-3 rounded-2xl shadow-2xl space-y-2">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center space-x-2">
+                  <Route className="w-4 h-4 text-[#00D26A] shrink-0" />
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[#00D26A]">Itinéraire</span>
+                </div>
+                <p className="text-xs font-extrabold truncate mt-0.5">{routeTarget.name}</p>
+                <p className="text-[10px] text-white/55 font-bold mt-0.5">
+                  {routeDistance ? `${routeDistance.toFixed(1)} km${routeDuration ? ` · ${formatDuration(routeDuration)}` : ' · estimation directe'}` : 'Calcul en cours...'}
+                </p>
+              </div>
+              <button 
+                onClick={() => setRouteTarget(null)}
+                className="bg-white/5 hover:bg-white/10 text-white/70 px-2 py-1 rounded-lg text-[9px] font-black cursor-pointer shrink-0"
+              >
+                Fermer
+              </button>
             </div>
-            <button 
-              onClick={() => setRouteTarget(null)}
-              className="bg-black/10 hover:bg-black/20 text-black px-2 py-0.5 rounded-lg text-[9px] font-black cursor-pointer"
-            >
-              Fermer
-            </button>
+
+            <div className="grid grid-cols-[1fr_1fr_1.4fr] gap-1.5">
+              <button
+                type="button"
+                onClick={() => setRouteMode('driving')}
+                className={`py-2 rounded-xl text-[9px] font-black uppercase transition ${
+                  routeMode === 'driving' ? 'bg-[#00D26A] text-[#07111F]' : 'bg-white/5 text-white/55'
+                }`}
+              >
+                🚗 Voiture
+              </button>
+              <button
+                type="button"
+                onClick={() => setRouteMode('walking')}
+                className={`py-2 rounded-xl text-[9px] font-black uppercase transition ${
+                  routeMode === 'walking' ? 'bg-[#00D26A] text-[#07111F]' : 'bg-white/5 text-white/55'
+                }`}
+              >
+                🚶 À pied
+              </button>
+              <button
+                type="button"
+                onClick={openRouteInNativeMaps}
+                className="py-2 rounded-xl bg-[#6C5CFF] text-white text-[9px] font-black uppercase shadow-lg shadow-[#6C5CFF]/20"
+              >
+                Ouvrir Plans
+              </button>
+            </div>
           </div>
         )}
 
@@ -816,6 +978,22 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
             </div>
 
             {/* Grid of status changes */}
+            {locationError && (
+              <div className="p-3 rounded-2xl bg-[#FFB020]/10 border border-[#FFB020]/20 flex items-start space-x-2">
+                <AlertCircle className="w-4 h-4 text-[#FFB020] shrink-0 mt-0.5" />
+                <p className="text-[10px] text-white/70 font-semibold leading-normal">{locationError}</p>
+              </div>
+            )}
+
+            {!isSharing && (
+              <div className="p-3 rounded-2xl bg-white/5 border border-white/8 flex items-start space-x-2">
+                <EyeOff className="w-4 h-4 text-white/50 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-white/60 font-semibold leading-normal">
+                  Votre position est masquée. Les autres membres ne verront pas votre position actuelle.
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-5 gap-1.5 pt-1.5 border-t border-white/5">
               {statuses.map((s) => {
                 const isActive = selectedStatus === s.value;
@@ -849,7 +1027,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                 {/* 1. Address Favorites Panel */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between px-1">
-                    <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest block">Lieux favoris</span>
+                  <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest block">Lieux favoris</span>
                     <button
                       onClick={() => {
                         setIsEditingFavorites(prev => !prev);
@@ -860,6 +1038,38 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                       <span>{isEditingFavorites ? "Terminer ✓" : "Gérer ⚙️"}</span>
                     </button>
                   </div>
+
+                  {routeOrigin && (
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { label: 'Maison', type: 'home' as const, detail: 'Position du foyer' },
+                        { label: 'Travail', type: 'work' as const, detail: 'Lieu de travail' },
+                        { label: 'École', type: 'school' as const, detail: 'Établissement scolaire' }
+                      ].map((item) => (
+                        <button
+                          key={item.type}
+                          type="button"
+                          onClick={() => {
+                            const existing = favorites.find(f => f.type === item.type);
+                            const nextFavorite: FavoritePlace = {
+                              id: existing?.id || `fav-${Date.now()}-${item.type}`,
+                              name: item.label,
+                              type: item.type,
+                              detail: item.detail,
+                              coords: routeOrigin
+                            };
+                            setFavorites(prev => existing
+                              ? prev.map(f => f.id === existing.id ? nextFavorite : f)
+                              : [...prev, nextFavorite]
+                            );
+                          }}
+                          className="py-2 rounded-xl bg-white/5 border border-white/8 text-[9px] text-white/65 font-extrabold active:scale-95"
+                        >
+                          + {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Add Favorite Inline Form */}
                   {addingFavoriteCoords && (
@@ -999,9 +1209,15 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                   )}
 
                   <div className="grid grid-cols-3 gap-2">
+                    {favorites.length === 0 && (
+                      <div className="col-span-3 p-3 rounded-2xl bg-white/5 border border-dashed border-white/10 text-[10px] text-white/50 font-semibold leading-normal">
+                        Aucun lieu favori. Recherchez une adresse ou touchez la carte pour ajouter maison, école ou travail.
+                      </div>
+                    )}
+
                     {favorites.map((fav) => {
                       const FavIcon = getFavoriteIcon(fav.type);
-                      const dist = getHaversineDistance(userLocation[0], userLocation[1], fav.coords[0], fav.coords[1]);
+                      const dist = routeOrigin ? getHaversineDistance(routeOrigin[0], routeOrigin[1], fav.coords[0], fav.coords[1]) : null;
                       
                       return (
                         <div
@@ -1042,8 +1258,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                           <button
                             onClick={() => {
                               if (isEditingFavorites) return;
-                              setMapCenter(fav.coords);
-                              setRouteTarget({ name: fav.name, coords: fav.coords });
+                              startRouteTo(fav.name, fav.coords);
                             }}
                             className="w-full text-left space-y-1 transition active:scale-95 cursor-pointer block focus:outline-none"
                             disabled={isEditingFavorites}
@@ -1053,9 +1268,13 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                               <span className="text-[9px] font-bold text-white truncate">{fav.name.split(' ')[0]}</span>
                             </div>
                             <span className="text-[8px] text-white/40 block truncate">{fav.detail}</span>
-                            <span className="text-[8px] text-[#00D26A] font-extrabold block">
-                              {dist.toFixed(1)} km
-                            </span>
+                            {dist !== null ? (
+                              <span className="text-[8px] text-[#00D26A] font-extrabold block">
+                                {dist.toFixed(1)} km
+                              </span>
+                            ) : (
+                              <span className="text-[8px] text-white/30 font-extrabold block">Distance inconnue</span>
+                            )}
                           </button>
                         </div>
                       );
@@ -1087,7 +1306,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                         </div>
 
                         <div className="flex items-center space-x-2 shrink-0">
-                          {!m.isMe && (
+                          {!m.isMe && m.distance !== null && m.eta && (
                             <div className="text-right">
                               <span className="text-[9px] font-extrabold text-[#00D26A] block">{m.distance.toFixed(1)} km</span>
                               <span className="text-[8px] text-white/40 block font-medium">{m.eta}</span>
@@ -1096,13 +1315,20 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                           
                           <button
                             onClick={() => {
-                              setMapCenter(m.pos);
-                              if (!m.isMe) {
-                                setRouteTarget({ name: m.name, coords: m.pos });
+                              if (!m.pos) return;
+                              if (m.isMe) {
+                                setMapCenter(m.pos);
+                              } else {
+                                startRouteTo(m.name, m.pos);
                               }
                             }}
-                            className="p-1.5 bg-[#6C5CFF]/15 hover:bg-[#6C5CFF]/35 text-[#9E94FF] rounded-lg transition"
-                            title="Recentrer et tracer"
+                            disabled={!m.pos}
+                            className={`p-1.5 rounded-lg transition ${
+                              m.pos
+                                ? 'bg-[#6C5CFF]/15 hover:bg-[#6C5CFF]/35 text-[#9E94FF]'
+                                : 'bg-white/5 text-white/20 cursor-not-allowed'
+                            }`}
+                            title={m.pos ? "Recentrer et tracer" : "Position non partagée"}
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
