@@ -47,6 +47,25 @@ import type {
 const LEGACY_DEMO_SCHOOL_TASK_IDS = new Set(['st-1', 'st-2', 'st-3', 'st-4', 'st-5']);
 const removeLegacyDemoSchoolTasks = <T extends { id?: string }>(tasks: T[]): T[] =>
   tasks.filter(task => !LEGACY_DEMO_SCHOOL_TASK_IDS.has(String(task.id || '')));
+const LEGACY_DEMO_MEMORY_IDS = new Set(['mem-1', 'mem-2']);
+const mapCloudMemory = (m: any): MemoryLog => {
+  const imageUrls = Array.isArray(m.image_urls) ? m.image_urls.filter(Boolean) : [];
+  return {
+    id: m.id,
+    date: m.date,
+    title: m.title,
+    description: m.description,
+    authorName: m.author_name,
+    authorPhoto: m.author_photo || '',
+    imageUrl: m.image_url || imageUrls[0] || '',
+    imageUrls,
+    likesCount: m.likes_count || 0,
+    isPrivate: !!m.is_private,
+    theme: m.theme
+  };
+};
+const removeLegacyDemoMemories = (items: any[]): any[] =>
+  items.filter(item => !LEGACY_DEMO_MEMORY_IDS.has(String(item.id || '')));
 
 const formatRelativeTime = (dateInput: string | Date | undefined, fallback: string): string => {
   if (!dateInput) return fallback;
@@ -637,7 +656,7 @@ function App() {
 
   // New modules states
   const [memories, setMemories] = useState<MemoryLog[]>(() => {
-    return safeGetLocalStorage('mf_memories', []);
+    return removeLegacyDemoMemories(safeGetLocalStorage('mf_memories', []));
   });
 
   const [votes, setVotes] = useState<FamilyVote[]>(() => {
@@ -2818,19 +2837,7 @@ function App() {
 
       // Set memories
       if (memoriesRes.success && memoriesRes.data) {
-        setMemories(memoriesRes.data.map((m: any) => ({
-          id: m.id,
-          date: m.date,
-          title: m.title,
-          description: m.description,
-          authorName: m.author_name,
-          authorPhoto: m.author_photo,
-          imageUrl: m.image_url,
-          imageUrls: m.image_urls || [],
-          likesCount: m.likes_count,
-          isPrivate: m.is_private,
-          theme: m.theme
-        })));
+        setMemories(removeLegacyDemoMemories(memoriesRes.data).map(mapCloudMemory));
       }
 
       // Set votes
@@ -3596,11 +3603,7 @@ function App() {
       }
 
       if (memoriesRes.data) {
-        const mapped = memoriesRes.data.map((m: any) => ({
-          id: m.id, date: m.date, title: m.title, description: m.description,
-          authorName: m.author_name, authorPhoto: m.author_photo, imageUrl: m.image_url,
-          imageUrls: m.image_urls || [], likesCount: m.likes_count, isPrivate: m.is_private, theme: m.theme
-        }));
+        const mapped = removeLegacyDemoMemories(memoriesRes.data).map(mapCloudMemory);
         setMemories(prev => {
           const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
           const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
@@ -4083,19 +4086,8 @@ function App() {
         setMemories(prev => prev.filter(m => m.id !== deletedId));
       } 
       else if (payload.eventType === 'INSERT') {
-        const newItem: MemoryLog = {
-          id: payload.new.id,
-          date: payload.new.date,
-          title: payload.new.title,
-          description: payload.new.description,
-          authorName: payload.new.author_name,
-          authorPhoto: payload.new.author_photo,
-          imageUrl: payload.new.image_url,
-          imageUrls: payload.new.image_urls || [],
-          likesCount: payload.new.likes_count || 0,
-          isPrivate: !!payload.new.is_private,
-          theme: payload.new.theme
-        };
+        if (LEGACY_DEMO_MEMORY_IDS.has(String(payload.new.id || ''))) return;
+        const newItem = mapCloudMemory(payload.new);
         setMemories(prev => {
           if (prev.some(m => m.id === newItem.id)) return prev;
           return [newItem, ...prev];
@@ -4104,19 +4096,8 @@ function App() {
         // Le push système est géré par FCM. Le realtime met seulement l'UI à jour.
       }
       else if (payload.eventType === 'UPDATE') {
-        const updatedItem: MemoryLog = {
-          id: payload.new.id,
-          date: payload.new.date,
-          title: payload.new.title,
-          description: payload.new.description,
-          authorName: payload.new.author_name,
-          authorPhoto: payload.new.author_photo,
-          imageUrl: payload.new.image_url,
-          imageUrls: payload.new.image_urls || [],
-          likesCount: payload.new.likes_count || 0,
-          isPrivate: !!payload.new.is_private,
-          theme: payload.new.theme
-        };
+        if (LEGACY_DEMO_MEMORY_IDS.has(String(payload.new.id || ''))) return;
+        const updatedItem = mapCloudMemory(payload.new);
         setMemories(prev => prev.map(m => m.id === updatedItem.id ? updatedItem : m));
       }
     });
@@ -11263,7 +11244,7 @@ function App() {
             title: newMemory.title,
             description: newMemory.description || '',
             image_url: newMemory.imageUrl,
-            image_urls: newMemory.imageUrls || [newMemory.imageUrl],
+            image_urls: newMemory.imageUrls?.filter(Boolean) || (newMemory.imageUrl ? [newMemory.imageUrl] : []),
             author_name: newMemory.authorName,
             author_photo: newMemory.authorPhoto || '',
             likes_count: newMemory.likesCount || 0,

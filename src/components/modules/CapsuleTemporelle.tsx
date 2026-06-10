@@ -108,11 +108,17 @@ const MemoryCard: React.FC<MemoryCardProps> = ({
         
         <div className="flex items-center justify-between pt-3 border-t border-white/5">
           <div className="flex items-center space-x-2">
-            <img 
-              src={m.authorPhoto} 
-              alt={m.authorName} 
-              className="w-4 h-4 rounded-full object-cover border border-white/20 shrink-0"
-            />
+            {m.authorPhoto ? (
+              <img 
+                src={m.authorPhoto} 
+                alt={m.authorName} 
+                className="w-4 h-4 rounded-full object-cover border border-white/20 shrink-0"
+              />
+            ) : (
+              <span className="w-4 h-4 rounded-full bg-white/10 border border-white/20 shrink-0 flex items-center justify-center text-[7px] font-black text-white/50">
+                {m.authorName?.charAt(0) || '?'}
+              </span>
+            )}
             <span className="text-[9px] font-bold text-white/40">
               Par: <span className="text-[#FF4D6D]">{m.authorName}</span>
             </span>
@@ -178,7 +184,6 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
   const [newDesc, setNewDesc] = useState('');
   const [newTheme, setNewTheme] = useState('🏖️ Vacances');
   const [newDate, setNewDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [selectedPresetImage, setSelectedPresetImage] = useState('');
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [isPrivate, setIsPrivate] = useState(false);
   
@@ -197,13 +202,6 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
   const isParent = activeMember 
     ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMember.role)
     : (activeMemberId === '1' || activeMemberId === '2');
-
-  const PRESET_IMAGES = [
-    { label: '🚴‍♂️ Sport', url: 'https://images.unsplash.com/photo-1541614101331-1a5a3a194e92?w=600&auto=format&fit=crop&q=80' },
-    { label: '🍳 Cuisine', url: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=600&auto=format&fit=crop&q=80' },
-    { label: '🎂 Fête', url: 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&auto=format&fit=crop&q=80' },
-    { label: '🏖️ Plage', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&auto=format&fit=crop&q=80' }
-  ];
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -233,7 +231,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
     
     const finalImages: string[] = [];
     const supabase = getSupabaseClient();
-    const sourceImages = uploadedImages.length > 0 ? uploadedImages : (selectedPresetImage ? [selectedPresetImage] : []);
+    const sourceImages = uploadedImages;
     
     for (const img of sourceImages) {
       if (img.startsWith('data:')) {
@@ -271,7 +269,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
     }
     
     const author = activeMember?.name || 'Membre du foyer';
-    const authorPic = activeMember?.photoUrl || 'https://api.dicebear.com/7.x/adventurer/svg?seed=family-member';
+    const authorPic = activeMember?.photoUrl || '';
 
     const newMemory: MemoryLog = {
       id: `mem-${Date.now()}`,
@@ -369,8 +367,8 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       // Souvenir 1
       if (sampleMemories[0]) {
         chapters.push({
-          title: `L'Odyssée de ${sampleMemories[0].authorName}`,
-          desc: `Notre vaillant explorateur ${sampleMemories[0].authorName} a entrepris l'exploit intitulé: "${sampleMemories[0].title}". Les récits disent qu'il a bravé tous les vents célestes pour écrire ce souvenir : "${sampleMemories[0].description}" !`,
+          title: sampleMemories[0].title,
+          desc: sampleMemories[0].description,
           author: sampleMemories[0].authorName,
           photo: sampleMemories[0].imageUrl
         });
@@ -379,8 +377,8 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       // Souvenir 2
       if (sampleMemories[1]) {
         chapters.push({
-          title: `L'Invocation Céleste de ${sampleMemories[1].authorName}`,
-          desc: `Alors, ${sampleMemories[1].authorName} fit surgir une onde magique appelée "${sampleMemories[1].title}". L'assemblée en fut stupéfaite: "${sampleMemories[1].description}" !`,
+          title: sampleMemories[1].title,
+          desc: sampleMemories[1].description,
           author: sampleMemories[1].authorName,
           photo: sampleMemories[1].imageUrl
         });
@@ -389,8 +387,8 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       // Souvenir 3
       if (sampleMemories[2]) {
         chapters.push({
-          title: `Le Banquet Héroïque de ${sampleMemories[2].authorName}`,
-          desc: `Pour clore cette épopée, ${sampleMemories[2].authorName} réunit les troupes autour de "${sampleMemories[2].title}". Un festin mémorable : "${sampleMemories[2].description}" !`,
+          title: sampleMemories[2].title,
+          desc: sampleMemories[2].description,
           author: sampleMemories[2].authorName,
           photo: sampleMemories[2].imageUrl
         });
@@ -429,8 +427,8 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
         };
 
         img.onerror = () => {
-          // Fallback en direct sur Unsplash en cas d'erreur de serveur IA
-          setComicImage(`https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=800&q=80&sig=${seed}`);
+          setComicImage('');
+          alert("La génération de couverture IA n'a pas répondu. Aucun visuel automatique n'a été utilisé.");
           setIsGeneratingComic(false);
         };
 
@@ -450,13 +448,13 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
 
     const newMemory: MemoryLog = {
       id: `mem-comic-${Date.now()}`,
-      title: `🦸 LA GAZETTE BD : Les Aventures Épiques du Clan !`,
+      title: `🦸 Gazette BD personnalisée`,
       description: `Nous avons généré en direct notre BD personnalisée de la semaine basée sur nos souvenirs ! Style choisi : ${selectedComicStyle.toUpperCase()}.`,
       imageUrl: comicImage,
       imageUrls: [comicImage],
       date: new Date().toLocaleDateString('fr-FR'),
       authorName: activeMember?.name || 'Membre du foyer',
-      authorPhoto: activeMember?.photoUrl || 'https://api.dicebear.com/7.x/adventurer/svg?seed=family-member',
+      authorPhoto: activeMember?.photoUrl || '',
       likesCount: 0,
       theme: '🦸 Gazette BD',
       isPrivate: false
@@ -558,35 +556,19 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Thématique / Ambiance</label>
-                  <select 
-                    value={newTheme}
-                    onChange={(e) => setNewTheme(e.target.value)}
-                    className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
-                  >
-                    <option value="🏖️ Vacances">🏖️ Vacances & Sorties</option>
-                    <option value="🚴‍♂️ Sport">🚴‍♂️ Activités & Sport</option>
-                    <option value="🎂 Anniversaire">🎂 Anniversaire & Fête</option>
-                    <option value="🍳 Cuisine">🍳 Cuisine & Repas</option>
-                    <option value="🎓 Scolaire">🎓 Réussite & École</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Image de secours optionnelle</label>
-                  <select 
-                    value={selectedPresetImage}
-                    onChange={(e) => setSelectedPresetImage(e.target.value)}
-                    className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
-                  >
-                    <option value="">Aucune image de secours</option>
-                    {PRESET_IMAGES.map(pr => (
-                      <option key={pr.url} value={pr.url}>{pr.label}</option>
-                    ))}
-                  </select>
-                </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Thématique / Ambiance</label>
+                <select 
+                  value={newTheme}
+                  onChange={(e) => setNewTheme(e.target.value)}
+                  className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
+                >
+                  <option value="🏖️ Vacances">🏖️ Vacances & Sorties</option>
+                  <option value="🚴‍♂️ Sport">🚴‍♂️ Activités & Sport</option>
+                  <option value="🎂 Anniversaire">🎂 Anniversaire & Fête</option>
+                  <option value="🍳 Cuisine">🍳 Cuisine & Repas</option>
+                  <option value="🎓 Scolaire">🎓 Réussite & École</option>
+                </select>
               </div>
 
               {/* Custom Mobile Camera & Library Uploader */}
@@ -624,9 +606,8 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                       ))
                     ) : (
                       <div className="relative w-full h-full min-h-[70px] rounded-lg overflow-hidden flex items-center justify-center bg-black/20">
-                        {selectedPresetImage && <img src={selectedPresetImage} alt="Image de secours" className="w-full h-full object-cover opacity-60 absolute inset-0" />}
                         <span className="relative z-10 px-1.5 py-0.5 rounded bg-white/5 text-[8px] font-bold text-white/60 border border-white/10 uppercase">
-                          {selectedPresetImage ? 'Image optionnelle' : 'Aucune photo'}
+                          Aucune photo
                         </span>
                       </div>
                     )}
@@ -724,21 +705,21 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
             
             <div className="text-center relative z-10">
               <span className="text-[8.5px] font-black text-[#FFB020] uppercase tracking-widest block font-sans">
-                Chronique Hebdomadaire des Temps Merveilleux
+                Journal des souvenirs enregistrés
               </span>
               
               <h2 className="text-3xl md:text-5xl font-black tracking-tighter text-white font-serif mt-2 select-none uppercase">
-                {activeMemberId === '1' || activeMemberId === '2' ? 'LA GAZETTE DES DJITÉ' : 'L\'ÉCHO DES DJITÉ'}
+                Gazette du foyer
               </h2>
               
               <div className="w-full h-1 bg-gradient-to-r from-transparent via-white/20 to-transparent my-3"></div>
               
               <div className="flex justify-between items-center text-[9.5px] text-white/55 font-sans px-3 uppercase tracking-wider font-bold border-y border-white/8 py-2">
-                <span>Vol. VIII • No. 116</span>
+                <span>{visibleMemories.length} souvenir{visibleMemories.length > 1 ? 's' : ''}</span>
                 <span className="text-center text-[#FFB020]">
-                  Dimanche {new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  {new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                 </span>
-                <span>Prix : Gratuit & Précieux</span>
+                <span>Données du foyer</span>
               </div>
             </div>
 
@@ -747,19 +728,19 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
               <div className="md:col-span-5 space-y-3 md:border-r border-white/8 pr-0 md:pr-6 flex flex-col justify-between">
                 <div className="space-y-2.5">
                   <div className="inline-block bg-[#FFB020]/10 border border-[#FFB020]/25 rounded-md px-2 py-0.5">
-                    <span className="text-[8.5px] font-black text-[#FFB020] uppercase tracking-wider font-sans">Éditorial Merveilleux</span>
+                    <span className="text-[8.5px] font-black text-[#FFB020] uppercase tracking-wider font-sans">Dernier souvenir</span>
                   </div>
                   <h3 className="text-sm font-extrabold text-white leading-snug">
-                    L'Art de Vivre Ensemble sous le Toit Céleste
+                    {visibleMemories[0].title}
                   </h3>
                   <p className="text-[11px] text-white/60 leading-relaxed font-sans first-letter:text-3xl first-letter:font-black first-letter:text-[#FFB020] first-letter:mr-1.5 first-letter:float-left">
-                    Une nouvelle semaine s'achève au sein du foyer, riche en fous rires, en apprentissages et en précieux moments de partage. Nos rituels quotidiens demeurent le ciment de notre harmonie céleste. Entre les plats mijotés avec amour et les contes féériques du soir, la maisonnée rayonne de bonheur et de complicité.
+                    {visibleMemories[0].description}
                   </p>
                 </div>
                 
                 <div className="border-t border-dashed border-white/10 pt-3 mt-3">
                   <span className="text-[8.5px] font-bold text-white/35 italic block font-sans">
-                    — Rédigé avec tendresse par le Majordome IA
+                    — Ajouté par {visibleMemories[0].authorName} le {visibleMemories[0].date}
                   </span>
                 </div>
               </div>
@@ -771,11 +752,17 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                   </div>
                   
                   <div className="border-2 border-white/10 p-1.5 bg-white/3 rounded-xl overflow-hidden shadow-inner group">
-                    <img 
-                      src={visibleMemories[0].imageUrl} 
-                      alt="News Illustration" 
-                      className="w-full h-28 object-cover rounded-lg grayscale group-hover:grayscale-0 transition-all duration-700"
-                    />
+                    {visibleMemories[0].imageUrl ? (
+                      <img 
+                        src={visibleMemories[0].imageUrl} 
+                        alt="Souvenir principal" 
+                        className="w-full h-28 object-cover rounded-lg grayscale group-hover:grayscale-0 transition-all duration-700"
+                      />
+                    ) : (
+                      <div className="w-full h-28 rounded-lg bg-white/5 flex items-center justify-center text-[9px] font-black text-white/35 uppercase tracking-wider">
+                        Souvenir sans photo
+                      </div>
+                    )}
                     <div className="pt-2 text-center">
                       <span className="text-[8.5px] italic text-white/40 leading-none block font-sans">
                         « {visibleMemories[0].title} »
@@ -785,9 +772,11 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                 </div>
 
                 <div className="space-y-1 pt-2 border-t border-dashed border-white/10">
-                  <span className="text-[8.5px] font-black text-[#00D26A] uppercase tracking-wider block font-sans">Le Bulletin des Ménages</span>
+                    <span className="text-[8.5px] font-black text-[#00D26A] uppercase tracking-wider block font-sans">Autres souvenirs</span>
                   <p className="text-[10px] text-white/60 leading-normal font-sans">
-                    Les tâches ont été réparties avec démocratie. Le foyer brille d'une propreté exemplaire grâce aux efforts conjoints de chacun.
+                    {visibleMemories.length > 1
+                      ? `${visibleMemories.length - 1} autre${visibleMemories.length > 2 ? 's' : ''} souvenir${visibleMemories.length > 2 ? 's' : ''} disponible${visibleMemories.length > 2 ? 's' : ''} dans l'album.`
+                      : "Aucun autre souvenir pour le moment."}
                   </p>
                 </div>
               </div>
@@ -795,31 +784,27 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
               <div className="md:col-span-3 space-y-4 pl-0 md:pl-6 flex flex-col justify-between">
                 <div className="space-y-3">
                   <div className="inline-block bg-[#00D26A]/10 border border-[#00D26A]/25 rounded-md px-2 py-0.5">
-                    <span className="text-[8.5px] font-black text-[#00D26A] uppercase tracking-wider font-sans">Brèves du Foyer</span>
+                    <span className="text-[8.5px] font-black text-[#00D26A] uppercase tracking-wider font-sans">Souvenirs récents</span>
                   </div>
 
-                  <div className="space-y-2">
-                    <h4 className="text-[10.5px] font-extrabold text-white uppercase tracking-wider leading-tight">
-                      L'Exploit Scolaire
-                    </h4>
-                    <p className="text-[10px] text-white/55 leading-normal font-sans">
-                      Les devoirs ont été finalisés dans le calme olympien. L'IA salue la persévérance de nos jeunes explorateurs du savoir.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2 border-t border-dashed border-white/10 pt-2.5">
-                    <h4 className="text-[10.5px] font-extrabold text-white uppercase tracking-wider leading-tight">
-                      Le Mot de l'Éco-Chef
-                    </h4>
-                    <p className="text-[10px] text-white/55 leading-normal font-sans">
-                      Menu varié, savoureux, équilibré et garanti sans gaspillage alimentaire. L'estomac et la planète vous remercient !
-                    </p>
-                  </div>
+                  {visibleMemories.slice(1, 4).map(memory => (
+                    <div key={memory.id} className="space-y-1.5 border-t border-dashed border-white/10 pt-2.5 first:border-t-0 first:pt-0">
+                      <h4 className="text-[10.5px] font-extrabold text-white uppercase tracking-wider leading-tight">
+                        {memory.title}
+                      </h4>
+                      <p className="text-[10px] text-white/55 leading-normal font-sans">
+                        {memory.description}
+                      </p>
+                      <span className="text-[8px] text-white/35 font-bold font-sans">
+                        {memory.authorName} • {memory.date}
+                      </span>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="pt-2 border-t border-double border-white/10 text-center font-sans">
                   <span className="text-[8.5px] text-[#FF4D6D] font-extrabold uppercase tracking-widest block animate-pulse">
-                    Météo des Cœurs : Radieuse ☀️
+                    Gazette basée sur les souvenirs réels
                   </span>
                 </div>
               </div>
