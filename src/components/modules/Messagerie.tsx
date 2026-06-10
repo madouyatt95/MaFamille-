@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Search, Palette, X, Pin, PinOff, Smile, Play, Pause, Archive, Download, FileText, Reply, Trash2, MoreVertical } from 'lucide-react';
+import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Search, Palette, X, Pin, PinOff, Smile, Play, Pause, Archive, Download, FileText, Reply, Trash2, MoreVertical, Plus } from 'lucide-react';
 import type { Member, ChatMessage, ChatGroup } from '../../types';
 import { foyerService } from '../../services/foyerService';
 import { getSupabaseClient } from '../../utils/supabase';
@@ -208,6 +208,9 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   const [showMsgSearch, setShowMsgSearch] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [conversationFilter, setConversationFilter] = useState<'all' | 'unread' | 'groups' | 'private'>('all');
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupMemberIds, setNewGroupMemberIds] = useState<string[]>([]);
 
   const [replyingToMessage, setReplyingToMessage] = useState<ChatMessage | null>(null);
   const [typingMembers, setTypingMembers] = useState<{ [memberId: string]: string }>({});
@@ -762,6 +765,62 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     }
   };
 
+  const handleCreateGroup = () => {
+    const title = newGroupName.trim();
+    if (!title) {
+      alert("Donnez un nom au groupe de discussion.");
+      return;
+    }
+
+    const memberIds = Array.from(new Set([activeMemberId, ...newGroupMemberIds]));
+    if (memberIds.length < 2) {
+      alert("Ajoutez au moins un autre membre au groupe.");
+      return;
+    }
+
+    const newGroup: ChatGroup = {
+      id: `grp_${Date.now()}`,
+      name: title,
+      isPrivate: false,
+      memberIds,
+      lastMessage: 'Groupe créé',
+      lastMessageTime: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setGroups(prev => [newGroup, ...prev]);
+    saveGroupToCloud(newGroup);
+    setActiveGroupId(newGroup.id);
+    setNewGroupName('');
+    setNewGroupMemberIds([]);
+    setShowCreateGroup(false);
+  };
+
+  const handleClearConversationMessages = async () => {
+    if (!activeGroupId || !activeGroup) return;
+    const count = activeMessages.length;
+    if (count === 0) {
+      alert("Cette discussion est déjà vide.");
+      return;
+    }
+    if (!window.confirm(`Vider les ${count} message${count > 1 ? 's' : ''} de cette discussion sans supprimer la conversation ?`)) return;
+
+    setShowGroupMenu(false);
+    setMessages(prev => prev.filter(m => m.groupId !== activeGroupId));
+
+    const updatedGroup: ChatGroup = {
+      ...activeGroup,
+      lastMessage: '',
+      lastMessageTime: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    };
+    setGroups(prev => prev.map(g => g.id === activeGroup.id ? updatedGroup : g));
+    saveGroupToCloud(updatedGroup);
+
+    const client = getSupabaseClient();
+    if (client) {
+      await client.from('chat_messages').delete().eq('group_id', activeGroupId);
+    }
+  };
+
   const handleDeleteForMe = (msgId: string) => {
     setDeletedMessageIds(prev => {
       const next = [...prev, msgId];
@@ -917,12 +976,22 @@ export const Messagerie: React.FC<MessagerieProps> = ({
                 <p className="text-[10px] font-medium text-white/40">Connecté : {activeUser?.name}</p>
               </div>
             </div>
-            <button
-              onClick={() => setShowSearch(!showSearch)}
-              className={`p-2 rounded-full transition-all active:scale-95 border border-white/5 ${showSearch ? 'bg-white/15 text-white' : 'hover:bg-white/10 text-white/70 hover:text-white'}`}
-            >
-              <Search className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowCreateGroup(true)}
+                className="p-2 rounded-full transition-all active:scale-95 border border-[#00D26A]/25 bg-[#00D26A]/10 text-[#00D26A] hover:bg-[#00D26A]/15"
+                title="Créer un groupe"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setShowSearch(!showSearch)}
+                className={`p-2 rounded-full transition-all active:scale-95 border border-white/5 ${showSearch ? 'bg-white/15 text-white' : 'hover:bg-white/10 text-white/70 hover:text-white'}`}
+                title="Rechercher"
+              >
+                <Search className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {showSearch && (
@@ -942,6 +1011,75 @@ export const Messagerie: React.FC<MessagerieProps> = ({
                   </button>
                 )}
               </div>
+            </div>
+          )}
+
+          {showCreateGroup && (
+            <div className="mx-4 mb-4 rounded-3xl border border-white/10 bg-[#0F1626]/95 p-4 space-y-4 shadow-2xl animate-fade-in">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-black text-white">Créer un groupe</h3>
+                  <p className="text-[10px] text-white/45 mt-0.5">Choisissez un nom et les membres de la discussion.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateGroup(false);
+                    setNewGroupName('');
+                    setNewGroupMemberIds([]);
+                  }}
+                  className="p-1.5 rounded-full text-white/45 hover:text-white hover:bg-white/10"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <input
+                type="text"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="Nom du groupe, ex: Parents école"
+                className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#00D26A]/50"
+              />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                {members.filter(m => m.id !== activeMemberId).map(member => {
+                  const selected = newGroupMemberIds.includes(member.id);
+                  return (
+                    <button
+                      key={member.id}
+                      type="button"
+                      onClick={() => setNewGroupMemberIds(prev => selected ? prev.filter(id => id !== member.id) : [...prev, member.id])}
+                      className={`flex items-center gap-3 p-2.5 rounded-2xl border text-left transition ${
+                        selected
+                          ? 'bg-[#00D26A]/12 border-[#00D26A]/35 text-white'
+                          : 'bg-white/5 border-white/8 text-white/65 hover:bg-white/8'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-full overflow-hidden bg-white/10 shrink-0">
+                        {member.photoUrl ? (
+                          <img src={member.photoUrl} alt={member.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-[10px] font-black">{member.name.charAt(0)}</div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold truncate">{member.name}</p>
+                        <p className="text-[9px] text-white/35 truncate">{member.role || 'Membre'}</p>
+                      </div>
+                      <span className={`ml-auto w-4 h-4 rounded-full border ${selected ? 'bg-[#00D26A] border-[#00D26A]' : 'border-white/20'}`} />
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCreateGroup}
+                className="w-full py-3 rounded-2xl bg-[#00D26A] text-[#06110B] text-xs font-black uppercase tracking-wide hover:brightness-105 active:scale-[0.99]"
+              >
+                Créer le groupe
+              </button>
             </div>
           )}
 
@@ -1206,6 +1344,14 @@ export const Messagerie: React.FC<MessagerieProps> = ({
                   className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-white/80 transition cursor-pointer"
                 >
                   {archivedGroupIds.includes(activeGroupId!) ? 'Désarchiver' : 'Archiver la discussion'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleClearConversationMessages}
+                  className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-white/80 transition cursor-pointer"
+                >
+                  Vider les messages
                 </button>
 
                 {activeGroup && (

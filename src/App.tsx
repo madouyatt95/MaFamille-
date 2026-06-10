@@ -44,6 +44,10 @@ import type {
   AppliedMalus
 } from './types';
 
+const LEGACY_DEMO_SCHOOL_TASK_IDS = new Set(['st-1', 'st-2', 'st-3', 'st-4', 'st-5']);
+const removeLegacyDemoSchoolTasks = <T extends { id?: string }>(tasks: T[]): T[] =>
+  tasks.filter(task => !LEGACY_DEMO_SCHOOL_TASK_IDS.has(String(task.id || '')));
+
 const formatRelativeTime = (dateInput: string | Date | undefined, fallback: string): string => {
   if (!dateInput) return fallback;
   
@@ -642,7 +646,7 @@ function App() {
 
   const [schoolTasks, setSchoolTasksState] = useState<SchoolTask[]>(() => {
     const activeEstId = localStorage.getItem('mf_active_establishment_id') || 'est-1';
-    return spaceService.getSchoolTasksForEstablishment(activeEstId);
+    return removeLegacyDemoSchoolTasks(spaceService.getSchoolTasksForEstablishment(activeEstId));
   });
 
   const setSchoolTasks = (actionOrUpdater: SchoolTask[] | ((prev: SchoolTask[]) => SchoolTask[])) => {
@@ -2843,7 +2847,7 @@ function App() {
 
       // Set schoolTasks
       if (schoolTasksRes.success && schoolTasksRes.data) {
-        setSchoolTasks(schoolTasksRes.data.map((s: any) => ({
+        setSchoolTasks(removeLegacyDemoSchoolTasks(schoolTasksRes.data).map((s: any) => ({
           id: s.id,
           subject: s.subject,
           title: s.title,
@@ -3619,7 +3623,7 @@ function App() {
       }
 
       if (schoolTasksRes.data) {
-        const mapped = schoolTasksRes.data.map(s => ({
+        const mapped = removeLegacyDemoSchoolTasks(schoolTasksRes.data).map(s => ({
           id: s.id, subject: s.subject, title: s.title, dueDate: s.due_date, done: s.done,
           assignedMemberId: s.assigned_member_id, difficulty: s.difficulty, grade: s.grade || undefined
         }));
@@ -4452,7 +4456,7 @@ function App() {
     const subSchoolTasks = foyerService.subscribeToChanges('school_tasks', foyer.id, () => {
       foyerService.fetchTableData('school_tasks', foyer.id).then(tasksData => {
         if (tasksData) {
-          setSchoolTasks(tasksData.map(t => ({
+          setSchoolTasks(removeLegacyDemoSchoolTasks(tasksData).map(t => ({
             id: t.id,
             subject: t.subject,
             title: t.title,

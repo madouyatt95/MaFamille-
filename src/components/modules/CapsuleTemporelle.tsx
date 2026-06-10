@@ -7,7 +7,8 @@ import {
   Lock,
   Sparkles,
   Download,
-  Share2
+  Share2,
+  Newspaper
 } from 'lucide-react';
 import type { MemoryLog } from '../../types';
 
@@ -177,7 +178,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
   const [newDesc, setNewDesc] = useState('');
   const [newTheme, setNewTheme] = useState('🏖️ Vacances');
   const [newDate, setNewDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [selectedPresetImage, setSelectedPresetImage] = useState('https://images.unsplash.com/photo-1541614101331-1a5a3a194e92?w=600&auto=format&fit=crop&q=80');
+  const [selectedPresetImage, setSelectedPresetImage] = useState('');
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [isPrivate, setIsPrivate] = useState(false);
   
@@ -232,7 +233,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
     
     const finalImages: string[] = [];
     const supabase = getSupabaseClient();
-    const sourceImages = uploadedImages.length > 0 ? uploadedImages : [selectedPresetImage];
+    const sourceImages = uploadedImages.length > 0 ? uploadedImages : (selectedPresetImage ? [selectedPresetImage] : []);
     
     for (const img of sourceImages) {
       if (img.startsWith('data:')) {
@@ -276,7 +277,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       id: `mem-${Date.now()}`,
       title: newTitle,
       description: newDesc,
-      imageUrl: finalImages[0],
+      imageUrl: finalImages[0] || '',
       imageUrls: finalImages,
       date: new Date(newDate).toLocaleDateString('fr-FR'),
       authorName: author,
@@ -340,13 +341,25 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
     }, 1000);
   };
 
+  // Filter memories based on parental privacy settings
+  const visibleMemories = memories.filter(m => {
+    if (m.isPrivate && !isParent) return false;
+    return true;
+  });
+
   // === BD GENERATION ENGINE ===
   const generateComicBook = () => {
     setIsGeneratingComic(true);
     setComicGenerationProgress("Chiffonnage du papier Comics vintage...");
 
-    // 1. Lire les 3 derniers souvenirs ou charger des aventures par défaut si vide
-    const sampleMemories = memories.slice(0, 3);
+    const sampleMemories = memories.filter(m => !(m.isPrivate && !isParent)).slice(0, 3);
+
+    if (sampleMemories.length === 0) {
+      setIsGeneratingComic(false);
+      setComicGenerationProgress('');
+      alert("Ajoutez au moins un souvenir réel dans l'album avant de générer une gazette BD.");
+      return;
+    }
     
     setTimeout(() => {
       setComicGenerationProgress("Scénarisation de l'aventure épique...");
@@ -361,13 +374,6 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
           author: sampleMemories[0].authorName,
           photo: sampleMemories[0].imageUrl
         });
-      } else {
-        chapters.push({
-          title: "L'exploration de la Nébuleuse des Arbres Sacrés",
-          desc: "Le clan familial s'aventure au cœur de la forêt des murmures célestes, découvrant le secret des runes dorées cachées sous les écorces millénaires !",
-          author: "La famille",
-          photo: "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=500&auto=format&fit=crop&q=80"
-        });
       }
 
       // Souvenir 2
@@ -378,13 +384,6 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
           author: sampleMemories[1].authorName,
           photo: sampleMemories[1].imageUrl
         });
-      } else {
-        chapters.push({
-          title: "L'Invocation du Lion d'Or",
-          desc: "Un jeune artiste canalise l'esprit de l'art magique pour matérialiser le Lion Céleste aux crins de braise, protecteur éternel du salon de la maisonnée !",
-          author: "Un artiste du foyer",
-          photo: "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=500&auto=format&fit=crop&q=80"
-        });
       }
 
       // Souvenir 3
@@ -394,13 +393,6 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
           desc: `Pour clore cette épopée, ${sampleMemories[2].authorName} réunit les troupes autour de "${sampleMemories[2].title}". Un festin mémorable : "${sampleMemories[2].description}" !`,
           author: sampleMemories[2].authorName,
           photo: sampleMemories[2].imageUrl
-        });
-      } else {
-        chapters.push({
-          title: "Le Festin Cosmique des Pizzas Étoilées",
-          desc: "Le clan se réunit autour d'un grand Banquet Lunaire de Pizzas Cosmiques aux fromages coulants de la Voie Lactée, célébrant la paix et les rires du royaume !",
-          author: "Le foyer",
-          photo: "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=80"
         });
       }
 
@@ -421,7 +413,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
           stylePrompt = "cyberpunk neon graphic novel panel, sci-fi concept art, dark futuristic background, glowing holographic symbols, high contrast violet and cyan";
         }
 
-        const keywords = sampleMemories.map(m => m.title).join(", ") || "family adventure, magical forest, pizza feast, heroic golden lion";
+        const keywords = sampleMemories.map(m => m.title).join(", ");
         const finalPrompt = encodeURIComponent(`${stylePrompt}, depicting: a family having an epic fantasy quest including ${keywords}, dramatic lighting, masterpiece illustration`);
 
         const seed = Math.floor(Math.random() * 1000000);
@@ -448,10 +440,10 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
 
   // Auto generate at start when clicking the sub-tab
   useEffect(() => {
-    if (activeSubTab === 'comic' && !comicImage && !isGeneratingComic) {
+    if (activeSubTab === 'comic' && visibleMemories.length > 0 && !comicImage && !isGeneratingComic) {
       generateComicBook();
     }
-  }, [activeSubTab]);
+  }, [activeSubTab, visibleMemories.length]);
 
   const handleShareComicToWall = () => {
     if (!comicImage) return;
@@ -474,12 +466,6 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
     alert("Votre incroyable Bande Dessinée a été publiée sur le Mur de la Famille avec succès ! 🌟");
     setActiveSubTab('album');
   };
-
-  // Filter memories based on parental privacy settings
-  const visibleMemories = memories.filter(m => {
-    if (m.isPrivate && !isParent) return false;
-    return true;
-  });
 
   return (
     <div className="space-y-6">
@@ -589,12 +575,13 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Unsplash Presets (Galerie de secours)</label>
+                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Image de secours optionnelle</label>
                   <select 
                     value={selectedPresetImage}
                     onChange={(e) => setSelectedPresetImage(e.target.value)}
                     className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
                   >
+                    <option value="">Aucune image de secours</option>
                     {PRESET_IMAGES.map(pr => (
                       <option key={pr.url} value={pr.url}>{pr.label}</option>
                     ))}
@@ -637,9 +624,9 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                       ))
                     ) : (
                       <div className="relative w-full h-full min-h-[70px] rounded-lg overflow-hidden flex items-center justify-center bg-black/20">
-                        <img src={selectedPresetImage} alt="Preset default" className="w-full h-full object-cover opacity-60 absolute inset-0" />
+                        {selectedPresetImage && <img src={selectedPresetImage} alt="Image de secours" className="w-full h-full object-cover opacity-60 absolute inset-0" />}
                         <span className="relative z-10 px-1.5 py-0.5 rounded bg-white/5 text-[8px] font-bold text-white/60 border border-white/10 uppercase">
-                          Défaut Preset
+                          {selectedPresetImage ? 'Image optionnelle' : 'Aucune photo'}
                         </span>
                       </div>
                     )}
@@ -704,6 +691,15 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                 setMemories={setMemories}
               />
             ))}
+            {visibleMemories.length === 0 && (
+              <div className="sm:col-span-2 rounded-[28px] border border-dashed border-white/10 bg-white/5 p-6 text-center">
+                <Camera className="w-8 h-8 text-white/25 mx-auto mb-3" />
+                <h3 className="text-sm font-black text-white">Aucun souvenir réel pour le moment</h3>
+                <p className="text-xs text-white/45 mt-1 max-w-sm mx-auto">
+                  Ajoutez une photo, une date et une petite histoire pour alimenter l'album, la gazette et la BD IA.
+                </p>
+              </div>
+            )}
           </div>
 
         </div>
@@ -712,7 +708,15 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       {/* GAZETTE VIEW */}
       {activeSubTab === 'gazette' && (
         <div className="space-y-6">
-          
+          {visibleMemories.length === 0 ? (
+            <div className="rounded-[32px] border border-dashed border-white/10 bg-white/5 p-8 text-center">
+              <Newspaper className="w-9 h-9 text-[#FFB020]/45 mx-auto mb-3" />
+              <h3 className="text-base font-black text-white">Aucune gazette à générer</h3>
+              <p className="text-xs text-white/45 mt-2 max-w-md mx-auto">
+                La gazette se construit uniquement avec les souvenirs réels de votre foyer. Ajoutez un souvenir dans l'album pour commencer.
+              </p>
+            </div>
+          ) : (
           <div className="gazette-printable relative rounded-[32px] overflow-hidden border border-amber-500/20 bg-[#0f1524] text-white p-6 md:p-8 flex flex-col justify-between min-h-[500px] shadow-[0_20px_50px_rgba(0,0,0,0.4)] font-serif">
             
             <div className="absolute top-0 right-0 w-80 h-80 bg-[#FFB020]/4 rounded-full blur-[80px] pointer-events-none"></div>
@@ -768,13 +772,13 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                   
                   <div className="border-2 border-white/10 p-1.5 bg-white/3 rounded-xl overflow-hidden shadow-inner group">
                     <img 
-                      src={visibleMemories[0]?.imageUrl || "https://images.unsplash.com/photo-1541614101331-1a5a3a194e92?w=600&auto=format&fit=crop&q=80"} 
+                      src={visibleMemories[0].imageUrl} 
                       alt="News Illustration" 
                       className="w-full h-28 object-cover rounded-lg grayscale group-hover:grayscale-0 transition-all duration-700"
                     />
                     <div className="pt-2 text-center">
                       <span className="text-[8.5px] italic text-white/40 leading-none block font-sans">
-                        « {visibleMemories[0]?.title || "Souvenir immortalisé de la semaine"} »
+                        « {visibleMemories[0].title} »
                       </span>
                     </div>
                   </div>
@@ -844,6 +848,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
             </div>
 
           </div>
+          )}
           
         </div>
       )}
@@ -851,7 +856,16 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       {/* 🦸 100% REAL IA COMIC TAB VIEW */}
       {activeSubTab === 'comic' && (
         <div className="space-y-6">
-          
+          {visibleMemories.length === 0 ? (
+            <div className="rounded-[32px] border border-dashed border-white/10 bg-white/5 p-8 text-center">
+              <Sparkles className="w-9 h-9 text-[#6C5CFF]/55 mx-auto mb-3" />
+              <h3 className="text-base font-black text-white">La BD IA attend vos souvenirs</h3>
+              <p className="text-xs text-white/45 mt-2 max-w-md mx-auto">
+                Ajoutez au moins un souvenir réel dans l'album avant de générer une gazette BD personnalisée.
+              </p>
+            </div>
+          ) : (
+          <>
           {/* Style Selector Toolbar */}
           <div className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
             <span className="text-[10px] font-black text-[#6C5CFF] uppercase tracking-widest block flex items-center gap-1.5">
@@ -1013,6 +1027,8 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
               </div>
 
             </div>
+          )}
+          </>
           )}
 
         </div>

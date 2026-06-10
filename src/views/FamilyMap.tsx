@@ -202,6 +202,19 @@ const formatSearchResult = (result: any) => {
   };
 };
 
+const normalizeMapSearchQuery = (query: string) => {
+  const trimmed = query.trim();
+  const aliases: Record<string, string> = {
+    courses: 'supermarché',
+    course: 'supermarché',
+    medecin: 'médecin',
+    docteur: 'médecin',
+    pharmacie: 'pharmacie',
+    ecole: 'école'
+  };
+  return aliases[trimmed.toLowerCase()] || trimmed;
+};
+
 export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, onUpdateMemberProfile }) => {
   // Decoupled Viewport Center & User GPS Location to prevent mass teleportation
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
@@ -280,7 +293,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     setSearching(true);
     setSearchError(null);
     try {
-      const response = await fetch(buildSearchUrl(query, routeOrigin));
+      const response = await fetch(buildSearchUrl(normalizeMapSearchQuery(query), routeOrigin));
       if (!response.ok) throw new Error('search_failed');
       const data = await response.json();
       setSearchResults(data);
@@ -505,7 +518,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     }
     const delayDebounce = setTimeout(async () => {
       try {
-        const response = await fetch(buildSearchUrl(searchQuery, routeOrigin));
+        const response = await fetch(buildSearchUrl(normalizeMapSearchQuery(searchQuery), routeOrigin));
         if (!response.ok) throw new Error('search_failed');
         const data = await response.json();
         setSearchResults(data);
@@ -606,6 +619,22 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=${travelMode}`;
 
     window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const saveFavoriteAt = (coords: [number, number], type: FavoritePlace['type'], name?: string, detail?: string) => {
+    const label = name || (type === 'home' ? 'Maison' : type === 'work' ? 'Travail' : type === 'school' ? 'École' : 'Lieu favori');
+    const existing = favorites.find(f => f.type === type && type !== 'other');
+    const nextFavorite: FavoritePlace = {
+      id: existing?.id || `fav-${Date.now()}-${type}`,
+      name: label,
+      type,
+      detail: detail || (type === 'home' ? 'Position du foyer' : type === 'work' ? 'Lieu de travail' : type === 'school' ? 'Établissement scolaire' : 'Lieu favori'),
+      coords
+    };
+    setFavorites(prev => existing
+      ? prev.map(f => f.id === existing.id ? nextFavorite : f)
+      : [...prev, nextFavorite]
+    );
   };
 
   // Mapped members with real coordinates only. Unknown locations stay explicit in the list.
@@ -709,6 +738,12 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
               {label}
             </button>
           ))}
+        </div>
+
+        <div className="mt-2 rounded-2xl bg-[#0F1E36]/75 border border-white/8 px-3 py-2 backdrop-blur-xl">
+          <p className="text-[9px] text-white/45 font-semibold leading-normal">
+            Astuce : recherchez une adresse, sélectionnez-la, puis choisissez Maison, École ou Travail pour l'enregistrer comme lieu familial.
+          </p>
         </div>
 
         {/* Nominatim Search Results Floating Panel */}
@@ -991,6 +1026,24 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                     <div className="text-center min-w-[140px] p-1 space-y-2">
                       <span className="font-extrabold text-xs text-white block truncate max-w-[150px]">{searchMarker.name}</span>
                       <div className="flex flex-col space-y-1">
+                        <div className="grid grid-cols-3 gap-1">
+                          {[
+                            { label: 'Maison', type: 'home' as const },
+                            { label: 'École', type: 'school' as const },
+                            { label: 'Travail', type: 'work' as const }
+                          ].map((item) => (
+                            <button
+                              key={item.type}
+                              onClick={() => {
+                                saveFavoriteAt(searchMarker.coords, item.type, item.label, searchMarker.name.split(',').slice(0, 2).join(', '));
+                                setSearchMarker(null);
+                              }}
+                              className="py-1.5 rounded bg-[#6C5CFF]/20 hover:bg-[#6C5CFF]/30 text-[#C9C3FF] text-[8px] font-black transition cursor-pointer"
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
                         <button
                           onClick={() => {
                             startRouteTo(searchMarker.name, searchMarker.coords);
@@ -1008,7 +1061,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                           }}
                           className="w-full py-1.5 rounded bg-[#FFB020] hover:bg-[#E0981B] text-black text-[9px] font-bold transition cursor-pointer"
                         >
-                          ⭐️ Ajouter aux favoris
+                          ⭐️ Autre favori
                         </button>
                         <button
                           onClick={() => setSearchMarker(null)}
@@ -1240,20 +1293,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                         <button
                           key={item.type}
                           type="button"
-                          onClick={() => {
-                            const existing = favorites.find(f => f.type === item.type);
-                            const nextFavorite: FavoritePlace = {
-                              id: existing?.id || `fav-${Date.now()}-${item.type}`,
-                              name: item.label,
-                              type: item.type,
-                              detail: item.detail,
-                              coords: routeOrigin
-                            };
-                            setFavorites(prev => existing
-                              ? prev.map(f => f.id === existing.id ? nextFavorite : f)
-                              : [...prev, nextFavorite]
-                            );
-                          }}
+                          onClick={() => saveFavoriteAt(routeOrigin, item.type, item.label, item.detail)}
                           className="py-2 rounded-xl bg-white/5 border border-white/8 text-[9px] text-white/65 font-extrabold active:scale-95"
                         >
                           + {item.label}
@@ -1429,7 +1469,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                   <div className="grid grid-cols-3 gap-2">
                     {favorites.length === 0 && (
                       <div className="col-span-3 p-3 rounded-2xl bg-white/5 border border-dashed border-white/10 text-[10px] text-white/50 font-semibold leading-normal">
-                        Aucun lieu favori. Recherchez une adresse ou touchez la carte pour ajouter maison, école ou travail.
+                        Aucun lieu favori. Recherchez une adresse, sélectionnez un résultat, puis choisissez Maison, École ou Travail.
                       </div>
                     )}
 
