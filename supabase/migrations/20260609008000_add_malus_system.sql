@@ -25,10 +25,26 @@ CREATE TABLE IF NOT EXISTS public.malus_templates (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Enable RLS and add basic select/all policies on malus_templates
+-- Enable RLS and restrict malus templates to the current foyer.
 ALTER TABLE public.malus_templates ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all actions for authenticated users on malus_templates" ON public.malus_templates
-    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all actions for authenticated users on malus_templates" ON public.malus_templates;
+DROP POLICY IF EXISTS "malus_templates_select" ON public.malus_templates;
+DROP POLICY IF EXISTS "malus_templates_insert" ON public.malus_templates;
+DROP POLICY IF EXISTS "malus_templates_update" ON public.malus_templates;
+DROP POLICY IF EXISTS "malus_templates_delete" ON public.malus_templates;
+CREATE POLICY "malus_templates_select" ON public.malus_templates
+    FOR SELECT TO authenticated
+    USING (foyer_id IN (SELECT public.user_foyer_ids()));
+CREATE POLICY "malus_templates_insert" ON public.malus_templates
+    FOR INSERT TO authenticated
+    WITH CHECK (foyer_id IN (SELECT public.user_foyer_ids()) AND public.is_foyer_admin_or_parent(foyer_id));
+CREATE POLICY "malus_templates_update" ON public.malus_templates
+    FOR UPDATE TO authenticated
+    USING (foyer_id IN (SELECT public.user_foyer_ids()) AND public.is_foyer_admin_or_parent(foyer_id))
+    WITH CHECK (foyer_id IN (SELECT public.user_foyer_ids()) AND public.is_foyer_admin_or_parent(foyer_id));
+CREATE POLICY "malus_templates_delete" ON public.malus_templates
+    FOR DELETE TO authenticated
+    USING (foyer_id IN (SELECT public.user_foyer_ids()) AND public.is_foyer_admin_or_parent(foyer_id));
 
 -- Create malus_applied table
 CREATE TABLE IF NOT EXISTS public.malus_applied (
@@ -50,7 +66,41 @@ CREATE TABLE IF NOT EXISTS public.malus_applied (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Enable RLS and add basic select/all policies on malus_applied
+-- Enable RLS and restrict applied malus records to the current foyer.
 ALTER TABLE public.malus_applied ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all actions for authenticated users on malus_applied" ON public.malus_applied
-    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all actions for authenticated users on malus_applied" ON public.malus_applied;
+DROP POLICY IF EXISTS "malus_applied_select" ON public.malus_applied;
+DROP POLICY IF EXISTS "malus_applied_insert" ON public.malus_applied;
+DROP POLICY IF EXISTS "malus_applied_update" ON public.malus_applied;
+DROP POLICY IF EXISTS "malus_applied_delete" ON public.malus_applied;
+CREATE POLICY "malus_applied_select" ON public.malus_applied
+    FOR SELECT TO authenticated
+    USING (foyer_id IN (SELECT public.user_foyer_ids()));
+CREATE POLICY "malus_applied_insert" ON public.malus_applied
+    FOR INSERT TO authenticated
+    WITH CHECK (foyer_id IN (SELECT public.user_foyer_ids()) AND public.is_foyer_admin_or_parent(foyer_id));
+CREATE POLICY "malus_applied_update" ON public.malus_applied
+    FOR UPDATE TO authenticated
+    USING (
+        foyer_id IN (SELECT public.user_foyer_ids())
+        AND (
+            public.is_foyer_admin_or_parent(foyer_id)
+            OR member_id IN (
+                SELECT id::text FROM public.foyer_members
+                WHERE foyer_id = malus_applied.foyer_id AND user_id = auth.uid()
+            )
+        )
+    )
+    WITH CHECK (
+        foyer_id IN (SELECT public.user_foyer_ids())
+        AND (
+            public.is_foyer_admin_or_parent(foyer_id)
+            OR member_id IN (
+                SELECT id::text FROM public.foyer_members
+                WHERE foyer_id = malus_applied.foyer_id AND user_id = auth.uid()
+            )
+        )
+    );
+CREATE POLICY "malus_applied_delete" ON public.malus_applied
+    FOR DELETE TO authenticated
+    USING (foyer_id IN (SELECT public.user_foyer_ids()) AND public.is_foyer_admin_or_parent(foyer_id));

@@ -257,6 +257,19 @@ async function getGoogleAccessToken(clientEmail: string, privateKey: string): Pr
 
 serve(async (req) => {
   try {
+    const expectedSecret = Deno.env.get("PUSH_WEBHOOK_SECRET") || "";
+    const receivedSecret = req.headers.get("x-push-webhook-secret") || "";
+
+    if (!expectedSecret) {
+      console.error("[Send-Push] Secret PUSH_WEBHOOK_SECRET manquant.");
+      return new Response(JSON.stringify({ error: "Push webhook secret is not configured" }), { status: 500 });
+    }
+
+    if (receivedSecret !== expectedSecret) {
+      console.warn("[Send-Push] Appel rejeté : secret webhook invalide.");
+      return new Response(JSON.stringify({ error: "Unauthorized push webhook" }), { status: 401 });
+    }
+
     const payload = await req.json();
     console.log("[Send-Push] Webhook reçu pour table :", payload.table, "| Type :", payload.type);
 

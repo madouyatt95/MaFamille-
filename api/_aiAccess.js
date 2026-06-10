@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ravkssbaxcfhnzsemfrh.supabase.co';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJhdmtzc2JheGNmaG56c2VtZnJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NjE0MjQsImV4cCI6MjA5NjQzNzQyNH0.huIqaed9K0iD7fQaxdS89Tpl2HJ4vynvClyqvEjRm6o';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 const DAILY_LIMIT = 10;
 
 export async function requirePremiumAiQuota(req, res) {
@@ -15,6 +15,11 @@ export async function requirePremiumAiQuota(req, res) {
 
   if (!foyerId) {
     res.status(400).json({ error: 'Missing foyer id for AI quota.' });
+    return null;
+  }
+
+  if (!SUPABASE_ANON_KEY) {
+    res.status(500).json({ error: 'Supabase anon key is not configured on the server.' });
     return null;
   }
 
@@ -47,4 +52,3 @@ export async function requirePremiumAiQuota(req, res) {
 
   return data;
 }
-
