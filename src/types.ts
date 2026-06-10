@@ -63,6 +63,7 @@ export interface Foyer {
   premiumStatus?: 'inactive' | 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired' | null;
   premiumExpiresAt?: string | null;
   stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
   appStoreOriginalTransactionId?: string | null;
   parentPin?: string;
   malusSettings?: MalusSettings;

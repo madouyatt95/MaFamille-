@@ -8,7 +8,7 @@ export const PREMIUM_PLATFORM_LABEL: Record<PremiumPlatform, string> = {
 };
 
 export const PREMIUM_BILLING_PROVIDER: Record<PremiumPlatform, PremiumBillingProvider> = {
-  web: 'test',
+  web: 'stripe',
   ios: 'test'
 };
 

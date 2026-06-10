@@ -13300,6 +13300,13 @@ function App() {
       <Paywall 
         isOpen={paywallOpen}
         onClose={() => setPaywallOpen(false)}
+        foyerId={foyer?.id || null}
+        onStartStripeCheckout={async ({ plan }) => {
+          if (!foyer?.id) {
+            throw new Error("Aucun foyer actif n'est chargé.");
+          }
+          await billingService.startStripeCheckout(foyer.id, plan);
+        }}
         onUnlockPremium={async ({ platform, plan }) => {
           const subscription = billingService.createTestSubscription(platform, plan);
           setIsPremium(subscription.isPremium);

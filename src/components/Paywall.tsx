@@ -32,6 +32,10 @@ import {
 interface PaywallProps {
   isOpen: boolean;
   onClose: () => void;
+  foyerId?: string | null;
+  onStartStripeCheckout?: (options: {
+    plan: 'monthly' | 'yearly';
+  }) => Promise<void>;
   onUnlockPremium: (options: {
     platform: 'web' | 'ios';
     plan: 'monthly' | 'yearly';
@@ -41,9 +45,10 @@ interface PaywallProps {
   }) => void;
 }
 
-export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremium }) => {
+export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onStartStripeCheckout, onUnlockPremium }) => {
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [simulating, setSimulating] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   const isWeb = Capacitor.getPlatform() === 'web';
   const platform = isWeb ? 'web' : 'ios';
@@ -56,6 +61,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
   const realProviderLabel = PREMIUM_REAL_PROVIDER_LABEL[platform];
   const selectedPrice = selectedPlan === 'monthly' ? priceMonthly : priceYearly;
   const selectedPlanLabel = getPremiumPlanLabel(platform, selectedPlan);
+  const canUseStripe = isWeb && !!foyerId && !!onStartStripeCheckout;
 
   if (!isOpen) return null;
 
@@ -75,6 +81,23 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
       alert(`Mode test Premium activé pour l’offre ${selectedPlanLabel}. Aucun paiement réel n’a été lancé.`);
       onClose();
     }, 1800);
+  };
+
+  const handleRealPurchase = async () => {
+    if (!canUseStripe || !onStartStripeCheckout) {
+      alert("Le paiement réel n'est pas encore disponible sur cette plateforme.");
+      return;
+    }
+
+    try {
+      setCheckoutLoading(true);
+      await onStartStripeCheckout({ plan: selectedPlan });
+    } catch (err) {
+      console.error("[Paywall] Stripe checkout failed:", err);
+      alert(err instanceof Error ? err.message : "Impossible de démarrer le paiement Stripe.");
+    } finally {
+      setCheckoutLoading(false);
+    }
   };
 
   const mainBenefits = [
@@ -172,11 +195,13 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-2xl font-extrabold text-white tracking-tight">MyFamily+ Premium</h2>
                 <span className="px-2.5 py-1 rounded-full bg-[#00D26A]/12 border border-[#00D26A]/20 text-[9px] text-[#00D26A] font-black uppercase tracking-wider">
-                  Test sans paiement
+                  {isWeb ? 'Paiement réel PWA' : 'Test iOS'}
                 </span>
               </div>
               <p className="text-sm text-white/58 leading-relaxed max-w-xl">
-                Une seule offre familiale pour débloquer les limites, les exports et les modules IA avancés. Le paiement réel reste désactivé pendant tes tests.
+                {isWeb
+                  ? "Une seule offre familiale pour débloquer les limites, les exports et les modules IA avancés. Paiement sécurisé par Stripe pour la PWA."
+                  : "Une seule offre familiale pour débloquer les limites, les exports et les modules IA avancés. Le paiement iOS passera par l'App Store."}
               </p>
               <div className="flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/7 border border-white/10 text-[10px] text-white/68 font-black uppercase tracking-wider">
@@ -185,7 +210,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/7 border border-white/10 text-[10px] text-white/68 font-black uppercase tracking-wider">
                   <CreditCard className="w-3.5 h-3.5" />
-                  Futur paiement : {realProviderLabel}
+                  Paiement : {realProviderLabel}
                 </span>
               </div>
             </div>
@@ -280,25 +305,56 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
         </div>
 
         <div className="p-4 sm:p-5 bg-black/45 border-t border-white/8 shrink-0 space-y-3">
-          <button
-            onClick={handlePurchaseSimulate}
-            disabled={simulating}
-            className="w-full py-4 rounded-[20px] bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:scale-[1.005] transition-all shadow-[0_8px_24px_rgba(108,92,255,0.28)] flex items-center justify-center gap-2 disabled:opacity-70"
-          >
-            {simulating ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Activation du mode test...</span>
-              </>
-            ) : (
-              <>
-                <Check className="w-4 h-4" />
-                <span>Activer Premium test · {selectedPrice}</span>
-              </>
-            )}
-          </button>
+          {isWeb ? (
+            <button
+              onClick={handleRealPurchase}
+              disabled={checkoutLoading || !canUseStripe}
+              className="w-full py-4 rounded-[20px] bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:scale-[1.005] transition-all shadow-[0_8px_24px_rgba(108,92,255,0.28)] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {checkoutLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Ouverture du paiement...</span>
+                </>
+              ) : (
+                <>
+                  <CreditCard className="w-4 h-4" />
+                  <span>Payer avec Stripe · {selectedPrice}</span>
+                </>
+              )}
+            </button>
+          ) : (
+            <button
+              onClick={handlePurchaseSimulate}
+              disabled={simulating}
+              className="w-full py-4 rounded-[20px] bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:scale-[1.005] transition-all shadow-[0_8px_24px_rgba(108,92,255,0.28)] flex items-center justify-center gap-2 disabled:opacity-70"
+            >
+              {simulating ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Activation du mode test...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>Activer Premium test · {selectedPrice}</span>
+                </>
+              )}
+            </button>
+          )}
+          {isWeb && (
+            <button
+              onClick={handlePurchaseSimulate}
+              disabled={simulating || checkoutLoading}
+              className="w-full py-3 rounded-[18px] bg-white/[0.055] border border-white/10 text-white/58 font-extrabold text-[10px] tracking-wider uppercase cursor-pointer hover:bg-white/[0.08] transition-all disabled:opacity-50"
+            >
+              {simulating ? "Activation du test..." : "Garder le raccourci test"}
+            </button>
+          )}
           <p className="text-[10px] text-white/34 text-center font-sans leading-relaxed">
-            Aucun prélèvement. L’abonnement sera conservé sur le foyer et restera compatible PWA/iOS quand Stripe et l’App Store seront branchés.
+            {isWeb
+              ? "Après paiement, Stripe confirmera l'abonnement et le foyer passera Premium automatiquement."
+              : "Aucun prélèvement iOS pour le moment. L'achat App Store sera branché dans une étape séparée."}
           </p>
         </div>
       </div>

@@ -7,6 +7,7 @@ type PremiumUpdateOptions = {
   status?: Foyer['premiumStatus'];
   expiresAt?: string | null;
   stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
   appStoreOriginalTransactionId?: string | null;
 };
 
@@ -89,6 +90,7 @@ export const foyerService = {
           premiumStatus: foyerData.premium_status || null,
           premiumExpiresAt: foyerData.premium_expires_at || null,
           stripeCustomerId: foyerData.stripe_customer_id || null,
+          stripeSubscriptionId: foyerData.stripe_subscription_id || null,
           appStoreOriginalTransactionId: foyerData.app_store_original_transaction_id || null,
           parentPin: foyerData.parent_pin,
           malusSettings: foyerData.malus_settings
@@ -187,6 +189,7 @@ export const foyerService = {
       premiumStatus: foyerData.premium_status || null,
       premiumExpiresAt: foyerData.premium_expires_at || null,
       stripeCustomerId: foyerData.stripe_customer_id || null,
+      stripeSubscriptionId: foyerData.stripe_subscription_id || null,
       appStoreOriginalTransactionId: foyerData.app_store_original_transaction_id || null,
       parentPin: foyerData.parent_pin,
       malusSettings: foyerData.malus_settings
@@ -376,6 +379,7 @@ export const foyerService = {
       premium_status: premiumStatus,
       premium_expires_at: isPremium ? (options.expiresAt || null) : null,
       stripe_customer_id: options.stripeCustomerId || null,
+      stripe_subscription_id: options.stripeSubscriptionId || null,
       app_store_original_transaction_id: options.appStoreOriginalTransactionId || null
     };
 
