@@ -10,7 +10,9 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
-  Camera
+  Camera,
+  Users,
+  Bell
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
 
@@ -29,6 +31,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [familyRole, setFamilyRole] = useState<'admin' | 'parent' | 'child'>('admin');
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -117,7 +120,8 @@ export const Onboarding: React.FC<OnboardingProps> = ({
               first_name: firstName.trim(),
               last_name: lastName.trim(),
               display_name: `${firstName.trim()} ${lastName.trim()}`,
-              avatar_url: photoUrl.trim() || `https://api.dicebear.com/7.x/adventurer/svg?seed=${firstName.trim()}`
+              avatar_url: photoUrl.trim() || `https://api.dicebear.com/7.x/adventurer/svg?seed=${firstName.trim()}`,
+              family_role: familyRole
             }
           }
         });
@@ -199,6 +203,51 @@ export const Onboarding: React.FC<OnboardingProps> = ({
 
         {/* Panel Form */}
         <div className="glass-panel border border-white/8 rounded-[32px] p-6 sm:p-8 space-y-5 shadow-2xl relative bg-white/2 backdrop-blur-md">
+          {activeMode === 'create' && (
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'admin', label: 'Chef', icon: ShieldAlert },
+                { id: 'parent', label: 'Parent', icon: Users },
+                { id: 'child', label: 'Enfant', icon: User }
+              ].map((item) => {
+                const Icon = item.icon;
+                const selected = familyRole === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setFamilyRole(item.id as typeof familyRole)}
+                    className={`p-3 rounded-2xl border flex flex-col items-center gap-1.5 transition active:scale-95 ${
+                      selected
+                        ? 'bg-[#6C5CFF]/20 border-[#6C5CFF]/40 text-white'
+                        : 'bg-white/5 border-white/8 text-white/45'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="text-[9px] font-black uppercase tracking-wider">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {activeMode === 'create' && (
+            <div className="grid grid-cols-3 gap-2 text-center">
+              {[
+                { label: 'Compte', done: !!email && !!password },
+                { label: 'Profil', done: !!firstName && !!lastName },
+                { label: 'Alertes', done: true, icon: Bell }
+              ].map((step) => (
+                <div key={step.label} className={`py-2 rounded-xl border text-[9px] font-black uppercase tracking-wider ${
+                  step.done
+                    ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]'
+                    : 'bg-white/5 border-white/8 text-white/35'
+                }`}>
+                  {step.label}
+                </div>
+              ))}
+            </div>
+          )}
           
           <form onSubmit={handleSubmit} className="space-y-4">
             

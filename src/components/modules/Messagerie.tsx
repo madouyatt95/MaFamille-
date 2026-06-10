@@ -207,6 +207,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [showMsgSearch, setShowMsgSearch] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [conversationFilter, setConversationFilter] = useState<'all' | 'unread' | 'groups' | 'private'>('all');
 
   const [replyingToMessage, setReplyingToMessage] = useState<ChatMessage | null>(null);
   const [typingMembers, setTypingMembers] = useState<{ [memberId: string]: string }>({});
@@ -867,7 +868,13 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     const filteredGroups = visibleGroups.filter(g => {
       const meta = getConversationMeta(g);
       const haystack = `${meta.title} ${meta.subtitle} ${meta.preview}`.toLowerCase();
-      return haystack.includes(searchQuery.toLowerCase());
+      const matchesSearch = haystack.includes(searchQuery.toLowerCase());
+      const matchesFilter =
+        conversationFilter === 'all' ||
+        (conversationFilter === 'unread' && meta.unreadCount > 0) ||
+        (conversationFilter === 'groups' && !g.isPrivate) ||
+        (conversationFilter === 'private' && g.isPrivate);
+      return matchesSearch && matchesFilter;
     });
     const memberIdsWithExistingDirectGroup = new Set(
       visibleGroups
@@ -937,6 +944,28 @@ export const Messagerie: React.FC<MessagerieProps> = ({
               </div>
             </div>
           )}
+
+          <div className="px-4 pb-3 flex gap-1.5 overflow-x-auto no-scrollbar">
+            {[
+              { id: 'all', label: 'Tout' },
+              { id: 'unread', label: 'Non lus' },
+              { id: 'groups', label: 'Groupes' },
+              { id: 'private', label: 'Privés' }
+            ].map((filter) => (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setConversationFilter(filter.id as typeof conversationFilter)}
+                className={`px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider shrink-0 transition ${
+                  conversationFilter === filter.id
+                    ? 'bg-[#00D26A]/15 border-[#00D26A]/25 text-[#00D26A]'
+                    : 'bg-white/5 border-white/8 text-white/40'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Groups List */}
@@ -1009,6 +1038,16 @@ export const Messagerie: React.FC<MessagerieProps> = ({
                 );
               })}
             </>
+          )}
+
+          {unarchivedGroups.length === 0 && filteredMembers.length === 0 && (
+            <div className="p-6 rounded-[28px] border border-dashed border-white/10 bg-white/[0.03] text-center space-y-2">
+              <MessageCircle className="w-8 h-8 text-white/25 mx-auto" />
+              <h4 className="text-sm font-extrabold text-white">Aucune conversation visible</h4>
+              <p className="text-xs text-white/45 leading-relaxed">
+                Changez le filtre ou sélectionnez un membre pour démarrer une conversation privée.
+              </p>
+            </div>
           )}
 
           {/* Members Direct Messages (Mocked) */}

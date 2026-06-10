@@ -22,7 +22,8 @@ import {
   Wrench,
   RefreshCw,
   Landmark,
-  GraduationCap
+  GraduationCap,
+  CheckCircle2
 } from 'lucide-react';
 import type { Member, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog } from '../types';
 import type { UnifiedEvent } from '../utils/agendaHelper';
@@ -170,6 +171,37 @@ export const Accueil: React.FC<AccueilProps> = ({
     { label: 'Messagerie', icon: MessageCircle, tab: 'menu', module: 'messagerie', color: 'text-[#00D26A] bg-[#00D26A]/10 border-[#00D26A]/20' }
   ];
 
+  const connectedJourneys = [
+    {
+      title: 'Préparer un voyage',
+      detail: 'Valises, budget, documents et planning',
+      Icon: Plane,
+      module: 'voyages',
+      accent: 'text-[#4F8CFF] bg-[#4F8CFF]/10 border-[#4F8CFF]/20'
+    },
+    {
+      title: 'Organiser un rendez-vous santé',
+      detail: 'Agenda, rappels et dossier médical',
+      Icon: HeartPulse,
+      module: 'sante',
+      accent: 'text-[#FF4D6D] bg-[#FF4D6D]/10 border-[#FF4D6D]/20'
+    },
+    {
+      title: 'Cuisiner avec les courses',
+      detail: 'Liste d’achats et idées Éco-Chef',
+      Icon: ShoppingBasket,
+      module: 'courses',
+      accent: 'text-[#00D26A] bg-[#00D26A]/10 border-[#00D26A]/20'
+    },
+    {
+      title: 'Préparer des démarches',
+      detail: 'Documents, justificatifs et échéances',
+      Icon: FileText,
+      module: 'documents',
+      accent: 'text-[#FFB020] bg-[#FFB020]/10 border-[#FFB020]/20'
+    }
+  ];
+
   const daysOfWeek = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
   const unreadAlertsCount = alerts.filter(a => !a.read).length;
@@ -185,6 +217,84 @@ export const Accueil: React.FC<AccueilProps> = ({
     }
     return allUnifiedEvents.slice(0, 3);
   }, [allUnifiedEvents, todayStr]);
+
+  const activityCards = useMemo(() => {
+    const urgentUpcoming = upcomingUnifiedEvents.filter(e => getDaysDiff(e.start_date) <= 7).slice(0, 2);
+    const cards: Array<{
+      id: string;
+      title: string;
+      detail: string;
+      tone: string;
+      Icon: any;
+      onClick: () => void;
+    }> = [];
+
+    if (unreadMessagesCount > 0) {
+      cards.push({
+        id: 'messages',
+        title: `${unreadMessagesCount} message${unreadMessagesCount > 1 ? 's' : ''} non lu${unreadMessagesCount > 1 ? 's' : ''}`,
+        detail: 'Répondre aux conversations familiales',
+        tone: 'from-[#00D26A]/20 to-[#00D26A]/5 border-[#00D26A]/20 text-[#00D26A]',
+        Icon: MessageCircle,
+        onClick: () => {
+          setActiveTab('menu');
+          setActiveModule('messagerie');
+        }
+      });
+    }
+
+    if (unreadAlertsCount > 0) {
+      cards.push({
+        id: 'alerts',
+        title: `${unreadAlertsCount} alerte${unreadAlertsCount > 1 ? 's' : ''} à lire`,
+        detail: 'Vérifier les notifications importantes',
+        tone: 'from-[#FF4D6D]/20 to-[#FF4D6D]/5 border-[#FF4D6D]/20 text-[#FF4D6D]',
+        Icon: Bell,
+        onClick: onAlertsClick
+      });
+    }
+
+    if (todayUnifiedEvents.length > 0) {
+      cards.push({
+        id: 'today',
+        title: `${todayUnifiedEvents.length} action${todayUnifiedEvents.length > 1 ? 's' : ''} aujourd'hui`,
+        detail: todayUnifiedEvents[0]?.title || 'Voir le planning du jour',
+        tone: 'from-[#6C5CFF]/20 to-[#6C5CFF]/5 border-[#6C5CFF]/20 text-[#9E94FF]',
+        Icon: Calendar,
+        onClick: () => {
+          setActiveTab('menu');
+          setActiveModule('agenda');
+        }
+      });
+    }
+
+    urgentUpcoming.forEach((event) => {
+      const days = getDaysDiff(event.start_date);
+      cards.push({
+        id: `upcoming-${event.id}`,
+        title: days <= 1 ? 'À préparer demain' : `À préparer dans ${days} jours`,
+        detail: event.title,
+        tone: 'from-[#FFB020]/20 to-[#FFB020]/5 border-[#FFB020]/20 text-[#FFB020]',
+        Icon: Clock,
+        onClick: () => handleEventClick(event)
+      });
+    });
+
+    if (cards.length === 0) {
+      cards.push({
+        id: 'calm',
+        title: 'Tout est calme',
+        detail: 'Aucune urgence familiale pour le moment',
+        tone: 'from-white/10 to-white/5 border-white/8 text-white/60',
+        Icon: CheckCircle2,
+        onClick: () => {
+          setActiveTab('timeline');
+        }
+      });
+    }
+
+    return cards.slice(0, 4);
+  }, [todayUnifiedEvents, upcomingUnifiedEvents, unreadAlertsCount, unreadMessagesCount]);
 
   const getEventIconAndColor = (e: any) => {
     const type = e.event_type || e.type;
@@ -350,6 +460,46 @@ export const Accueil: React.FC<AccueilProps> = ({
             />
             <span className="absolute bottom-0 right-0 w-3 h-3 bg-[#00D26A] rounded-full border-2 border-[#07111F]"></span>
           </button>
+        </div>
+      </div>
+
+      {/* Centre d'activité familial */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#00D26A]" />
+            <span>Centre d'activité</span>
+          </h3>
+          <button
+            type="button"
+            onClick={() => setActiveTab('timeline')}
+            className="text-xs font-semibold text-[#6C5CFF] hover:text-[#4F8CFF] flex items-center cursor-pointer transition-colors"
+          >
+            Historique <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          {activityCards.map((card) => {
+            const Icon = card.Icon;
+            return (
+              <button
+                key={card.id}
+                type="button"
+                onClick={card.onClick}
+                className={`text-left rounded-[24px] p-4 border bg-gradient-to-br ${card.tone} active:scale-[0.98] transition-all overflow-hidden relative`}
+              >
+                <div className="absolute -right-5 -bottom-6 w-20 h-20 rounded-full bg-white/5 blur-xl pointer-events-none" />
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-white truncate">{card.title}</p>
+                    <p className="text-[10px] text-white/55 font-semibold mt-1 line-clamp-2">{card.detail}</p>
+                  </div>
+                  <Icon className="w-5 h-5 shrink-0" />
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -565,6 +715,37 @@ export const Accueil: React.FC<AccueilProps> = ({
                   <Icon className="w-5 h-5" />
                 </div>
                 <span className="text-[10px] sm:text-xs font-bold text-white/70 tracking-wide">{action.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Parcours connectés */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-bold text-white uppercase tracking-wider">Parcours familiaux</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          {connectedJourneys.map((journey) => {
+            const Icon = journey.Icon;
+            return (
+              <button
+                key={journey.title}
+                type="button"
+                onClick={() => {
+                  setActiveTab('menu');
+                  setActiveModule(journey.module);
+                }}
+                className="glass-panel rounded-[24px] p-4 border border-white/6 text-left hover:bg-white/8 active:scale-[0.98] transition-all"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`p-3 rounded-[18px] border shrink-0 ${journey.accent}`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-black text-white truncate">{journey.title}</h4>
+                    <p className="text-[10px] text-white/45 font-semibold mt-1 leading-normal">{journey.detail}</p>
+                  </div>
+                </div>
               </button>
             );
           })}
