@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, useMapEvents } from 'react-leaflet';
+import { Circle, MapContainer, TileLayer, Marker, Popup, useMap, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { 
@@ -16,7 +16,11 @@ import {
   Route,
   Edit3,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  Bell,
+  Clock,
+  ShieldCheck,
+  UserX
 } from 'lucide-react';
 import type { Member } from '../types';
 
@@ -89,6 +93,22 @@ export interface FavoritePlace {
   coords: [number, number];
 }
 
+interface LocationHistoryEntry {
+  memberId: string;
+  memberName: string;
+  coords: [number, number];
+  status: string;
+  timestamp: string;
+}
+
+interface SafetyZone {
+  favoriteId: string;
+  name: string;
+  type: FavoritePlace['type'];
+  coords: [number, number];
+  radiusKm: number;
+}
+
 const readStoredFavorites = (): FavoritePlace[] => {
   try {
     const stored = localStorage.getItem('mf_map_favorites');
@@ -117,6 +137,34 @@ const getFavoriteIcon = (type: 'home' | 'work' | 'school' | 'other') => {
     case 'school': return GraduationCap;
     default: return Map;
   }
+};
+
+const getZoneLabel = (type: FavoritePlace['type']) => {
+  switch (type) {
+    case 'home': return 'Maison';
+    case 'work': return 'Travail';
+    case 'school': return 'École';
+    default: return 'Lieu';
+  }
+};
+
+const getMemberZoneStatus = (member: { pos: [number, number] | null }, zones: SafetyZone[]) => {
+  if (!member.pos || zones.length === 0) return null;
+  const nearest = zones
+    .map(zone => ({
+      zone,
+      distance: getHaversineDistance(member.pos![0], member.pos![1], zone.coords[0], zone.coords[1])
+    }))
+    .sort((a, b) => a.distance - b.distance)[0];
+
+  if (!nearest) return null;
+  const inside = nearest.distance <= nearest.zone.radiusKm;
+  return {
+    inside,
+    label: `${inside ? 'Dans la zone' : 'À proximité'} ${getZoneLabel(nearest.zone.type)}`,
+    distanceKm: nearest.distance,
+    zone: nearest.zone
+  };
 };
 
 const buildSearchUrl = (query: string, origin: [number, number] | null) => {
@@ -184,10 +232,32 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
   // Dynamic Favorites saved in LocalStorage
   const [favorites, setFavorites] = useState<FavoritePlace[]>(readStoredFavorites);
+  const [hiddenMemberIds, setHiddenMemberIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('mf_map_hidden_members') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [locationHistory, setLocationHistory] = useState<LocationHistoryEntry[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('mf_map_location_history') || '[]');
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     localStorage.setItem('mf_map_favorites', JSON.stringify(favorites));
   }, [favorites]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_map_hidden_members', JSON.stringify(hiddenMemberIds));
+  }, [hiddenMemberIds]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_map_location_history', JSON.stringify(locationHistory.slice(0, 30)));
+  }, [locationHistory]);
 
   // Favorites editing state
   const [isEditingFavorites, setIsEditingFavorites] = useState(false);
@@ -236,6 +306,17 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const me = members.find(m => m.id === activeMemberId);
   const activeMemberStoredLocation = useMemo(() => getMemberCoords(me), [me?.latitude, me?.longitude]);
   const routeOrigin = userLocation || activeMemberStoredLocation;
+  const safetyZones = useMemo<SafetyZone[]>(() => {
+    return favorites
+      .filter(fav => ['home', 'work', 'school'].includes(fav.type))
+      .map(fav => ({
+        favoriteId: fav.id,
+        name: fav.name,
+        type: fav.type,
+        coords: fav.coords,
+        radiusKm: fav.type === 'home' ? 0.18 : 0.12
+      }));
+  }, [favorites]);
 
   useEffect(() => {
     const bestCenter = userLocation || activeMemberStoredLocation || members.map(getMemberCoords).find(Boolean) || DEFAULT_MAP_CENTER;
@@ -247,6 +328,29 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       setSelectedStatus(me.locationStatus);
     }
   }, [me]);
+
+  const addLocationHistoryEntry = (coords: [number, number], status: string) => {
+    if (!me) return;
+    const entry: LocationHistoryEntry = {
+      memberId: activeMemberId,
+      memberName: me.name,
+      coords,
+      status,
+      timestamp: new Date().toISOString()
+    };
+    setLocationHistory(prev => {
+      const last = prev[0];
+      if (
+        last &&
+        last.memberId === entry.memberId &&
+        getHaversineDistance(last.coords[0], last.coords[1], coords[0], coords[1]) < 0.03 &&
+        Date.now() - new Date(last.timestamp).getTime() < 5 * 60 * 1000
+      ) {
+        return prev;
+      }
+      return [entry, ...prev].slice(0, 30);
+    });
+  };
 
   useEffect(() => {
     if (!isSharing) {
@@ -281,6 +385,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
               lastLocatedAt: new Date().toISOString()
             });
           }
+          addLocationHistoryEntry([lat, lng], selectedStatus);
         },
         (err) => {
           console.error("GPS Access Error:", err);
@@ -343,6 +448,51 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         locationStatus: status,
         lastLocatedAt: new Date().toISOString()
       });
+    }
+    if (coords) addLocationHistoryEntry(coords, status);
+  };
+
+  const handleEmergencyShare = async () => {
+    setIsSharing(true);
+    localStorage.setItem('mf_share_location', 'true');
+    setSelectedStatus('🚨 Urgence');
+
+    const publishEmergency = async (coords: [number, number] | null) => {
+      if (onUpdateMemberProfile) {
+        await onUpdateMemberProfile(activeMemberId, {
+          ...(coords ? { latitude: coords[0], longitude: coords[1] } : {}),
+          locationStatus: '🚨 Urgence',
+          lastLocatedAt: new Date().toISOString()
+        });
+      }
+      if (coords) {
+        setUserLocation(coords);
+        setMapCenter(coords);
+        addLocationHistoryEntry(coords, '🚨 Urgence');
+      }
+    };
+
+    if (navigator.geolocation) {
+      setLoadingLoc(true);
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+          await publishEmergency(coords);
+          setLoadingLoc(false);
+          setLocationError(null);
+          alert("Position d'urgence partagée avec le foyer.");
+        },
+        async () => {
+          await publishEmergency(routeOrigin);
+          setLoadingLoc(false);
+          setLocationError("Position exacte indisponible. Le statut d'urgence a quand même été publié.");
+          alert("Statut d'urgence publié. Position exacte indisponible.");
+        },
+        { enableHighAccuracy: true }
+      );
+    } else {
+      await publishEmergency(routeOrigin);
+      alert("Statut d'urgence publié.");
     }
   };
 
@@ -480,9 +630,26 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       lastUpdate,
       distance,
       eta,
-      hasLocation
+      hasLocation,
+      isHiddenOnMap: hiddenMemberIds.includes(m.id),
+      zoneStatus: getMemberZoneStatus({ pos }, safetyZones)
     };
   });
+
+  const getMemberEtaTargets = (member: { pos: [number, number] | null }) => {
+    if (!member.pos) return [];
+    return favorites
+      .filter(fav => fav.type === 'home' || fav.type === 'school')
+      .slice(0, 2)
+      .map(fav => {
+        const dist = getHaversineDistance(member.pos![0], member.pos![1], fav.coords[0], fav.coords[1]);
+        return {
+          label: fav.type === 'home' ? 'Maison' : 'École',
+          eta: getEstimatedTime(dist),
+          distance: dist
+        };
+      });
+  };
 
   const statuses = [
     { label: '🏠 Maison', value: '🏠 À la maison' },
@@ -576,6 +743,14 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
       {/* FLOATING MAP LAYER STYLE SWITCHER */}
       <div className="absolute top-20 right-4 z-[999] flex flex-col space-y-2">
+        <button
+          onClick={handleEmergencyShare}
+          className="p-3 bg-[#FF3B30]/90 backdrop-blur-md rounded-2xl border border-[#FF3B30]/60 shadow-xl transition active:scale-95 flex items-center justify-center cursor-pointer text-white"
+          title="Partager une urgence avec le foyer"
+        >
+          <Bell className="w-4.5 h-4.5" />
+        </button>
+
         {/* Toggle Location Sharing */}
         <button
           onClick={() => {
@@ -618,6 +793,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                   setMapCenter([lat, lng]);
                   setLocationError(null);
                   setLoadingLoc(false);
+                  addLocationHistoryEntry([lat, lng], selectedStatus);
                 },
                 (err) => {
                   console.error(err);
@@ -659,6 +835,21 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
               });
               setMapCenter(coords);
             }} />
+
+            {safetyZones.map((zone) => (
+              <Circle
+                key={zone.favoriteId}
+                center={zone.coords}
+                radius={zone.radiusKm * 1000}
+                pathOptions={{
+                  color: zone.type === 'home' ? '#00D26A' : zone.type === 'school' ? '#FFB020' : '#6C5CFF',
+                  fillColor: zone.type === 'home' ? '#00D26A' : zone.type === 'school' ? '#FFB020' : '#6C5CFF',
+                  fillOpacity: 0.08,
+                  opacity: 0.35,
+                  weight: 2
+                }}
+              />
+            ))}
 
             {/* Render dynamic route tracing from OSRM road points if active */}
             {routeTarget && routePoints.length > 0 && (
@@ -833,7 +1024,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
             )}
 
             {/* Mapped Family Members Markers */}
-            {mappedMembers.filter((m) => m.pos).map((m) => (
+            {mappedMembers.filter((m) => m.pos && !m.isHiddenOnMap).map((m) => (
               <Marker key={m.id} position={m.pos as [number, number]} icon={createCustomIcon(m as Member, m.isMe)}>
                 <Popup closeButton={false}>
                   <div className="text-center min-w-[120px]">
@@ -1071,6 +1262,33 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                     </div>
                   )}
 
+                  {safetyZones.length > 0 && (
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {safetyZones.map((zone) => {
+                        const membersInside = mappedMembers.filter(m => m.zoneStatus?.zone.favoriteId === zone.favoriteId && m.zoneStatus.inside);
+                        return (
+                          <button
+                            key={zone.favoriteId}
+                            type="button"
+                            onClick={() => setMapCenter(zone.coords)}
+                            className="p-2.5 rounded-2xl bg-[#00D26A]/8 border border-[#00D26A]/15 flex items-center justify-between text-left active:scale-98"
+                          >
+                            <div className="flex items-center space-x-2 min-w-0">
+                              <ShieldCheck className="w-4 h-4 text-[#00D26A] shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-[10px] font-extrabold text-white truncate">Zone {getZoneLabel(zone.type)} · {zone.name}</p>
+                                <p className="text-[8px] text-white/45 font-semibold">{Math.round(zone.radiusKm * 1000)} m autour du lieu</p>
+                              </div>
+                            </div>
+                            <span className="text-[9px] font-black text-[#00D26A] bg-[#00D26A]/10 px-2 py-1 rounded-xl">
+                              {membersInside.length}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {/* Add Favorite Inline Form */}
                   {addingFavoriteCoords && (
                     <div className="p-3 bg-[#0F1E36]/90 backdrop-blur-xl border border-[#FFB020]/30 rounded-2xl space-y-2.5 shadow-2xl text-left animate-slide-up">
@@ -1287,55 +1505,138 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                   <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest block">Statut complet de la famille</span>
                   
                   <div className="space-y-1.5">
-                    {mappedMembers.map((m) => (
-                      <div 
-                        key={m.id}
-                        className="p-2.5 bg-white/5 border border-white/5 rounded-2xl flex items-center justify-between hover:bg-white/8 transition"
-                      >
-                        <div className="flex items-center space-x-2.5 min-w-0">
-                          <img src={m.photoUrl} className="w-8 h-8 rounded-full border border-white/10 object-cover shrink-0" />
-                          <div className="min-w-0">
-                            <div className="flex items-center space-x-1.5">
-                              <span className="text-xs font-bold text-white truncate">{m.name}</span>
-                              <span className="text-[8px] font-extrabold text-white/40 px-1 py-0.5 rounded bg-white/10 uppercase">
-                                {m.role}
-                              </span>
+                    {mappedMembers.map((m) => {
+                      const etaTargets = getMemberEtaTargets(m);
+                      return (
+                        <div 
+                          key={m.id}
+                          className="p-2.5 bg-white/5 border border-white/5 rounded-2xl space-y-2 hover:bg-white/8 transition"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2.5 min-w-0">
+                              <img src={m.photoUrl || FALLBACK_AVATAR} className="w-8 h-8 rounded-full border border-white/10 object-cover shrink-0" />
+                              <div className="min-w-0">
+                                <div className="flex items-center space-x-1.5">
+                                  <span className="text-xs font-bold text-white truncate">{m.name}</span>
+                                  <span className="text-[8px] font-extrabold text-white/40 px-1 py-0.5 rounded bg-white/10 uppercase">
+                                    {m.role}
+                                  </span>
+                                </div>
+                                <span className="text-[9px] text-white/60 block truncate">{m.status}</span>
+                              </div>
                             </div>
-                            <span className="text-[9px] text-white/60 block truncate">{m.status}</span>
-                          </div>
-                        </div>
 
-                        <div className="flex items-center space-x-2 shrink-0">
-                          {!m.isMe && m.distance !== null && m.eta && (
-                            <div className="text-right">
-                              <span className="text-[9px] font-extrabold text-[#00D26A] block">{m.distance.toFixed(1)} km</span>
-                              <span className="text-[8px] text-white/40 block font-medium">{m.eta}</span>
+                            <div className="flex items-center space-x-1.5 shrink-0">
+                              {!m.isMe && m.distance !== null && m.eta && (
+                                <div className="text-right">
+                                  <span className="text-[9px] font-extrabold text-[#00D26A] block">{m.distance.toFixed(1)} km</span>
+                                  <span className="text-[8px] text-white/40 block font-medium">{m.eta}</span>
+                                </div>
+                              )}
+
+                              <button
+                                onClick={() => {
+                                  setHiddenMemberIds(prev => prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id]);
+                                }}
+                                className={`p-1.5 rounded-lg transition ${
+                                  m.isHiddenOnMap
+                                    ? 'bg-[#FFB020]/15 text-[#FFB020]'
+                                    : 'bg-white/5 text-white/35 hover:text-white/70'
+                                }`}
+                                title={m.isHiddenOnMap ? "Réafficher sur la carte" : "Masquer localement sur la carte"}
+                              >
+                                <UserX className="w-3.5 h-3.5" />
+                              </button>
+                              
+                              <button
+                                onClick={() => {
+                                  if (!m.pos) return;
+                                  if (m.isMe) {
+                                    setMapCenter(m.pos);
+                                  } else {
+                                    startRouteTo(m.name, m.pos);
+                                  }
+                                }}
+                                disabled={!m.pos}
+                                className={`p-1.5 rounded-lg transition ${
+                                  m.pos
+                                    ? 'bg-[#6C5CFF]/15 hover:bg-[#6C5CFF]/35 text-[#9E94FF]'
+                                    : 'bg-white/5 text-white/20 cursor-not-allowed'
+                                }`}
+                                title={m.pos ? "Recentrer et tracer" : "Position non partagée"}
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {(m.zoneStatus || etaTargets.length > 0 || m.isHiddenOnMap) && (
+                            <div className="flex flex-wrap gap-1.5 pl-10">
+                              {m.zoneStatus && (
+                                <span className={`text-[8px] font-black px-2 py-1 rounded-lg border ${
+                                  m.zoneStatus.inside
+                                    ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]'
+                                    : 'bg-white/5 border-white/8 text-white/45'
+                                }`}>
+                                  {m.zoneStatus.label}
+                                </span>
+                              )}
+                              {etaTargets.map(target => (
+                                <span key={`${m.id}-${target.label}`} className="text-[8px] font-black px-2 py-1 rounded-lg bg-white/5 border border-white/8 text-white/45 flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {target.label}: {target.eta}
+                                </span>
+                              ))}
+                              {m.isHiddenOnMap && (
+                                <span className="text-[8px] font-black px-2 py-1 rounded-lg bg-[#FFB020]/10 border border-[#FFB020]/20 text-[#FFB020]">
+                                  Masqué sur cette carte
+                                </span>
+                              )}
                             </div>
                           )}
-                          
-                          <button
-                            onClick={() => {
-                              if (!m.pos) return;
-                              if (m.isMe) {
-                                setMapCenter(m.pos);
-                              } else {
-                                startRouteTo(m.name, m.pos);
-                              }
-                            }}
-                            disabled={!m.pos}
-                            className={`p-1.5 rounded-lg transition ${
-                              m.pos
-                                ? 'bg-[#6C5CFF]/15 hover:bg-[#6C5CFF]/35 text-[#9E94FF]'
-                                : 'bg-white/5 text-white/20 cursor-not-allowed'
-                            }`}
-                            title={m.pos ? "Recentrer et tracer" : "Position non partagée"}
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest block">Historique récent</span>
+                    {locationHistory.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setLocationHistory([])}
+                        className="text-[9px] text-white/35 font-bold hover:text-white/70"
+                      >
+                        Effacer
+                      </button>
+                    )}
+                  </div>
+                  {locationHistory.length === 0 ? (
+                    <div className="p-3 rounded-2xl bg-white/5 border border-dashed border-white/10 text-[10px] text-white/45 font-semibold">
+                      L'historique se remplit quand une position réelle est partagée.
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {locationHistory.slice(0, 5).map((entry) => (
+                        <button
+                          key={`${entry.memberId}-${entry.timestamp}`}
+                          type="button"
+                          onClick={() => setMapCenter(entry.coords)}
+                          className="w-full p-2 rounded-xl bg-white/5 border border-white/5 text-left flex items-center justify-between"
+                        >
+                          <span className="min-w-0">
+                            <span className="text-[10px] font-bold text-white block truncate">{entry.memberName}</span>
+                            <span className="text-[8px] text-white/40 block truncate">{entry.status}</span>
+                          </span>
+                          <span className="text-[8px] text-white/35 font-bold shrink-0">
+                            {new Date(entry.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
               </div>
