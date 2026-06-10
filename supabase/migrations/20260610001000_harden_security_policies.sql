@@ -68,10 +68,8 @@ CREATE POLICY "malus_applied_delete" ON public.malus_applied
   USING (foyer_id IN (SELECT public.user_foyer_ids()) AND public.is_foyer_admin_or_parent(foyer_id));
 
 -- 2) Remove hardcoded webhook credentials from the database trigger.
--- Required production settings, to configure outside git:
--- ALTER DATABASE postgres SET app.send_push_url = 'https://<project-ref>.supabase.co/functions/v1/send-push';
--- ALTER DATABASE postgres SET app.supabase_anon_key = '<supabase anon key>';
--- ALTER DATABASE postgres SET app.push_webhook_secret = '<same value as Edge Function PUSH_WEBHOOK_SECRET>';
+CREATE EXTENSION IF NOT EXISTS supabase_vault WITH SCHEMA vault;
+
 CREATE OR REPLACE FUNCTION public.trigger_send_push()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -80,12 +78,30 @@ DECLARE
   v_anon_key text;
   v_push_secret text;
 BEGIN
-  v_function_url := NULLIF(current_setting('app.send_push_url', true), '');
-  v_anon_key := NULLIF(current_setting('app.supabase_anon_key', true), '');
-  v_push_secret := NULLIF(current_setting('app.push_webhook_secret', true), '');
+  SELECT decrypted_secret INTO v_function_url
+  FROM vault.decrypted_secrets
+  WHERE name = 'send_push_url'
+  ORDER BY updated_at DESC NULLS LAST, created_at DESC
+  LIMIT 1;
+
+  SELECT decrypted_secret INTO v_anon_key
+  FROM vault.decrypted_secrets
+  WHERE name = 'supabase_anon_key'
+  ORDER BY updated_at DESC NULLS LAST, created_at DESC
+  LIMIT 1;
+
+  SELECT decrypted_secret INTO v_push_secret
+  FROM vault.decrypted_secrets
+  WHERE name = 'push_webhook_secret'
+  ORDER BY updated_at DESC NULLS LAST, created_at DESC
+  LIMIT 1;
+
+  v_function_url := COALESCE(NULLIF(v_function_url, ''), NULLIF(current_setting('app.send_push_url', true), ''));
+  v_anon_key := COALESCE(NULLIF(v_anon_key, ''), NULLIF(current_setting('app.supabase_anon_key', true), ''));
+  v_push_secret := COALESCE(NULLIF(v_push_secret, ''), NULLIF(current_setting('app.push_webhook_secret', true), ''));
 
   IF v_function_url IS NULL OR v_anon_key IS NULL OR v_push_secret IS NULL THEN
-    RAISE WARNING 'Push webhook settings missing: configure app.send_push_url, app.supabase_anon_key and app.push_webhook_secret.';
+    RAISE WARNING 'Push webhook settings missing: configure Vault secrets send_push_url, supabase_anon_key and push_webhook_secret.';
     RETURN NEW;
   END IF;
 

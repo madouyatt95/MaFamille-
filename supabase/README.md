@@ -39,15 +39,26 @@ supabase secrets set PUSH_WEBHOOK_SECRET='remplacez-par-une-longue-valeur-aleato
 
 *(Vous pouvez aussi le faire depuis l'interface web Supabase dans **Settings** > **Edge Functions** > **Add Secret**).*
 
-Le meme secret doit aussi etre configure cote base de donnees pour que le trigger SQL puisse appeler l'Edge Function :
+Le meme secret doit aussi etre configure cote base de donnees pour que le trigger SQL puisse appeler l'Edge Function. Dans le SQL Editor Supabase, utilisez Vault :
 
 ```sql
-ALTER DATABASE postgres SET app.send_push_url = 'https://ravkssbaxcfhnzsemfrh.supabase.co/functions/v1/send-push';
-ALTER DATABASE postgres SET app.supabase_anon_key = '<votre-supabase-anon-key>';
-ALTER DATABASE postgres SET app.push_webhook_secret = '<la-meme-valeur-que-PUSH_WEBHOOK_SECRET>';
-```
+CREATE EXTENSION IF NOT EXISTS supabase_vault WITH SCHEMA vault;
 
-Apres ces `ALTER DATABASE`, reconnectez la session SQL ou relancez `supabase db push` pour que les fonctions utilisent les nouveaux reglages.
+SELECT vault.create_secret(
+  'https://ravkssbaxcfhnzsemfrh.supabase.co/functions/v1/send-push',
+  'send_push_url'
+);
+
+SELECT vault.create_secret(
+  '<votre-supabase-anon-key>',
+  'supabase_anon_key'
+);
+
+SELECT vault.create_secret(
+  '<la-meme-valeur-que-PUSH_WEBHOOK_SECRET>',
+  'push_webhook_secret'
+);
+```
 
 ---
 
