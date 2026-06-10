@@ -11,7 +11,12 @@ import {
   Users,
   Download,
   Plane,
-  HeartHandshake
+  HeartHandshake,
+  Check,
+  LockKeyhole,
+  Smartphone,
+  CreditCard,
+  ShieldCheck
 } from 'lucide-react';
 import { PREMIUM_FEATURES } from '../utils/premiumFeatures';
 import {
@@ -72,6 +77,24 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
     }, 1800);
   };
 
+  const mainBenefits = [
+    {
+      label: 'Inclus gratuitement',
+      value: '3 membres, documents et organisation du quotidien',
+      icon: Users
+    },
+    {
+      label: 'Débloqué en Premium',
+      value: 'IA réelle, exports, démarches et modules famille avancés',
+      icon: LockKeyhole
+    },
+    {
+      label: 'Quota IA',
+      value: '10 requêtes réelles par foyer et par jour, puis repli simulé',
+      icon: Sparkles
+    }
+  ];
+
   const premiumFeatures = [
     { 
       title: PREMIUM_FEATURES.real_ai.title,
@@ -130,132 +153,154 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, onUnlockPremi
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-lg glass-panel border border-[#6C5CFF]/30 rounded-[32px] overflow-hidden bg-gradient-to-b from-[#0F1E3D]/95 to-[#07111F]/98 shadow-[0_25px_60px_-15px_rgba(108,92,255,0.3)] max-h-[90vh] flex flex-col justify-between">
-        
-        {/* Glowing aura */}
-        <div className="absolute -top-24 -right-24 w-48 h-48 rounded-full bg-[#6C5CFF]/20 blur-3xl pointer-events-none"></div>
-        <div className="absolute -bottom-24 -left-24 w-48 h-48 rounded-full bg-[#FF4D6D]/10 blur-3xl pointer-events-none"></div>
-
-        {/* Close Button */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+      <div className="relative w-full max-w-2xl glass-panel border border-[#6C5CFF]/30 rounded-[28px] overflow-hidden bg-[#07111F] shadow-[0_25px_70px_-20px_rgba(108,92,255,0.42)] max-h-[92vh] flex flex-col">
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full bg-white/5 border border-white/8 text-white/50 hover:text-white transition-colors cursor-pointer"
+          aria-label="Fermer l'offre Premium"
+          className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/8 border border-white/10 text-white/60 hover:text-white transition-colors cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>
 
-        {/* Header content */}
-        <div className="p-6 text-center space-y-2 shrink-0 border-b border-white/5">
-          <div className="inline-flex p-3 rounded-full bg-[#6C5CFF]/10 border border-[#6C5CFF]/30 text-[#6C5CFF] shadow-[0_0_15px_rgba(108,92,255,0.2)] animate-bounce-slow">
-            <Crown className="w-8 h-8" />
-          </div>
-          <h2 className="text-xl font-extrabold text-white tracking-tight flex items-center justify-center gap-1.5">
-            <span>MyFamily+</span>
-            <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-[9px] font-extrabold text-white tracking-wider uppercase">Premium</span>
-          </h2>
-          <p className="text-xs text-white/50 max-w-xs mx-auto">
-            Débloquez les outils avancés du foyer : IA réelle, exports, démarches, grande famille et modules créatifs.
-          </p>
-          <div className="flex items-center justify-center gap-2 pt-1">
-            <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] text-white/60 font-black uppercase tracking-wider">
-              {platformLabel}
-            </span>
-            <span className="px-2.5 py-1 rounded-full bg-[#00D26A]/10 border border-[#00D26A]/20 text-[9px] text-[#00D26A] font-black uppercase tracking-wider">
-              Mode test
-            </span>
-          </div>
-        </div>
-
-        {/* Features scroll area */}
-        <div className="p-6 overflow-y-auto space-y-4 flex-1 no-scrollbar">
-          <div className="space-y-3">
-            {premiumFeatures.map((feat, idx) => {
-              const Icon = feat.icon;
-              return (
-                <div key={idx} className="flex items-start space-x-3.5 p-3 rounded-2xl bg-white/3 border border-white/5">
-                  <div className={`p-2 rounded-xl shrink-0 ${feat.color} border border-white/5`}>
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white">{feat.title}</h4>
-                    <p className="text-[10.5px] text-white/50 mt-0.5 leading-normal font-sans font-medium">{feat.desc}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Pricing Cards & CTA Action */}
-        <div className="p-6 bg-black/40 border-t border-white/5 space-y-5 shrink-0 rounded-t-[28px]">
-          
-          {/* Plan Options Selector */}
-          <div className="rounded-2xl bg-white/5 border border-white/8 p-3 text-center">
-            <span className="text-[9px] text-white/35 font-black uppercase tracking-widest block">Offre sélectionnée</span>
-            <span className="text-sm text-white font-black mt-1 block">{selectedPrice}</span>
-            <span className="text-[10px] text-white/45 font-semibold block mt-0.5">{selectedPlanLabel}</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setSelectedPlan('monthly')}
-              className={`p-4 rounded-2xl border text-left transition-all cursor-pointer relative ${
-                selectedPlan === 'monthly'
-                  ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] shadow-[0_0_15px_rgba(108,92,255,0.15)]'
-                  : 'bg-white/3 border-white/5 opacity-60 hover:opacity-85'
-              }`}
-            >
-              <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest block">Mensuel</span>
-              <span className="text-sm font-black text-white block mt-1">{priceMonthly} <span className="text-[10px] font-medium text-white/50">/ mois</span></span>
-              <span className="text-[9px] text-[#4F8CFF] font-bold block mt-1 font-sans">Sans engagement</span>
-            </button>
-
-            <button
-              onClick={() => setSelectedPlan('yearly')}
-              className={`p-4 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden ${
-                selectedPlan === 'yearly'
-                  ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] shadow-[0_0_15px_rgba(108,92,255,0.15)]'
-                  : 'bg-white/3 border-white/5 opacity-60 hover:opacity-85'
-              }`}
-            >
-              {/* Ribbon */}
-              <div className="absolute top-0 right-0 bg-gradient-to-l from-[#FF4D6D] to-[#6C5CFF] text-white text-[8px] font-black px-2.5 py-0.5 rounded-bl-lg uppercase tracking-wider">
-                {priceYearlySave}
+        <div className="shrink-0 p-5 sm:p-6 border-b border-white/8 bg-gradient-to-br from-[#101B35] via-[#0D1428] to-[#07111F]">
+          <div className="flex items-start gap-4 pr-10">
+            <div className="shrink-0 p-3 rounded-2xl bg-[#6C5CFF]/14 border border-[#6C5CFF]/30 text-[#8E82FF] shadow-[0_0_22px_rgba(108,92,255,0.22)]">
+              <Crown className="w-7 h-7" />
+            </div>
+            <div className="min-w-0 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-2xl font-extrabold text-white tracking-tight">MyFamily+ Premium</h2>
+                <span className="px-2.5 py-1 rounded-full bg-[#00D26A]/12 border border-[#00D26A]/20 text-[9px] text-[#00D26A] font-black uppercase tracking-wider">
+                  Test sans paiement
+                </span>
               </div>
-              <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest block">Annuel</span>
-              <span className="text-sm font-black text-white block mt-1">{priceYearly} <span className="text-[10px] font-medium text-white/50">/ an</span></span>
-              <span className="text-[9px] text-[#00D26A] font-bold block mt-1 font-sans">Soit {priceMonthlyEquivalent} / mois</span>
-            </button>
+              <p className="text-sm text-white/58 leading-relaxed max-w-xl">
+                Une seule offre familiale pour débloquer les limites, les exports et les modules IA avancés. Le paiement réel reste désactivé pendant tes tests.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/7 border border-white/10 text-[10px] text-white/68 font-black uppercase tracking-wider">
+                  <Smartphone className="w-3.5 h-3.5" />
+                  {platformLabel}
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/7 border border-white/10 text-[10px] text-white/68 font-black uppercase tracking-wider">
+                  <CreditCard className="w-3.5 h-3.5" />
+                  Futur paiement : {realProviderLabel}
+                </span>
+              </div>
+            </div>
           </div>
-
-          {/* CTA Action button */}
-          <div className="space-y-3">
-            <button
-              onClick={handlePurchaseSimulate}
-              disabled={simulating}
-              className="w-full py-4 rounded-[22px] bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:scale-[1.01] transition-all shadow-[0_4px_20px_rgba(108,92,255,0.25)] flex items-center justify-center space-x-2"
-            >
-              {simulating ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Activation du mode test...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 animate-bounce" />
-                  <span>Activer Premium pour tester</span>
-                </>
-              )}
-            </button>
-            
-            <p className="text-[9.5px] text-white/30 text-center font-sans">
-              Aucun prélèvement aujourd’hui. Provider actuel : {billingProvider}. Le paiement réel sera branché plus tard via {realProviderLabel}.
-            </p>
-          </div>
-
         </div>
 
+        <div className="flex-1 overflow-y-auto no-scrollbar">
+          <div className="p-5 sm:p-6 space-y-5">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {mainBenefits.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.label} className="rounded-2xl bg-white/[0.045] border border-white/8 p-4 min-h-[118px]">
+                    <Icon className="w-5 h-5 text-[#8E82FF] mb-3" />
+                    <p className="text-[10px] text-white/38 font-black uppercase tracking-wider">{item.label}</p>
+                    <p className="text-xs text-white/76 font-bold leading-relaxed mt-1.5">{item.value}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="rounded-2xl bg-white/[0.035] border border-white/8 p-4">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div>
+                  <p className="text-[10px] text-white/38 font-black uppercase tracking-wider">Choisir l'offre</p>
+                  <p className="text-sm text-white font-extrabold mt-1">{selectedPlanLabel}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg text-white font-black">{selectedPrice}</p>
+                  <p className="text-[10px] text-white/42 font-semibold">Mode {billingProvider}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setSelectedPlan('monthly')}
+                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                    selectedPlan === 'monthly'
+                      ? 'bg-[#6C5CFF]/18 border-[#8E82FF] shadow-[0_0_18px_rgba(108,92,255,0.18)]'
+                      : 'bg-white/[0.035] border-white/8 hover:bg-white/[0.06]'
+                  }`}
+                >
+                  <span className="text-[9px] font-black text-white/42 uppercase tracking-widest block">Mensuel</span>
+                  <span className="text-base font-black text-white block mt-1">{priceMonthly}</span>
+                  <span className="text-[10px] text-[#7DB2FF] font-bold block mt-1">Sans engagement</span>
+                </button>
+
+                <button
+                  onClick={() => setSelectedPlan('yearly')}
+                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden ${
+                    selectedPlan === 'yearly'
+                      ? 'bg-[#6C5CFF]/18 border-[#8E82FF] shadow-[0_0_18px_rgba(108,92,255,0.18)]'
+                      : 'bg-white/[0.035] border-white/8 hover:bg-white/[0.06]'
+                  }`}
+                >
+                  <div className="absolute top-0 right-0 bg-gradient-to-l from-[#FF4D6D] to-[#6C5CFF] text-white text-[8px] font-black px-2.5 py-0.5 rounded-bl-lg uppercase tracking-wider">
+                    {priceYearlySave}
+                  </div>
+                  <span className="text-[9px] font-black text-white/42 uppercase tracking-widest block">Annuel</span>
+                  <span className="text-base font-black text-white block mt-1">{priceYearly}</span>
+                  <span className="text-[10px] text-[#00D26A] font-bold block mt-1">Soit {priceMonthlyEquivalent} / mois</span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <p className="text-[10px] text-white/38 font-black uppercase tracking-wider">Modules Premium</p>
+                <span className="inline-flex items-center gap-1.5 text-[10px] text-white/48 font-bold">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#00D26A]" />
+                  Lié au foyer
+                </span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {premiumFeatures.map((feat) => {
+                  const Icon = feat.icon;
+                  return (
+                    <div key={feat.title} className="flex items-start gap-3 p-3 rounded-2xl bg-white/[0.035] border border-white/8">
+                      <div className={`p-2 rounded-xl shrink-0 ${feat.color} border border-white/5`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-white leading-snug">{feat.title}</h4>
+                        <p className="text-[10.5px] text-white/50 mt-0.5 leading-normal font-sans font-medium">{feat.desc}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 sm:p-5 bg-black/45 border-t border-white/8 shrink-0 space-y-3">
+          <button
+            onClick={handlePurchaseSimulate}
+            disabled={simulating}
+            className="w-full py-4 rounded-[20px] bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:scale-[1.005] transition-all shadow-[0_8px_24px_rgba(108,92,255,0.28)] flex items-center justify-center gap-2 disabled:opacity-70"
+          >
+            {simulating ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Activation du mode test...</span>
+              </>
+            ) : (
+              <>
+                <Check className="w-4 h-4" />
+                <span>Activer Premium test · {selectedPrice}</span>
+              </>
+            )}
+          </button>
+          <p className="text-[10px] text-white/34 text-center font-sans leading-relaxed">
+            Aucun prélèvement. L’abonnement sera conservé sur le foyer et restera compatible PWA/iOS quand Stripe et l’App Store seront branchés.
+          </p>
+        </div>
       </div>
     </div>
   );
