@@ -1,15 +1,15 @@
 import { lazy, Suspense, useState, useEffect, useRef, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
+import type { User } from '@supabase/supabase-js';
 import { getConfiguredSupabaseAnonKey, getConfiguredSupabaseUrl } from './config/supabaseConfig';
 import { parseSmartNaturalSentence, detectGroceryCategory, getGroceryItemEmoji, parseGroceryAction, formatGroceryQty } from './utils/groceryParser';
 import { DICTIONARIES } from './utils/dictionaries';
 
 
-import { getDefaultPermissions, parseChoreTitle, serializeChoreTitle, parsePocketMoneyTitle, serializePocketMoneyTitle } from './types';
+import { parseChoreTitle, serializeChoreTitle, parsePocketMoneyTitle, serializePocketMoneyTitle } from './types';
 import type { 
   PocketMoneyChild,
-  PocketMoneyRule,
   Member, 
   FamilyJoinRequest,
   FamilyEvent, 
@@ -37,7 +37,6 @@ import type {
   Account,
   Abonnement,
   Debt,
-  MemberRole,
   ModulePermissions,
   FamilyModule,
   MalusTemplate,
@@ -48,14 +47,38 @@ const LEGACY_DEMO_SCHOOL_TASK_IDS = new Set(['st-1', 'st-2', 'st-3', 'st-4', 'st
 const removeLegacyDemoSchoolTasks = <T extends { id?: string }>(tasks: T[]): T[] =>
   tasks.filter(task => !LEGACY_DEMO_SCHOOL_TASK_IDS.has(String(task.id || '')));
 const LEGACY_DEMO_MEMORY_IDS = new Set(['mem-1', 'mem-2']);
-const mapCloudMemory = (m: any): MemoryLog => {
+interface CloudMemoryRow {
+  id?: string;
+  date?: string;
+  title?: string;
+  description?: string;
+  author_name?: string;
+  author_photo?: string;
+  image_url?: string;
+  image_urls?: string[];
+  likes_count?: number;
+  is_private?: boolean;
+  theme?: string;
+}
+
+interface CalendarSource {
+  id: string;
+  name: string;
+  url: string;
+  color: string;
+  isActive: boolean;
+}
+
+type FoyerMembership = { foyer: Foyer; member: FoyerMember };
+
+const mapCloudMemory = (m: CloudMemoryRow): MemoryLog => {
   const imageUrls = Array.isArray(m.image_urls) ? m.image_urls.filter(Boolean) : [];
   return {
-    id: m.id,
-    date: m.date,
-    title: m.title,
-    description: m.description,
-    authorName: m.author_name,
+    id: m.id || '',
+    date: m.date || '',
+    title: m.title || '',
+    description: m.description || '',
+    authorName: m.author_name || '',
     authorPhoto: m.author_photo || '',
     imageUrl: m.image_url || imageUrls[0] || '',
     imageUrls,
@@ -64,7 +87,7 @@ const mapCloudMemory = (m: any): MemoryLog => {
     theme: m.theme
   };
 };
-const removeLegacyDemoMemories = (items: any[]): any[] =>
+const removeLegacyDemoMemories = <T extends { id?: string }>(items: T[]): T[] =>
   items.filter(item => !LEGACY_DEMO_MEMORY_IDS.has(String(item.id || '')));
 
 const formatRelativeTime = (dateInput: string | Date | undefined, fallback: string): string => {
@@ -137,7 +160,7 @@ import { compressImageToBlob, uploadBlobToStorage } from './utils/imageCompresso
 
 import { getUnifiedEvents } from './utils/agendaHelper';
 import type { ExternalEvent } from './utils/icalParser';
-import { Volume2, Mic, Bell, X, ChevronRight, ChevronDown, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check, Star, ArrowLeft } from 'lucide-react';
+import { Volume2, Mic, Bell, X, ChevronRight, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check, Star, ArrowLeft } from 'lucide-react';
 
 const Accueil = lazy(() => import('./views/Accueil').then(module => ({ default: module.Accueil })));
 const Timeline = lazy(() => import('./views/Timeline').then(module => ({ default: module.Timeline })));
@@ -153,7 +176,6 @@ const KidsDashboard = lazy(() => import('./views/KidsDashboard').then(module => 
 const TeenDashboard = lazy(() => import('./views/TeenDashboard').then(module => ({ default: module.TeenDashboard })));
 const KidMissions = lazy(() => import('./views/KidMissions').then(module => ({ default: module.KidMissions })));
 const KidSchool = lazy(() => import('./views/KidSchool').then(module => ({ default: module.KidSchool })));
-const KidStories = lazy(() => import('./views/KidStories').then(module => ({ default: module.KidStories })));
 const KidProfile = lazy(() => import('./views/KidProfile').then(module => ({ default: module.KidProfile })));
 const PeaceMaker = lazy(() => import('./components/modules/PeaceMaker').then(module => ({ default: module.PeaceMaker })));
 const CapsuleTemporelle = lazy(() => import('./components/modules/CapsuleTemporelle').then(module => ({ default: module.CapsuleTemporelle })));
@@ -293,7 +315,9 @@ function App() {
           const parsed = JSON.parse(mems);
           return Array.isArray(parsed) && parsed.some(m => m.id === '1' && m.name === 'Papa');
         }
-      } catch (e) {}
+      } catch {
+        // Ignore malformed legacy cache and keep the default state.
+      }
       return false;
     };
 
@@ -337,11 +361,11 @@ function App() {
   });
 
   const [events, setEvents] = useState<FamilyEvent[]>(() => {
-    const loaded = safeGetLocalStorage('mf_events', []);
-    return loaded.filter((e: any) => !['e1', 'e2', 'e3', 'e4', 'e5', 'e6'].includes(e.id));
+    const loaded = safeGetLocalStorage<FamilyEvent[]>('mf_events', []);
+    return loaded.filter(e => !['e1', 'e2', 'e3', 'e4', 'e5', 'e6'].includes(e.id));
   });
 
-  const [calendarSources, setCalendarSources] = useState<any[]>(() => {
+  const [calendarSources, setCalendarSources] = useState<CalendarSource[]>(() => {
     const saved = localStorage.getItem('mf_external_calendar_sources');
     if (saved) return JSON.parse(saved);
     const isCloud = !!localStorage.getItem('mf_cloud_foyer_id');
@@ -671,8 +695,8 @@ function App() {
   const setSchoolTasks = (actionOrUpdater: SchoolTask[] | ((prev: SchoolTask[]) => SchoolTask[])) => {
     setSchoolTasksState((prev: SchoolTask[]) => {
       const next = typeof actionOrUpdater === 'function' ? actionOrUpdater(prev) : actionOrUpdater;
-      const added = next.filter((n: any) => !prev.some((p: any) => p.id === n.id));
-      added.forEach((t: any) => {
+      const added = next.filter(n => !prev.some(p => p.id === n.id));
+      added.forEach(t => {
         sendLocalNotification(
           "Nouveau devoir assigné",
           `📚 Le devoir de ${t.subject} "${t.title}" a été ajouté pour ${members.find(m => m.id === t.assignedMemberId)?.name || 'un élève'}.`,
@@ -1253,7 +1277,9 @@ function App() {
       let archivedIds: string[] = [];
       try {
         archivedIds = JSON.parse(localStorage.getItem(key) || '[]');
-      } catch (_) {}
+      } catch {
+        // Ignore malformed archived-trip cache.
+      }
       if (!archivedIds.includes(rawId)) {
         archivedIds.push(rawId);
         localStorage.setItem(key, JSON.stringify(archivedIds));
@@ -1542,14 +1568,16 @@ function App() {
         let alertedIds: string[] = [];
         try {
           alertedIds = JSON.parse(localStorage.getItem(storageKey) || '[]');
-        } catch (_) {}
+        } catch {
+          // Ignore malformed expiry-alert cache.
+        }
         const newAlertedIds = [...alertedIds];
         let changed = false;
         const now = new Date();
 
         // 1. Check documents
         if (Array.isArray(documents)) {
-          documents.forEach((doc: any) => {
+          documents.forEach(doc => {
             if (doc.expiryDate) {
               const exp = new Date(doc.expiryDate);
               if (!isNaN(exp.getTime())) {
@@ -1573,7 +1601,7 @@ function App() {
 
         // 2. Check vehicles (technicalControl & insuranceExpiry)
         if (Array.isArray(vehicles)) {
-          vehicles.forEach((v: any) => {
+          vehicles.forEach(v => {
             if (v.technicalControl) {
               const tc = new Date(v.technicalControl);
               if (!isNaN(tc.getTime())) {
@@ -1616,7 +1644,7 @@ function App() {
 
         // 3. Check member birthdays
         if (Array.isArray(members)) {
-          members.forEach((m: any) => {
+          members.forEach(m => {
             if (m.birthDate) {
               try {
                 // Parse birthDate which can be YYYY-MM-DD, DD/MM/YYYY or DD-MM-YYYY
@@ -1869,7 +1897,7 @@ function App() {
 
   const periodicCheckedRef = useRef(false);
   
-  const checkPeriodicAllowances = (currentList: PocketMoneyChild[]) => {
+  const checkPeriodicAllowances = () => {
     if (periodicCheckedRef.current) return;
     periodicCheckedRef.current = true;
 
@@ -1976,7 +2004,7 @@ function App() {
 
   useEffect(() => {
     if (isSyncReady && pocketMoney.length > 0) {
-      checkPeriodicAllowances(pocketMoney);
+      checkPeriodicAllowances();
     }
   }, [isSyncReady, pocketMoney]);
 
@@ -2040,7 +2068,7 @@ function App() {
     setActiveModule("");
   };
 
-  const switchActiveFoyerMembership = async (membership: any) => {
+  const switchActiveFoyerMembership = async (membership: FoyerMembership) => {
     setProfileSwitcherOpen(false);
     setSpaceSelectorOpen(false);
     setIsSyncReady(false);
@@ -2054,7 +2082,7 @@ function App() {
     setActiveModule('');
   };
 
-  const requestActiveFoyerMembership = (membership: any) => {
+  const requestActiveFoyerMembership = (membership: FoyerMembership) => {
     const sameFoyer = membership.foyer.id === foyer?.id;
     const sameMember = membership.member.id === activeMemberId;
     if (sameFoyer && sameMember) {
@@ -2089,14 +2117,18 @@ function App() {
     }
   };
 
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   // Notification module preferences
   const [notificationPrefs, setNotificationPrefs] = useState(() => {
     const key = `mf_notif_prefs_${foyer?.id || 'simulated'}_${user?.id || 'guest'}`;
     const cached = localStorage.getItem(key);
     if (cached) {
-      try { return JSON.parse(cached); } catch(_) {}
+      try {
+        return JSON.parse(cached);
+      } catch {
+        // Ignore malformed notification preferences.
+      }
     }
     return {
       groceries: true,
@@ -2121,7 +2153,9 @@ function App() {
     if (cached) {
       try {
         setNotificationPrefs(JSON.parse(cached));
-      } catch (_) {}
+      } catch {
+        // Ignore malformed notification preferences.
+      }
     } else {
       setNotificationPrefs({
         groceries: true,
@@ -2198,12 +2232,14 @@ function App() {
         try {
           await notificationService.initializeFCM(pushMemberId, (payload) => {
             console.log("[App] Notification push reçue au premier plan :", payload);
-            const newAlert = {
+            const newAlert: NotificationAlert = {
               id: payload.data?.id || `alert-${Date.now()}`,
               title: payload.notification?.title || 'Notification MaFamille+',
               description: payload.notification?.body || '',
               time: "À l'instant",
-              type: (payload.data?.type || 'info') as any,
+              type: ['info', 'warning', 'error', 'success'].includes(payload.data?.type || '')
+                ? payload.data?.type as NotificationAlert['type']
+                : 'info',
               read: false,
               module: payload.data?.module || 'other',
               senderUserId: payload.data?.senderUserId || payload.data?.sender_user_id,
@@ -2230,7 +2266,7 @@ function App() {
 
   // Helper map function from FoyerMember to UI Member
   const mapFoyerMemberToMember = (fm: FoyerMember): Member => {
-    let preciseRole = fm.role as string;
+    let preciseRole: string;
     let bloodGroup = fm.bloodGroup || 'O+';
     let phone = '';
     
@@ -2296,7 +2332,7 @@ function App() {
   };
 
   // Check foyer session on startup or login
-  const checkUserFoyerSession = async (currentUser: any) => {
+  const checkUserFoyerSession = async (currentUser: User | null) => {
     if (isSessionCheckingRef.current) {
       console.log("[MaFamille+ Session] checkUserFoyerSession lock active, ignoring parallel check.");
       return;
@@ -2402,14 +2438,18 @@ function App() {
         if (restoredData['mf_cached_foyer']) {
           try {
             setFoyer(JSON.parse(restoredData['mf_cached_foyer']!));
-          } catch(e){}
+          } catch {
+            // Ignore malformed cached foyer data.
+          }
         }
         let restoredMemberProfile: FoyerMember | null = null;
         if (restoredData['mf_cached_member_profile']) {
           try {
             restoredMemberProfile = JSON.parse(restoredData['mf_cached_member_profile']!);
             setMyMemberProfile(restoredMemberProfile);
-          } catch(e){}
+          } catch {
+            // Ignore malformed cached member data.
+          }
         }
         if (restoredMemberProfile?.id) {
           setActiveMemberId(restoredMemberProfile.id);
@@ -2419,7 +2459,9 @@ function App() {
         if (restoredData['mf_members']) {
           try {
             setMembers(JSON.parse(restoredData['mf_members']!));
-          } catch(e){}
+          } catch {
+            // Ignore malformed cached member list.
+          }
         }
       } catch (e) {
         console.warn("Failed to restore native session keys:", e);
@@ -2479,7 +2521,7 @@ function App() {
   }, [isInitializingAuth]);
 
   // Onboarding success handler
-  const handleOnboardingSuccess = async (_foyerId: string, _memberRole: string) => {
+  const handleOnboardingSuccess = async () => {
     setOnboardingActive(false);
     const client = getSupabaseClient();
     if (client) {
@@ -4744,7 +4786,9 @@ function App() {
                       return true;
                     }
                     continue; // They are equivalent JSON
-                  } catch (e) {}
+                  } catch {
+                    // Fall through to the regular value comparison.
+                  }
                 }
                 if (typeof valCloud === 'string' && typeof valLocal === 'object' && valLocal !== null) {
                   try {
@@ -4752,7 +4796,9 @@ function App() {
                       return true;
                     }
                     continue; // They are equivalent JSON
-                  } catch (e) {}
+                  } catch {
+                    // Fall through to the regular value comparison.
+                  }
                 }
                 return true;
               }
@@ -5083,7 +5129,9 @@ function App() {
         if (voiceRecognitionRef.current) {
           try {
             voiceRecognitionRef.current.start();
-          } catch(e) {}
+          } catch {
+            // Recognition may already be active.
+          }
         }
       }, delayMs);
       return;
@@ -5263,7 +5311,9 @@ function App() {
           try {
             recognition.start();
             setVoiceWave(true);
-          } catch(e) {}
+          } catch {
+            // Recognition may already be active.
+          }
         }
       };
 
@@ -5667,7 +5717,9 @@ function App() {
           try {
             const parsed = JSON.parse(matchTx.comment);
             if (parsed.moduleSource) moduleSource = parsed.moduleSource;
-          } catch(e){}
+          } catch {
+            // Ignore malformed transaction metadata.
+          }
         } else {
           const catName = matchTx.category;
           if (catName === 'Santé') moduleSource = 'sante';
@@ -6122,11 +6174,10 @@ function App() {
       /€|euros?|dépense|depense|payé|paye|payer|coût|coûte|coute|cout|facture|abonnement|prélèvement|prelevement|dollars?|\$|eur|usd/i.test(promptLower);
     if (amount && hasBudgetKeyword) {
       let title = 'Achat rapide';
-      let pourKeyword = '';
       const pourMatch = promptLower.match(/(?:^|\s)(?:\d+[.,]?\d*)\s*(?:euros?|€|eur|dollars?|\$)?\s+(?:pour\s+l'|pour\s+l’|pour\s+le\s+|pour\s+la\s+|pour\s+les\s+|pour\s+|de\s+la\s+|de\s+l'|de\s+l’|de\s+|du\s+|des\s+|d'|d’|le\s+|la\s+|les\s+|l'|l’|en\s+|a\s+|à\s+)?([a-z0-9éèàùçâêîôûäëïöü’'\s-]+)/i);
       if (pourMatch) {
         const rawPour = pourMatch[1].trim();
-        pourKeyword = cleanLabel(rawPour);
+        const pourKeyword = cleanLabel(rawPour);
         title = pourKeyword.charAt(0).toUpperCase() + pourKeyword.slice(1);
       } else {
         const amountRegexWithEuro = /(\d+[.,]?\d*)\s*(?:euros?|€|eur)/i;
@@ -10817,9 +10868,6 @@ function App() {
   };
 
   const handleRefuseCandidate = async (taskId: string, memberId: string) => {
-    const targetTask = tasks.find(t => t.id === taskId);
-    const meta = targetTask ? parseChoreTitle(targetTask.title) : null;
-
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         const meta = parseChoreTitle(t.title);
@@ -13530,7 +13578,9 @@ function App() {
                         try {
                           voiceRecognitionRef.current.start();
                           setVoiceWave(true);
-                        } catch(e) {}
+                        } catch {
+                          // Recognition may already be active.
+                        }
                       }
                     }}
                     className="py-1.5 px-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-[10px] font-bold text-white flex items-center gap-1 cursor-pointer transition-all"
@@ -13546,7 +13596,9 @@ function App() {
                           voiceRecognitionRef.current.onerror = null;
                           voiceRecognitionRef.current.onend = null;
                           voiceRecognitionRef.current.stop();
-                        } catch(e){}
+                        } catch {
+                          // Recognition may already be stopped.
+                        }
                       }
                       setVoiceState('idle');
                       setVoiceActive(false);
@@ -14019,7 +14071,9 @@ function App() {
                     voiceRecognitionRef.current.onerror = null;
                     voiceRecognitionRef.current.onend = null;
                     voiceRecognitionRef.current.stop();
-                  } catch(e){}
+                  } catch {
+                    // Recognition may already be stopped.
+                  }
                 }
                 if (voiceTimeoutRef.current) {
                   clearTimeout(voiceTimeoutRef.current);
