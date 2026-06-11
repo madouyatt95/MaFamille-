@@ -8,7 +8,44 @@ const firebaseProject = "mafamilleplus";
 // Initialisation du client admin de Supabase (pour bypasser les politiques RLS)
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-function getTargetUrl(targetModule: string, record: any): string {
+type PushRecord = Record<string, unknown>;
+
+type PushWebhookPayload = {
+  table?: string;
+  type?: "INSERT" | "UPDATE" | "DELETE" | string;
+  record?: PushRecord;
+  old_record?: PushRecord;
+};
+
+type PushTarget = {
+  id?: string;
+  display_name?: string;
+  user_id?: string;
+  notification_prefs?: Record<string, boolean>;
+  fcm_token?: string;
+};
+
+type PushSubscriptionRow = {
+  token?: string;
+  member_id?: string;
+  foyer_members?: {
+    id?: string;
+    display_name?: string;
+    user_id?: string;
+    notification_prefs?: Record<string, boolean>;
+  } | null;
+};
+
+type FirebaseCredentials = {
+  client_email?: string;
+  private_key?: string;
+};
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function getTargetUrl(targetModule: string, record: PushRecord): string {
   if (targetModule === "messagerie") {
     const groupId = record.group_id || "";
     return `/?tab=menu&module=messagerie${groupId ? `&groupId=${groupId}` : ""}`;
@@ -22,7 +59,7 @@ function getTargetUrl(targetModule: string, record: any): string {
   return "/";
 }
 
-function getNotificationDedupKey(table: string, targetModule: string, record: any): string {
+function getNotificationDedupKey(table: string, targetModule: string, record: PushRecord): string {
   const recordId = record?.id || record?.group_id || Date.now();
   return `${table || "unknown"}-${targetModule || "other"}-${recordId}`;
 }
@@ -35,7 +72,7 @@ async function sha256(input: string): Promise<string> {
     .join("");
 }
 
-async function getPushEventKey(payload: any): Promise<string> {
+async function getPushEventKey(payload: PushWebhookPayload): Promise<string> {
   const record = payload.record || {};
   const oldRecord = payload.old_record || {};
   const signature = {
@@ -57,7 +94,7 @@ async function getPushEventKey(payload: any): Promise<string> {
   return `${signature.table}:${signature.type}:${await sha256(JSON.stringify(signature))}`;
 }
 
-async function claimPushEvent(payload: any, foyerId: string): Promise<boolean> {
+async function claimPushEvent(payload: PushWebhookPayload, foyerId: string): Promise<boolean> {
   const eventKey = await getPushEventKey(payload);
   const recordId = payload.record?.id || payload.record?.group_id || null;
 
@@ -109,7 +146,7 @@ async function clearInvalidFcmToken(fcmToken: string) {
   }
 }
 
-async function getPushTargets(foyerId: string): Promise<any[]> {
+async function getPushTargets(foyerId: string): Promise<PushTarget[]> {
   const { data: subscriptions, error: subscriptionsError } = await supabaseAdmin
     .from("push_subscriptions")
     .select(`
@@ -122,7 +159,7 @@ async function getPushTargets(foyerId: string): Promise<any[]> {
     .not("token", "is", null);
 
   if (!subscriptionsError && subscriptions && subscriptions.length > 0) {
-    return subscriptions.map((subscription: any) => {
+    return (subscriptions as PushSubscriptionRow[]).map((subscription) => {
       const member = subscription.foyer_members || {};
       return {
         id: member.id || subscription.member_id,
@@ -169,7 +206,7 @@ function getPreferenceKeyForModule(targetModule: string): string | null {
   return null;
 }
 
-function allowsModulePush(member: any, targetModule: string): boolean {
+function allowsModulePush(member: PushTarget, targetModule: string): boolean {
   const preferenceKey = getPreferenceKeyForModule(targetModule);
   if (!preferenceKey) return true;
 
@@ -270,16 +307,16 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unauthorized push webhook" }), { status: 401 });
     }
 
-    const payload = await req.json();
+    const payload = await req.json() as PushWebhookPayload;
     console.log("[Send-Push] Webhook reçu pour table :", payload.table, "| Type :", payload.type);
 
     if (payload.type !== "INSERT" && payload.type !== "UPDATE") {
       return new Response(JSON.stringify({ message: "Ignored non-INSERT/UPDATE events" }), { status: 200 });
     }
 
-    const record = payload.record;
-    const oldRecord = payload.old_record;
-    const foyerId = record.foyer_id;
+    const record = payload.record || {};
+    const oldRecord = payload.old_record || {};
+    const foyerId = asString(record.foyer_id);
     if (!foyerId) {
       return new Response(JSON.stringify({ error: "No foyer_id found in record" }), { status: 400 });
     }
@@ -310,16 +347,16 @@ serve(async (req) => {
       if (payload.type !== "INSERT") {
         return new Response(JSON.stringify({ message: "Ignored UPDATE for chat_messages" }), { status: 200 });
       }
-      senderId = record.sender_id;
-      senderUserId = record.sender_user_id || "";
-      senderName = record.sender_name || "";
-      title = `${record.sender_name || "Un membre"} dans le Chat`;
+      senderId = asString(record.sender_id);
+      senderUserId = asString(record.sender_user_id);
+      senderName = asString(record.sender_name);
+      title = `${asString(record.sender_name) || "Un membre"} dans le Chat`;
       if (record.type === "image") {
         body = "📷 Image partagée";
       } else if (record.type === "voice") {
         body = "🎤 Message vocal";
       } else {
-        body = record.content || "";
+        body = asString(record.content);
       }
       targetModule = "messagerie";
 
@@ -363,19 +400,19 @@ serve(async (req) => {
         );
       }
 
-      senderId = record.sender_member_id || "";
-      senderUserId = record.sender_user_id || "";
-      senderName = record.sender_name || "";
-      title = record.title || "Alerte de Famille";
-      body = record.description || "";
-      targetModule = record.module || "other";
+      senderId = asString(record.sender_member_id);
+      senderUserId = asString(record.sender_user_id);
+      senderName = asString(record.sender_name);
+      title = asString(record.title) || "Alerte de Famille";
+      body = asString(record.description);
+      targetModule = asString(record.module) || "other";
     } else if (payload.table === "memories") {
       if (payload.type !== "INSERT") {
         return new Response(JSON.stringify({ message: "Ignored UPDATE for memories" }), { status: 200 });
       }
       title = `✨ Nouveau souvenir de ${record.author_name || "la famille"}`;
-      senderName = record.author_name || "";
-      body = record.title || "";
+      senderName = asString(record.author_name);
+      body = asString(record.title);
       targetModule = "capsule";
     } else if (payload.table === "events") {
       targetModule = "agenda";
@@ -431,9 +468,9 @@ serve(async (req) => {
       targetModule = "conseil";
     } else if (payload.table === "groceries") {
       targetModule = "courses";
-      senderId = record.sender_member_id || "";
-      senderUserId = record.sender_user_id || "";
-      senderName = record.sender_name || record.added_by || "";
+      senderId = asString(record.sender_member_id);
+      senderUserId = asString(record.sender_user_id);
+      senderName = asString(record.sender_name) || asString(record.added_by);
       if (payload.type === "INSERT") {
         title = `Article ajouté aux courses`;
         body = `"${record.name}" (${record.quantity || "1"}) a été ajouté par ${record.added_by || "un membre"}.`;
@@ -519,7 +556,10 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Missing Firebase credentials env" }), { status: 500 });
     }
 
-    const credentials = JSON.parse(serviceAccountJson);
+    const credentials = JSON.parse(serviceAccountJson) as FirebaseCredentials;
+    if (!credentials.client_email || !credentials.private_key) {
+      throw new Error("Firebase credentials are incomplete");
+    }
     const token = await getGoogleAccessToken(credentials.client_email, credentials.private_key);
     const targetUrl = getTargetUrl(targetModule, record);
     const dedupKey = getNotificationDedupKey(payload.table, targetModule, record);
@@ -605,8 +645,9 @@ serve(async (req) => {
     await Promise.all(sendPromises);
 
     return new Response(JSON.stringify({ success: true, count: targetTokens.length }), { status: 200 });
-  } catch (err) {
-    console.error("[Send-Push] Erreur d'exécution :", err.message);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[Send-Push] Erreur d'exécution :", message);
+    return new Response(JSON.stringify({ error: message }), { status: 500 });
   }
 });

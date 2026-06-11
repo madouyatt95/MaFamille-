@@ -172,12 +172,12 @@ function generateMathQuestion(
   niveau: 'CP' | 'CE1' | 'CE2' | 'CM1' | 'CM2' | '6e' | '5e' | '4e' | '3e' | 'Lycée',
   id: string
 ): AcademyQuestion {
-  let question = '';
-  let reponse = '';
-  let options: string[] = [];
-  let explication = '';
-  let indice = '';
-  let chapitre = '';
+  let question: string;
+  let reponse: string;
+  let options: string[];
+  let explication: string;
+  let indice: string;
+  let chapitre: string;
   let difficulte: 1 | 2 | 3 = 1;
   let xp = 10;
   let etoiles = 1;

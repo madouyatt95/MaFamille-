@@ -1,4 +1,17 @@
-import type { FamilyEvent, Member, EventType } from '../types';
+import type {
+  Abonnement,
+  ChoreTask,
+  Demarche,
+  EventType,
+  FamilyEvent,
+  HomeMaintenance,
+  Member,
+  PetRecord,
+  SchoolTask,
+  Transaction,
+  Trip,
+  Vehicle
+} from '../types';
 import type { ExternalEvent } from './icalParser';
 
 export interface UnifiedEvent {
@@ -122,22 +135,39 @@ export function getHolidays(country: string, year: number): { name: string; date
 interface GetUnifiedEventsArgs {
   events: FamilyEvent[];
   members: Member[];
-  trips: any[];
-  vaccines: any[];
-  schoolTasks: any[];
-  tasks: any[];
-  demarches: any[];
-  vehicles: any[];
-  maintenance: any[];
-  abonnements: any[];
-  pets: any[];
+  trips: Trip[];
+  vaccines: HealthVaccine[];
+  schoolTasks: SchoolTask[];
+  tasks: ChoreTask[];
+  demarches: Demarche[];
+  vehicles: Vehicle[];
+  maintenance: AgendaMaintenance[];
+  abonnements: Abonnement[];
+  pets: PetRecord[];
   externalEvents: ExternalEvent[];
   country: string;
   foyerId?: string;
-  transactions?: any[];
+  transactions?: Transaction[];
 }
 
-function getNextBillingDate(currentDateStr: string, period: 'daily' | 'weekly' | 'monthly' | 'yearly'): string {
+type HealthVaccine = {
+  id: string;
+  name: string;
+  date?: string;
+  time?: string;
+  doctor?: string;
+  note?: string;
+  reminder?: string;
+  status?: string;
+  isArchived?: boolean;
+  memberId?: string;
+};
+
+type AgendaMaintenance = HomeMaintenance & {
+  provider?: string;
+};
+
+function getNextBillingDate(currentDateStr: string, period: NonNullable<Abonnement['period'] | Transaction['recurrence']>): string {
   const date = new Date(currentDateStr);
   if (isNaN(date.getTime())) return currentDateStr;
   
@@ -147,8 +177,14 @@ function getNextBillingDate(currentDateStr: string, period: 'daily' | 'weekly' |
     date.setDate(date.getDate() + 7);
   } else if (period === 'monthly') {
     date.setMonth(date.getMonth() + 1);
+  } else if (period === 'quarterly') {
+    date.setMonth(date.getMonth() + 3);
+  } else if (period === 'semiannually') {
+    date.setMonth(date.getMonth() + 6);
   } else if (period === 'yearly') {
     date.setFullYear(date.getFullYear() + 1);
+  } else if (period === 'custom') {
+    date.setMonth(date.getMonth() + 1);
   }
   
   const y = date.getFullYear();

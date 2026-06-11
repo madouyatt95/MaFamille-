@@ -92,12 +92,11 @@ export const compressImageToBlob = async (
   presetName: 'profile' | 'classic' | 'document' | 'thumbnail'
 ): Promise<{ blob: Blob; ext: string }> => {
   const preset = PRESETS[presetName];
-  let src = '';
-  let isObjectUrl = false;
+  let src: string;
+  const isObjectUrl = source instanceof File;
 
-  if (source instanceof File) {
+  if (isObjectUrl) {
     src = URL.createObjectURL(source);
-    isObjectUrl = true;
   } else if (typeof source === 'string') {
     if (source.startsWith('data:')) {
       src = source;
@@ -201,13 +200,14 @@ export const uploadBlobToStorage = async (
       return publicUrl;
     }
     console.warn(`[Storage] Échec d'envoi vers le bucket "${bucket}": ${error?.message || 'Inconnu'}. Tentative sur le bucket 'avatars'.`);
-  } catch (err: any) {
-    console.warn(`[Storage] Exception sur le bucket "${bucket}": ${err.message}. Tentative sur le bucket 'avatars'.`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[Storage] Exception sur le bucket "${bucket}": ${message}. Tentative sur le bucket 'avatars'.`);
   }
 
   // Fallback bucket 'avatars'
   const fallbackPath = `${bucket}/${cleanPath}`.replace(/\/+/g, '/').replace(/^\//, '');
-  const { data: fallbackData, error: fallbackError } = await supabase.storage
+  const { error: fallbackError } = await supabase.storage
     .from('avatars')
     .upload(fallbackPath, blob, {
       contentType: blob.type,

@@ -10,7 +10,29 @@ import {
   Sparkles,
   Mic
 } from 'lucide-react';
-import type { Transaction, DocumentFile, GroceryItem } from '../types';
+import type { Transaction, DocumentFile, GroceryItem, Member } from '../types';
+
+type SpeechRecognitionInstance = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
+
+type SpeechRecognitionResultEventLike = {
+  results: ArrayLike<ArrayLike<{ transcript: string }>>;
+};
+
+type SpeechRecognitionWindow = Window & {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+};
 
 interface AssistantIAProps {
   transactions: Transaction[];
@@ -20,7 +42,7 @@ interface AssistantIAProps {
   formatMoney: (amount: number) => string;
   activeMemberId?: string;
   onAddGroceryItem?: (name: string, category: string, qty: string) => void;
-  members?: any[];
+  members?: Member[];
 }
 
 interface Message {
@@ -56,10 +78,12 @@ export const AssistantIA: React.FC<AssistantIAProps> = ({
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const messageCounterRef = useRef(0);
 
   const handleVocalInput = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const speechWindow = window as SpeechRecognitionWindow;
+    const SpeechRecognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert("Votre navigateur ne supporte pas l'API de reconnaissance vocale.");
       return;
@@ -80,7 +104,7 @@ export const AssistantIA: React.FC<AssistantIAProps> = ({
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
       setInputValue(transcript);
       setIsListening(false);
@@ -89,7 +113,7 @@ export const AssistantIA: React.FC<AssistantIAProps> = ({
       }, 1000);
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event) => {
       console.error("Speech recognition error", event.error);
       setIsListening(false);
     };
@@ -121,7 +145,7 @@ export const AssistantIA: React.FC<AssistantIAProps> = ({
 
     // Add user message
     const userMsg: Message = {
-      id: `u-${Date.now()}`,
+      id: `u-${messageCounterRef.current++}`,
       sender: 'user',
       text: text,
       timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
@@ -133,7 +157,7 @@ export const AssistantIA: React.FC<AssistantIAProps> = ({
 
     // Simulate IA Response based on text/type
     setTimeout(() => {
-      let responseText = '';
+      let responseText: string;
       
       const promptLower = text.toLowerCase();
       
@@ -185,7 +209,7 @@ export const AssistantIA: React.FC<AssistantIAProps> = ({
       }
 
       const iaMsg: Message = {
-        id: `ia-${Date.now()}`,
+        id: `ia-${messageCounterRef.current++}`,
         sender: 'ia',
         text: responseText,
         timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })

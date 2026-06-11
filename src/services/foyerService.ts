@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '../utils/supabase';
-import type { Foyer, FoyerMember } from '../types';
+import type { FamilyJoinRequest, Foyer, FoyerMember, MalusSettings, Member } from '../types';
 
 type PremiumUpdateOptions = {
   source?: Foyer['premiumSource'];
@@ -11,6 +11,111 @@ type PremiumUpdateOptions = {
   appStoreOriginalTransactionId?: string | null;
 };
 
+type JsonRecord = Record<string, unknown>;
+// Dynamic sync tables have different schemas depending on the module name.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type TableRow = Record<string, any>;
+type RealtimePayload = JsonRecord;
+type CreateFoyerResponse = { foyer_id: string; invite_code: string; name: string };
+type JoinFoyerResponse = { foyer_id: string; foyer_name: string; role: 'parent' | 'child' | 'guest' };
+
+type FoyerDbRow = {
+  id: string;
+  name: string;
+  invite_code: string;
+  invite_link?: string;
+  created_by: string;
+  created_at: string;
+  is_premium: boolean;
+  max_members: number;
+  premium_source?: Foyer['premiumSource'];
+  premium_plan?: Foyer['premiumPlan'];
+  premium_status?: Foyer['premiumStatus'];
+  premium_expires_at?: string | null;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+  app_store_original_transaction_id?: string | null;
+  parent_pin?: string;
+  malus_settings?: MalusSettings;
+};
+
+type FoyerMemberDbRow = {
+  id: string;
+  foyer_id: string;
+  user_id: string;
+  display_name: string;
+  role: FoyerMember['role'];
+  photo_url?: string;
+  age?: string;
+  birth_date?: string;
+  blood_group?: string;
+  allergies?: string[];
+  treatments?: string[];
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  emergency_contact_relation?: string;
+  school_or_employer?: string;
+  joined_at: string;
+  latitude?: number;
+  longitude?: number;
+  location_status?: string;
+  last_located_at?: string;
+  has_exemption?: boolean;
+  approved?: boolean;
+  notification_prefs?: Record<string, boolean>;
+  foyers?: FoyerDbRow | null;
+};
+
+type PremiumDbUpdate = {
+  is_premium: boolean;
+  max_members: number;
+  premium_source: Foyer['premiumSource'] | null;
+  premium_plan: Foyer['premiumPlan'] | null;
+  premium_status: Foyer['premiumStatus'];
+  premium_expires_at: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  app_store_original_transaction_id: string | null;
+};
+
+type UpdateMemberRpcParams = {
+  p_member_id: string;
+  p_display_name?: string;
+  p_photo_url?: string;
+  p_age?: string;
+  p_birth_date?: string;
+  p_blood_group?: string;
+  p_allergies?: string[];
+  p_treatments?: string[];
+  p_emergency_contact_name?: string;
+  p_emergency_contact_phone?: string;
+  p_emergency_contact_relation?: string;
+  p_school_or_employer?: string;
+  p_has_exemption?: boolean;
+  p_role?: FoyerMember['role'];
+  p_latitude?: number;
+  p_longitude?: number;
+  p_location_status?: string;
+  p_last_located_at?: string;
+};
+
+type FoyerMemberDbUpdate = Partial<Omit<FoyerMemberDbRow, 'id' | 'foyer_id' | 'joined_at' | 'foyers'>>;
+type NewFoyerMemberInput = Pick<Member, 'name' | 'role'> & Partial<Member>;
+type ApprovalUpdate = { approved: boolean; role?: 'admin' | 'parent' | 'child' | 'guest' };
+type JoinRequestDbRow = {
+  id: string;
+  family_id: string;
+  applicant_user_id: string;
+  applicant_name: string;
+  applicant_email: string;
+  applicant_avatar?: string;
+  created_at: string;
+  status: FamilyJoinRequest['status'];
+  requested_by_code?: boolean;
+  requested_by_qr?: boolean;
+  foyers?: Pick<FoyerDbRow, 'name' | 'invite_code'> | null;
+};
+
 /**
  * Service pour la gestion du Foyer, des membres, des invitations
  * et de la synchronisation granulaire en temps réel.
@@ -19,7 +124,7 @@ export const foyerService = {
   /**
    * Créer un nouveau foyer
    */
-  async createFoyer(name: string, displayName: string, isPremium: boolean = false): Promise<any> {
+  async createFoyer(name: string, displayName: string, isPremium: boolean = false): Promise<CreateFoyerResponse> {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
@@ -30,13 +135,13 @@ export const foyerService = {
     });
 
     if (error) throw error;
-    return data; // Contient { foyer_id, invite_code, name }
+    return data as CreateFoyerResponse; // Contient { foyer_id, invite_code, name }
   },
 
   /**
    * Rejoindre un foyer existant via code d'invitation
    */
-  async joinFoyer(inviteCode: string, displayName: string, role: 'parent' | 'child' | 'guest' = 'child'): Promise<any> {
+  async joinFoyer(inviteCode: string, displayName: string, role: 'parent' | 'child' | 'guest' = 'child'): Promise<JoinFoyerResponse> {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
@@ -47,7 +152,7 @@ export const foyerService = {
     });
 
     if (error) throw error;
-    return data; // Contient { foyer_id, foyer_name, role }
+    return data as JoinFoyerResponse; // Contient { foyer_id, foyer_name, role }
   },
 
   /**
@@ -72,7 +177,7 @@ export const foyerService = {
     }
 
     return membersData
-      .map((memberData: any) => {
+      .map((memberData: FoyerMemberDbRow) => {
         const foyerData = memberData.foyers;
         if (!foyerData) return null;
 
@@ -169,7 +274,7 @@ export const foyerService = {
     return this.mapSingleMembership(data[0]);
   },
 
-  mapSingleMembership(memberData: any): { foyer: Foyer | null; member: FoyerMember | null } {
+  mapSingleMembership(memberData: FoyerMemberDbRow): { foyer: Foyer | null; member: FoyerMember | null } {
     const foyerData = memberData.foyers;
     if (!foyerData) {
       return { foyer: null, member: null };
@@ -351,7 +456,7 @@ export const foyerService = {
   /**
    * Mettre à jour les paramètres de malus du foyer
    */
-  async updateFoyerMalusSettings(foyerId: string, settings: any): Promise<void> {
+  async updateFoyerMalusSettings(foyerId: string, settings: MalusSettings): Promise<void> {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
@@ -371,7 +476,7 @@ export const foyerService = {
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
     const premiumStatus = options.status || (isPremium ? 'active' : 'inactive');
-    const payload: any = {
+    const payload: PremiumDbUpdate = {
       is_premium: isPremium,
       max_members: isPremium ? 999 : 3,
       premium_source: isPremium ? (options.source || 'test') : null,
@@ -406,7 +511,7 @@ export const foyerService = {
     }
 
     const runRpc = async (includeExemption: boolean) => {
-      const rpcParams: any = { p_member_id: memberId };
+      const rpcParams: UpdateMemberRpcParams = { p_member_id: memberId };
       if (updates.displayName !== undefined) rpcParams.p_display_name = updates.displayName;
       if (updates.photoUrl !== undefined) rpcParams.p_photo_url = updates.photoUrl;
       if (updates.age !== undefined) rpcParams.p_age = updates.age;
@@ -429,7 +534,7 @@ export const foyerService = {
     };
 
     const runDirectUpdate = async (includeExemption: boolean) => {
-      const dbUpdates: any = {};
+      const dbUpdates: FoyerMemberDbUpdate = {};
       if (updates.displayName !== undefined) dbUpdates.display_name = updates.displayName;
       if (updates.photoUrl !== undefined) dbUpdates.photo_url = updates.photoUrl;
       if (updates.age !== undefined) dbUpdates.age = updates.age;
@@ -496,8 +601,9 @@ export const foyerService = {
       if (!directData || directData.length === 0) {
         console.warn('[MaFamille+ DB] Direct UPDATE returned 0 rows — RLS blocked the update for memberId:', memberId);
       }
-    } catch (err: any) {
-      console.error('[MaFamille+ DB] updateMemberProfile failed permanently:', err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[MaFamille+ DB] updateMemberProfile failed permanently:', message);
       // Ne pas planter l'application pour l'utilisateur, le localStorage a déjà été mis à jour
     }
   },
@@ -509,7 +615,7 @@ export const foyerService = {
   /**
    * Récupérer toutes les lignes d'une table pour un foyer donné (exclut le Base64 volumineux par défaut pour transactions/documents)
    */
-  async fetchTableData(tableName: string, foyerId: string): Promise<any[]> {
+  async fetchTableData(tableName: string, foyerId: string): Promise<TableRow[]> {
     const supabase = getSupabaseClient();
     if (!supabase) return [];
 
@@ -538,13 +644,13 @@ export const foyerService = {
       // Volume logging is optional; data loading should not fail because of telemetry.
     }
 
-    return data || [];
+    return (data || []) as TableRow[];
   },
 
   /**
    * Sauvegarder ou mettre à jour (upsert) un élément dans une table
    */
-  async upsertItem(tableName: string, foyerId: string, item: any): Promise<void> {
+  async upsertItem(tableName: string, foyerId: string, item: TableRow): Promise<void> {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
@@ -585,7 +691,7 @@ export const foyerService = {
   /**
    * Créer et ajouter une fiche de membre directement dans le foyer Cloud
    */
-  async addMemberToFoyer(foyerId: string, member: any): Promise<FoyerMember> {
+  async addMemberToFoyer(foyerId: string, member: NewFoyerMemberInput): Promise<FoyerMember> {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
@@ -682,7 +788,7 @@ export const foyerService = {
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
     console.log('[MaFamille+ DB] approveMember -> memberId:', memberId, 'role:', role);
-    const updates: any = { approved: true };
+    const updates: ApprovalUpdate = { approved: true };
     if (role) {
       updates.role = role;
     }
@@ -729,7 +835,7 @@ export const foyerService = {
   /**
    * Envoyer une demande d'adhésion pour rejoindre un foyer via code d'invitation
    */
-  async sendJoinRequest(inviteCode: string, applicantName: string, applicantEmail: string, applicantAvatar?: string, byQr: boolean = false): Promise<any> {
+  async sendJoinRequest(inviteCode: string, applicantName: string, applicantEmail: string, applicantAvatar?: string, byQr: boolean = false): Promise<{ requestId: string; familyId: string; familyName: string; status: FamilyJoinRequest['status'] }> {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
@@ -817,7 +923,7 @@ export const foyerService = {
   /**
    * Récupérer les demandes d'adhésion émises par l'utilisateur connecté
    */
-  async getMyJoinRequests(): Promise<any[]> {
+  async getMyJoinRequests(): Promise<FamilyJoinRequest[]> {
     const supabase = getSupabaseClient();
     if (!supabase) return [];
 
@@ -835,7 +941,7 @@ export const foyerService = {
       return [];
     }
 
-    return (data || []).map((row: any) => ({
+    return ((data || []) as JoinRequestDbRow[]).map((row) => ({
       id: row.id,
       familyId: row.family_id,
       familyName: row.foyers?.name || 'Famille inconnue',
@@ -854,7 +960,7 @@ export const foyerService = {
   /**
    * Récupérer toutes les demandes d'adhésion en attente (pending) pour une famille donnée
    */
-  async getPendingJoinRequests(familyId: string): Promise<any[]> {
+  async getPendingJoinRequests(familyId: string): Promise<FamilyJoinRequest[]> {
     const supabase = getSupabaseClient();
     if (!supabase) return [];
 
@@ -869,7 +975,7 @@ export const foyerService = {
       return [];
     }
 
-    return (data || []).map((row: any) => ({
+    return ((data || []) as JoinRequestDbRow[]).map((row) => ({
       id: row.id,
       familyId: row.family_id,
       applicantUserId: row.applicant_user_id,
@@ -916,7 +1022,7 @@ export const foyerService = {
   /**
    * Finaliser l'intégration d'un membre accepté (insère dans foyer_members et met à jour status -> 'accepted')
    */
-  async finalizeJoinRequest(requestId: string, role: string, hasExemption: boolean): Promise<any> {
+  async finalizeJoinRequest(requestId: string, role: string, hasExemption: boolean): Promise<FoyerMemberDbRow> {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
@@ -987,7 +1093,7 @@ export const foyerService = {
   /**
    * S'abonner aux changements temps réel sur une table pour un foyer
    */
-  subscribeToChanges(tableName: string, foyerId: string, onEvent: (payload: any) => void) {
+  subscribeToChanges(tableName: string, foyerId: string, onEvent: (payload: RealtimePayload) => void) {
     const supabase = getSupabaseClient();
     if (!supabase) return null;
 

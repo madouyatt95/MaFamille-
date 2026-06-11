@@ -12,16 +12,16 @@ import {
   Sparkles,
   Loader
 } from 'lucide-react';
-import type { Member, EventType, TransactionType } from '../types';
+import type { ChoreTask, FamilyEvent, Member, EventType, Transaction, TransactionType } from '../types';
 import { aiQuotaService } from '../services/aiQuotaService';
 
 interface QuickActionsSheetProps {
   isOpen: boolean;
   onClose: () => void;
   members: Member[];
-  onAddEvent: (event: any) => void;
-  onAddTransaction: (transaction: any) => void;
-  onAddTask: (task: any) => void;
+  onAddEvent: (event: QuickEventInput) => void;
+  onAddTransaction: (transaction: QuickTransactionInput) => void;
+  onAddTask: (task: QuickTaskInput) => void;
   onNavigateToVault?: () => void;
   onNavigateToMembers?: () => void;
   isPremium?: boolean;
@@ -29,6 +29,21 @@ interface QuickActionsSheetProps {
 }
 
 type AddTab = 'event' | 'transaction' | 'task' | 'document' | 'member';
+type QuickEventInput = Omit<FamilyEvent, 'id'> & { id?: string };
+type QuickTransactionInput = Omit<Transaction, 'id'> & { id?: string };
+type QuickTaskInput = Omit<ChoreTask, 'id'> & { id?: string };
+type GeminiReceipt = {
+  merchant?: string;
+  amount?: number | string;
+  category?: string;
+};
+type GeminiResponse = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{ text?: string }>;
+    };
+  }>;
+};
 
 export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   isOpen,
@@ -104,12 +119,12 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
             throw await aiQuotaService.getAIResponseError(response, 'Gemini');
           }
 
-          const result = await response.json();
+          const result = await response.json() as GeminiResponse;
           const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
           
           if (textResponse) {
             const cleanJsonText = textResponse.replace(/```json/i, '').replace(/```/g, '').trim();
-            const parsedData = JSON.parse(cleanJsonText);
+            const parsedData = JSON.parse(cleanJsonText) as GeminiReceipt;
             
             if (parsedData.merchant) setTransTitle(parsedData.merchant);
             if (parsedData.amount) setTransAmount(String(parsedData.amount));
@@ -117,7 +132,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
           } else {
             throw new Error("L'IA n'a pas pu extraire de texte du ticket.");
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error("OCR Extraction error:", err);
           setOcrError(`${aiQuotaService.getFallbackDescription(err)} Vous pouvez saisir le ticket manuellement.`);
         } finally {
@@ -131,7 +146,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
       };
 
       reader.readAsDataURL(file);
-    } catch (err) {
+    } catch {
       setOcrError("Erreur lors de la préparation de l'image.");
       setOcrLoading(false);
     }
@@ -637,7 +652,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
                       <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Rotation</label>
                       <select 
                         value={taskRotation}
-                        onChange={(e) => setTaskRotation(e.target.value as any)}
+                        onChange={(e) => setTaskRotation(e.target.value as ChoreTask['rotation'])}
                         className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
                       >
                         <option value="daily">Quotidienne</option>

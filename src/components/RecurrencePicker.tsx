@@ -2,15 +2,18 @@ import React, { useState } from 'react';
 import { Calendar, RefreshCw } from 'lucide-react';
 
 interface RecurrencePickerProps {
-  value: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'quarterly' | 'semiannually' | 'custom';
+  value: RecurrenceType;
   interval?: number;
-  customUnit?: 'days' | 'weeks' | 'months' | 'years';
+  customUnit?: CustomRecurrenceUnit;
   onChange: (val: {
-    type: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'quarterly' | 'semiannually' | 'custom';
+    type: RecurrenceType;
     interval?: number;
-    customUnit?: 'days' | 'weeks' | 'months' | 'years';
+    customUnit?: CustomRecurrenceUnit;
   }) => void;
 }
+
+type RecurrenceType = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'quarterly' | 'semiannually' | 'custom';
+type CustomRecurrenceUnit = 'days' | 'weeks' | 'months' | 'years';
 
 export const RecurrencePicker: React.FC<RecurrencePickerProps> = ({
   value,
@@ -21,7 +24,7 @@ export const RecurrencePicker: React.FC<RecurrencePickerProps> = ({
   const [showCustomOptions, setShowCustomOptions] = useState(value === 'custom');
 
   const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const type = e.target.value as any;
+    const type = e.target.value as RecurrenceType;
     if (type === 'custom') {
       setShowCustomOptions(true);
       onChange({ type, interval, customUnit });
@@ -37,7 +40,7 @@ export const RecurrencePicker: React.FC<RecurrencePickerProps> = ({
   };
 
   const handleUnitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const unit = e.target.value as any;
+    const unit = e.target.value as CustomRecurrenceUnit;
     onChange({ type: 'custom', interval, customUnit: unit });
   };
 
