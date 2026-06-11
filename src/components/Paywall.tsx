@@ -62,6 +62,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
   const selectedPrice = selectedPlan === 'monthly' ? priceMonthly : priceYearly;
   const selectedPlanLabel = getPremiumPlanLabel(platform, selectedPlan);
   const canUseStripe = isWeb && !!foyerId && !!onStartStripeCheckout;
+  const trialLabel = isWeb ? '7 jours offerts' : 'Mode test';
 
   if (!isOpen) return null;
 
@@ -206,10 +207,14 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
               </div>
               <p className="text-sm text-white/58 leading-relaxed max-w-xl">
                 {isWeb
-                  ? "Une seule offre familiale pour débloquer les limites, les exports et les modules IA avancés. Paiement sécurisé par Stripe pour la PWA."
+                  ? "Essayez Premium 7 jours gratuitement, puis gardez une seule offre familiale pour débloquer les limites, les exports et les modules IA avancés. Paiement sécurisé par Stripe pour la PWA."
                   : "Une seule offre familiale pour débloquer les limites, les exports et les modules IA avancés. Le paiement iOS passera par l'App Store."}
               </p>
               <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#00D26A]/12 border border-[#00D26A]/20 text-[10px] text-[#00D26A] font-black uppercase tracking-wider">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {trialLabel}
+                </span>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/7 border border-white/10 text-[10px] text-white/68 font-black uppercase tracking-wider">
                   <Smartphone className="w-3.5 h-3.5" />
                   {platformLabel}
@@ -261,7 +266,9 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
                 >
                   <span className="text-[9px] font-black text-white/42 uppercase tracking-widest block">Mensuel</span>
                   <span className="text-base font-black text-white block mt-1">{priceMonthly}</span>
-                  <span className="text-[10px] text-[#7DB2FF] font-bold block mt-1">Sans engagement</span>
+                  <span className="text-[10px] text-[#7DB2FF] font-bold block mt-1">
+                    {isWeb ? '7 jours gratuits, puis sans engagement' : 'Sans engagement'}
+                  </span>
                 </button>
 
                 <button
@@ -277,7 +284,9 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
                   </div>
                   <span className="text-[9px] font-black text-white/42 uppercase tracking-widest block">Annuel</span>
                   <span className="text-base font-black text-white block mt-1">{priceYearly}</span>
-                  <span className="text-[10px] text-[#00D26A] font-bold block mt-1">Soit {priceMonthlyEquivalent} / mois</span>
+                  <span className="text-[10px] text-[#00D26A] font-bold block mt-1">
+                    {isWeb ? `7 jours gratuits, puis ${priceMonthlyEquivalent} / mois` : `Soit ${priceMonthlyEquivalent} / mois`}
+                  </span>
                 </button>
               </div>
             </div>
@@ -325,7 +334,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
               ) : (
                 <>
                   <CreditCard className="w-4 h-4" />
-                  <span>Payer avec Stripe · {selectedPrice}</span>
+                  <span>Essayer 7 jours gratuits · puis {selectedPrice}</span>
                 </>
               )}
             </button>
@@ -359,7 +368,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
           )}
           <p className="text-[10px] text-white/34 text-center font-sans leading-relaxed">
             {isWeb
-              ? "Après paiement, Stripe confirmera l'abonnement et le foyer passera Premium automatiquement."
+              ? "Stripe démarre l'abonnement avec 7 jours d'essai gratuit. Le foyer passera Premium automatiquement après confirmation."
               : "Aucun prélèvement iOS pour le moment. L'achat App Store sera branché dans une étape séparée."}
           </p>
         </div>
