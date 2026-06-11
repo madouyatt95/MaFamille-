@@ -1,6 +1,6 @@
 import React from 'react';
 import { Home, Clock, Mic, Wallet, Plus, BookOpen, MessageSquare, Star, GraduationCap, User } from 'lucide-react';
-import type { MemberRole } from '../types';
+import type { Member } from '../types';
 
 interface BottomNavProps {
   activeTab: string;
@@ -9,7 +9,7 @@ interface BottomNavProps {
   setActiveModule?: (module: string) => void;
   onMicClick: () => void;
   activeMemberId?: string;
-  members?: any[];
+  members?: Member[];
   isPremium?: boolean;
 }
 
@@ -54,15 +54,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const isTeen = role === 'adolescent';
   const isKid = role === 'enfant';
   const isGuest = role === 'invite';
-
-  // Helper to check if a navigation tab is active
-  const isTabActive = (tabId: string, moduleName?: string) => {
-    if (moduleName) {
-      const activeModuleFromHash = window.location.hash || ''; // fallback check
-      return activeTab === tabId && (activeModuleFromHash.includes(moduleName) || true);
-    }
-    return activeTab === tabId;
-  };
 
   const handleNavClick = (tabId: string, moduleName = '') => {
     setActiveTab(tabId);

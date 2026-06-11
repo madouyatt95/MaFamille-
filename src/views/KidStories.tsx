@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, BookOpen, Star, Play, Pause, Sparkles, Wand2, Compass, RotateCcw, Heart } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Sparkles, Wand2, RotateCcw, Heart } from 'lucide-react';
 import type { Member } from '../types';
 
 interface KidStoriesProps {
@@ -20,7 +20,6 @@ interface StoryItem {
 }
 
 export const KidStories: React.FC<KidStoriesProps> = ({
-  member,
   onBack
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'bibliotheque' | 'ia'>('bibliotheque');
@@ -28,7 +27,7 @@ export const KidStories: React.FC<KidStoriesProps> = ({
   
   // Audio Player State
   const [isPlaying, setIsPlaying] = useState(false);
-  const [playProgress, setPlayProgress] = useState(0);
+  const [, setPlayProgress] = useState(0);
 
   // AI Story Generator State
   const [aiHero, setAiHero] = useState('un petit lapin');

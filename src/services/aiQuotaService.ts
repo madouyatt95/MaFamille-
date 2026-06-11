@@ -9,6 +9,12 @@ interface DailyAiUsage {
   count: number;
 }
 
+type AIResponseError = Error & {
+  status?: number;
+  provider?: string;
+  isQuotaError?: boolean;
+};
+
 const DAILY_LIMIT = 10;
 
 export const aiQuotaService = {
@@ -137,7 +143,7 @@ export const aiQuotaService = {
   },
 
   async getAIResponseError(response: Response, provider: string): Promise<Error> {
-    let detail = '';
+    let detail: string;
     try {
       const data = await response.clone().json();
       detail = data?.error?.message || data?.error || data?.quota?.reason || JSON.stringify(data);
@@ -153,10 +159,10 @@ export const aiQuotaService = {
       ? `${provider} API ${response.status}: ${detail}`
       : `${provider} API ${response.status}`;
 
-    const error = new Error(message);
-    (error as any).status = response.status;
-    (error as any).provider = provider;
-    (error as any).isQuotaError = response.status === 429 || /quota|limit|limite|épuisé|epuise/i.test(detail);
+    const error = new Error(message) as AIResponseError;
+    error.status = response.status;
+    error.provider = provider;
+    error.isQuotaError = response.status === 429 || /quota|limit|limite|épuisé|epuise/i.test(detail);
     return error;
   },
 
@@ -171,7 +177,7 @@ export const aiQuotaService = {
   },
 
   getFallbackLabel(error?: unknown): string {
-    const err = error as any;
+    const err = error as AIResponseError | undefined;
     if (err?.isQuotaError || err?.status === 429) {
       return 'Quota IA réel épuisé : réponse locale utilisée pour continuer sans bloquer.';
     }
@@ -179,7 +185,7 @@ export const aiQuotaService = {
   },
 
   getFallbackDescription(error?: unknown): string {
-    const err = error as any;
+    const err = error as AIResponseError | undefined;
     if (err?.isQuotaError || err?.status === 429) {
       return 'Votre quota quotidien d’IA réelle est atteint. Le module reste utilisable avec une génération locale.';
     }

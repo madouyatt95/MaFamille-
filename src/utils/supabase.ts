@@ -7,21 +7,21 @@ const capacitorPreferencesStorage = {
     try {
       const { value } = await Preferences.get({ key });
       return value;
-    } catch (e) {
+    } catch {
       return localStorage.getItem(key);
     }
   },
   setItem: async (key: string, value: string): Promise<void> => {
     try {
       await Preferences.set({ key, value });
-    } catch (e) {
+    } catch {
       localStorage.setItem(key, value);
     }
   },
   removeItem: async (key: string): Promise<void> => {
     try {
       await Preferences.remove({ key });
-    } catch (e) {
+    } catch {
       localStorage.removeItem(key);
     }
   }
@@ -114,7 +114,7 @@ export function deserializeCategoryIcon(serialized: string | undefined): { icon:
         subcategories: Array.isArray(parsed.subcategories) ? parsed.subcategories : [],
         isArchived: !!parsed.isArchived
       };
-    } catch (e) {
+    } catch {
       // Fallback
     }
   }
@@ -133,7 +133,7 @@ export interface TransactionMetadata {
   createdBy?: string;
   categoryId?: string;
   subCategoryId?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export function serializeTransactionComment(comment: string | null | undefined, metadata: TransactionMetadata): string {
@@ -170,7 +170,10 @@ export function deserializeTransactionComment(serialized: string | null | undefi
   return { comment: serialized, metadata: {} };
 }
 
-export function getModuleIdFromTransaction(t: any): string | null {
+export function getModuleIdFromTransaction(t: {
+  moduleSource?: string;
+  category?: string;
+}): string | null {
   if (t.moduleSource && t.moduleSource !== 'budget') {
     return t.moduleSource;
   }
@@ -194,7 +197,7 @@ export interface EventDescriptionMetadata {
   note?: string;
   documentUrl?: string;
   isArchived?: boolean;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export function serializeEventDescription(descriptionText: string | null | undefined, metadata: EventDescriptionMetadata): string {
@@ -233,7 +236,7 @@ export function deserializeEventDescription(serialized: string | null | undefine
 /**
  * Log the volume of data fetched from Supabase for a given table and action.
  */
-export function logQueryVolume(tableName: string, action: string, data: any) {
+export function logQueryVolume(tableName: string, action: string, data: unknown) {
   if (!data) return;
   try {
     const jsonString = JSON.stringify(data);

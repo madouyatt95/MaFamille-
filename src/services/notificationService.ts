@@ -10,6 +10,14 @@ type InitializeFCMOptions = {
   requestPermission?: boolean;
 };
 
+type PushForegroundPayload = {
+  notification?: {
+    title?: string;
+    body?: string;
+  };
+  data?: Record<string, string>;
+};
+
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const getDeviceId = async (): Promise<string> => {
@@ -17,7 +25,7 @@ const getDeviceId = async (): Promise<string> => {
   try {
     const { value } = await Preferences.get({ key });
     if (value) return value;
-  } catch (e) {
+  } catch {
     const existing = localStorage.getItem(key);
     if (existing) return existing;
   }
@@ -28,7 +36,7 @@ const getDeviceId = async (): Promise<string> => {
 
   try {
     await Preferences.set({ key, value: id });
-  } catch (e) {
+  } catch {
     localStorage.setItem(key, id);
   }
   return id;
@@ -142,7 +150,7 @@ export const notificationService = {
    */
   async initializeFCM(
     memberId: string,
-    onMessageReceived?: (payload: any) => void,
+    onMessageReceived?: (payload: PushForegroundPayload) => void,
     options: InitializeFCMOptions = {}
   ): Promise<string | null> {
     const { requestPermission = true } = options;
@@ -322,7 +330,7 @@ export const notificationService = {
         localStorage.setItem('mf_fcm_token', token);
 
         // 6. Écouter les messages reçus lorsque l'application est au premier plan (Foreground)
-        onMessage(messaging, (payload: any) => {
+        onMessage(messaging, (payload) => {
           console.log('[FCM] Message reçu au premier plan :', payload);
           if (onMessageReceived) {
             onMessageReceived(payload);

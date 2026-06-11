@@ -375,9 +375,7 @@ function generateLanguageQuestion(
 
   // Random translation direction
   const toFrench = Math.random() > 0.5;
-  let question = '';
-  let reponse = '';
-  let options: string[] = [];
+  let question: string;
 
   // Get wrong answers
   const correctVal = toFrench ? item.french : item.foreign;
@@ -391,8 +389,8 @@ function generateLanguageQuestion(
     }
   }
 
-  reponse = correctVal;
-  options = shuffle([reponse, ...Array.from(distractorsSet)]);
+  const reponse = correctVal;
+  const options = shuffle([reponse, ...Array.from(distractorsSet)]);
 
   const displayLangName = lang.charAt(0).toUpperCase() + lang.slice(1);
 

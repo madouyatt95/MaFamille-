@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
-  Camera,
   Users,
   Bell
 } from 'lucide-react';
@@ -22,10 +21,7 @@ interface OnboardingProps {
   userEmail: string;
 }
 
-export const Onboarding: React.FC<OnboardingProps> = ({ 
-  onLogout, 
-  userEmail
-}) => {
+export const Onboarding: React.FC<OnboardingProps> = () => {
   const [activeMode, setActiveMode] = useState<'login' | 'create' | 'forgot'>('login');
   
   const [firstName, setFirstName] = useState('');
@@ -70,8 +66,8 @@ export const Onboarding: React.FC<OnboardingProps> = ({
         });
         if (error) throw error;
         setSuccessMessage("Un e-mail de récupération a été envoyé !");
-      } catch (err: any) {
-        setErrorMessage(err.message || "Erreur lors de l'envoi");
+      } catch (err: unknown) {
+        setErrorMessage(err instanceof Error ? err.message : "Erreur lors de l'envoi");
       } finally {
         setLoading(false);
       }
@@ -140,9 +136,9 @@ export const Onboarding: React.FC<OnboardingProps> = ({
         // Redirect to login tab
         setActiveMode('login');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Onboarding Error]", err);
-      setErrorMessage(err.message || "Une erreur est survenue.");
+      setErrorMessage(err instanceof Error ? err.message : "Une erreur est survenue.");
     } finally {
       setLoading(false);
     }
