@@ -587,13 +587,13 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
     (members || []).forEach(m => {
       if (!m || !m.birthDate) return;
       try {
-        let bdayStr = m.birthDate;
-        let parts = bdayStr.includes('/') ? bdayStr.split('/') : bdayStr.split('-');
+        const bdayStr = m.birthDate;
+        const parts = bdayStr.includes('/') ? bdayStr.split('/') : bdayStr.split('-');
         if (parts.length === 3) {
-          let month = parseInt(parts[1]) - 1;
-          let day = parseInt(parts[0].length === 4 ? parts[2] : parts[0]);
-          let year = new Date().getFullYear();
-          let bdayThisYear = new Date(year, month, day);
+          const month = parseInt(parts[1]) - 1;
+          const day = parseInt(parts[0].length === 4 ? parts[2] : parts[0]);
+          const year = new Date().getFullYear();
+          const bdayThisYear = new Date(year, month, day);
           const diffDays = Math.ceil((bdayThisYear.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
           if (diffDays < 0 || diffDays > 30) return;
           list.push({

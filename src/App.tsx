@@ -4626,7 +4626,7 @@ function App() {
       // 2. Transactions
       let txUpdated = false;
       const processedTxs = await Promise.all(transactions.map(async t => {
-        let updatedT = { ...t };
+        const updatedT = { ...t };
         if (t.receiptBase64 && t.receiptBase64.startsWith('data:')) {
           try {
             console.log(`[Sync] Compressing & uploading receipt for transaction: ${t.title}`);
@@ -5318,7 +5318,7 @@ function App() {
   const parseAgendaVoiceCommand = (prompt: string, text: string) => {
     const textLower = prompt.toLowerCase();
     
-    let eventDate = new Date();
+    const eventDate = new Date();
     let dateStr = eventDate.toISOString().split('T')[0];
     let dateLabel = "aujourd'hui";
     
@@ -5698,7 +5698,7 @@ function App() {
     // Match destination following keywords
     const destMatch = text.match(/(?:voyage|vacances|voyager)\s+(?:au|en|à|a|vers|pour\s+l'|pour\s+la|pour\s+le|pour\s+les|pour|de|du|d'|dans\s+le|dans\s+la|dans\s+l')\s+([a-zA-Z0-9éèàùçâêîôûäëïöü\s-]+)/i);
     if (destMatch) {
-      let rawDest = destMatch[1].trim();
+      const rawDest = destMatch[1].trim();
       const cleanMatch = rawDest.split(/\b(?:pour|et|le|la|de|du|avec|à\b|a\b|en\b|au\b|vers\b)/i)[0].trim();
       if (cleanMatch) {
         const normalized = normalizeDestination(cleanMatch);
@@ -5739,7 +5739,7 @@ function App() {
     
     // Parse budget first
     let budgetAmount = 0;
-    const budgetMatch = text.match(/(?:budget\s*(?:de)?\s*(\d+[\.,]?\d*))|(\d+[\.,]?\d*)\s*(?:euros?|€|eur)?\s*(?:de\s+)?budget/i);
+    const budgetMatch = text.match(/(?:budget\s*(?:de)?\s*(\d+[.,]?\d*))|(\d+[.,]?\d*)\s*(?:euros?|€|eur)?\s*(?:de\s+)?budget/i);
     if (budgetMatch) {
       budgetAmount = parseFloat((budgetMatch[1] || budgetMatch[2]).replace(',', '.'));
     }
@@ -5756,7 +5756,7 @@ function App() {
     const hasExpenseKeywords = expenseKeywords.some(kw => textWithoutBudget.toLowerCase().includes(kw));
     
     if (hasExpenseKeywords) {
-      const amountMatch = textWithoutBudget.match(/(\d+[\.,]?\d*)\s*(?:euros?|€|eur)/i);
+      const amountMatch = textWithoutBudget.match(/(\d+[.,]?\d*)\s*(?:euros?|€|eur)/i);
       if (amountMatch) {
         expenseAmount = parseFloat(amountMatch[1].replace(',', '.'));
       }
@@ -5912,7 +5912,7 @@ function App() {
     // 3. ARGENT DE POCHE
     if (promptLower.includes('argent de poche') || promptLower.includes('pocket money')) {
       const matchedMember = findAllMemberMatches(promptLower, members, activeMemberId)[0];
-      const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+      const numMatch = promptLower.match(/(\d+[.,]?\d*)/);
       const amount = numMatch ? parseFloat(numMatch[1].replace(',', '.')) : undefined;
 
       return {
@@ -5924,7 +5924,7 @@ function App() {
 
     // 4. VÉHICULES
     if (promptLower.includes('plein') || promptLower.includes('essence') || promptLower.includes('révision') || promptLower.includes('revision') || promptLower.includes('vidange')) {
-      const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+      const numMatch = promptLower.match(/(\d+[.,]?\d*)/);
       const amount = numMatch ? parseFloat(numMatch[1].replace(',', '.')) : undefined;
       const matchedVehicle = vehicles.find(v => promptLower.includes(v.name.toLowerCase()));
 
@@ -5939,7 +5939,7 @@ function App() {
 
     // 5. LOGEMENT / FACTURE
     if (promptLower.includes('facture') || promptLower.includes('loyer') || promptLower.includes('edf')) {
-      const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+      const numMatch = promptLower.match(/(\d+[.,]?\d*)/);
       const amount = numMatch ? parseFloat(numMatch[1].replace(',', '.')) : undefined;
       
       let category = undefined;
@@ -6101,7 +6101,7 @@ function App() {
 
     // 12. OBJECTIFS D'ÉPARGNE
     if (promptLower.includes('objectif') || promptLower.includes('cagnotte') || promptLower.includes('épargne')) {
-      const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+      const numMatch = promptLower.match(/(\d+[.,]?\d*)/);
       const amount = numMatch ? parseFloat(numMatch[1].replace(',', '.')) : undefined;
 
       let title = undefined;
@@ -6116,22 +6116,22 @@ function App() {
     }
 
     // 13. BUDGET GENERAL FALLBACK
-    const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+    const numMatch = promptLower.match(/(\d+[.,]?\d*)/);
     const amount = numMatch ? parseFloat(numMatch[1].replace(',', '.')) : undefined;
     const hasBudgetKeyword = 
       /€|euros?|dépense|depense|payé|paye|payer|coût|coûte|coute|cout|facture|abonnement|prélèvement|prelevement|dollars?|\$|eur|usd/i.test(promptLower);
     if (amount && hasBudgetKeyword) {
       let title = 'Achat rapide';
       let pourKeyword = '';
-      const pourMatch = promptLower.match(/(?:^|\s)(?:\d+[\.,]?\d*)\s*(?:euros?|€|eur|dollars?|\$)?\s+(?:pour\s+l'|pour\s+l’|pour\s+le\s+|pour\s+la\s+|pour\s+les\s+|pour\s+|de\s+la\s+|de\s+l'|de\s+l’|de\s+|du\s+|des\s+|d'|d’|le\s+|la\s+|les\s+|l'|l’|en\s+|a\s+|à\s+)?([a-z0-9éèàùçâêîôûäëïöü’'\s-]+)/i);
+      const pourMatch = promptLower.match(/(?:^|\s)(?:\d+[.,]?\d*)\s*(?:euros?|€|eur|dollars?|\$)?\s+(?:pour\s+l'|pour\s+l’|pour\s+le\s+|pour\s+la\s+|pour\s+les\s+|pour\s+|de\s+la\s+|de\s+l'|de\s+l’|de\s+|du\s+|des\s+|d'|d’|le\s+|la\s+|les\s+|l'|l’|en\s+|a\s+|à\s+)?([a-z0-9éèàùçâêîôûäëïöü’'\s-]+)/i);
       if (pourMatch) {
         const rawPour = pourMatch[1].trim();
         pourKeyword = cleanLabel(rawPour);
         title = pourKeyword.charAt(0).toUpperCase() + pourKeyword.slice(1);
       } else {
-        const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€|eur)/i;
+        const amountRegexWithEuro = /(\d+[.,]?\d*)\s*(?:euros?|€|eur)/i;
         let cleanTitle = text.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|dépense|depense|pour/gi, '').trim();
-        cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[\.,]?\d*)/, '').trim();
+        cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[.,]?\d*)/, '').trim();
         cleanTitle = cleanTitle.replace(/tous les mois|chaque mois|mensuel|mensuelle|tous les jours|chaque jour|quotidien|quotidienne|chaque semaine|toutes les semaines|hebdomadaire|chaque (lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)|chaque samedi|tous les ans|chaque année|chaque annee/gi, '').trim();
         const matchedMember = members.find(m => promptLower.includes(m.name.toLowerCase()));
         if (matchedMember) {
@@ -7329,7 +7329,7 @@ function App() {
           .toLowerCase()
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "") // Supprimer les accents
-          .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, ' ')
+          .replace(/[.,/#!$%^&*;:{}=_`~()?-]/g, ' ')
           .replace(/\s+/g, ' ')
           .trim();
       };
@@ -7545,7 +7545,7 @@ function App() {
           } else if (voiceContext.missingField === 'date') {
             resolvedValue = parseFrenchDate(text.trim());
           } else if (voiceContext.missingField === 'amount' || voiceContext.missingField === 'budget') {
-            const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+            const numMatch = promptLower.match(/(\d+[.,]?\d*)/);
             if (numMatch) {
               resolvedValue = parseFloat(numMatch[1].replace(',', '.'));
             }
@@ -7592,14 +7592,14 @@ function App() {
           };
 
           if (voiceContext.missingField === 'budget') {
-            let val = text.trim();
+            const val = text.trim();
             if (isSkipAnswer(val)) {
               updatedCtx.budget = 0;
               updatedCtx.budgetAsked = true;
               delete updatedCtx.missingField;
               resolved = true;
             } else {
-              const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+              const numMatch = promptLower.match(/(\d+[.,]?\d*)/);
               if (numMatch) {
                 updatedCtx.budget = parseFloat(numMatch[1].replace(',', '.'));
                 updatedCtx.budgetAsked = true;
@@ -7613,7 +7613,7 @@ function App() {
               }
             }
           } else if (voiceContext.missingField === 'destination') {
-            let destVal = text.trim();
+            const destVal = text.trim();
             if (destVal) {
               const clean = normalizeDestination(destVal);
               if (clean) {
@@ -7623,7 +7623,7 @@ function App() {
               }
             }
           } else if (voiceContext.missingField === 'startDate') {
-            let dateVal = text.trim();
+            const dateVal = text.trim();
             if (dateVal) {
               const isoDate = parseFrenchDate(dateVal);
               updatedCtx.startDate = isoDate;
@@ -7631,7 +7631,7 @@ function App() {
               resolved = true;
             }
           } else if (voiceContext.missingField === 'endDate') {
-            let val = text.trim();
+            const val = text.trim();
             if (isSkipAnswer(val)) {
               updatedCtx.endDate = 'Non planifié';
               updatedCtx.endDateAsked = true;
@@ -7645,7 +7645,7 @@ function App() {
               resolved = true;
             }
           } else if (voiceContext.missingField === 'date') {
-            let dateVal = text.trim();
+            const dateVal = text.trim();
             if (dateVal) {
               const isoDate = parseFrenchDate(dateVal);
               updatedCtx.startDate = isoDate;
@@ -7710,7 +7710,7 @@ function App() {
               resolved = true;
             }
           } else if (voiceContext.missingField === 'amount') {
-            const numMatch = promptLower.match(/(\d+[\.,]?\d*)/);
+            const numMatch = promptLower.match(/(\d+[.,]?\d*)/);
             if (numMatch) {
               updatedCtx.amount = parseFloat(numMatch[1].replace(',', '.'));
               updatedCtx.expenseAmount = updatedCtx.amount;
@@ -7740,7 +7740,7 @@ function App() {
               delete updatedCtx.missingField;
               resolved = true;
             } else if (text.trim()) {
-              let clean = lowerVal.replace(/heures|heure/gi, 'h').replace(/\s+/g, '').trim();
+              const clean = lowerVal.replace(/heures|heure/gi, 'h').replace(/\s+/g, '').trim();
               const match = clean.match(/(\d+)h(\d*)/) || clean.match(/(\d+):(\d*)/) || clean.match(/(\d+)/);
               if (match) {
                 const hh = match[1].padStart(2, '0');
@@ -8021,9 +8021,9 @@ function App() {
 
       // Determine explicit financial amount first
       const explicitAmountRegexes = [
-        /(\d+[\.,]?\d*)\s*(?:euros?|€|dollars?|\$|eur|usd)/i,
-        /(?:dépense|revenu|salaire|montant|payé|paye|coûte|coute|couté|somme)\s+(?:de\s+|de\s+l'|de\s+l’|d')?(\d+[\.,]?\d*)/i,
-        /^(?:ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|crée|creer|créer)?\s*(\d+[\.,]?\d*)\b/i
+        /(\d+[.,]?\d*)\s*(?:euros?|€|dollars?|\$|eur|usd)/i,
+        /(?:dépense|revenu|salaire|montant|payé|paye|coûte|coute|couté|somme)\s+(?:de\s+|de\s+l'|de\s+l’|d')?(\d+[.,]?\d*)/i,
+        /^(?:ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|crée|creer|créer)?\s*(\d+[.,]?\d*)\b/i
       ];
 
       let amountVal = 0;
@@ -8799,7 +8799,7 @@ function App() {
         if (promptLower.includes('dollar') || promptLower.includes('$')) currencyStr = 'USD';
 
         let recurrenceType: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'quarterly' | 'semiannually' | 'custom' = 'none';
-        let recurrenceInterval = 1;
+        const recurrenceInterval = 1;
         if (/mensuel|mensuelle|tous les mois|chaque mois/i.test(promptLower)) {
           recurrenceType = 'monthly';
         } else if (/quotidien|quotidienne|tous les jours|chaque jour/i.test(promptLower)) {
@@ -8817,16 +8817,15 @@ function App() {
 
         let title = 'Achat rapide';
         let pourKeyword = '';
-        const pourMatch = promptLower.match(/(?:^|\s)(?:\d+[\.,]?\d*)\s*(?:euros?|€|eur|dollars?|\$)?\s+(?:pour\s+l'|pour\s+l’|pour\s+le\s+|pour\s+la\s+|pour\s+les\s+|pour\s+|de\s+la\s+|de\s+l'|de\s+l’|de\s+|du\s+|des\s+|d'|d’|le\s+|la\s+|les\s+|l'|l’|en\s+|a\s+|à\s+)?([a-z0-9éèàùçâêîôûäëïöü’'\s-]+)/i);
+        const pourMatch = promptLower.match(/(?:^|\s)(?:\d+[.,]?\d*)\s*(?:euros?|€|eur|dollars?|\$)?\s+(?:pour\s+l'|pour\s+l’|pour\s+le\s+|pour\s+la\s+|pour\s+les\s+|pour\s+|de\s+la\s+|de\s+l'|de\s+l’|de\s+|du\s+|des\s+|d'|d’|le\s+|la\s+|les\s+|l'|l’|en\s+|a\s+|à\s+)?([a-z0-9éèàùçâêîôûäëïöü’'\s-]+)/i);
         if (pourMatch) {
           const rawPour = pourMatch[1].trim();
           pourKeyword = cleanLabel(rawPour);
           title = pourKeyword.charAt(0).toUpperCase() + pourKeyword.slice(1);
-          title = pourKeyword.charAt(0).toUpperCase() + pourKeyword.slice(1);
         } else {
-          const amountRegexWithEuro = /(\d+[\.,]?\d*)\s*(?:euros?|€|eur)/i;
+          const amountRegexWithEuro = /(\d+[.,]?\d*)\s*(?:euros?|€|eur)/i;
           let cleanTitle = textWithDigits.replace(/ajoute|ajouter|enregistre|enregistrer|noter|note|mets|mettre|dépense|depense|pour/gi, '').trim();
-          cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[\.,]?\d*)/, '').trim();
+          cleanTitle = cleanTitle.replace(amountRegexWithEuro, '').replace(/(\d+[.,]?\d*)/, '').trim();
           cleanTitle = cleanTitle.replace(/tous les mois|chaque mois|mensuel|mensuelle|tous les jours|chaque jour|quotidien|quotidienne|chaque semaine|toutes les semaines|hebdomadaire|chaque (lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)|chaque samedi|tous les ans|chaque année|chaque annee/gi, '').trim();
           if (matchedMember) {
             const memberRegex = new RegExp(`\\b${matchedMember.name}\\b`, 'gi');
@@ -10232,7 +10231,7 @@ function App() {
       isSecure: false
     };
 
-    let updatedDocs = documents.some(d => d.id === docId)
+    const updatedDocs = documents.some(d => d.id === docId)
       ? documents.map(d => d.id === docId ? newDoc : d)
       : [newDoc, ...documents];
     
@@ -10279,7 +10278,7 @@ function App() {
   };
 
   const handleUpdateMemberProfile = async (memberId: string, updates: Partial<FoyerMember>) => {
-    let finalUpdates = { ...updates };
+    const finalUpdates = { ...updates };
     if (updates.photoUrl && updates.photoUrl.startsWith('data:')) {
       try {
         console.log(`[Profile] Compressing & uploading profile picture for member: ${memberId}`);
@@ -10334,7 +10333,7 @@ function App() {
     if (!activeMemberId || !otherMemberId) return;
 
     // Check if a private group between activeMemberId and otherMemberId already exists
-    let existingGroup = chatGroups.find(g => 
+    const existingGroup = chatGroups.find(g => 
       g.isPrivate && 
       g.memberIds.length === 2 && 
       g.memberIds.includes(activeMemberId) && 

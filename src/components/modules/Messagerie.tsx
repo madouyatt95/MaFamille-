@@ -19,6 +19,15 @@ const VoiceMessagePlayer: React.FC<{ content: string; isMe: boolean }> = ({ cont
   const [currentTime, setCurrentTime] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
   let audioSrc = content;
   let displayDuration = duration;
 
@@ -44,15 +53,6 @@ const VoiceMessagePlayer: React.FC<{ content: string; isMe: boolean }> = ({ cont
     }
     audioSrc = parts.slice(1).join('|');
   }
-
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, []);
 
   const togglePlay = () => {
     if (!audioRef.current) {

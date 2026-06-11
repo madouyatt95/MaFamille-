@@ -413,7 +413,7 @@ export const parseSmartNaturalSentence = (text: string, activeMemberName: string
 
   // Enlever les préfixes de commande et suffixes de liste
   cleanText = cleanText
-    .replace(/^ajoute\s+(du\s+|de\s+la\s+|des\s+|de\s+|l\')/, '')
+    .replace(/^ajoute\s+(du\s+|de\s+la\s+|des\s+|de\s+|l')/, '')
     .replace(/^ajoute\s+/, '')
     .replace(/^achète\s+/, '')
     .replace(/^acheter\s+/, '')
@@ -536,13 +536,13 @@ export const parseSmartNaturalSentence = (text: string, activeMemberName: string
       if (!foundUnit) {
         // Enlever les liaisons restantes si pas d'unité (ex: "de Coca" -> "Coca")
         remainingName = remainingName
-          .replace(/^(du\s+|de\s+la\s+|des\s+|de\s+|d\'|d’|l\'|le\s+|la\s+|les\s+)/i, '')
+          .replace(/^(du\s+|de\s+la\s+|des\s+|de\s+|d'|d’|l'|le\s+|la\s+|les\s+)/i, '')
           .trim();
       }
     } else {
       // Pas de quantité explicitée, enlever les déterminants au début
       remainingName = remainingName
-        .replace(/^(du\s+|de\s+la\s+|des\s+|de\s+|d\'|d’|l\'|le\s+|la\s+|les\s+)/i, '')
+        .replace(/^(du\s+|de\s+la\s+|des\s+|de\s+|d'|d’|l'|le\s+|la\s+|les\s+)/i, '')
         .trim();
     }
 

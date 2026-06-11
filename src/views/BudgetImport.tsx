@@ -335,7 +335,7 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
     }
 
     // 2. Try to find TOTAL amount
-    const amountRegex = /(?:total|ttc|net à payer|somme|payé)\s*:?\s*(\d+[\.,]\d{2})/i;
+    const amountRegex = /(?:total|ttc|net à payer|somme|payé)\s*:?\s*(\d+[.,]\d{2})/i;
     for (const line of lines) {
       const match = line.match(amountRegex);
       if (match) {
@@ -348,7 +348,7 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
     if (amount === 0) {
       for (const line of lines) {
         if (/total|ttc/i.test(line)) {
-          const match = line.match(/(\d+[\.,]\d{2})/);
+          const match = line.match(/(\d+[.,]\d{2})/);
           if (match) {
             amount = parseFloat(match[1].replace(',', '.'));
             break;
@@ -451,7 +451,7 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
       if (!rawDate || !rawTitle || rawAmount === '') return;
 
       // Extract float
-      let amount = parseFloat(String(rawAmount).replace(/[^0-9\.-]/g, ''));
+      let amount = parseFloat(String(rawAmount).replace(/[^0-9.-]/g, ''));
       if (isNaN(amount)) return;
       
       const type = mappings.type && String(r[mappings.type]).toLowerCase().includes('revenu') || amount > 0 ? 'income' : 'expense';

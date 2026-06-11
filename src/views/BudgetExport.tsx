@@ -194,7 +194,7 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
         end = new Date();
         end.setHours(23, 59, 59, 999);
         break;
-      case 'this_week':
+      case 'this_week': {
         const day = now.getDay();
         const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
         start = new Date(now.setDate(diff));
@@ -202,6 +202,7 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
         end = new Date();
         end.setHours(23, 59, 59, 999);
         break;
+      }
       case 'this_month':
         start = new Date(now.getFullYear(), now.getMonth(), 1);
         end = new Date();
@@ -211,12 +212,13 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
         start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
         break;
-      case 'this_quarter':
+      case 'this_quarter': {
         const quarter = Math.floor(now.getMonth() / 3);
         start = new Date(now.getFullYear(), quarter * 3, 1);
         end = new Date();
         end.setHours(23, 59, 59, 999);
         break;
+      }
       case 'this_year':
         start = new Date(now.getFullYear(), 0, 1);
         end = new Date();

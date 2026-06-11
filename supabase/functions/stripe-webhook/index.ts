@@ -8,6 +8,32 @@ const stripeWebhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
+type StripeMetadata = Record<string, string | undefined>;
+
+type StripeSubscriptionLike = {
+  id?: string;
+  status?: string;
+  current_period_end?: number;
+  customer?: string | { id?: string } | null;
+  metadata?: StripeMetadata;
+};
+
+type StripeCheckoutSessionLike = {
+  subscription?: string | null;
+  customer?: string | null;
+  client_reference_id?: string | null;
+  metadata?: StripeMetadata;
+};
+
+type SubscriptionSnapshotFallback = {
+  status?: string;
+  expiresAt?: string | null;
+  metadata?: StripeMetadata;
+  subscriptionId?: string | null;
+  customerId?: string | null;
+  foyerId?: string | null;
+};
+
 function hexToBytes(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < bytes.length; i++) {
@@ -80,7 +106,7 @@ async function verifyStripeSignature(rawBody: string, signatureHeader: string | 
   }
 }
 
-async function fetchStripeSubscription(subscriptionId: string): Promise<any | null> {
+async function fetchStripeSubscription(subscriptionId: string): Promise<StripeSubscriptionLike | null> {
   if (!stripeSecretKey || !subscriptionId) return null;
   const response = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
     headers: { Authorization: `Bearer ${stripeSecretKey}` },
@@ -89,10 +115,13 @@ async function fetchStripeSubscription(subscriptionId: string): Promise<any | nu
     console.warn("[stripe-webhook] Unable to fetch subscription", subscriptionId, await response.text());
     return null;
   }
-  return await response.json();
+  return await response.json() as StripeSubscriptionLike;
 }
 
-function subscriptionSnapshot(subscription: any, fallback: any = {}) {
+function subscriptionSnapshot(
+  subscription: StripeSubscriptionLike | null,
+  fallback: SubscriptionSnapshotFallback = {},
+) {
   const status = subscription?.status || fallback.status || "active";
   const isPremium = ["active", "trialing"].includes(status);
   const periodEnd = subscription?.current_period_end
@@ -156,20 +185,25 @@ serve(async (req) => {
   }
 
   try {
-    const event = JSON.parse(rawBody);
+    const event = JSON.parse(rawBody) as {
+      id?: string;
+      type?: string;
+      data?: { object?: StripeSubscriptionLike | StripeCheckoutSessionLike };
+    };
     console.log(`[stripe-webhook] Processing Stripe event: ${event.id} (type: ${event.type})`);
     const object = event?.data?.object || {};
 
     if (event.type === "checkout.session.completed") {
+      const checkoutSession = object as StripeCheckoutSessionLike;
       console.log("[stripe-webhook] Handling checkout.session.completed event");
-      const subscriptionId = typeof object.subscription === "string" ? object.subscription : "";
+      const subscriptionId = typeof checkoutSession.subscription === "string" ? checkoutSession.subscription : "";
       console.log("[stripe-webhook] Fetching subscription details for:", subscriptionId);
       const subscription = await fetchStripeSubscription(subscriptionId);
       const snapshot = subscriptionSnapshot(subscription, {
-        metadata: object.metadata || {},
+        metadata: checkoutSession.metadata || {},
         subscriptionId,
-        customerId: typeof object.customer === "string" ? object.customer : null,
-        foyerId: object.client_reference_id || object.metadata?.foyer_id || null,
+        customerId: typeof checkoutSession.customer === "string" ? checkoutSession.customer : null,
+        foyerId: checkoutSession.client_reference_id || checkoutSession.metadata?.foyer_id || null,
       });
       console.log("[stripe-webhook] Subscription snapshot computed:", JSON.stringify(snapshot));
       await updateFoyerFromSubscription(snapshot);
@@ -177,8 +211,9 @@ serve(async (req) => {
     }
 
     if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+      const subscription = object as StripeSubscriptionLike;
       console.log(`[stripe-webhook] Handling ${event.type} event`);
-      const snapshot = subscriptionSnapshot(object);
+      const snapshot = subscriptionSnapshot(subscription);
       console.log("[stripe-webhook] Subscription snapshot computed:", JSON.stringify(snapshot));
       await updateFoyerFromSubscription(snapshot);
       console.log("[stripe-webhook] Foyer successfully updated for snapshot customerId:", snapshot.customerId);

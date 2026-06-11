@@ -571,7 +571,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
 
         if (!response.ok) throw await aiQuotaService.getAIResponseError(response, 'Gemini');
         const data = await response.json();
-        let textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
         const parsedStory = cleanAndParseJSON(textResult);
         if (parsedStory.title && parsedStory.chapters && parsedStory.chapters.length === 3) {

@@ -169,7 +169,7 @@ export const parseICSContent = (
           currentEvent.location = valuePart.trim();
           break;
 
-        case 'DTSTART':
+        case 'DTSTART': {
           const startDateObj = parseIcsDate(valuePart);
           if (startDateObj && !isNaN(startDateObj.getTime())) {
             currentEvent.startDate = startDateObj.toISOString().split('T')[0];
@@ -187,8 +187,9 @@ export const parseICSContent = (
             warnings.push(`Date de début invalide pour l'événement "${currentEvent.title || 'Sans titre'}" (valeur: ${valuePart}).`);
           }
           break;
+        }
 
-        case 'DTEND':
+        case 'DTEND': {
           const endDateObj = parseIcsDate(valuePart);
           if (endDateObj && !isNaN(endDateObj.getTime())) {
             currentEvent.endDate = endDateObj.toISOString().split('T')[0];
@@ -201,6 +202,7 @@ export const parseICSContent = (
             }
           }
           break;
+        }
       }
     }
   }
@@ -265,6 +267,6 @@ export const fetchExternalCalendar = async (
     return parseICSContent(text, sourceName, sourceColor, memberId);
   } catch (err) {
     console.error("Impossible de récupérer ou de parser le calendrier externe :", url, err);
-    throw new Error("Impossible d’importer ce calendrier. Vérifiez l’URL ou réessayez.");
+    throw new Error("Impossible d’importer ce calendrier. Vérifiez l’URL ou réessayez.", { cause: err });
   }
 };

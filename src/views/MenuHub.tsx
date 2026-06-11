@@ -101,7 +101,7 @@ function parseCustomDateToISO(dateStr: string): string {
   if (matchISO) return dateStr.trim();
   
   // Try parsing DD/MM/YYYY
-  const matchSlash = dateStr.trim().match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{4})$/);
+  const matchSlash = dateStr.trim().match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
   if (matchSlash) {
     const day = matchSlash[1].padStart(2, '0');
     const month = matchSlash[2].padStart(2, '0');
@@ -6308,9 +6308,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           let costMoney = Math.round(costPoints / 10);
           let category = 'Cadeau';
           let avail = true;
-          let validationRequired = true;
-          let modifiable = true;
-          let supprimable = true;
+          const validationRequired = true;
+          const modifiable = true;
+          const supprimable = true;
           
           if (sg.contributions && sg.contributions.length > 0) {
             const meta = sg.contributions[0] as any;

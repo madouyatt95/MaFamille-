@@ -170,7 +170,7 @@ export const notificationService = {
         return null;
       };
 
-      return new Promise<string | null>(async (resolve) => {
+      return new Promise<string | null>((resolve) => {
         let resolved = false;
 
         const failNativeRegistration = (reason: string) => {
@@ -186,89 +186,91 @@ export const notificationService = {
           failNativeRegistration('aucun retour APNs/FCM après 15 secondes');
         }, 15000);
 
-        try {
-          // Supprimer les anciens écouteurs pour éviter les doublons
+        void (async () => {
           try {
-            await PushNotifications.removeAllListeners();
-          } catch (e) {
-            console.warn('[FCM Native] Impossible de supprimer les écouteurs précédents:', e);
-          }
+            // Supprimer les anciens écouteurs pour éviter les doublons
+            try {
+              await PushNotifications.removeAllListeners();
+            } catch (e) {
+              console.warn('[FCM Native] Impossible de supprimer les écouteurs précédents:', e);
+            }
 
-          try {
-            await FCM.setAutoInit({ enabled: true });
-          } catch (e) {
-            console.warn('[FCM Native] Impossible d’activer l’auto-init FCM:', e);
-          }
+            try {
+              await FCM.setAutoInit({ enabled: true });
+            } catch (e) {
+              console.warn('[FCM Native] Impossible d’activer l’auto-init FCM:', e);
+            }
 
-          // Écouteur de succès d'enregistrement du Token
-          await PushNotifications.addListener('registration', async (token) => {
-            clearTimeout(timeoutId);
-            if (resolved) return;
-            resolved = true;
-            console.log('[FCM Native] Token d\'enregistrement APNs obtenu:', token.value);
-            
-            const fcmTokenValue = await getNativeFcmTokenWithRetry(token.value);
+            // Écouteur de succès d'enregistrement du Token
+            await PushNotifications.addListener('registration', async (token) => {
+              clearTimeout(timeoutId);
+              if (resolved) return;
+              resolved = true;
+              console.log('[FCM Native] Token d\'enregistrement APNs obtenu:', token.value);
+              
+              const fcmTokenValue = await getNativeFcmTokenWithRetry(token.value);
 
-            if (!fcmTokenValue) {
-              console.error('[FCM Native] Échec de la récupération du token FCM après plusieurs tentatives.');
-              failNativeRegistration('token FCM indisponible');
+              if (!fcmTokenValue) {
+                console.error('[FCM Native] Échec de la récupération du token FCM après plusieurs tentatives.');
+                failNativeRegistration('token FCM indisponible');
+                return;
+              }
+              console.log('[FCM Native] Token FCM obtenu via le plugin community FCM:', fcmTokenValue);
+              
+              await savePushSubscription(memberId, fcmTokenValue);
+              
+              localStorage.setItem('mf_fcm_active', 'true');
+              localStorage.setItem('mf_fcm_token', fcmTokenValue);
+              resolve(fcmTokenValue);
+            });
+
+            // Écouteur d'erreur d'enregistrement
+            await PushNotifications.addListener('registrationError', (err) => {
+              console.error('[FCM Native] Erreur lors de l\'enregistrement push natif:', err);
+              clearTimeout(timeoutId);
+              failNativeRegistration('erreur registration APNs');
+            });
+
+            // Écouteur de réception d'une notification push en premier plan (Foreground)
+            await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+              console.log('[FCM Native] Notification reçue au premier plan:', notification);
+              if (onMessageReceived) {
+                onMessageReceived({
+                  notification: {
+                    title: notification.title,
+                    body: notification.body
+                  },
+                  data: notification.data
+                });
+              }
+            });
+
+            // Demande de permission
+            let permStatus = await PushNotifications.checkPermissions();
+            if (permStatus.receive === 'prompt' && !requestPermission) {
+              clearTimeout(timeoutId);
+              failNativeRegistration('permission non demandée hors action utilisateur');
               return;
             }
-            console.log('[FCM Native] Token FCM obtenu via le plugin community FCM:', fcmTokenValue);
-            
-            await savePushSubscription(memberId, fcmTokenValue);
-            
-            localStorage.setItem('mf_fcm_active', 'true');
-            localStorage.setItem('mf_fcm_token', fcmTokenValue);
-            resolve(fcmTokenValue);
-          });
-
-          // Écouteur d'erreur d'enregistrement
-          await PushNotifications.addListener('registrationError', (err) => {
-            console.error('[FCM Native] Erreur lors de l\'enregistrement push natif:', err);
-            clearTimeout(timeoutId);
-            failNativeRegistration('erreur registration APNs');
-          });
-
-          // Écouteur de réception d'une notification push en premier plan (Foreground)
-          await PushNotifications.addListener('pushNotificationReceived', (notification) => {
-            console.log('[FCM Native] Notification reçue au premier plan:', notification);
-            if (onMessageReceived) {
-              onMessageReceived({
-                notification: {
-                  title: notification.title,
-                  body: notification.body
-                },
-                data: notification.data
-              });
+            if (permStatus.receive === 'prompt') {
+              permStatus = await PushNotifications.requestPermissions();
             }
-          });
+            if (permStatus.receive !== 'granted') {
+              console.warn('[FCM Native] Permission de notifications refusée par l\'utilisateur.');
+              clearTimeout(timeoutId);
+              resolved = true;
+              resolve(null);
+              return;
+            }
 
-          // Demande de permission
-          let permStatus = await PushNotifications.checkPermissions();
-          if (permStatus.receive === 'prompt' && !requestPermission) {
+            // Déclencher l'enregistrement auprès d'APNs/FCM
+            await PushNotifications.register();
+          } catch (err) {
+            console.error('[FCM Native] Erreur lors de l\'initialisation native:', err);
             clearTimeout(timeoutId);
-            failNativeRegistration('permission non demandée hors action utilisateur');
-            return;
+            failNativeRegistration('exception native');
           }
-          if (permStatus.receive === 'prompt') {
-            permStatus = await PushNotifications.requestPermissions();
-          }
-          if (permStatus.receive !== 'granted') {
-            console.warn('[FCM Native] Permission de notifications refusée par l\'utilisateur.');
-            clearTimeout(timeoutId);
-            resolved = true;
-            resolve(null);
-            return;
-          }
-
-          // Déclencher l'enregistrement auprès d'APNs/FCM
-          await PushNotifications.register();
-        } catch (err) {
-          console.error('[FCM Native] Erreur lors de l\'initialisation native:', err);
-          clearTimeout(timeoutId);
-          failNativeRegistration('exception native');
-        }
+        })();
       });
     }
 

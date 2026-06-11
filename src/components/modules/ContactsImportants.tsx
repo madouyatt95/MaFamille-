@@ -39,9 +39,7 @@ const CATEGORIES = [
   { id: 'other', label: '💡 Autres', icon: HelpCircle, color: 'text-slate-400' }
 ];
 
-interface ContactsImportantsProps {}
-
-export const ContactsImportants: React.FC<ContactsImportantsProps> = () => {
+export const ContactsImportants: React.FC = () => {
   const [contacts, setContacts] = useState<ImportantContact[]>(() => {
     const saved = localStorage.getItem('mf_important_contacts');
     if (saved) return JSON.parse(saved);
