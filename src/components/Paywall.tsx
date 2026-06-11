@@ -144,6 +144,12 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
       color: "text-[#FF4D6D] bg-[#FF4D6D]/10"
     },
     {
+      title: PREMIUM_FEATURES.voice_control.title,
+      desc: PREMIUM_FEATURES.voice_control.description,
+      icon: Mic,
+      color: "text-[#7DB2FF] bg-[#4F8CFF]/10"
+    },
+    {
       title: PREMIUM_FEATURES.eco_chef_ai.title,
       desc: PREMIUM_FEATURES.eco_chef_ai.description,
       icon: Sparkles,

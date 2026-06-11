@@ -3,6 +3,7 @@ export type PremiumFeatureId =
   | 'exports'
   | 'demarches'
   | 'members_over_3'
+  | 'voice_control'
   | 'eco_chef_ai'
   | 'voyage_ai'
   | 'capsule_gazette_bd_ai'
@@ -37,6 +38,11 @@ export const PREMIUM_FEATURES: Record<PremiumFeatureId, PremiumFeature> = {
     id: 'members_over_3',
     title: 'Famille de plus de 3 membres',
     description: 'La version gratuite reste limitée à 3 membres, Premium ouvre toute la famille.'
+  },
+  voice_control: {
+    id: 'voice_control',
+    title: 'Micro principal intelligent',
+    description: 'Contrôlez l’app à la voix : courses, dépenses, voyages et ouverture rapide des modules.'
   },
   eco_chef_ai: {
     id: 'eco_chef_ai',

@@ -10,6 +10,7 @@ interface BottomNavProps {
   onMicClick: () => void;
   activeMemberId?: string;
   members?: any[];
+  isPremium?: boolean;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({ 
@@ -19,7 +20,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   setActiveModule,
   onMicClick,
   activeMemberId,
-  members
+  members,
+  isPremium = false
 }) => {
   const activeMember = members?.find(m => m.id === activeMemberId);
   
@@ -103,10 +105,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             {/* Mic floating button */}
             <div className="family-nav-mic-wrap relative -top-3.5 flex justify-center">
               <div className="absolute w-14 h-14 rounded-full bg-red-500/20 blur-lg animate-pulse-slow"></div>
+              {!isPremium && (
+                <span className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-[#FFB020]/30 bg-[#081225]/95 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#FFB020] shadow-lg">
+                  Premium
+                </span>
+              )}
               <button 
                 onClick={onMicClick}
                 className="family-nav-mic relative flex items-center justify-center w-12 h-12 rounded-full bg-[#081225] border-2 border-red-500 text-white hover:text-red-400 float-btn-halo cursor-pointer transition-all duration-300 hover:scale-110 active:scale-95 group animate-pulse-slow shadow-lg"
-                title="Micro principal"
+                title={isPremium ? "Micro principal" : "Premium : contrôle vocal des courses, dépenses, voyages et modules"}
               >
                 <Mic className="w-5 h-5 text-white" />
               </button>

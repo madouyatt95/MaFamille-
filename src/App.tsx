@@ -13311,6 +13311,7 @@ function App() {
         onMicClick={() => startVoiceAssistant()}
         activeMemberId={appActiveMemberId}
         members={appMembers}
+        isPremium={isPremium}
       />
 
       <Paywall 
