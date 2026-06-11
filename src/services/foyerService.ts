@@ -534,7 +534,9 @@ export const foyerService = {
     try {
       const { logQueryVolume } = await import('../utils/supabase');
       logQueryVolume(tableName, 'fetchTableData', data);
-    } catch (_) {}
+    } catch {
+      // Volume logging is optional; data loading should not fail because of telemetry.
+    }
 
     return data || [];
   },

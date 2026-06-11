@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '../utils/supabase';
+import type { SchoolTask } from '../types';
 
 export interface Space {
   id: string;
@@ -15,7 +16,7 @@ const DEFAULT_COMMUNES: Space[] = [
   { id: 'com-2', name: 'Ville à configurer' }
 ];
 
-const safeParseJSON = (key: string, fallback: any) => {
+const safeParseJSON = <T>(key: string, fallback: T): T => {
   try {
     const val = localStorage.getItem(key);
     return val ? JSON.parse(val) : fallback;
@@ -35,7 +36,7 @@ export const spaceService = {
       try {
         const { data, error } = await supabase.from('establishments').select('*');
         if (!error && data) return data;
-      } catch (e) {
+      } catch {
         // Fallback silently to localStorage on PGRST205 or other DB errors
       }
     }
@@ -53,7 +54,7 @@ export const spaceService = {
       try {
         const { data, error } = await supabase.from('establishments').insert(newEst).select().single();
         if (!error && data) return data;
-      } catch (e) {
+      } catch {
         // Fallback
       }
     }
@@ -83,7 +84,7 @@ export const spaceService = {
       try {
         const { data, error } = await supabase.from('communes').select('*');
         if (!error && data) return data;
-      } catch (e) {
+      } catch {
         // Fallback
       }
     }
@@ -101,7 +102,7 @@ export const spaceService = {
       try {
         const { data, error } = await supabase.from('communes').insert(newCom).select().single();
         if (!error && data) return data;
-      } catch (e) {
+      } catch {
         // Fallback
       }
     }
@@ -125,43 +126,43 @@ export const spaceService = {
   /**
    * --- SCHOOL GRADES PER ESTABLISHMENT ---
    */
-  getGradesForEstablishment(estId: string): any[] {
+  getGradesForEstablishment(estId: string): unknown[] {
     return safeParseJSON(`school_grades_${estId}`, []);
   },
 
-  saveGradesForEstablishment(estId: string, grades: any[]): void {
+  saveGradesForEstablishment(estId: string, grades: unknown[]): void {
     localStorage.setItem(`school_grades_${estId}`, JSON.stringify(grades));
   },
 
   /**
    * --- SCHOOL SCHEDULE PER ESTABLISHMENT ---
    */
-  getScheduleForEstablishment(estId: string): any[] {
+  getScheduleForEstablishment(estId: string): unknown[] {
     const key = `school_schedule_${estId}`;
     const stored = localStorage.getItem(key);
     if (stored) {
-      try { return JSON.parse(stored); } catch (e) {}
+      try { return JSON.parse(stored); } catch { /* Fallback to empty schedule. */ }
     }
     return [];
   },
 
-  saveScheduleForEstablishment(estId: string, schedule: any[]): void {
+  saveScheduleForEstablishment(estId: string, schedule: unknown[]): void {
     localStorage.setItem(`school_schedule_${estId}`, JSON.stringify(schedule));
   },
 
   /**
    * --- SCHOOL TASKS (HOMEWORK) PER ESTABLISHMENT ---
    */
-  getSchoolTasksForEstablishment(estId: string): any[] {
+  getSchoolTasksForEstablishment(estId: string): SchoolTask[] {
     const key = `school_tasks_${estId}`;
     const stored = localStorage.getItem(key);
     if (stored) {
-      try { return JSON.parse(stored); } catch (e) {}
+      try { return JSON.parse(stored); } catch { /* Fallback to empty task list. */ }
     }
     return [];
   },
 
-  saveSchoolTasksForEstablishment(estId: string, tasks: any[]): void {
+  saveSchoolTasksForEstablishment(estId: string, tasks: SchoolTask[]): void {
     localStorage.setItem(`school_tasks_${estId}`, JSON.stringify(tasks));
   }
 };
