@@ -559,3 +559,98 @@ html,
 .animate-slide-down {
   animation: slideDown 0.3s ease-out forwards;
 }
+
+/* Specific overrides for Messagerie components in light/sepia mode */
+.theme-light .conversation-options-dropdown,
+.theme-light .create-group-box {
+  background-color: #ffffff !important;
+  border-color: rgba(15, 23, 42, 0.15) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+}
+
+.theme-sepia .conversation-options-dropdown,
+.theme-sepia .create-group-box {
+  background-color: #fff9ec !important;
+  border-color: rgba(91, 64, 41, 0.2) !important;
+  box-shadow: 0 10px 25px -5px rgba(91, 64, 41, 0.15) !important;
+}
+
+/* Ensure buttons in options dropdown have dark text and look good */
+.theme-light .conversation-options-dropdown button {
+  color: #1f2937 !important;
+}
+.theme-light .conversation-options-dropdown button:hover {
+  background-color: rgba(15, 23, 42, 0.05) !important;
+}
+.theme-light .conversation-options-dropdown button.text-amber-400 {
+  color: #d97706 !important;
+}
+.theme-light .conversation-options-dropdown button.text-red-500 {
+  color: #dc2626 !important;
+}
+
+.theme-sepia .conversation-options-dropdown button {
+  color: #433422 !important;
+}
+.theme-sepia .conversation-options-dropdown button:hover {
+  background-color: rgba(91, 64, 41, 0.08) !important;
+}
+.theme-sepia .conversation-options-dropdown button.text-amber-400 {
+  color: #b7791f !important;
+}
+.theme-sepia .conversation-options-dropdown button.text-red-500 {
+  color: #b7414a !important;
+}
+
+/* Ensure create group box title and labels have proper text color */
+.theme-light .create-group-box h3 {
+  color: #111827 !important;
+}
+.theme-light .create-group-box p {
+  color: #4b5563 !important;
+}
+.theme-light .create-group-box input {
+  color: #111827 !important;
+  background-color: #f3f4f6 !important;
+  border-color: #d1d5db !important;
+}
+.theme-light .create-group-box input::placeholder {
+  color: #9ca3af !important;
+}
+.theme-light .create-group-box button {
+  color: #1f2937 !important;
+}
+.theme-light .create-group-box button.bg-\[\#00D26A\]\/10 {
+  background-color: rgba(5, 150, 105, 0.1) !important;
+  color: #059669 !important;
+  border-color: rgba(5, 150, 105, 0.3) !important;
+}
+.theme-light .create-group-box button.bg-\[\#00D26A\]\/10 * {
+  color: #059669 !important;
+}
+
+.theme-sepia .create-group-box h3 {
+  color: #3a291f !important;
+}
+.theme-sepia .create-group-box p {
+  color: #5c4b3f !important;
+}
+.theme-sepia .create-group-box input {
+  color: #3a291f !important;
+  background-color: #f3ebd8 !important;
+  border-color: #cfc2ac !important;
+}
+.theme-sepia .create-group-box input::placeholder {
+  color: #a49683 !important;
+}
+.theme-sepia .create-group-box button {
+  color: #4a3728 !important;
+}
+.theme-sepia .create-group-box button.bg-\[\#00D26A\]\/10 {
+  background-color: rgba(47, 125, 82, 0.1) !important;
+  color: #2f7d52 !important;
+  border-color: rgba(47, 125, 82, 0.3) !important;
+}
+.theme-sepia .create-group-box button.bg-\[\#00D26A\]\/10 * {
+  color: #2f7d52 !important;
+}

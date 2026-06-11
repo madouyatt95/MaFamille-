@@ -1108,43 +1108,7 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
       )}
 
-      {/* Maintenance cloud */}
-      {settingsTab === 'avance' && user && foyer && (
-          <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 animate-fade-in">
-            <div className="flex items-center space-x-2 text-[#FFB020]">
-              <Database className="w-4 h-4" />
-              <h4 className="text-xs font-bold uppercase tracking-wider text-white">Maintenance des données</h4>
-            </div>
-            
-            <p className="text-[10px] text-white/50 leading-relaxed">
-              Si vous observez des données d'exemple résiduelles sur votre compte en ligne, utilisez ces outils pour assainir votre base de données.
-            </p>
 
-            <div className="grid grid-cols-1 gap-2.5 pt-1">
-              {onPurgeDemoData && (
-                <button
-                  type="button"
-                  onClick={onPurgeDemoData}
-                  className="w-full py-3 rounded-xl border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-extrabold text-[11px] uppercase tracking-wider flex items-center justify-center space-x-1.5 active:scale-98 transition-all cursor-pointer"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 animate-pulse" />
-                  <span>Purger les données d'exemple</span>
-                </button>
-              )}
-              
-              {onClearAllFoyerData && (
-                <button
-                  type="button"
-                  onClick={onClearAllFoyerData}
-                  className="w-full py-3 rounded-xl border border-red-500/20 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-extrabold text-[11px] uppercase tracking-wider flex items-center justify-center space-x-1.5 active:scale-98 transition-all cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Vider entièrement mon foyer en ligne</span>
-                </button>
-              )}
-            </div>
-          </div>
-      )}
 
       {/* 4. Données locales & Sauvegarde */}
       {settingsTab === 'avance' && !user && (

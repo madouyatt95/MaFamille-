@@ -699,6 +699,15 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [validerAchatsCost, setValiderAchatsCost] = useState('');
   const [validerAchatsAccountId, setValiderAchatsAccountId] = useState('');
 
+  useEffect(() => {
+    if (isValiderAchatsOpen && !validerAchatsAccountId && accounts && accounts.length > 0) {
+      const firstBank = accounts.find(a => a.type === 'bank') || accounts[0];
+      if (firstBank) {
+        setValiderAchatsAccountId(firstBank.id);
+      }
+    }
+  }, [isValiderAchatsOpen, accounts, validerAchatsAccountId]);
+
   const [newFraisType, setNewFraisType] = useState('Consultation');
   const [newFraisAmount, setNewFraisAmount] = useState('');
   const [newFraisBaseReimbSecu, setNewFraisBaseReimbSecu] = useState('70');
@@ -825,6 +834,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [adjustmentAmount, setAdjustmentAmount] = useState('');
   const [adjustmentReason, setAdjustmentReason] = useState('');
   const [adjustmentAccountId, setAdjustmentAccountId] = useState('');
+  const [isAdjusting, setIsAdjusting] = useState(false);
 
   const [newPetExpenseSubCategory, setNewPetExpenseSubCategory] = useState('Nourriture');
   const [newPetExpenseAmount, setNewPetExpenseAmount] = useState('');
@@ -6390,22 +6400,41 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             });
           }
 
+          let isSynced = false;
+          let isDemoMode = true;
+
+          setIsAdjusting(true);
           try {
             const client = getSupabaseClient();
-            if (client && foyer) {
-              await client.from('pocket_money')
+            if (client && foyer && foyer.id !== 'foyer-simulated') {
+              isDemoMode = false;
+              const { error } = await client.from('pocket_money')
                 .update({ balance: newBalance, points: newPoints })
                 .eq('id', resolvedChild.id)
                 .eq('foyer_id', foyer.id);
+              if (!error) {
+                isSynced = true;
+              } else {
+                console.error("Direct adjustment Supabase error:", error);
+              }
             }
           } catch (err) {
             console.error("Direct adjustment error:", err);
+          } finally {
+            setIsAdjusting(false);
           }
 
           setAdjustmentAmount('');
           setAdjustmentReason('');
           setShowQuickForm(false);
-          alert(`Ajustement appliqué pour ${resolvedChild.name} !`);
+
+          if (isDemoMode) {
+            alert(`Ajustement appliqué localement pour ${resolvedChild.name} (mode démonstration).`);
+          } else if (isSynced) {
+            alert(`✅ Ajustement appliqué et synchronisé avec succès pour ${resolvedChild.name} !`);
+          } else {
+            alert(`⚠️ L'ajustement a été appliqué localement pour ${resolvedChild.name}, mais la synchronisation avec le serveur a échoué. Veuillez vérifier votre connexion.`);
+          }
         };
 
         // Automatic Rules Save handler
@@ -7348,9 +7377,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                             </button>
                             <button
                               type="submit"
-                              className="flex-1 py-2 bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white text-xs font-bold rounded-xl"
+                              disabled={isAdjusting}
+                              className="flex-1 py-2 bg-gradient-to-r from-[#6C5CFF] to-[#00D26A] text-white text-xs font-bold rounded-xl disabled:opacity-50"
                             >
-                              Confirmer l'opération
+                              {isAdjusting ? 'Enregistrement...' : "Confirmer l'opération"}
                             </button>
                           </div>
                         </form>
@@ -8545,6 +8575,18 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   setIsValiderAchatsOpen(false);
                   setValiderAchatsCost('');
                   setValiderAchatsAccountId('');
+
+                  if (onSendNotification) {
+                    const matchedAcc = accounts?.find(a => a.id === validerAchatsAccountId);
+                    const accName = matchedAcc ? matchedAcc.name : 'Compte bancaire';
+                    onSendNotification(
+                      "🛒 Courses Validées",
+                      `Les courses d'un montant de ${costVal.toFixed(2)}€ ont été validées et débitées du compte "${accName}".`,
+                      "budget",
+                      "success"
+                    );
+                  }
+
                   alert("🛒 Achats validés et ajoutés au Budget !");
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-[#00D26A] text-white font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer hover:opacity-90"

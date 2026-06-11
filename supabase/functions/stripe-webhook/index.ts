@@ -40,20 +40,44 @@ async function hmacSha256Hex(secret: string, payload: string): Promise<string> {
 }
 
 async function verifyStripeSignature(rawBody: string, signatureHeader: string | null): Promise<boolean> {
-  if (!stripeWebhookSecret || !signatureHeader) return false;
+  console.log("[stripe-webhook] Starting signature verification...");
+  if (!stripeWebhookSecret) {
+    console.error("[stripe-webhook] Error: STRIPE_WEBHOOK_SECRET environment variable is not set!");
+    return false;
+  }
+  if (!signatureHeader) {
+    console.error("[stripe-webhook] Error: stripe-signature header is missing!");
+    return false;
+  }
 
-  const parts = Object.fromEntries(
-    signatureHeader.split(",").map((part) => {
-      const [key, value] = part.split("=");
-      return [key, value];
-    }),
-  );
-  const timestamp = parts.t;
-  const receivedSignature = parts.v1;
-  if (!timestamp || !receivedSignature) return false;
+  try {
+    const parts = Object.fromEntries(
+      signatureHeader.split(",").map((part) => {
+        const [key, value] = part.split("=");
+        return [key, value];
+      }),
+    );
+    const timestamp = parts.t;
+    const receivedSignature = parts.v1;
+    if (!timestamp || !receivedSignature) {
+      console.error("[stripe-webhook] Error: timestamp or v1 signature missing in header:", signatureHeader);
+      return false;
+    }
 
-  const expected = await hmacSha256Hex(stripeWebhookSecret, `${timestamp}.${rawBody}`);
-  return timingSafeEqual(hexToBytes(expected), hexToBytes(receivedSignature));
+    const expected = await hmacSha256Hex(stripeWebhookSecret, `${timestamp}.${rawBody}`);
+    const matches = timingSafeEqual(hexToBytes(expected), hexToBytes(receivedSignature));
+    if (!matches) {
+      console.error("[stripe-webhook] Error: Signature mismatch!");
+      console.error("[stripe-webhook] Expected HMAC SHA256 v1:", expected);
+      console.error("[stripe-webhook] Received signature in header:", receivedSignature);
+    } else {
+      console.log("[stripe-webhook] Signature successfully verified!");
+    }
+    return matches;
+  } catch (err) {
+    console.error("[stripe-webhook] Exception during signature verification:", err);
+    return false;
+  }
 }
 
 async function fetchStripeSubscription(subscriptionId: string): Promise<any | null> {
@@ -115,22 +139,31 @@ async function updateFoyerFromSubscription(snapshot: ReturnType<typeof subscript
 }
 
 serve(async (req) => {
+  console.log(`[stripe-webhook] Received request: ${req.method} ${req.url}`);
   if (req.method !== "POST") {
+    console.warn(`[stripe-webhook] Method ${req.method} not allowed`);
     return new Response("Method not allowed", { status: 405 });
   }
 
   const rawBody = await req.text();
-  const isValid = await verifyStripeSignature(rawBody, req.headers.get("stripe-signature"));
+  const signatureHeader = req.headers.get("stripe-signature");
+  console.log("[stripe-webhook] stripe-signature header:", signatureHeader);
+
+  const isValid = await verifyStripeSignature(rawBody, signatureHeader);
   if (!isValid) {
+    console.error("[stripe-webhook] Signature verification failed, rejecting request with 400");
     return new Response("Invalid signature", { status: 400 });
   }
 
   try {
     const event = JSON.parse(rawBody);
+    console.log(`[stripe-webhook] Processing Stripe event: ${event.id} (type: ${event.type})`);
     const object = event?.data?.object || {};
 
     if (event.type === "checkout.session.completed") {
+      console.log("[stripe-webhook] Handling checkout.session.completed event");
       const subscriptionId = typeof object.subscription === "string" ? object.subscription : "";
+      console.log("[stripe-webhook] Fetching subscription details for:", subscriptionId);
       const subscription = await fetchStripeSubscription(subscriptionId);
       const snapshot = subscriptionSnapshot(subscription, {
         metadata: object.metadata || {},
@@ -138,19 +171,24 @@ serve(async (req) => {
         customerId: typeof object.customer === "string" ? object.customer : null,
         foyerId: object.client_reference_id || object.metadata?.foyer_id || null,
       });
+      console.log("[stripe-webhook] Subscription snapshot computed:", JSON.stringify(snapshot));
       await updateFoyerFromSubscription(snapshot);
+      console.log("[stripe-webhook] Foyer successfully updated for snapshot foyerId:", snapshot.foyerId);
     }
 
     if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+      console.log(`[stripe-webhook] Handling ${event.type} event`);
       const snapshot = subscriptionSnapshot(object);
+      console.log("[stripe-webhook] Subscription snapshot computed:", JSON.stringify(snapshot));
       await updateFoyerFromSubscription(snapshot);
+      console.log("[stripe-webhook] Foyer successfully updated for snapshot customerId:", snapshot.customerId);
     }
 
     return new Response(JSON.stringify({ received: true }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("[stripe-webhook]", error);
+    console.error("[stripe-webhook] Webhook execution error:", error);
     return new Response("Webhook error", { status: 500 });
   }
 });

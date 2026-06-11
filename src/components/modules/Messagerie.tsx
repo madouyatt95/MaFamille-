@@ -1065,7 +1065,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
           )}
 
           {showCreateGroup && (
-            <div className="mx-4 mb-4 rounded-3xl border border-white/10 bg-[#0F1626]/95 p-4 space-y-4 shadow-2xl animate-fade-in">
+            <div className="create-group-box mx-4 mb-4 rounded-3xl border border-white/10 bg-[#0F1626]/95 p-4 space-y-4 shadow-2xl animate-fade-in">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-black text-white">Créer un groupe</h3>
@@ -1361,7 +1361,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
             </button>
 
             {showGroupMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-[#0F1626]/95 border border-white/10 rounded-2xl shadow-2xl py-2 z-50 text-xs text-left animate-fade-in backdrop-blur-xl">
+              <div className="conversation-options-dropdown absolute right-0 mt-2 w-48 bg-[#0F1626]/95 border border-white/10 rounded-2xl shadow-2xl py-2 z-50 text-xs text-left animate-fade-in backdrop-blur-xl">
                 <button
                   type="button"
                   onClick={() => {

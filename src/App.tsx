@@ -11467,31 +11467,47 @@ function App() {
       setWelcomeLoading(false);
     }
   };
-
   const handleWelcomeSuccessFinish = async () => {
     if (!welcomeCreatedFoyer) return;
     setWelcomeLoading(true);
     try {
-      const list = await foyerService.getMyFoyers();
-      setMyFoyers(list);
-      
-      const newlyCreated = list.find(f => f.foyer.id === welcomeCreatedFoyer.id);
+      let list: any[] = [];
+      let newlyCreated = null;
+
+      // Retry up to 6 times (with 500ms delay) to handle DB replication latency
+      for (let attempt = 1; attempt <= 6; attempt++) {
+        console.log(`[Onboarding] Attempt ${attempt} to fetch the newly created foyer...`);
+        list = await foyerService.getMyFoyers();
+        newlyCreated = list.find(f => f.foyer.id === welcomeCreatedFoyer.id);
+        if (newlyCreated) {
+          console.log(`[Onboarding] Newly created foyer found on attempt ${attempt}.`);
+          break;
+        }
+        if (attempt < 6) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
       if (newlyCreated) {
+        setMyFoyers(list);
         setFoyer(newlyCreated.foyer);
         setMyMemberProfile(newlyCreated.member);
         setActiveMemberId(newlyCreated.member.id);
         localStorage.setItem('mf_cloud_foyer_id', newlyCreated.foyer.id);
         localStorage.setItem('mf_active_foyer_id', newlyCreated.foyer.id);
         await loadFoyerData(newlyCreated.foyer.id);
+        setShowWelcomeScreen(false);
+      } else {
+        console.warn("[Onboarding] Foyer not yet found in list. Informing user to retry.");
+        alert("La synchronisation de votre nouveau foyer prend un peu plus de temps que prévu. Veuillez cliquer à nouveau sur 'Commencer' pour réessayer.");
       }
-      setShowWelcomeScreen(false);
     } catch (err) {
       console.error("Error finalizing success screen:", err);
+      alert("Une erreur est survenue lors de la synchronisation de votre foyer. Veuillez réessayer.");
     } finally {
       setWelcomeLoading(false);
     }
   };
-
   const handleLogout = async () => {
     const client = getSupabaseClient();
     if (client) {
