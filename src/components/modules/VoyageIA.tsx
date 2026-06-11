@@ -25,6 +25,15 @@ type MemberPackingList = {
   items: PackingListItem[];
 };
 
+const normalizePackingItems = (value: unknown): PackingListItem[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is { text: string; checked?: boolean } => (
+      typeof item === 'object' && item !== null && 'text' in item && typeof item.text === 'string'
+    ))
+    .map(item => ({ text: item.text, checked: item.checked === true }));
+};
+
 export const VoyageIA: React.FC<VoyageIAProps> = ({ 
   trips, 
   members,
@@ -117,12 +126,18 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par membre. N'invente aucun pr
         textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
 
         const parsedLists = JSON.parse(textResult);
-        const normalizedLists = fallbackMembers.map(member => ({
+        const normalizedLists: MemberPackingList[] = fallbackMembers.map(member => ({
           memberId: member.id,
           memberName: member.name,
           memberLabel: member.label,
-          items: Array.isArray(parsedLists[member.key]) ? parsedLists[member.key] : buildLocalItemsForMember(member.name)
+          items: normalizePackingItems(parsedLists[member.key])
         }));
+
+        normalizedLists.forEach(list => {
+          if (list.items.length === 0) {
+            list.items = buildLocalItemsForMember(list.memberName);
+          }
+        });
 
         if (normalizedLists.every(list => list.items.length > 0)) {
           setPackingLists(normalizedLists);
@@ -268,7 +283,7 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par membre. N'invente aucun pr
                     Valise {list.memberName} ✨
                   </span>
                   <div className="space-y-2">
-                    {list.items.map((item: any, idx: number) => (
+                    {list.items.map((item, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleToggleItem(list.memberId, idx)}

@@ -1,16 +1,21 @@
 import React, { useState } from 'react';
-import { ArrowLeft, User, Star, Wallet, Award, Heart, Shield, Landmark, GraduationCap, FileText, PawPrint, Users, X } from 'lucide-react';
-import type { Member, ChoreTask, SchoolTask, Trip, PetRecord, DocumentFile } from '../types';
+import { ArrowLeft, Star, Wallet, Shield, Landmark, GraduationCap, FileText, PawPrint, X } from 'lucide-react';
+import type { Member, ChoreTask, SchoolTask, Trip, PetRecord, DocumentFile, Foyer, PocketMoneyChild } from '../types';
+
+type KidProfileFoyer = Partial<Foyer> & {
+  schoolName?: string;
+  communeName?: string;
+};
 
 interface KidProfileProps {
   member: Member;
-  pocketMoney: any[];
+  pocketMoney: PocketMoneyChild[];
   tasks: ChoreTask[];
   schoolTasks: SchoolTask[];
   trips: Trip[];
   pets: PetRecord[];
   members: Member[];
-  foyer: any;
+  foyer: KidProfileFoyer | null;
   documents?: DocumentFile[];
   onBack: () => void;
   onOpenChatWithMember?: (memberId: string) => void;
@@ -48,13 +53,6 @@ export const KidProfile: React.FC<KidProfileProps> = ({
     { title: 'Explorateur ✈️', desc: 'Partir en voyage familial', active: trips.length > 0, icon: '✈️' },
     { title: 'Ami des Bêtes 🐾', desc: 'Prendre soin des animaux du foyer', active: pets.length > 0, icon: '🐶' },
     { title: 'Aventurier ⛺', desc: 'Atteindre le niveau 2', active: level >= 2, icon: '⛺' }
-  ];
-
-  // Authorized documents for children
-  const authorizedDocs = [
-    { name: 'Carte d\'identité.pdf 🪪', size: '1.2 Mo', date: '05/01/2026' },
-    { name: 'Carnet de santé - Page Vaccins.jpg 🩺', size: '2.4 Mo', date: '12/03/2026' },
-    { name: 'Autorisation Sortie Scolaire.pdf 📝', size: '750 Ko', date: '01/06/2026' }
   ];
 
   return (

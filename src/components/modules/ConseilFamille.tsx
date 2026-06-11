@@ -3,13 +3,15 @@ import {
   Users, 
   Check 
 } from 'lucide-react';
-import type { FamilyVote } from '../../types';
+import type { FamilyVote, Member } from '../../types';
+
+const createPollId = () => `poll-${Date.now()}`;
 
 interface ConseilFamilleProps {
   votes: FamilyVote[];
   setVotes: React.Dispatch<React.SetStateAction<FamilyVote[]>>;
   activeMemberId: string;
-  members?: any[];
+  members?: Member[];
 }
 
 export const ConseilFamille: React.FC<ConseilFamilleProps> = ({ 
@@ -41,7 +43,7 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
       return;
     }
     const newPoll: FamilyVote = {
-      id: `poll-${Date.now()}`,
+      id: createPollId(),
       question: newQuestion,
       dueDate: new Date(newDueDate).toLocaleDateString('fr-FR'),
       authorName: memberName,

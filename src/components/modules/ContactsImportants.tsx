@@ -247,7 +247,7 @@ export const ContactsImportants: React.FC = () => {
               <label className="text-[10px] text-white/50 font-bold">Catégorie</label>
               <select
                 value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value as any)}
+                onChange={(e) => setNewCategory(e.target.value as ImportantContact['category'])}
                 className="w-full bg-[#0D1B2A] border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
               >
                 <option value="emergency">🚨 Urgence</option>

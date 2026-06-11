@@ -22,6 +22,7 @@ import {
   ChevronDown 
 } from 'lucide-react';
 import type { Member } from '../types';
+import type { User } from '@supabase/supabase-js';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -30,7 +31,7 @@ interface SidebarProps {
   setActiveModule: (moduleName: string) => void;
   members: Member[];
   activeMemberId: string;
-  user: any;
+  user: User | null;
   onLogout: () => void;
   onOpenOnboarding?: () => void;
   activeFamilyName?: string;

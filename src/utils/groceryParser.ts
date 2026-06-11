@@ -660,7 +660,7 @@ export const findMatchingGroceryItem = (searchText: string, list: GroceryItem[])
 
 export interface VoiceGroceryActionResult {
   action: 'check' | 'uncheck' | 'out_of_stock' | 'delete' | 'replace' | 'update_qty' | 'summary_remaining' | 'summary_bought' | 'count_remaining';
-  items: { item: GroceryItem; details?: any }[];
+  items: { item: GroceryItem; details?: { replaceWith?: string; newQty?: string } }[];
 }
 
 const splitSegmentsAndFind = (text: string, list: GroceryItem[]): GroceryItem[] => {

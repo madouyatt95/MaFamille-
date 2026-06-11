@@ -12,10 +12,19 @@ interface PeaceMakerProps {
   onMediationSuccess?: () => void;
 }
 
+interface MediationResult {
+  feelingA: string;
+  needA: string;
+  feelingB: string;
+  needB: string;
+  compromiseText: string;
+  mediationTip: string;
+}
+
 export const PeaceMaker: React.FC<PeaceMakerProps> = ({ isPremium = false, onTriggerPaywall, onMediationSuccess }) => {
   const [conflictDesc, setConflictDesc] = useState('');
   const [mediating, setMediating] = useState(false);
-  const [compromise, setCompromise] = useState<any | null>(null);
+  const [compromise, setCompromise] = useState<MediationResult | null>(null);
   const [fallbackMessage, setFallbackMessage] = useState('');
 
   const presets = [

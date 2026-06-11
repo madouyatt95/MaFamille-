@@ -27,8 +27,8 @@ export const PasswordRecoveryView: React.FC<PasswordRecoveryViewProps> = ({ onCl
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
       setSuccess(true);
-    } catch (err: any) {
-      setErrorMessage(err.message || "Impossible de réinitialiser le mot de passe.");
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : "Impossible de réinitialiser le mot de passe.");
     } finally {
       setLoading(false);
     }

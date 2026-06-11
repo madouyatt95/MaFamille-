@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Sun, CloudRain, Snowflake, Cloud, MapPin, Loader2, Thermometer, Umbrella, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface WeatherData {
@@ -46,7 +46,7 @@ export const WidgetMeteo: React.FC = () => {
   const [locationName, setLocationName] = useState<string>('Localisation...');
   const [view, setView] = useState<'today' | 'tomorrow'>('today');
 
-  const fetchWeather = async () => {
+  const fetchWeather = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -84,7 +84,7 @@ export const WidgetMeteo: React.FC = () => {
               code: data.daily.weather_code[1]
             }
           });
-        } catch (err) {
+        } catch {
           setError("Impossible de récupérer la météo.");
         } finally {
           setLoading(false);
@@ -95,11 +95,12 @@ export const WidgetMeteo: React.FC = () => {
         setLoading(false);
       }
     );
-  };
+  }, []);
 
   useEffect(() => {
-    fetchWeather();
-  }, []);
+    const timer = window.setTimeout(fetchWeather, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchWeather]);
 
   if (loading) {
     return (

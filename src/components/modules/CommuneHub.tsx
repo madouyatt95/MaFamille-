@@ -6,12 +6,10 @@ import {
   Phone, 
   Mail, 
   Clock, 
-  Trash2, 
   Calendar, 
   Newspaper, 
   Link2,
   ArrowLeft,
-  Search,
   BellRing
 } from 'lucide-react';
 

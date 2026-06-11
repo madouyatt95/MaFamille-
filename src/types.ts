@@ -355,7 +355,7 @@ export function parseChoreTitle(rawTitle: string): ChoreTaskMetadata {
           xpReward: data.xpReward
         };
       }
-    } catch (e) {
+    } catch {
       // Ignored, fallback to plain title
     }
   }

@@ -92,7 +92,7 @@ export const generatePackPDF = async (pack: JustificatifPack, documents: Documen
 
     // 4. Sauvegarde et téléchargement
     const pdfBytes = await pdfDoc.save();
-    const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
+    const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     
     const link = document.createElement('a');

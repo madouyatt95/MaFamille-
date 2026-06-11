@@ -17,11 +17,23 @@ interface EcoChefProps {
   onTriggerPaywall?: () => void;
 }
 
+interface Recipe {
+  id: string;
+  title: string;
+  desc: string;
+  uses: string[];
+  missing: string[];
+  time: string;
+  difficulty: string;
+  rating: string;
+  promptKeywords: string;
+}
+
 export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, isPremium = false, onTriggerPaywall }) => {
   const [fridgeIngredients, setFridgeIngredients] = useState<Array<{ id: string; name: string; checked: boolean; type: string }>>([]);
 
   const [generating, setGenerating] = useState(false);
-  const [recipes, setRecipes] = useState<any[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [customIngredient, setCustomIngredient] = useState('');
   const [fallbackMessage, setFallbackMessage] = useState('');
 
@@ -75,7 +87,7 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, isPremium = 
 Voici les ingrédients disponibles dans mon réfrigérateur : ${activeInFull.join(', ')}.
 Génère EXACTEMENT 3 idées de recettes originales sous format JSON uniquement (sans aucun texte explicatif avant ou après, pas de balise markdown, juste un tableau JSON brut et valide).
 Chaque recette doit être un objet JSON avec les propriétés suivantes rédigées en français :
-- id (string unique ex: 'rec-gem-${Date.now()}-1')
+- id (string unique ex: 'rec-gem-unique-1')
 - title (titre court, moderne et appétissant en français)
 - desc (description alléchante et synthétique de la recette en français)
 - uses (tableau de strings contenant uniquement les ingrédients de la liste ci-dessus qui sont utilisés)
@@ -241,6 +253,12 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
           <p className="text-xs text-white/50">Cuisinez vos restes et visualisez de délicieuses recettes par IA</p>
         </div>
       </div>
+
+      {fallbackMessage && (
+        <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-bold leading-relaxed">
+          {fallbackMessage}
+        </div>
+      )}
       
 
       {/* Fridge selector */}

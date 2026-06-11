@@ -10,11 +10,20 @@ import {
   Lightbulb
 } from 'lucide-react';
 
+interface SimulationResult {
+  salary: number;
+  housing: number;
+  lifestyle: number;
+  savings: number;
+  aiAdvice: string;
+  success: boolean;
+}
+
 export const MaVieSimulator: React.FC = () => {
   const [career, setCareer] = useState('ia_engineer');
   const [housing, setHousing] = useState('studio');
   const [lifestyle, setLifestyle] = useState('moderate');
-  const [results, setResults] = useState<any | null>(null);
+  const [results, setResults] = useState<SimulationResult | null>(null);
 
   const careers = [
     { id: 'ia_engineer', name: 'Ingénieur IA de Pointe 🤖', salary: 6200, desc: 'Recherche et développement sur des modèles d\'agents autonomes.' },
@@ -42,7 +51,7 @@ export const MaVieSimulator: React.FC = () => {
     const totalExp = selectedHousing.cost + selectedLifestyle.cost;
     const savings = selectedCareer.salary - totalExp;
 
-    let aiAdvice = '';
+    let aiAdvice: string;
     let success = true;
 
     if (savings > 2500) {
