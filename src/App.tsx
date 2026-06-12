@@ -12578,6 +12578,20 @@ function App() {
             setCalendarSources={setCalendarSources}
             currentCalendarCountry={currentCalendarCountry}
             setCurrentCalendarCountry={setCurrentCalendarCountry}
+            onCalendarImportComplete={(sourceName, importedEvents) => {
+              const upcoming = [...importedEvents]
+                .filter(event => new Date(`${event.startDate}T${event.startTime || '00:00'}:00`).getTime() >= Date.now())
+                .sort((a, b) => new Date(`${a.startDate}T${a.startTime || '00:00'}:00`).getTime() - new Date(`${b.startDate}T${b.startTime || '00:00'}:00`).getTime())[0];
+              const nextText = upcoming
+                ? ` Prochain événement : "${upcoming.title}" le ${new Date(upcoming.startDate).toLocaleDateString('fr-FR')}${upcoming.startTime ? ` à ${upcoming.startTime}` : ''}.`
+                : '';
+              sendLocalNotification(
+                '📅 Calendrier importé',
+                `${importedEvents.length} événement${importedEvents.length > 1 ? 's' : ''} ajouté${importedEvents.length > 1 ? 's' : ''} depuis "${sourceName}".${nextText}`,
+                'agenda',
+                'success'
+              );
+            }}
             onBack={() => setActiveModule('')}
           />
         );

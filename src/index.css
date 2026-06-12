@@ -418,6 +418,7 @@ html,
 .theme-light [class*="bg-[#1a2b4c]"],
 .theme-light [class*="bg-[#081225]"],
 .theme-light [class*="bg-[#0A0D18]"],
+.theme-light [class*="bg-[#0D1B2A]"],
 .theme-light [class*="bg-[#0F1E3D]"],
 .theme-light [class*="bg-[#112240]"],
 .theme-light [class*="bg-[#070e17]"],
@@ -449,6 +450,7 @@ html,
 .theme-sepia [class*="bg-[#1a2b4c]"],
 .theme-sepia [class*="bg-[#081225]"],
 .theme-sepia [class*="bg-[#0A0D18]"],
+.theme-sepia [class*="bg-[#0D1B2A]"],
 .theme-sepia [class*="bg-[#0F1E3D]"],
 .theme-sepia [class*="bg-[#112240]"],
 .theme-sepia [class*="bg-[#070e17]"],
@@ -661,6 +663,35 @@ html,
 .theme-sepia input::placeholder,
 .theme-sepia textarea::placeholder {
   color: color-mix(in srgb, var(--family-text) 38%, transparent) !important;
+}
+
+.theme-light .agenda-sources-modal {
+  background: rgba(255, 255, 255, 0.96) !important;
+  color: #162033 !important;
+  border-color: rgba(90, 105, 135, 0.18) !important;
+  box-shadow: 0 28px 70px rgba(35, 48, 78, 0.22) !important;
+}
+
+.theme-sepia .agenda-sources-modal {
+  background: rgba(255, 249, 236, 0.97) !important;
+  color: #3C2B1F !important;
+  border-color: rgba(122, 89, 48, 0.22) !important;
+  box-shadow: 0 28px 70px rgba(84, 57, 27, 0.20) !important;
+}
+
+.theme-light .agenda-sources-modal .text-white,
+.theme-sepia .agenda-sources-modal .text-white {
+  color: currentColor !important;
+}
+
+.theme-light .agenda-sources-modal [class^="text-white/"],
+.theme-light .agenda-sources-modal [class*=" text-white/"] {
+  color: rgba(22, 32, 51, 0.68) !important;
+}
+
+.theme-sepia .agenda-sources-modal [class^="text-white/"],
+.theme-sepia .agenda-sources-modal [class*=" text-white/"] {
+  color: rgba(60, 43, 31, 0.70) !important;
 }
 
 /* iOS Safe Area Utilities */

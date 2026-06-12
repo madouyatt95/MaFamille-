@@ -37,6 +37,7 @@ interface AgendaProps {
   setCalendarSources: React.Dispatch<React.SetStateAction<CalendarSource[]>>;
   currentCalendarCountry: string;
   setCurrentCalendarCountry: (country: string) => void;
+  onCalendarImportComplete?: (sourceName: string, importedEvents: ExternalEvent[]) => void;
 }
 
 export interface CalendarSource {
@@ -67,7 +68,8 @@ export const Agenda: React.FC<AgendaProps> = ({
   calendarSources,
   setCalendarSources,
   currentCalendarCountry,
-  setCurrentCalendarCountry
+  setCurrentCalendarCountry,
+  onCalendarImportComplete
 }) => {
   const getLocalDateString = (d: Date = new Date()) => {
     const year = d.getFullYear();
@@ -346,7 +348,10 @@ export const Agenda: React.FC<AgendaProps> = ({
   // Ajout d'une nouvelle source iCal
   const handleAddSource = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSourceName.trim() || !newSourceUrl.trim()) return;
+    if (!newSourceName.trim() || !newSourceUrl.trim()) {
+      alert("Pour ajouter un lien synchronisable, renseignez un nom et une URL ICS. Pour un fichier, utilisez le bouton Importer un fichier.");
+      return;
+    }
 
     const normalizedUrl = newSourceUrl.trim().replace(/^webcal:\/\//i, 'https://');
     if (!/^https?:\/\//i.test(normalizedUrl)) {
@@ -408,6 +413,7 @@ export const Agenda: React.FC<AgendaProps> = ({
         const withoutPrevious = prev.filter(event => event.sourceName !== sourceName);
         return [...withoutPrevious, ...importedEvents];
       });
+      onCalendarImportComplete?.(sourceName, importedEvents);
       setNewSourceName('');
       setNewSourceUrl('');
       setNewSourceColor('#6C5CFF');
@@ -1530,7 +1536,7 @@ export const Agenda: React.FC<AgendaProps> = ({
       {/* Modal / Tiroir de Gestion des Sources iCal/ICS */}
       {showSourcesModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in font-sans">
-          <div className="relative w-full max-w-lg bg-[#0D1B2A]/95 border border-white/10 rounded-[32px] p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto no-scrollbar">
+          <div className="agenda-sources-modal relative w-full max-w-lg bg-[#0D1B2A]/95 border border-white/10 rounded-[32px] p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto no-scrollbar">
             
             {/* Header */}
             <div className="flex items-center justify-between border-b border-white/5 pb-4">
@@ -1671,9 +1677,7 @@ export const Agenda: React.FC<AgendaProps> = ({
               <div className="space-y-1">
                 <label className="text-[10px] text-white/50 font-bold font-sans">Nom du Calendrier</label>
                 <input 
-                  id="agenda-ics-url-input"
                   type="text"
-                  required
                   value={newSourceName}
                   onChange={(e) => setNewSourceName(e.target.value)}
                   placeholder="ex: Agenda travail, école..."
@@ -1688,8 +1692,8 @@ export const Agenda: React.FC<AgendaProps> = ({
                   <span className="text-[8px] text-[#4F8CFF] font-medium font-sans">https ou webcal public</span>
                 </label>
                 <input 
+                  id="agenda-ics-url-input"
                   type="text"
-                  required
                   value={newSourceUrl}
                   onChange={(e) => setNewSourceUrl(e.target.value)}
                   placeholder="https://calendar.google.com/calendar/ical/..."
