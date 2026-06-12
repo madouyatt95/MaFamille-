@@ -23,11 +23,17 @@ type PushTarget = {
   user_id?: string;
   notification_prefs?: Record<string, boolean>;
   fcm_token?: string;
+  app_source?: string;
+  platform?: string;
+  device_id?: string;
 };
 
 type PushSubscriptionRow = {
   token?: string;
   member_id?: string;
+  app_source?: string;
+  platform?: string;
+  device_id?: string;
   foyer_members?: {
     id?: string;
     display_name?: string;
@@ -166,7 +172,10 @@ async function getPushTargets(foyerId: string): Promise<PushTarget[]> {
         display_name: member.display_name,
         user_id: member.user_id,
         notification_prefs: member.notification_prefs,
-        fcm_token: subscription.token
+        fcm_token: subscription.token,
+        app_source: subscription.app_source,
+        platform: subscription.platform,
+        device_id: subscription.device_id
       };
     });
   }
@@ -186,6 +195,40 @@ async function getPushTargets(foyerId: string): Promise<PushTarget[]> {
   }
 
   return members || [];
+}
+
+async function recordPushSendAttempt(params: {
+  foyerId: string;
+  target: PushTarget;
+  targetModule: string;
+  title: string;
+  status: "success" | "failed";
+  fcmStatus?: number;
+  error?: string;
+}) {
+  try {
+    const { error } = await supabaseAdmin
+      .from("push_send_attempts")
+      .insert({
+        foyer_id: params.foyerId,
+        member_id: params.target.id || null,
+        display_name: params.target.display_name || null,
+        app_source: params.target.app_source || null,
+        platform: params.target.platform || null,
+        token_start: params.target.fcm_token ? String(params.target.fcm_token).substring(0, 18) : null,
+        target_module: params.targetModule,
+        title: params.title,
+        status: params.status,
+        fcm_status: params.fcmStatus || null,
+        error: params.error ? params.error.slice(0, 1000) : null
+      });
+
+    if (error && error.code !== "42P01") {
+      console.warn("[Send-Push] Journalisation push_send_attempts ignorée :", error.message);
+    }
+  } catch (err) {
+    console.warn("[Send-Push] Journalisation push_send_attempts impossible :", err);
+  }
 }
 
 function normalizeIdentity(value: unknown): string {
@@ -528,7 +571,7 @@ serve(async (req) => {
     const members = await getPushTargets(foyerId);
 
     // Filtrer pour ne pas l'envoyer à l'expéditeur
-    const rawTargetTokens = members
+    const rawTargets = members
       .filter(m => {
         if (!m.fcm_token) return false;
         if (chatRecipientMemberIds && !chatRecipientMemberIds.includes(String(m.id))) return false;
@@ -541,17 +584,23 @@ serve(async (req) => {
         }
         return true;
       })
-      .filter(m => !String(m.fcm_token).startsWith("native-fallback-"))
-      .map(m => String(m.fcm_token));
-    const targetTokens = [...new Set(rawTargetTokens)];
+      .filter(m => !String(m.fcm_token).startsWith("native-fallback-"));
 
-    if (rawTargetTokens.length !== targetTokens.length) {
+    const targetByToken = new Map<string, PushTarget>();
+    rawTargets.forEach((target) => {
+      if (target.fcm_token) {
+        targetByToken.set(String(target.fcm_token), target);
+      }
+    });
+    const targetRecipients = [...targetByToken.values()];
+
+    if (rawTargets.length !== targetRecipients.length) {
       console.log(
-        `[Send-Push] Tokens dupliqués ignorés : ${rawTargetTokens.length} lignes -> ${targetTokens.length} token(s) unique(s).`
+        `[Send-Push] Tokens dupliqués ignorés : ${rawTargets.length} lignes -> ${targetRecipients.length} token(s) unique(s).`
       );
     }
 
-    if (targetTokens.length === 0) {
+    if (targetRecipients.length === 0) {
       console.log("[Send-Push] Aucun token destinataire actif trouvé.");
       return new Response(JSON.stringify({ message: "No recipients" }), { status: 200 });
     }
@@ -572,7 +621,8 @@ serve(async (req) => {
     const dedupKey = getNotificationDedupKey(payload.table, targetModule, record);
 
     // 4. Envoyer les requêtes HTTP vers FCM v1 pour chaque token
-    const sendPromises = targetTokens.map(async (fcmToken) => {
+    const sendPromises = targetRecipients.map(async (target) => {
+      const fcmToken = String(target.fcm_token || "");
       const fcmUrl = `https://fcm.googleapis.com/v1/projects/${firebaseProject}/messages:send`;
       
       const response = await fetch(fcmUrl, {
@@ -636,7 +686,19 @@ serve(async (req) => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`[Send-Push] Échec d'envoi pour token ${fcmToken.substring(0, 10)}... :`, errorText);
+        console.error(
+          `[Send-Push] Échec d'envoi pour ${target.app_source || "unknown"}/${target.platform || "unknown"} token ${fcmToken.substring(0, 10)}... :`,
+          errorText
+        );
+        await recordPushSendAttempt({
+          foyerId,
+          target,
+          targetModule,
+          title,
+          status: "failed",
+          fcmStatus: response.status,
+          error: errorText
+        });
         if (
           errorText.includes("UNREGISTERED") ||
           errorText.includes("registration-token-not-registered") ||
@@ -645,13 +707,21 @@ serve(async (req) => {
           await clearInvalidFcmToken(fcmToken);
         }
       } else {
-        console.log(`[Send-Push] Push envoyé avec succès à ${fcmToken.substring(0, 10)}...`);
+        console.log(`[Send-Push] Push envoyé avec succès à ${target.app_source || "unknown"}/${target.platform || "unknown"} ${fcmToken.substring(0, 10)}...`);
+        await recordPushSendAttempt({
+          foyerId,
+          target,
+          targetModule,
+          title,
+          status: "success",
+          fcmStatus: response.status
+        });
       }
     });
 
     await Promise.all(sendPromises);
 
-    return new Response(JSON.stringify({ success: true, count: targetTokens.length }), { status: 200 });
+    return new Response(JSON.stringify({ success: true, count: targetRecipients.length }), { status: 200 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[Send-Push] Erreur d'exécution :", message);
