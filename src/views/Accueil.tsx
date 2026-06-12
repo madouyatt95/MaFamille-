@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { 
   Menu, 
   Bell, 
@@ -7,7 +7,6 @@ import {
   HeartPulse, 
   MoreHorizontal,
   ChevronRight,
-  ChevronDown,
   Wifi,
   BookOpen,
   ShoppingCart,
@@ -25,8 +24,16 @@ import {
   GraduationCap,
   CheckCircle2
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { Member, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog } from '../types';
 import type { UnifiedEvent } from '../utils/agendaHelper';
+
+type AccueilUnifiedEvent = UnifiedEvent & {
+  type?: string;
+  iconType?: string;
+  sourceModule?: string;
+  date?: string;
+};
 
 export const DishImage: React.FC<{ src: string | undefined; alt: string; className?: string }> = ({ src, alt, className = "w-16 h-16 rounded-[18px]" }) => {
   const [hasError, setHasError] = React.useState(false);
@@ -70,7 +77,7 @@ interface AccueilProps {
   onDeleteMemory: (id: string) => void;
   onLikeMemory: (id: string, newLikesCount: number) => void;
 
-  savingGoals?: any[];
+  savingGoals?: unknown[];
   onDeleteUnifiedEvent?: (id: string, moduleName: string) => Promise<void>;
   onArchiveUnifiedEvent?: (id: string, moduleName: string) => Promise<void>;
   activeFamilyName?: string;
@@ -93,20 +100,12 @@ export const Accueil: React.FC<AccueilProps> = ({
   chatGroups,
   chatMessages,
   onEventClick,
-  memories: _memories,
-  onAddMemory: _onAddMemory,
-  onDeleteMemory: _onDeleteMemory,
-  onLikeMemory: _onLikeMemory,
-
-  savingGoals: _savingGoals = [],
   onDeleteUnifiedEvent,
-  onArchiveUnifiedEvent,
-  activeFamilyName = 'Famille',
-  onOpenSpaceSelector
+  onArchiveUnifiedEvent
 }) => {
   const [selectedMealDay, setSelectedMealDay] = useState<string>('Lun');
   const [hiddenEventIds, setHiddenEventIds] = useState<string[]>([]);
-  const [selectedEventForMenu, setSelectedEventForMenu] = useState<any | null>(null);
+  const [selectedEventForMenu, setSelectedEventForMenu] = useState<AccueilUnifiedEvent | null>(null);
 
   const activeMember = members.find(m => m.id === activeMemberId) || members[0] || {
     id: activeMemberId || '1',
@@ -146,7 +145,7 @@ export const Accueil: React.FC<AccueilProps> = ({
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const allUnifiedEvents = (isChild
+  const allUnifiedEvents: AccueilUnifiedEvent[] = (isChild
     ? events.filter(e => e.member_id === activeMember.id || e.event_type === 'school')
     : events
   ).filter(e => e && !hiddenEventIds.includes(e.id));
@@ -207,7 +206,7 @@ export const Accueil: React.FC<AccueilProps> = ({
   const unreadAlertsCount = alerts.filter(a => !a.read).length;
 
   // Dernières activités : 3 derniers événements passés ou d'aujourd'hui
-  const lastActivities = useMemo(() => {
+  const lastActivities = (() => {
     const pastOrToday = allUnifiedEvents
       .filter(e => e.start_date <= todayStr)
       .sort((a, b) => b.start_date.localeCompare(a.start_date) || b.start_time.localeCompare(a.start_time));
@@ -216,18 +215,18 @@ export const Accueil: React.FC<AccueilProps> = ({
       return pastOrToday.slice(0, 3);
     }
     return allUnifiedEvents.slice(0, 3);
-  }, [allUnifiedEvents, todayStr]);
+  })();
 
-  const activityCards = useMemo(() => {
-    const urgentUpcoming = upcomingUnifiedEvents.filter(e => getDaysDiff(e.start_date) <= 7).slice(0, 2);
-    const cards: Array<{
+  const urgentUpcoming = upcomingUnifiedEvents.filter(e => getDaysDiff(e.start_date) <= 7).slice(0, 2);
+  const activityCards = (() => {
+    const cards: {
       id: string;
       title: string;
       detail: string;
       tone: string;
-      Icon: any;
+      Icon: LucideIcon;
       onClick: () => void;
-    }> = [];
+    }[] = [];
 
     if (unreadMessagesCount > 0) {
       cards.push({
@@ -294,10 +293,10 @@ export const Accueil: React.FC<AccueilProps> = ({
     }
 
     return cards.slice(0, 4);
-  }, [todayUnifiedEvents, upcomingUnifiedEvents, unreadAlertsCount, unreadMessagesCount]);
+  })();
 
-  const getEventIconAndColor = (e: any) => {
-    const type = e.event_type || e.type;
+  const getEventIconAndColor = (e: AccueilUnifiedEvent) => {
+    const type = String(e.event_type || e.type || '');
     switch (type) {
       case 'trip':
       case 'social':
@@ -341,9 +340,9 @@ export const Accueil: React.FC<AccueilProps> = ({
     }
   };
 
-  const handleEventClick = (event: any) => {
+  const handleEventClick = (event: AccueilUnifiedEvent) => {
     const sourceModule = event.source_module || event.sourceModule;
-    const eventDate = event.start_date || event.date;
+    const eventDate = event.start_date || event.date || todayStr;
     switch (sourceModule) {
       case 'voyages':
         setActiveTab('menu');
