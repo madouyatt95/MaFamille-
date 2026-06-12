@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Camera, 
   Heart, 
@@ -10,7 +10,7 @@ import {
   Share2,
   Newspaper
 } from 'lucide-react';
-import type { MemoryLog } from '../../types';
+import type { Member, MemoryLog } from '../../types';
 
 import { compressImage } from '../../utils/imageCompressor';
 import { getSupabaseClient } from '../../utils/supabase';
@@ -21,8 +21,24 @@ interface CapsuleTemporelleProps {
   activeMemberId: string;
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
-  members?: any[];
+  members?: Member[];
 }
+
+type ComicStyle = 'retro' | 'manga' | 'fantasy' | 'cyberpunk';
+
+const comicStyleOptions: { id: ComicStyle; label: string; desc: string }[] = [
+  { id: 'retro', label: '🦸 Comics Rétro', desc: 'Marvel Vintage 1980' },
+  { id: 'manga', label: '🏮 Shonen Manga', desc: 'Anime Moderne' },
+  { id: 'fantasy', label: '🧙 Fantasy Épique', desc: 'Livre Enchanté' },
+  { id: 'cyberpunk', label: '🌆 Cyberpunk', desc: 'Futur Néon' }
+];
+
+const comicStylePrompts: Record<ComicStyle, string> = {
+  retro: 'retro marvel comic book cover, 1980s vintage style, ink drawings, highly detailed graphic novel, colorful speech bubbles, pop art accents',
+  manga: 'shonen manga colorful volume cover, anime key visual, highly detailed art style, vibrant gradient lighting, emotional character pose',
+  fantasy: 'epic high-fantasy novel illustration, oil painting style, glowing magical pipes, ancient wizard scrolls, grand warrior posture, warm fantasy lighting',
+  cyberpunk: 'cyberpunk neon graphic novel panel, sci-fi concept art, dark futuristic background, glowing holographic symbols, high contrast violet and cyan'
+};
 
 interface MemoryCardProps {
   m: MemoryLog;
@@ -192,7 +208,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
   const [gazetteStep, setGazetteStep] = useState(0);
  
   // --- BD ÉPIQUE STATES ---
-  const [selectedComicStyle, setSelectedComicStyle] = useState<'retro' | 'manga' | 'fantasy' | 'cyberpunk'>('retro');
+  const [selectedComicStyle, setSelectedComicStyle] = useState<ComicStyle>('retro');
   const [isGeneratingComic, setIsGeneratingComic] = useState(false);
   const [comicImage, setComicImage] = useState<string>('');
   const [comicChapters, setComicChapters] = useState<{ title: string; desc: string; author: string; photo?: string }[]>([]);
@@ -346,7 +362,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
   });
 
   // === BD GENERATION ENGINE ===
-  const generateComicBook = () => {
+  const generateComicBook = useCallback(() => {
     setIsGeneratingComic(true);
     setComicGenerationProgress("Chiffonnage du papier Comics vintage...");
 
@@ -399,17 +415,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       setTimeout(() => {
         setComicGenerationProgress("Invoquer l'IA de Stable Diffusion pour peindre la couverture...");
 
-        // Construire un prompt ultra stylisé selon le style choisi
-        let stylePrompt = "";
-        if (selectedComicStyle === 'retro') {
-          stylePrompt = "retro marvel comic book cover, 1980s vintage style, ink drawings, highly detailed graphic novel, colorful speech bubbles, pop art accents";
-        } else if (selectedComicStyle === 'manga') {
-          stylePrompt = "shonen manga colorful volume cover, anime key visual, highly detailed art style, vibrant gradient lighting, emotional character pose";
-        } else if (selectedComicStyle === 'fantasy') {
-          stylePrompt = "epic high-fantasy novel illustration, oil painting style, glowing magical pipes, ancient wizard scrolls, grand warrior posture, warm fantasy lighting";
-        } else {
-          stylePrompt = "cyberpunk neon graphic novel panel, sci-fi concept art, dark futuristic background, glowing holographic symbols, high contrast violet and cyan";
-        }
+        const stylePrompt = comicStylePrompts[selectedComicStyle];
 
         const keywords = sampleMemories.map(m => m.title).join(", ");
         const finalPrompt = encodeURIComponent(`${stylePrompt}, depicting: a family having an epic fantasy quest including ${keywords}, dramatic lighting, masterpiece illustration`);
@@ -434,14 +440,14 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
 
       }, 1000);
     }, 1000);
-  };
+  }, [isParent, memories, selectedComicStyle]);
 
   // Auto generate at start when clicking the sub-tab
   useEffect(() => {
     if (activeSubTab === 'comic' && visibleMemories.length > 0 && !comicImage && !isGeneratingComic) {
-      generateComicBook();
+      queueMicrotask(generateComicBook);
     }
-  }, [activeSubTab, visibleMemories.length]);
+  }, [activeSubTab, visibleMemories.length, comicImage, generateComicBook, isGeneratingComic]);
 
   const handleShareComicToWall = () => {
     if (!comicImage) return;
@@ -859,15 +865,10 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
             </span>
             
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { id: 'retro', label: '🦸 Comics Rétro', desc: 'Marvel Vintage 1980' },
-                { id: 'manga', label: '🏮 Shonen Manga', desc: 'Anime Moderne' },
-                { id: 'fantasy', label: '🧙 Fantasy Épique', desc: 'Livre Enchanté' },
-                { id: 'cyberpunk', label: '🌆 Cyberpunk', desc: 'Futur Néon' }
-              ].map(st => (
+              {comicStyleOptions.map(st => (
                 <button
                   key={st.id}
-                  onClick={() => setSelectedComicStyle(st.id as any)}
+                  onClick={() => setSelectedComicStyle(st.id)}
                   className={`p-2.5 rounded-xl border transition-all text-left flex flex-col justify-between cursor-pointer ${
                     selectedComicStyle === st.id 
                       ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] text-white shadow-md' 
