@@ -24,6 +24,22 @@ import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
 import { notificationService } from '../services/notificationService';
 import type { Foyer, FoyerMember, Member } from '../types';
+import type { User } from '@supabase/supabase-js';
+
+type NotificationPrefs = Record<string, boolean>;
+
+const defaultNotificationPrefs: NotificationPrefs = {
+  groceries: true,
+  tasks: true,
+  agenda: true,
+  finances: true,
+  chat: true,
+  health: true,
+  vault: true
+};
+
+const getErrorMessage = (err: unknown, fallback: string) =>
+  err instanceof Error ? err.message : fallback;
 
 interface SettingsProps {
   currency: string;
@@ -32,7 +48,7 @@ interface SettingsProps {
   onPurgeDemoData?: () => Promise<void> | void;
   onClearAllFoyerData?: () => Promise<void> | void;
   onOpenPaywall: () => void;
-  user: any;
+  user: User | null;
   foyer?: Foyer | null;
   myMemberProfile?: FoyerMember | null;
   onRefreshFoyer?: () => void;
@@ -43,7 +59,7 @@ interface SettingsProps {
   setActiveTab?: (tab: string) => void;
   setActiveModule?: (moduleName: string) => void;
   onOpenOnboarding?: () => void;
-  onNotificationPrefsChange?: (prefs: any) => void;
+  onNotificationPrefsChange?: (prefs: NotificationPrefs) => void;
   communeName?: string;
   schoolName?: string;
   onUpdateFoyerConfig?: (commune: string, school: string) => Promise<void> | void;
@@ -53,9 +69,6 @@ export const Settings: React.FC<SettingsProps> = ({
   currency,
   setCurrency,
   onResetData,
-  onPurgeDemoData,
-  onClearAllFoyerData,
-  onOpenPaywall: _onOpenPaywall,
   user,
   foyer,
   myMemberProfile,
@@ -86,7 +99,7 @@ export const Settings: React.FC<SettingsProps> = ({
       try {
         await foyerService.updateFoyerParentPin(foyer.id, parentPinInput);
         if (onRefreshFoyer) onRefreshFoyer();
-      } catch (err: any) {
+      } catch (err) {
         console.error("Error saving parent pin to database:", err);
       }
     }
@@ -108,7 +121,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
   useEffect(() => {
     if (foyer?.malusSettings) {
-      setMalusSettings(foyer.malusSettings);
+      queueMicrotask(() => setMalusSettings(foyer.malusSettings!));
     }
   }, [foyer]);
 
@@ -119,18 +132,18 @@ export const Settings: React.FC<SettingsProps> = ({
       try {
         await foyerService.updateFoyerMalusSettings(foyer.id, newSettings);
         if (onRefreshFoyer) onRefreshFoyer();
-      } catch (err: any) {
+      } catch (err) {
         console.error("Error saving malus settings to database:", err);
       }
     }
   };
 
   useEffect(() => {
-    setLocalCommune(communeName);
+    queueMicrotask(() => setLocalCommune(communeName));
   }, [communeName]);
 
   useEffect(() => {
-    setLocalSchool(schoolName);
+    queueMicrotask(() => setLocalSchool(schoolName));
   }, [schoolName]);
 
   // État des notifications push FCM
@@ -182,7 +195,7 @@ export const Settings: React.FC<SettingsProps> = ({
   }, [theme]);
 
   // Notification module preferences (groceries, tasks, agenda, finances, chat, health, vault, sos)
-  const [localPrefs, setLocalPrefs] = useState<any>(() => {
+  const [localPrefs, setLocalPrefs] = useState<NotificationPrefs>(() => {
     if (myMemberProfile?.notificationPrefs && Object.keys(myMemberProfile.notificationPrefs).length > 0) {
       return myMemberProfile.notificationPrefs;
     }
@@ -190,30 +203,31 @@ export const Settings: React.FC<SettingsProps> = ({
     const key = `mf_notif_prefs_${foyer?.id || 'simulated'}_${user?.id || 'guest'}`;
     const cached = localStorage.getItem(key);
     if (cached) {
-      try { return JSON.parse(cached); } catch(_) {}
+      try {
+        return JSON.parse(cached) as NotificationPrefs;
+      } catch {
+        // Ignore malformed cached notification preferences.
+      }
     }
-    return {
-      groceries: true,
-      tasks: true,
-      agenda: true,
-      finances: true,
-      chat: true,
-      health: true,
-      vault: true
-    };
+    return defaultNotificationPrefs;
   });
 
   useEffect(() => {
     const key = `mf_notif_prefs_${foyer?.id || 'simulated'}_${user?.id || 'guest'}`;
     if (myMemberProfile?.notificationPrefs && Object.keys(myMemberProfile.notificationPrefs).length > 0) {
-      setLocalPrefs(myMemberProfile.notificationPrefs);
+      queueMicrotask(() => setLocalPrefs(myMemberProfile.notificationPrefs!));
       localStorage.setItem(key, JSON.stringify(myMemberProfile.notificationPrefs));
       return;
     }
 
     const cached = localStorage.getItem(key);
     if (cached) {
-      try { setLocalPrefs(JSON.parse(cached)); } catch(_) {}
+      try {
+        const parsed = JSON.parse(cached) as NotificationPrefs;
+        queueMicrotask(() => setLocalPrefs(parsed));
+      } catch {
+        // Ignore malformed cached notification preferences.
+      }
     }
   }, [foyer?.id, user?.id, myMemberProfile?.notificationPrefs]);
 
@@ -338,14 +352,18 @@ export const Settings: React.FC<SettingsProps> = ({
       if (members && activeMemberId) {
         const activeMem = members.find(m => m.id === activeMemberId);
         if (activeMem) {
-          setProfileName(activeMem.name);
-          setProfilePhoto(activeMem.photoUrl || '');
+          queueMicrotask(() => {
+            setProfileName(activeMem.name);
+            setProfilePhoto(activeMem.photoUrl || '');
+          });
           return;
         }
       }
       if (myMemberProfile) {
-        setProfileName(myMemberProfile.displayName);
-        setProfilePhoto(myMemberProfile.photoUrl || '');
+        queueMicrotask(() => {
+          setProfileName(myMemberProfile.displayName);
+          setProfilePhoto(myMemberProfile.photoUrl || '');
+        });
       }
     }
   }, [myMemberProfile, members, activeMemberId]);
@@ -402,8 +420,8 @@ export const Settings: React.FC<SettingsProps> = ({
       } else {
         throw new Error("Impossible de mettre à jour le profil");
       }
-    } catch (err: any) {
-      setProfileMsg({ text: err.message || 'Erreur de mise à jour.', type: 'error' });
+    } catch (err) {
+      setProfileMsg({ text: getErrorMessage(err, 'Erreur de mise à jour.'), type: 'error' });
     } finally {
       setSavingProfile(false);
     }
@@ -618,7 +636,9 @@ export const Settings: React.FC<SettingsProps> = ({
 
           <form onSubmit={async (e) => {
             e.preventDefault();
-            const pwd = (e.target as any).newPassword.value;
+            const form = e.currentTarget;
+            const formData = new FormData(form);
+            const pwd = String(formData.get('newPassword') || '');
             if (pwd.length < 6) {
               alert("Le mot de passe doit faire au moins 6 caractères.");
               return;
@@ -629,9 +649,9 @@ export const Settings: React.FC<SettingsProps> = ({
               const { error } = await supabase.auth.updateUser({ password: pwd });
               if (error) throw error;
               alert("Mot de passe mis à jour avec succès ! ✨");
-              (e.target as any).reset();
-            } catch (err: any) {
-              alert(err.message || "Impossible de mettre à jour le mot de passe.");
+              form.reset();
+            } catch (err) {
+              alert(getErrorMessage(err, "Impossible de mettre à jour le mot de passe."));
             }
           }} className="space-y-4">
             <div className="space-y-1">
