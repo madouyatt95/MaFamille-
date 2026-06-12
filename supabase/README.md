@@ -85,3 +85,29 @@ Dans **Supabase Dashboard > Database > Webhooks**, supprimez ou desactivez tout 
 - `public.votes`
 
 Les triggers SQL du schema suffisent pour envoyer les notifications push.
+
+---
+
+## 5. Activer les rappels planifies
+
+La migration `20260612001000_add_scheduled_push_reminders.sql` ajoute le moteur serveur des rappels planifies. Il reutilise la meme Edge Function `send-push` et les memes preferences de notifications.
+
+Pour un premier test manuel dans le SQL Editor :
+
+```sql
+SELECT * FROM public.process_scheduled_push_reminders();
+```
+
+Pour l'automatiser, activez `pg_cron` dans Supabase puis planifiez l'appel toutes les 5 minutes :
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA extensions;
+
+SELECT cron.schedule(
+  'mafamille-scheduled-push-reminders',
+  '*/5 * * * *',
+  $$SELECT public.process_scheduled_push_reminders();$$
+);
+```
+
+Les calendriers ICS importes par l'app sont synchronises dans `external_calendar_events`; Supabase peut ensuite envoyer les rappels meme si la PWA ou l'app iOS n'est pas ouverte.

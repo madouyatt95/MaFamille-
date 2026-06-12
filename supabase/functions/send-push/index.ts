@@ -374,6 +374,13 @@ serve(async (req) => {
           chatRecipientMemberIds = groupData.member_ids.map((id: unknown) => String(id));
         }
       }
+    } else if (payload.table === "scheduled_push_reminders") {
+      if (payload.type !== "INSERT") {
+        return new Response(JSON.stringify({ message: "Ignored non-INSERT for scheduled_push_reminders" }), { status: 200 });
+      }
+      title = asString(record.title) || "Rappel MaFamille+";
+      body = asString(record.body) || asString(record.description);
+      targetModule = asString(record.target_module) || "agenda";
     } else if (payload.table === "alerts") {
       if (payload.type !== "INSERT") {
         return new Response(JSON.stringify({ message: "Ignored UPDATE for alerts" }), { status: 200 });

@@ -160,6 +160,7 @@ import { billingService } from './services/billingService';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
 import { foyerService } from './services/foyerService';
 import { spaceService, type Space } from './services/spaceService';
+import { deleteExternalCalendarSourceForReminders, syncExternalCalendarEventsForReminders } from './services/calendarReminderService';
 import { CommuneHub } from './components/modules/CommuneHub';
 import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction, serializeEventDescription, deserializeEventDescription, logQueryVolume, getCleanDescription } from './utils/supabase';
 import { notificationService } from './services/notificationService';
@@ -1434,6 +1435,16 @@ function App() {
     setLastCreatedTrip(null);
     voiceActionStatusRef.current = 'waiting';
   }, [foyer?.id, activeMemberId]);
+
+  useEffect(() => {
+    syncExternalCalendarEventsForReminders({
+      foyer,
+      activeMemberId,
+      calendarSources,
+      externalEvents
+    });
+  }, [foyer, activeMemberId, calendarSources, externalEvents]);
+
   const [myMemberProfile, setMyMemberProfile] = useState<FoyerMember | null>(() => {
     return safeGetLocalStorage<FoyerMember | null>('mf_cached_member_profile', null);
   });
@@ -12640,6 +12651,9 @@ function App() {
                 'agenda',
                 'success'
               );
+            }}
+            onCalendarSourceDeleted={(sourceName) => {
+              deleteExternalCalendarSourceForReminders(foyer, sourceName);
             }}
             onBack={() => setActiveModule('')}
           />

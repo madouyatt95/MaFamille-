@@ -38,6 +38,7 @@ interface AgendaProps {
   currentCalendarCountry: string;
   setCurrentCalendarCountry: (country: string) => void;
   onCalendarImportComplete?: (sourceName: string, importedEvents: ExternalEvent[]) => void;
+  onCalendarSourceDeleted?: (sourceName: string) => void;
 }
 
 export interface CalendarSource {
@@ -69,7 +70,8 @@ export const Agenda: React.FC<AgendaProps> = ({
   setCalendarSources,
   currentCalendarCountry,
   setCurrentCalendarCountry,
-  onCalendarImportComplete
+  onCalendarImportComplete,
+  onCalendarSourceDeleted
 }) => {
   const getLocalDateString = (d: Date = new Date()) => {
     const year = d.getFullYear();
@@ -434,6 +436,7 @@ export const Agenda: React.FC<AgendaProps> = ({
     if (window.confirm(`Supprimer la source "${name}" ? Ses événements importés seront retirés.`)) {
       setCalendarSources(prev => prev.filter(s => s.id !== id));
       setExternalEvents(prev => prev.filter(ee => ee.sourceName !== name));
+      onCalendarSourceDeleted?.(name);
     }
   };
 

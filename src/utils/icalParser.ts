@@ -82,6 +82,12 @@ const unfoldIcs = (icsContent: string): string => {
   return icsContent.replace(/\r?\n[ \t]/g, '');
 };
 
+const buildStableExternalId = (sourceName: string, uid: string): string => {
+  const sourcePart = sourceName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const uidPart = uid.toLowerCase().replace(/[^a-z0-9@._-]+/g, '-').replace(/^-|-$/g, '');
+  return `ext-${sourcePart || 'calendar'}-${uidPart || Date.now()}`;
+};
+
 /**
  * Analyse et extrait les événements d'un fichier ICS brut
  */
@@ -157,6 +163,10 @@ export const parseICSContent = (
       const cleanKey = keyPart.split(';')[0].toUpperCase();
 
       switch (cleanKey) {
+        case 'UID':
+          currentEvent.id = buildStableExternalId(sourceName, valuePart.trim());
+          break;
+
         case 'SUMMARY':
           currentEvent.title = valuePart.trim();
           break;
