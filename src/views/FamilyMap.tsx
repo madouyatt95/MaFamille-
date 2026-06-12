@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Circle, MapContainer, TileLayer, Marker, Popup, useMap, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -22,10 +22,11 @@ import {
   ShieldCheck,
   UserX
 } from 'lucide-react';
-import type { Member } from '../types';
+import type { FoyerMember, Member } from '../types';
 
 const DEFAULT_MAP_CENTER: [number, number] = [46.603354, 1.888334];
 const FALLBACK_AVATAR = 'https://api.dicebear.com/7.x/adventurer/svg?seed=family-map';
+const createFavoriteId = (type: FavoritePlace['type']) => `fav-${Date.now()}-${type}`;
 
 const getMemberCoords = (member?: Member | null): [number, number] | null => {
   if (!member || member.latitude === undefined || member.latitude === null || member.longitude === undefined || member.longitude === null) {
@@ -41,7 +42,7 @@ const getMemberCoords = (member?: Member | null): [number, number] | null => {
 interface FamilyMapProps {
   members: Member[];
   activeMemberId: string;
-  onUpdateMemberProfile?: (memberId: string, updates: any) => Promise<void>;
+  onUpdateMemberProfile?: (memberId: string, updates: Partial<FoyerMember>) => Promise<void>;
 }
 
 // Haversine distance calculator in kilometers
@@ -107,6 +108,25 @@ interface SafetyZone {
   type: FavoritePlace['type'];
   coords: [number, number];
   radiusKm: number;
+}
+
+interface MapSearchResult {
+  lat: string;
+  lon: string;
+  display_name: string;
+  name?: string;
+  address?: {
+    amenity?: string;
+    road?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+    municipality?: string;
+    county?: string;
+    house_number?: string;
+    postcode?: string;
+    country?: string;
+  };
 }
 
 const readStoredFavorites = (): FavoritePlace[] => {
@@ -185,7 +205,7 @@ const buildSearchUrl = (query: string, origin: [number, number] | null) => {
   return `https://nominatim.openstreetmap.org/search?${params.toString()}`;
 };
 
-const formatSearchResult = (result: any) => {
+const formatSearchResult = (result: MapSearchResult) => {
   const address = result?.address || {};
   const title =
     result?.name ||
@@ -229,7 +249,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   
   // Nominatim Real Search Bar States
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<MapSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   
@@ -317,7 +337,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const [sheetState, setSheetState] = useState<'collapsed' | 'half'>('collapsed');
 
   const me = members.find(m => m.id === activeMemberId);
-  const activeMemberStoredLocation = useMemo(() => getMemberCoords(me), [me?.latitude, me?.longitude]);
+  const activeMemberStoredLocation = useMemo(() => getMemberCoords(me), [me]);
   const routeOrigin = userLocation || activeMemberStoredLocation;
   const safetyZones = useMemo<SafetyZone[]>(() => {
     return favorites
@@ -333,16 +353,16 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
   useEffect(() => {
     const bestCenter = userLocation || activeMemberStoredLocation || members.map(getMemberCoords).find(Boolean) || DEFAULT_MAP_CENTER;
-    setMapCenter(bestCenter as [number, number]);
-  }, [activeMemberId, members, userLocation]);
+    queueMicrotask(() => setMapCenter(bestCenter as [number, number]));
+  }, [activeMemberStoredLocation, members, userLocation]);
 
   useEffect(() => {
     if (me && me.locationStatus) {
-      setSelectedStatus(me.locationStatus);
+      queueMicrotask(() => setSelectedStatus(me.locationStatus || 'Actif maintenant'));
     }
   }, [me]);
 
-  const addLocationHistoryEntry = (coords: [number, number], status: string) => {
+  const addLocationHistoryEntry = useCallback((coords: [number, number], status: string) => {
     if (!me) return;
     const entry: LocationHistoryEntry = {
       memberId: activeMemberId,
@@ -363,12 +383,14 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       }
       return [entry, ...prev].slice(0, 30);
     });
-  };
+  }, [activeMemberId, me]);
 
   useEffect(() => {
     if (!isSharing) {
-      setLoadingLoc(false);
-      setLocationError(null);
+      queueMicrotask(() => {
+        setLoadingLoc(false);
+        setLocationError(null);
+      });
       if (onUpdateMemberProfile) {
         onUpdateMemberProfile(activeMemberId, {
           locationStatus: 'Position masquée 🔒',
@@ -380,8 +402,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
     // True HTML5 GPS Geolocalisation
     if (navigator.geolocation) {
-      setLoadingLoc(true);
-      setLocationError(null);
+      queueMicrotask(() => {
+        setLoadingLoc(true);
+        setLocationError(null);
+      });
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const lat = pos.coords.latitude;
@@ -412,10 +436,12 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         { enableHighAccuracy: true }
       );
     } else {
-      setLocationError("La géolocalisation n'est pas disponible sur cet appareil.");
-      setLoadingLoc(false);
+      queueMicrotask(() => {
+        setLocationError("La géolocalisation n'est pas disponible sur cet appareil.");
+        setLoadingLoc(false);
+      });
     }
-  }, [activeMemberId, activeMemberStoredLocation, isSharing]);
+  }, [activeMemberId, activeMemberStoredLocation, addLocationHistoryEntry, isSharing, onUpdateMemberProfile, selectedStatus]);
 
   // Leaflet custom circular avatar marker creator
   const createCustomIcon = (member: Member, isMe: boolean) => {
@@ -512,15 +538,17 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   // Real-time Nominatim Address Suggestions Autocomplete with Debounce
   useEffect(() => {
     if (searchQuery.trim().length < 3) {
-      setSearchResults([]);
-      setSearchError(null);
+      queueMicrotask(() => {
+        setSearchResults([]);
+        setSearchError(null);
+      });
       return;
     }
     const delayDebounce = setTimeout(async () => {
       try {
         const response = await fetch(buildSearchUrl(normalizeMapSearchQuery(searchQuery), routeOrigin));
         if (!response.ok) throw new Error('search_failed');
-        const data = await response.json();
+        const data = await response.json() as MapSearchResult[];
         setSearchResults(data);
         setSearchError(null);
       } catch (err) {
@@ -535,9 +563,11 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   // Real OSRM Routing calculation
   useEffect(() => {
     if (!routeTarget || !routeOrigin) {
-      setRoutePoints([]);
-      setRouteDistance(null);
-      setRouteDuration(null);
+      queueMicrotask(() => {
+        setRoutePoints([]);
+        setRouteDistance(null);
+        setRouteDuration(null);
+      });
       return;
     }
 
@@ -587,7 +617,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   };
 
   // Relocate map to searched address location and place searchMarker
-  const handleSelectSearchResult = (result: any) => {
+  const handleSelectSearchResult = (result: MapSearchResult) => {
     const lat = parseFloat(result.lat);
     const lon = parseFloat(result.lon);
     setMapCenter([lat, lon]);
@@ -624,8 +654,9 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const saveFavoriteAt = (coords: [number, number], type: FavoritePlace['type'], name?: string, detail?: string) => {
     const label = name || (type === 'home' ? 'Maison' : type === 'work' ? 'Travail' : type === 'school' ? 'École' : 'Lieu favori');
     const existing = favorites.find(f => f.type === type && type !== 'other');
+    const nextId = existing?.id || createFavoriteId(type);
     const nextFavorite: FavoritePlace = {
-      id: existing?.id || `fav-${Date.now()}-${type}`,
+      id: nextId,
       name: label,
       type,
       detail: detail || (type === 'home' ? 'Position du foyer' : type === 'work' ? 'Lieu de travail' : type === 'school' ? 'Établissement scolaire' : 'Lieu favori'),
@@ -638,7 +669,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   };
 
   // Mapped members with real coordinates only. Unknown locations stay explicit in the list.
-  const mappedMembers = members.map((m, idx) => {
+  const mappedMembers = members.map((m) => {
     const isMe = m.id === activeMemberId;
     const storedCoords = getMemberCoords(m);
     const pos = isMe ? routeOrigin : storedCoords;
@@ -968,7 +999,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                           <label className="text-[8px] font-extrabold text-white/50 block mb-0.5">CATÉGORIE</label>
                           <select
                             value={addingFavoriteType}
-                            onChange={(e) => setAddingFavoriteType(e.target.value as any)}
+                            onChange={(e) => setAddingFavoriteType(e.target.value as FavoritePlace['type'])}
                             className="w-full bg-[#07111F] border border-white/20 rounded px-1.5 py-0.5 text-[10px] text-white focus:outline-none"
                           >
                             <option value="home">Maison 🏠</option>
@@ -1348,7 +1379,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                           <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Catégorie</label>
                           <select
                             value={addingFavoriteType}
-                            onChange={(e) => setAddingFavoriteType(e.target.value as any)}
+                            onChange={(e) => setAddingFavoriteType(e.target.value as FavoritePlace['type'])}
                             className="w-full bg-[#07111F]/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none"
                           >
                             <option value="home">Maison 🏠</option>
@@ -1418,7 +1449,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                           <label className="text-[8px] font-bold text-white/40 uppercase block mb-0.5">Catégorie</label>
                           <select
                             value={editFavType}
-                            onChange={(e) => setEditFavType(e.target.value as any)}
+                            onChange={(e) => setEditFavType(e.target.value as FavoritePlace['type'])}
                             className="w-full bg-[#07111F]/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none"
                           >
                             <option value="home">Maison 🏠</option>
