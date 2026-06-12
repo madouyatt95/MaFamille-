@@ -168,7 +168,8 @@ import { compressImageToBlob, uploadBlobToStorage } from './utils/imageCompresso
 
 import { getUnifiedEvents } from './utils/agendaHelper';
 import { buildFamilyAssistantResponse, detectFamilyAssistantIntent } from './utils/familyAssistant';
-import { buildSmartFamilyAlerts } from './utils/smartFamily';
+import { buildSmartFamilyAlerts, defaultSmartFamilyPreferences, type SmartFamilyPreferences } from './utils/smartFamily';
+import type { GlobalSearchResult } from './utils/globalSearch';
 import type { ExternalEvent } from './utils/icalParser';
 import { Volume2, Mic, Bell, X, ChevronRight, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check, Star, ArrowLeft } from 'lucide-react';
 
@@ -2060,6 +2061,36 @@ function App() {
     rawSetActiveModule(modName);
   };
 
+  const handleGlobalSearchResultOpen = (result: GlobalSearchResult) => {
+    if (result.focus?.type === 'agenda_date') {
+      setAgendaSelectedDate(result.focus.value);
+      setActiveTab('menu');
+      setActiveModule('agenda');
+      return;
+    }
+
+    if (result.focus?.type === 'chat_group') {
+      setInitialChatGroupId(result.focus.value);
+      setActiveTab('menu');
+      setActiveModule('messagerie');
+      return;
+    }
+
+    if (result.focus?.type === 'module_query') {
+      localStorage.setItem('mf_last_global_search_focus', JSON.stringify({
+        module: result.target.module,
+        tab: result.target.tab,
+        query: result.focus.value,
+        title: result.title,
+        category: result.category,
+        createdAt: new Date().toISOString()
+      }));
+    }
+
+    setActiveTab(result.target.tab);
+    setActiveModule(result.target.module);
+  };
+
   const requestParentPin = (targetMemberId: string | null, pendingAction?: () => void | Promise<void>) => {
     pendingPinActionRef.current = pendingAction || null;
     setPinTargetMemberId(targetMemberId);
@@ -2178,6 +2209,32 @@ function App() {
       });
     }
   }, [foyer?.id, user?.id, myMemberProfile?.notificationPrefs]);
+
+  const [smartFamilyPrefs, setSmartFamilyPrefs] = useState<SmartFamilyPreferences>(() => {
+    const key = `mf_smart_family_prefs_${foyer?.id || 'simulated'}_${user?.id || 'guest'}`;
+    try {
+      const cached = localStorage.getItem(key);
+      return cached ? { ...defaultSmartFamilyPreferences, ...JSON.parse(cached) } : defaultSmartFamilyPreferences;
+    } catch {
+      return defaultSmartFamilyPreferences;
+    }
+  });
+
+  useEffect(() => {
+    const key = `mf_smart_family_prefs_${foyer?.id || 'simulated'}_${user?.id || 'guest'}`;
+    try {
+      const cached = localStorage.getItem(key);
+      setSmartFamilyPrefs(cached ? { ...defaultSmartFamilyPreferences, ...JSON.parse(cached) } : defaultSmartFamilyPreferences);
+    } catch {
+      setSmartFamilyPrefs(defaultSmartFamilyPreferences);
+    }
+  }, [foyer?.id, user?.id]);
+
+  const handleSmartFamilyPrefsChange = (prefs: SmartFamilyPreferences) => {
+    setSmartFamilyPrefs(prefs);
+    const key = `mf_smart_family_prefs_${foyer?.id || 'simulated'}_${user?.id || 'guest'}`;
+    localStorage.setItem(key, JSON.stringify(prefs));
+  };
 
   useEffect(() => {
     localStorage.setItem('mf_is_premium', String(isPremium));
@@ -9786,7 +9843,7 @@ function App() {
       schoolTasks,
       chatGroups,
       chatMessages
-    });
+    }, smartFamilyPrefs);
   }, [
     foyer?.id,
     activeMemberId,
@@ -9800,7 +9857,8 @@ function App() {
     dishes,
     schoolTasks,
     chatGroups,
-    chatMessages
+    chatMessages,
+    smartFamilyPrefs
   ]);
 
   const allAlertsCombined = useMemo(() => {
@@ -11992,6 +12050,8 @@ function App() {
           onArchiveUnifiedEvent={handleArchiveUnifiedEvent}
           activeFamilyName={appFoyer?.name}
           onOpenSpaceSelector={() => setSpaceSelectorOpen(true)}
+          smartPreferences={smartFamilyPrefs}
+          onGlobalSearchResultOpen={handleGlobalSearchResultOpen}
         />
       );
     }
@@ -12661,6 +12721,8 @@ function App() {
                 const key = `mf_notif_prefs_${appFoyer?.id || 'simulated'}_${user?.id || 'guest'}`;
                 localStorage.setItem(key, JSON.stringify(prefs));
               }}
+              smartFamilyPrefs={smartFamilyPrefs}
+              onSmartFamilyPrefsChange={handleSmartFamilyPrefsChange}
               communeName={communeName}
               schoolName={schoolName}
               onUpdateFoyerConfig={handleUpdateFoyerConfig}

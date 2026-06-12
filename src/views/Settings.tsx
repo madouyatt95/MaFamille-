@@ -25,6 +25,7 @@ import { foyerService } from '../services/foyerService';
 import { notificationService } from '../services/notificationService';
 import type { Foyer, FoyerMember, Member } from '../types';
 import type { User } from '@supabase/supabase-js';
+import { defaultSmartFamilyPreferences, type SmartFamilyPreferences } from '../utils/smartFamily';
 
 type NotificationPrefs = Record<string, boolean>;
 
@@ -60,6 +61,8 @@ interface SettingsProps {
   setActiveModule?: (moduleName: string) => void;
   onOpenOnboarding?: () => void;
   onNotificationPrefsChange?: (prefs: NotificationPrefs) => void;
+  smartFamilyPrefs?: SmartFamilyPreferences;
+  onSmartFamilyPrefsChange?: (prefs: SmartFamilyPreferences) => void;
   communeName?: string;
   schoolName?: string;
   onUpdateFoyerConfig?: (commune: string, school: string) => Promise<void> | void;
@@ -81,6 +84,8 @@ export const Settings: React.FC<SettingsProps> = ({
   setActiveModule,
   onOpenOnboarding,
   onNotificationPrefsChange,
+  smartFamilyPrefs = defaultSmartFamilyPreferences,
+  onSmartFamilyPrefsChange,
   communeName = '',
   schoolName = '',
   onUpdateFoyerConfig
@@ -253,6 +258,13 @@ export const Settings: React.FC<SettingsProps> = ({
       if (error) {
         console.error("[Settings] Failed to save notification preferences:", error.message);
       }
+    }
+  };
+
+  const handleSmartPrefChange = (updates: Partial<SmartFamilyPreferences>) => {
+    const updated = { ...smartFamilyPrefs, ...updates };
+    if (onSmartFamilyPrefsChange) {
+      onSmartFamilyPrefsChange(updated);
     }
   };
 
@@ -750,6 +762,81 @@ export const Settings: React.FC<SettingsProps> = ({
             </>
           )}
         </button>
+      </div>
+      )}
+
+      {/* Recommandations intelligentes */}
+      {settingsTab === 'alertes' && (
+      <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+            <Sparkles className="w-4 h-4 text-[#FFB020]" />
+            <span>Recommandations intelligentes</span>
+          </h3>
+          <button
+            type="button"
+            onClick={() => handleSmartPrefChange({ enabled: !smartFamilyPrefs.enabled })}
+            className={`w-12 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none cursor-pointer ${
+              smartFamilyPrefs.enabled ? 'bg-[#00D26A]' : 'bg-white/10'
+            }`}
+          >
+            <div className={`w-5 h-5 rounded-full bg-white shadow-md transform duration-200 ${smartFamilyPrefs.enabled ? 'translate-x-6' : 'translate-x-0'}`} />
+          </button>
+        </div>
+        <p className="text-xs text-white/50 leading-relaxed font-medium">
+          Contrôlez les actions recommandées sur l’accueil et les alertes internes calculées par l’app. Cela ne modifie pas les notifications push.
+        </p>
+
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { key: 'showSetup', label: 'Démarrage guidé' },
+            { key: 'showPriority', label: 'Priorités' },
+            { key: 'showParent', label: 'Parent' },
+            { key: 'showChild', label: 'Enfant / ado' },
+            { key: 'showRoutine', label: 'Routines' },
+            { key: 'internalAlerts', label: 'Alertes internes' }
+          ].map((item) => {
+            const key = item.key as keyof SmartFamilyPreferences;
+            const enabled = smartFamilyPrefs[key] !== false;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => handleSmartPrefChange({ [key]: !enabled } as Partial<SmartFamilyPreferences>)}
+                className={`rounded-2xl border px-3 py-3 text-left transition-all active:scale-[0.98] ${
+                  enabled
+                    ? 'bg-[#6C5CFF]/12 border-[#6C5CFF]/25 text-white'
+                    : 'bg-white/[0.03] border-white/8 text-white/35'
+                }`}
+              >
+                <span className="text-[10px] font-black uppercase tracking-wider block">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="p-3 rounded-2xl bg-white/3 border border-white/5 space-y-2">
+          <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Niveau d’alerte interne minimum</span>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { id: 'medium', label: 'Important + urgent' },
+              { id: 'high', label: 'Urgent seulement' }
+            ].map((level) => (
+              <button
+                key={level.id}
+                type="button"
+                onClick={() => handleSmartPrefChange({ minAlertPriority: level.id as SmartFamilyPreferences['minAlertPriority'] })}
+                className={`py-2.5 rounded-xl text-[10px] font-black border transition-all ${
+                  smartFamilyPrefs.minAlertPriority === level.id
+                    ? 'bg-[#FFB020]/15 border-[#FFB020]/30 text-[#FFB020]'
+                    : 'bg-white/5 border-white/8 text-white/45'
+                }`}
+              >
+                {level.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
       )}
 

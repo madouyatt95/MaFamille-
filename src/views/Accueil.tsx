@@ -32,8 +32,8 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { Member, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog, ChoreTask, GroceryItem, Transaction, Trip, DocumentFile, SchoolTask } from '../types';
 import type { UnifiedEvent } from '../utils/agendaHelper';
-import { buildSmartFamilyActions, getSmartFamilySetupProgress, type SmartFamilyAction } from '../utils/smartFamily';
-import { buildGlobalSearchIndex, searchGlobalIndex } from '../utils/globalSearch';
+import { buildSmartFamilyActions, filterSmartFamilyActions, getSmartFamilySetupProgress, type SmartFamilyAction, type SmartFamilyPreferences } from '../utils/smartFamily';
+import { buildGlobalSearchIndex, searchGlobalIndex, type GlobalSearchResult } from '../utils/globalSearch';
 
 type AccueilUnifiedEvent = UnifiedEvent & {
   type?: string;
@@ -95,6 +95,8 @@ interface AccueilProps {
   onArchiveUnifiedEvent?: (id: string, moduleName: string) => Promise<void>;
   activeFamilyName?: string;
   onOpenSpaceSelector?: () => void;
+  smartPreferences?: SmartFamilyPreferences;
+  onGlobalSearchResultOpen?: (result: GlobalSearchResult) => void;
 }
 
 export const Accueil: React.FC<AccueilProps> = ({
@@ -120,7 +122,9 @@ export const Accueil: React.FC<AccueilProps> = ({
   chatMessages,
   onEventClick,
   onDeleteUnifiedEvent,
-  onArchiveUnifiedEvent
+  onArchiveUnifiedEvent,
+  smartPreferences,
+  onGlobalSearchResultOpen
 }) => {
   const [selectedMealDay, setSelectedMealDay] = useState<string>('Lun');
   const [hiddenEventIds, setHiddenEventIds] = useState<string[]>([]);
@@ -457,7 +461,7 @@ export const Accueil: React.FC<AccueilProps> = ({
     return cards.slice(0, 4);
   })();
 
-  const smartActions = buildSmartFamilyActions({
+  const rawSmartActions = buildSmartFamilyActions({
     activeMemberId,
     members,
     events,
@@ -471,6 +475,7 @@ export const Accueil: React.FC<AccueilProps> = ({
     chatGroups,
     chatMessages
   });
+  const smartActions = filterSmartFamilyActions(rawSmartActions, smartPreferences);
   const smartContext = {
     activeMemberId,
     members,
@@ -526,7 +531,19 @@ export const Accueil: React.FC<AccueilProps> = ({
 
   const globalSearchResults = searchGlobalIndex(globalSearchQuery, globalSearchIndex, 10);
 
-  const openSearchResult = (result: { target: { tab: string; module: string } }) => {
+  const openSearchResult = (result: GlobalSearchResult) => {
+    if (onGlobalSearchResultOpen) {
+      onGlobalSearchResultOpen(result);
+      setGlobalSearchOpen(false);
+      setGlobalSearchQuery('');
+      return;
+    }
+    if (result.focus?.type === 'agenda_date') {
+      onEventClick(result.focus.value);
+      setGlobalSearchOpen(false);
+      setGlobalSearchQuery('');
+      return;
+    }
     setActiveTab(result.target.tab);
     setActiveModule(result.target.module);
     setGlobalSearchOpen(false);

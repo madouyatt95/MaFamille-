@@ -29,6 +29,17 @@ export type SmartFamilyAction = {
   target: SmartFamilyTarget;
 };
 
+export type SmartFamilyPreferences = {
+  enabled: boolean;
+  showSetup: boolean;
+  showParent: boolean;
+  showChild: boolean;
+  showRoutine: boolean;
+  showPriority: boolean;
+  internalAlerts: boolean;
+  minAlertPriority: 'medium' | 'high';
+};
+
 export type SmartFamilyContext = {
   foyer?: Foyer | null;
   activeMemberId: string;
@@ -43,6 +54,17 @@ export type SmartFamilyContext = {
   schoolTasks: SchoolTask[];
   chatGroups: ChatGroup[];
   chatMessages: ChatMessage[];
+};
+
+export const defaultSmartFamilyPreferences: SmartFamilyPreferences = {
+  enabled: true,
+  showSetup: true,
+  showParent: true,
+  showChild: true,
+  showRoutine: true,
+  showPriority: true,
+  internalAlerts: true,
+  minAlertPriority: 'medium'
 };
 
 export type SmartFamilySetupProgress = {
@@ -431,10 +453,32 @@ export const buildSmartFamilyActions = (context: SmartFamilyContext): SmartFamil
     .slice(0, 8);
 };
 
-export const buildSmartFamilyAlerts = (context: SmartFamilyContext): NotificationAlert[] => {
-  const actions = buildSmartFamilyActions(context);
+export const filterSmartFamilyActions = (
+  actions: SmartFamilyAction[],
+  preferences: SmartFamilyPreferences = defaultSmartFamilyPreferences
+) => {
+  if (!preferences.enabled) return [];
+  return actions.filter((action) => {
+    if (action.category === 'setup') return preferences.showSetup;
+    if (action.category === 'parent') return preferences.showParent;
+    if (action.category === 'child') return preferences.showChild;
+    if (action.category === 'routine') return preferences.showRoutine;
+    if (action.category === 'priority') return preferences.showPriority;
+    return true;
+  });
+};
+
+export const buildSmartFamilyAlerts = (
+  context: SmartFamilyContext,
+  preferences: SmartFamilyPreferences = defaultSmartFamilyPreferences
+): NotificationAlert[] => {
+  if (!preferences.enabled || !preferences.internalAlerts) return [];
+  const actions = filterSmartFamilyActions(buildSmartFamilyActions(context), preferences);
+  const allowedPriorities = preferences.minAlertPriority === 'high'
+    ? ['high']
+    : ['high', 'medium'];
   return actions
-    .filter((action) => action.priority !== 'low' && action.category !== 'setup')
+    .filter((action) => allowedPriorities.includes(action.priority) && action.category !== 'setup')
     .slice(0, 7)
     .map((action) => ({
       id: `smart-${context.foyer?.id || 'local'}-${context.activeMemberId}-${action.id}`,

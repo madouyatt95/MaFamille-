@@ -24,6 +24,10 @@ export type GlobalSearchResult = {
   category: string;
   icon: string;
   target: GlobalSearchTarget;
+  focus?: {
+    type: 'agenda_date' | 'chat_group' | 'module_query';
+    value: string;
+  };
   haystack: string;
 };
 
@@ -57,7 +61,8 @@ const makeResult = (
   category: string,
   icon: string,
   target: GlobalSearchTarget,
-  extra = ''
+  extra = '',
+  focus?: GlobalSearchResult['focus']
 ): GlobalSearchResult => ({
   id,
   title,
@@ -65,6 +70,7 @@ const makeResult = (
   category,
   icon,
   target,
+  focus,
   haystack: normalize(`${title} ${detail} ${category} ${extra}`)
 });
 
@@ -91,7 +97,8 @@ export const buildGlobalSearchIndex = (context: GlobalSearchContext): GlobalSear
       'Agenda',
       '📅',
       { tab: 'menu', module: 'agenda' },
-      `${event.description || ''} ${event.member_id || ''} ${event.event_type || ''}`
+      `${event.description || ''} ${event.member_id || ''} ${event.event_type || ''}`,
+      { type: 'agenda_date', value: event.start_date }
     ));
   });
 
@@ -103,7 +110,8 @@ export const buildGlobalSearchIndex = (context: GlobalSearchContext): GlobalSear
       'Tâches',
       '🧹',
       { tab: 'menu', module: 'taches' },
-      `${task.description || ''} ${task.status || ''} ${task.category || ''}`
+      `${task.description || ''} ${task.status || ''} ${task.category || ''}`,
+      { type: 'module_query', value: task.title }
     ));
   });
 
@@ -115,7 +123,8 @@ export const buildGlobalSearchIndex = (context: GlobalSearchContext): GlobalSear
       'Courses',
       '🛒',
       { tab: 'menu', module: 'courses' },
-      `${item.category || ''} ${item.meal || ''} ${item.addedBy || ''}`
+      `${item.category || ''} ${item.meal || ''} ${item.addedBy || ''}`,
+      { type: 'module_query', value: item.name }
     ));
   });
 
@@ -127,7 +136,8 @@ export const buildGlobalSearchIndex = (context: GlobalSearchContext): GlobalSear
       'Budget',
       '💰',
       { tab: 'budget', module: '' },
-      `${tx.category || ''} ${tx.subCategory || ''} ${tx.memberName || ''} ${tx.comment || ''}`
+      `${tx.category || ''} ${tx.subCategory || ''} ${tx.memberName || ''} ${tx.comment || ''}`,
+      { type: 'module_query', value: tx.title }
     ));
   });
 
@@ -139,7 +149,8 @@ export const buildGlobalSearchIndex = (context: GlobalSearchContext): GlobalSear
       'Documents',
       '📂',
       { tab: 'menu', module: 'documents' },
-      `${doc.subCategory || ''} ${doc.memberName || ''} ${doc.tags?.join(' ') || ''}`
+      `${doc.subCategory || ''} ${doc.memberName || ''} ${doc.tags?.join(' ') || ''}`,
+      { type: 'module_query', value: doc.name }
     ));
   });
 
@@ -151,7 +162,8 @@ export const buildGlobalSearchIndex = (context: GlobalSearchContext): GlobalSear
       'Voyages',
       '✈️',
       { tab: 'menu', module: 'voyages' },
-      `${trip.bookingRefs?.join(' ') || ''} ${trip.checklist?.map((item) => item.text).join(' ') || ''}`
+      `${trip.bookingRefs?.join(' ') || ''} ${trip.checklist?.map((item) => item.text).join(' ') || ''}`,
+      { type: 'module_query', value: trip.destination }
     ));
   });
 
@@ -163,7 +175,8 @@ export const buildGlobalSearchIndex = (context: GlobalSearchContext): GlobalSear
       'École',
       '🎓',
       { tab: 'menu', module: 'devoirs' },
-      `${task.grade || ''} ${task.difficulty || ''}`
+      `${task.grade || ''} ${task.difficulty || ''}`,
+      { type: 'module_query', value: task.title }
     ));
   });
 
@@ -175,7 +188,8 @@ export const buildGlobalSearchIndex = (context: GlobalSearchContext): GlobalSear
       'Menus',
       '🍽️',
       { tab: 'menu', module: 'menus' },
-      dish.ingredients?.join(' ') || ''
+      dish.ingredients?.join(' ') || '',
+      { type: 'module_query', value: dish.name }
     ));
   });
 
@@ -187,7 +201,8 @@ export const buildGlobalSearchIndex = (context: GlobalSearchContext): GlobalSear
       'Messagerie',
       '💬',
       { tab: 'menu', module: 'messagerie' },
-      `${group.memberIds.join(' ')} ${group.isPrivate ? 'prive privee' : 'groupe'}`
+      `${group.memberIds.join(' ')} ${group.isPrivate ? 'prive privee' : 'groupe'}`,
+      { type: 'chat_group', value: group.id }
     ));
   });
 
@@ -200,7 +215,8 @@ export const buildGlobalSearchIndex = (context: GlobalSearchContext): GlobalSear
       'Messages',
       '💬',
       { tab: 'menu', module: 'messagerie' },
-      `${message.type} ${message.timestamp}`
+      `${message.type} ${message.timestamp}`,
+      { type: 'chat_group', value: message.groupId }
     ));
   });
 
