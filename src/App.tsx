@@ -1641,6 +1641,51 @@ function App() {
           });
         }
 
+        // 4. Check imported calendar events
+        if (Array.isArray(externalEvents)) {
+          externalEvents.forEach(event => {
+            try {
+              if (!event.startDate) return;
+              const eventDateTime = new Date(`${event.startDate}T${event.startTime || '09:00'}:00`);
+              if (isNaN(eventDateTime.getTime())) return;
+
+              const diffMs = eventDateTime.getTime() - now.getTime();
+              if (diffMs <= 0) return;
+
+              const diffMinutes = Math.ceil(diffMs / (1000 * 60));
+              const memberName = event.memberId ? members.find(m => m.id === event.memberId)?.name : '';
+              const memberText = memberName ? ` pour ${memberName}` : '';
+              const locationText = event.location ? ` Lieu : ${event.location}.` : '';
+
+              const dayAlertKey = `external-event-day-${event.id}-${event.startDate}`;
+              if (diffMinutes <= 24 * 60 && diffMinutes > 60 && !alertedIds.includes(dayAlertKey)) {
+                sendLocalNotification(
+                  `📅 Rappel demain : ${event.title}`,
+                  `"${event.title}" est prévu${memberText} le ${new Date(event.startDate).toLocaleDateString('fr-FR')}${event.startTime ? ` à ${event.startTime}` : ''}.${locationText}`,
+                  "agenda",
+                  "info"
+                );
+                newAlertedIds.push(dayAlertKey);
+                changed = true;
+              }
+
+              const hourAlertKey = `external-event-hour-${event.id}-${event.startDate}-${event.startTime || 'all-day'}`;
+              if (event.startTime && diffMinutes <= 60 && !alertedIds.includes(hourAlertKey)) {
+                sendLocalNotification(
+                  `⏰ Dans 1h : ${event.title}`,
+                  `"${event.title}" commence${memberText} à ${event.startTime}.${locationText}`,
+                  "agenda",
+                  "warning"
+                );
+                newAlertedIds.push(hourAlertKey);
+                changed = true;
+              }
+            } catch (err) {
+              console.warn("Failed to check imported calendar event reminder:", event.title, err);
+            }
+          });
+        }
+
         if (changed) {
           localStorage.setItem(storageKey, JSON.stringify(newAlertedIds));
         }
@@ -1649,10 +1694,14 @@ function App() {
       }
     };
 
-    // Delay checking slightly to ensure sendLocalNotification is available and stable
-    const t = setTimeout(checkExpiringItems, 2000);
-    return () => clearTimeout(t);
-  }, [documents, vehicles, members, foyer]);
+    // Delay first check slightly, then keep reminders fresh while the app is open.
+    const t = window.setTimeout(checkExpiringItems, 2000);
+    const interval = window.setInterval(checkExpiringItems, 15 * 60 * 1000);
+    return () => {
+      window.clearTimeout(t);
+      window.clearInterval(interval);
+    };
+  }, [documents, vehicles, members, externalEvents, foyer]);
 
   const [onboardingActive, setOnboardingActive] = useState(false);
   const isSessionCheckingRef = useRef(false);
