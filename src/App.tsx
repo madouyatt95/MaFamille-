@@ -11896,6 +11896,11 @@ function App() {
           onAvatarClick={() => setProfileSwitcherOpen(true)}
           events={appEvents as LooseValue}
           dishes={dishes}
+          tasks={appTasks}
+          groceries={appGroceries}
+          transactions={appTransactions}
+          trips={appTrips}
+          documents={appDocuments}
           alerts={appFilteredAlerts}
           setActiveTab={setActiveTab}
           setActiveModule={setActiveModule}

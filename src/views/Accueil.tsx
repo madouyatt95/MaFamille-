@@ -25,7 +25,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { Member, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog } from '../types';
+import type { Member, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog, ChoreTask, GroceryItem, Transaction, Trip, DocumentFile } from '../types';
 import type { UnifiedEvent } from '../utils/agendaHelper';
 
 type AccueilUnifiedEvent = UnifiedEvent & {
@@ -60,6 +60,11 @@ interface AccueilProps {
   members: Member[];
   events: UnifiedEvent[];
   dishes: Dish[];
+  tasks?: ChoreTask[];
+  groceries?: GroceryItem[];
+  transactions?: Transaction[];
+  trips?: Trip[];
+  documents?: DocumentFile[];
   alerts: NotificationAlert[];
   setActiveTab: (tab: string) => void;
   setActiveModule: (moduleName: string) => void;
@@ -88,6 +93,11 @@ export const Accueil: React.FC<AccueilProps> = ({
   members,
   events,
   dishes,
+  tasks = [],
+  groceries = [],
+  transactions = [],
+  trips = [],
+  documents = [],
   alerts,
   setActiveTab,
   setActiveModule,
@@ -218,6 +228,147 @@ export const Accueil: React.FC<AccueilProps> = ({
   })();
 
   const urgentUpcoming = upcomingUnifiedEvents.filter(e => getDaysDiff(e.start_date) <= 7).slice(0, 2);
+
+  const activeTasks = tasks.filter(task => {
+    if (!task || task.done || task.isArchived || task.status === 'validated') return false;
+    if (!isChild) return true;
+    return task.assignedMemberId === activeMember.id || task.assignedMemberIds?.includes(activeMember.id);
+  });
+
+  const overdueTasks = activeTasks.filter(task => task.dueDate && task.dueDate < todayStr);
+  const todayTasks = activeTasks.filter(task => task.dueDate === todayStr);
+  const pendingGroceries = groceries.filter(item => item && !item.checked);
+  const todayTransactionsTotal = transactions
+    .filter(tx => tx.date === todayStr && !tx.isArchived)
+    .reduce((sum, tx) => sum + Math.abs(tx.amount || 0), 0);
+  const nextTrip = trips
+    .filter(trip => trip.startDate >= todayStr)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
+  const expiringDocuments = documents.filter(doc => {
+    if (!doc.expiryDate || doc.isExpired) return doc.isExpired;
+    const diff = getDaysDiff(doc.expiryDate);
+    return diff >= 0 && diff <= 30;
+  });
+
+  const cockpitStats = [
+    {
+      label: 'Aujourd’hui',
+      value: todayUnifiedEvents.length + todayTasks.length,
+      detail: todayTasks.length > 0 ? `${todayTasks.length} tâche${todayTasks.length > 1 ? 's' : ''}` : 'Planning',
+      accent: 'text-[#6C5CFF]',
+      onClick: () => {
+        setActiveTab('menu');
+        setActiveModule('agenda');
+      }
+    },
+    {
+      label: 'À lire',
+      value: unreadMessagesCount + unreadAlertsCount,
+      detail: unreadMessagesCount > 0 ? `${unreadMessagesCount} message${unreadMessagesCount > 1 ? 's' : ''}` : `${unreadAlertsCount} alerte${unreadAlertsCount > 1 ? 's' : ''}`,
+      accent: 'text-[#00D26A]',
+      onClick: unreadMessagesCount > 0
+        ? () => {
+          setActiveTab('menu');
+          setActiveModule('messagerie');
+        }
+        : onAlertsClick
+    },
+    {
+      label: 'Courses',
+      value: pendingGroceries.length,
+      detail: pendingGroceries[0]?.name || 'Liste',
+      accent: 'text-[#FFB020]',
+      onClick: () => {
+        setActiveTab('menu');
+        setActiveModule('courses');
+      }
+    },
+    {
+      label: 'Budget jour',
+      value: todayTransactionsTotal > 0 ? Math.round(todayTransactionsTotal) : 0,
+      detail: todayTransactionsTotal > 0 ? '€ sortis/entrés' : 'Aucun mouvement',
+      accent: 'text-[#FF4D6D]',
+      onClick: () => setActiveTab('budget')
+    }
+  ];
+
+  const cockpitPriorities: {
+    id: string;
+    title: string;
+    detail: string;
+    Icon: LucideIcon;
+    tone: string;
+    onClick: () => void;
+  }[] = [];
+
+  if (overdueTasks.length > 0) {
+    cockpitPriorities.push({
+      id: 'overdue-tasks',
+      title: `${overdueTasks.length} tâche${overdueTasks.length > 1 ? 's' : ''} en retard`,
+      detail: overdueTasks[0]?.title || 'Ouvrir les missions',
+      Icon: Brush,
+      tone: 'border-[#FF4D6D]/25 bg-[#FF4D6D]/10 text-[#FF4D6D]',
+      onClick: () => {
+        setActiveTab('menu');
+        setActiveModule('taches');
+      }
+    });
+  }
+
+  if (pendingGroceries.length > 0) {
+    cockpitPriorities.push({
+      id: 'groceries',
+      title: `${pendingGroceries.length} article${pendingGroceries.length > 1 ? 's' : ''} à acheter`,
+      detail: pendingGroceries.slice(0, 2).map(item => item.name).join(', '),
+      Icon: ShoppingCart,
+      tone: 'border-[#FFB020]/25 bg-[#FFB020]/10 text-[#FFB020]',
+      onClick: () => {
+        setActiveTab('menu');
+        setActiveModule('courses');
+      }
+    });
+  }
+
+  if (nextTrip) {
+    const tripDays = getDaysDiff(nextTrip.startDate);
+    const remainingItems = nextTrip.checklist?.filter(item => !item.done).length || 0;
+    cockpitPriorities.push({
+      id: 'next-trip',
+      title: tripDays <= 0 ? `Départ aujourd'hui` : `Voyage dans ${tripDays} jour${tripDays > 1 ? 's' : ''}`,
+      detail: `${nextTrip.destination}${remainingItems > 0 ? ` • ${remainingItems} point${remainingItems > 1 ? 's' : ''} à préparer` : ''}`,
+      Icon: Plane,
+      tone: 'border-[#4F8CFF]/25 bg-[#4F8CFF]/10 text-[#4F8CFF]',
+      onClick: () => {
+        setActiveTab('menu');
+        setActiveModule('voyages');
+      }
+    });
+  }
+
+  if (expiringDocuments.length > 0) {
+    cockpitPriorities.push({
+      id: 'documents',
+      title: `${expiringDocuments.length} document${expiringDocuments.length > 1 ? 's' : ''} à vérifier`,
+      detail: expiringDocuments[0]?.name || 'Ouvrir le coffre-fort',
+      Icon: FileText,
+      tone: 'border-[#6C5CFF]/25 bg-[#6C5CFF]/10 text-[#9E94FF]',
+      onClick: () => {
+        setActiveTab('menu');
+        setActiveModule('documents');
+      }
+    });
+  }
+
+  if (cockpitPriorities.length === 0) {
+    cockpitPriorities.push({
+      id: 'clear',
+      title: 'Rien ne bloque la journée',
+      detail: 'Le foyer est à jour pour le moment',
+      Icon: CheckCircle2,
+      tone: 'border-[#00D26A]/20 bg-[#00D26A]/10 text-[#00D26A]',
+      onClick: () => setActiveTab('timeline')
+    });
+  }
   const activityCards = (() => {
     const cards: {
       id: string;
@@ -459,6 +610,67 @@ export const Accueil: React.FC<AccueilProps> = ({
             />
             <span className="absolute bottom-0 right-0 w-3 h-3 bg-[#00D26A] rounded-full border-2 border-[#07111F]"></span>
           </button>
+        </div>
+      </div>
+
+      {/* Cockpit familial intelligent */}
+      <div className="glass-panel rounded-[32px] border border-white/10 p-4 sm:p-5 space-y-4 overflow-hidden relative">
+        <div className="absolute right-0 top-0 w-40 h-40 bg-[#6C5CFF]/8 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute left-0 bottom-0 w-32 h-32 bg-[#00D26A]/8 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base sm:text-lg font-black text-white tracking-tight">Cockpit familial</h2>
+            <p className="text-[11px] text-white/50 font-semibold mt-1">
+              Vue rapide de ce qui mérite votre attention maintenant.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('timeline')}
+            className="shrink-0 px-3 py-2 rounded-2xl bg-white/5 border border-white/8 text-[10px] font-black text-white/65 hover:text-white hover:bg-white/10 transition-all"
+          >
+            Journal
+          </button>
+        </div>
+
+        <div className="relative z-10 grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {cockpitStats.map((stat) => (
+            <button
+              key={stat.label}
+              type="button"
+              onClick={stat.onClick}
+              className="rounded-[22px] bg-white/[0.035] hover:bg-white/[0.07] border border-white/8 p-3 text-left transition-all active:scale-[0.98]"
+            >
+              <span className="text-[9px] font-black text-white/35 uppercase tracking-wider block">{stat.label}</span>
+              <span className={`text-2xl font-black block mt-1 ${stat.accent}`}>{stat.value}</span>
+              <span className="text-[10px] text-white/50 font-semibold truncate block mt-0.5">{stat.detail}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          {cockpitPriorities.slice(0, 4).map((priority) => {
+            const Icon = priority.Icon;
+            return (
+              <button
+                key={priority.id}
+                type="button"
+                onClick={priority.onClick}
+                className={`rounded-[24px] border p-4 text-left transition-all hover:bg-white/8 active:scale-[0.98] ${priority.tone}`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-black/15 flex items-center justify-center border border-white/8 shrink-0">
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-xs font-black text-white truncate">{priority.title}</h3>
+                    <p className="text-[10px] text-white/55 font-semibold mt-1 line-clamp-2">{priority.detail}</p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
