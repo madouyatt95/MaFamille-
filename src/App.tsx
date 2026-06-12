@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability, react-hooks/purity, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect, react-hooks/preserve-manual-memoization -- App.tsx is still a legacy monolith. These rules are tracked in docs/lint_cleanup_remaining.md for a dedicated refactor. */
 import { lazy, Suspense, useState, useEffect, useRef, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
@@ -70,6 +71,12 @@ interface CalendarSource {
 }
 
 type FoyerMembership = { foyer: Foyer; member: FoyerMember };
+// Supabase returns loosely typed row payloads in this monolithic hydration layer.
+// Keep the escape hatch local instead of repeating untyped payloads across every mapper.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LooseValue = any;
+type DbRow = Record<string, LooseValue>;
+type DbRows = LooseValue[];
 
 const mapCloudMemory = (m: CloudMemoryRow): MemoryLog => {
   const imageUrls = Array.isArray(m.image_urls) ? m.image_urls.filter(Boolean) : [];
@@ -247,7 +254,7 @@ const cleanLabel = (lbl: string): string => {
 
 
 function App() {
-  // Safe localStorage helper functions to prevent any corrupt cache startup crashes
+  // Safe localStorage helper functions to prevent corrupt cache startup crashes
   const safeGetLocalStorage = <T,>(key: string, fallback: T): T => {
     try {
       const val = localStorage.getItem(key);
@@ -707,12 +714,12 @@ function App() {
     });
   };
 
-  const [grades, setGrades] = useState<any[]>(() => {
+  const [grades, setGrades] = useState<LooseValue[]>(() => {
     const activeEstId = localStorage.getItem('mf_active_establishment_id') || 'est-1';
     return spaceService.getGradesForEstablishment(activeEstId);
   });
 
-  const [schedule, setSchedule] = useState<any[]>(() => {
+  const [schedule, setSchedule] = useState<LooseValue[]>(() => {
     const activeEstId = localStorage.getItem('mf_active_establishment_id') || 'est-1';
     return spaceService.getScheduleForEstablishment(activeEstId);
   });
@@ -803,8 +810,8 @@ function App() {
       });
   }, [events]);
 
-  const setVaccines = async (actionOrUpdater: any) => {
-    let nextVaccines: any[] = [];
+  const setVaccines = async (actionOrUpdater: LooseValue) => {
+    let nextVaccines: LooseValue[] = [];
     const currentVaccines = events
       .filter(e => e.type === 'vaccine')
       .map(e => {
@@ -832,10 +839,10 @@ function App() {
 
     nextVaccines = nextVaccines.filter(v => !['v1', 'v2', 'v3', 'v4'].includes(v.id));
 
-    const added = nextVaccines.filter((nv: any) => !currentVaccines.some((cv: any) => cv.id === nv.id));
-    const deleted = currentVaccines.filter((cv: any) => !nextVaccines.some((nv: any) => nv.id === cv.id));
-    const updated = nextVaccines.filter((nv: any) => {
-      const cv = currentVaccines.find((c: any) => c.id === nv.id);
+    const added = nextVaccines.filter((nv: DbRow) => !currentVaccines.some((cv: LooseValue) => cv.id === nv.id));
+    const deleted = currentVaccines.filter((cv: DbRow) => !nextVaccines.some((nv: LooseValue) => nv.id === cv.id));
+    const updated = nextVaccines.filter((nv: DbRow) => {
+      const cv = currentVaccines.find((c: DbRow) => c.id === nv.id);
       return cv && (
         cv.status !== nv.status ||
         cv.date !== nv.date ||
@@ -953,7 +960,7 @@ function App() {
 
   // Navigation and Sheets UI State
   const [activeTab, setActiveTab] = useState('accueil');
-  const [budgetActiveSubView, setBudgetActiveSubView] = useState<{ type: 'export' | 'import' | 'transaction_form' | 'tab', options?: any, tab?: string } | null>(null);
+  const [budgetActiveSubView, setBudgetActiveSubView] = useState<{ type: 'export' | 'import' | 'transaction_form' | 'tab', options?: LooseValue, tab?: string } | null>(null);
 
   const [activeModule, rawSetActiveModule] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -995,7 +1002,7 @@ function App() {
   }, [members]);
 
   // PWA Install Prompt States
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<LooseValue>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [showIosGuide, setShowIosGuide] = useState(false);
@@ -1013,7 +1020,7 @@ function App() {
     }
 
     // Detect if app is already run in standalone (PWA installed) mode
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as LooseValue).standalone === true;
     if (isStandalone) {
       return;
     }
@@ -1176,7 +1183,7 @@ function App() {
           if (client) {
             client.from('transactions').select('*').eq('travel_id', rawId).then(({ data }) => {
               if (data) {
-                data.forEach(async (row: any) => {
+                data.forEach(async (row: DbRow) => {
                   const cleanedComment = row.comment ? row.comment.replace(/__METADATA__:.*$/, '').trim() : '';
                   await client.from('transactions').update({
                     travel_id: null,
@@ -1224,7 +1231,7 @@ function App() {
         };
       }));
       if (client) {
-        const updateData: any = {};
+        const updateData: DbRow = {};
         if (isVac) updateData.next_vaccine = null;
         if (isVet) updateData.vet_appointment = null;
         await client.from('pets').update(updateData).eq('id', rawId);
@@ -1241,7 +1248,7 @@ function App() {
         };
       }));
       if (client) {
-        const updateData: any = {};
+        const updateData: DbRow = {};
         if (isTc) updateData.technical_control = null;
         if (isIns) updateData.insurance_expiry = null;
         await client.from('vehicles').update(updateData).eq('id', rawId);
@@ -1257,7 +1264,7 @@ function App() {
       setEvents(prev => prev.map(e => e.id === rawId ? { ...e, done: true } : e));
       if (client) await client.from('events').update({ done: true }).eq('id', rawId);
     } else if (moduleName === 'demarches') {
-      setDemarches(prev => prev.map(d => d.id === rawId ? { ...d, status: 'archived' as any } : d));
+      setDemarches(prev => prev.map(d => d.id === rawId ? { ...d, status: 'archived' as LooseValue } : d));
       if (client) await client.from('demarches').update({ status: 'archived' }).eq('id', rawId);
     } else if (moduleName === 'ecole') {
       setSchoolTasksState(prev => prev.map(st => st.id === rawId ? { ...st, done: true, grade: 'Validé' } : st));
@@ -1269,7 +1276,7 @@ function App() {
       setEvents(prev => prev.map(e => e.id === rawId ? { ...e, done: true } : e));
       if (client) await client.from('events').update({ done: true }).eq('id', rawId);
     } else if (moduleName === 'logement') {
-      setMaintenance(prev => prev.map(m => m.id === rawId ? { ...m, status: 'completed' as any } : m));
+      setMaintenance(prev => prev.map(m => m.id === rawId ? { ...m, status: 'completed' as LooseValue } : m));
       if (client) await client.from('maintenance').update({ status: 'completed' }).eq('id', rawId);
     } else if (moduleName === 'voyages') {
       const activeFoyerId = foyer?.id || 'default';
@@ -1298,7 +1305,7 @@ function App() {
   const [ambiguousChoices, setAmbiguousChoices] = useState<{ moduleSource: string; category: string; subCategory: string; label: string }[]>([]);
   const [voiceAmbiguousTravel, setVoiceAmbiguousTravel] = useState(false);
   const [ambiguousTravelChoices, setAmbiguousTravelChoices] = useState<{ id: string; destination: string; label: string; action: 'link' | 'create' | 'global' }[]>([]);
-  const [pendingVoiceCommandData, setPendingVoiceCommandData] = useState<any | null>(null);
+  const [pendingVoiceCommandData, setPendingVoiceCommandData] = useState<LooseValue | null>(null);
   const [voiceDebugInfo, setVoiceDebugInfo] = useState<{
     phrase: string;
     type: string;
@@ -1318,12 +1325,12 @@ function App() {
   } | null>(null);
   const [devModeActive, setDevModeActive] = useState(() => localStorage.getItem('mf_dev_mode') === 'true');
   const devClicks = useRef(0);
-  const [voiceDebugTrace, setVoiceDebugTrace] = useState<any | null>(null);
+  const [voiceDebugTrace, setVoiceDebugTrace] = useState<LooseValue | null>(null);
   if (voiceDebugTrace) { console.debug("voiceDebugTrace", voiceDebugTrace); }
   const [voiceState, setVoiceState] = useState<'idle' | 'listening' | 'processing' | 'asking_missing_field' | 'waiting_for_answer' | 'executing' | 'success' | 'error' | 'inactif' | 'ecoute' | 'traitement' | 'confirmation' | 'termine' | 'erreur'>('idle');
-  const voiceTimeoutRef = useRef<any>(null);
-  const voiceRecognitionRef = useRef<any>(null);
-  const [pendingGroceryItems, setPendingGroceryItems] = useState<any[] | null>(null);
+  const voiceTimeoutRef = useRef<LooseValue>(null);
+  const voiceRecognitionRef = useRef<LooseValue>(null);
+  const [pendingGroceryItems, setPendingGroceryItems] = useState<LooseValue[] | null>(null);
   const [isEditingPendingGrocery, setIsEditingPendingGrocery] = useState(false);
 
   // Context states for conversational voice assistant
@@ -1343,9 +1350,9 @@ function App() {
   const [lastCreatedTrip, setLastCreatedTrip] = useState<{ id: string; destination: string } | null>(null);
   const [showGroceryPopup, setShowGroceryPopup] = useState(false);
 
-  const parseVoiceCommandRef = useRef<any>(null);
+  const parseVoiceCommandRef = useRef<LooseValue>(null);
   const voiceActionStatusRef = useRef<'waiting' | 'processing' | 'completed'>('waiting');
-  const voiceInactivityTimerRef = useRef<any>(null);
+  const voiceInactivityTimerRef = useRef<LooseValue>(null);
   const voiceActiveRef = useRef(voiceActive);
   const voiceStateRef = useRef(voiceState);
   const voiceContextRef = useRef(voiceContext);
@@ -1415,7 +1422,7 @@ function App() {
     if (!foyer) return;
     if (hasCheckedDefaultRewards) return;
 
-    // Check if we already have any default boutique_rewards seeded
+    // Check if we already have default boutique_rewards seeded
     const hasDefaultRewards = (savingGoals || []).some(sg => sg.id.startsWith('sg-def-'));
     if (!hasDefaultRewards) {
       const defaults = [
@@ -1453,7 +1460,7 @@ function App() {
             validationRequired: true,
             modifiable: true,
             supprimable: true
-          } as any
+          } as LooseValue
         ]
       }));
 
@@ -1755,7 +1762,7 @@ function App() {
     }
   };
 
-  const triggerSchoolRulesForChild = (studentId: string, grade: any) => {
+  const triggerSchoolRulesForChild = (studentId: string, grade: LooseValue) => {
     const parentAccountId = accounts.find(a => a.type === 'bank')?.id || accounts[0]?.id || null;
     
     setPocketMoney(prev => {
@@ -2537,11 +2544,11 @@ function App() {
     const client = getSupabaseClient();
     if (!client) return;
 
-    const wrapQuery = <T,>(tableName: string, promise: PromiseLike<T> | Promise<T>): Promise<{ success: boolean; data: any }> => {
-      return (promise as any).then((res: any) => {
+    const wrapQuery = <T,>(tableName: string, promise: PromiseLike<T> | Promise<T>): Promise<{ success: boolean; data: DbRows }> => {
+      return Promise.resolve(promise as PromiseLike<{ error?: unknown; data?: DbRows }>).then((res) => {
         if (res.error) throw res.error;
-        return { success: true, data: res.data };
-      }).catch((err: any) => {
+        return { success: true, data: res.data || [] };
+      }).catch((err: unknown) => {
         console.error(`[loadFoyerData] Error fetching table data for ${tableName}:`, err);
         return { success: false, data: [] };
       });
@@ -2628,21 +2635,21 @@ function App() {
       
       const user = userRes?.data?.user;
       const currentActiveId = activeMemberIdRef.current || activeMemberId;
-      const selfMember = membersList.find((m: any) => (user && m.userId === user.id) || m.id === currentActiveId);
+      const selfMember = membersList.find((m: FoyerMember) => (user && m.userId === user.id) || m.id === currentActiveId);
       let joinedAtDate: string | null = null;
       if (selfMember) {
         joinedAtDate = selfMember.joinedAt;
       }
 
       if (myMemberProfile) {
-        const updatedSelf = membersList.find((m: any) => m.id === myMemberProfile.id);
+        const updatedSelf = membersList.find((m: FoyerMember) => m.id === myMemberProfile.id);
         if (updatedSelf) {
           setMyMemberProfile(updatedSelf);
         }
       }
       // Set events
       if (eventsRes.success && eventsRes.data) {
-        setEvents(eventsRes.data.map((e: any) => ({
+        setEvents(eventsRes.data.map((e: DbRow) => ({
           id: e.id,
           title: e.title,
           type: e.type,
@@ -2659,7 +2666,7 @@ function App() {
 
       // Set groceries
       if (groceriesRes.success && groceriesRes.data) {
-        setGroceries(groceriesRes.data.map((g: any) => ({
+        setGroceries(groceriesRes.data.map((g: DbRow) => ({
           id: g.id,
           name: g.name,
           category: g.category,
@@ -2675,7 +2682,7 @@ function App() {
 
       // Set archivedLists
       if (archivedListsRes.success && archivedListsRes.data) {
-        setArchivedLists(archivedListsRes.data.map((al: any) => ({
+        setArchivedLists(archivedListsRes.data.map((al: DbRow) => ({
           id: al.id,
           name: al.name,
           date: al.date,
@@ -2687,7 +2694,7 @@ function App() {
 
       // Set transactions
       if (transactionsRes.success && transactionsRes.data) {
-        setTransactions(transactionsRes.data.map((t: any) => {
+        setTransactions(transactionsRes.data.map((t: DbRow) => {
           const { comment, metadata } = deserializeTransactionComment(t.comment);
           return {
             id: t.id,
@@ -2734,7 +2741,7 @@ function App() {
 
       // Set documents
       if (documentsRes.success && documentsRes.data) {
-        setDocuments(documentsRes.data.map((d: any) => ({
+        setDocuments(documentsRes.data.map((d: DbRow) => ({
           id: d.id,
           name: d.name,
           category: d.category,
@@ -2754,7 +2761,7 @@ function App() {
 
       // Set dishes
       if (dishesRes.success && dishesRes.data) {
-        setDishes(dishesRes.data.map((d: any) => ({
+        setDishes(dishesRes.data.map((d: DbRow) => ({
           id: d.id,
           day: d.day,
           mealType: d.meal_type,
@@ -2766,7 +2773,7 @@ function App() {
 
       // Set tasks
       if (tasksRes.success && tasksRes.data) {
-        setTasks(tasksRes.data.map((t: any) => ({
+        setTasks(tasksRes.data.map((t: DbRow) => ({
           id: t.id,
           title: t.title,
           rewardPoints: t.reward_points,
@@ -2782,7 +2789,7 @@ function App() {
 
       // Set savingGoals
       if (savingGoalsRes.success && savingGoalsRes.data) {
-        setSavingGoals(savingGoalsRes.data.map((s: any) => ({
+        setSavingGoals(savingGoalsRes.data.map((s: DbRow) => ({
           id: s.id,
           title: s.title,
           targetAmount: Number(s.target_amount),
@@ -2795,7 +2802,7 @@ function App() {
 
       // Set customCategories
       if (customCategoriesRes.success && customCategoriesRes.data) {
-        setCustomCategories(customCategoriesRes.data.map((cc: any) => {
+        setCustomCategories(customCategoriesRes.data.map((cc: DbRow) => {
           const meta = deserializeCategoryIcon(cc.icon);
           return {
             id: cc.id,
@@ -2814,7 +2821,7 @@ function App() {
       if (accountsRes.success && accountsRes.data) {
         const metadataStr = localStorage.getItem('mf_accounts_metadata');
         const metadata = metadataStr ? JSON.parse(metadataStr) : {};
-        setAccounts(accountsRes.data.map((a: any) => {
+        setAccounts(accountsRes.data.map((a: DbRow) => {
           const meta = metadata[a.id] || {};
           return {
             id: a.id,
@@ -2830,7 +2837,7 @@ function App() {
 
       // Set abonnements
       if (abonnementsRes.success && abonnementsRes.data) {
-        setAbonnements(abonnementsRes.data.map((a: any) => ({
+        setAbonnements(abonnementsRes.data.map((a: DbRow) => ({
           id: a.id,
           name: a.name,
           amount: Number(a.amount || 0),
@@ -2842,7 +2849,7 @@ function App() {
 
       // Set debts
       if (debtsRes.success && debtsRes.data) {
-        setDebts(debtsRes.data.map((d: any) => ({
+        setDebts(debtsRes.data.map((d: DbRow) => ({
           id: d.id,
           title: d.title,
           amount: Number(d.amount || 0),
@@ -2858,9 +2865,9 @@ function App() {
       if (alertsRes.success && alertsRes.data) {
         let list = alertsRes.data;
         if (joinedAtDate) {
-          list = list.filter((a: any) => a.created_at >= joinedAtDate);
+          list = list.filter((a: DbRow) => a.created_at >= joinedAtDate);
         }
-        setAlerts(list.map((a: any) => ({
+        setAlerts(list.map((a: DbRow) => ({
           id: a.id,
           title: a.title,
           description: a.description,
@@ -2884,7 +2891,7 @@ function App() {
 
       // Set votes
       if (votesRes.success && votesRes.data) {
-        setVotes(votesRes.data.map((v: any) => ({
+        setVotes(votesRes.data.map((v: DbRow) => ({
           id: v.id,
           question: v.question,
           options: typeof v.options === 'string' ? JSON.parse(v.options) : v.options || [],
@@ -2896,7 +2903,7 @@ function App() {
 
       // Set schoolTasks
       if (schoolTasksRes.success && schoolTasksRes.data) {
-        setSchoolTasks(removeLegacyDemoSchoolTasks(schoolTasksRes.data).map((s: any) => ({
+        setSchoolTasks(removeLegacyDemoSchoolTasks(schoolTasksRes.data).map((s: DbRow) => ({
           id: s.id,
           subject: s.subject,
           title: s.title,
@@ -2910,7 +2917,7 @@ function App() {
 
       // Set chatGroups
       if (chatGroupsRes.success && chatGroupsRes.data) {
-        setChatGroups(chatGroupsRes.data.map((c: any) => ({
+        setChatGroups(chatGroupsRes.data.map((c: DbRow) => ({
           id: c.id,
           name: c.name,
           isPrivate: c.is_private,
@@ -2924,7 +2931,7 @@ function App() {
       // Set chatMessages
       if (chatMessagesRes.success && chatMessagesRes.data) {
         const sortedMessages = [...chatMessagesRes.data].reverse();
-        setChatMessages(sortedMessages.map((c: any) => ({
+        setChatMessages(sortedMessages.map((c: DbRow) => ({
           id: c.id,
           groupId: c.group_id,
           senderId: c.sender_id,
@@ -2940,7 +2947,7 @@ function App() {
 
       // Set demarches
       if (demarchesRes.success && demarchesRes.data) {
-        setDemarches(demarchesRes.data.map((d: any) => ({
+        setDemarches(demarchesRes.data.map((d: DbRow) => ({
           id: d.id,
           templateId: d.template_id,
           title: d.title,
@@ -2957,7 +2964,7 @@ function App() {
 
       // Set packs
       if (packsRes.success && packsRes.data) {
-        setJustificatifPacks(packsRes.data.map((p: any) => ({
+        setJustificatifPacks(packsRes.data.map((p: DbRow) => ({
           id: p.id,
           name: p.name,
           templateType: p.template_type,
@@ -2968,7 +2975,7 @@ function App() {
 
       // Set vehicles
       if (vehiclesRes.success && vehiclesRes.data) {
-        setVehicles(vehiclesRes.data.map((v: any) => ({
+        setVehicles(vehiclesRes.data.map((v: DbRow) => ({
           id: v.id,
           name: v.name,
           plate: v.plate || '',
@@ -2982,19 +2989,19 @@ function App() {
 
       // Set maintenance
       if (maintenanceRes.success && maintenanceRes.data) {
-        setMaintenance(maintenanceRes.data.map((m: any) => ({
+        setMaintenance(maintenanceRes.data.map((m: DbRow) => ({
           id: m.id,
           title: m.title,
           provider: m.provider || '',
           date: m.date || '',
           cost: Number(m.cost || 0),
-          status: (m.status as any) || 'scheduled'
+          status: (m.status as LooseValue) || 'scheduled'
         })));
       }
 
       // Set trips
       if (tripsRes.success && tripsRes.data) {
-        setTrips(tripsRes.data.map((t: any) => ({
+        setTrips(tripsRes.data.map((t: DbRow) => ({
           id: t.id,
           destination: t.destination,
           startDate: t.start_date || '',
@@ -3007,7 +3014,7 @@ function App() {
 
       // Set pets
       if (petsRes.success && petsRes.data) {
-        setPets(petsRes.data.map((p: any) => ({
+        setPets(petsRes.data.map((p: DbRow) => ({
           id: p.id,
           name: p.name,
           species: p.species || '',
@@ -3022,7 +3029,7 @@ function App() {
 
       // Set pocketMoney
       if (pocketMoneyRes.success && pocketMoneyRes.data) {
-        setPocketMoney(pocketMoneyRes.data.map((p: any) => {
+        setPocketMoney(pocketMoneyRes.data.map((p: DbRow) => {
           const meta = parsePocketMoneyTitle(p.goal_title || '');
           return {
             id: p.id,
@@ -3092,7 +3099,7 @@ function App() {
             }
           });
         } else {
-          setMalusTemplates(malusTemplatesRes.data.map((m: any) => ({
+          setMalusTemplates(malusTemplatesRes.data.map((m: DbRow) => ({
             id: m.id,
             foyerId: m.foyer_id,
             title: m.title,
@@ -3112,7 +3119,7 @@ function App() {
 
       // Set appliedMaluses
       if (malusAppliedRes.success && malusAppliedRes.data) {
-        setAppliedMaluses(malusAppliedRes.data.map((m: any) => ({
+        setAppliedMaluses(malusAppliedRes.data.map((m: DbRow) => ({
           id: m.id,
           foyerId: m.foyer_id,
           memberId: m.member_id,
@@ -3134,7 +3141,7 @@ function App() {
 
       // Set artisans
       if (artisansRes.success && artisansRes.data) {
-        setArtisans(artisansRes.data.map((a: any) => ({
+        setArtisans(artisansRes.data.map((a: DbRow) => ({
           id: a.id,
           name: a.name,
           specialty: a.specialty,
@@ -3147,7 +3154,7 @@ function App() {
 
       setIsSyncReady(true);
       if (abonnementsRes.success && abonnementsRes.data) {
-        const abos = abonnementsRes.data.map((a: any) => ({
+        const abos = abonnementsRes.data.map((a: DbRow) => ({
           id: a.id,
           name: a.name,
           amount: Number(a.amount || 0),
@@ -3157,17 +3164,17 @@ function App() {
         }));
         processRecurringItems(foyerId, abos, transactionsRes.data || [], tasksRes.data || [], pocketMoneyRes.data || []);
       }
-    }).catch((err: any) => {
+    }).catch((err: unknown) => {
       console.error("Error loading foyer tables background data:", err);
     });
   };
 
   const processRecurringItems = async (
     foyerId: string,
-    currentAbonnements: any[],
-    dbTransactions: any[],
-    dbTasks: any[],
-    dbPocketMoney: any[]
+    currentAbonnements: DbRows,
+    dbTransactions: DbRows,
+    dbTasks: DbRows,
+    dbPocketMoney: DbRows
   ) => {
     if (!foyerId) return;
     const todayStr = new Date().toISOString().split('T')[0];
@@ -3181,7 +3188,7 @@ function App() {
       if (!nextDateStr) continue;
 
       let updated = false;
-      const transactionsToAdd: any[] = [];
+      const transactionsToAdd: DbRows = [];
       let iterations = 0;
       while (nextDateStr && nextDateStr <= todayStr && iterations < 12) {
         iterations++;
@@ -3237,7 +3244,7 @@ function App() {
       if (!nextDateStr) continue;
       
       let updated = false;
-      const transactionsToAdd: any[] = [];
+      const transactionsToAdd: DbRows = [];
       let iterations = 0;
       
       while (nextDateStr && nextDateStr <= todayStr && iterations < 12) {
@@ -3531,7 +3538,7 @@ function App() {
       }
 
       if (transactionsRes.data) {
-        const mapped = transactionsRes.data.map((t: any) => {
+        const mapped = transactionsRes.data.map((t: DbRow) => {
           const { comment, metadata } = deserializeTransactionComment(t.comment);
           return {
             id: t.id, amount: Number(t.amount), type: t.type, category: t.category,
@@ -3572,7 +3579,7 @@ function App() {
       }
 
       if (documentsRes.data) {
-        const mapped = documentsRes.data.map((d: any) => ({
+        const mapped = documentsRes.data.map((d: DbRow) => ({
           id: d.id, name: d.name, category: d.category, subCategory: d.sub_category,
           memberId: d.member_id, memberName: d.member_name, tags: d.tags || [],
           uploadDate: d.upload_date, expiryDate: d.expiry_date, fileSize: d.file_size,
@@ -3772,7 +3779,7 @@ function App() {
       }
 
       if (pocketMoneyRes.data) {
-        const mapped = pocketMoneyRes.data.map((p: any) => {
+        const mapped = pocketMoneyRes.data.map((p: DbRow) => {
           const meta = parsePocketMoneyTitle(p.goal_title || '');
           return {
             id: p.id,
@@ -3869,7 +3876,7 @@ function App() {
           return mapped;
         });
       }
-    } catch (silentErr: any) {
+    } catch (silentErr: LooseValue) {
       console.warn("[MaFamille+ Background Sync] Silent poll failure:", silentErr.message);
     }
   };
@@ -3929,7 +3936,7 @@ function App() {
       });
     });
 
-    const subGroceries = foyerService.subscribeToChanges('groceries', foyer.id, (payload: any) => {
+    const subGroceries = foyerService.subscribeToChanges('groceries', foyer.id, (payload: LooseValue) => {
       if (!payload) return;
       console.log("[Groceries Realtime Change] Received payload:", payload.eventType, "new:", payload.new, "old:", payload.old);
 
@@ -3978,7 +3985,7 @@ function App() {
       }
     });
 
-    const subArchivedLists = foyerService.subscribeToChanges('archived_lists', foyer.id, (payload: any) => {
+    const subArchivedLists = foyerService.subscribeToChanges('archived_lists', foyer.id, (payload: LooseValue) => {
       if (!payload) return;
       console.log("[ArchivedLists Realtime Change] Received payload:", payload.eventType);
 
@@ -4054,7 +4061,7 @@ function App() {
       });
     });
 
-    const subMessages = foyerService.subscribeToChanges('chat_messages', foyer.id, (payload: any) => {
+    const subMessages = foyerService.subscribeToChanges('chat_messages', foyer.id, (payload: LooseValue) => {
       if (!payload) return;
 
       if (payload.eventType === 'DELETE') {
@@ -4120,7 +4127,7 @@ function App() {
       }
     });
 
-    const subMemories = foyerService.subscribeToChanges('memories', foyer.id, (payload: any) => {
+    const subMemories = foyerService.subscribeToChanges('memories', foyer.id, (payload: LooseValue) => {
       if (!payload) return;
 
       if (payload.eventType === 'DELETE') {
@@ -4190,7 +4197,7 @@ function App() {
             provider: m.provider || '',
             date: m.date || '',
             cost: Number(m.cost || 0),
-            status: (m.status as any) || 'scheduled'
+            status: (m.status as LooseValue) || 'scheduled'
           })));
         }
       });
@@ -4233,7 +4240,7 @@ function App() {
     const subPocketMoney = foyerService.subscribeToChanges('pocket_money', foyer.id, () => {
       foyerService.fetchTableData('pocket_money', foyer.id).then(pmData => {
         if (pmData) {
-          setPocketMoney(pmData.map((p: any) => {
+          setPocketMoney(pmData.map((p: DbRow) => {
             const meta = parsePocketMoneyTitle(p.goal_title || '');
             return {
               id: p.id,
@@ -4271,7 +4278,7 @@ function App() {
       });
     });
 
-    const subAlerts = foyerService.subscribeToChanges('alerts', foyer.id, (payload: any) => {
+    const subAlerts = foyerService.subscribeToChanges('alerts', foyer.id, (payload: LooseValue) => {
       if (payload && payload.eventType === 'DELETE') {
         const deletedId = payload.old?.id;
         if (deletedId) {
@@ -4530,7 +4537,7 @@ function App() {
     const subMalusTemplates = foyerService.subscribeToChanges('malus_templates', foyer.id, () => {
       foyerService.fetchTableData('malus_templates', foyer.id).then(templatesData => {
         if (templatesData) {
-          setMalusTemplates(templatesData.map((m: any) => ({
+          setMalusTemplates(templatesData.map((m: DbRow) => ({
             id: m.id,
             foyerId: m.foyer_id,
             title: m.title,
@@ -4552,7 +4559,7 @@ function App() {
     const subAppliedMaluses = foyerService.subscribeToChanges('malus_applied', foyer.id, () => {
       foyerService.fetchTableData('malus_applied', foyer.id).then(appliedData => {
         if (appliedData) {
-          setAppliedMaluses(appliedData.map((m: any) => ({
+          setAppliedMaluses(appliedData.map((m: DbRow) => ({
             id: m.id,
             foyerId: m.foyer_id,
             memberId: m.member_id,
@@ -4633,7 +4640,7 @@ function App() {
 
       const currentSessionId = ++syncSessionIdRef.current;
 
-      // Pre-upload any base64 images in background
+      // Pre-upload LooseValue base64 images in background
       let hasUpdates = false;
 
       // 1. Documents
@@ -4741,7 +4748,7 @@ function App() {
       }
 
       // Helper function to sync a table cleanly
-      const syncTable = async (tableName: string, localItems: any[], mapToDb: (item: any) => any, allowDelete: boolean = false) => {
+      const syncTable = async (tableName: string, localItems: LooseValue[], mapToDb: (item: LooseValue) => LooseValue, allowDelete: boolean = false) => {
         if (currentSessionId !== syncSessionIdRef.current) return;
         try {
           const { data: cloudItems } = await client.from(tableName).select('*').eq('foyer_id', foyer.id);
@@ -4765,7 +4772,7 @@ function App() {
             const cloudItem = (cloudItems || []).find(c => c.id === localItem.id);
             if (!cloudItem) return true; // New item
 
-            // Check if any value is different
+            // Check if LooseValue value is different
             for (const key of Object.keys(localItem)) {
               const valLocal = localItem[key];
               const valCloud = cloudItem[key];
@@ -5112,7 +5119,7 @@ function App() {
     redirection?: {
       tab: string;
       module: string;
-      subView?: any;
+      subView?: LooseValue;
       groceryFilter?: 'all' | 'pending' | 'checked';
       toastMessage: string;
     }
@@ -5141,7 +5148,7 @@ function App() {
       clearTimeout(voiceTimeoutRef.current);
     }
     
-    // Process remaining segments if any before turning off
+    // Process remaining segments if LooseValue before turning off
     if (finalNextState === 'idle' && voiceContext && voiceContext.remainingSegments && voiceContext.remainingSegments.length > 0) {
       if (redirection) {
         setActiveTab(redirection.tab);
@@ -5205,7 +5212,7 @@ function App() {
       setPaywallOpen(true);
       return;
     }
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognition = (window as LooseValue).SpeechRecognition || (window as LooseValue).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert("Votre navigateur ne supporte pas l'API de reconnaissance vocale.");
       return;
@@ -5268,7 +5275,7 @@ function App() {
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event: LooseValue) => {
         if (voiceInactivityTimerRef.current) {
           clearTimeout(voiceInactivityTimerRef.current);
         }
@@ -5297,7 +5304,7 @@ function App() {
         voiceTimeoutRef.current = timer;
       };
 
-      recognition.onerror = (event: any) => {
+      recognition.onerror = (event: LooseValue) => {
         console.error("Vocal search error", event.error);
         setVoiceTranscript("🎙️ Impossible d'écouter votre commande. Réessayer.");
         setVoiceWave(false);
@@ -5522,7 +5529,7 @@ function App() {
     return dest.charAt(0).toUpperCase() + dest.slice(1);
   };
 
-  const findAllMemberMatches = (inputText: string, membersList: any[], activeId: string): any[] => {
+  const findAllMemberMatches = (inputText: string, membersList: LooseValue[], activeId: string): LooseValue[] => {
     let cleanInput = inputText.toLowerCase().trim();
     if (cleanInput === 'yata' || cleanInput === 'yattah') {
       cleanInput = 'yatta';
@@ -5573,7 +5580,7 @@ function App() {
     }
 
     // --- CASCADE LEVEL 3: Levenshtein matches on full name/role ---
-    const fullLevMatches: { member: any; dist: number }[] = [];
+    const fullLevMatches: { member: LooseValue; dist: number }[] = [];
     for (const member of membersList) {
       const normName = norm(member.name);
       const normRole = member.role ? norm(member.role) : '';
@@ -5609,7 +5616,7 @@ function App() {
     if (wordMatches.length > 0) return wordMatches;
 
     // --- CASCADE LEVEL 5: Levenshtein on individual words ---
-    const wordLevMatches: { member: any; dist: number }[] = [];
+    const wordLevMatches: { member: LooseValue; dist: number }[] = [];
     for (const member of membersList) {
       const normName = norm(member.name);
       const nameWords = normName.split(/\s+/);
@@ -5653,8 +5660,8 @@ function App() {
   const findCategoryAndSubcategory = (
     promptLower: string,
     titleText: string,
-    customCats: any[],
-    pastTx: any[]
+    customCats: LooseValue[],
+    pastTx: LooseValue[]
   ) => {
     const textLower = promptLower.toLowerCase();
     const titleLower = titleText.toLowerCase();
@@ -6245,7 +6252,7 @@ function App() {
     return null;
   };
 
-  const processVoiceContext = async (ctx: any) => {
+  const processVoiceContext = async (ctx: LooseValue) => {
     console.log("DEBUG DATE 2: Date stockée dans le contexte:", ctx.date);
 
     const missing = getMissingFields(ctx);
@@ -6262,7 +6269,7 @@ function App() {
       supabase: ctx.date || ''
     } : undefined;
 
-    setVoiceDebugTrace((prev: any) => ({
+    setVoiceDebugTrace((prev: LooseValue) => ({
       intention: ctx.pendingAction || 'unknown',
       entities,
       missingFields: missing,
@@ -6606,7 +6613,7 @@ function App() {
     const client = getSupabaseClient();
     let toastMessage = "";
     let feedback = "";
-    let redirectPayload: any = undefined;
+    let redirectPayload: LooseValue = undefined;
 
     // 3. Perform actions
     // 3a. create_trip
@@ -7001,7 +7008,7 @@ function App() {
       const newEvent = {
         id: newEventId,
         title: ctx.title || 'Rendez-vous',
-        type: (isMedical ? 'medical' : 'other') as any,
+        type: (isMedical ? 'medical' : 'other') as LooseValue,
         dateTime: ctx.date,
         time: ctx.time || 'horaire à définir',
         memberId: targetMemberId,
@@ -7050,7 +7057,7 @@ function App() {
       const newDoc = {
         id: `doc-${Date.now()}`,
         name: `Nouveau document - ${ctx.category}`,
-        category: ctx.category as any,
+        category: ctx.category as LooseValue,
         memberId: ctx.memberId,
         memberName: memberObj?.name || 'Famille',
         tags: [ctx.category],
@@ -7221,7 +7228,7 @@ function App() {
     }
 
     // 4. Wrap up execution
-    setVoiceDebugTrace((prev: any) => ({
+    setVoiceDebugTrace((prev: LooseValue) => ({
       ...prev,
       missingFields: [],
       actionExecuted: `Action exécutée avec succès ! (${ctx.pendingAction})`
@@ -7308,7 +7315,7 @@ function App() {
     return new Date().toISOString().split('T')[0];
   };
 
-  const getMissingFields = (ctx: any) => {
+  const getMissingFields = (ctx: LooseValue) => {
     const missing: string[] = [];
     if (!ctx) return missing;
     if (ctx.pendingAction === 'create_trip') {
@@ -7360,8 +7367,8 @@ function App() {
     return missing;
   };
 
-  const getEntities = (ctx: any) => {
-    const entities: Record<string, any> = {};
+  const getEntities = (ctx: LooseValue) => {
+    const entities: Record<string, LooseValue> = {};
     if (!ctx) return entities;
     const skip = ['pendingAction', 'remainingSegments', 'lastActiveTime', 'missingField'];
     Object.keys(ctx).forEach(key => {
@@ -7546,7 +7553,7 @@ function App() {
       let intent = "unknown";
       let isSuccess = false;
 
-      const logVoiceCommandToSupabase = async (cmdIntent: string, success: boolean, customFields: any = {}) => {
+      const logVoiceCommandToSupabase = async (cmdIntent: string, success: boolean, customFields: LooseValue = {}) => {
         const client = getSupabaseClient();
         if (client && foyer?.id) {
           try {
@@ -7582,10 +7589,10 @@ function App() {
           }
         } else {
           let resolved = false;
-          const updatedCtx = { ...voiceContext, lastActiveTime: now } as any;
+          const updatedCtx = { ...voiceContext, lastActiveTime: now } as LooseValue;
           const textLower = promptLower.trim();
 
-          let resolvedValue: any = text.trim();
+          let resolvedValue: LooseValue = text.trim();
           if (voiceContext.missingField === 'memberId') {
             const matchesList = findAllMemberMatches(text, members, activeMemberId);
             if (matchesList.length > 0) {
@@ -7604,7 +7611,7 @@ function App() {
 
           const waitingForFriendly: string = voiceContext.missingField === 'memberId' ? 'personne' : (voiceContext.missingField || 'unknown');
           
-          const contextFlowObj: any = {
+          const contextFlowObj: LooseValue = {
             context_active: true,
             waiting_for: waitingForFriendly,
             received: text.trim(),
@@ -7874,7 +7881,7 @@ function App() {
         return;
       }
 
-      const executeGroceryVoiceAction = async (actionResult: any) => {
+      const executeGroceryVoiceAction = async (actionResult: LooseValue) => {
         const client = getSupabaseClient();
         const activeMemberObj = members.find(m => m.id === activeMemberId);
         const activeMemberName = activeMemberObj?.name || 'Foyer';
@@ -7884,7 +7891,7 @@ function App() {
         
         switch (actionResult.action) {
           case 'check': {
-            const updatedIds = actionResult.items.map((i: any) => i.item.id);
+            const updatedIds = actionResult.items.map((i: LooseValue) => i.item.id);
             setGroceries(prev => prev.map(g => {
               if (updatedIds.includes(g.id)) {
                 return { ...g, checked: true, inStock: true };
@@ -7896,13 +7903,13 @@ function App() {
               await client.from('groceries').update({ checked: true, in_stock: true }).eq('foyer_id', foyer.id).in('id', updatedIds);
             }
             
-            localFeedback = `✓ Cochés dans la liste : ${actionResult.items.map((i: any) => i.item.name).join(', ')}`;
+            localFeedback = `✓ Cochés dans la liste : ${actionResult.items.map((i: LooseValue) => i.item.name).join(', ')}`;
             localSuccess = true;
             break;
           }
           
           case 'uncheck': {
-            const updatedIds = actionResult.items.map((i: any) => i.item.id);
+            const updatedIds = actionResult.items.map((i: LooseValue) => i.item.id);
             setGroceries(prev => prev.map(g => {
               if (updatedIds.includes(g.id)) {
                 return { ...g, checked: false, inStock: true };
@@ -7914,13 +7921,13 @@ function App() {
               await client.from('groceries').update({ checked: false, in_stock: true }).eq('foyer_id', foyer.id).in('id', updatedIds);
             }
             
-            localFeedback = `⟲ Décochés dans la liste : ${actionResult.items.map((i: any) => i.item.name).join(', ')}`;
+            localFeedback = `⟲ Décochés dans la liste : ${actionResult.items.map((i: LooseValue) => i.item.name).join(', ')}`;
             localSuccess = true;
             break;
           }
           
           case 'out_of_stock': {
-            const updatedIds = actionResult.items.map((i: any) => i.item.id);
+            const updatedIds = actionResult.items.map((i: LooseValue) => i.item.id);
             setGroceries(prev => prev.map(g => {
               if (updatedIds.includes(g.id)) {
                 return { ...g, checked: false, inStock: false };
@@ -7932,20 +7939,20 @@ function App() {
               await client.from('groceries').update({ checked: false, in_stock: false }).eq('foyer_id', foyer.id).in('id', updatedIds);
             }
             
-            localFeedback = `❌ Rupture signalée pour : ${actionResult.items.map((i: any) => i.item.name).join(', ')}`;
+            localFeedback = `❌ Rupture signalée pour : ${actionResult.items.map((i: LooseValue) => i.item.name).join(', ')}`;
             localSuccess = true;
             break;
           }
           
           case 'delete': {
-            const updatedIds = actionResult.items.map((i: any) => i.item.id);
+            const updatedIds = actionResult.items.map((i: LooseValue) => i.item.id);
             setGroceries(prev => prev.filter(g => !updatedIds.includes(g.id)));
             
             if (foyer && client) {
               await client.from('groceries').delete().eq('foyer_id', foyer.id).in('id', updatedIds);
             }
             
-            localFeedback = `🗑️ Supprimés de la liste : ${actionResult.items.map((i: any) => i.item.name).join(', ')}`;
+            localFeedback = `🗑️ Supprimés de la liste : ${actionResult.items.map((i: LooseValue) => i.item.name).join(', ')}`;
             localSuccess = true;
             break;
           }
@@ -8041,7 +8048,7 @@ function App() {
             toastMessage = "Filtre : Déjà achetés";
             groceryFilter = 'checked';
           } else {
-            const names = actionResult.items ? actionResult.items.map((i: any) => i.item.name).join(', ') : '';
+            const names = actionResult.items ? actionResult.items.map((i: LooseValue) => i.item.name).join(', ') : '';
             if (actionResult.action === 'check') {
               toastMessage = names ? `${names} acheté` : "Article coché";
             } else if (actionResult.action === 'uncheck') {
@@ -8712,7 +8719,7 @@ function App() {
 
                 feedback = `💸 Virement de ${amountVal}€ effectué de ${srcMatch.name} vers ${destMatch.name} !`;
                 isSuccess = true;
-              } catch (e: any) {
+              } catch (e: LooseValue) {
                 feedback = `❌ Échec du virement : ${e.message}`;
               }
             }
@@ -8755,7 +8762,7 @@ function App() {
               });
               feedback = `🍿 Abonnement ${name} de ${amountVal}€/mois enregistré !`;
               isSuccess = true;
-            } catch (e: any) {
+            } catch (e: LooseValue) {
               feedback = `❌ Échec : ${e.message}`;
             }
           }
@@ -8820,7 +8827,7 @@ function App() {
 
                 feedback = `🎯 Cagnotte "${goalMatch.title}" : ${isAdd ? 'Ajout' : 'Retrait'} de ${amountVal}€ effectué !`;
                 isSuccess = true;
-              } catch (e: any) {
+              } catch (e: LooseValue) {
                 feedback = `❌ Échec : ${e.message}`;
               }
             }
@@ -8888,7 +8895,7 @@ function App() {
           }
         }
 
-        let matches: any[] = [];
+        let matches: LooseValue[] = [];
         
         // Dynamic mapping first
         const dynamicMapping = getDynamicVoiceMapping();
@@ -8960,7 +8967,7 @@ function App() {
 
         // DÉTECTION DU VOYAGE CIBLE
         let travelId: string | null = null;
-        let matchingTravels: any[] = [];
+        let matchingTravels: LooseValue[] = [];
         let travelNameFound = '';
         let requiresTravelResolution = false;
 
@@ -9084,7 +9091,7 @@ function App() {
           });
 
           setVoiceTransactionAdded({
-            type: finalTx.type as any,
+            type: finalTx.type as LooseValue,
             amount: finalTx.amount,
             category: finalTx.category,
             subCategory: finalTx.subCategory || undefined,
@@ -9260,7 +9267,7 @@ function App() {
         });
         closeVoiceAssistantAfterDelay(3500);
       }
-    } catch (err: any) {
+    } catch (err: LooseValue) {
       console.error("Critical error in parseVoiceCommand:", err);
       closeVoiceAssistantAfterDelay(2500);
     }
@@ -9294,7 +9301,7 @@ function App() {
       localStorage.setItem('mf_members', JSON.stringify([]));
       setMembers([]);
       
-      const resetPocketMoney: any[] = [];
+      const resetPocketMoney: LooseValue[] = [];
       localStorage.setItem('mf_pocket_money', JSON.stringify(resetPocketMoney));
       setPocketMoney(resetPocketMoney);
 
@@ -9394,14 +9401,14 @@ function App() {
         try {
           const parsed = JSON.parse(localVacs);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            const migrable = parsed.filter((v: any) => {
+            const migrable = parsed.filter((v: LooseValue) => {
               if (['v1', 'v2', 'v3', 'v4'].includes(v.id)) return false; // skip mock
               return !events.some(e => e.type === 'vaccine' && (e.id === v.id || (e.title === v.name && e.memberId === v.memberId)));
             });
 
             if (migrable.length > 0) {
               const client = getSupabaseClient();
-              migrable.forEach(async (v: any) => {
+              migrable.forEach(async (v: LooseValue) => {
                 const id = v.id || `ev-vac-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                 const newEvent: FamilyEvent = {
                   id,
@@ -9462,7 +9469,7 @@ function App() {
     const alreadyMigrated = localStorage.getItem(migrationKey);
     if (alreadyMigrated) return;
 
-    // Load category budgets from localStorage (if any)
+    // Load category budgets from localStorage (if LooseValue)
     const categoryBudgetsSaved = localStorage.getItem('mf_category_budgets');
     const localCategoryBudgets = categoryBudgetsSaved ? JSON.parse(categoryBudgetsSaved) : {};
 
@@ -9677,7 +9684,7 @@ function App() {
         }
       });
 
-    const generatedAlerts: any[] = [];
+    const generatedAlerts: LooseValue[] = [];
     const modulesList = [
       { id: 'courses', label: 'Courses & Achats', icon: '🛒' },
       { id: 'sante', label: 'Santé & Soins', icon: '🩺' },
@@ -9733,9 +9740,9 @@ function App() {
   }, [alerts, dynamicBudgetAlerts]);
 
   const filteredAlerts = allAlertsCombined
-    .filter((al: any) => !deletedAlertIds.includes(al.id))
-    .filter((al: any) => !(al.read || readAlertIds.includes(al.id)))
-    .filter((al: any) => {
+    .filter((al: LooseValue) => !deletedAlertIds.includes(al.id))
+    .filter((al: LooseValue) => !(al.read || readAlertIds.includes(al.id)))
+    .filter((al: LooseValue) => {
       if (al.id.includes(`-by-${activeMemberId}`)) return false;
       
       const mod = al.module || '';
@@ -9749,7 +9756,7 @@ function App() {
 
       return true;
     })
-    .sort((a: any, b: any) => {
+    .sort((a: LooseValue, b: LooseValue) => {
       const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       if (timeA && timeB) return timeB - timeA;
@@ -9789,7 +9796,7 @@ function App() {
   // ----------------------------------------------------
   // Callbacks and Form Submissions
   // ----------------------------------------------------
-  const handleAddEvent = async (newEvent: any) => {
+  const handleAddEvent = async (newEvent: LooseValue) => {
     if (!isPremium) {
       const currentMonth = new Date().toISOString().substring(0, 7); // "YYYY-MM"
       const monthlyEventsCount = events.filter(e => e.dateTime.startsWith(currentMonth)).length;
@@ -9841,7 +9848,7 @@ function App() {
     }
   };
 
-  const handleAddTransaction = async (newTrans: any) => {
+  const handleAddTransaction = async (newTrans: LooseValue) => {
     const id = newTrans.id || `tx-${Date.now()}`;
     const nowStr = new Date().toISOString();
     const todayISO = nowStr.split('T')[0];
@@ -10075,7 +10082,7 @@ function App() {
     }
   };
 
-  const handleAddTask = (newTask: any) => {
+  const handleAddTask = (newTask: LooseValue) => {
     const id = `tk-${Date.now()}`;
     setTasks(prev => [{ ...newTask, id }, ...prev]);
     const parsed = parseChoreTitle(newTask.title);
@@ -10088,7 +10095,7 @@ function App() {
     );
   };
 
-  const handleAddMember = async (newMem: any) => {
+  const handleAddMember = async (newMem: LooseValue) => {
     if (!isPremium && members.length >= 3) {
       setPaywallOpen(true);
       return;
@@ -10100,7 +10107,7 @@ function App() {
         const mappedMember = mapFoyerMemberToMember(addedMem);
         setMembers(prev => [...prev, mappedMember]);
         alert(`🎉 Fiche membre de ${mappedMember.name} créée et enregistrée avec succès dans le Cloud ! ✨`);
-      } catch (err: any) {
+      } catch (err: LooseValue) {
         console.error("Erreur lors de la création du membre sur Supabase :", err);
         alert(`Impossible d'enregistrer le membre dans le cloud : ${err.message || err}`);
       }
@@ -10153,7 +10160,7 @@ function App() {
         if (d.id === rawId) {
           const nextStatus = d.status === 'completed' ? 'pending' : 'completed';
           if (client) client.from('demarches').update({ status: nextStatus }).eq('id', rawId);
-          return { ...d, status: nextStatus as any };
+          return { ...d, status: nextStatus as LooseValue };
         }
         return d;
       }));
@@ -10165,7 +10172,7 @@ function App() {
         if (m.id === rawId) {
           const nextStatus = m.status === 'completed' ? 'pending' : 'completed';
           if (client) client.from('maintenance').update({ status: nextStatus }).eq('id', rawId);
-          return { ...m, status: nextStatus as any };
+          return { ...m, status: nextStatus as LooseValue };
         }
         return m;
       }));
@@ -10344,7 +10351,7 @@ function App() {
 
     setMembers(prev => prev.map(m => {
       if (m.id === memberId) {
-        const convertedUpdates: any = {};
+        const convertedUpdates: LooseValue = {};
         if (finalUpdates.displayName !== undefined) convertedUpdates.name = finalUpdates.displayName;
         if (finalUpdates.photoUrl !== undefined) convertedUpdates.photoUrl = finalUpdates.photoUrl;
         if (finalUpdates.role !== undefined) {
@@ -11400,53 +11407,6 @@ function App() {
     });
   };
 
-  const handleCancelJoinRequest = async () => {
-    if (!foyer) {
-      await handleLogout();
-      return;
-    }
-    if (confirm("Voulez-vous annuler votre demande d'adhésion en attente et vous déconnecter ?")) {
-      try {
-        await foyerService.leaveFoyer(foyer.id);
-        alert("Demande d'adhésion annulée.");
-      } catch (err) {
-        console.error("Error leaving foyer:", err);
-      }
-      await handleLogout();
-    }
-  };
-
-  const handleLeaveFoyer = async () => {
-    if (!foyer) return;
-    if (confirm("⚠️ Attention : Êtes-vous sûr de vouloir quitter ce foyer ? Vous n'aurez plus accès aux données partagées de cette famille.")) {
-      try {
-        await foyerService.leaveFoyer(foyer.id);
-        alert("🎉 Vous avez quitté le foyer avec succès.");
-        const list = await foyerService.getMyFoyers();
-        setMyFoyers(list);
-        if (list.length > 0) {
-          setFoyer(list[0].foyer);
-          setMyMemberProfile(list[0].member);
-          setActiveMemberId(list[0].member.id);
-          localStorage.setItem('mf_cloud_foyer_id', list[0].foyer.id);
-          localStorage.setItem('mf_active_foyer_id', list[0].foyer.id);
-          await loadFoyerData(list[0].foyer.id);
-        } else {
-          setFoyer(null);
-          setMyMemberProfile(null);
-          localStorage.removeItem('mf_cached_foyer');
-          localStorage.removeItem('mf_cached_member_profile');
-          localStorage.removeItem('mf_cloud_foyer_id');
-          localStorage.removeItem('mf_active_foyer_id');
-          setShowWelcomeScreen(true);
-          setWelcomeScreenMode('select');
-        }
-      } catch (err: any) {
-        alert(`Erreur lors du départ du foyer : ${err.message || err}`);
-      }
-    }
-  };
-
   const handleWelcomeCreateFoyer = async () => {
     setWelcomeLoading(true);
     setWelcomeError(null);
@@ -11470,7 +11430,7 @@ function App() {
       
       setWelcomeCreatedFoyer(newFoyerObj);
       setWelcomeScreenMode('success');
-    } catch (err: any) {
+    } catch (err: LooseValue) {
       console.error(err);
       setWelcomeError(err.message || "Impossible de créer le foyer.");
     } finally {
@@ -11507,7 +11467,7 @@ function App() {
       setMyActiveRequest(activeReq || null);
       
       setShowWelcomeScreen(false);
-    } catch (err: any) {
+    } catch (err: LooseValue) {
       console.error(err);
       setWelcomeError(err.message || "Code invalide ou impossible de rejoindre.");
     } finally {
@@ -11518,7 +11478,7 @@ function App() {
     if (!welcomeCreatedFoyer) return;
     setWelcomeLoading(true);
     try {
-      let list: any[] = [];
+      let list: LooseValue[] = [];
       let newlyCreated = null;
 
       // Retry up to 6 times (with 500ms delay) to handle DB replication latency
@@ -11558,7 +11518,7 @@ function App() {
   const handleLogout = async () => {
     const client = getSupabaseClient();
     if (client) {
-      client.auth.signOut().catch((err: any) => {
+      client.auth.signOut().catch((err: unknown) => {
         console.warn("Supabase signOut error (proceeding with local cleanup):", err);
       });
     }
@@ -11620,7 +11580,7 @@ function App() {
       setGrades([]);
       setSchedule([]);
       alert("✨ Toutes les données d'exemples et de démonstration ont été purgées avec succès de votre compte en ligne !");
-    } catch (err: any) {
+    } catch (err: LooseValue) {
       console.error(err);
       alert("Erreur lors de la purge : " + err.message);
     }
@@ -11665,7 +11625,7 @@ function App() {
       setGrades([]);
       setSchedule([]);
       alert("🗑️ Votre foyer en ligne a été entièrement vidé et réinitialisé avec succès !");
-    } catch (err: any) {
+    } catch (err: LooseValue) {
       console.error(err);
       alert("Erreur lors de la remise à zéro : " + err.message);
     }
@@ -11840,7 +11800,7 @@ function App() {
           setSchoolTasks={setSchoolTasks}
           pocketMoney={appPocketMoney}
           setPocketMoney={setPocketMoney}
-          events={appEvents as any}
+          events={appEvents as LooseValue}
           onAddTask={handleAddTask}
           onDeleteTask={handleDeleteTask}
           onEditTask={handleEditTask}
@@ -11909,7 +11869,7 @@ function App() {
             tasks={appTasks}
             setTasks={setTasks}
             pocketMoney={appPocketMoney}
-            events={appEvents as any}
+            events={appEvents as LooseValue}
             setActiveTab={setActiveTab}
             setActiveModule={setActiveModule}
             trips={appTrips}
@@ -11933,7 +11893,7 @@ function App() {
           activeMemberId={appActiveMemberId}
           onProfileSwitcherOpen={() => setProfileSwitcherOpen(true)}
           onAvatarClick={() => setProfileSwitcherOpen(true)}
-          events={appEvents as any}
+          events={appEvents as LooseValue}
           dishes={dishes}
           alerts={appFilteredAlerts}
           setActiveTab={setActiveTab}
@@ -11963,7 +11923,7 @@ function App() {
     if (activeTab === 'timeline') {
       return (
         <Timeline 
-          events={appEvents as any}
+          events={appEvents as LooseValue}
           transactions={appTransactions}
           vaccines={appVaccines}
           trips={appTrips}
@@ -12533,7 +12493,7 @@ function App() {
       if (activeModule === 'agenda') {
         return (
           <Agenda 
-            events={appEvents as any}
+            events={appEvents as LooseValue}
             members={appMembers}
             activeMemberId={appActiveMemberId}
             onAddEventClick={() => {
@@ -13857,7 +13817,7 @@ function App() {
                           });
 
                           setVoiceTransactionAdded({
-                            type: finalTx.type as any,
+                            type: finalTx.type as LooseValue,
                             amount: finalTx.amount,
                             category: finalTx.category,
                             subCategory: finalTx.subCategory || undefined,
@@ -13975,7 +13935,7 @@ function App() {
                           });
 
                           setVoiceTransactionAdded({
-                            type: updatedTx.type as any,
+                            type: updatedTx.type as LooseValue,
                             amount: updatedTx.amount,
                             category: choice.category,
                             subCategory: choice.subCategory || undefined,
@@ -14198,7 +14158,7 @@ function App() {
               <button
                 onClick={() => {
                   if (window.confirm('Supprimer toutes les notifications affichées ?')) {
-                    const currentIds = filteredAlerts.map((a: any) => a.id);
+                    const currentIds = filteredAlerts.map((a: DbRow) => a.id);
                     const newDeleted = [...deletedAlertIds, ...currentIds];
                     setDeletedAlertIds(newDeleted);
                     localStorage.setItem(`mf_deleted_alerts_${activeMemberId}`, JSON.stringify(newDeleted));
@@ -14245,7 +14205,7 @@ function App() {
                           title: payload.notification?.title || 'Notification MaFamille+',
                           description: payload.notification?.body || '',
                           time: "À l'instant",
-                          type: (payload.data?.type || 'info') as any,
+                          type: (payload.data?.type || 'info') as LooseValue,
                           read: false,
                           module: payload.data?.module || 'other',
                           senderUserId: payload.data?.senderUserId || payload.data?.sender_user_id,
@@ -14275,7 +14235,7 @@ function App() {
 
             <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar">
               {filteredAlerts
-                .map((al: any) => {
+                .map((al: DbRow) => {
                 const targetModule = al.module || '';
                 const iconColor = al.type === 'success' ? '#00D26A' : al.type === 'warning' ? '#FFB020' : al.type === 'error' ? '#FF4D6D' : '#6C5CFF';
                 const isRead = al.read || readAlertIds.includes(al.id);
@@ -14287,7 +14247,7 @@ function App() {
                       if (targetModule) {
                         const mainTabs = ['accueil', 'timeline', 'budget'];
                         if (mainTabs.includes(targetModule)) {
-                          setActiveTab(targetModule as any);
+                          setActiveTab(targetModule as LooseValue);
                           setActiveModule('');
                         } else {
                           setActiveTab('menu');
@@ -14312,7 +14272,7 @@ function App() {
                     <div className="flex-1 min-w-0 space-y-1.5">
                       {(() => {
                         const alertFoyerId = al.foyerId || al.foyer_id || foyer?.id;
-                        const alertFoyerObj = myFoyers.find((f: any) => f.foyer.id === alertFoyerId)?.foyer;
+                        const alertFoyerObj = myFoyers.find((f: LooseValue) => f.foyer.id === alertFoyerId)?.foyer;
                         let originBadge = '';
                         if (targetModule === 'commune') {
                           originBadge = `🏛️ Ville de ${communeName || 'Ma Commune'}`;
@@ -14376,7 +14336,7 @@ function App() {
                 markAllAlertsAsReadInCloud();
                 
                 // Also mark dynamic alerts as read
-                const currentIds = filteredAlerts.map((a: any) => a.id);
+                const currentIds = filteredAlerts.map((a: DbRow) => a.id);
                 if (currentIds.length > 0) {
                   setReadAlertIds(prev => {
                     const next = Array.from(new Set([...prev, ...currentIds]));

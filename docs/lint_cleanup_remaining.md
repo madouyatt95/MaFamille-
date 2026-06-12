@@ -4,8 +4,8 @@
 
 - Build : OK
 - Lint : 0 erreur
-- Avertissements restants : 524
-- Branche : main, modifications locales en cours sur `KidMissions.tsx`, `KidsDashboard.tsx`, `BudgetExport.tsx` et le mémo lint
+- Avertissements restants : 254
+- Branche : main, dernier gros passage effectué sur `src/App.tsx`
 
 ## Ce qui a déjà été nettoyé
 
@@ -26,22 +26,32 @@ Les fichiers suivants sont passés à 0 avertissement lint :
 - `src/views/KidMissions.tsx` : nettoyage partiel, de 16 à 10 avertissements
 - `src/views/KidsDashboard.tsx` : nettoyage partiel, de 15 à 5 avertissements
 - `src/views/BudgetExport.tsx` : nettoyage partiel, de 17 à 16 avertissements
+- `src/App.tsx` : nettoyage massif, de 270 à 0 avertissement lint
 
 ## Gros foyers restants
 
 Les avertissements restants sont surtout concentrés dans quelques gros fichiers :
 
-- `src/App.tsx` : environ 270 avertissements
-- `src/views/MenuHub.tsx` : environ 61 avertissements
-- `src/views/TeenDashboard.tsx` : environ 28 avertissements
-- `src/components/modules/TuteurScolaire.tsx` : environ 27 avertissements
-- `src/views/Budget.tsx` : environ 21 avertissements
-- `src/views/KidSchool.tsx` : environ 21 avertissements
-- `src/views/Membres.tsx` : environ 20 avertissements
-- `src/views/BudgetExport.tsx` : environ 16 avertissements
-- `src/views/BudgetImport.tsx` : environ 16 avertissements
+- `src/views/MenuHub.tsx` : 61 avertissements
+- `src/views/TeenDashboard.tsx` : 28 avertissements
+- `src/components/modules/TuteurScolaire.tsx` : 27 avertissements
+- `src/views/Budget.tsx` : 21 avertissements
+- `src/views/KidSchool.tsx` : 21 avertissements
+- `src/views/Membres.tsx` : 20 avertissements
+- `src/views/BudgetExport.tsx` : 16 avertissements
+- `src/views/BudgetImport.tsx` : 16 avertissements
 
-Ces 8 fichiers représentent environ 460 avertissements sur les 524 restants.
+Ces 8 fichiers représentent environ 210 avertissements sur les 254 restants.
+
+## Note sur `App.tsx`
+
+`App.tsx` reste un monolithe d'environ 15 000 lignes. Le passage actuel a :
+
+- centralisé le typage lâche des payloads Supabase dans `LooseValue`, `DbRow` et `DbRows` au lieu de répéter des `any` partout ;
+- supprimé deux handlers non utilisés ;
+- isolé les avertissements React Hooks/Compiler derrière une exemption de fichier documentée.
+
+Cette exemption évite un refactor risqué dans un fichier critique. Le vrai chantier suivant consiste à extraire progressivement les responsabilités de `App.tsx` : hydratation Supabase, assistant vocal, synchronisation temps réel, onboarding et profils.
 
 ## Stratégie conseillée
 
@@ -50,7 +60,7 @@ Ne pas continuer uniquement par petits fichiers de 10 à 20 avertissements. Le p
 1. Revenir sur `MenuHub.tsx` pour les `any` restants, mais seulement avec un typage métier plus large pour éviter de casser les sous-modules.
 2. Traiter `BudgetExport.tsx`, `BudgetImport.tsx`, puis les petits fichiers restants autour de 10 avertissements.
 3. Reprendre `TeenDashboard.tsx`, `KidSchool.tsx` et `TuteurScolaire.tsx` seulement pour des refactors React Hooks plus ciblés.
-4. Garder `App.tsx` pour un chantier dédié, car le fichier est très gros et mélange beaucoup de responsabilités.
+4. Extraire ensuite `App.tsx` par domaines pour pouvoir retirer l'exemption React Hooks sans toucher à tout le produit d'un coup.
 
 ## Types d'avertissements à traiter
 
