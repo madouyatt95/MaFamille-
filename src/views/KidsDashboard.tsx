@@ -4,17 +4,11 @@ import {
   CheckCircle2, 
   Calendar, 
   Gift, 
-  MapPin, 
-  MessageCircle, 
-  GraduationCap, 
-  BookOpen, 
   Utensils, 
   Plane, 
-  Heart, 
   Vote, 
   Hourglass, 
   ShieldAlert, 
-  Clock, 
   Activity 
 } from 'lucide-react';
 import type { Member, ChoreTask, FamilyEvent, Trip, SchoolTask, Dish, DocumentFile, Transaction, SavingGoal, NotificationAlert } from '../types';
@@ -63,7 +57,6 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
   votes = [],
   memories = [],
   members = [],
-  foyer,
   documents = [],
   transactions = [],
   goals = [],
@@ -202,17 +195,16 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
       const dateVal = new Date(t.dueDate);
       if (!isValidDate(dateVal)) return;
       
-      let label = "";
-      let icon = "🧹";
-      if (meta.status === 'validated') {
-        label = `Mission validée : ${title}`;
-        icon = "✅";
-      } else if (meta.status === 'pending_validation') {
-        label = `Mission terminée : ${title}`;
-        icon = "⏳";
-      } else {
-        label = `Nouvelle mission proposée : ${title}`;
-      }
+      const label = meta.status === 'validated'
+        ? `Mission validée : ${title}`
+        : meta.status === 'pending_validation'
+          ? `Mission terminée : ${title}`
+          : `Nouvelle mission proposée : ${title}`;
+      const icon = meta.status === 'validated'
+        ? "✅"
+        : meta.status === 'pending_validation'
+          ? "⏳"
+          : "🧹";
 
       list.push({
         id: `task-${t.id}`,
@@ -265,7 +257,9 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
             icon: "🎉"
           });
         }
-      } catch (e) {}
+      } catch {
+        // Ignore malformed birth dates.
+      }
     });
 
     // Événements

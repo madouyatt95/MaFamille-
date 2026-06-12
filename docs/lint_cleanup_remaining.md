@@ -4,8 +4,8 @@
 
 - Build : OK
 - Lint : 0 erreur
-- Avertissements restants : 541
-- Branche : main, modifications locales en cours sur `Membres.tsx` et le mémo lint
+- Avertissements restants : 525
+- Branche : main, modifications locales en cours sur `KidMissions.tsx`, `KidsDashboard.tsx` et le mémo lint
 
 ## Ce qui a déjà été nettoyé
 
@@ -23,6 +23,8 @@ Les fichiers suivants sont passés à 0 avertissement lint :
 - `src/views/TeenDashboard.tsx` : nettoyage partiel, de 56 à 28 avertissements
 - `src/views/Budget.tsx` : nettoyage partiel, de 28 à 21 avertissements
 - `src/views/Membres.tsx` : nettoyage partiel, de 26 à 20 avertissements
+- `src/views/KidMissions.tsx` : nettoyage partiel, de 16 à 10 avertissements
+- `src/views/KidsDashboard.tsx` : nettoyage partiel, de 15 à 5 avertissements
 
 ## Gros foyers restants
 
@@ -35,15 +37,17 @@ Les avertissements restants sont surtout concentrés dans quelques gros fichiers
 - `src/views/Budget.tsx` : environ 21 avertissements
 - `src/views/KidSchool.tsx` : environ 21 avertissements
 - `src/views/Membres.tsx` : environ 20 avertissements
+- `src/views/BudgetExport.tsx` : environ 17 avertissements
+- `src/views/BudgetImport.tsx` : environ 16 avertissements
 
-Ces 7 fichiers représentent environ 448 avertissements sur les 541 restants.
+Ces 8 fichiers représentent environ 461 avertissements sur les 525 restants.
 
 ## Stratégie conseillée
 
 Ne pas continuer uniquement par petits fichiers de 10 à 20 avertissements. Le prochain passage doit viser un gros bloc :
 
 1. Revenir sur `MenuHub.tsx` pour les `any` restants, mais seulement avec un typage métier plus large pour éviter de casser les sous-modules.
-2. Traiter `BudgetExport.tsx`, `BudgetImport.tsx`, `KidMissions.tsx` et `KidsDashboard.tsx` en lots plus courts.
+2. Traiter `BudgetExport.tsx`, `BudgetImport.tsx`, puis les petits fichiers restants autour de 10 avertissements.
 3. Reprendre `TeenDashboard.tsx`, `KidSchool.tsx` et `TuteurScolaire.tsx` seulement pour des refactors React Hooks plus ciblés.
 4. Garder `App.tsx` pour un chantier dédié, car le fichier est très gros et mélange beaucoup de responsabilités.
 

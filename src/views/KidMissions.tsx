@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Star, Gift, CheckCircle2, ShieldCheck, PlusCircle, HelpCircle, History, Sparkles, Clock } from 'lucide-react';
+import { ArrowLeft, Star, CheckCircle2, ShieldCheck, PlusCircle, History, Sparkles, Clock } from 'lucide-react';
 import type { Member, ChoreTask, NotificationAlert, Transaction, Foyer } from '../types';
 import { parseChoreTitle, serializeChoreTitle } from '../types';
 import type { SavingGoal } from '../types';
@@ -47,7 +47,6 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   pocketMoney,
   setPocketMoney,
   appliedMaluses = [],
-  setAppliedMaluses,
   onBack,
   defaultTab,
   setAlerts,
@@ -56,10 +55,8 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   transactions = [],
   setTransactions,
   savingGoals = [],
-  setSavingGoals,
   onApplyWallTask,
-  onTakeWallTask,
-  onSendNotification
+  onTakeWallTask
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'missions' | 'boutique' | 'argent' | 'karma'>(defaultTab || 'missions');
   const [requestText, setRequestText] = useState('');
@@ -898,9 +895,6 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
         const badgeCount = Math.floor(starsEarned / 100);
 
         const completedTasksCount = validatedTasks.length;
-        const taskHistoryStreak = myTasks.filter(t => t.done).length;
-        const storedStreak = localStorage.getItem(`mf_kid_streak_${member.id}`);
-        const missionStreak = storedStreak ? parseInt(storedStreak, 10) : Math.min(7, taskHistoryStreak);
 
         return (
           <div className="space-y-6">
