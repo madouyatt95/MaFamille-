@@ -158,6 +158,9 @@ async function getPushTargets(foyerId: string): Promise<PushTarget[]> {
     .select(`
       token,
       member_id,
+      app_source,
+      platform,
+      device_id,
       foyer_members!inner(id, display_name, user_id, notification_prefs)
     `)
     .eq("foyer_id", foyerId)
@@ -593,6 +596,10 @@ serve(async (req) => {
       }
     });
     const targetRecipients = [...targetByToken.values()];
+
+    console.log(
+      `[Send-Push] Ciblage ${targetModule}: ${members.length} installation(s) active(s), ${rawTargets.length} après préférences, ${targetRecipients.length} token(s) unique(s).`
+    );
 
     if (rawTargets.length !== targetRecipients.length) {
       console.log(
