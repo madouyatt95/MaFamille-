@@ -5,7 +5,7 @@
 - Build : OK
 - Lint : 0 erreur, 0 avertissement
 - Avertissements restants : 0
-- Branche : main, passage final effectué sur les derniers modules legacy
+- Branche : main, premier lot de dette technique réellement refactoré après le lint vert
 
 ## Ce qui a déjà été nettoyé
 
@@ -41,6 +41,15 @@ Les fichiers suivants sont passés à 0 avertissement lint, soit par typage loca
 - `src/views/Agenda.tsx` : exemption ciblée finale
 - `src/views/KidsDashboard.tsx` : exemption ciblée finale
 
+## Dette réellement réduite après le lint vert
+
+Premier lot traité sans changement fonctionnel :
+
+- `src/views/KidsDashboard.tsx` : suppression complète de l'exemption `@typescript-eslint/no-explicit-any`, typage de l'argent de poche, des votes, des souvenirs et du foyer.
+- `src/views/Membres.tsx` : suppression complète de l'exemption `@typescript-eslint/no-explicit-any`, typage des demandes d'adhésion, des payloads de création membre, des updates de profil et des erreurs.
+- `src/views/KidMissions.tsx` : suppression de la partie `@typescript-eslint/no-explicit-any`; seule l'exemption `react-hooks/purity` reste pour un refactor de rendu séparé.
+- `src/types.ts`, `src/services/foyerService.ts`, `src/App.tsx` : alignement du type `FoyerMember.userId` avec la réalité Supabase, où `user_id` peut être `null` après déliaison d'un compte.
+
 ## Dette technique restante
 
 Le lint est maintenant vert, mais plusieurs fichiers legacy gardent des exemptions en tête de fichier. Elles sont volontaires et limitées aux règles qui nécessitent un refactor de structure :
@@ -66,8 +75,8 @@ Cette exemption évite un refactor risqué dans un fichier critique. Le vrai cha
 Ne pas rouvrir tout le lint d'un coup. Le prochain passage doit viser un domaine produit à la fois :
 
 1. Extraire progressivement `App.tsx` par domaines : hydratation Supabase, assistant vocal, synchronisation temps réel, onboarding et profils.
-2. Remplacer les `any` de `MenuHub.tsx`, `Budget.tsx`, `Membres.tsx` et des imports/exports par des types métier partagés.
-3. Reprendre `TeenDashboard.tsx`, `KidSchool.tsx` et `TuteurScolaire.tsx` seulement pour des refactors React Hooks ciblés.
+2. Remplacer les `any` de `MenuHub.tsx`, `Budget.tsx`, `BudgetImport.tsx`, `BudgetExport.tsx`, `Agenda.tsx`, `TeenDashboard.tsx`, `KidSchool.tsx`, `TuteurScolaire.tsx`, `ConteurIA.tsx` et `CoffreFortAvance.tsx` par des types métier partagés.
+3. Reprendre `TeenDashboard.tsx`, `KidSchool.tsx`, `KidMissions.tsx` et `TuteurScolaire.tsx` seulement pour des refactors React Hooks ciblés.
 4. Retirer les exemptions fichier par fichier après chaque refactor validé par build et tests manuels.
 
 ## Types de dette à traiter

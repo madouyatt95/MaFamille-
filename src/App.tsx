@@ -41,7 +41,8 @@ import type {
   ModulePermissions,
   FamilyModule,
   MalusTemplate,
-  AppliedMalus
+  AppliedMalus,
+  FoyerMemberProfileUpdate
 } from './types';
 
 const LEGACY_DEMO_SCHOOL_TASK_IDS = new Set(['st-1', 'st-2', 'st-3', 'st-4', 'st-5']);
@@ -2316,7 +2317,7 @@ function App() {
 
     return {
       id: fm.id,
-      userId: fm.userId,
+      userId: fm.userId || undefined,
       name: fm.displayName,
       role: friendlyRole,
       age: fm.age || '30 ans',
@@ -10335,7 +10336,7 @@ function App() {
     await handleUpdatePermissions(updated);
   };
 
-  const handleUpdateMemberProfile = async (memberId: string, updates: Partial<FoyerMember>) => {
+  const handleUpdateMemberProfile = async (memberId: string, updates: FoyerMemberProfileUpdate) => {
     const finalUpdates = { ...updates };
     if (updates.photoUrl && updates.photoUrl.startsWith('data:')) {
       try {

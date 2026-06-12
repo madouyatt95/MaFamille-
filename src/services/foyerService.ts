@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '../utils/supabase';
-import type { FamilyJoinRequest, Foyer, FoyerMember, MalusSettings, Member } from '../types';
+import type { FamilyJoinRequest, Foyer, FoyerMember, FoyerMemberProfileUpdate, MalusSettings, Member, MemberRole } from '../types';
 
 type PremiumUpdateOptions = {
   source?: Foyer['premiumSource'];
@@ -376,7 +376,7 @@ export const foyerService = {
   /**
    * Inviter un membre par email
    */
-  async inviteByEmail(foyerId: string, email: string, role: 'parent' | 'child' | 'guest' = 'child'): Promise<void> {
+  async inviteByEmail(foyerId: string, email: string, role: MemberRole = 'child'): Promise<void> {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
@@ -499,7 +499,7 @@ export const foyerService = {
   /**
    * Mettre à jour les informations d'un membre (ex: profil santé, allergies...)
    */
-  async updateMemberProfile(memberId: string, updates: Partial<FoyerMember>): Promise<void> {
+  async updateMemberProfile(memberId: string, updates: FoyerMemberProfileUpdate): Promise<void> {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 

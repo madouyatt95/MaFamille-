@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md */
 import React, { useState } from 'react';
 import { 
   Users, 
@@ -23,14 +22,38 @@ import { foyerService } from '../services/foyerService';
 import { getSupabaseClient } from '../utils/supabase';
 import { shouldBlockMemberAdd } from '../utils/premiumFeatures';
 import { ALL_FAMILY_MODULES, getDefaultPermissions } from '../types';
-import type { Member, Foyer, FoyerMember, MemberRole, ModulePermissions, FamilyModule } from '../types';
+import type { Member, Foyer, FoyerMember, FoyerMemberProfileUpdate, MemberRole, ModulePermissions, FamilyModule } from '../types';
+
+type NewMemberPayload = {
+  name: string;
+  role: MemberRole;
+  age: string;
+  birthDate: string;
+  bloodGroup: string;
+  allergies: string[];
+  treatments: string[];
+  schoolOrEmployer: string;
+  emergencyContact: Member['emergencyContact'];
+  hasExemption: boolean;
+};
+
+type JoinRequestSummary = {
+  id: string;
+  applicantName: string;
+  applicantAvatar?: string;
+  applicantEmail?: string;
+  createdAt: string;
+  requestedByQr?: boolean;
+};
+
+const getErrorMessage = (err: unknown) => err instanceof Error ? err.message : String(err);
 
 interface MembresProps {
   members: Member[];
   setMembers: React.Dispatch<React.SetStateAction<Member[]>>;
   onAddMemberClick?: () => void;
-  onAddMember?: (newMem: any) => Promise<void> | void;
-  onUpdateMemberProfile?: (memberId: string, updates: Partial<FoyerMember>) => Promise<void> | void;
+  onAddMember?: (newMem: NewMemberPayload) => Promise<void> | void;
+  onUpdateMemberProfile?: (memberId: string, updates: FoyerMemberProfileUpdate) => Promise<void> | void;
   activeMemberId?: string;
   foyer?: Foyer | null;
   myMemberProfile?: FoyerMember | null;
@@ -71,13 +94,13 @@ export const Membres: React.FC<MembresProps> = ({
   const [approveHasExemption, setApproveHasExemption] = useState(false);
 
   // Family join requests
-  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
-  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [pendingRequests, setPendingRequests] = useState<JoinRequestSummary[]>([]);
+  const [selectedRequest, setSelectedRequest] = useState<JoinRequestSummary | null>(null);
 
   // Load pending join requests when foyer changes
   React.useEffect(() => {
     if (foyer) {
-      foyerService.getPendingJoinRequests(foyer.id).then((reqs: any) => {
+      foyerService.getPendingJoinRequests(foyer.id).then((reqs) => {
         queueMicrotask(() => setPendingRequests(reqs));
       }).catch(err => {
         console.error("Failed to fetch pending join requests:", err);
@@ -135,7 +158,7 @@ export const Membres: React.FC<MembresProps> = ({
     if (blockFreeMemberLimit()) return;
     setSubmittingAdd(true);
     try {
-      const dbRole: MemberRole = 
+      const dbRole: MemberRole =
         addRole === 'chef_famille' ? 'admin' :
         ['parent', 'gestionnaire', 'adulte'].includes(addRole) ? 'parent' :
         ['adolescent', 'enfant'].includes(addRole) ? 'child' :
@@ -143,7 +166,7 @@ export const Membres: React.FC<MembresProps> = ({
 
       const bloodGroupWithRole = `ROLE:${addRole}|${addBlood}|${addPhone}`;
 
-      const newMemberPayload = {
+      const newMemberPayload: NewMemberPayload = {
         name: addName.trim(),
         role: dbRole,
         age: addAge.trim() || 'Nouveau',
@@ -177,9 +200,9 @@ export const Membres: React.FC<MembresProps> = ({
       setAddEmergencyRelation('');
       setAddHasExemption(false);
       setIsAddingMember(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erreur lors de l'ajout du membre :", err);
-      alert(`Erreur : ${err.message || err}`);
+      alert(`Erreur : ${getErrorMessage(err)}`);
     } finally {
       setSubmittingAdd(false);
     }
@@ -192,7 +215,7 @@ export const Membres: React.FC<MembresProps> = ({
     setInviteLoading(true);
     setInviteMessage(null);
     try {
-      const dbRole: any = 
+      const dbRole: MemberRole =
         inviteRole === 'chef_famille' ? 'admin' :
         ['parent', 'gestionnaire', 'adulte'].includes(inviteRole) ? 'parent' :
         ['adolescent', 'enfant'].includes(inviteRole) ? 'child' :
@@ -200,8 +223,8 @@ export const Membres: React.FC<MembresProps> = ({
       await foyerService.inviteByEmail(foyer.id, inviteEmail.trim(), dbRole);
       setInviteMessage({ text: `Invitation envoyée avec succès à ${inviteEmail} ! ✉️`, type: 'success' });
       setInviteEmail('');
-    } catch (err: any) {
-      setInviteMessage({ text: err.message || "Erreur lors de l'envoi de l'invitation.", type: 'error' });
+    } catch (err: unknown) {
+      setInviteMessage({ text: getErrorMessage(err) || "Erreur lors de l'envoi de l'invitation.", type: 'error' });
     } finally {
       setInviteLoading(false);
     }
@@ -436,9 +459,9 @@ export const Membres: React.FC<MembresProps> = ({
       
       setIsEditing(false);
       alert('✏️ Profil mis à jour avec succès ! ✨');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erreur lors de la mise à jour du profil :", err);
-      alert(`Impossible de sauvegarder les modifications : ${err.message || err}`);
+      alert(`Impossible de sauvegarder les modifications : ${getErrorMessage(err)}`);
     } finally {
       setSavingProfile(false);
     }
@@ -465,9 +488,9 @@ export const Membres: React.FC<MembresProps> = ({
         setMembers(prev => prev.map(m => m.id === selectedMember.id ? { ...m, photoUrl: base64String } : m));
         setSelectedMember(prev => prev ? { ...prev, photoUrl: base64String } : null);
         alert("📷 Photo de profil mise à jour avec succès !");
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Erreur lors de la sauvegarde de la photo :", err);
-        alert(`Impossible de sauvegarder la photo : ${err.message || err}`);
+        alert(`Impossible de sauvegarder la photo : ${getErrorMessage(err)}`);
       }
     };
     reader.readAsDataURL(file);
@@ -495,8 +518,8 @@ export const Membres: React.FC<MembresProps> = ({
       );
       alert(`🎉 Demande envoyée ! Le Chef de famille du foyer "${data.familyName}" doit maintenant valider votre demande.`);
       window.location.reload();
-    } catch (err: any) {
-      alert(`Erreur : ${err.message || err}`);
+    } catch (err: unknown) {
+      alert(`Erreur : ${getErrorMessage(err)}`);
     } finally {
       setActionLoading(false);
     }
@@ -513,8 +536,8 @@ export const Membres: React.FC<MembresProps> = ({
       await foyerService.createFoyer(foyerNameInput.trim(), displayNameInput.trim(), false);
       alert("🎉 Foyer créé avec succès !");
       window.location.reload();
-    } catch (err: any) {
-      alert(`Erreur : ${err.message || err}`);
+    } catch (err: unknown) {
+      alert(`Erreur : ${getErrorMessage(err)}`);
     } finally {
       setActionLoading(false);
     }
@@ -1078,9 +1101,9 @@ export const Membres: React.FC<MembresProps> = ({
                             setSelectedMember(null);
                             setIsEditing(false);
                             alert(`🗑️ Profil de ${selectedMember.name} retiré avec succès !`);
-                          } catch (err: any) {
+                          } catch (err: unknown) {
                             console.error("Erreur lors du retrait du membre :", err);
-                            alert(`Impossible de retirer le membre du cloud : ${err.message || err}`);
+                            alert(`Impossible de retirer le membre du cloud : ${getErrorMessage(err)}`);
                           }
                         }
                       }}
@@ -1195,9 +1218,9 @@ export const Membres: React.FC<MembresProps> = ({
                                   setSelectedMember(prev => prev ? { ...prev, photoUrl: generatedAvatar } : null);
                                   setShowAvatarGenerator(false);
                                   alert("🎉 Photo de profil IA mise à jour et sauvegardée avec succès ! ✨");
-                                } catch (err: any) {
+                                } catch (err: unknown) {
                                   console.error("Erreur lors de la sauvegarde de l'avatar :", err);
-                                  alert(`Impossible de sauvegarder la photo dans le cloud : ${err.message || err}`);
+                                  alert(`Impossible de sauvegarder la photo dans le cloud : ${getErrorMessage(err)}`);
                                 }
                               }}
                               className="flex-1 py-2.5 rounded-xl bg-[#00D26A] text-white text-[10px] font-extrabold shadow-md cursor-pointer transition-all hover:scale-105 active:scale-95"
@@ -1222,7 +1245,7 @@ export const Membres: React.FC<MembresProps> = ({
                                 <button
                                   key={st.id}
                                   type="button"
-                                  onClick={() => setAvatarStyle(st.id as any)}
+                                  onClick={() => setAvatarStyle(st.id as typeof avatarStyle)}
                                   className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
                                     avatarStyle === st.id 
                                       ? 'border-[#6C5CFF] bg-[#6C5CFF]/10 text-white' 
@@ -1352,13 +1375,13 @@ export const Membres: React.FC<MembresProps> = ({
                                   if (confirm("Voulez-vous vraiment délier ce compte ?")) {
                                     try {
                                       if (onUpdateMemberProfile) {
-                                        await onUpdateMemberProfile(selectedMember.id, { userId: null as any });
+                                        await onUpdateMemberProfile(selectedMember.id, { userId: null });
                                       }
                                       setSelectedMember(prev => prev ? { ...prev, userId: undefined } : null);
                                       setMembers(prev => prev.map(m => m.id === selectedMember.id ? { ...m, userId: undefined } : m));
                                       alert("Compte délié avec succès !");
-                                    } catch (err: any) {
-                                      alert("Erreur lors de la déliaison : " + err.message);
+                                    } catch (err: unknown) {
+                                      alert("Erreur lors de la déliaison : " + getErrorMessage(err));
                                     }
                                   }
                                 }}
@@ -1400,8 +1423,8 @@ export const Membres: React.FC<MembresProps> = ({
                                       setMembers(prev => prev.map(m => m.id === selectedMember.id ? { ...m, userId: input } : m));
                                       alert("🎉 Compte lié avec succès !");
                                       (document.getElementById('link-account-input') as HTMLInputElement).value = '';
-                                    } catch (err: any) {
-                                      alert("Erreur lors de la liaison : " + err.message);
+                                    } catch (err: unknown) {
+                                      alert("Erreur lors de la liaison : " + getErrorMessage(err));
                                     }
                                   } else if (input.includes('@')) {
                                     alert("ℹ️ Par mesure de sécurité RGPD et restrictions techniques de Supabase, la liaison par e-mail requiert de saisir directement l'UUID de l'utilisateur. Veuillez demander à l'utilisateur de vous transmettre son ID unique (disponible dans ses paramètres de profil).");
@@ -1599,8 +1622,8 @@ export const Membres: React.FC<MembresProps> = ({
                         setPendingRequests(prev => prev.filter(r => r.id !== selectedRequest.id));
                         setSelectedRequest(null);
                         alert("La demande a été refusée.");
-                      } catch (err: any) {
-                        alert(`Erreur lors du rejet : ${err.message}`);
+                      } catch (err: unknown) {
+                        alert(`Erreur lors du rejet : ${getErrorMessage(err)}`);
                       }
                     }
                   }}
@@ -1688,8 +1711,8 @@ export const Membres: React.FC<MembresProps> = ({
                   
                   alert(`🎉 L'adhésion de ${memberToApprove.name} a été validée avec succès !`);
                   setMemberToApprove(null);
-                } catch (err: any) {
-                  alert(`Erreur d'approbation : ${err.message}`);
+                } catch (err: unknown) {
+                  alert(`Erreur d'approbation : ${getErrorMessage(err)}`);
                 } finally {
                   setSavingProfile(false);
                 }
@@ -2117,7 +2140,7 @@ export const Membres: React.FC<MembresProps> = ({
                         <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Rôle assigné</label>
                         <select
                           value={inviteRole}
-                          onChange={(e: any) => setInviteRole(e.target.value)}
+                          onChange={(e) => setInviteRole(e.target.value)}
                           className="w-full px-3 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
                         >
                           <option value="chef_famille">👑 Chef de famille</option>

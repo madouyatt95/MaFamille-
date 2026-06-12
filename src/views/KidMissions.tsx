@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/purity -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md; legacy render helpers use date/random/derived calls; tracked for a dedicated refactor */
+/* eslint-disable react-hooks/purity -- legacy render helpers use date/random/derived calls; tracked for a dedicated refactor */
 import React, { useState } from 'react';
 import { ArrowLeft, Star, CheckCircle2, ShieldCheck, PlusCircle, History, Sparkles, Clock } from 'lucide-react';
-import type { Member, ChoreTask, NotificationAlert, Transaction, Foyer } from '../types';
+import type { Member, ChoreTask, NotificationAlert, Transaction, Foyer, PocketMoneyChild, AppliedMalus } from '../types';
 import { parseChoreTitle, serializeChoreTitle } from '../types';
 import type { SavingGoal } from '../types';
 import { getSupabaseClient } from '../utils/supabase';
@@ -10,10 +10,10 @@ interface KidMissionsProps {
   member: Member;
   tasks: ChoreTask[];
   setTasks: React.Dispatch<React.SetStateAction<ChoreTask[]>>;
-  pocketMoney: any[];
-  setPocketMoney: React.Dispatch<React.SetStateAction<any[]>>;
-  appliedMaluses?: any[];
-  setAppliedMaluses?: React.Dispatch<React.SetStateAction<any[]>>;
+  pocketMoney: PocketMoneyChild[];
+  setPocketMoney: React.Dispatch<React.SetStateAction<PocketMoneyChild[]>>;
+  appliedMaluses?: AppliedMalus[];
+  setAppliedMaluses?: React.Dispatch<React.SetStateAction<AppliedMalus[]>>;
   onBack: () => void;
   defaultTab?: 'missions' | 'boutique' | 'argent' | 'karma';
   setAlerts?: React.Dispatch<React.SetStateAction<NotificationAlert[]>>;
@@ -25,8 +25,19 @@ interface KidMissionsProps {
   setSavingGoals?: React.Dispatch<React.SetStateAction<SavingGoal[]>>;
   onApplyWallTask?: (taskId: string, memberId: string) => void;
   onTakeWallTask?: (taskId: string, memberId: string) => void;
-  onSendNotification?: any;
+  onSendNotification?: (title: string, description: string, moduleName?: string, type?: 'info' | 'warning' | 'error' | 'success') => void | Promise<void>;
 }
+
+type RewardContributionMeta = Partial<{
+  icon: string;
+  costPoints: number;
+  costMoney: number;
+  subCategory: string;
+  avail: boolean;
+  validationRequired: boolean;
+  modifiable: boolean;
+  supprimable: boolean;
+}>;
 
 interface RewardItem {
   id: string;
@@ -71,9 +82,10 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
   // Find pocket money account for this kid
-  const myAccount = pocketMoney.find(p => p.id === member.id) || {
+  const myAccount: PocketMoneyChild = pocketMoney.find(p => p.id === member.id) || {
     id: member.id,
     name: member.name,
+    avatar: member.photoUrl,
     balance: 0.0,
     points: 0
   };
@@ -126,7 +138,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
     let supprimable = true;
     
     if (sg.contributions && sg.contributions.length > 0) {
-      const meta = sg.contributions[0] as any;
+      const meta = sg.contributions[0] as RewardContributionMeta;
       if (meta.icon) icon = meta.icon;
       if (meta.costPoints !== undefined) costPoints = meta.costPoints;
       if (meta.costMoney !== undefined) costMoney = meta.costMoney;
@@ -574,7 +586,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
             {wallTasks.length === 0 ? (
               <p className="text-xs text-white/30 text-center py-4 italic">Aucune mission disponible sur le Mur pour le moment.</p>
             ) : (
-              wallTasks.map((task: any) => {
+              wallTasks.map((task: ChoreTask) => {
                 const isCandidate = task.candidates?.includes(member.id);
                 const isAccepted = task.acceptedVolunteers?.includes(member.id);
                 const isFull = (task.acceptedVolunteers?.length || 0) >= (task.maxParticipants || 1);
@@ -1072,7 +1084,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
                 {(myRealTransactions.length === 0) ? (
                   <p className="text-xs text-center text-white/40 py-6 font-bold">Pas encore d'activité enregistrée dans ta tirelire ! 🪙</p>
                 ) : (
-                  myRealTransactions.map((tx: any) => {
+                  myRealTransactions.map((tx: Transaction) => {
                     const isCredit = tx.amount > 0 || tx.type === 'income' || tx.type === 'savings';
                     const displayAmount = Math.abs(tx.amount);
                     return (

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md */
 import React from 'react';
 import { 
   Star, 
@@ -12,7 +11,7 @@ import {
   ShieldAlert, 
   Activity 
 } from 'lucide-react';
-import type { Member, ChoreTask, FamilyEvent, Trip, SchoolTask, Dish, DocumentFile, Transaction, SavingGoal, NotificationAlert } from '../types';
+import type { Member, ChoreTask, FamilyEvent, Trip, SchoolTask, Dish, DocumentFile, Transaction, SavingGoal, NotificationAlert, PocketMoneyChild, FamilyVote, MemoryLog, Foyer } from '../types';
 import { parseChoreTitle, serializeChoreTitle } from '../types';
 import { getSupabaseClient } from '../utils/supabase';
 
@@ -24,7 +23,7 @@ interface KidsDashboardProps {
   member: Member;
   tasks: ChoreTask[];
   setTasks: React.Dispatch<React.SetStateAction<ChoreTask[]>>;
-  pocketMoney: any[];
+  pocketMoney: PocketMoneyChild[];
   events: FamilyEvent[];
   setActiveTab: (tab: string) => void;
   setActiveModule: (moduleName: string) => void;
@@ -33,16 +32,22 @@ interface KidsDashboardProps {
   trips?: Trip[];
   schoolTasks?: SchoolTask[];
   dishes?: Dish[];
-  votes?: any[];
-  memories?: any[];
+  votes?: FamilyVote[];
+  memories?: MemoryLog[];
   members?: Member[];
-  foyer?: any;
+  foyer?: Foyer | null;
   documents?: DocumentFile[];
   transactions?: Transaction[];
   goals?: SavingGoal[];
   alerts?: NotificationAlert[];
   onOpenProfileSwitcher?: () => void;
 }
+
+type TimelineFamilyEvent = Omit<FamilyEvent, 'type'> & {
+  sourceModule?: string;
+  source_module?: string;
+  type: FamilyEvent['type'] | 'holiday';
+};
 
 export const KidsDashboard: React.FC<KidsDashboardProps> = ({ 
   member, 
@@ -266,7 +271,7 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
     // Événements
     (events || []).forEach(e => {
       if (!e || e.type === 'vaccine') return;
-      const ev = e as any;
+      const ev = e as TimelineFamilyEvent;
       if (ev.sourceModule === 'fetes' || ev.source_module === 'fetes' || ev.type === 'holiday') return;
       if (!e.dateTime) return;
       const dateVal = new Date(e.dateTime);

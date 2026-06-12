@@ -72,7 +72,7 @@ export interface Foyer {
 export interface FoyerMember {
   id: string;
   foyerId: string;
-  userId: string;
+  userId: string | null;
   displayName: string;
   role: MemberRole;
   photoUrl?: string;
@@ -94,6 +94,10 @@ export interface FoyerMember {
   approved?: boolean;
   notificationPrefs?: Record<string, boolean>;
 }
+
+export type FoyerMemberProfileUpdate = Partial<Omit<FoyerMember, 'userId'>> & {
+  userId?: string | null;
+};
 
 export interface FoyerInvitation {
   id: string;
