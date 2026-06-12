@@ -2,6 +2,7 @@ import type {
   ChatGroup,
   ChatMessage,
   ChoreTask,
+  Dish,
   DocumentFile,
   GroceryItem,
   Member,
@@ -22,6 +23,10 @@ export type FamilyAssistantIntent =
   | 'documents'
   | 'travel'
   | 'children'
+  | 'week_summary'
+  | 'meals'
+  | 'health'
+  | 'setup'
   | 'help';
 
 export type FamilyAssistantTarget = {
@@ -46,6 +51,7 @@ export type FamilyAssistantContext = {
   transactions: Transaction[];
   documents: DocumentFile[];
   trips: Trip[];
+  dishes: Dish[];
   schoolTasks: SchoolTask[];
   alerts: NotificationAlert[];
   chatGroups: ChatGroup[];
@@ -97,7 +103,8 @@ export const detectFamilyAssistantIntent = (text: string): FamilyAssistantIntent
   if (!normalized) return null;
 
   if (includesAny(normalized, [
-    'aide assistant', 'que peux tu faire', 'tu peux faire quoi', 'aide moi', 'assistant familial'
+    'aide assistant', 'que peux tu faire', 'tu peux faire quoi', 'aide moi', 'assistant familial',
+    'commandes disponibles', 'comment tu peux aider', 'donne moi les commandes'
   ])) {
     return 'help';
   }
@@ -105,63 +112,101 @@ export const detectFamilyAssistantIntent = (text: string): FamilyAssistantIntent
   if (includesAny(normalized, [
     'resume ma journee', 'resume la journee', 'quoi aujourd hui', 'qu est ce qu il y a aujourd hui',
     'j ai quoi aujourd hui', 'programme du jour', 'planning du jour', 'ma journee', 'notre journee',
-    'fais le point', 'point famille', 'resume famille'
+    'fais le point', 'point famille', 'resume famille', 'quoi faire maintenant', 'on commence par quoi',
+    'dis moi quoi faire', 'etat de la maison', 'tableau de bord famille'
   ])) {
     return 'day_summary';
   }
 
   if (includesAny(normalized, [
+    'semaine', 'point semaine', 'resume de la semaine', 'planning semaine', 'cette semaine',
+    'qu est ce qu on a cette semaine', 'programme semaine', 'semaine familiale'
+  ])) {
+    return 'week_summary';
+  }
+
+  if (includesAny(normalized, [
+    'configuration famille', 'configurer la famille', 'demarrage guide', 'bien demarrer',
+    'quoi configurer', 'que manque t il', 'ce qu il faut completer', 'foyer incomplet',
+    'parametrer le foyer', 'premiers reglages'
+  ])) {
+    return 'setup';
+  }
+
+  if (includesAny(normalized, [
     'urgent', 'priorite', 'priorites', 'a ne pas oublier', 'on a oublie quoi',
-    'quoi faire en premier', 'qu est ce qui presse', 'ce qui bloque', 'a surveiller'
+    'quoi faire en premier', 'qu est ce qui presse', 'ce qui bloque', 'a surveiller',
+    'important aujourd hui', 'alerte famille', 'risque aujourd hui', 'attention aujourd hui'
   ])) {
     return 'priorities';
   }
 
   if (includesAny(normalized, [
     'taches en retard', 'qui n a pas fait', 'qui doit faire quoi', 'missions en retard',
-    'taches ouvertes', 'missions ouvertes', 'reste a faire', 'choses a faire'
+    'taches ouvertes', 'missions ouvertes', 'reste a faire', 'choses a faire',
+    'missions du jour', 'mes missions', 'travail maison', 'corvees'
   ])) {
     return 'late_tasks';
   }
 
   if (includesAny(normalized, [
     'courses restantes', 'liste de courses restante', 'il manque quoi', 'courses a faire',
-    'articles a acheter', 'qu est ce qu il manque', 'qu est ce qu on doit acheter'
+    'articles a acheter', 'qu est ce qu il manque', 'qu est ce qu on doit acheter',
+    'liste d achat', 'frigo vide', 'placards', 'courses du jour'
   ])) {
     return 'groceries';
   }
 
   if (includesAny(normalized, [
+    'qu est ce qu on mange', 'on mange quoi', 'menu du jour', 'menus de la semaine',
+    'repas prevus', 'idee repas', 'planning repas', 'diner ce soir', 'dejeuner aujourd hui'
+  ])) {
+    return 'meals';
+  }
+
+  if (includesAny(normalized, [
     'budget aujourd hui', 'depenses aujourd hui', 'combien depense', 'point budget',
-    'depenses du jour', 'argent aujourd hui', 'finances aujourd hui'
+    'depenses du jour', 'argent aujourd hui', 'finances aujourd hui', 'point argent',
+    'combien on a depense', 'budget du mois', 'situation budget'
   ])) {
     return 'budget';
   }
 
   if (includesAny(normalized, [
     'messages non lus', 'ai je des messages', 'on m a ecrit', 'messages a lire',
-    'quoi dans les messages', 'message important'
+    'quoi dans les messages', 'message important', 'dernier message', 'messages famille',
+    'conversation a lire'
   ])) {
     return 'messages';
   }
 
   if (includesAny(normalized, [
     'documents a verifier', 'papiers a verifier', 'document expire', 'documents expires',
-    'papiers expires', 'passeport expire', 'piece d identite'
+    'papiers expires', 'passeport expire', 'piece d identite', 'coffre fort',
+    'documents urgents', 'papiers urgents'
   ])) {
     return 'documents';
   }
 
   if (includesAny(normalized, [
+    'point sante', 'sante famille', 'carnet de sante', 'rendez vous sante',
+    'vaccins a verifier', 'traitements', 'allergies', 'medecin a venir'
+  ])) {
+    return 'health';
+  }
+
+  if (includesAny(normalized, [
     'point voyage', 'prepare le voyage', 'voyage a preparer', 'valises restantes',
-    'checklist voyage', 'prochain voyage', 'vacances a preparer'
+    'checklist voyage', 'prochain voyage', 'vacances a preparer', 'bagages a faire',
+    'valise a faire', 'depart bientot'
   ])) {
     return 'travel';
   }
 
   if (includesAny(normalized, [
     'les enfants ont quoi', 'point enfants', 'devoirs enfants', 'missions enfants',
-    'quoi pour les enfants', 'ados', 'ado', 'enfants aujourd hui'
+    'quoi pour les enfants', 'ados', 'ado', 'enfants aujourd hui', 'suivi enfants',
+    'missions ado', 'devoirs ado', 'enfant a faire'
   ])) {
     return 'children';
   }
@@ -192,7 +237,10 @@ export const buildFamilyAssistantResponse = (
     return !message.readBy.includes(context.activeMemberId);
   });
   const todayTransactions = context.transactions.filter((tx) => tx.date === todayStr && !tx.isArchived);
+  const monthStr = todayStr.slice(0, 7);
+  const monthTransactions = context.transactions.filter((tx) => tx.date?.startsWith(monthStr) && !tx.isArchived && tx.type === 'expense');
   const todayBudgetTotal = todayTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount || 0), 0);
+  const monthBudgetTotal = monthTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount || 0), 0);
   const expiringDocuments = context.documents.filter((doc) => {
     if (doc.isExpired) return true;
     if (!doc.expiryDate) return false;
@@ -209,6 +257,26 @@ export const buildFamilyAssistantResponse = (
     childIds.includes(task.assignedMemberId) || task.assignedMemberIds?.some((id) => childIds.includes(id))
   );
   const childSchoolTasks = context.schoolTasks.filter((task) => childIds.includes(task.assignedMemberId) && !task.done);
+  const weekEvents = context.events
+    .filter((event) => {
+      const diff = daysDiff(event.start_date, todayStr);
+      return !event.done && diff >= 0 && diff <= 7;
+    })
+    .sort((a, b) => a.start_date.localeCompare(b.start_date));
+  const mealsToday = context.dishes.filter((dish) => {
+    const day = new Date().toLocaleDateString('fr-FR', { weekday: 'short' }).slice(0, 3);
+    return dish.day.toLowerCase().startsWith(day.toLowerCase());
+  });
+  const setupMissing = [
+    context.members.length <= 1 ? 'ajouter les membres' : '',
+    context.chatGroups.length === 0 ? 'créer une discussion familiale' : '',
+    context.documents.length === 0 ? 'ajouter les premiers documents' : '',
+    context.groceries.length === 0 ? 'préparer une liste de courses' : '',
+    context.dishes.length === 0 ? 'planifier un repas' : ''
+  ].filter(Boolean);
+  const healthMembers = context.members.filter((member) =>
+    member.allergies?.length || member.treatments?.length || member.bloodGroup
+  );
 
   switch (intent) {
     case 'day_summary': {
@@ -241,6 +309,15 @@ export const buildFamilyAssistantResponse = (
       };
     }
 
+    case 'week_summary':
+      return {
+        intent,
+        feedback: weekEvents.length > 0
+          ? `Cette semaine : ${weekEvents.length} repère${weekEvents.length > 1 ? 's' : ''}. À surveiller : ${compactList(weekEvents.map((event) => event.title), 'rien')}.`
+          : 'Je ne vois aucun repère familial prévu dans les 7 prochains jours.',
+        target: { tab: 'accueil', module: '', toastMessage: 'Semaine affichée' }
+      };
+
     case 'late_tasks':
       return {
         intent,
@@ -259,12 +336,23 @@ export const buildFamilyAssistantResponse = (
         target: moduleTarget('courses', 'Courses ouvertes')
       };
 
+    case 'meals':
+      return {
+        intent,
+        feedback: mealsToday.length > 0
+          ? `Repas du jour : ${compactList(mealsToday.map((dish) => dish.name), 'aucun repas')}.`
+          : context.dishes.length > 0
+            ? `Aucun repas prévu aujourd'hui. ${context.dishes.length} repas sont planifiés dans la semaine.`
+            : "Aucun menu n'est encore planifié. Vous pouvez commencer par un repas simple.",
+        target: moduleTarget('menus', 'Menus ouverts')
+      };
+
     case 'budget':
       return {
         intent,
         feedback: todayTransactions.length > 0
-          ? `Aujourd'hui, ${todayTransactions.length} mouvement${todayTransactions.length > 1 ? 's' : ''} pour environ ${Math.round(todayBudgetTotal)} €.`
-          : "Aucun mouvement de budget enregistré aujourd'hui.",
+          ? `Aujourd'hui, ${todayTransactions.length} mouvement${todayTransactions.length > 1 ? 's' : ''} pour environ ${Math.round(todayBudgetTotal)} €. Ce mois-ci : ${Math.round(monthBudgetTotal)} €.`
+          : `Aucun mouvement aujourd'hui. Ce mois-ci : ${Math.round(monthBudgetTotal)} € enregistrés.`,
         target: { tab: 'budget', module: '', subView: { type: 'tab', tab: 'transactions' }, toastMessage: 'Budget ouvert' }
       };
 
@@ -286,6 +374,15 @@ export const buildFamilyAssistantResponse = (
         target: moduleTarget('documents', 'Documents ouverts')
       };
 
+    case 'health':
+      return {
+        intent,
+        feedback: healthMembers.length > 0
+          ? `Santé : ${healthMembers.length} profil${healthMembers.length > 1 ? 's' : ''} contient des infos médicales. Vérifiez les rendez-vous et documents santé si besoin.`
+          : 'Aucune information médicale sensible renseignée pour le moment.',
+        target: moduleTarget('sante', 'Santé ouverte')
+      };
+
     case 'travel': {
       if (!nextTrip) {
         return {
@@ -303,6 +400,15 @@ export const buildFamilyAssistantResponse = (
       };
     }
 
+    case 'setup':
+      return {
+        intent,
+        feedback: setupMissing.length > 0
+          ? `Pour mieux démarrer : ${compactList(setupMissing, 'rien à compléter', 4)}.`
+          : 'Le foyer est déjà bien configuré. Les prochaines améliorations viendront de vos usages.',
+        target: { tab: 'accueil', module: '', toastMessage: 'Démarrage guidé' }
+      };
+
     case 'children':
       return {
         intent,
@@ -314,7 +420,7 @@ export const buildFamilyAssistantResponse = (
     default:
       return {
         intent: 'help',
-        feedback: "Je peux résumer la journée, les priorités, les tâches, les courses, le budget, les messages, les documents, les voyages ou le point enfants.",
+        feedback: "Je peux résumer la journée ou la semaine, prioriser, suivre tâches, courses, repas, budget, messages, santé, documents, voyages, enfants et configuration du foyer.",
         target: { tab: 'accueil', module: '', toastMessage: 'Assistant familial' }
       };
   }

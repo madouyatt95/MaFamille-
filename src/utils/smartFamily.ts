@@ -45,6 +45,12 @@ export type SmartFamilyContext = {
   chatMessages: ChatMessage[];
 };
 
+export type SmartFamilySetupProgress = {
+  total: number;
+  done: number;
+  percent: number;
+};
+
 const localDateString = (date = new Date()) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -78,15 +84,59 @@ const target = (module: string, tab = 'menu'): SmartFamilyTarget => ({
   toastMessage: module ? 'Module ouvert' : undefined
 });
 
+const parseBirthdayForYear = (birthDate: string, year: number) => {
+  if (!birthDate) return null;
+  const parts = birthDate.includes('/') ? birthDate.split('/') : birthDate.split('-');
+  if (parts.length !== 3) return null;
+
+  let day: number;
+  let month: number;
+  if (parts[0].length === 4) {
+    month = Number.parseInt(parts[1], 10);
+    day = Number.parseInt(parts[2], 10);
+  } else {
+    day = Number.parseInt(parts[0], 10);
+    month = Number.parseInt(parts[1], 10);
+  }
+  if (!day || !month) return null;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
+export const getSmartFamilySetupProgress = (context: SmartFamilyContext): SmartFamilySetupProgress => {
+  const parentMembers = context.members.filter((member) => isParentRole(member.role));
+  const childMembers = context.members.filter((member) => isChildRole(member.role, member.age));
+  const total = 7;
+  const doneChecks = [
+    context.members.length > 1,
+    context.chatGroups.length > 0,
+    context.documents.length > 0,
+    context.groceries.length > 0,
+    context.events.length > 0 || context.tasks.length > 0,
+    context.dishes.length > 0,
+    parentMembers.length > 0 && (childMembers.length > 0 || context.members.length >= 2)
+  ];
+  const done = doneChecks.filter(Boolean).length;
+  return {
+    total,
+    done,
+    percent: Math.round((done / total) * 100)
+  };
+};
+
 export const buildSmartFamilyActions = (context: SmartFamilyContext): SmartFamilyAction[] => {
   const todayStr = localDateString();
+  const todayDate = new Date();
   const activeMember = context.members.find((member) => member.id === context.activeMemberId);
   const isParent = isParentRole(activeMember?.role);
   const childIds = context.members
     .filter((member) => isChildRole(member.role, member.age))
     .map((member) => member.id);
+  const parentMembers = context.members.filter((member) => isParentRole(member.role));
 
   const openTasks = context.tasks.filter((task) => !task.done && !task.isArchived && task.status !== 'validated');
+  const validationTasks = context.tasks.filter((task) =>
+    !task.isArchived && (task.status === 'pending_validation' || (task.done && task.validatedByParent === false))
+  );
   const visibleTasks = isParent
     ? openTasks
     : openTasks.filter((task) =>
@@ -109,12 +159,34 @@ export const buildSmartFamilyActions = (context: SmartFamilyContext): SmartFamil
     return !!group && group.memberIds.includes(context.activeMemberId) && !message.readBy.includes(context.activeMemberId);
   });
   const todayEvents = context.events.filter((event) => event.start_date === todayStr && !event.done);
+  const upcomingWeekEvents = context.events.filter((event) => {
+    const diff = daysDiff(event.start_date, todayStr);
+    return !event.done && diff >= 0 && diff <= 7;
+  });
   const monthStr = todayStr.slice(0, 7);
   const monthlyExpenses = context.transactions
     .filter((tx) => !tx.isArchived && tx.type === 'expense' && tx.date?.startsWith(monthStr))
     .reduce((sum, tx) => sum + Math.abs(tx.amount || 0), 0);
+  const upcomingBirthdays = context.members
+    .map((member) => {
+      const birthday = parseBirthdayForYear(member.birthDate, todayDate.getFullYear());
+      return birthday ? { member, diff: daysDiff(birthday, todayStr) } : null;
+    })
+    .filter((entry): entry is { member: Member; diff: number } => !!entry && entry.diff >= 0 && entry.diff <= 14)
+    .sort((a, b) => a.diff - b.diff);
 
   const actions: SmartFamilyAction[] = [];
+
+  if (isParent && parentMembers.length === 0) {
+    actions.push({
+      id: 'setup-parent-role',
+      title: 'Confirmer un profil parent',
+      detail: 'Un parent identifié simplifie les validations, les règles enfants et les réglages sensibles.',
+      category: 'setup',
+      priority: 'high',
+      target: target('membres')
+    });
+  }
 
   if (isParent && context.members.length <= 1) {
     actions.push({
@@ -149,12 +221,56 @@ export const buildSmartFamilyActions = (context: SmartFamilyContext): SmartFamil
     });
   }
 
+  if (isParent && context.groceries.length === 0) {
+    actions.push({
+      id: 'setup-groceries',
+      title: 'Préparer la première liste de courses',
+      detail: 'Ajoutez quelques produits habituels pour amorcer les courses et Éco-Chef.',
+      category: 'setup',
+      priority: 'medium',
+      target: target('courses')
+    });
+  }
+
+  if (isParent && context.dishes.length === 0) {
+    actions.push({
+      id: 'setup-meals',
+      title: 'Planifier un premier repas',
+      detail: 'Un menu même simple aide à relier repas, courses et organisation de la semaine.',
+      category: 'setup',
+      priority: 'low',
+      target: target('menus')
+    });
+  }
+
+  if (isParent && context.events.length === 0 && context.tasks.length === 0) {
+    actions.push({
+      id: 'setup-first-planning',
+      title: 'Ajouter un premier repère familial',
+      detail: 'Un rendez-vous, une tâche ou une échéance suffit pour alimenter la timeline.',
+      category: 'setup',
+      priority: 'low',
+      target: target('agenda')
+    });
+  }
+
   if (overdueTasks.length > 0) {
     actions.push({
       id: 'overdue-tasks',
       title: `${overdueTasks.length} tâche${overdueTasks.length > 1 ? 's' : ''} en retard`,
       detail: overdueTasks[0]?.title || 'Ouvrir les tâches',
       category: isParent ? 'parent' : 'child',
+      priority: 'high',
+      target: target('taches')
+    });
+  }
+
+  if (isParent && validationTasks.length > 0) {
+    actions.push({
+      id: 'task-validations',
+      title: `${validationTasks.length} validation${validationTasks.length > 1 ? 's' : ''} parent en attente`,
+      detail: validationTasks[0]?.title || 'Valider les missions terminées',
+      category: 'parent',
       priority: 'high',
       target: target('taches')
     });
@@ -171,6 +287,17 @@ export const buildSmartFamilyActions = (context: SmartFamilyContext): SmartFamil
     });
   }
 
+  if (!isParent && todayTasks.length > 0) {
+    actions.push({
+      id: 'child-today-tasks',
+      title: `${todayTasks.length} mission${todayTasks.length > 1 ? 's' : ''} aujourd’hui`,
+      detail: todayTasks[0]?.title || 'Voir mes missions',
+      category: 'child',
+      priority: 'medium',
+      target: target('taches')
+    });
+  }
+
   if (expiringDocuments.length > 0) {
     actions.push({
       id: 'expiring-documents',
@@ -179,6 +306,17 @@ export const buildSmartFamilyActions = (context: SmartFamilyContext): SmartFamil
       category: 'priority',
       priority: 'high',
       target: target('documents')
+    });
+  }
+
+  if (upcomingBirthdays.length > 0) {
+    actions.push({
+      id: 'birthday-soon',
+      title: upcomingBirthdays[0].diff === 0 ? `Anniversaire de ${upcomingBirthdays[0].member.name}` : `Anniversaire dans ${upcomingBirthdays[0].diff} jour${upcomingBirthdays[0].diff > 1 ? 's' : ''}`,
+      detail: `Pensez à préparer un message ou un souvenir pour ${upcomingBirthdays[0].member.name}.`,
+      category: 'priority',
+      priority: upcomingBirthdays[0].diff <= 1 ? 'high' : 'medium',
+      target: target('membres')
     });
   }
 
@@ -204,6 +342,17 @@ export const buildSmartFamilyActions = (context: SmartFamilyContext): SmartFamil
     });
   }
 
+  if (isParent && pendingGroceries.length > 0 && context.dishes.length === 0) {
+    actions.push({
+      id: 'grocery-to-meals',
+      title: 'Transformer les courses en menus',
+      detail: 'Votre liste contient déjà des idées pour préparer les repas de la semaine.',
+      category: 'routine',
+      priority: 'low',
+      target: target('courses')
+    });
+  }
+
   if (nextTrip) {
     const tripDays = daysDiff(nextTrip.startDate, todayStr);
     const remaining = nextTrip.checklist?.filter((item) => !item.done).length || 0;
@@ -217,6 +366,17 @@ export const buildSmartFamilyActions = (context: SmartFamilyContext): SmartFamil
         target: target('voyages')
       });
     }
+  }
+
+  if (isParent && upcomingWeekEvents.length === 0 && openTasks.length > 0) {
+    actions.push({
+      id: 'tasks-without-planning',
+      title: 'Des tâches sans repère agenda',
+      detail: 'Vous pouvez planifier les missions importantes pour clarifier la semaine.',
+      category: 'routine',
+      priority: 'low',
+      target: target('taches')
+    });
   }
 
   if (isParent && todayEvents.length === 0 && todayTasks.length === 0 && pendingGroceries.length === 0) {
@@ -236,6 +396,17 @@ export const buildSmartFamilyActions = (context: SmartFamilyContext): SmartFamil
       title: 'Point budget du mois',
       detail: `${Math.round(monthlyExpenses)} € de dépenses enregistrées ce mois-ci.`,
       category: 'routine',
+      priority: 'low',
+      target: target('', 'budget')
+    });
+  }
+
+  if (isParent && monthlyExpenses === 0 && context.transactions.length === 0) {
+    actions.push({
+      id: 'setup-budget',
+      title: 'Initialiser le budget familial',
+      detail: 'Ajoutez une première dépense ou un solde pour commencer le suivi financier.',
+      category: 'setup',
       priority: 'low',
       target: target('', 'budget')
     });
@@ -263,8 +434,8 @@ export const buildSmartFamilyActions = (context: SmartFamilyContext): SmartFamil
 export const buildSmartFamilyAlerts = (context: SmartFamilyContext): NotificationAlert[] => {
   const actions = buildSmartFamilyActions(context);
   return actions
-    .filter((action) => action.priority !== 'low')
-    .slice(0, 5)
+    .filter((action) => action.priority !== 'low' && action.category !== 'setup')
+    .slice(0, 7)
     .map((action) => ({
       id: `smart-${context.foyer?.id || 'local'}-${context.activeMemberId}-${action.id}`,
       title: action.title,

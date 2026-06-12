@@ -32,7 +32,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { Member, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog, ChoreTask, GroceryItem, Transaction, Trip, DocumentFile, SchoolTask } from '../types';
 import type { UnifiedEvent } from '../utils/agendaHelper';
-import { buildSmartFamilyActions, type SmartFamilyAction } from '../utils/smartFamily';
+import { buildSmartFamilyActions, getSmartFamilySetupProgress, type SmartFamilyAction } from '../utils/smartFamily';
 import { buildGlobalSearchIndex, searchGlobalIndex } from '../utils/globalSearch';
 
 type AccueilUnifiedEvent = UnifiedEvent & {
@@ -471,10 +471,23 @@ export const Accueil: React.FC<AccueilProps> = ({
     chatGroups,
     chatMessages
   });
+  const smartContext = {
+    activeMemberId,
+    members,
+    events,
+    tasks,
+    groceries,
+    transactions,
+    trips,
+    documents,
+    dishes,
+    schoolTasks,
+    chatGroups,
+    chatMessages
+  };
   const setupActions = smartActions.filter((action) => action.category === 'setup');
-  const setupTotal = 3;
-  const setupDone = Math.max(0, setupTotal - setupActions.length);
-  const setupPercent = Math.round((setupDone / setupTotal) * 100);
+  const setupProgress = getSmartFamilySetupProgress(smartContext);
+  const setupPercent = setupProgress.percent;
 
   const getSmartActionPresentation = (action: SmartFamilyAction) => {
     if (action.category === 'setup') {

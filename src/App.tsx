@@ -9207,6 +9207,7 @@ function App() {
           transactions,
           documents,
           trips,
+          dishes,
           schoolTasks,
           alerts,
           chatGroups,
