@@ -1328,7 +1328,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   return (
     <div className="fixed inset-x-0 top-0 bottom-0 z-[80] flex min-h-0 flex-col overflow-hidden bg-[#0A0D18] pt-[env(safe-area-inset-top,0px)] text-white shadow-2xl md:relative md:inset-auto md:z-10 md:h-[calc(100dvh-9rem)] md:rounded-3xl md:border md:border-white/10 md:pt-0">
       {/* Chat Header */}
-      <div className="flex shrink-0 items-center justify-between p-3 border-b border-white/10 bg-[#112240]/90 backdrop-blur-md">
+      <div className="relative z-[120] flex shrink-0 items-center justify-between p-3 border-b border-white/10 bg-[#112240]/90 backdrop-blur-md">
         <div className="flex items-center space-x-3 min-w-0">
           <button
             onClick={() => { setActiveGroupId(null); setReplyingToMessage(null); }}
@@ -1370,7 +1370,14 @@ export const Messagerie: React.FC<MessagerieProps> = ({
             </button>
 
             {showGroupMenu && (
-              <div className="conversation-options-dropdown absolute right-0 mt-2 w-48 bg-[#0F1626]/95 border border-white/10 rounded-2xl shadow-2xl py-2 z-50 text-xs text-left animate-fade-in backdrop-blur-xl">
+              <>
+              <button
+                type="button"
+                aria-label="Fermer les options"
+                className="fixed inset-0 z-[129] cursor-default bg-transparent"
+                onClick={() => setShowGroupMenu(false)}
+              />
+              <div className="conversation-options-dropdown absolute right-0 mt-2 w-56 bg-[#0F1626]/98 border border-white/15 rounded-2xl shadow-[0_18px_60px_rgba(0,0,0,0.55)] py-2 z-[130] text-xs text-left animate-fade-in backdrop-blur-xl">
                 <button
                   type="button"
                   onClick={() => {
@@ -1468,6 +1475,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
                   );
                 })()}
               </div>
+              </>
             )}
           </div>
         </div>

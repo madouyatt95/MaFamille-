@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect, no-useless-assignment -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md; legacy synchronization effects intentionally set local state; legacy branching keeps intermediate variables for clarity */
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { 
   Calendar as CalendarIcon, 
   Plus, 
@@ -19,7 +19,7 @@ import {
   CalendarDays
 } from 'lucide-react';
 import type { FamilyEvent, Member } from '../types';
-import { fetchExternalCalendar, type ExternalEvent } from '../utils/icalParser';
+import { fetchExternalCalendar, parseICSContent, type ExternalEvent } from '../utils/icalParser';
 
 interface AgendaProps {
   events: any[]; // UnifiedEvent[]
@@ -102,6 +102,7 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [newSourceUrl, setNewSourceUrl] = useState('');
   const [newSourceColor, setNewSourceColor] = useState('#6C5CFF');
   const [newSourceMember, setNewSourceMember] = useState('none');
+  const icsFileInputRef = useRef<HTMLInputElement>(null);
 
   // Invitation card states
   const [activeInvitationEvent, setActiveInvitationEvent] = useState<FamilyEvent | null>(null);
@@ -295,14 +296,12 @@ export const Agenda: React.FC<AgendaProps> = ({
     
     for (const source of calendarSources) {
       if (!source.isActive) continue;
+      if (source.url.startsWith('local-file:')) {
+        const currentFileEvents = externalEvents.filter(ee => ee.sourceName === source.name);
+        allEvents = [...allEvents, ...currentFileEvents];
+        continue;
+      }
       try {
-        // Démo locale
-        if (source.url.includes('basic.ics') || source.url.includes('agenda.ics')) {
-          const currentDemoEvents = externalEvents.filter(ee => ee.sourceName === source.name);
-          allEvents = [...allEvents, ...currentDemoEvents];
-          continue;
-        }
-        
         // Vrai fetch CORS
         const fetched = await fetchExternalCalendar(source.url, source.name, source.color, source.memberId);
         allEvents = [...allEvents, ...fetched];
@@ -325,6 +324,10 @@ export const Agenda: React.FC<AgendaProps> = ({
 
   // Synchronisation d'une seule source iCal spécifique
   const syncSingleSource = async (source: CalendarSource) => {
+    if (source.url.startsWith('local-file:')) {
+      alert(`"${source.name}" vient d'un fichier importé. Pour le mettre à jour, réimportez un nouveau fichier ICS.`);
+      return;
+    }
     setSyncing(true);
     try {
       const fetched = await fetchExternalCalendar(source.url, source.name, source.color, source.memberId);
@@ -371,6 +374,53 @@ export const Agenda: React.FC<AgendaProps> = ({
     setTimeout(() => {
       syncSingleSource(newSource);
     }, 200);
+  };
+
+  const handleImportIcsFile = async (file: File | null) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.ics')) {
+      alert('Choisissez un fichier calendrier au format .ics.');
+      return;
+    }
+
+    try {
+      const content = await file.text();
+      const sourceName = newSourceName.trim() || file.name.replace(/\.ics$/i, '');
+      const memberId = newSourceMember === 'none' ? undefined : newSourceMember;
+      const importedEvents = parseICSContent(content, sourceName, newSourceColor, memberId);
+
+      if (importedEvents.length === 0) {
+        alert("Aucun événement lisible trouvé dans ce fichier ICS.");
+        return;
+      }
+
+      const newSource: CalendarSource = {
+        id: `src-file-${Date.now()}`,
+        name: sourceName,
+        url: `local-file:${file.name}`,
+        color: newSourceColor,
+        memberId,
+        isActive: true
+      };
+
+      setCalendarSources(prev => [...prev.filter(source => source.name !== sourceName), newSource]);
+      setExternalEvents(prev => {
+        const withoutPrevious = prev.filter(event => event.sourceName !== sourceName);
+        return [...withoutPrevious, ...importedEvents];
+      });
+      setNewSourceName('');
+      setNewSourceUrl('');
+      setNewSourceColor('#6C5CFF');
+      setNewSourceMember('none');
+      alert(`📅 ${importedEvents.length} événement${importedEvents.length > 1 ? 's' : ''} importé${importedEvents.length > 1 ? 's' : ''} depuis "${file.name}".`);
+    } catch (err) {
+      console.error('Erreur import fichier ICS:', err);
+      alert("Impossible de lire ce fichier ICS. Vérifiez qu'il vient bien d'un calendrier exporté.");
+    } finally {
+      if (icsFileInputRef.current) {
+        icsFileInputRef.current.value = '';
+      }
+    }
   };
 
   // Suppression d'une source iCal
@@ -1538,7 +1588,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                               {source.name}
                             </h4>
                             <p className="text-[8px] text-white/40 truncate max-w-[200px] font-mono mt-0.5">
-                              {source.url}
+                              {source.url.startsWith('local-file:') ? source.url.replace('local-file:', 'Fichier : ') : source.url}
                             </p>
                             {linkedMember && (
                               <span className="inline-flex items-center mt-1 px-1.5 py-0.5 rounded bg-white/10 text-[8px] font-extrabold uppercase text-[#EC4899] tracking-wider">
@@ -1590,10 +1640,38 @@ export const Agenda: React.FC<AgendaProps> = ({
                 Ajouter un calendrier iCal/ICS
               </span>
 
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => icsFileInputRef.current?.click()}
+                  className="rounded-2xl border border-[#00A85A]/35 bg-[#E9FFF3] px-3 py-3 text-left shadow-sm hover:bg-[#DDFBEA] dark:bg-[#00D26A]/10 dark:border-[#00D26A]/25 dark:hover:bg-[#00D26A]/15 transition-all cursor-pointer"
+                >
+                  <span className="block text-[10px] font-black uppercase tracking-wider text-[#006B3A] dark:text-[#00D26A]">Importer un fichier</span>
+                  <span className="mt-1 block text-[9px] font-bold text-[#24523B] dark:text-white/70 leading-relaxed">Export `.ics` Apple, Google, Outlook ou école.</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('agenda-ics-url-input')?.focus()}
+                  className="rounded-2xl border border-[#6C5CFF]/35 bg-[#F0EEFF] px-3 py-3 text-left shadow-sm hover:bg-[#E7E3FF] dark:bg-[#6C5CFF]/10 dark:border-[#6C5CFF]/25 dark:hover:bg-[#6C5CFF]/15 transition-all cursor-pointer"
+                >
+                  <span className="block text-[10px] font-black uppercase tracking-wider text-[#4635D8] dark:text-[#8C7BFF]">Ajouter un lien</span>
+                  <span className="mt-1 block text-[9px] font-bold text-[#3A3368] dark:text-white/70 leading-relaxed">Lien ICS public ou secret, synchronisable.</span>
+                </button>
+              </div>
+
+              <input
+                ref={icsFileInputRef}
+                type="file"
+                accept=".ics,text/calendar"
+                className="hidden"
+                onChange={(event) => handleImportIcsFile(event.target.files?.[0] || null)}
+              />
+
               {/* Name */}
               <div className="space-y-1">
                 <label className="text-[10px] text-white/50 font-bold font-sans">Nom du Calendrier</label>
                 <input 
+                  id="agenda-ics-url-input"
                   type="text"
                   required
                   value={newSourceName}
