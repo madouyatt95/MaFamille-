@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect, no-useless-assignment -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md; legacy synchronization effects intentionally set local state; legacy branching keeps intermediate variables for clarity */
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   Calendar as CalendarIcon, 
   Plus, 
@@ -14,7 +14,9 @@ import {
   Globe,
   Trash2,
   Settings2,
-  ArrowLeft
+  ArrowLeft,
+  Search,
+  CalendarDays
 } from 'lucide-react';
 import type { FamilyEvent, Member } from '../types';
 import { fetchExternalCalendar, type ExternalEvent } from '../utils/icalParser';
@@ -45,6 +47,11 @@ export interface CalendarSource {
   memberId?: string;
   isActive: boolean;
 }
+
+const normalizeSearchText = (value: string) => value
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '');
 
 export const Agenda: React.FC<AgendaProps> = ({
   events,
@@ -84,6 +91,7 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [viewType, setViewType] = useState<'month' | 'week' | 'day' | 'list'>('month');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('all');
   const [selectedMemberFilter, setSelectedMemberFilter] = useState<string>('all');
+  const [agendaSearch, setAgendaSearch] = useState('');
   const [syncing, setSyncing] = useState(false);
 
   // Sources iCal et Événements Externes
@@ -215,22 +223,51 @@ export const Agenda: React.FC<AgendaProps> = ({
     return cells;
   }, [currentPivotDate]);
 
-  const memberColors: { [key: string]: string } = {
-    '1': 'bg-[#4F8CFF]', // Papa (Bleu)
-    '2': 'bg-[#6C5CFF]', // Maman (Violet)
-    '3': 'bg-[#FFB020]', // Amadou (Orange)
-    '4': 'bg-[#FF4D6D]', // Awa (Rose/Rouge)
-    '5': 'bg-[#00D26A]'  // Ibrahima (Vert)
+  const memberColorPalette = [
+    'bg-[#4F8CFF]',
+    'bg-[#6C5CFF]',
+    'bg-[#FFB020]',
+    'bg-[#FF4D6D]',
+    'bg-[#00D26A]',
+    'bg-[#00C2FF]',
+    'bg-[#EC4899]'
+  ];
+
+  const getMemberColorClass = (memberId?: string) => {
+    if (!memberId) return 'bg-white/40';
+    const memberIndex = members.findIndex(member => member.id === memberId);
+    if (memberIndex >= 0) return memberColorPalette[memberIndex % memberColorPalette.length];
+    return memberColorPalette[Math.abs(memberId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)) % memberColorPalette.length];
   };
 
-  const typeLabels: Record<string, string> = {
+  const typeLabels = useMemo<Record<string, string>>(() => ({
     medical: 'Médical',
     school: 'École',
     bill: 'Factures',
     grocery: 'Courses',
     social: 'Loisirs',
     other: 'Autre'
-  };
+  }), []);
+
+  const getMemberName = useCallback((memberId?: string) => {
+    return members.find(member => member.id === memberId)?.name || '';
+  }, [members]);
+
+  const matchesSearch = useCallback((event: any) => {
+    const query = normalizeSearchText(agendaSearch.trim());
+    if (!query) return true;
+    const searchable = normalizeSearchText([
+      event.title,
+      event.location,
+      event.notes,
+      event.sourceName,
+      typeLabels[event.type],
+      getMemberName(event.memberId)
+    ].filter(Boolean).join(' '));
+    return searchable.includes(query);
+  }, [agendaSearch, getMemberName, typeLabels]);
+
+  const hasPreciseTime = (event: any) => Boolean(event.time && event.time.includes(':') && event.time !== '00:00');
 
 
 
@@ -417,17 +454,51 @@ export const Agenda: React.FC<AgendaProps> = ({
     const prefix = `${currentPivotDate.getFullYear()}-${String(currentPivotDate.getMonth() + 1).padStart(2, '0')}`;
     return visibleEvents
       .filter(e => e.date.startsWith(prefix))
+      .filter(e => selectedTypeFilter === 'all' || e.type === selectedTypeFilter)
+      .filter(e => selectedMemberFilter === 'all' || e.memberId === selectedMemberFilter)
+      .filter(matchesSearch)
       .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
-  }, [visibleEvents, currentPivotDate]);
+  }, [visibleEvents, currentPivotDate, selectedTypeFilter, selectedMemberFilter, matchesSearch]);
 
   const filteredEvents = useMemo(() => {
-    return visibleEvents.filter(event => {
-      const matchesDate = event.date === selectedDate;
-      const matchesType = selectedTypeFilter === 'all' || event.type === selectedTypeFilter;
-      const matchesMember = selectedMemberFilter === 'all' || event.memberId === selectedMemberFilter;
-      return matchesDate && matchesType && matchesMember;
-    });
-  }, [visibleEvents, selectedDate, selectedTypeFilter, selectedMemberFilter]);
+    return visibleEvents
+      .filter(event => {
+        const matchesDate = event.date === selectedDate;
+        const matchesType = selectedTypeFilter === 'all' || event.type === selectedTypeFilter;
+        const matchesMember = selectedMemberFilter === 'all' || event.memberId === selectedMemberFilter;
+        return matchesDate && matchesType && matchesMember && matchesSearch(event);
+      })
+      .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+  }, [visibleEvents, selectedDate, selectedTypeFilter, selectedMemberFilter, matchesSearch]);
+
+  const todaysEvents = useMemo(() => {
+    const today = getLocalDateString(new Date());
+    return visibleEvents
+      .filter(event => event.date === today)
+      .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+  }, [visibleEvents]);
+
+  const nextSevenDaysEvents = useMemo(() => {
+    const today = new Date(getLocalDateString(new Date()));
+    const limit = new Date(today);
+    limit.setDate(today.getDate() + 7);
+    return visibleEvents
+      .filter(event => {
+        const eventDate = new Date(event.date);
+        return eventDate >= today && eventDate <= limit;
+      })
+      .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+  }, [visibleEvents]);
+
+  const nextEvent = useMemo(() => {
+    const now = new Date();
+    return visibleEvents
+      .filter(event => new Date(event.dateTime).getTime() >= now.getTime())
+      .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime())[0];
+  }, [visibleEvents]);
+
+  const allDayFilteredEvents = useMemo(() => filteredEvents.filter(event => !hasPreciseTime(event)), [filteredEvents]);
+  const timedFilteredEvents = useMemo(() => filteredEvents.filter(hasPreciseTime), [filteredEvents]);
 
   // Drag and Drop Handlers
   const handleDragStart = (e: React.DragEvent, eventId: string) => {
@@ -499,6 +570,72 @@ export const Agenda: React.FC<AgendaProps> = ({
             <Plus className="w-5 h-5" />
           </button>
         </div>
+      </div>
+
+      {/* Vue d'ensemble familiale */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            handleGoToToday();
+            setViewType('day');
+          }}
+          className="glass-panel rounded-[24px] p-4 border border-white/8 text-left hover:bg-white/8 transition-all cursor-pointer"
+        >
+          <span className="text-[9px] font-black uppercase tracking-widest text-white/40">Aujourd'hui</span>
+          <div className="mt-2 flex items-end justify-between gap-3">
+            <strong className="text-2xl font-black text-white">{todaysEvents.length}</strong>
+            <span className="text-[10px] font-bold text-white/50">{todaysEvents.length > 1 ? 'événements' : 'événement'}</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setViewType('week')}
+          className="glass-panel rounded-[24px] p-4 border border-white/8 text-left hover:bg-white/8 transition-all cursor-pointer"
+        >
+          <span className="text-[9px] font-black uppercase tracking-widest text-white/40">7 prochains jours</span>
+          <div className="mt-2 flex items-end justify-between gap-3">
+            <strong className="text-2xl font-black text-white">{nextSevenDaysEvents.length}</strong>
+            <span className="text-[10px] font-bold text-white/50">à anticiper</span>
+          </div>
+        </button>
+
+        <div className="glass-panel rounded-[24px] p-4 border border-white/8 min-w-0">
+          <span className="text-[9px] font-black uppercase tracking-widest text-white/40">Prochain rendez-vous</span>
+          {nextEvent ? (
+            <div className="mt-2 min-w-0">
+              <p className="text-sm font-black text-white truncate">{getEventEmoji(nextEvent)} {nextEvent.title}</p>
+              <p className="text-[10px] font-bold text-white/50 truncate mt-1">
+                {new Date(nextEvent.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
+                {hasPreciseTime(nextEvent) ? ` • ${nextEvent.time}` : ' • sans horaire'}
+                {nextEvent.memberId ? ` • ${getMemberName(nextEvent.memberId)}` : ''}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-2 text-xs font-bold text-white/40">Rien de prévu pour le moment.</p>
+          )}
+        </div>
+      </div>
+
+      <div className="glass-panel rounded-[24px] p-3 border border-white/8 flex items-center gap-3">
+        <Search className="w-4 h-4 text-white/35 shrink-0 ml-1" />
+        <input
+          type="search"
+          value={agendaSearch}
+          onChange={(event) => setAgendaSearch(event.target.value)}
+          placeholder="Rechercher un rendez-vous, une adresse, un membre..."
+          className="w-full bg-transparent text-sm text-white placeholder:text-white/30 outline-none font-semibold"
+        />
+        {agendaSearch && (
+          <button
+            type="button"
+            onClick={() => setAgendaSearch('')}
+            className="px-3 py-1.5 rounded-xl bg-white/5 text-[10px] font-black uppercase tracking-wider text-white/50 hover:text-white hover:bg-white/10 transition-all"
+          >
+            Effacer
+          </button>
+        )}
       </div>
 
       {/* Panneau de Synchronisation Multi-Calendriers & ICS */}
@@ -659,6 +796,36 @@ export const Agenda: React.FC<AgendaProps> = ({
                 })}
               </div>
 
+              {allDayFilteredEvents.length > 0 && (
+                <div className="rounded-[22px] border border-white/8 bg-white/4 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-white/40 flex items-center gap-1.5">
+                      <CalendarDays className="w-3.5 h-3.5 text-[#6C5CFF]" />
+                      Journée entière / sans horaire
+                    </span>
+                    <span className="text-[9px] font-bold text-white/35">{allDayFilteredEvents.length}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {allDayFilteredEvents.map(event => {
+                      const member = !event.isExternal ? members.find(m => m.id === event.memberId) : null;
+                      return (
+                        <div key={event.id} className="rounded-2xl bg-[#1C2C4E]/75 border border-white/8 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-black text-white truncate">{getEventEmoji(event)} {event.title}</p>
+                            <span className="text-[9px] font-black uppercase text-white/40 shrink-0">
+                              {event.isExternal ? event.sourceName : member?.name || typeLabels[event.type]}
+                            </span>
+                          </div>
+                          {event.location && (
+                            <p className="mt-1 text-[10px] font-semibold text-white/45 truncate">{event.location}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Vertical Timeline for Selected Day */}
               <div 
                 className="relative bg-[#07111F]/50 rounded-[28px] border border-white/5 overflow-y-auto h-[450px] no-scrollbar shadow-inner"
@@ -682,8 +849,7 @@ export const Agenda: React.FC<AgendaProps> = ({
 
                 {/* Events Overlaid */}
                 <div className="relative pl-14 pt-2 w-full">
-                  {visibleEvents
-                    .filter(e => e.date === selectedDate)
+                  {timedFilteredEvents
                     .map(event => {
                       const member = !event.isExternal ? members.find(m => m.id === event.memberId) : null;
                       
@@ -719,7 +885,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                          >
                            {/* Left color bar */}
                            <div 
-                             className={`absolute left-0 top-0 bottom-0 w-1 ${event.sourceModule === 'fetes' ? 'bg-[#FFB020]' : event.memberId && !event.isExternal ? memberColors[event.memberId] : 'bg-white/40'}`}
+                             className={`absolute left-0 top-0 bottom-0 w-1 ${event.sourceModule === 'fetes' ? 'bg-[#FFB020]' : event.memberId && !event.isExternal ? getMemberColorClass(event.memberId) : 'bg-white/40'}`}
                              style={event.isExternal && event.sourceColor ? { backgroundColor: event.sourceColor } : undefined}
                            ></div>
                            
@@ -756,6 +922,36 @@ export const Agenda: React.FC<AgendaProps> = ({
                 </h4>
               </div>
 
+              {allDayFilteredEvents.length > 0 && (
+                <div className="rounded-[22px] border border-white/8 bg-white/4 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-white/40 flex items-center gap-1.5">
+                      <CalendarDays className="w-3.5 h-3.5 text-[#6C5CFF]" />
+                      Journée entière / sans horaire
+                    </span>
+                    <span className="text-[9px] font-bold text-white/35">{allDayFilteredEvents.length}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {allDayFilteredEvents.map(event => {
+                      const member = !event.isExternal ? members.find(m => m.id === event.memberId) : null;
+                      return (
+                        <div key={event.id} className="rounded-2xl bg-[#1C2C4E]/75 border border-white/8 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-black text-white truncate">{getEventEmoji(event)} {event.title}</p>
+                            <span className="text-[9px] font-black uppercase text-white/40 shrink-0">
+                              {event.isExternal ? event.sourceName : member?.name || typeLabels[event.type]}
+                            </span>
+                          </div>
+                          {event.location && (
+                            <p className="mt-1 text-[10px] font-semibold text-white/45 truncate">{event.location}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Vertical Timeline for Selected Day */}
               <div 
                 className="relative bg-[#07111F]/50 rounded-[28px] border border-white/5 overflow-y-auto h-[450px] no-scrollbar shadow-inner"
@@ -779,8 +975,7 @@ export const Agenda: React.FC<AgendaProps> = ({
 
                 {/* Events Overlaid */}
                 <div className="relative pl-14 pt-2 w-full">
-                  {visibleEvents
-                    .filter(e => e.date === selectedDate)
+                  {timedFilteredEvents
                     .map(event => {
                       const member = !event.isExternal ? members.find(m => m.id === event.memberId) : null;
                       
@@ -814,7 +1009,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                            style={{ top: `${topOffset}px`, minHeight: '56px' }}
                          >
                            <div 
-                             className={`absolute left-0 top-0 bottom-0 w-1 ${event.sourceModule === 'fetes' ? 'bg-[#FFB020]' : event.memberId && !event.isExternal ? memberColors[event.memberId] : 'bg-white/40'}`}
+                             className={`absolute left-0 top-0 bottom-0 w-1 ${event.sourceModule === 'fetes' ? 'bg-[#FFB020]' : event.memberId && !event.isExternal ? getMemberColorClass(event.memberId) : 'bg-white/40'}`}
                              style={event.isExternal && event.sourceColor ? { backgroundColor: event.sourceColor } : undefined}
                            ></div>
                            
@@ -847,7 +1042,7 @@ export const Agenda: React.FC<AgendaProps> = ({
               {listEvents.length > 0 ? (
                 listEvents.map((event) => {
                   const member = !event.isExternal ? members.find(m => m.id === event.memberId) : null;
-                  const dotColor = event.memberId ? memberColors[event.memberId] : 'bg-white/40';
+                  const dotColor = getMemberColorClass(event.memberId);
                   
                   const isFete = event.sourceModule === 'fetes';
                   return (
@@ -891,15 +1086,26 @@ export const Agenda: React.FC<AgendaProps> = ({
                       <div className="flex flex-col items-end space-y-1 shrink-0">
                         <span className="text-[9px] font-bold text-white/70 bg-white/5 px-2 py-1 rounded-lg border border-white/5 flex items-center space-x-1">
                           <Clock className="w-2.5 h-2.5 text-[#6C5CFF]" />
-                          <span>{event.time}</span>
+                          <span>{hasPreciseTime(event) ? event.time : 'Sans horaire'}</span>
                         </span>
                       </div>
                     </div>
                   );
                 })
               ) : (
-                <div className="glass-panel rounded-[28px] border border-white/8 p-6 text-center text-white/30 text-xs">
-                  Aucun événement pour ce mois.
+                <div className="glass-panel rounded-[28px] border border-white/8 p-6 text-center space-y-3">
+                  <p className="text-white/35 text-xs font-bold">
+                    Aucun événement pour ce mois avec ces critères.
+                  </p>
+                  {isWritable && (
+                    <button
+                      type="button"
+                      onClick={onAddEventClick}
+                      className="px-4 py-2 rounded-xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-[#6C5CFF] text-[10px] font-black uppercase tracking-wider hover:bg-[#6C5CFF]/25 transition-all"
+                    >
+                      Ajouter un événement
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -909,7 +1115,7 @@ export const Agenda: React.FC<AgendaProps> = ({
           <div className="pt-3 border-t border-white/5 flex flex-wrap gap-x-3 gap-y-2 justify-center">
             {members.map(m => (
               <div key={m.id} className="flex items-center space-x-1.5 animate-fade-in">
-                <span className={`w-2 h-2 rounded-full ${memberColors[m.id]} shadow-[0_0_6px_currentColor]`} />
+                <span className={`w-2 h-2 rounded-full ${getMemberColorClass(m.id)} shadow-[0_0_6px_currentColor]`} />
                 <span className="text-[10px] text-white/50 font-medium">{m.name}</span>
               </div>
             ))}
@@ -928,7 +1134,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                   <span>Filtres de l'agenda</span>
                 </span>
                 <button 
-                  onClick={() => { setSelectedTypeFilter('all'); setSelectedMemberFilter('all'); }}
+                  onClick={() => { setSelectedTypeFilter('all'); setSelectedMemberFilter('all'); setAgendaSearch(''); }}
                   className="text-[10px] text-[#4F8CFF] hover:underline cursor-pointer"
                 >
                   Réinitialiser
@@ -971,7 +1177,7 @@ export const Agenda: React.FC<AgendaProps> = ({
               {filteredEvents.length > 0 ? (
                 filteredEvents.map((event) => {
                   const member = !event.isExternal ? members.find(m => m.id === event.memberId) : null;
-                  const dotColor = event.memberId ? memberColors[event.memberId] : 'bg-white/40';
+                  const dotColor = getMemberColorClass(event.memberId);
                   
                   return (
                     <div 
@@ -1032,10 +1238,10 @@ export const Agenda: React.FC<AgendaProps> = ({
                             </div>
                           )}
                           
-                          {(event as any).description && (
+                          {event.notes && (
                             <div className="flex items-start space-x-1 text-[11px] text-white/50">
                               <Info className="w-3.5 h-3.5 text-[#4F8CFF] shrink-0 mt-0.5" />
-                              <span>{(event as any).description}</span>
+                              <span>{event.notes}</span>
                             </div>
                           )}
 
@@ -1058,7 +1264,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                       <div className="flex flex-col items-end space-y-2 shrink-0">
                         <span className="text-xs font-bold text-white/70 bg-white/5 px-2.5 py-1.5 rounded-[12px] border border-white/5 flex items-center space-x-1">
                           <Clock className="w-3 h-3 text-[#6C5CFF]" />
-                          <span>{event.time}</span>
+                          <span>{hasPreciseTime(event) ? event.time : 'Sans horaire'}</span>
                         </span>
                         <GripHorizontal className="w-4 h-4 text-white/20" />
                       </div>
@@ -1066,8 +1272,19 @@ export const Agenda: React.FC<AgendaProps> = ({
                   );
                 })
               ) : (
-                <div className="glass-panel rounded-[28px] border border-white/8 p-6 text-center text-white/30 text-xs">
-                  Aucun événement prévu pour cette journée avec ces critères.
+                <div className="glass-panel rounded-[28px] border border-white/8 p-6 text-center space-y-3">
+                  <p className="text-white/35 text-xs font-bold">
+                    Aucun événement prévu pour cette journée avec ces critères.
+                  </p>
+                  {isWritable && (
+                    <button
+                      type="button"
+                      onClick={onAddEventClick}
+                      className="px-4 py-2 rounded-xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-[#6C5CFF] text-[10px] font-black uppercase tracking-wider hover:bg-[#6C5CFF]/25 transition-all"
+                    >
+                      Ajouter un événement
+                    </button>
+                  )}
                 </div>
               )}
             </div>
