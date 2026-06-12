@@ -25,12 +25,15 @@ import {
   CheckCircle2,
   Sparkles,
   ShieldAlert,
-  Users
+  Users,
+  Search,
+  X
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Member, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog, ChoreTask, GroceryItem, Transaction, Trip, DocumentFile, SchoolTask } from '../types';
 import type { UnifiedEvent } from '../utils/agendaHelper';
 import { buildSmartFamilyActions, type SmartFamilyAction } from '../utils/smartFamily';
+import { buildGlobalSearchIndex, searchGlobalIndex } from '../utils/globalSearch';
 
 type AccueilUnifiedEvent = UnifiedEvent & {
   type?: string;
@@ -122,6 +125,8 @@ export const Accueil: React.FC<AccueilProps> = ({
   const [selectedMealDay, setSelectedMealDay] = useState<string>('Lun');
   const [hiddenEventIds, setHiddenEventIds] = useState<string[]>([]);
   const [selectedEventForMenu, setSelectedEventForMenu] = useState<AccueilUnifiedEvent | null>(null);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
 
   const activeMember = members.find(m => m.id === activeMemberId) || members[0] || {
     id: activeMemberId || '1',
@@ -492,6 +497,29 @@ export const Accueil: React.FC<AccueilProps> = ({
     setActiveModule(action.target.module);
   };
 
+  const globalSearchIndex = buildGlobalSearchIndex({
+    members,
+    events,
+    tasks,
+    groceries,
+    transactions,
+    documents,
+    trips,
+    schoolTasks,
+    dishes,
+    chatGroups,
+    chatMessages
+  });
+
+  const globalSearchResults = searchGlobalIndex(globalSearchQuery, globalSearchIndex, 10);
+
+  const openSearchResult = (result: { target: { tab: string; module: string } }) => {
+    setActiveTab(result.target.tab);
+    setActiveModule(result.target.module);
+    setGlobalSearchOpen(false);
+    setGlobalSearchQuery('');
+  };
+
   const getEventIconAndColor = (e: AccueilUnifiedEvent) => {
     const type = String(e.event_type || e.type || '');
     switch (type) {
@@ -618,6 +646,14 @@ export const Accueil: React.FC<AccueilProps> = ({
         </div>
         
         <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setGlobalSearchOpen(true)}
+            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white relative transition-all cursor-pointer"
+            title="Recherche globale"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+
           {/* Nouveau bouton Messagerie 💬 */}
           <button 
             onClick={() => {
@@ -1202,6 +1238,87 @@ export const Accueil: React.FC<AccueilProps> = ({
       </div>
 
       {/* Event context menu bottom sheet */}
+      {globalSearchOpen && (
+        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-start justify-center p-4 pt-[calc(1.25rem+env(safe-area-inset-top,0px))] animate-fade-in">
+          <div className="w-full max-w-lg glass-panel border border-white/12 rounded-[28px] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.65)]">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 flex items-center gap-2 rounded-2xl bg-white/8 border border-white/10 px-3 py-3">
+                <Search className="w-4 h-4 text-white/40 shrink-0" />
+                <input
+                  autoFocus
+                  value={globalSearchQuery}
+                  onChange={(event) => setGlobalSearchQuery(event.target.value)}
+                  placeholder="Rechercher un membre, document, course, message..."
+                  className="w-full bg-transparent border-0 outline-none text-sm text-white placeholder-white/35 font-semibold"
+                />
+                {globalSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setGlobalSearchQuery('')}
+                    className="p-1 rounded-full text-white/40 hover:text-white hover:bg-white/10"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setGlobalSearchOpen(false);
+                  setGlobalSearchQuery('');
+                }}
+                className="w-11 h-11 rounded-2xl bg-white/5 border border-white/8 text-white/55 hover:text-white hover:bg-white/10 flex items-center justify-center"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2 max-h-[65vh] overflow-y-auto no-scrollbar">
+              {!globalSearchQuery && (
+                <div className="rounded-2xl bg-white/[0.035] border border-white/8 p-4">
+                  <p className="text-xs font-black text-white uppercase tracking-wider">Recherche globale</p>
+                  <p className="text-[11px] text-white/45 font-semibold mt-1">
+                    Tapez un prénom, une dépense, un document, une destination, un devoir ou un message.
+                  </p>
+                </div>
+              )}
+
+              {globalSearchQuery && globalSearchResults.length === 0 && (
+                <div className="rounded-2xl bg-white/[0.035] border border-white/8 p-5 text-center">
+                  <p className="text-sm font-black text-white">Aucun résultat</p>
+                  <p className="text-[11px] text-white/45 font-semibold mt-1">Essayez avec un mot plus court ou un prénom.</p>
+                </div>
+              )}
+
+              {globalSearchResults.map((result) => (
+                <button
+                  key={result.id}
+                  type="button"
+                  onClick={() => openSearchResult(result)}
+                  className="w-full rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/8 p-3.5 text-left transition-all active:scale-[0.98]"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-white/8 border border-white/8 flex items-center justify-center text-lg shrink-0">
+                      {result.icon}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-black text-white truncate">{result.title}</h4>
+                        <span className="shrink-0 text-[8px] font-black uppercase tracking-wider text-[#9E94FF] bg-[#6C5CFF]/12 px-2 py-0.5 rounded-full">
+                          {result.category}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-white/50 font-semibold mt-1 line-clamp-2">{result.detail}</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-white/25 mt-3 shrink-0" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedEventForMenu && (
         <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-end justify-center animate-fade-in" onClick={() => setSelectedEventForMenu(null)}>
           <div 
