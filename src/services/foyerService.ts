@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '../utils/supabase';
+import { getSupabaseClient, logQueryVolume } from '../utils/supabase';
 import type { FamilyJoinRequest, Foyer, FoyerMember, FoyerMemberProfileUpdate, MalusSettings, Member, MemberRole } from '../types';
 
 type PremiumUpdateOptions = {
@@ -637,12 +637,7 @@ export const foyerService = {
     }
 
     // Mesurer et logger le volume transféré
-    try {
-      const { logQueryVolume } = await import('../utils/supabase');
-      logQueryVolume(tableName, 'fetchTableData', data);
-    } catch {
-      // Volume logging is optional; data loading should not fail because of telemetry.
-    }
+    logQueryVolume(tableName, 'fetchTableData', data);
 
     return (data || []) as TableRow[];
   },
