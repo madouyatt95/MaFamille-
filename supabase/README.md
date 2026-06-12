@@ -110,7 +110,7 @@ SELECT cron.schedule(
 );
 ```
 
-Les calendriers ICS importes par l'app sont synchronises dans `external_calendar_events`; Supabase peut ensuite envoyer les rappels meme si la PWA ou l'app iOS n'est pas ouverte.
+Les calendriers ICS importes par l'app sont synchronises dans `external_calendar_events`; Supabase peut ensuite envoyer les rappels meme si la PWA ou l'app iOS n'est pas ouverte. Le meme traitement couvre aussi les evenements de sante stockes dans `events` avec les types `vaccine` et `medical`.
 
 Garde-fous de stockage :
 
