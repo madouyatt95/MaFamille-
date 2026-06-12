@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/exhaustive-deps -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md; legacy state and payload updates need a dedicated immutable-data refactor; legacy effects need dependency isolation before changing behavior */
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, 

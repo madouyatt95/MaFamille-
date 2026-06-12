@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect, no-useless-assignment -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md; legacy synchronization effects intentionally set local state; legacy branching keeps intermediate variables for clarity */
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calendar as CalendarIcon, 

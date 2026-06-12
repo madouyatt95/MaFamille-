@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/purity -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md; legacy render helpers use date/random/derived calls; tracked for a dedicated refactor */
 import React, { useState, useEffect } from 'react';
 import { 
   Star, CheckCircle2, MapPin, 

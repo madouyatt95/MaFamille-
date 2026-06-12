@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, no-useless-assignment -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md; legacy branching keeps intermediate variables for clarity */
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { detectGroceryCategory, parseSmartNaturalSentence, getGroceryItemEmoji, formatGroceryQty, POPULAR_GROCERIES } from '../utils/groceryParser';
 import { getSupabaseClient } from '../utils/supabase';

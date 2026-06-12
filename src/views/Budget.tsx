@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md */
 import React, { lazy, Suspense, useState, useMemo } from 'react';
 import { 
   PiggyBank, 

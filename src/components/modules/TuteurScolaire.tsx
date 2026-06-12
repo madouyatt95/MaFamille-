@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, react-hooks/immutability, react-hooks/purity -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md; legacy effects need dependency isolation before changing behavior; legacy state and payload updates need a dedicated immutable-data refactor; legacy render helpers use date/random/derived calls; tracked for a dedicated refactor */
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   GraduationCap, 

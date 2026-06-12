@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect, @typescript-eslint/no-unused-vars, react-hooks/purity -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md; legacy synchronization effects intentionally set local state; legacy module keeps placeholders for future flows; legacy render helpers use date/random/derived calls; tracked for a dedicated refactor */
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, Briefcase, Car, Home, Plane, CreditCard, User, AlertTriangle, ArrowLeft, Trash2, Download, Share2, CheckCircle2, ChevronRight, Calendar, Users, Scan, Lock } from 'lucide-react';
 import Tesseract from 'tesseract.js';
