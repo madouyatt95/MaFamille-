@@ -22,11 +22,15 @@ import {
   RefreshCw,
   Landmark,
   GraduationCap,
-  CheckCircle2
+  CheckCircle2,
+  Sparkles,
+  ShieldAlert,
+  Users
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { Member, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog, ChoreTask, GroceryItem, Transaction, Trip, DocumentFile } from '../types';
+import type { Member, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog, ChoreTask, GroceryItem, Transaction, Trip, DocumentFile, SchoolTask } from '../types';
 import type { UnifiedEvent } from '../utils/agendaHelper';
+import { buildSmartFamilyActions, type SmartFamilyAction } from '../utils/smartFamily';
 
 type AccueilUnifiedEvent = UnifiedEvent & {
   type?: string;
@@ -65,6 +69,7 @@ interface AccueilProps {
   transactions?: Transaction[];
   trips?: Trip[];
   documents?: DocumentFile[];
+  schoolTasks?: SchoolTask[];
   alerts: NotificationAlert[];
   setActiveTab: (tab: string) => void;
   setActiveModule: (moduleName: string) => void;
@@ -98,6 +103,7 @@ export const Accueil: React.FC<AccueilProps> = ({
   transactions = [],
   trips = [],
   documents = [],
+  schoolTasks = [],
   alerts,
   setActiveTab,
   setActiveModule,
@@ -446,6 +452,46 @@ export const Accueil: React.FC<AccueilProps> = ({
     return cards.slice(0, 4);
   })();
 
+  const smartActions = buildSmartFamilyActions({
+    activeMemberId,
+    members,
+    events,
+    tasks,
+    groceries,
+    transactions,
+    trips,
+    documents,
+    dishes,
+    schoolTasks,
+    chatGroups,
+    chatMessages
+  });
+  const setupActions = smartActions.filter((action) => action.category === 'setup');
+  const setupTotal = 3;
+  const setupDone = Math.max(0, setupTotal - setupActions.length);
+  const setupPercent = Math.round((setupDone / setupTotal) * 100);
+
+  const getSmartActionPresentation = (action: SmartFamilyAction) => {
+    if (action.category === 'setup') {
+      return { Icon: Users, tone: 'border-[#6C5CFF]/25 bg-[#6C5CFF]/10 text-[#9E94FF]' };
+    }
+    if (action.category === 'parent') {
+      return { Icon: ShieldAlert, tone: 'border-[#FFB020]/25 bg-[#FFB020]/10 text-[#FFB020]' };
+    }
+    if (action.category === 'child') {
+      return { Icon: GraduationCap, tone: 'border-[#4F8CFF]/25 bg-[#4F8CFF]/10 text-[#4F8CFF]' };
+    }
+    if (action.priority === 'high') {
+      return { Icon: Bell, tone: 'border-[#FF4D6D]/25 bg-[#FF4D6D]/10 text-[#FF4D6D]' };
+    }
+    return { Icon: Sparkles, tone: 'border-[#00D26A]/25 bg-[#00D26A]/10 text-[#00D26A]' };
+  };
+
+  const openSmartAction = (action: SmartFamilyAction) => {
+    setActiveTab(action.target.tab);
+    setActiveModule(action.target.module);
+  };
+
   const getEventIconAndColor = (e: AccueilUnifiedEvent) => {
     const type = String(e.event_type || e.type || '');
     switch (type) {
@@ -673,6 +719,90 @@ export const Accueil: React.FC<AccueilProps> = ({
           })}
         </div>
       </div>
+
+      {/* Démarrage guidé */}
+      {setupActions.length > 0 && (
+        <div className="glass-panel rounded-[28px] border border-[#6C5CFF]/20 p-4 sm:p-5 bg-[#6C5CFF]/5 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#FFB020]" />
+                <h2 className="text-sm font-black text-white uppercase tracking-wider">Démarrage guidé</h2>
+              </div>
+              <p className="text-[11px] text-white/50 font-semibold mt-1">
+                Quelques réglages suffisent pour rendre le foyer plus clair au quotidien.
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <span className="text-lg font-black text-[#9E94FF]">{setupPercent}%</span>
+              <p className="text-[9px] text-white/35 font-black uppercase tracking-wider">configuré</p>
+            </div>
+          </div>
+
+          <div className="h-2 rounded-full bg-white/8 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-[#6C5CFF] to-[#00D26A]"
+              style={{ width: `${setupPercent}%` }}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            {setupActions.slice(0, 3).map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                onClick={() => openSmartAction(action)}
+                className="rounded-[20px] bg-white/[0.04] border border-white/8 p-3 text-left hover:bg-white/8 transition-all active:scale-[0.98]"
+              >
+                <p className="text-xs font-black text-white truncate">{action.title}</p>
+                <p className="text-[10px] text-white/45 font-semibold mt-1 line-clamp-2">{action.detail}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Actions recommandées */}
+      {smartActions.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#FFB020]" />
+              <span>Actions recommandées</span>
+            </h3>
+            <span className="text-[10px] font-black text-white/35 uppercase tracking-wider">
+              Sans IA
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+            {smartActions.slice(0, 4).map((action) => {
+              const { Icon, tone } = getSmartActionPresentation(action);
+              return (
+                <button
+                  key={action.id}
+                  type="button"
+                  onClick={() => openSmartAction(action)}
+                  className={`rounded-[24px] border p-4 text-left transition-all hover:bg-white/8 active:scale-[0.98] ${tone}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-black/15 flex items-center justify-center border border-white/8 shrink-0">
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <h4 className="text-xs font-black text-white truncate">{action.title}</h4>
+                        {action.priority === 'high' && <span className="w-2 h-2 rounded-full bg-[#FF4D6D] shrink-0" />}
+                      </div>
+                      <p className="text-[10px] text-white/55 font-semibold mt-1 line-clamp-2">{action.detail}</p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Centre d'activité familial */}
       <div className="space-y-3">

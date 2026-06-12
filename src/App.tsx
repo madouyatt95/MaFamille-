@@ -168,6 +168,7 @@ import { compressImageToBlob, uploadBlobToStorage } from './utils/imageCompresso
 
 import { getUnifiedEvents } from './utils/agendaHelper';
 import { buildFamilyAssistantResponse, detectFamilyAssistantIntent } from './utils/familyAssistant';
+import { buildSmartFamilyAlerts } from './utils/smartFamily';
 import type { ExternalEvent } from './utils/icalParser';
 import { Volume2, Mic, Bell, X, ChevronRight, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check, Star, ArrowLeft } from 'lucide-react';
 
@@ -9769,9 +9770,43 @@ function App() {
     return generatedAlerts;
   }, [transactions, moduleBudgets]);
 
+  const dynamicSmartAlerts = useMemo(() => {
+    return buildSmartFamilyAlerts({
+      foyer,
+      activeMemberId,
+      members,
+      events: unifiedEvents,
+      tasks,
+      groceries,
+      transactions,
+      trips,
+      documents,
+      dishes,
+      schoolTasks,
+      chatGroups,
+      chatMessages
+    });
+  }, [
+    foyer?.id,
+    activeMemberId,
+    members,
+    unifiedEvents,
+    tasks,
+    groceries,
+    transactions,
+    trips,
+    documents,
+    dishes,
+    schoolTasks,
+    chatGroups,
+    chatMessages
+  ]);
+
   const allAlertsCombined = useMemo(() => {
-    return [...alerts, ...dynamicBudgetAlerts];
-  }, [alerts, dynamicBudgetAlerts]);
+    return [...alerts, ...dynamicBudgetAlerts, ...dynamicSmartAlerts];
+  }, [alerts, dynamicBudgetAlerts, dynamicSmartAlerts]);
+
+  const isComputedAlertId = (id: string) => id.startsWith('budget-') || id.startsWith('smart-');
 
   const filteredAlerts = allAlertsCombined
     .filter((al: LooseValue) => !deletedAlertIds.includes(al.id))
@@ -9808,7 +9843,7 @@ function App() {
       return next;
     });
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, read: true } : a));
-    if (!id.startsWith('budget-')) {
+    if (!isComputedAlertId(id)) {
       await updateAlertReadStatusInCloud(id, true);
     }
   };
@@ -9819,7 +9854,7 @@ function App() {
       localStorage.setItem(`mf_deleted_alerts_${activeMemberId}`, JSON.stringify(next));
       return next;
     });
-    if (!id.startsWith('budget-')) {
+    if (!isComputedAlertId(id)) {
       const client = getSupabaseClient();
       if (client) {
         await client.from('alerts').delete().eq('id', id);
@@ -11934,6 +11969,7 @@ function App() {
           transactions={appTransactions}
           trips={appTrips}
           documents={appDocuments}
+          schoolTasks={schoolTasks}
           alerts={appFilteredAlerts}
           setActiveTab={setActiveTab}
           setActiveModule={setActiveModule}
@@ -14203,7 +14239,7 @@ function App() {
                     localStorage.setItem(`mf_deleted_alerts_${activeMemberId}`, JSON.stringify(newDeleted));
                     
                     // Also delete DB alerts from cloud
-                    const dbIds = currentIds.filter((id: string) => !id.startsWith('budget-'));
+                    const dbIds = currentIds.filter((id: string) => !isComputedAlertId(id));
                     if (dbIds.length > 0) {
                       const client = getSupabaseClient();
                       if (client && foyer) {
