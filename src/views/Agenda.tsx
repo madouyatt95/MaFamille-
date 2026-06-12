@@ -344,11 +344,17 @@ export const Agenda: React.FC<AgendaProps> = ({
   const handleAddSource = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSourceName.trim() || !newSourceUrl.trim()) return;
+
+    const normalizedUrl = newSourceUrl.trim().replace(/^webcal:\/\//i, 'https://');
+    if (!/^https?:\/\//i.test(normalizedUrl)) {
+      alert("L'URL doit être un lien iCal public en http(s) ou webcal.");
+      return;
+    }
     
     const newSource: CalendarSource = {
       id: `src-${Date.now()}`,
       name: newSourceName.trim(),
-      url: newSourceUrl.trim(),
+      url: normalizedUrl,
       color: newSourceColor,
       memberId: newSourceMember === 'none' ? undefined : newSourceMember,
       isActive: true
@@ -1494,9 +1500,19 @@ export const Agenda: React.FC<AgendaProps> = ({
 
             {/* List of Connected Calendars */}
             <div className="space-y-3">
-              <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest block">
-                Flux connectés ({calendarSources.length})
-              </span>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest block">
+                    Flux connectés ({calendarSources.length})
+                  </span>
+                  <p className="mt-1 text-[10px] text-white/35 font-semibold leading-relaxed">
+                    Fonctionne avec les liens ICS publics Google, Apple, Outlook ou école. Les événements importés restent synchronisés sur cet appareil.
+                  </p>
+                </div>
+                <span className="rounded-full bg-[#00D26A]/10 border border-[#00D26A]/20 px-2 py-1 text-[8px] font-black uppercase tracking-wider text-[#00D26A] shrink-0">
+                  ICS réel
+                </span>
+              </div>
               
               {calendarSources.length === 0 ? (
                 <p className="text-xs text-white/30 italic py-2">
@@ -1533,6 +1549,16 @@ export const Agenda: React.FC<AgendaProps> = ({
                         </div>
 
                         <div className="flex items-center space-x-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => syncSingleSource(source)}
+                            disabled={syncing}
+                            className="p-2 rounded-lg bg-white/3 border border-white/5 text-white/50 hover:text-[#6C5CFF] hover:bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/20 transition-all cursor-pointer active:scale-90 disabled:opacity-40"
+                            title="Synchroniser cette source"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                          </button>
+
                           {/* Toggle active state */}
                           <button
                             onClick={() => handleToggleSource(source.id)}
@@ -1581,16 +1607,19 @@ export const Agenda: React.FC<AgendaProps> = ({
               <div className="space-y-1">
                 <label className="text-[10px] text-white/50 font-bold font-sans flex items-center justify-between">
                   <span>URL du fichier ICS / iCal</span>
-                  <span className="text-[8px] text-[#4F8CFF] font-medium font-sans">HTTP / HTTPS uniquement</span>
+                  <span className="text-[8px] text-[#4F8CFF] font-medium font-sans">https ou webcal public</span>
                 </label>
                 <input 
-                  type="url"
+                  type="text"
                   required
                   value={newSourceUrl}
                   onChange={(e) => setNewSourceUrl(e.target.value)}
                   placeholder="https://calendar.google.com/calendar/ical/..."
                   className="w-full bg-white/3 border border-white/8 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF] font-sans font-mono"
                 />
+                <p className="text-[9px] text-white/35 font-semibold leading-relaxed">
+                  Les calendriers privés doivent être partagés avec un lien secret ICS. Un simple lien de page Google/Apple ne suffit pas.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

@@ -379,89 +379,22 @@ function App() {
   const [calendarSources, setCalendarSources] = useState<CalendarSource[]>(() => {
     const saved = localStorage.getItem('mf_external_calendar_sources');
     if (saved) return JSON.parse(saved);
-    const isCloud = !!localStorage.getItem('mf_cloud_foyer_id');
-    if (isCloud) return [];
-    return [
-      {
-        id: 'src-google-papa',
-        name: 'Agenda personnel',
-        url: 'https://calendar.google.com/calendar/ical/papa/public/basic.ics',
-        color: '#2563EB',
-        isActive: true
-      },
-      {
-        id: 'src-school',
-        name: 'École (emploi du temps)',
-        url: 'https://ecole.directe/awa/agenda.ics',
-        color: '#EC4899',
-        memberId: '4',
-        isActive: true
-      }
-    ];
+    return [];
   });
 
   const [externalEvents, setExternalEvents] = useState<ExternalEvent[]>(() => {
     const saved = localStorage.getItem('mf_external_calendar_events');
     if (saved) return JSON.parse(saved);
-    const isCloud = !!localStorage.getItem('mf_cloud_foyer_id');
-    if (isCloud) return [];
-    return [
-      {
-        id: 'ext-demo-1',
-        title: 'Réunion d\'affaires importante',
-        startDate: '2026-05-18',
-        endDate: '2026-05-18',
-        startTime: '10:00',
-        endTime: '12:00',
-        description: 'Point d\'étape sur les nouveaux projets de consulting.',
-        location: 'Paris Offices',
-        sourceName: 'Agenda personnel',
-        sourceColor: '#2563EB',
-        isAllDay: false
-      },
-      {
-        id: 'ext-demo-2',
-        title: 'Cours de Mathématiques',
-        startDate: '2026-05-19',
-        endDate: '2026-05-19',
-        startTime: '08:30',
-        endTime: '10:30',
-        description: 'Géométrie et algèbre linéaire.',
-        location: 'Salle 402 - Collège',
-        sourceName: 'École (emploi du temps)',
-        sourceColor: '#EC4899',
-        memberId: '4',
-        isAllDay: false
-      },
-      {
-        id: 'ext-demo-3',
-        title: 'Déjeuner client professionnel',
-        startDate: '2026-05-20',
-        endDate: '2026-05-20',
-        startTime: '12:30',
-        endTime: '14:00',
-        description: 'Signature de contrat de partenariat.',
-        location: 'L\'Atelier Bistrot',
-        sourceName: 'Agenda personnel',
-        sourceColor: '#2563EB',
-        isAllDay: false
-      },
-      {
-        id: 'ext-demo-4',
-        title: 'Cours d\'Anglais',
-        startDate: '2026-05-21',
-        endDate: '2026-05-21',
-        startTime: '14:00',
-        endTime: '16:00',
-        description: 'Préparation du brevet oral d\'anglais.',
-        location: 'Salle 105 - Collège',
-        sourceName: 'École (emploi du temps)',
-        sourceColor: '#EC4899',
-        memberId: '4',
-        isAllDay: false
-      }
-    ];
+    return [];
   });
+
+  useEffect(() => {
+    localStorage.setItem('mf_external_calendar_sources', JSON.stringify(calendarSources));
+  }, [calendarSources]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_external_calendar_events', JSON.stringify(externalEvents));
+  }, [externalEvents]);
 
   const [currentCalendarCountry, setCurrentCalendarCountry] = useState<string>(() => {
     return localStorage.getItem('mf_calendar_country') || 'France';

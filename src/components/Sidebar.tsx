@@ -60,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const menuItems = [
     { id: 'accueil', label: 'Accueil', icon: Home, isTab: true },
     { id: 'membres', label: 'Membres de la Famille', icon: Users, isTab: false, module: 'membres' },
-    { id: 'agenda', label: 'Agenda Partagé', icon: Calendar, isTab: true },
+    { id: 'agenda', label: 'Agenda Partagé', icon: Calendar, isTab: false, module: 'agenda' },
     { id: 'budget', label: 'Budget', icon: Wallet, isTab: true },
     { id: 'documents', label: 'Coffre-fort Documents', icon: FolderLock, isTab: false, module: 'documents' },
     { id: 'sante', label: 'Santé & Vaccins', icon: HeartPulse, isTab: false, module: 'sante' },
