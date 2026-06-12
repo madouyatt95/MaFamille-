@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { 
   Clock, 
   Users, 
@@ -37,7 +37,7 @@ interface TimelineProps {
   // Real data sources
   events: FamilyEvent[];
   transactions: Transaction[];
-  vaccines: any[];
+  vaccines: VaccineEntry[];
   trips: Trip[];
   documents: DocumentFile[];
   groceries: GroceryItem[];
@@ -50,6 +50,34 @@ interface TimelineProps {
 }
 
 type TimelineCategory = 'Tous' | 'Famille' | 'École' | 'Santé' | 'Budget' | 'Voyages' | 'Commune';
+
+interface VaccineEntry {
+  id: string;
+  name?: string;
+  date?: string;
+  status?: string;
+  doctor?: string;
+  time?: string;
+  memberId?: string;
+}
+
+type TimelineFamilyEvent = FamilyEvent & {
+  date?: string;
+  notes?: string;
+  sourceModule?: string;
+};
+
+interface TimelineItem {
+  id: string;
+  source_module: string;
+  source_id: string;
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  icon: string;
+  member_id?: string;
+}
 
 interface ModuleStyle {
   label: string;
@@ -172,7 +200,7 @@ const moduleConfig: Record<string, ModuleStyle> = {
   }
 };
 
-const categoryDetails = {
+const categoryDetails: Record<TimelineCategory, { label: string; colorClass: string; icon?: React.ComponentType<{ className?: string }> }> = {
   Tous: { label: 'Tous', colorClass: 'bg-[#6C5CFF]/15 text-[#6C5CFF] border-[#6C5CFF]/30 hover:bg-[#6C5CFF]/25' },
   Famille: { label: 'Famille', icon: Users, colorClass: 'bg-[#6C5CFF]/15 text-[#9d94ff] border-[#6C5CFF]/30 hover:bg-[#6C5CFF]/25' },
   École: { label: 'École', icon: GraduationCap, colorClass: 'bg-[#00D26A]/15 text-[#00D26A] border-[#00D26A]/30 hover:bg-[#00D26A]/25' },
@@ -188,7 +216,6 @@ export const Timeline: React.FC<TimelineProps> = ({
   vaccines,
   trips,
   documents,
-  groceries,
   tasks,
   demarches,
   vehicles,
@@ -227,7 +254,7 @@ export const Timeline: React.FC<TimelineProps> = ({
     return getDefaultPermissions(roleClean);
   }, [memberPermissions, activeMemberId, members]);
 
-  const hasVoirPermission = (modId: string): boolean => {
+  const hasVoirPermission = useCallback((modId: string): boolean => {
     const modIdToFamilyModule: Record<string, FamilyModule> = {
       'conseil': 'conseil_famille',
       'taches': 'taches',
@@ -247,7 +274,7 @@ export const Timeline: React.FC<TimelineProps> = ({
     if (!familyModKey) return true;
     const perm = activePermissions[familyModKey];
     return perm ? perm.voir : true;
-  };
+  }, [activePermissions]);
 
   const todayStr = useMemo(() => {
     const d = new Date();
@@ -257,26 +284,25 @@ export const Timeline: React.FC<TimelineProps> = ({
     return `${year}-${month}-${day}`;
   }, []);
 
-  const getTimelineItems = (): any[] => {
-    const items: any[] = [];
+  const getTimelineItems = useCallback((): TimelineItem[] => {
+    const items: TimelineItem[] = [];
 
     // 1. Budget (Transactions)
     if (hasVoirPermission('budget')) {
       (transactions || []).forEach(t => {
         if (t.isArchived) return;
-        const trans = t as any;
-        const date = trans.date || trans.entryDate || '';
+        const date = t.date || t.entryDate || '';
         if (!date) return;
         items.push({
-          id: `budget-${trans.id}`,
+          id: `budget-${t.id}`,
           source_module: 'budget',
-          source_id: trans.id,
-          title: trans.title || 'Dépense/Revenu',
-          description: `${trans.amount > 0 ? '+' : ''}${trans.amount} € • Catégorie: ${trans.category || 'Autre'}`,
+          source_id: t.id,
+          title: t.title || 'Dépense/Revenu',
+          description: `${t.amount > 0 ? '+' : ''}${t.amount} € • Catégorie: ${t.category || 'Autre'}`,
           date: date,
-          time: trans.time || trans.entryTime || '12:00',
+          time: t.entryTime || '12:00',
           icon: '💰',
-          member_id: trans.memberId
+          member_id: t.memberId
         });
       });
     }
@@ -362,8 +388,7 @@ export const Timeline: React.FC<TimelineProps> = ({
 
     // 7. Agenda (Events)
     if (hasVoirPermission('agenda')) {
-      (events || []).forEach(e => {
-        const ev = e as any;
+      (events as TimelineFamilyEvent[] || []).forEach(ev => {
         if (ev.id?.startsWith('commune-mock') || ev.id?.startsWith('school-mock')) return;
         if (ev.sourceModule === 'fetes' || ev.type === 'vaccine') return;
         const date = ev.date || ev.dateTime?.split('T')[0] || '';
@@ -504,7 +529,7 @@ export const Timeline: React.FC<TimelineProps> = ({
     }
 
     // Deduplicate items with: source_module + source_id + date
-    const uniqueItems: any[] = [];
+    const uniqueItems: TimelineItem[] = [];
     const seen = new Set<string>();
 
     items.forEach(item => {
@@ -521,7 +546,7 @@ export const Timeline: React.FC<TimelineProps> = ({
       if (dateComp !== 0) return dateComp;
       return b.time.localeCompare(a.time);
     });
-  };
+  }, [demarches, documents, events, hasVoirPermission, maintenance, pets, tasks, transactions, trips, vaccines, vehicles, votes]);
 
   const getTabCategory = (module: string): TimelineCategory => {
     if (['sante', 'animaux'].includes(module)) return 'Santé';
@@ -541,7 +566,7 @@ export const Timeline: React.FC<TimelineProps> = ({
         (e.description && e.description.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchesCategory && matchesSearch;
     });
-  }, [events, transactions, vaccines, trips, documents, groceries, tasks, demarches, vehicles, maintenance, pets, votes, activeFilter, searchQuery]);
+  }, [getTimelineItems, activeFilter, searchQuery]);
 
   const getTimelineDateLabel = (dateStr: string, timeStr: string) => {
     if (dateStr === todayStr) {
@@ -596,7 +621,7 @@ export const Timeline: React.FC<TimelineProps> = ({
           {(Object.keys(categoryDetails) as TimelineCategory[]).map((cat) => {
             const details = categoryDetails[cat];
             const isActive = activeFilter === cat;
-            const Icon = (details as any).icon;
+            const Icon = details.icon;
 
             return (
               <button
