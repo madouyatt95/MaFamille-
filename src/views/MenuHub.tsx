@@ -74,7 +74,7 @@ import type {
   MalusTemplate,
   AppliedMalus
 } from '../types';
-import { getDefaultPermissions, parseChoreTitle, serializeChoreTitle, parsePocketMoneyTitle, serializePocketMoneyTitle } from '../types';
+import { getDefaultPermissions, parseChoreTitle, serializeChoreTitle, serializePocketMoneyTitle } from '../types';
 import type { ModulePermissions, FamilyModule } from '../types';
 
 // Import newly built premium sub-modules
@@ -493,7 +493,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
   React.useEffect(() => {
     if (externalGroceryFilter) {
-      setGroceryFilter(externalGroceryFilter);
+      queueMicrotask(() => setGroceryFilter(externalGroceryFilter));
     }
   }, [externalGroceryFilter]);
   const [showGrocerySuggestions, setShowGrocerySuggestions] = useState(false);
@@ -570,9 +570,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   ];
   React.useEffect(() => {
     if (activeModule === 'menus') {
-      setGrocerySubTab('menus');
+      queueMicrotask(() => setGrocerySubTab('menus'));
     } else if (activeModule === 'courses') {
-      setGrocerySubTab('liste');
+      queueMicrotask(() => setGrocerySubTab('liste'));
     }
   }, [activeModule]);
 
@@ -585,7 +585,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     reward: string;
     posterUrl?: string;
   }
-  const [sharedQuests, setSharedQuests] = useState<SharedQuest[]>(() => {
+  const [sharedQuests] = useState<SharedQuest[]>(() => {
     const stored = localStorage.getItem('mf_shared_quests');
     return stored ? JSON.parse(stored) : [
       { id: 'sq-1', title: '10h d\'activité physique cumulées cette semaine', target: 10, current: 4, reward: 'Sortie cinéma en famille 🎬' },
@@ -593,14 +593,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     ];
   });
   React.useEffect(() => { localStorage.setItem('mf_shared_quests', JSON.stringify(sharedQuests)); }, [sharedQuests]);
-
-  const [newQuestTitle, setNewQuestTitle] = useState('');
-  const [newQuestTarget, setNewQuestTarget] = useState(5);
-  const [newQuestReward, setNewQuestReward] = useState('');
-
-  // Quest IA visual generator states
-  const [generatingQuestVisual, setGeneratingQuestVisual] = useState<string>('');
-  const [questVisualStep, setQuestVisualStep] = useState<number>(0);
 
   // --- Feature 6: Health Emergency Card ---
   const [healthSubTab, setHealthSubTab] = useState<'croissance' | 'vaccins' | 'urgence' | 'frais'>('croissance');
@@ -612,7 +604,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     if (activeModule === 'sante') {
       const saved = localStorage.getItem('mf_selected_health_member_id');
       if (saved) {
-        setSelectedHealthMemberId(saved);
+        queueMicrotask(() => setSelectedHealthMemberId(saved));
         localStorage.removeItem('mf_selected_health_member_id');
       }
     }
@@ -703,7 +695,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     if (isValiderAchatsOpen && !validerAchatsAccountId && accounts && accounts.length > 0) {
       const firstBank = accounts.find(a => a.type === 'bank') || accounts[0];
       if (firstBank) {
-        setValiderAchatsAccountId(firstBank.id);
+        queueMicrotask(() => setValiderAchatsAccountId(firstBank.id));
       }
     }
   }, [isValiderAchatsOpen, accounts, validerAchatsAccountId]);
@@ -740,7 +732,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newLocalTaskTitle, setNewLocalTaskTitle] = useState('');
   const [newLocalTaskPoints, setNewLocalTaskPoints] = useState(10);
   const [newLocalTaskRotation, setNewLocalTaskRotation] = useState('none');
-  const [newLocalTaskAssigneeId, setNewLocalTaskAssigneeId] = useState(activeMemberId || '1');
   const [newLocalTaskRewardAmount, setNewLocalTaskRewardAmount] = useState('');
   const [newLocalTaskDescription, setNewLocalTaskDescription] = useState('');
   const [newLocalTaskDueDate, setNewLocalTaskDueDate] = useState('');
@@ -801,25 +792,14 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [selectedMalusTemplateId, setSelectedMalusTemplateId] = useState<string | null>(null);
   const [applyMalusComment, setApplyMalusComment] = useState('');
   const [useShieldForMalus, setUseShieldForMalus] = useState(false);
-  const [showApplyMalusForm, setShowApplyMalusForm] = useState(false);
 
   // Link Reparation Task State
   const [linkingMalusId, setLinkingMalusId] = useState<string | null>(null);
   const [reparationTaskTitle, setReparationTaskTitle] = useState('');
-  const [reparationTaskPoints, setReparationTaskPoints] = useState(0);
 
   // Boutique Config State
   const [newBoutiqueTitle, setNewBoutiqueTitle] = useState('');
   
-  // Boutique edit state
-  const [editingBoutiqueId, setEditingBoutiqueId] = useState<string | null>(null);
-  const [editBoutiqueTitle, setEditBoutiqueTitle] = useState('');
-  const [editBoutiqueCostPoints, setEditBoutiqueCostPoints] = useState(50);
-  const [editBoutiqueCostMoney, setEditBoutiqueCostMoney] = useState(5);
-  const [editBoutiqueIcon, setEditBoutiqueIcon] = useState('🎁');
-  const [editBoutiqueSubCategory, setEditBoutiqueSubCategory] = useState('Cadeau');
-  const [editBoutiqueValidationRequired, setEditBoutiqueValidationRequired] = useState(true);
-  const [editBoutiqueAvail, setEditBoutiqueAvail] = useState(true);
   const [newBoutiqueCostPoints, setNewBoutiqueCostPoints] = useState(50);
   const [newBoutiqueCostMoney, setNewBoutiqueCostMoney] = useState(5);
   const [newBoutiqueIcon, setNewBoutiqueIcon] = useState('🎁');
@@ -840,17 +820,13 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newPetExpenseAmount, setNewPetExpenseAmount] = useState('');
   const [newPetExpenseAccountId, setNewPetExpenseAccountId] = useState('');
 
-  const [allowanceAccountId, setAllowanceAccountId] = useState('');
-  const [allowanceIsRecurring, setAllowanceIsRecurring] = useState(false);
-  const [allowanceRecurrenceType, setAllowanceRecurrenceType] = useState('weekly');
-
   // Dynamically calculate pending vaccines for the active member only
-  const pendingVaccines = (vaccines || []).filter((v: any) => v.memberId === activeMemberId && v.status === 'À faire').length;
+  const pendingVaccines = (vaccines || []).filter((v) => v.memberId === activeMemberId && v.status === 'À faire').length;
 
   const activeMember = members.find(m => m.id === activeMemberId);
   const groceryDerogation = activeMember ? !!activeMember.hasExemption : false;
 
-  const modules = [
+  const modules = useMemo(() => [
     { id: 'conseil', title: 'Conseil de Famille', desc: 'Sondages actifs & Charte de vie', badge: 'Coopération', icon: Users, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
     { id: 'conteur', title: 'Histoires du Soir', desc: 'Contes IA personnalisés interactifs', badge: 'Premium', icon: BookOpen, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
     { id: 'taches', title: 'Tâches', desc: 'Répartition des tâches et suivi', badge: `${tasks.filter(t => !t.done).length} en cours`, icon: Brush, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
@@ -869,7 +845,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     { id: 'peacemaker', title: 'PeaceMaker IA', desc: 'Médiateur de conflits intelligents', badge: 'Médiation', icon: HeartHandshake, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
     { id: 'settings', title: 'Réglages', desc: 'Configuration de l\'application', badge: 'Système', icon: Wrench, color: 'text-white/50 bg-white/5 hover:border-white/20' },
     { id: 'carte', title: 'Carte Familiale', desc: 'Localisation sécurisée en temps réel', badge: 'En direct', icon: MapIcon, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' }
-  ];
+  ], [documents.length, groceries, pendingVaccines, schoolTasks, tasks]);
 
   const visibleModules = useMemo(() => {
     return modules.filter(mod => {
@@ -946,7 +922,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
         // Force stop to release mic before any restart
         try {
           recognition.stop();
-        } catch(e) {}
+        } catch {
+          // Recognition may already be stopped on mobile browsers.
+        }
 
         // Safe delayed restart for continuous experience
         if (isListeningRef.current) {
@@ -956,7 +934,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
         }
       };
 
-      recognition.onerror = (e: any) => {
+      recognition.onerror = (e: { error?: string }) => {
         console.error("Speech recognition error:", e.error);
         if (e.error === 'aborted') return;
         if (e.error === 'no-speech') {
@@ -1316,54 +1294,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     setNewPetAppointment('');
     alert('🐶 Animal ajouté et rappels vétérinaires ajoutés à l\'agenda !');
   };
-
-  // Pocket Money Form states
-  const [allowanceChildId, setAllowanceChildId] = useState('3');
-  const [allowanceAmount, setAllowanceAmount] = useState('');
-  const [allowancePoints, setAllowancePoints] = useState('');
-
-  const handleAddPocketMoney = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!allowanceAmount && !allowancePoints) return;
-    const amountVal = parseFloat(allowanceAmount) || 0;
-    
-    setPocketMoney(prev => prev.map(child => {
-      if (child.id === allowanceChildId) {
-        return {
-          ...child,
-          balance: child.balance + amountVal,
-          points: child.points + (parseInt(allowancePoints) || 0)
-        };
-      }
-      return child;
-    }));
-
-    // Financial transaction integration
-    if (amountVal > 0 && onAddTransaction) {
-      const childName = pocketMoney.find(c => c.id === allowanceChildId)?.name || 'Enfant';
-      onAddTransaction({
-        amount: amountVal,
-        type: 'expense',
-        category: 'Argent de Poche',
-        date: new Date().toISOString().split('T')[0],
-        title: `Distribution argent de poche à ${childName}`,
-        memberName: childName,
-        accountId: allowanceAccountId || null,
-        moduleSource: 'argent_de_poche',
-        recurrence: allowanceIsRecurring ? allowanceRecurrenceType : 'none',
-        recurrenceInterval: allowanceIsRecurring ? 1 : undefined,
-        startDate: allowanceIsRecurring ? new Date().toISOString().split('T')[0] : undefined,
-        nextOccurrence: allowanceIsRecurring ? new Date().toISOString().split('T')[0] : undefined
-      });
-    }
-    
-    setAllowanceAmount('');
-    setAllowancePoints('');
-    alert('💰 Argent / Points distribués et enregistrés en transaction financière !');
-  };
-
-
-
 
   const handleSaveMeal = (e: React.FormEvent) => {
     e.preventDefault();
@@ -6753,60 +6683,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           }
         };
 
-         const handleEditBoutiqueItem = async (goalId: string) => {
-          if (!setSavingGoals) return;
-          
-          setSavingGoals(prev => prev.map(g => {
-            if (g.id !== goalId) return g;
-            const firstCont = g.contributions?.[0] as any || {};
-            return {
-              ...g,
-              title: editBoutiqueTitle.trim(),
-              targetAmount: editBoutiqueCostPoints,
-              contributions: [
-                {
-                  ...firstCont,
-                  costPoints: editBoutiqueCostPoints,
-                  costMoney: editBoutiqueCostMoney,
-                  icon: editBoutiqueIcon,
-                  subCategory: editBoutiqueSubCategory,
-                  validationRequired: editBoutiqueValidationRequired,
-                  avail: editBoutiqueAvail
-                } as any
-              ]
-            };
-          }));
-
-          try {
-            const client = getSupabaseClient();
-            if (client && foyer) {
-              const updatedContributions = [
-                {
-                  costPoints: editBoutiqueCostPoints,
-                  costMoney: editBoutiqueCostMoney,
-                  icon: editBoutiqueIcon,
-                  subCategory: editBoutiqueSubCategory,
-                  validationRequired: editBoutiqueValidationRequired,
-                  avail: editBoutiqueAvail
-                }
-              ];
-              await client.from('saving_goals')
-                .update({ 
-                  title: editBoutiqueTitle.trim(),
-                  target_amount: editBoutiqueCostPoints,
-                  contributions: updatedContributions 
-                })
-                .eq('id', goalId)
-                .eq('foyer_id', foyer.id);
-            }
-          } catch (err) {
-            console.error("Error updating boutique reward:", err);
-          }
-
-          setEditingBoutiqueId(null);
-          alert("Récompense mise à jour !");
-        };
-
         const handleDeleteBoutiqueItem = async (goalId: string) => {
           if (!setSavingGoals) return;
           if (window.confirm("Voulez-vous supprimer cette récompense de la boutique ?")) {
@@ -7055,7 +6931,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           setSelectedMalusTemplateId(null);
           setApplyMalusComment('');
           setUseShieldForMalus(false);
-          setShowApplyMalusForm(false);
           alert(shieldWillBeUsed ? "Malus bloqué par le bouclier de l'enfant ! 🛡️" : "Malus appliqué avec succès !");
         };
 
@@ -7128,16 +7003,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           alert("Mission de rattrapage créée et assignée à l'enfant ! 💪");
         };
 
-        const RULE_TYPES_INFO = [
-          { type: 'weekly', label: 'Hebdomadaire 📅', desc: 'Versement régulier automatique toutes les semaines.' },
-          { type: 'monthly', label: 'Mensuel 📅', desc: 'Versement régulier automatique tous les mois.' },
-          { type: 'after_mission', label: 'Après mission 🧹', desc: 'Prime bonus versée dès qu\'une mission parentale est validée.' },
-          { type: 'after_grade', label: 'Après note 📝', desc: 'Bonus versé pour chaque note répondant à la condition (ex: >= 15).' },
-          { type: 'after_average', label: 'Après moyenne générale 🎓', desc: 'Bonus versé si la moyenne générale franchit le seuil (ex: 15).' },
-          { type: 'after_badge', label: 'Après badge débloqué 🏅', desc: 'Récompense pour l\'obtention d\'un nouveau badge de succès.' },
-          { type: 'after_challenge', label: 'Après défi relevé 🏆', desc: 'Bonus pour la complétion de défis familiaux.' }
-        ] as const;
-
         if (foyerKids.length === 0) {
           return (
             <div className="glass-panel rounded-[28px] border border-white/8 p-8 text-center space-y-2">
@@ -7147,12 +7012,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             </div>
           );
         }
-
-        const validatedRewardsCount = transactions.filter(t => 
-          (t.category === 'Argent de Poche' || t.category === 'Argent de poche') &&
-          t.title.includes('Achat boutique validé') && 
-          (t.memberName === resolvedChild?.name || t.memberId === resolvedChild?.id)
-        ).length;
 
         const pendingRequests = alerts.filter(a => {
           if (a.senderMemberId !== resolvedChild?.id) return false;

@@ -3,29 +3,20 @@ import {
   GraduationCap, 
   CheckCircle, 
   Clock, 
-  Award, 
-  BookOpen, 
   ChevronRight,
   UserCheck,
-  Plus,
   ArrowLeft,
-  Calendar,
   TrendingUp,
   Trash2,
-  Sparkles,
   Edit3,
   Flame,
   Star,
   Trophy,
-  Gamepad2,
   CheckCircle2,
   XCircle,
   HelpCircle,
   ShoppingBag,
-  Send,
-  Loader2,
-  MapPin,
-  BookOpenCheck
+  Send
 } from 'lucide-react';
 import { getSupabaseClient } from '../../utils/supabase';
 import type { SchoolTask } from '../../types';
@@ -93,82 +84,6 @@ interface TuteurScolaireProps {
   initialSubTab?: 'devoirs' | 'quizzes' | 'schedule' | 'grades';
 }
 
-interface LocalTutorLesson {
-  title: string;
-  subject: string;
-  competence: 'lecture' | 'orthographe' | 'calcul' | 'conjugaison' | 'culture' | 'anglais' | 'sciences';
-  content: string;
-  example: string;
-  keywords: string[];
-}
-
-const localLessons: LocalTutorLesson[] = [
-  {
-    title: "Les fractions simples 🍰",
-    subject: "Mathématiques",
-    competence: "calcul",
-    content: "Une fraction représente le partage d'une unité en parts égales. Le numérateur (haut) indique le nombre de parts prises. Le dénominateur (bas) indique le nombre total de parts égales.",
-    example: "1/2 désigne une moitié de gâteau, 3/4 désigne trois quarts du gâteau.",
-    keywords: ["fraction", "partage", "denominateur", "numerateur", "diviser"]
-  },
-  {
-    title: "Théorème de Pythagore 🔺",
-    subject: "Mathématiques",
-    competence: "calcul",
-    content: "Dans un triangle rectangle, le carré de la longueur de l'hypoténuse (le plus grand côté opposé à l'angle droit) est égal à la somme des carrés des longueurs des deux autres côtés. Utile pour calculer des distances.",
-    example: "Si les côtés adjacents mesurent 3 cm et 4 cm, alors hypoténuse² = 3² + 4² = 9 + 16 = 25. L'hypoténuse mesure donc 5 cm (car 5 × 5 = 25).",
-    keywords: ["pythagore", "triangle", "rectangle", "hypotenuse", "angle droit", "cote"]
-  },
-  {
-    title: "Les Dérivées de fonctions 📈",
-    subject: "Mathématiques",
-    competence: "calcul",
-    content: "La dérivée f'(x) d'une fonction f(x) donne la pente de la tangente en tout point. C'est le taux de variation instantané de la fonction. Utile en physique et en économie.",
-    example: "Si f(x) = x², alors sa dérivée est f'(x) = 2x. Si f(x) = ax + b, sa dérivée est f'(x) = a.",
-    keywords: ["derivee", "fonction", "variation", "tangente", "calcul", "analyse"]
-  },
-  {
-    title: "Le pluriel des noms en -al ✍️",
-    subject: "Français",
-    competence: "orthographe",
-    content: "Les noms masculins en '-al' font leur pluriel en '-aux'. Exceptions à connaître : bal, cal, carnaval, chacal, festival, régal, qui prennent un 's'.",
-    example: "Un cheval -> Des chevaux. Mais : Un festival -> Des festivals.",
-    keywords: ["pluriel", "orthographe", "nom", "cheval", "aux", "singulier"]
-  },
-  {
-    title: "Conditionnel Présent 🗣️",
-    subject: "Français",
-    competence: "conjugaison",
-    content: "Le conditionnel présent exprime une action soumise à condition, un souhait ou une formule de politesse. Il se forme sur le radical du futur avec les terminaisons de l'imparfait (-ais, -ais, -ait, -ions, -iez, -aient).",
-    example: "Si j'avais le temps, je viendrais (aimer -> j'aimerais, finir -> je finirais).",
-    keywords: ["conditionnel", "souhait", "imparfait", "futur", "conjugaison"]
-  },
-  {
-    title: "Les Pharaons d'Égypte 🏺",
-    subject: "Découverte",
-    competence: "culture",
-    content: "Les pharaons régnaient sur l'Égypte ancienne et étaient considérés comme des dieux vivants. Ils faisaient construire d'immenses pyramides comme tombeaux pour conserver leur momie pour l'éternité.",
-    example: "Ramsès II et Toutânkhamon sont deux des plus grands pharaons de l'histoire.",
-    keywords: ["pharaon", "egypte", "pyramide", "antiquite", "momie", "histoire"]
-  },
-  {
-    title: "Le Système Solaire 🌍",
-    subject: "Découverte",
-    competence: "sciences",
-    content: "Notre système comprend une étoile, le Soleil, et 8 planètes majeures. Les planètes telluriques (rocheuses) sont Mercure, Vénus, Terre, Mars. Les géantes gazeuses sont Jupiter, Saturne, Uranus, Neptune.",
-    example: "Mars est rougeâtre car son sol contient beaucoup de fer rouillé.",
-    keywords: ["planete", "soleil", "terre", "mars", "astronomie", "espace"]
-  },
-  {
-    title: "Wolof Vocabulaire de base 🇸🇳",
-    subject: "Langues",
-    competence: "culture",
-    content: "Le Wolof est la langue nationale parlée au Sénégal. Apprends les formules d'accueil traditionnelles sénégalaises.",
-    example: "Na nga def ? (Comment vas-tu ?) - Mangi fi (Je vais bien). Jërëjëf (Merci). Waaw (Oui), Déedéet (Non).",
-    keywords: ["wolof", "senegal", "saluer", "traduction", "langue"]
-  }
-];
-
 const matureFlashcards = [
   { subject: "Mathématiques", q: "Théorème de Pythagore 🔺", a: "Dans un triangle rectangle, le carré de l'hypoténuse est égal à la somme des carrés des deux autres côtés : BC² = AB² + AC²." },
   { subject: "Mathématiques", q: "Dérivée de x² 📈", a: "La dérivée de la fonction f(x) = x² est f'(x) = 2x." },
@@ -188,8 +103,6 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   setSchoolTasks, 
   activeMemberId,
   members,
-  isPremium = false,
-  onTriggerPaywall,
   grades,
   setGrades,
   schedule,
@@ -233,13 +146,15 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
 
   useEffect(() => {
     if (initialSubTab) {
-      if (initialSubTab === 'quizzes') {
-        setActiveSubTab(isParent ? 'devoirs' : 'cours');
-      } else if (initialSubTab === 'grades') {
-        setActiveSubTab(isParent ? 'grades' : 'notes');
-      } else {
-        setActiveSubTab(initialSubTab as any);
-      }
+      queueMicrotask(() => {
+        if (initialSubTab === 'quizzes') {
+          setActiveSubTab(isParent ? 'devoirs' : 'cours');
+        } else if (initialSubTab === 'grades') {
+          setActiveSubTab(isParent ? 'grades' : 'notes');
+        } else {
+          setActiveSubTab(initialSubTab as any);
+        }
+      });
     }
   }, [initialSubTab, isParent]);
 
@@ -265,7 +180,9 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     const key = `academy_stats_${activeMemberId}`;
     const stored = localStorage.getItem(key);
     if (stored) {
-      try { return JSON.parse(stored); } catch (e) {}
+      try { return JSON.parse(stored); } catch {
+        // Ignore corrupted local progress and start fresh.
+      }
     }
     return {
       xp: 0,
@@ -296,11 +213,13 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   }, [stats, activeMemberId, isParent]);
 
   // Student Profile
-  const [studentProfile, setStudentProfile] = useState<StudentProfile>(() => {
+  const [studentProfile] = useState<StudentProfile>(() => {
     const key = `academy_student_profile_${activeMemberId}`;
     const stored = localStorage.getItem(key);
     if (stored) {
-      try { return JSON.parse(stored); } catch (e) {}
+      try { return JSON.parse(stored); } catch {
+        // Ignore corrupted local profile and infer it again.
+      }
     }
     // Fallback: estimate from age
     let estimatedLevel: 'CP' | 'CE1' | 'CE2' | 'CM1' | 'CM2' | '6e' | '5e' | '4e' | '3e' | 'Lycée' = '3e';
@@ -339,11 +258,13 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   useEffect(() => {
     localStorage.setItem(`academy_student_profile_${activeMemberId}`, JSON.stringify(studentProfile));
     const cycle = getCycleForLevel(studentProfile.level);
-    setExpandedCycles({
-      'Cycle 2': cycle === 'Cycle 2',
-      'Cycle 3': cycle === 'Cycle 3',
-      'Cycle 4': cycle === 'Cycle 4',
-      'Lycée': cycle === 'Lycée'
+    queueMicrotask(() => {
+      setExpandedCycles({
+        'Cycle 2': cycle === 'Cycle 2',
+        'Cycle 3': cycle === 'Cycle 3',
+        'Cycle 4': cycle === 'Cycle 4',
+        'Lycée': cycle === 'Lycée'
+      });
     });
   }, [studentProfile, activeMemberId]);
 
@@ -351,7 +272,6 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
 
   // Lesson states & Progress
   const [selectedSubject, setSelectedSubject] = useState<AcademySubject | null>(null);
-  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [activeStepTab, setActiveStepTab] = useState<number>(0);
 
   // Lesson progress
@@ -377,7 +297,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
           }
         }
         return migrated;
-      } catch (e) {
+      } catch {
         return {};
       }
     }
@@ -459,13 +379,6 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     return Math.round(total / lessons.length);
   };
 
-  // Calculate global progress
-  const getGlobalProgress = (): number => {
-    const subjects = Object.keys(subjectCategories) as AcademySubject[];
-    const total = subjects.reduce((acc, curr) => acc + getSubjectProgress(curr), 0);
-    return Math.round(total / subjects.length);
-  };
-
   // Memory game states
   const [memoryCards, setMemoryCards] = useState<Array<{ id: number; content: string; matchId: number; isFlipped: boolean; isMatched: boolean }>>([]);
   const [selectedCards, setSelectedCards] = useState<number[]>([]);
@@ -477,29 +390,31 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     if (!isParent) {
       const todayStr = new Date().toISOString().split('T')[0];
       if (stats.lastActiveDate !== todayStr) {
-        setStats(prev => {
-          let newStreak = prev.streak;
-          if (prev.lastActiveDate) {
-            const lastDate = new Date(prev.lastActiveDate);
-            const diffTime = Math.abs(new Date(todayStr).getTime() - lastDate.getTime());
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            if (diffDays === 1) {
-              newStreak += 1;
-            } else if (diffDays > 1) {
+        queueMicrotask(() => {
+          setStats(prev => {
+            let newStreak = prev.streak;
+            if (prev.lastActiveDate) {
+              const lastDate = new Date(prev.lastActiveDate);
+              const diffTime = Math.abs(new Date(todayStr).getTime() - lastDate.getTime());
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              if (diffDays === 1) {
+                newStreak += 1;
+              } else if (diffDays > 1) {
+                newStreak = 1;
+              }
+            } else {
               newStreak = 1;
             }
-          } else {
-            newStreak = 1;
-          }
-          return {
-            ...prev,
-            streak: newStreak,
-            lastActiveDate: todayStr
-          };
+            return {
+              ...prev,
+              streak: newStreak,
+              lastActiveDate: todayStr
+            };
+          });
         });
       }
     }
-  }, [activeMemberId, isParent]);
+  }, [activeMemberId, isParent, stats.lastActiveDate]);
 
   // Student list resolution
   const studentList = members && members.length > 0
@@ -516,9 +431,9 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   };
 
   // Lesson & Multiplication Table States
-  const [selectedLessonCategory, setSelectedLessonCategory] = useState<'maths' | 'français' | 'sciences' | 'langues' | 'histoire' | 'géographie' | 'anglais' | 'culture' | null>(null);
+  const [, setSelectedLessonCategory] = useState<'maths' | 'français' | 'sciences' | 'langues' | 'histoire' | 'géographie' | 'anglais' | 'culture' | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
-  const [selectedTable, setSelectedTable] = useState<number | null>(null);
+  const [, setSelectedTable] = useState<number | null>(null);
 
   // Active Quiz State
   const [activeQuiz, setActiveQuiz] = useState<{
@@ -627,25 +542,6 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     }
     setActiveQuiz(null);
   };
-  const launchTeenExercises = (lesson: Lesson) => {
-    const questions: AcademyQuestion[] = [];
-    for (let i = 0; i < 5; i++) {
-      questions.push(generateQuestionForLesson(lesson.id, currentGrade));
-    }
-    setActiveQuiz({
-      type: 'teen_exercise',
-      questions,
-      currentIndex: 0,
-      score: 0,
-      answers: [],
-      selectedOption: null,
-      showCorrection: false,
-      xpEarned: 0,
-      starsEarned: 0,
-      showHint: false
-    });
-  };
-
   const launchTeenFlash = (subject: string, minutes: number) => {
     const questions: AcademyQuestion[] = [];
     const normSub = subject === 'Mathématiques' ? 'Mathématiques' : (subject === 'Français' ? 'Français' : 'Langues');
@@ -709,38 +605,6 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     return arr;
   };
 
-  // Helper: Unique Random Numbers for Distractors
-  const getRandomDistractors = (correctVal: number, count = 3, range = 10): number[] => {
-    const result = new Set<number>();
-    while (result.size < count) {
-      const offset = Math.floor(Math.random() * range * 2) - range;
-      const val = correctVal + offset;
-      if (val !== correctVal && val >= 0) result.add(val);
-    }
-    return Array.from(result);
-  };
-
-  // Launch quick 5-question test
-  const launchQuickQuiz = () => {
-    const quizQuestions: AcademyQuestion[] = [];
-    for (let i = 0; i < 5; i++) {
-      const mat = i % 3 === 0 ? 'Mathématiques' : (i % 3 === 1 ? 'Français' : 'Langues');
-      quizQuestions.push(generateProceduralQuestion(currentGrade, mat));
-    }
-    setActiveQuiz({
-      type: 'quick',
-      questions: quizQuestions,
-      currentIndex: 0,
-      score: 0,
-      answers: [],
-      selectedOption: null,
-      showCorrection: false,
-      xpEarned: 0,
-      starsEarned: 0,
-      showHint: false
-    });
-  };
-
   // Launch Daily Challenge (10 questions)
   const launchDailyChallenge = () => {
     const todayStr = new Date().toISOString().split('T')[0];
@@ -763,71 +627,6 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
 
     setActiveQuiz({
       type: 'daily',
-      questions: quizQuestions,
-      currentIndex: 0,
-      score: 0,
-      answers: [],
-      selectedOption: null,
-      showCorrection: false,
-      xpEarned: 0,
-      starsEarned: 0,
-      showHint: false
-    });
-  };
-
-  // Launch test for specific multiplication table
-  const launchTableQuiz = (tableNum: number) => {
-    const quizQuestions: AcademyQuestion[] = Array.from({ length: 5 }, (_, i) => {
-      const mult = Math.floor(Math.random() * 10) + 1;
-      const ans = tableNum * mult;
-      const distractors = getRandomDistractors(ans, 3, 5);
-      return {
-        id: `table_${tableNum}_${mult}_${i}`,
-        niveau: currentGrade,
-        matiere: 'Mathématiques',
-        competence: 'calcul',
-        chapitre: `Table de multiplication de ${tableNum}`,
-        question: `Combien font ${tableNum} × ${mult} ?`,
-        options: shuffle([String(ans), ...distractors.map(String)]),
-        reponse: String(ans),
-        explication: `${tableNum} fois ${mult} font ${ans}.`,
-        indice: `Répète ${tableNum} à lui-même ${mult} fois.`,
-        difficulte: 1,
-        xp: 10,
-        etoiles: 1
-      };
-    });
-
-    setActiveQuiz({
-      type: 'tutor',
-      questions: quizQuestions,
-      currentIndex: 0,
-      score: 0,
-      answers: [],
-      selectedOption: null,
-      showCorrection: false,
-      xpEarned: 0,
-      starsEarned: 0,
-      showHint: false
-    });
-  };
-
-  // Launch test for specific lesson
-  const launchLessonQuiz = (lesson: Lesson) => {
-    const quizQuestions: AcademyQuestion[] = [];
-    const matchedStatic = staticAcademyQuestions.filter(q => q.niveau === currentGrade && q.matiere === lesson.matiere);
-    
-    for (let i = 0; i < 3; i++) {
-      if (matchedStatic.length > i) {
-        quizQuestions.push(matchedStatic[i]);
-      } else {
-        const mat = lesson.matiere === 'Mathématiques' ? 'Mathématiques' : (lesson.matiere === 'Français' ? 'Français' : 'Langues');
-        quizQuestions.push(generateProceduralQuestion(currentGrade, mat));
-      }
-    }
-
-    setActiveQuiz({
-      type: 'tutor',
       questions: quizQuestions,
       currentIndex: 0,
       score: 0,
@@ -925,28 +724,9 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     });
   };
 
-  const startTeenEvaluation = (lesson: Lesson) => {
-    const questions: AcademyQuestion[] = [];
-    for (let i = 0; i < 10; i++) {
-      questions.push(generateQuestionForLesson(lesson.id, studentProfile.level));
-    }
-    setActiveQuiz({
-      type: 'teen_evaluation',
-      questions,
-      currentIndex: 0,
-      score: 0,
-      answers: [],
-      selectedOption: null,
-      showCorrection: false,
-      xpEarned: 50,
-      starsEarned: 5,
-      showHint: false
-    });
-  };
-
   // Memory game card generation
   const startMemoryGame = (lesson: Lesson) => {
-    let pairs: Array<{ content: string; matchContent: string }> = [];
+    let pairs: Array<{ content: string; matchContent: string }>;
     if (lesson.id === 'les_3e_mat_pyth') {
       pairs = [
         { content: "Hypoténuse²", matchContent: "Somme des carrés" },
@@ -1303,26 +1083,6 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     }, 800);
   };
 
-  const launchTutorQuiz = (subject: string) => {
-    const quizQuestions: AcademyQuestion[] = [];
-    for (let i = 0; i < 3; i++) {
-      const normSubject = subject.toLowerCase().includes('math') ? 'Mathématiques' : (subject.toLowerCase().includes('lang') ? 'Langues' : 'Français');
-      quizQuestions.push(generateProceduralQuestion(currentGrade, normSubject));
-    }
-    setActiveQuiz({
-      type: 'tutor',
-      questions: quizQuestions,
-      currentIndex: 0,
-      score: 0,
-      answers: [],
-      selectedOption: null,
-      showCorrection: false,
-      xpEarned: 0,
-      starsEarned: 0,
-      showHint: false
-    });
-  };
-
   // Parent homework management
   const [newHomeworkTitle, setNewHomeworkTitle] = useState('');
   const [newHomeworkSubject, setNewHomeworkSubject] = useState('Mathématiques');
@@ -1417,12 +1177,6 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     }
   };
 
-  const handleMarkCompleted = (taskId: string) => {
-    setSchoolTasks(prev => prev.map(t => t.id === taskId ? { ...t, done: true } : t));
-    setStats(s => ({ ...s, xp: s.xp + 10, stars: s.stars + 1 }));
-    alert("Bravo ! Devoir marqué comme fait. Tu gagnes +10 XP et +1 Étoile ! 📚✨");
-  };
-
   const handleParentValidate = (taskId: string) => {
     setSchoolTasks(prev => prev.map(t => t.id === taskId ? { ...t, done: true, grade: 'Validé' } : t));
     alert("Devoir validé avec succès ! Pts et récompenses attribués. 💰");
@@ -1504,86 +1258,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
     return (totalWeighted / totalCoef).toFixed(2) + ' / 20';
   };
 
-  const myTasks = schoolTasks.filter(t => t.assignedMemberId === activeMemberId);
   const isPendingValidation = (task: SchoolTask) => task.done && !task.grade;
-  const isCompleted = (task: SchoolTask) => task.done && task.grade === 'Validé';
-  const isNew = (task: SchoolTask) => !task.done;
-
-  // Split tasks for unified agenda
-  const myHomeworks = myTasks.filter(t => !isHomeworkEvaluation(t));
-  const myEvaluations = myTasks.filter(t => isHomeworkEvaluation(t));
-  function isHomeworkEvaluation(task: SchoolTask) {
-    const titleLower = task.title.toLowerCase();
-    const subjectLower = task.subject.toLowerCase();
-    return titleLower.includes('éval') || titleLower.includes('eval') || titleLower.includes('contrôle') || titleLower.includes('controle') || titleLower.includes('test') || titleLower.includes('examen') || subjectLower.includes('éval') || subjectLower.includes('contrôle');
-  }
-
-  const daysOfWeek = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-  const todayDayName = daysOfWeek[new Date().getDay()];
-  const todayClasses = schedule.filter(s => s.studentId === activeMemberId && s.day === todayDayName);
-
-  const handleReviewWithTutor = (task: SchoolTask) => {
-    const sub = task.subject.toLowerCase();
-    const title = task.title.toLowerCase();
-    const found = staticAcademyLessons.find(l => 
-      l.matiere.toLowerCase().includes(sub) || 
-      sub.includes(l.matiere.toLowerCase()) ||
-      l.title.toLowerCase().split(' ').some(word => word.length > 3 && title.includes(word))
-    );
-    
-    if (found) {
-      setSelectedLesson(found);
-      setSelectedLessonCategory(
-        found.matiere === 'Mathématiques' ? 'maths' : 
-        found.matiere === 'Français' ? 'français' : 
-        found.matiere === 'Découverte' ? 'sciences' : 'langues'
-      );
-      setActiveSubTab('cours');
-      alert(`📚 Lancement de la fiche de révision : ${found.title}`);
-    } else {
-      setActiveSubTab('revisions');
-      setUserInput(`Aide-moi à réviser mon cours de ${task.subject} sur : ${task.title}`);
-      alert(`🤖 Coach ouvert pour réviser : ${task.title}`);
-    }
-  };
-
-  const parseDueDate = (dateStr: string): Date => {
-    const d = new Date(dateStr);
-    if (!isNaN(d.getTime())) return d;
-    const months: Record<string, number> = {
-      janvier: 0, fevrier: 1, février: 1, mars: 2, avril: 3, mai: 4, juin: 5,
-      juillet: 6, aout: 7, août: 7, septembre: 8, octobre: 9, novembre: 10, decembre: 11, décembre: 11
-    };
-    const parts = dateStr.toLowerCase().split(' ');
-    if (parts.length >= 2) {
-      const day = parseInt(parts[0], 10);
-      const month = months[parts[1]];
-      if (!isNaN(day) && month !== undefined) {
-        const now = new Date();
-        return new Date(now.getFullYear(), month, day);
-      }
-    }
-    return new Date();
-  };
-
-  const today = new Date();
-  today.setHours(0,0,0,0);
-
-  const getTaskStatusGroup = (task: SchoolTask): 'overdue' | 'today' | 'this_week' | 'soon' => {
-    const date = parseDueDate(task.dueDate);
-    date.setHours(0,0,0,0);
-    const diffTime = date.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays < 0) return 'overdue';
-    if (diffDays === 0) return 'today';
-    if (diffDays <= 7) return 'this_week';
-    return 'soon';
-  };
-
-  const getPoints = (difficulty: 'easy' | 'medium' | 'hard') => {
-    return difficulty === 'easy' ? 20 : difficulty === 'medium' ? 50 : 100;
-  };
 
   const getSubjectStyle = (subj: string) => {
     const lower = subj.toLowerCase();
@@ -1692,9 +1367,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
             <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Cahier de Textes Général :</span>
             
             <div className="space-y-3">
-              {schoolTasks.map((task) => {
-                const isPending = isPendingValidation(task);
-                const isCompletedTask = isCompleted(task);
+                  {schoolTasks.map((task) => {
                 const style = getSubjectStyle(task.subject);
 
                 if (editingTaskId === task.id) {
@@ -1975,28 +1648,36 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
               const statsRaw = localStorage.getItem(statsKey);
               let kidStats = { level: 1, xp: 0, stars: 0, streak: 0, completedQuizzesCount: 0 };
               if (statsRaw) {
-                try { kidStats = JSON.parse(statsRaw); } catch (e) {}
+                try { kidStats = JSON.parse(statsRaw); } catch {
+                  // Ignore corrupted local academy stats for this child.
+                }
               }
 
               const profileKey = `academy_student_profile_${s.id}`;
               const profileRaw = localStorage.getItem(profileKey);
               let profile = { level: 'CE2', country: 'France' };
               if (profileRaw) {
-                try { profile = JSON.parse(profileRaw); } catch (e) {}
+                try { profile = JSON.parse(profileRaw); } catch {
+                  // Ignore corrupted local academy profile for this child.
+                }
               }
 
               const progressKey = `academy_lesson_progress_${s.id}`;
               const progressRaw = localStorage.getItem(progressKey);
               let progress: Record<string, ChapterProgress> = {};
               if (progressRaw) {
-                try { progress = JSON.parse(progressRaw); } catch (e) {}
+                try { progress = JSON.parse(progressRaw); } catch {
+                  // Ignore corrupted local academy progress for this child.
+                }
               }
 
               const evalsKey = `academy_weekly_evals_${s.id}`;
               const evalsRaw = localStorage.getItem(evalsKey);
               let evalsList: WeeklyEvalItem[] = [];
               if (evalsRaw) {
-                try { evalsList = JSON.parse(evalsRaw); } catch (e) {}
+                try { evalsList = JSON.parse(evalsRaw); } catch {
+                  // Ignore corrupted local academy evaluations for this child.
+                }
               }
 
               const getChildSubjectProgress = (subj: AcademySubject): number => {
@@ -2456,7 +2137,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                       {/* Expanded lessons list */}
                       {expandedCycles[cycle] && (
                         <div className="p-3 divide-y divide-white/5">
-                          {lessons.map((les, idx) => {
+                          {lessons.map((les) => {
                             const progressPct = getChapterProgressPercent(les.id);
                             const isUnlocked = true; // Toujours débloqué pour une exploration libre
 
@@ -2550,16 +2231,13 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                     if (step.idx === 5 && getChapterProgressPercent(selectedLesson.id) < 100) isLocked = true;
                   }
 
-                  let btnStyle = "text-white/40 border-transparent hover:text-white/60";
-                  if (isCurrent) {
-                    btnStyle = "bg-[#6C5CFF]/25 border-[#6C5CFF]/40 text-[#9E94FF] font-black";
-                  } else if (isDone) {
-                    btnStyle = "text-emerald-400 font-bold border-transparent";
-                  } else if (isLocked) {
-                    btnStyle = "text-white/10 cursor-not-allowed opacity-35 border-transparent";
-                  } else {
-                    btnStyle = "text-white/60 font-semibold border-transparent";
-                  }
+                  const btnStyle = isCurrent
+                    ? "bg-[#6C5CFF]/25 border-[#6C5CFF]/40 text-[#9E94FF] font-black"
+                    : isDone
+                      ? "text-emerald-400 font-bold border-transparent"
+                      : isLocked
+                        ? "text-white/10 cursor-not-allowed opacity-35 border-transparent"
+                        : "text-white/60 font-semibold border-transparent";
 
                   return (
                     <button
@@ -3599,7 +3277,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
               {(() => {
                 const leaderboardList = members && members.length > 0 
                   ? members.map(m => {
-                      let memberXp = 120;
+                      let memberXp: number;
                       if (m.id === activeMemberId) {
                         memberXp = stats.xp + (stats.level - 1) * 300;
                       } else if (m.role?.toLowerCase().includes('ado')) {
