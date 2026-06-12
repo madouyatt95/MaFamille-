@@ -167,6 +167,7 @@ import type { Foyer, FoyerMember } from './types';
 import { compressImageToBlob, uploadBlobToStorage } from './utils/imageCompressor';
 
 import { getUnifiedEvents } from './utils/agendaHelper';
+import { buildFamilyAssistantResponse, detectFamilyAssistantIntent } from './utils/familyAssistant';
 import type { ExternalEvent } from './utils/icalParser';
 import { Volume2, Mic, Bell, X, ChevronRight, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check, Star, ArrowLeft } from 'lucide-react';
 
@@ -8586,7 +8587,7 @@ function App() {
 
       if (isVoyagesIntent && !hasExplicitAmount) {
         setActiveTab('menu');
-        setActiveModule('voyage');
+        setActiveModule('voyages');
         feedback = "✈️ Navigation : Je lance l'Assistant Voyage IA.";
         setVoiceFeedback(feedback);
         logVoiceCommandToSupabase("voyages_nav", true);
@@ -9194,6 +9195,38 @@ function App() {
         }
       }
 
+      const familyAssistantIntent = detectFamilyAssistantIntent(text);
+      if (familyAssistantIntent) {
+        const assistantResult = buildFamilyAssistantResponse(familyAssistantIntent, {
+          activeMemberId,
+          members,
+          events: unifiedEvents,
+          tasks,
+          groceries,
+          transactions,
+          documents,
+          trips,
+          schoolTasks,
+          alerts,
+          chatGroups,
+          chatMessages
+        });
+
+        setVoiceDebugTrace({
+          intention: `family_assistant_${assistantResult.intent}`,
+          entities: assistantResult.target
+            ? { tab: assistantResult.target.tab, module: assistantResult.target.module }
+            : {},
+          missingFields: [],
+          contextActive: false,
+          actionExecuted: assistantResult.feedback
+        });
+        setVoiceFeedback(`✨ ${assistantResult.feedback}`);
+        logVoiceCommandToSupabase(`family_assistant_${assistantResult.intent}`, true);
+        closeVoiceAssistantAfterDelay(assistantResult.target ? 3500 : 3000, 'inactif', assistantResult.target);
+        return;
+      }
+
       let fallbackTarget: { tab: string; module: string; toastMessage: string } | null = null;
 
       if (promptLower.includes('carte') || promptLower.includes('gps') || promptLower.includes('position') || promptLower.includes('itiné')) {
@@ -9242,7 +9275,7 @@ function App() {
       }
       else if (promptLower.includes('voyage') || promptLower.includes('vacance') || promptLower.includes('bagage')) {
         feedback = "✈️ Navigation : Je lance l'Assistant Voyage IA.";
-        fallbackTarget = { tab: 'menu', module: 'voyage', toastMessage: 'Voyages ouverts' };
+        fallbackTarget = { tab: 'menu', module: 'voyages', toastMessage: 'Voyages ouverts' };
       }
       else {
         feedback = `🔍 Recherche : Commande "${text}" non reconnue. Essayez : "Ouvre l'agenda", "Affiche la carte" ou "Ajoute du lait".`;
