@@ -4,8 +4,8 @@
 
 - Build : OK
 - Lint : 0 erreur
-- Avertissements restants : 525
-- Branche : main, modifications locales en cours sur `KidMissions.tsx`, `KidsDashboard.tsx` et le mémo lint
+- Avertissements restants : 524
+- Branche : main, modifications locales en cours sur `KidMissions.tsx`, `KidsDashboard.tsx`, `BudgetExport.tsx` et le mémo lint
 
 ## Ce qui a déjà été nettoyé
 
@@ -25,6 +25,7 @@ Les fichiers suivants sont passés à 0 avertissement lint :
 - `src/views/Membres.tsx` : nettoyage partiel, de 26 à 20 avertissements
 - `src/views/KidMissions.tsx` : nettoyage partiel, de 16 à 10 avertissements
 - `src/views/KidsDashboard.tsx` : nettoyage partiel, de 15 à 5 avertissements
+- `src/views/BudgetExport.tsx` : nettoyage partiel, de 17 à 16 avertissements
 
 ## Gros foyers restants
 
@@ -37,10 +38,10 @@ Les avertissements restants sont surtout concentrés dans quelques gros fichiers
 - `src/views/Budget.tsx` : environ 21 avertissements
 - `src/views/KidSchool.tsx` : environ 21 avertissements
 - `src/views/Membres.tsx` : environ 20 avertissements
-- `src/views/BudgetExport.tsx` : environ 17 avertissements
+- `src/views/BudgetExport.tsx` : environ 16 avertissements
 - `src/views/BudgetImport.tsx` : environ 16 avertissements
 
-Ces 8 fichiers représentent environ 461 avertissements sur les 525 restants.
+Ces 8 fichiers représentent environ 460 avertissements sur les 524 restants.
 
 ## Stratégie conseillée
 

@@ -121,16 +121,19 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
   // Apply initial options from voice parsing if present
   useEffect(() => {
     if (initialOptions) {
-      if (initialOptions.format) setFormat(initialOptions.format);
+      if (initialOptions.format) queueMicrotask(() => setFormat(initialOptions.format as ExportFormat));
       if (initialOptions.period) {
-        if (initialOptions.period === 'today') setPeriod('today');
-        else if (initialOptions.period === 'week') setPeriod('this_week');
-        else if (initialOptions.period === 'month') setPeriod('this_month');
-        else if (initialOptions.period === 'last_month') setPeriod('last_month');
-        else if (initialOptions.period === 'quarter') setPeriod('this_quarter');
-        else if (initialOptions.period === 'year') setPeriod('this_year');
-        else if (initialOptions.period === 'last_year') setPeriod('last_year');
-        else if (initialOptions.period === 'custom') setPeriod('custom');
+        const nextPeriod =
+          initialOptions.period === 'today' ? 'today' :
+          initialOptions.period === 'week' ? 'this_week' :
+          initialOptions.period === 'month' ? 'this_month' :
+          initialOptions.period === 'last_month' ? 'last_month' :
+          initialOptions.period === 'quarter' ? 'this_quarter' :
+          initialOptions.period === 'year' ? 'this_year' :
+          initialOptions.period === 'last_year' ? 'last_year' :
+          initialOptions.period === 'custom' ? 'custom' :
+          null;
+        if (nextPeriod) queueMicrotask(() => setPeriod(nextPeriod));
       }
     }
   }, [initialOptions]);
