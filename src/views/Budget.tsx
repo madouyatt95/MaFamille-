@@ -84,7 +84,6 @@ export const Budget: React.FC<BudgetProps> = ({
   members,
   currencySymbol: _currencySymbol = '€',
   formatMoney,
-  onAddTransactionClick: _onAddTransactionClick,
   activeMemberId = '1',
   onAddTransaction,
   foyerId,
@@ -96,8 +95,6 @@ export const Budget: React.FC<BudgetProps> = ({
   setAccounts,
   abonnements,
   setAbonnements,
-  debts: _debts,
-  setDebts: _setDebts,
   activeSubView,
   onClearActiveSubView,
   moduleBudgets,
@@ -370,37 +367,39 @@ export const Budget: React.FC<BudgetProps> = ({
       if (activeSubView.type === 'export') {
         if (!isPremium) {
           onTriggerPaywall?.();
-          setActiveTab('dashboard');
+          queueMicrotask(() => setActiveTab('dashboard'));
           onClearActiveSubView?.();
           return;
         }
-        setActiveTab('exports');
+        queueMicrotask(() => setActiveTab('exports'));
       } else if (activeSubView.type === 'import') {
-        setActiveTab('imports');
+        queueMicrotask(() => setActiveTab('imports'));
       } else if (activeSubView.type === 'tab' && activeSubView.tab) {
-        setActiveTab(activeSubView.tab as any);
+        queueMicrotask(() => setActiveTab(activeSubView.tab as any));
         onClearActiveSubView?.();
       } else if (activeSubView.type === 'transaction_form') {
-        setActiveTab('transactions');
-        setTxForm({
-          title: activeSubView.options?.title || '',
-          amount: String(activeSubView.options?.amount || ''),
-          type: activeSubView.options?.type || 'expense',
-          category: activeSubView.options?.category || 'Autres',
-          subCategory: activeSubView.options?.subCategory || 'Divers',
-          date: activeSubView.options?.date || new Date().toISOString().split('T')[0],
-          accountId: activeSubView.options?.accountId || '',
-          memberId: '',
-          recurrence: activeSubView.options?.recurrence || 'none',
-          moduleSource: activeSubView.options?.moduleSource || 'budget',
-          receiptBase64: '',
-          comment: activeSubView.options?.comment || ''
+        queueMicrotask(() => {
+          setActiveTab('transactions');
+          setTxForm({
+            title: activeSubView.options?.title || '',
+            amount: String(activeSubView.options?.amount || ''),
+            type: activeSubView.options?.type || 'expense',
+            category: activeSubView.options?.category || 'Autres',
+            subCategory: activeSubView.options?.subCategory || 'Divers',
+            date: activeSubView.options?.date || new Date().toISOString().split('T')[0],
+            accountId: activeSubView.options?.accountId || '',
+            memberId: '',
+            recurrence: activeSubView.options?.recurrence || 'none',
+            moduleSource: activeSubView.options?.moduleSource || 'budget',
+            receiptBase64: '',
+            comment: activeSubView.options?.comment || ''
+          });
+          setIsTxModalOpen(true);
         });
-        setIsTxModalOpen(true);
         onClearActiveSubView?.();
       }
     }
-  }, [activeSubView]);
+  }, [activeSubView, isPremium, onClearActiveSubView, onTriggerPaywall]);
 
   const isAuthorized = myMemberProfile?.role === 'admin' || myMemberProfile?.role === 'parent';
 
@@ -656,15 +655,12 @@ export const Budget: React.FC<BudgetProps> = ({
   const stats = useMemo(() => {
     let income = 0;
     let expense = 0;
-    let savings = 0;
 
     activeTransactions.forEach(t => {
       if (t.type === 'income') {
         income += t.amount;
       } else if (t.type === 'expense') {
         expense += t.amount;
-      } else if (t.type === 'savings') {
-        savings += t.amount;
       }
     });
 
@@ -730,7 +726,7 @@ export const Budget: React.FC<BudgetProps> = ({
       depensesAVenir: upcomingAboCost,
       alerts: budgetAlerts
     };
-  }, [activeTransactions, accounts, savingGoals, abonnements, allCategories, transactions, suspendedAboIds, moduleBudgets]);
+  }, [activeTransactions, accounts, savingGoals, abonnements, transactions, suspendedAboIds, moduleBudgets]);
 
   const prelevementsAVenir = useMemo(() => {
     const list: any[] = [];

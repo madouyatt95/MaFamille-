@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Star, CheckCircle2, Calendar, Gift, MapPin, MessageSquare, 
-  GraduationCap, Clock, Award, ShieldAlert, Trophy, Zap, 
-  Sparkles, BookOpen, HeartHandshake, Compass, Users, 
-  PlusCircle, ArrowLeft, ArrowRight, Smile, Send, Trash2, 
-  Coins, TrendingUp, Bell, Heart, Camera
+  Star, CheckCircle2, MapPin, 
+  Clock, Trophy, 
+  Sparkles, 
+  PlusCircle, ArrowLeft, ArrowRight, 
+  Coins, Bell, Camera
 } from 'lucide-react';
-import type { Member, ChoreTask, FamilyEvent, SchoolTask, SavingGoal, Transaction, NotificationAlert, FamilyVote, Foyer, DocumentFile, Trip, MemoryLog, Dish, ChatGroup, ChatMessage, FamilyModule, ModulePermissions } from '../types';
+import type { Member, ChoreTask, FamilyEvent, SchoolTask, SavingGoal, Transaction, NotificationAlert, FamilyVote, Foyer, DocumentFile, Trip, MemoryLog, Dish, ChatGroup, ChatMessage, FamilyModule } from '../types';
 import { parseChoreTitle, serializeChoreTitle, getDefaultPermissions } from '../types';
 import { TuteurScolaire } from '../components/modules/TuteurScolaire';
 import { PeaceMaker } from '../components/modules/PeaceMaker';
@@ -136,17 +136,12 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   chatMessages,
   setChatMessages,
   initialChatGroupId,
-  setInitialChatGroupId,
   trips = [],
   setTrips,
   documents = [],
   setDocuments,
   onApplyWallTask,
-  onAcceptCandidate,
-  onRefuseCandidate,
   onTakeWallTask,
-  onToggleTask,
-  onSendNotification,
   memberPermissions,
   communeName = 'Commune à configurer',
   schoolName = 'Collège Victor Hugo',
@@ -278,16 +273,20 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
 
   // Sync internalTab with activeTab prop
   useEffect(() => {
-    if (activeTab === 'accueil') setInternalTab('accueil');
-    else if (activeTab === 'timeline') setInternalTab('timeline');
-    else if (activeTab === 'menu') {
-      if (['ecole', 'ecole_devoirs', 'tuteur_ia', 'notes_bulletins', 'emploi_temps'].includes(activeModule || '')) {
-        setInternalTab('ecole');
-      } else if (activeModule === 'messagerie') {
-        setInternalTab('messages');
-      } else {
-        setInternalTab('plus');
-      }
+    if (activeTab === 'accueil') {
+      queueMicrotask(() => setInternalTab('accueil'));
+    } else if (activeTab === 'timeline') {
+      queueMicrotask(() => setInternalTab('timeline'));
+    } else if (activeTab === 'menu') {
+      queueMicrotask(() => {
+        if (['ecole', 'ecole_devoirs', 'tuteur_ia', 'notes_bulletins', 'emploi_temps'].includes(activeModule || '')) {
+          setInternalTab('ecole');
+        } else if (activeModule === 'messagerie') {
+          setInternalTab('messages');
+        } else {
+          setInternalTab('plus');
+        }
+      });
     }
   }, [activeTab, activeModule]);
 
@@ -349,7 +348,6 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   const xpPerLevel = 150;
   const level = Math.floor(totalXP / xpPerLevel) + 1;
   const currentXP = totalXP % xpPerLevel;
-  const xpRemaining = xpPerLevel - currentXP;
 
   const getLevelTitle = (lvl: number) => {
     if (lvl <= 2) return "Jeune Recrue 🌟";
@@ -509,12 +507,6 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
 
   const cleanSchoolTasks = schoolTasks.filter(t => t && !LEGACY_DEMO_SCHOOL_TASK_IDS.has(String(t.id || '')));
   const mySchoolTasks = cleanSchoolTasks.filter(t => t.assignedMemberId === member.id && !t.done);
-  const myEvents = events.filter(e => {
-    const ev = e as any;
-    if (ev.sourceModule === 'fetes' || ev.source_module === 'fetes' || ev.type === 'holiday') return false;
-    return e.memberId === member.id || e.title.toLowerCase().includes(member.name.toLowerCase());
-  });
-
   // Active Council Votes where the teen hasn't voted yet
   const pendingVotes = (votes || []).filter(v => 
     v.active && 
@@ -606,7 +598,9 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
             icon: "🎉"
           });
         }
-      } catch (e) {}
+      } catch {
+        // Ignore malformed birth dates.
+      }
     });
 
     // 4. Événements (Only social/family events, hide admin/bill/boring parent events)

@@ -1,37 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ArrowLeft, 
-  GraduationCap, 
-  Calendar, 
   Sparkles, 
-  BookOpen, 
-  AlertCircle, 
-  MessageSquare, 
-  Award, 
   Clock, 
   ArrowRight,
-  Plus,
   Send,
   Loader2,
-  Trash2,
-  Flame,
   Star,
   ChevronRight,
-  Smile,
   Trophy,
-  Gamepad2,
   CheckCircle2,
   XCircle,
-  HelpCircle,
-  UserCheck,
-  RotateCcw,
-  BookOpenCheck,
-  Check
+  RotateCcw
 } from 'lucide-react';
 import type { Member, SchoolTask, FamilyEvent } from '../types';
-import { staticAcademyQuestions, staticAcademyLessons } from '../data/academyData';
+import { staticAcademyLessons } from '../data/academyData';
 import type { AcademyQuestion, Lesson, AcademySubject } from '../data/academyData';
-import { generateProceduralQuestion, generateQuestionForLesson } from '../utils/academyGenerator';
+import { generateQuestionForLesson } from '../utils/academyGenerator';
 
 export interface KidSchoolProps {
   member: Member;
@@ -76,14 +61,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
   member,
   schoolTasks,
   setSchoolTasks,
-  grades = [],
   setGrades = () => {},
-  schedule = [],
-  setSchedule = () => {},
-  events = [],
-  members = [],
-  isPremium = false,
-  onTriggerPaywall,
   onBack
 }) => {
   // 1. Navigation & Basic State
@@ -107,7 +85,9 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
     const key = `academy_student_profile_${member.id}`;
     const stored = localStorage.getItem(key);
     if (stored) {
-      try { return JSON.parse(stored); } catch (e) {}
+      try { return JSON.parse(stored); } catch {
+        // Ignore corrupted local profile and infer it again.
+      }
     }
     // Fallback: estimate from age
     let estimatedLevel: 'CP' | 'CE1' | 'CE2' | 'CM1' | 'CM2' | '6e' | '5e' | '4e' | '3e' | 'Lycée' = 'CE2';
@@ -132,11 +112,13 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
     localStorage.setItem(`academy_student_profile_${member.id}`, JSON.stringify(studentProfile));
     // Also auto-expand the cycle matching the student's level
     const cycle = getCycleForLevel(studentProfile.level);
-    setExpandedCycles({
-      'Cycle 2': cycle === 'Cycle 2',
-      'Cycle 3': cycle === 'Cycle 3',
-      'Cycle 4': cycle === 'Cycle 4',
-      'Lycée': cycle === 'Lycée'
+    queueMicrotask(() => {
+      setExpandedCycles({
+        'Cycle 2': cycle === 'Cycle 2',
+        'Cycle 3': cycle === 'Cycle 3',
+        'Cycle 4': cycle === 'Cycle 4',
+        'Lycée': cycle === 'Lycée'
+      });
     });
   }, [studentProfile, member.id]);
 
@@ -163,7 +145,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
           }
         }
         return migrated;
-      } catch (e) {
+      } catch {
         return {};
       }
     }
@@ -212,7 +194,9 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
     const key = `academy_stats_${member.id}`;
     const stored = localStorage.getItem(key);
     if (stored) {
-      try { return JSON.parse(stored); } catch (e) {}
+      try { return JSON.parse(stored); } catch {
+        // Ignore corrupted local stats and reset them.
+      }
     }
     return {
       xp: 0,
@@ -244,7 +228,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
     challengeCount?: number; // TIMED: correct answers
   } | null>(null);
 
-  const timerRef = useRef<any>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const [userInput, setUserInput] = useState('');
@@ -377,7 +361,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
   };
 
   const startMemoryGame = (lesson: Lesson) => {
-    let pairs: Array<{ content: string; matchContent: string }> = [];
+    let pairs: Array<{ content: string; matchContent: string }>;
     if (lesson.id === 'les_cp_mat_add') {
       pairs = [
         { content: "3 + 2", matchContent: "5" },
@@ -527,26 +511,6 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
       showHint: false,
       timerRemaining: 45, // 45 seconds countdown
       challengeCount: 0
-    });
-  };
-
-  // Launch Evaluation
-  const startKidEvaluation = (lesson: Lesson) => {
-    const questions: AcademyQuestion[] = [];
-    for (let i = 0; i < 10; i++) {
-      questions.push(generateQuestionForLesson(lesson.id, studentProfile.level));
-    }
-    setActiveQuiz({
-      type: 'kid_evaluation',
-      questions,
-      currentIndex: 0,
-      score: 0,
-      answers: [],
-      selectedOption: null,
-      showCorrection: false,
-      xpEarned: 50,
-      starsEarned: 5,
-      showHint: false
     });
   };
 
@@ -1363,16 +1327,13 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
                   if (step.idx === 5 && getChapterProgressPercent(selectedLesson.id) < 100) isLocked = true;
                 }
 
-                let btnStyle = "text-white/40 border-transparent hover:text-white/60";
-                if (isCurrent) {
-                  btnStyle = "bg-[#6C5CFF]/25 border-[#6C5CFF]/40 text-[#9E94FF] font-black";
-                } else if (isDone) {
-                  btnStyle = "text-emerald-400 font-bold border-transparent";
-                } else if (isLocked) {
-                  btnStyle = "text-white/10 cursor-not-allowed opacity-35 border-transparent";
-                } else {
-                  btnStyle = "text-white/60 font-semibold border-transparent";
-                }
+                const btnStyle = isCurrent
+                  ? "bg-[#6C5CFF]/25 border-[#6C5CFF]/40 text-[#9E94FF] font-black"
+                  : isDone
+                    ? "text-emerald-400 font-bold border-transparent"
+                    : isLocked
+                      ? "text-white/10 cursor-not-allowed opacity-35 border-transparent"
+                      : "text-white/60 font-semibold border-transparent";
 
                 return (
                   <button
