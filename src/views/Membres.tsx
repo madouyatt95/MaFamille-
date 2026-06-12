@@ -46,7 +46,6 @@ interface MembresProps {
 export const Membres: React.FC<MembresProps> = ({ 
   members, 
   setMembers,
-  onAddMemberClick: _onAddMemberClick,
   onAddMember,
   onUpdateMemberProfile,
   activeMemberId = '1',
@@ -78,12 +77,12 @@ export const Membres: React.FC<MembresProps> = ({
   React.useEffect(() => {
     if (foyer) {
       foyerService.getPendingJoinRequests(foyer.id).then((reqs: any) => {
-        setPendingRequests(reqs);
+        queueMicrotask(() => setPendingRequests(reqs));
       }).catch(err => {
         console.error("Failed to fetch pending join requests:", err);
       });
     } else {
-      setPendingRequests([]);
+      queueMicrotask(() => setPendingRequests([]));
     }
   }, [foyer]);
 
@@ -520,7 +519,6 @@ export const Membres: React.FC<MembresProps> = ({
     }
   };
 
-  const pendingMembers = members.filter(m => m.approved === false && m.bloodGroup !== 'STATUS:rejected' && m.bloodGroup !== 'STATUS:expired');
   const approvedMembers = members.filter(m => m.approved !== false);
 
   return (
@@ -1256,16 +1254,13 @@ export const Membres: React.FC<MembresProps> = ({
                               setGeneratingAvatar(true);
                               setAvatarStep(1);
                               
-                              let stylePrompt = '';
-                              if (avatarStyle === 'pixar') {
-                                stylePrompt = 'highly detailed 3D Pixar disney character profile portrait, cute stylized rendering, glowing soft studio lighting, vibrantly colored background';
-                              } else if (avatarStyle === 'anime') {
-                                stylePrompt = 'modern bright anime character portrait, stunning studio ghibli illustration style, sparkling colorful details, clean lines';
-                              } else if (avatarStyle === 'fantasy') {
-                                stylePrompt = 'magical heroic fantasy wizard knight character portrait, glowing magic sparks, high fantasy oil painting book cover style';
-                              } else {
-                                stylePrompt = '16-bit cute retro pixel art profile icon, vibrant pixel colors, nostalgic game portrait';
-                              }
+                              const stylePrompt = avatarStyle === 'pixar'
+                                ? 'highly detailed 3D Pixar disney character profile portrait, cute stylized rendering, glowing soft studio lighting, vibrantly colored background'
+                                : avatarStyle === 'anime'
+                                  ? 'modern bright anime character portrait, stunning studio ghibli illustration style, sparkling colorful details, clean lines'
+                                  : avatarStyle === 'fantasy'
+                                    ? 'magical heroic fantasy wizard knight character portrait, glowing magic sparks, high fantasy oil painting book cover style'
+                                    : '16-bit cute retro pixel art profile icon, vibrant pixel colors, nostalgic game portrait';
 
                               const targetName = selectedMember.name;
                               const extraDesc = avatarDesc.trim() ? `, ${avatarDesc.trim()}` : '';
@@ -1647,12 +1642,6 @@ export const Membres: React.FC<MembresProps> = ({
                 if (blockFreeMemberLimit()) return;
                 setSavingProfile(true);
                 try {
-                  const dbRole: any = 
-                    approveRole === 'chef_famille' ? 'admin' :
-                    ['parent', 'gestionnaire', 'adulte'].includes(approveRole) ? 'parent' :
-                    ['adolescent', 'enfant'].includes(approveRole) ? 'child' :
-                    'guest';
-
                   const insertedMember = await foyerService.finalizeJoinRequest(memberToApprove.id, approveRole, approveHasExemption);
                   
                   if (onUpdatePermissions && insertedMember) {
