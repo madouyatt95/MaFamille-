@@ -613,15 +613,64 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   
   const [growthLogs, setGrowthLogs] = useState<{ id: string; memberId: string; date: string; height: number; weight: number; }[]>(() => {
     const stored = localStorage.getItem('mf_growth_logs');
-    return stored ? JSON.parse(stored) : [
-      { id: 'g-1', memberId: '1', date: '2025-01-10', height: 145, weight: 35 },
-      { id: 'g-2', memberId: '1', date: '2025-03-15', height: 148, weight: 37 },
-      { id: 'g-3', memberId: '1', date: '2026-05-20', height: 152, weight: 38 }
-    ];
+    if (!stored) return [];
+    try {
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(log => !['g-1', 'g-2', 'g-3'].includes(log.id));
+    } catch {
+      return [];
+    }
   });
   React.useEffect(() => {
     localStorage.setItem('mf_growth_logs', JSON.stringify(growthLogs));
   }, [growthLogs]);
+
+  const healthOverview = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const in30Days = new Date(today);
+    in30Days.setDate(in30Days.getDate() + 30);
+
+    const activeVaccines = (vaccines || []).filter((v: any) => v.status !== 'Fait' && v.status !== 'Archivé' && !v.isArchived);
+    const overdueVaccines = activeVaccines.filter((v: any) => {
+      if (!v.date) return false;
+      const due = new Date(`${v.date}T00:00:00`);
+      return !Number.isNaN(due.getTime()) && due < today;
+    });
+    const upcomingVaccines = activeVaccines
+      .filter((v: any) => {
+        if (!v.date) return false;
+        const due = new Date(`${v.date}T00:00:00`);
+        return !Number.isNaN(due.getTime()) && due >= today && due <= in30Days;
+      })
+      .sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)));
+
+    const incompleteEmergencyMembers = members.filter(member => {
+      const hasBlood = Boolean(member.bloodGroup);
+      const hasContact = Boolean((member as any).emergencyContactPhone || member.emergencyContact?.phone);
+      return !hasBlood || !hasContact;
+    });
+
+    const latestGrowth = [...growthLogs].sort((a, b) => b.date.localeCompare(a.date))[0] || null;
+    const recentHealthExpenses = (transactions || []).filter((tx: any) => {
+      const moduleSource = String(tx.moduleSource || tx.module_source || '').toLowerCase();
+      const category = String(tx.category || '').toLowerCase();
+      return moduleSource === 'sante' || category === 'santé' || category === 'sante';
+    });
+    const monthlyHealthTotal = recentHealthExpenses
+      .filter((tx: any) => String(tx.date || '').slice(0, 7) === new Date().toISOString().slice(0, 7))
+      .reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount || 0)), 0);
+
+    return {
+      activeVaccines,
+      overdueVaccines,
+      upcomingVaccines,
+      incompleteEmergencyMembers,
+      latestGrowth,
+      monthlyHealthTotal
+    };
+  }, [growthLogs, members, transactions, vaccines]);
 
   const [newLogDate, setNewLogDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newLogHeight, setNewLogHeight] = useState('');
@@ -1570,6 +1619,112 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             )}
           </div>
 
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <button
+              type="button"
+              onClick={() => setHealthSubTab('vaccins')}
+              className={`text-left rounded-2xl border p-3 transition-all cursor-pointer ${
+                healthOverview.overdueVaccines.length > 0
+                  ? 'bg-[#FF4D6D]/10 border-[#FF4D6D]/30'
+                  : 'bg-white/4 border-white/8 hover:bg-white/6'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[9px] font-black uppercase tracking-wider text-white/45">Vaccins</span>
+                <HeartPulse className={`w-4 h-4 ${healthOverview.overdueVaccines.length > 0 ? 'text-[#FF4D6D]' : 'text-[#00D26A]'}`} />
+              </div>
+              <p className="mt-1 text-lg font-black text-white">
+                {healthOverview.overdueVaccines.length > 0 ? healthOverview.overdueVaccines.length : healthOverview.upcomingVaccines.length}
+              </p>
+              <p className="text-[10px] font-bold text-white/55 leading-tight">
+                {healthOverview.overdueVaccines.length > 0
+                  ? 'en retard'
+                  : healthOverview.upcomingVaccines.length > 0
+                  ? 'à venir sous 30j'
+                  : 'aucune échéance proche'}
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setHealthSubTab('urgence')}
+              className={`text-left rounded-2xl border p-3 transition-all cursor-pointer ${
+                healthOverview.incompleteEmergencyMembers.length > 0
+                  ? 'bg-[#FFB020]/10 border-[#FFB020]/30'
+                  : 'bg-white/4 border-white/8 hover:bg-white/6'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[9px] font-black uppercase tracking-wider text-white/45">Urgence</span>
+                <ShieldCheck className={`w-4 h-4 ${healthOverview.incompleteEmergencyMembers.length > 0 ? 'text-[#FFB020]' : 'text-[#00D26A]'}`} />
+              </div>
+              <p className="mt-1 text-lg font-black text-white">
+                {healthOverview.incompleteEmergencyMembers.length}
+              </p>
+              <p className="text-[10px] font-bold text-white/55 leading-tight">
+                {healthOverview.incompleteEmergencyMembers.length > 0 ? 'fiche à compléter' : 'fiches complètes'}
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setHealthSubTab('croissance')}
+              className="text-left rounded-2xl border border-white/8 bg-white/4 hover:bg-white/6 p-3 transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[9px] font-black uppercase tracking-wider text-white/45">Croissance</span>
+                <Activity className="w-4 h-4 text-[#6C5CFF]" />
+              </div>
+              <p className="mt-1 text-sm font-black text-white truncate">
+                {healthOverview.latestGrowth ? `${healthOverview.latestGrowth.height} cm` : 'À renseigner'}
+              </p>
+              <p className="text-[10px] font-bold text-white/55 leading-tight">
+                {healthOverview.latestGrowth
+                  ? `${new Date(healthOverview.latestGrowth.date).toLocaleDateString('fr-FR')}`
+                  : 'aucune mesure'}
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setHealthSubTab('frais')}
+              className="text-left rounded-2xl border border-white/8 bg-white/4 hover:bg-white/6 p-3 transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[9px] font-black uppercase tracking-wider text-white/45">Frais</span>
+                <Coins className="w-4 h-4 text-[#00D26A]" />
+              </div>
+              <p className="mt-1 text-sm font-black text-white truncate">
+                {formatMoney(healthOverview.monthlyHealthTotal)}
+              </p>
+              <p className="text-[10px] font-bold text-white/55 leading-tight">ce mois-ci</p>
+            </button>
+          </div>
+
+          {(healthOverview.overdueVaccines.length > 0 || healthOverview.upcomingVaccines.length > 0 || healthOverview.incompleteEmergencyMembers.length > 0) && (
+            <div className="rounded-[22px] border border-[#FFB020]/20 bg-[#FFB020]/8 p-4 space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-[#FFB020] shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <h3 className="text-xs font-black text-white uppercase tracking-wider">À vérifier côté santé</h3>
+                  <div className="mt-1 space-y-1 text-[11px] font-semibold text-white/65 leading-relaxed">
+                    {healthOverview.overdueVaccines.slice(0, 2).map((vac: any) => {
+                      const memberName = members.find(m => m.id === vac.memberId)?.name || 'un membre';
+                      return <p key={`overdue-${vac.id}`}>• {vac.name} est en retard pour {memberName}.</p>;
+                    })}
+                    {healthOverview.upcomingVaccines.slice(0, Math.max(0, 2 - healthOverview.overdueVaccines.length)).map((vac: any) => {
+                      const memberName = members.find(m => m.id === vac.memberId)?.name || 'un membre';
+                      return <p key={`upcoming-${vac.id}`}>• {vac.name} arrive le {new Date(vac.date).toLocaleDateString('fr-FR')} pour {memberName}.</p>;
+                    })}
+                    {healthOverview.incompleteEmergencyMembers.length > 0 && (
+                      <p>• Fiche urgence à compléter : {healthOverview.incompleteEmergencyMembers.slice(0, 3).map(m => m.name).join(', ')}.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Sub-tab navigation */}
           <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 grid grid-cols-4 gap-1">
             <button onClick={() => setHealthSubTab('croissance')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'croissance' ? 'bg-[#FF4D6D] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
@@ -1818,14 +1973,34 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   </div>
                   <div className="space-y-1">
                     {filteredVaccines.length > 0 ? (
-                      filteredVaccines.map((vac) => (
-                        <div key={vac.id} className="flex items-start justify-between py-2.5 border-b border-white/5 last:border-b-0 text-xs">
+                      filteredVaccines.map((vac) => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const dueDate = vac.date ? new Date(`${vac.date}T00:00:00`) : null;
+                        const diffDays = dueDate && !Number.isNaN(dueDate.getTime())
+                          ? Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                          : null;
+                        const isOverdue = typeof diffDays === 'number' && diffDays < 0 && vac.status !== 'Fait';
+                        const isSoon = typeof diffDays === 'number' && diffDays >= 0 && diffDays <= 30 && vac.status !== 'Fait';
+
+                        return (
+                        <div key={vac.id} className={`flex items-start justify-between py-2.5 border-b border-white/5 last:border-b-0 text-xs rounded-xl px-2 -mx-2 ${isOverdue ? 'bg-[#FF4D6D]/8' : isSoon ? 'bg-[#FFB020]/8' : ''}`}>
                           <div className="space-y-1">
                             <h4 className="font-bold text-white flex items-center gap-1.5 flex-wrap">
                               {vac.name}
                               {vac.time && (
                                 <span className="text-[9px] bg-white/10 px-1.5 py-0.5 rounded text-white/70 font-mono">
                                   {vac.time}
+                                </span>
+                              )}
+                              {isOverdue && (
+                                <span className="text-[8px] bg-[#FF4D6D]/15 border border-[#FF4D6D]/25 px-1.5 py-0.5 rounded text-[#FF4D6D] font-black uppercase">
+                                  En retard
+                                </span>
+                              )}
+                              {isSoon && !isOverdue && (
+                                <span className="text-[8px] bg-[#FFB020]/15 border border-[#FFB020]/25 px-1.5 py-0.5 rounded text-[#FFB020] font-black uppercase">
+                                  Bientôt
                                 </span>
                               )}
                             </h4>
@@ -1888,7 +2063,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                             </div>
                           </div>
                         </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="py-6 text-center text-white/30 text-xs font-bold">
                         Aucun vaccin enregistré pour {selectedMemberName}.
