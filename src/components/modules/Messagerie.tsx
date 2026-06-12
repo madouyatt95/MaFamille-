@@ -4,6 +4,7 @@ import type { Member, ChatMessage, ChatGroup } from '../../types';
 import { foyerService } from '../../services/foyerService';
 import { getSupabaseClient } from '../../utils/supabase';
 import { compressImage } from '../../utils/imageCompressor';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 const blobToDataUrl = (blob: Blob): Promise<string> => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -11,6 +12,16 @@ const blobToDataUrl = (blob: Blob): Promise<string> => new Promise((resolve, rej
   reader.onerror = () => reject(reader.error);
   reader.readAsDataURL(blob);
 });
+
+const createLocalId = (prefix: string) => `${prefix}_${Date.now()}`;
+
+const parseReplyText = (content: string): string => {
+  try {
+    return JSON.parse(content).text || content;
+  } catch {
+    return content;
+  }
+};
 
 // Player de messages vocaux interactif et esthétique
 const VoiceMessagePlayer: React.FC<{ content: string; isMe: boolean }> = ({ content, isMe }) => {
@@ -223,7 +234,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   const [typingMembers, setTypingMembers] = useState<{ [memberId: string]: string }>({});
 
   const lastTypingSentRef = useRef<number>(0);
-  const activeTypingChannelRef = useRef<any>(null);
+  const activeTypingChannelRef = useRef<RealtimeChannel | null>(null);
 
   const togglePinGroup = (groupId: string) => {
     setPinnedGroupIds(prev => {
@@ -366,7 +377,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     };
 
     if (activeGroupId && !groups.some(g => g.id === activeGroupId && isVisibleGroup(g))) {
-      setActiveGroupId(null);
+      queueMicrotask(() => setActiveGroupId(null));
     }
   }, [activeGroupId, activeMemberId, groups, hiddenGroupIds]);
 
@@ -419,7 +430,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     }
 
     const newMsg: ChatMessage = {
-      id: `msg_${Date.now()}`,
+      id: createLocalId('msg'),
       groupId: activeGroupId,
       senderId: activeUser.id,
       senderName: activeUser.name,
@@ -500,7 +511,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
         if (event.target?.result) {
           const contentValue = `${event.target.result as string}|${file.name}`;
           const newMsg: ChatMessage = {
-            id: `msg_${Date.now()}`,
+            id: createLocalId('msg'),
             groupId: activeGroupId,
             senderId: activeUser.id,
             senderName: activeUser.name,
@@ -531,7 +542,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
       const compressedData = await compressImage(file, 900, 900, 0.6);
       if (compressedData) {
         const newMsg: ChatMessage = {
-          id: `msg_${Date.now()}`,
+          id: createLocalId('msg'),
           groupId: activeGroupId,
           senderId: activeUser.id,
           senderName: activeUser.name,
@@ -560,7 +571,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
       reader.onload = (event) => {
         if (event.target?.result) {
           const newMsg: ChatMessage = {
-            id: `msg_${Date.now()}`,
+            id: createLocalId('msg'),
             groupId: activeGroupId,
             senderId: activeUser.id,
             senderName: activeUser.name,
@@ -606,7 +617,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
         } else {
           mediaRecorder = new MediaRecorder(stream);
         }
-      } catch (e) {
+      } catch {
         mediaRecorder = new MediaRecorder(stream);
       }
 
@@ -631,7 +642,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
           const payload = `${recordingDuration}|${audioPayload}`;
 
           const newMsg: ChatMessage = {
-            id: `msg_${Date.now()}`,
+            id: createLocalId('msg'),
             groupId: activeGroupId,
             senderId: activeUser.id,
             senderName: activeUser.name,
@@ -764,7 +775,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     if (!canvas || !activeGroupId || !activeUser) return;
     const dataUrl = canvas.toDataURL('image/png');
     const newMsg: ChatMessage = {
-      id: `msg_${Date.now()}`,
+      id: createLocalId('msg'),
       groupId: activeGroupId,
       senderId: activeUser.id,
       senderName: activeUser.name,
@@ -825,7 +836,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     }
 
     const newGroup: ChatGroup = {
-      id: `grp_${Date.now()}`,
+      id: createLocalId('grp'),
       name: title,
       isPrivate: false,
       memberIds,
@@ -892,7 +903,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     if (!messageSearchQuery) return true;
     let text = msg.content;
     if (msg.content.startsWith('{"replyToId":')) {
-      try { text = JSON.parse(msg.content).text; } catch {}
+      text = parseReplyText(msg.content);
     }
     return text.toLowerCase().includes(messageSearchQuery.toLowerCase());
   });
@@ -921,9 +932,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
     let text = msg.content || '';
     if (text.startsWith('{"replyToId":')) {
-      try {
-        text = JSON.parse(text).text || text;
-      } catch {}
+      text = parseReplyText(text);
     }
 
     return text.trim() || fallback || 'Message';
@@ -935,8 +944,8 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     const latestMessage = getLatestGroupMessage(group.id);
     const unreadCount = getGroupMessages(group.id).filter(m => m.senderId !== activeMemberId && !m.readBy.includes(activeMemberId)).length;
 
-    let title = group.name;
-    let subtitle = '';
+    let title: string;
+    let subtitle: string;
     let icon = 'group' as 'private' | 'group';
 
     if (group.isPrivate) {
@@ -1490,7 +1499,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
         let displayPinnedContent = pinnedMsg.content;
         if (pinnedMsg.content.startsWith('{"replyToId":')) {
-          try { displayPinnedContent = JSON.parse(pinnedMsg.content).text; } catch {}
+          displayPinnedContent = parseReplyText(pinnedMsg.content);
         }
 
         return (
@@ -1533,7 +1542,9 @@ export const Messagerie: React.FC<MessagerieProps> = ({
               const parsed = JSON.parse(msg.content);
               replyToId = parsed.replyToId;
               actualContent = parsed.text;
-            } catch {}
+            } catch {
+              // Keep the raw message content when reply metadata is malformed.
+            }
           }
 
           return (
@@ -1556,7 +1567,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
                     let repliedCleanContent = repliedMsg.content;
                     if (repliedMsg.content.startsWith('{"replyToId":')) {
-                      try { repliedCleanContent = JSON.parse(repliedMsg.content).text; } catch {}
+                      repliedCleanContent = parseReplyText(repliedMsg.content);
                     }
                     return (
                       <div className="bg-black/20 border-l-4 border-[#6C5CFF] p-1.5 rounded-md mb-2 text-xs opacity-75 max-w-full truncate">
@@ -1799,7 +1810,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
               {(() => {
                 let text = replyingToMessage.content;
                 if (replyingToMessage.content.startsWith('{"replyToId":')) {
-                  try { text = JSON.parse(replyingToMessage.content).text; } catch {}
+                  text = parseReplyText(replyingToMessage.content);
                 }
                 return replyingToMessage.type === 'text' ? text : replyingToMessage.type === 'image' ? '📷 Image' : replyingToMessage.type === 'voice' ? '🎤 Audio' : '📄 Document';
               })()}
