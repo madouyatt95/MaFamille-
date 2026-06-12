@@ -4,6 +4,16 @@ import type { CalendarSource } from '../views/Agenda';
 import type { ExternalEvent } from '../utils/icalParser';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_SYNCED_EVENTS = 2000;
+
+const getSyncWindow = () => {
+  const now = new Date();
+  const min = new Date(now);
+  min.setMonth(min.getMonth() - 3);
+  const max = new Date(now);
+  max.setMonth(max.getMonth() + 18);
+  return { min, max };
+};
 
 const toNullableUuid = (value?: string | null): string | null => {
   if (!value) return null;
@@ -35,11 +45,15 @@ export const syncExternalCalendarEventsForReminders = async ({
   const supabase = getSupabaseClient();
   if (!supabase) return;
 
+  const { min, max } = getSyncWindow();
   const sourceByName = new Map(calendarSources.map(source => [source.name, source]));
   const rows = externalEvents
     .map(event => {
       const startAt = toDateTime(event.startDate, event.startTime);
       if (!startAt) return null;
+
+      const startDate = new Date(startAt);
+      if (startDate < min || startDate > max) return null;
 
       const source = sourceByName.get(event.sourceName);
       return {
@@ -57,10 +71,16 @@ export const syncExternalCalendarEventsForReminders = async ({
         start_at: startAt,
         end_at: toDateTime(event.endDate || event.startDate, event.endTime || event.startTime) || startAt,
         is_all_day: !!event.isAllDay,
-        raw_event: event
+        raw_event: {
+          id: event.id,
+          sourceName: event.sourceName,
+          memberId: event.memberId || null
+        }
       };
     })
-    .filter((row): row is NonNullable<typeof row> => Boolean(row));
+    .filter((row): row is NonNullable<typeof row> => Boolean(row))
+    .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+    .slice(0, MAX_SYNCED_EVENTS);
 
   if (rows.length === 0) return;
 

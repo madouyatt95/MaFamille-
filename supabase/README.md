@@ -111,3 +111,11 @@ SELECT cron.schedule(
 ```
 
 Les calendriers ICS importes par l'app sont synchronises dans `external_calendar_events`; Supabase peut ensuite envoyer les rappels meme si la PWA ou l'app iOS n'est pas ouverte.
+
+Garde-fous de stockage :
+
+- l'app ne synchronise vers Supabase que les evenements entre 3 mois passes et 18 mois futurs ;
+- un maximum de 2000 evenements ICS est envoye par foyer/appareil lors d'une synchronisation ;
+- les rappels envoyes ou echoues sont nettoyes apres 90 jours ;
+- les rappels restes en attente trop anciens sont nettoyes apres 7 jours ;
+- les evenements ICS trop anciens ou trop lointains sont nettoyes automatiquement.
