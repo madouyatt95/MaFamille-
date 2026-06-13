@@ -626,6 +626,7 @@ serve(async (req) => {
     const token = await getGoogleAccessToken(credentials.client_email, credentials.private_key);
     const targetUrl = getTargetUrl(targetModule, record);
     const dedupKey = getNotificationDedupKey(payload.table, targetModule, record);
+    const apnsCollapseId = (await sha256(dedupKey)).slice(0, 64);
 
     // 4. Envoyer les requêtes HTTP vers FCM v1 pour chaque token
     const sendPromises = targetRecipients.map(async (target) => {
@@ -671,7 +672,7 @@ serve(async (req) => {
               headers: {
                 "apns-priority": "10",
                 "apns-push-type": "alert",
-                "apns-collapse-id": dedupKey
+                "apns-collapse-id": apnsCollapseId
               },
               payload: {
                 aps: {
