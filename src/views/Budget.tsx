@@ -804,6 +804,11 @@ export const Budget: React.FC<BudgetProps> = ({
     });
   }, [abonnements, transactions, suspendedAboIds]);
 
+  const configuredModuleBudgetCount = useMemo(
+    () => Object.values(moduleBudgets).filter(b => (b?.budget || 0) > 0).length,
+    [moduleBudgets]
+  );
+
   // Filters
   const filteredTransactions = useMemo(() => {
     const result = transactions.filter(t => {
@@ -1344,6 +1349,56 @@ export const Budget: React.FC<BudgetProps> = ({
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <button
+          onClick={() => setActiveTab('abonnements')}
+          className="glass-panel border border-white/5 hover:border-white/15 p-4 rounded-3xl text-left transition-all active:scale-[0.99]"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">À surveiller</span>
+            <Clock className="w-4 h-4 text-amber-300" />
+          </div>
+          <span className="mt-2 block text-lg font-black text-white">
+            {prelevementsAVenir.length} prélèvement{prelevementsAVenir.length > 1 ? 's' : ''}
+          </span>
+          <span className="text-[10px] text-white/40">Prévu : {formatMoney(stats.depensesAVenir)} / mois</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('budgets_modules')}
+          className="glass-panel border border-white/5 hover:border-white/15 p-4 rounded-3xl text-left transition-all active:scale-[0.99]"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Budgets suivis</span>
+            <AlertTriangle className={`w-4 h-4 ${stats.alerts.length > 0 ? 'text-amber-300' : 'text-emerald-300'}`} />
+          </div>
+          <span className="mt-2 block text-lg font-black text-white">
+            {configuredModuleBudgetCount} espace{configuredModuleBudgetCount > 1 ? 's' : ''}
+          </span>
+          <span className={`text-[10px] ${stats.alerts.length > 0 ? 'text-amber-300' : 'text-white/40'}`}>
+            {stats.alerts.length > 0 ? `${stats.alerts.length} alerte à traiter` : 'Aucun dépassement détecté'}
+          </span>
+        </button>
+
+        <button
+          onClick={() => {
+            if (!isPremium) {
+              onTriggerPaywall?.();
+              return;
+            }
+            setActiveTab('exports');
+          }}
+          className="glass-panel border border-white/5 hover:border-white/15 p-4 rounded-3xl text-left transition-all active:scale-[0.99]"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Exports</span>
+            <FileSpreadsheet className="w-4 h-4 text-[#6C5CFF]" />
+          </div>
+          <span className="mt-2 block text-lg font-black text-white">{isPremium ? 'Disponibles' : 'À débloquer'}</span>
+          <span className="text-[10px] text-white/40">PDF, Excel, CSV et sauvegarde du foyer</span>
+        </button>
+      </div>
+
       {/* Synthèse globale des budgets modules */}
       {(() => {
         const totalModuleLimit = Object.values(moduleBudgets).reduce((acc, b) => acc + (b?.budget || 0), 0);
@@ -1413,7 +1468,7 @@ export const Budget: React.FC<BudgetProps> = ({
             { id: 'abonnements', label: 'Abonnements' },
             { id: 'reports', label: 'Analyses & Rapports' },
             { id: 'imports', label: 'Importation' },
-            { id: 'exports', label: 'Exportation' }
+            { id: 'exports', label: 'Exports' }
           ].map(tab => (
             <button
               key={tab.id}

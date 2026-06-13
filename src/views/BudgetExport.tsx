@@ -1304,8 +1304,8 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-extrabold text-white uppercase tracking-wider">Module "Exporter le budget"</h2>
-              <p className="text-xs text-white/50">Générez des rapports complets pour votre foyer</p>
+              <h2 className="text-base font-extrabold text-white uppercase tracking-wider">Exports financiers</h2>
+              <p className="text-xs text-white/50">Préparez un fichier clair pour votre foyer</p>
             </div>
           </div>
           <button 
@@ -1329,7 +1329,7 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
           {success && (
             <div className="p-4 bg-green-500/10 border border-green-500/20 text-green-200 text-xs rounded-xl flex items-center space-x-2">
               <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-              <span>Exportation réussie et enregistrée avec succès !</span>
+              <span>Export généré et enregistré.</span>
             </div>
           )}
 
@@ -1343,11 +1343,11 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
                 <span className="text-xs font-bold text-white/60 uppercase tracking-widest">1. Choisir le format d'export</span>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { id: 'pdf', name: 'PDF Premium', icon: FileText, desc: 'Rapport complet' },
+                    { id: 'pdf', name: 'PDF complet', icon: FileText, desc: 'Rapport familial' },
                     { id: 'excel', name: 'Excel .xlsx', icon: FileSpreadsheet, desc: 'Multi-feuilles' },
-                    { id: 'csv', name: 'Fichier CSV', icon: Database, desc: 'Données brutes' },
-                    { id: 'json', name: 'JSON', icon: FileJson, desc: 'Dump technique' },
-                    { id: 'txt', name: 'Texte Simple', icon: FileText, desc: 'Mémo brut' }
+                    { id: 'csv', name: 'Fichier CSV', icon: Database, desc: 'Tableur simple' },
+                    { id: 'json', name: 'JSON', icon: FileJson, desc: 'Sauvegarde structurée' },
+                    { id: 'txt', name: 'Texte simple', icon: FileText, desc: 'Résumé lisible' }
                   ].map(f => (
                     <button
                       key={f.id}
@@ -1559,8 +1559,8 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
                     </span>
                   </div>
                   <div className="flex justify-between text-white/60">
-                    <span>Sauvegarde cloud :</span>
-                    <span className="font-bold text-white">{saveCloud ? 'Activé (finance-exports)' : 'Désactivé'}</span>
+                    <span>Sauvegarde sécurisée :</span>
+                    <span className="font-bold text-white">{saveCloud ? 'Activée' : 'Désactivée'}</span>
                   </div>
                 </div>
 
@@ -1577,7 +1577,7 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
                   ) : (
                     <>
                       <Download className="w-4 h-4" />
-                      <span>Générer et Exporter</span>
+                      <span>Générer l'export</span>
                     </>
                   )}
                 </button>
@@ -1587,7 +1587,7 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
               <div className="flex-1 flex flex-col space-y-2.5 min-h-[160px] pt-4">
                 <div className="flex items-center space-x-2 text-white/60">
                   <Clock className="w-4 h-4" />
-                  <span className="text-xs font-bold uppercase tracking-widest">Historique des exports du Foyer</span>
+                  <span className="text-xs font-bold uppercase tracking-widest">Historique des exports du foyer</span>
                 </div>
 
                 <div className="flex-1 border border-white/5 rounded-2xl bg-white/3 overflow-y-auto no-scrollbar max-h-[180px] p-2 space-y-2">
