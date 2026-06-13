@@ -12,7 +12,10 @@ import {
   WalletCards,
   Leaf,
   X,
-  Plus
+  Plus,
+  BookOpen,
+  Save,
+  Trash2
 } from 'lucide-react';
 import { aiQuotaService } from '../../services/aiQuotaService';
 
@@ -39,11 +42,28 @@ interface Recipe {
   prepSteps?: string[];
 }
 
+type FamilyRecipe = Recipe & {
+  savedAt: string;
+  authorName: string;
+  tags: string[];
+  source: 'ia' | 'local' | 'family';
+};
+
 const normalizeIngredient = (value: string) => value.trim().toLowerCase();
 
 const estimateRecipeCost = (missing: string[]) => {
   if (missing.length === 0) return 0;
   return Math.max(2, Math.round(missing.length * 1.8 * 100) / 100);
+};
+
+const readFamilyRecipes = (): FamilyRecipe[] => {
+  try {
+    const cached = localStorage.getItem('mf_family_recipes');
+    const parsed = cached ? JSON.parse(cached) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 };
 
 export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, formatMoney, isPremium = false, onTriggerPaywall }) => {
@@ -73,11 +93,14 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, formatMoney,
     }
   });
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [familyRecipes, setFamilyRecipes] = useState<FamilyRecipe[]>(readFamilyRecipes);
+  const [recipeNotice, setRecipeNotice] = useState('');
 
   const activeIngredients = useMemo(() => fridgeIngredients.filter(i => i.checked).map(i => i.name), [fridgeIngredients]);
   const uniqueIngredientCount = useMemo(() => new Set(fridgeIngredients.map(i => normalizeIngredient(i.name))).size, [fridgeIngredients]);
   const savedPotential = useMemo(() => Math.max(0, activeIngredients.length * 1.4), [activeIngredients.length]);
   const favoriteRecipeIds = useMemo(() => new Set(favoriteRecipes.map(r => r.id)), [favoriteRecipes]);
+  const familyRecipeIds = useMemo(() => new Set(familyRecipes.map(r => r.id)), [familyRecipes]);
 
   const handleToggleIngredient = (id: string) => {
     setFridgeIngredients(prev =>
@@ -125,7 +148,39 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, formatMoney,
     const next = [recipe, ...weeklyIdeas.filter(r => r.id !== recipe.id)].slice(0, 7);
     setWeeklyIdeas(next);
     localStorage.setItem('mf_ecochef_weekly_ideas', JSON.stringify(next));
-    alert(`🍽️ "${recipe.title}" ajouté aux idées repas de la semaine.`);
+    setRecipeNotice(`"${recipe.title}" ajouté aux idées repas de la semaine.`);
+  };
+
+  const persistFamilyRecipes = (next: FamilyRecipe[]) => {
+    const limited = next.slice(0, 40);
+    setFamilyRecipes(limited);
+    localStorage.setItem('mf_family_recipes', JSON.stringify(limited));
+  };
+
+  const handleSaveFamilyRecipe = (recipe: Recipe) => {
+    const alreadySaved = familyRecipeIds.has(recipe.id);
+    const familyRecipe: FamilyRecipe = {
+      ...recipe,
+      savedAt: new Date().toISOString(),
+      authorName: 'Famille',
+      source: recipe.id.startsWith('rec-gem') ? 'ia' : recipe.id.startsWith('rec-') ? 'local' : 'family',
+      tags: [
+        recipe.time,
+        recipe.difficulty,
+        recipe.missing.length === 0 ? 'sans courses' : 'liste courses',
+        recipe.familyFit || 'familial'
+      ].filter(Boolean)
+    };
+    const next = alreadySaved
+      ? familyRecipes.map(r => r.id === recipe.id ? familyRecipe : r)
+      : [familyRecipe, ...familyRecipes];
+    persistFamilyRecipes(next);
+    setRecipeNotice(alreadySaved ? 'Recette familiale mise à jour.' : 'Recette ajoutée au carnet familial.');
+  };
+
+  const handleDeleteFamilyRecipe = (recipeId: string) => {
+    persistFamilyRecipes(familyRecipes.filter(recipe => recipe.id !== recipeId));
+    setRecipeNotice('Recette retirée du carnet familial.');
   };
 
   const enrichRecipe = (recipe: Recipe, index: number): Recipe => ({
@@ -143,7 +198,7 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, formatMoney,
   const generateRecipes = async () => {
     const activeInFull = fridgeIngredients.filter(i => i.checked).map(i => i.name);
     if (activeInFull.length === 0) {
-      alert("Veuillez sélectionner au moins un ingrédient dans votre frigo pour que l'Éco-Chef IA puisse inventer des recettes !");
+      setRecipeNotice("Ajoutez au moins un ingrédient pour générer des recettes.");
       return;
     }
 
@@ -326,7 +381,7 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
     ingredients.forEach(ing => {
       onAddGroceryItem(ing, 'Épicerie', '1');
     });
-    alert(`${ingredients.join(', ')} ajouté(s) à la liste de courses ! 🛒`);
+    setRecipeNotice(`${ingredients.join(', ')} ajouté(s) à la liste de courses.`);
   };
 
   const quickSuggestions = ['oeufs', 'riz cuit', 'pâtes', 'tomates', 'courgettes', 'poulet', 'fromage', 'yaourt', 'pommes', 'carottes'];
@@ -363,6 +418,15 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
           <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider">idées semaine</p>
         </div>
       </div>
+
+      {recipeNotice && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#00D26A]/20 bg-[#00D26A]/10 px-4 py-3">
+          <p className="text-xs font-bold text-[#B8FFD8]">{recipeNotice}</p>
+          <button type="button" onClick={() => setRecipeNotice('')} className="text-[10px] font-black text-white/45 hover:text-white">
+            OK
+          </button>
+        </div>
+      )}
 
       {fallbackMessage && (
         <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-bold leading-relaxed">
@@ -471,8 +535,55 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
         </button>
       </div>
 
-      {(weeklyIdeas.length > 0 || favoriteRecipes.length > 0) && (
+      {(weeklyIdeas.length > 0 || favoriteRecipes.length > 0 || familyRecipes.length > 0) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {familyRecipes.length > 0 && (
+            <div className="glass-panel border border-[#00D26A]/20 rounded-[24px] p-4 space-y-2 sm:col-span-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-[#00D26A] uppercase tracking-widest flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5" />
+                  Carnet de recettes familiales
+                </span>
+                <span className="text-[9px] text-white/35 font-bold">{familyRecipes.length}/40</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {familyRecipes.slice(0, 4).map(recipe => (
+                  <div key={recipe.id} className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 space-y-2">
+                    <button type="button" onClick={() => setSelectedRecipe(recipe)} className="w-full text-left">
+                      <p className="text-[11px] font-bold text-white truncate">{recipe.title}</p>
+                      <p className="text-[9px] text-white/40">{recipe.time} • {recipe.servings || 4} portions • {recipe.authorName}</p>
+                    </button>
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleAddToWeek(recipe)}
+                        className="flex-1 py-1.5 rounded-lg bg-[#6C5CFF]/12 border border-[#6C5CFF]/20 text-[8px] font-black text-[#9D8CFF]"
+                      >
+                        Semaine
+                      </button>
+                      {recipe.missing.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleAddMissing(recipe.missing)}
+                          className="flex-1 py-1.5 rounded-lg bg-[#00D26A]/12 border border-[#00D26A]/20 text-[8px] font-black text-[#00D26A]"
+                        >
+                          Courses
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFamilyRecipe(recipe.id)}
+                        className="p-1.5 rounded-lg bg-white/5 border border-white/8 text-white/35 hover:text-[#FF4D6D]"
+                        aria-label="Supprimer la recette"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {weeklyIdeas.length > 0 && (
             <div className="glass-panel border border-[#6C5CFF]/20 rounded-[24px] p-4 space-y-2">
               <div className="flex items-center justify-between">
@@ -620,6 +731,18 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
                       </button>
                       <button
                         type="button"
+                        onClick={() => handleSaveFamilyRecipe(recipe)}
+                        className={`px-3 py-2 rounded-xl border font-black text-[9px] uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
+                          familyRecipeIds.has(recipe.id)
+                            ? 'bg-[#00D26A]/15 border-[#00D26A]/25 text-[#00D26A]'
+                            : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/80'
+                        }`}
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>{familyRecipeIds.has(recipe.id) ? 'Gardée' : 'Carnet'}</span>
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setSelectedRecipe(recipe)}
                         className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 font-black text-[9px] uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5"
                       >
@@ -675,10 +798,13 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
                 <button type="button" onClick={() => handleAddToWeek(selectedRecipe)} className="py-3 rounded-xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/25 text-[#9D8CFF] text-xs font-extrabold">
                   Ajouter à la semaine
                 </button>
-                <button type="button" onClick={() => handleToggleFavoriteRecipe(selectedRecipe)} className="py-3 rounded-xl bg-[#FF4D6D]/15 border border-[#FF4D6D]/25 text-[#FF8BA0] text-xs font-extrabold">
-                  {favoriteRecipeIds.has(selectedRecipe.id) ? 'Retirer favori' : 'Garder'}
+                <button type="button" onClick={() => handleSaveFamilyRecipe(selectedRecipe)} className="py-3 rounded-xl bg-[#00D26A]/15 border border-[#00D26A]/25 text-[#00D26A] text-xs font-extrabold">
+                  {familyRecipeIds.has(selectedRecipe.id) ? 'Mettre à jour' : 'Ajouter au carnet'}
                 </button>
               </div>
+              <button type="button" onClick={() => handleToggleFavoriteRecipe(selectedRecipe)} className="w-full py-3 rounded-xl bg-[#FF4D6D]/15 border border-[#FF4D6D]/25 text-[#FF8BA0] text-xs font-extrabold">
+                {favoriteRecipeIds.has(selectedRecipe.id) ? 'Retirer des recettes gardées' : 'Garder en favori'}
+              </button>
               {selectedRecipe.missing.length > 0 && (
                 <button type="button" onClick={() => handleAddMissing(selectedRecipe.missing)} className="w-full py-3 rounded-xl bg-[#00D26A] text-black text-xs font-black">
                   Ajouter les ingrédients manquants aux courses
