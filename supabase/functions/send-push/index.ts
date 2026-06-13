@@ -468,7 +468,17 @@ serve(async (req) => {
       body = asString(record.title);
       targetModule = "capsule";
     } else if (payload.table === "events") {
-      targetModule = "agenda";
+      const eventType = String(record.type || record.event_type || "").toLowerCase();
+      const isHealthEvent = eventType === "vaccine" || eventType === "medical";
+
+      if (payload.type === "INSERT" && isHealthEvent) {
+        return new Response(
+          JSON.stringify({ message: "Ignored immediate health event push; scheduled reminders handle it" }),
+          { status: 200 }
+        );
+      }
+
+      targetModule = isHealthEvent ? "sante" : "agenda";
       if (payload.type === "INSERT") {
         title = `📅 Nouvel événement : ${record.title}`;
         body = `${record.date_time || ""} ${record.time || ""}`.trim();
