@@ -1,10 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   Plane, 
   Sparkles, 
   Sun, 
   CloudRain, 
-  Snowflake
+  Snowflake,
+  Users,
+  WalletCards,
+  CalendarDays,
+  ClipboardList,
+  Copy,
+  CheckCircle2
 } from 'lucide-react';
 import type { Member, Trip } from '../../types';
 import { aiQuotaService } from '../../services/aiQuotaService';
@@ -41,12 +47,44 @@ export const VoyageIA: React.FC<VoyageIAProps> = ({
   isPremium = false, 
   onTriggerPaywall 
 }) => {
-  const [destination, setDestination] = useState('Dakar, Sénégal 🇸🇳');
-  const [days, setDays] = useState('7');
+  const upcomingTrips = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return [...trips]
+      .filter(trip => !trip.startDate || trip.startDate >= today)
+      .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
+  }, [trips]);
+
+  const getTripDuration = (trip: Trip) => {
+    if (!trip.startDate || !trip.endDate) return 7;
+    const start = new Date(`${trip.startDate}T12:00:00`);
+    const end = new Date(`${trip.endDate}T12:00:00`);
+    const diff = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    return Number.isFinite(diff) && diff > 0 ? diff : 7;
+  };
+
+  const [destination, setDestination] = useState(() => upcomingTrips[0]?.destination || '');
+  const [days, setDays] = useState(() => String(upcomingTrips[0] ? getTripDuration(upcomingTrips[0]) : 7));
   const [weather, setWeather] = useState('sunny');
   const [generating, setGenerating] = useState(false);
-  const [packingLists, setPackingLists] = useState<MemberPackingList[] | null>(null);
+  const [packingLists, setPackingLists] = useState<MemberPackingList[] | null>(() => {
+    try {
+      const cached = localStorage.getItem('mf_voyage_packing_lists');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
   const [fallbackMessage, setFallbackMessage] = useState('');
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(() => members.slice(0, 5).map(member => member.id));
+  const [quotaMessage, setQuotaMessage] = useState('');
+
+  useEffect(() => {
+    setSelectedMemberIds(prev => {
+      const available = members.map(member => member.id);
+      const kept = prev.filter(id => available.includes(id));
+      return kept.length > 0 ? kept : members.slice(0, 5).map(member => member.id);
+    });
+  }, [members]);
 
   const travelMembers = members.slice(0, 5).map((member, index) => {
     const age = member.age ? `, ${member.age} ans` : '';
@@ -58,7 +96,11 @@ export const VoyageIA: React.FC<VoyageIAProps> = ({
     };
   });
 
-  const fallbackMembers = travelMembers.length > 0
+  const selectedTravelMembers = travelMembers.filter(member => selectedMemberIds.includes(member.id));
+
+  const fallbackMembers = selectedTravelMembers.length > 0
+    ? selectedTravelMembers
+    : travelMembers.length > 0
     ? travelMembers
     : [{ id: 'family', name: 'Famille', label: 'Famille', key: 'member_1' } as Member & { label: string; key: string }];
 
@@ -70,6 +112,30 @@ export const VoyageIA: React.FC<VoyageIAProps> = ({
     { text: 'Trousse de toilette et médicaments personnels', checked: false }
   ];
 
+  const persistPackingLists = (lists: MemberPackingList[] | null) => {
+    setPackingLists(lists);
+    if (lists) {
+      localStorage.setItem('mf_voyage_packing_lists', JSON.stringify(lists));
+    } else {
+      localStorage.removeItem('mf_voyage_packing_lists');
+    }
+  };
+
+  const handleUseTrip = (trip: Trip) => {
+    setDestination(trip.destination);
+    setDays(String(getTripDuration(trip)));
+  };
+
+  const handleToggleMember = (memberId: string) => {
+    setSelectedMemberIds(prev => {
+      if (prev.includes(memberId)) {
+        const next = prev.filter(id => id !== memberId);
+        return next.length > 0 ? next : prev;
+      }
+      return [...prev, memberId].slice(0, 5);
+    });
+  };
+
   const generatePackingChecklist = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -79,8 +145,9 @@ export const VoyageIA: React.FC<VoyageIAProps> = ({
     }
 
     setGenerating(true);
-    setPackingLists(null);
+    persistPackingLists(null);
     setFallbackMessage('');
+    setQuotaMessage('');
     let fallbackReason = '';
 
     // Tente d'utiliser l'IA réelle si le quota est disponible (soit via clé locale VITE_, soit via le proxy serveurless)
@@ -140,10 +207,10 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par membre. N'invente aucun pr
         });
 
         if (normalizedLists.every(list => list.items.length > 0)) {
-          setPackingLists(normalizedLists);
+          persistPackingLists(normalizedLists);
           setGenerating(false);
           const { remaining, limit } = aiQuotaService.getQuotaFromResponse(response, isPremium);
-          alert(`💼 Valises personnalisées générées en temps réel par l'IA Groq Llama 3 ! (Quota réel restant : ${remaining}/${limit} aujourd'hui)`);
+          setQuotaMessage(`Préparation générée en direct. Requêtes restantes aujourd'hui : ${remaining}/${limit}.`);
           return;
         } else {
           throw new Error('Structure JSON reçue incorrecte');
@@ -164,7 +231,7 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par membre. N'invente aucun pr
         items: buildLocalItemsForMember(member.name)
       }));
 
-      setPackingLists(lists);
+      persistPackingLists(lists);
       setFallbackMessage(prev => prev || fallbackReason || aiQuotaService.getFallbackLabel());
       setGenerating(false);
     }, 1000);
@@ -179,7 +246,29 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par membre. N'invente aucun pr
         items: list.items.map((item, itemIdx) => itemIdx === idx ? { ...item, checked: !item.checked } : item)
       };
     });
-    setPackingLists(updated);
+    persistPackingLists(updated);
+  };
+
+  const packingStats = useMemo(() => {
+    const total = packingLists?.reduce((acc, list) => acc + list.items.length, 0) || 0;
+    const done = packingLists?.reduce((acc, list) => acc + list.items.filter(item => item.checked).length, 0) || 0;
+    const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+    return { total, done, progress };
+  }, [packingLists]);
+
+  const copyPackingLists = async () => {
+    if (!packingLists) return;
+    const text = [
+      `Voyage : ${destination || 'Destination à préciser'} (${days} jour${Number(days) > 1 ? 's' : ''})`,
+      '',
+      ...packingLists.flatMap(list => [
+        `Valise ${list.memberName}`,
+        ...list.items.map(item => `${item.checked ? '[x]' : '[ ]'} ${item.text}`),
+        ''
+      ])
+    ].join('\n');
+    await navigator.clipboard.writeText(text);
+    alert('Liste de valises copiée.');
   };
 
   return (
@@ -190,14 +279,63 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par membre. N'invente aucun pr
           <Plane className="w-6 h-6" />
         </div>
         <div>
-          <h2 className="text-lg font-extrabold text-white">Planificateur de Voyage & Valise IA ({trips.length} projets)</h2>
-          <p className="text-xs text-white/50">Préparez vos checklists intelligentes. Budget suggéré : {formatMoney(250 * Number(days) || 1500)}</p>
+          <h2 className="text-lg font-extrabold text-white">Préparation voyage familiale</h2>
+          <p className="text-xs text-white/50">Valises par membre, budget indicatif et suivi avant départ.</p>
         </div>
       </div>
 
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-2xl border border-white/8 bg-white/[0.04] p-3">
+          <Users className="w-4 h-4 text-[#4F8CFF] mb-2" />
+          <p className="text-lg font-extrabold text-white">{fallbackMembers.length}</p>
+          <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider">voyageurs</p>
+        </div>
+        <div className="rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/10 p-3">
+          <WalletCards className="w-4 h-4 text-[#FFB020] mb-2" />
+          <p className="text-lg font-extrabold text-white">{formatMoney(250 * Number(days) || 1500)}</p>
+          <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider">budget repère</p>
+        </div>
+        <div className="rounded-2xl border border-[#00D26A]/20 bg-[#00D26A]/10 p-3">
+          <ClipboardList className="w-4 h-4 text-[#00D26A] mb-2" />
+          <p className="text-lg font-extrabold text-white">{packingStats.progress}%</p>
+          <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider">préparé</p>
+        </div>
+      </div>
+
+      {(quotaMessage || fallbackMessage) && (
+        <div className={`p-3 rounded-2xl border text-xs font-bold leading-relaxed ${
+          quotaMessage ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+        }`}>
+          {quotaMessage || "Connexion IA indisponible ou quota atteint : le planificateur local prend le relais pour continuer sans bloquer."}
+        </div>
+      )}
+
+      {upcomingTrips.length > 0 && (
+        <div className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Voyages enregistrés</span>
+            <CalendarDays className="w-4 h-4 text-white/30" />
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {upcomingTrips.slice(0, 5).map(trip => (
+              <button
+                key={trip.id}
+                type="button"
+                onClick={() => handleUseTrip(trip)}
+                className="shrink-0 min-w-[170px] text-left rounded-2xl border border-white/8 bg-white/[0.04] p-3 hover:bg-white/[0.07] transition"
+              >
+                <p className="text-xs font-extrabold text-white truncate">{trip.destination}</p>
+                <p className="text-[10px] text-white/45 mt-1">{trip.startDate || 'Date à préciser'} • {getTripDuration(trip)} j</p>
+                <p className="text-[10px] text-[#FFB020] font-bold mt-1">{formatMoney(trip.budget || 0)}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Trip generator form */}
       <form onSubmit={generatePackingChecklist} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
-        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Nouveau projet de voyage :</span>
+        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Préparer les valises</span>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-2">
@@ -221,6 +359,32 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par membre. N'invente aucun pr
               onChange={(e) => setDays(e.target.value)}
               className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#FF4D6D]"
             />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Voyageurs</label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {travelMembers.length > 0 ? travelMembers.map(member => {
+              const selected = selectedMemberIds.includes(member.id);
+              return (
+                <button
+                  key={member.id}
+                  type="button"
+                  onClick={() => handleToggleMember(member.id)}
+                  className={`p-2.5 rounded-xl border text-left transition ${
+                    selected ? 'bg-[#4F8CFF]/15 border-[#4F8CFF]/35 text-white' : 'bg-white/5 border-white/5 text-white/45'
+                  }`}
+                >
+                  <span className="text-[11px] font-bold block truncate">{member.name}</span>
+                  <span className="text-[9px] opacity-60 truncate block">{member.age || member.role || 'Membre'}</span>
+                </button>
+              );
+            }) : (
+              <div className="col-span-full rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-3 text-xs text-white/45">
+                Ajoutez les membres du foyer pour générer des valises personnalisées.
+              </div>
+            )}
           </div>
         </div>
 
@@ -260,28 +424,51 @@ Génère EXACTEMENT 5 éléments ultra-pertinents par membre. N'invente aucun pr
           className="w-full py-3.5 rounded-[18px] bg-gradient-to-r from-[#FF4D6D] to-[#FFB020] text-white font-semibold text-xs shadow-md cursor-pointer transition-all hover:opacity-95 flex items-center justify-center space-x-2"
         >
           <Sparkles className="w-4 h-4" />
-          <span>{generating ? 'Génération de valises IA...' : 'Générer ma Valise Intelligente'}</span>
+          <span>{generating ? 'Préparation des valises...' : 'Générer les valises familiales'}</span>
         </button>
       </form>
 
       {/* Generated Packing Checklists */}
       {packingLists && (
         <div className="space-y-4">
-          {fallbackMessage && (
-            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-bold leading-relaxed">
-              {fallbackMessage}
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Valises personnalisées</span>
+              <p className="text-[10px] text-white/40 mt-1">{packingStats.done}/{packingStats.total} élément(s) préparés</p>
             </div>
-          )}
-          <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Valises personnalisées :</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={copyPackingLists}
+                className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white/70 text-[10px] font-bold flex items-center gap-1"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copier</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => persistPackingLists(null)}
+                className="px-3 py-2 rounded-xl bg-[#FF4D6D]/10 border border-[#FF4D6D]/20 text-[#FF8BA0] text-[10px] font-bold"
+              >
+                Réinitialiser
+              </button>
+            </div>
+          </div>
+          <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+            <div className="h-full rounded-full bg-gradient-to-r from-[#00D26A] to-[#FFB020] transition-all" style={{ width: `${packingStats.progress}%` }} />
+          </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {packingLists.map((list, listIndex) => {
               const colors = ['text-[#4F8CFF]', 'text-[#FFB020]', 'text-[#FF4D6D]', 'text-[#00D26A]', 'text-[#A78BFA]'];
               return (
                 <div key={list.memberId} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider block ${colors[listIndex % colors.length]}`}>
-                    Valise {list.memberName} ✨
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider block ${colors[listIndex % colors.length]}`}>
+                      Valise {list.memberName}
+                    </span>
+                    {list.items.every(item => item.checked) && <CheckCircle2 className="w-4 h-4 text-[#00D26A]" />}
+                  </div>
                   <div className="space-y-2">
                     {list.items.map((item, idx) => (
                   <button
