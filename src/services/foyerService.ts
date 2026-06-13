@@ -56,8 +56,8 @@ type FoyerMemberDbRow = {
   emergency_contact_relation?: string;
   school_or_employer?: string;
   joined_at: string;
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | null;
+  longitude?: number | null;
   location_status?: string;
   last_located_at?: string;
   has_exemption?: boolean;
@@ -93,8 +93,8 @@ type UpdateMemberRpcParams = {
   p_school_or_employer?: string;
   p_has_exemption?: boolean;
   p_role?: FoyerMember['role'];
-  p_latitude?: number;
-  p_longitude?: number;
+  p_latitude?: number | null;
+  p_longitude?: number | null;
   p_location_status?: string;
   p_last_located_at?: string;
 };

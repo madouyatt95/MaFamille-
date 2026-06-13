@@ -86,8 +86,8 @@ export interface FoyerMember {
   emergencyContactRelation?: string;
   schoolOrEmployer?: string;
   joinedAt: string;
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | null;
+  longitude?: number | null;
   locationStatus?: string;
   lastLocatedAt?: string;
   hasExemption?: boolean;
@@ -152,8 +152,8 @@ export interface Member {
   schoolOrEmployer: string;
   photoUrl: string;
   medicalHistory: MedicalLog[];
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | null;
+  longitude?: number | null;
   locationStatus?: string;
   lastLocatedAt?: string;
   hasExemption?: boolean;
