@@ -25,6 +25,8 @@ import { staticAcademyQuestions, staticAcademyLessons } from '../../data/academy
 import type { AcademyQuestion, Lesson, AcademySubject } from '../../data/academyData';
 import { generateProceduralQuestion, generateQuestionForLesson } from '../../utils/academyGenerator';
 
+const LEGACY_DEMO_SCHOOL_TASK_IDS = new Set(['st-1', 'st-2', 'st-3', 'st-4', 'st-5']);
+
 export interface ChapterProgress {
   read: boolean;
   exercises: boolean;
@@ -114,6 +116,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   const isParent = activeMember 
     ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMember.role)
     : (activeMemberId === '1' || activeMemberId === '2');
+  const visibleSchoolTasks = schoolTasks.filter(task => task && !LEGACY_DEMO_SCHOOL_TASK_IDS.has(String(task.id || '')));
 
   // Default tab for teenager is 'cours', parent is 'devoirs'
   const [activeSubTab, setActiveSubTab] = useState<'academie' | 'devoirs' | 'tuteur' | 'notes' | 'schedule' | 'grades' | 'academie_preview' | 'coach' | 'cours' | 'revisions' | 'defis' | 'progression'>(() => {
@@ -1097,6 +1100,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
   const [editTaskDueDate, setEditTaskDueDate] = useState('');
   const [editTaskDifficulty, setEditTaskDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [editTaskAssigneeId, setEditTaskAssigneeId] = useState('');
+  const [homeworkNotice, setHomeworkNotice] = useState('');
 
   const [subjectsList, setSubjectsList] = useState<string[]>(() => {
     const stored = localStorage.getItem('school_subjects');
@@ -1151,7 +1155,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
         done: false
       }]);
     }
-    alert(`📚 Devoir ajouté avec succès !`);
+    setHomeworkNotice(`Devoir ajouté pour ${getChildName(newTask.assignedMemberId)}.`);
   };
 
   const handleSaveHomeworkEdit = (id: string) => {
@@ -1165,7 +1169,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
       assignedMemberId: editTaskAssigneeId
     } : t));
     setEditingTaskId(null);
-    alert("Devoir modifié avec succès !");
+    setHomeworkNotice('Devoir modifié.');
   };
 
   const handleDeleteHomework = async (id: string) => {
@@ -1180,7 +1184,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
 
   const handleParentValidate = (taskId: string) => {
     setSchoolTasks(prev => prev.map(t => t.id === taskId ? { ...t, done: true, grade: 'Validé' } : t));
-    alert("Devoir validé avec succès ! Pts et récompenses attribués. 💰");
+    setHomeworkNotice('Devoir validé et récompense prise en compte.');
   };
 
   // Grade and Schedule Form states
@@ -1335,8 +1339,21 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
         {/* Parent tab: Devoirs */}
         {activeSubTab === 'devoirs' && (
           <div className="space-y-4">
+            {homeworkNotice && (
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-100">
+                <span className="font-bold">{homeworkNotice}</span>
+                <button
+                  type="button"
+                  onClick={() => setHomeworkNotice('')}
+                  className="text-emerald-100/60 hover:text-emerald-100 text-[10px] font-black uppercase tracking-wider"
+                >
+                  OK
+                </button>
+              </div>
+            )}
+
             {/* Parent Validation Section */}
-            {schoolTasks.some(isPendingValidation) && (
+            {visibleSchoolTasks.some(isPendingValidation) && (
               <div className="space-y-3">
                 <span className="text-[10px] font-bold text-[#FFB020] uppercase tracking-widest flex items-center space-x-1.5 bg-[#FFB020]/10 border border-[#FFB020]/20 p-2.5 rounded-2xl w-fit">
                   <UserCheck className="w-4 h-4 animate-bounce" />
@@ -1344,7 +1361,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                 </span>
                 
                 <div className="space-y-2">
-                  {schoolTasks.filter(isPendingValidation).map((task) => (
+                  {visibleSchoolTasks.filter(isPendingValidation).map((task) => (
                     <div key={task.id} className="p-4 rounded-[24px] bg-[#FFB020]/10 border border-[#FFB020]/20 flex items-center justify-between transition-all">
                       <div>
                         <h4 className="text-xs font-bold text-white">{task.title}</h4>
@@ -1365,10 +1382,19 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
             )}
 
             {/* List all homeworks */}
-            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Cahier de Textes Général :</span>
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Cahier de textes familial</span>
             
             <div className="space-y-3">
-                  {schoolTasks.map((task) => {
+              {visibleSchoolTasks.length === 0 ? (
+                <div className="glass-panel border border-dashed border-white/10 rounded-[24px] p-5 text-center space-y-2">
+                  <GraduationCap className="w-7 h-7 mx-auto text-[#6C5CFF]" />
+                  <h4 className="text-sm font-black text-white">Aucun devoir réel enregistré</h4>
+                  <p className="text-xs text-white/45 leading-relaxed">
+                    Ajoutez un devoir ci-dessous pour l'attribuer à un enfant et le faire apparaître dans son espace.
+                  </p>
+                </div>
+              ) : (
+                visibleSchoolTasks.map((task) => {
                 const style = getSubjectStyle(task.subject);
 
                 if (editingTaskId === task.id) {
@@ -1436,7 +1462,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
                     </div>
                   </div>
                 );
-              })}
+              }))}
             </div>
 
             {/* Add homework form */}
@@ -2725,7 +2751,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
               <div className="space-y-1">
                 <span className="text-[9px] font-black text-[#6C5CFF] uppercase tracking-wider">Cahier de Textes Ado</span>
                 <h3 className="text-base font-black text-white">
-                  {schoolTasks.filter(t => t.assignedMemberId === activeMemberId && t.done).length} sur {schoolTasks.filter(t => t.assignedMemberId === activeMemberId).length} devoirs faits !
+                  {visibleSchoolTasks.filter(t => t.assignedMemberId === activeMemberId && t.done).length} sur {visibleSchoolTasks.filter(t => t.assignedMemberId === activeMemberId).length} devoirs faits !
                 </h3>
               </div>
               <span className="text-3xl">📝</span>
@@ -2735,8 +2761,8 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
               <div 
                 className="h-full bg-gradient-to-r from-[#6C5CFF] to-[#4F8CFF] rounded-full transition-all" 
                 style={{ 
-                  width: `${schoolTasks.filter(t => t.assignedMemberId === activeMemberId).length > 0 
-                    ? (schoolTasks.filter(t => t.assignedMemberId === activeMemberId && t.done).length / schoolTasks.filter(t => t.assignedMemberId === activeMemberId).length) * 100 
+                  width: `${visibleSchoolTasks.filter(t => t.assignedMemberId === activeMemberId).length > 0
+                    ? (visibleSchoolTasks.filter(t => t.assignedMemberId === activeMemberId && t.done).length / visibleSchoolTasks.filter(t => t.assignedMemberId === activeMemberId).length) * 100
                     : 100}%` 
                 }}
               />
@@ -2748,7 +2774,7 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
             
             {/* Overdue (Retards) or Priority Tasks */}
             {(() => {
-              const myTasks = schoolTasks.filter(t => t.assignedMemberId === activeMemberId);
+              const myTasks = visibleSchoolTasks.filter(t => t.assignedMemberId === activeMemberId);
               const overdueTasks = myTasks.filter(t => !t.done && (t.dueDate.toLowerCase().includes('hier') || t.difficulty === 'hard'));
               if (overdueTasks.length === 0) return null;
 
@@ -2820,9 +2846,14 @@ export const TuteurScolaire: React.FC<TuteurScolaireProps> = ({
               
               <div className="space-y-2.5">
                 {(() => {
-                  const myTasks = schoolTasks.filter(t => t.assignedMemberId === activeMemberId);
+                  const myTasks = visibleSchoolTasks.filter(t => t.assignedMemberId === activeMemberId);
                   if (myTasks.length === 0) {
-                    return <p className="text-xs text-white/40 italic">Aucun devoir programmé.</p>;
+                    return (
+                      <div className="rounded-2xl border border-dashed border-white/10 bg-white/3 p-5 text-center">
+                        <p className="text-xs font-bold text-white/55">Aucun devoir programmé.</p>
+                        <p className="mt-1 text-[10px] text-white/35">Les devoirs ajoutés par un parent apparaîtront ici.</p>
+                      </div>
+                    );
                   }
 
                   return myTasks.map(task => {

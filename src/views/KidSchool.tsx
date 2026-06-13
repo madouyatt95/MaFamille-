@@ -19,6 +19,8 @@ import { staticAcademyLessons } from '../data/academyData';
 import type { AcademyQuestion, Lesson, AcademySubject } from '../data/academyData';
 import { generateQuestionForLesson } from '../utils/academyGenerator';
 
+const LEGACY_DEMO_SCHOOL_TASK_IDS = new Set(['st-1', 'st-2', 'st-3', 'st-4', 'st-5']);
+
 export interface KidSchoolProps {
   member: Member;
   schoolTasks: SchoolTask[];
@@ -334,7 +336,8 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
   };
 
   // Subtab lists
-  const myTasks = schoolTasks.filter(t => t.assignedMemberId === member.id);
+  const visibleSchoolTasks = schoolTasks.filter(t => t && !LEGACY_DEMO_SCHOOL_TASK_IDS.has(String(t.id || '')));
+  const myTasks = visibleSchoolTasks.filter(t => t.assignedMemberId === member.id);
   const isEvaluation = (task: SchoolTask) => {
     const titleLower = task.title.toLowerCase();
     const subjectLower = task.subject.toLowerCase();
