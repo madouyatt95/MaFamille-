@@ -1245,7 +1245,7 @@ export const Budget: React.FC<BudgetProps> = ({
           </div>
           <div>
             <h1 className="text-xl font-extrabold text-white tracking-tight uppercase">Budget</h1>
-            <p className="text-xs text-white/50 font-medium">Cockpit financier transversal et comptes du foyer</p>
+            <p className="text-xs text-white/50 font-medium">Vue financière familiale et comptes du foyer</p>
           </div>
         </div>
 
@@ -1344,7 +1344,7 @@ export const Budget: React.FC<BudgetProps> = ({
         </div>
       </div>
 
-      {/* Cockpit Global Budgets Modules */}
+      {/* Synthèse globale des budgets modules */}
       {(() => {
         const totalModuleLimit = Object.values(moduleBudgets).reduce((acc, b) => acc + (b?.budget || 0), 0);
         if (totalModuleLimit === 0) return null;
@@ -1356,7 +1356,7 @@ export const Budget: React.FC<BudgetProps> = ({
           <div className="glass-panel border border-white/5 p-5 rounded-3xl space-y-3">
             <div className="flex justify-between items-center text-xs">
               <div>
-                <h4 className="font-extrabold text-white text-sm">Cockpit Global des Budgets Modules</h4>
+                <h4 className="font-extrabold text-white text-sm">Vue globale des budgets par espace</h4>
                 <p className="text-[9px] text-white/40 mt-0.5">Consommation cumulée des limites définies par module</p>
               </div>
               <div className="text-right">
@@ -1681,11 +1681,11 @@ export const Budget: React.FC<BudgetProps> = ({
           </div>
         )}
 
-        {/* --- TABS: BUDGETS PAR MODULE (Cockpit global) --- */}
+        {/* --- TABS: BUDGETS PAR MODULE (Vue globale) --- */}
         {activeTab === 'budgets_modules' && (
           <div className="space-y-6">
             <div className="glass-panel border border-white/5 p-5 rounded-3xl space-y-2">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Cockpit de Budgets Limites par Module</h3>
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Budgets limites par espace</h3>
               <p className="text-xs text-white/50 leading-relaxed">
                 Définissez des limites financières mensuelles ou par projet pour chaque module de la famille. Les dépenses associées sont automatiquement imputées en temps réel.
               </p>

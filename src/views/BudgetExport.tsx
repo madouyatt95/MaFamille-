@@ -1305,7 +1305,7 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
             </div>
             <div>
               <h2 className="text-base font-extrabold text-white uppercase tracking-wider">Module "Exporter le budget"</h2>
-              <p className="text-xs text-white/50">Générez des rapports premium pour votre foyer</p>
+              <p className="text-xs text-white/50">Générez des rapports complets pour votre foyer</p>
             </div>
           </div>
           <button 

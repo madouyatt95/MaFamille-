@@ -2033,7 +2033,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
           {/* Hub Header Styled Like Reference Visual */}
           <div className="flex justify-between items-center pt-[calc(1.5rem+env(safe-area-inset-top,0px))] pb-2 border-b border-white/5">
             <div>
-              <h1 className="text-xl font-black text-white">Hub d'Aventures Ado ⚡</h1>
+              <h1 className="text-xl font-black text-white">Espace Ado ⚡</h1>
               <p className="text-[10px] text-white/50 font-bold font-sans">Tout ce qu'il te faut, au même endroit.</p>
             </div>
 

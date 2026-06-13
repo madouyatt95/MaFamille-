@@ -1851,7 +1851,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-xs font-black text-white uppercase tracking-wider">Santé premium active</h3>
+                <h3 className="text-xs font-black text-white uppercase tracking-wider">Suivi santé avancé</h3>
                 <p className="text-[11px] text-white/60 font-semibold leading-relaxed">
                   Les vaccins, rendez-vous médicaux, traitements et ordonnances peuvent alimenter les rappels push serveur.
                 </p>
@@ -5369,7 +5369,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 {/* Card Coût Annuel */}
                 <div className="glass-panel border border-[#4F8CFF]/20 rounded-[28px] p-5 bg-[#4F8CFF]/5 flex flex-col justify-between">
                   <div>
-                    <span className="text-[9px] font-bold text-[#4F8CFF] uppercase tracking-widest block">Cockpit Financier Transport 📊</span>
+                    <span className="text-[9px] font-bold text-[#4F8CFF] uppercase tracking-widest block">Suivi financier transport 📊</span>
                     <h3 className="text-sm font-extrabold text-white mt-1">Dépenses Véhicules (365j)</h3>
                   </div>
                   <div className="mt-4">
@@ -8886,13 +8886,13 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       {/* 17. Répertoire Important (Contacts) */}
       {activeModule === 'contacts' && (
         <div className="space-y-6">
-          {/* Bouton de retour vers le Hub */}
+          {/* Bouton de retour vers les espaces */}
           <button
             onClick={() => setActiveModule('')}
             className="flex items-center space-x-2 text-white/60 hover:text-white font-sans text-xs font-bold cursor-pointer transition-all active:scale-95 py-2 px-3 rounded-xl bg-white/5 border border-white/5"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Retour au Hub</span>
+            <span>Retour aux espaces</span>
           </button>
           
           <ContactsImportants />

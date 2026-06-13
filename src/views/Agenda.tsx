@@ -247,10 +247,15 @@ export const Agenda: React.FC<AgendaProps> = ({
 
   const typeLabels = useMemo<Record<string, string>>(() => ({
     medical: 'Médical',
+    vaccine: 'Vaccin',
     school: 'École',
     bill: 'Factures',
     grocery: 'Courses',
     social: 'Loisirs',
+    trip: 'Voyage',
+    demarche: 'Démarches',
+    task: 'Tâches',
+    external: 'Calendrier externe',
     other: 'Autre'
   }), []);
 
@@ -562,6 +567,38 @@ export const Agenda: React.FC<AgendaProps> = ({
       .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime())[0];
   }, [visibleEvents]);
 
+  const agendaInsights = useMemo(() => {
+    const todayStr = getLocalDateString(new Date());
+    const now = new Date();
+    const next30 = new Date(now);
+    next30.setDate(now.getDate() + 30);
+
+    const upcoming = visibleEvents
+      .filter(event => new Date(event.dateTime).getTime() >= now.getTime())
+      .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+    const overdue = visibleEvents.filter(event => !event.done && event.date < todayStr && !event.isExternal);
+    const healthTracked = upcoming.filter(event => event.type === 'medical' || event.type === 'vaccine').filter(event => new Date(event.dateTime) <= next30);
+    const externalTracked = upcoming.filter(event => event.isExternal).filter(event => new Date(event.dateTime) <= next30);
+    const noTime = upcoming.filter(event => !hasPreciseTime(event));
+    const byDate = new Map<string, number>();
+    visibleEvents.forEach(event => byDate.set(event.date, (byDate.get(event.date) || 0) + 1));
+    const busiest = Array.from(byDate.entries())
+      .filter(([date]) => date >= todayStr)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+    const localFileSources = calendarSources.filter(source => source.url.startsWith('local-file:'));
+
+    return {
+      overdue,
+      healthTracked,
+      externalTracked,
+      noTime,
+      busiestDate: busiest?.[0] || '',
+      busiestCount: busiest?.[1] || 0,
+      localFileSources,
+      activeExternalSourceCount: calendarSources.filter(source => source.isActive).length
+    };
+  }, [calendarSources, visibleEvents]);
+
   const allDayFilteredEvents = useMemo(() => filteredEvents.filter(event => !hasPreciseTime(event)), [filteredEvents]);
   const timedFilteredEvents = useMemo(() => filteredEvents.filter(hasPreciseTime), [filteredEvents]);
 
@@ -638,7 +675,7 @@ export const Agenda: React.FC<AgendaProps> = ({
       </div>
 
       {/* Vue d'ensemble familiale */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <button
           type="button"
           onClick={() => {
@@ -666,22 +703,143 @@ export const Agenda: React.FC<AgendaProps> = ({
           </div>
         </button>
 
+        <button
+          type="button"
+          onClick={() => {
+            const target = agendaInsights.healthTracked[0];
+            if (target) {
+              setSelectedDate(target.date);
+              setCurrentPivotDate(new Date(target.date));
+              setViewType('day');
+            } else {
+              setSelectedTypeFilter('medical');
+              setViewType('list');
+            }
+          }}
+          className="glass-panel rounded-[24px] p-4 border border-white/8 text-left hover:bg-white/8 transition-all cursor-pointer"
+        >
+          <span className="text-[9px] font-black uppercase tracking-widest text-white/40">Rappels santé</span>
+          <div className="mt-2 flex items-end justify-between gap-3">
+            <strong className="text-2xl font-black text-white">{agendaInsights.healthTracked.length}</strong>
+            <span className="text-[10px] font-bold text-white/50">sur 30 jours</span>
+          </div>
+        </button>
+
         <div className="glass-panel rounded-[24px] p-4 border border-white/8 min-w-0">
-          <span className="text-[9px] font-black uppercase tracking-widest text-white/40">Prochain rendez-vous</span>
-          {nextEvent ? (
+          <span className="text-[9px] font-black uppercase tracking-widest text-white/40">Journée chargée</span>
+          {agendaInsights.busiestDate ? (
             <div className="mt-2 min-w-0">
-              <p className="text-sm font-black text-white truncate">{getEventEmoji(nextEvent)} {nextEvent.title}</p>
+              <p className="text-sm font-black text-white truncate">
+                {new Date(agendaInsights.busiestDate).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
+              </p>
               <p className="text-[10px] font-bold text-white/50 truncate mt-1">
-                {new Date(nextEvent.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
-                {hasPreciseTime(nextEvent) ? ` • ${nextEvent.time}` : ' • sans horaire'}
-                {nextEvent.memberId ? ` • ${getMemberName(nextEvent.memberId)}` : ''}
+                {agendaInsights.busiestCount} événement{agendaInsights.busiestCount > 1 ? 's' : ''} à coordonner
               </p>
             </div>
           ) : (
-            <p className="mt-2 text-xs font-bold text-white/40">Rien de prévu pour le moment.</p>
+            <p className="mt-2 text-xs font-bold text-white/40">Aucune surcharge détectée.</p>
           )}
         </div>
       </div>
+
+      <div className="glass-panel rounded-[28px] p-4 border border-white/8 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-[#6C5CFF]">Vue familiale</span>
+            <h2 className="text-sm font-black text-white mt-1">Agenda partagé</h2>
+            <p className="text-[11px] text-white/50 font-semibold leading-relaxed">
+              Santé, école, voyages, démarches et calendriers externes sont regroupés au même endroit.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setShowSourcesModal(true)}
+              className="px-3 py-2 rounded-xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/25 text-[#8C7BFF] text-[10px] font-black uppercase tracking-wider cursor-pointer"
+            >
+              Connecter ICS
+            </button>
+            <button
+              type="button"
+              onClick={onAddEventClick}
+              className="px-3 py-2 rounded-xl bg-white/5 border border-white/8 text-white/70 text-[10px] font-black uppercase tracking-wider cursor-pointer"
+            >
+              Ajouter
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (agendaInsights.overdue[0]) {
+                setSelectedDate(agendaInsights.overdue[0].date);
+                setCurrentPivotDate(new Date(agendaInsights.overdue[0].date));
+                setViewType('day');
+              }
+            }}
+            className={`rounded-2xl border p-3 text-left transition-all ${agendaInsights.overdue.length > 0 ? 'bg-[#FF4D6D]/10 border-[#FF4D6D]/25 cursor-pointer' : 'bg-white/4 border-white/8'}`}
+          >
+            <span className="text-[9px] font-black uppercase tracking-wider text-white/40">À régulariser</span>
+            <p className="mt-1 text-lg font-black text-white">{agendaInsights.overdue.length}</p>
+            <p className="text-[10px] text-white/50 font-bold">{agendaInsights.overdue.length ? 'événement non terminé' : 'rien en retard'}</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedTypeFilter('all');
+              setViewType('list');
+            }}
+            className="rounded-2xl border border-white/8 bg-white/4 p-3 text-left hover:bg-white/6 transition-all cursor-pointer"
+          >
+            <span className="text-[9px] font-black uppercase tracking-wider text-white/40">Calendriers externes</span>
+            <p className="mt-1 text-lg font-black text-white">{agendaInsights.activeExternalSourceCount}</p>
+            <p className="text-[10px] text-white/50 font-bold">
+              {agendaInsights.externalTracked.length} événement{agendaInsights.externalTracked.length > 1 ? 's' : ''} à venir
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const target = agendaInsights.noTime[0];
+              if (target) {
+                setSelectedDate(target.date);
+                setCurrentPivotDate(new Date(target.date));
+                setViewType('day');
+              }
+            }}
+            className="rounded-2xl border border-white/8 bg-white/4 p-3 text-left hover:bg-white/6 transition-all cursor-pointer"
+          >
+            <span className="text-[9px] font-black uppercase tracking-wider text-white/40">Sans horaire</span>
+            <p className="mt-1 text-lg font-black text-white">{agendaInsights.noTime.length}</p>
+            <p className="text-[10px] text-white/50 font-bold">à préciser si besoin</p>
+          </button>
+        </div>
+
+        {nextEvent && (
+          <div className="rounded-2xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 p-3 min-w-0">
+            <span className="text-[9px] font-black uppercase tracking-wider text-[#8C7BFF]">Prochain rendez-vous</span>
+            <p className="mt-1 text-xs font-black text-white truncate">{getEventEmoji(nextEvent)} {nextEvent.title}</p>
+            <p className="text-[10px] font-bold text-white/50 truncate mt-1">
+              {new Date(nextEvent.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
+              {hasPreciseTime(nextEvent) ? ` • ${nextEvent.time}` : ' • sans horaire'}
+              {nextEvent.memberId ? ` • ${getMemberName(nextEvent.memberId)}` : ''}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {agendaInsights.localFileSources.length > 0 && (
+        <div className="rounded-[22px] border border-[#FFB020]/20 bg-[#FFB020]/8 p-3 flex items-start gap-3">
+          <Info className="w-4 h-4 text-[#FFB020] shrink-0 mt-0.5" />
+          <p className="text-[11px] text-white/65 font-semibold leading-relaxed">
+            {agendaInsights.localFileSources.length} calendrier{agendaInsights.localFileSources.length > 1 ? 's' : ''} importé{agendaInsights.localFileSources.length > 1 ? 's' : ''} depuis un fichier ICS. Les événements peuvent alimenter les rappels serveur, mais le fichier devra être réimporté si le calendrier change.
+          </p>
+        </div>
+      )}
 
       <div className="glass-panel rounded-[24px] p-3 border border-white/8 flex items-center gap-3">
         <Search className="w-4 h-4 text-white/35 shrink-0 ml-1" />
@@ -717,7 +875,7 @@ export const Agenda: React.FC<AgendaProps> = ({
               </span>
             </h4>
             <p className="text-[10px] text-white/50 leading-relaxed font-medium">
-              Google Calendar, Apple, Outlook et emplois scolaires synchronisés.
+              Google Calendar, Apple, Outlook, fichiers ICS et emplois scolaires avec rappels serveur.
             </p>
           </div>
         </div>
@@ -1214,8 +1372,11 @@ export const Agenda: React.FC<AgendaProps> = ({
                 >
                   <option value="all">Tous types</option>
                   <option value="medical">Médical</option>
+                  <option value="vaccine">Vaccins</option>
                   <option value="school">École</option>
                   <option value="bill">Factures</option>
+                  <option value="trip">Voyages</option>
+                  <option value="demarche">Démarches</option>
                   <option value="social">Loisirs</option>
                   <option value="other">Autre</option>
                 </select>
@@ -1320,7 +1481,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                               }}
                               className="mt-2.5 px-3 py-1.5 rounded-xl bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 text-[#6C5CFF] text-[9.5px] font-black uppercase tracking-wider flex items-center space-x-1 hover:bg-[#6C5CFF]/20 active:scale-95 transition-all cursor-pointer"
                             >
-                              <span>🎨 Carton d'Invitation IA</span>
+                              <span>🎨 Créer une invitation</span>
                             </button>
                           )}
                         </div>
@@ -1366,7 +1527,7 @@ export const Agenda: React.FC<AgendaProps> = ({
             <div className="flex justify-between items-center pb-3 border-b border-white/5">
               <div>
                 <span className="text-[9px] font-black text-[#6C5CFF] uppercase tracking-widest block font-sans">
-                  Visual Studio : Carton d'Invitation IA
+                  Création d'invitation
                 </span>
                 <h3 className="text-sm font-black text-white mt-1 uppercase tracking-tight">
                   {activeInvitationEvent.title}
@@ -1565,7 +1726,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                     Flux connectés ({calendarSources.length})
                   </span>
                   <p className="mt-1 text-[10px] text-white/35 font-semibold leading-relaxed">
-                    Fonctionne avec les liens ICS publics Google, Apple, Outlook ou école. Les événements importés restent synchronisés sur cet appareil.
+                    Les liens ICS restent synchronisables. Les fichiers importés alimentent l'agenda et les rappels serveur, mais doivent être réimportés si le calendrier change.
                   </p>
                 </div>
                 <span className="rounded-full bg-[#00D26A]/10 border border-[#00D26A]/20 px-2 py-1 text-[8px] font-black uppercase tracking-wider text-[#00D26A] shrink-0">

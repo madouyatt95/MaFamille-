@@ -293,7 +293,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
 
             <div>
               <div className="flex items-center justify-between gap-3 mb-3">
-                <p className="text-[10px] text-white/38 font-black uppercase tracking-wider">Modules Premium</p>
+                <p className="text-[10px] text-white/38 font-black uppercase tracking-wider">Inclus dans l'offre</p>
                 <span className="inline-flex items-center gap-1.5 text-[10px] text-white/48 font-bold">
                   <ShieldCheck className="w-3.5 h-3.5 text-[#00D26A]" />
                   Lié au foyer

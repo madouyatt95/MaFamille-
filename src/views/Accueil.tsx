@@ -725,14 +725,14 @@ export const Accueil: React.FC<AccueilProps> = ({
         </div>
       </div>
 
-      {/* Cockpit familial intelligent */}
+      {/* Vue familiale intelligente */}
       <div className="glass-panel rounded-[32px] border border-white/10 p-4 sm:p-5 space-y-4 overflow-hidden relative">
         <div className="absolute right-0 top-0 w-40 h-40 bg-[#6C5CFF]/8 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute left-0 bottom-0 w-32 h-32 bg-[#00D26A]/8 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-base sm:text-lg font-black text-white tracking-tight">Cockpit familial</h2>
+            <h2 className="text-base sm:text-lg font-black text-white tracking-tight">Vue famille</h2>
             <p className="text-[11px] text-white/50 font-semibold mt-1">
               Vue rapide de ce qui mérite votre attention maintenant.
             </p>

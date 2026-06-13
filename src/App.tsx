@@ -8201,7 +8201,7 @@ function App() {
         const navModules = [
           { keywords: ['accueil', 'l\'accueil', 'ecran d\'accueil', 'le menu', 'le hub'], tab: 'accueil', module: '', message: '🏠 Navigation : J\'ouvre l\'accueil.' },
           { keywords: ['agenda', 'l\'agenda', 'calendrier', 'le calendrier', 'planning', 'le planning'], tab: 'agenda', module: '', message: '📅 Navigation : J\'ouvre l\'agenda.' },
-          { keywords: ['budget', 'le budget', 'finances', 'les finances'], tab: 'budget', module: '', message: '💰 Navigation : J\'ouvre le cockpit financier Budget.' },
+          { keywords: ['budget', 'le budget', 'finances', 'les finances'], tab: 'budget', module: '', message: '💰 Navigation : J\'ouvre le budget familial.' },
           { keywords: ['dépenses', 'les dépenses', 'depenses', 'les depenses', 'les transactions', 'transactions', 'opérations', 'les opérations'], tab: 'budget', module: '', subView: 'transactions', message: '💸 Navigation : J\'ouvre vos dépenses de budget.' },
           { keywords: ['courses', 'les courses', 'liste de courses', 'la liste de courses', 'liste des courses', 'la liste des courses'], tab: 'menu', module: 'courses', message: '🛒 Navigation : J\'ouvre la liste de courses.' },
           { keywords: ['santé', 'la santé', 'sante', 'la sante', 'carnet de santé', 'carnet de sante', 'médical', 'medical'], tab: 'menu', module: 'sante', message: '🩺 Navigation : J\'ouvre le carnet de santé.' },
@@ -9153,7 +9153,7 @@ function App() {
 
           // Trouver le label du module pour le feedback
           const moduleLabels: Record<string, string> = {
-            budget: 'Cockpit financier Budget',
+            budget: 'Budget familial',
             sante: 'Carnet de Santé',
             vehicules: 'Entretien Véhicule',
             logement: 'Logement',
@@ -9290,7 +9290,7 @@ function App() {
         fallbackTarget = { tab: 'agenda', module: '', toastMessage: 'Agenda ouvert' };
       } 
       else if (promptLower.includes('finance') || promptLower.includes('budget') || promptLower.includes('dépense') || promptLower.includes('argent') || promptLower.includes('cagnotte') || promptLower.includes('solde')) {
-        feedback = "💰 Navigation : J'ouvre le cockpit financier Budget.";
+        feedback = "💰 Navigation : J'ouvre le budget familial.";
         fallbackTarget = { tab: 'budget', module: '', toastMessage: 'Budget ouvert' };
       } 
       else if (promptLower.includes('course') || promptLower.includes('caddie') || promptLower.includes('achat') || promptLower.includes('épicerie') || promptLower.includes('supermar')) {

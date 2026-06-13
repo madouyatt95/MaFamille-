@@ -104,7 +104,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               <button 
                 onClick={onMicClick}
                 className="family-nav-mic relative flex items-center justify-center w-12 h-12 rounded-full bg-[#081225] border-2 border-red-500 text-white hover:text-red-400 float-btn-halo cursor-pointer transition-all duration-300 hover:scale-110 active:scale-95 group animate-pulse-slow shadow-lg"
-                title={isPremium ? "Micro principal" : "Premium : contrôle vocal des courses, dépenses, voyages et modules"}
+                title={isPremium ? "Micro principal" : "Abonnement requis : contrôle vocal des courses, dépenses, voyages et espaces"}
               >
                 <Mic className="w-5 h-5 text-white" />
               </button>
