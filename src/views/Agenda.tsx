@@ -1550,7 +1550,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                 <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest font-sans">
                   {invitationStep === 1 ? "Configuration de l'ambiance visuelle..." : 
                    invitationStep === 2 ? "Dessin des ornements festifs..." : 
-                   "Stable Diffusion finalise votre carton..."}
+                   "Finalisation de votre invitation..."}
                 </p>
               </div>
             ) : invitationUrl ? (

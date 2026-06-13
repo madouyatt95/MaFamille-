@@ -2798,7 +2798,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-xl font-black text-white">Médiateur PeaceMaker</h1>
+              <h1 className="text-xl font-black text-white">Médiateur familial</h1>
               <p className="text-[10px] text-white/50 font-bold">Résous tes litiges familiaux (+25 XP par paix)</p>
             </div>
           </div>

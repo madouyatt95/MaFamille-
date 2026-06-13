@@ -1220,7 +1220,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center space-y-3 z-10">
                       <RefreshCw className="w-8 h-8 text-[#7C3AED] animate-spin" />
                       <span className="text-[9px] font-black text-white/50 uppercase tracking-widest font-sans">
-                        Stable Diffusion peint le conte...
+                        Création de l'image du conte...
                       </span>
                     </div>
                   ) : storyImage ? (

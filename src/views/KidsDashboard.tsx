@@ -763,7 +763,7 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
           </button>
         </div>
 
-        {/* PeaceMaker Dispute Button */}
+        {/* Family mediator dispute button */}
         <div className="bg-[#FF4D6D]/15 border border-[#FF4D6D]/30 rounded-[32px] p-5 flex items-center justify-between space-x-4 text-left">
           <div className="space-y-1">
             <div className="flex items-center space-x-1.5 text-[#FF4D6D]">
@@ -771,7 +771,7 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
               <span className="text-[10px] font-black uppercase tracking-wider">Alerte dispute ?</span>
             </div>
             <h4 className="text-xs font-black text-white">Besoin d'un arbitre ? ☮️</h4>
-            <p className="text-[9.5px] text-white/50 font-bold">Déclenche le PeaceMaker pour vous réconcilier !</p>
+            <p className="text-[9.5px] text-white/50 font-bold">Demande au médiateur familial de vous aider à vous réconcilier.</p>
           </div>
           
           <button 
@@ -781,7 +781,7 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
             }}
             className="px-4 py-2.5 bg-[#FF4D6D] text-[#07111F] rounded-xl text-xs font-black shadow-lg cursor-pointer"
           >
-            PeaceMaker !
+            Médiateur
           </button>
         </div>
 

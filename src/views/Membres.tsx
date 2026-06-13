@@ -1014,7 +1014,7 @@ export const Membres: React.FC<MembresProps> = ({
                             modName === 'messagerie' ? '💬 Messagerie' :
                             modName === 'capsule_temporelle' ? '⏳ Capsule temporelle' :
                             modName === 'repertoire_important' ? '📞 Répertoire important' :
-                            modName === 'peacemaker' ? '🕊️ PeaceMaker' :
+                            modName === 'peacemaker' ? '🕊️ Médiateur familial' :
                             modName === 'carte_familiale' ? '🗺️ Carte familiale' :
                             modName === 'menu_semaine' ? '🍳 Menu de la semaine' :
                             modName === 'demarches' ? '📋 Démarches' :
@@ -1181,7 +1181,7 @@ export const Membres: React.FC<MembresProps> = ({
                           <p className="text-[10px] font-bold text-white/60 uppercase tracking-wider font-sans">
                             {avatarStep === 1 ? "Séchage de la peinture d'avatar..." : 
                              avatarStep === 2 ? "Ajustement de l'éclat des yeux..." : 
-                             "Stable Diffusion sculpte l'avatar..."}
+                             "Création de l'avatar en cours..."}
                           </p>
                         </div>
                       ) : generatedAvatar ? (
@@ -1832,7 +1832,7 @@ export const Membres: React.FC<MembresProps> = ({
                       modName === 'messagerie' ? '💬 Messagerie' :
                       modName === 'capsule_temporelle' ? '⏳ Capsule temporelle' :
                       modName === 'repertoire_important' ? '📞 Répertoire important' :
-                      modName === 'peacemaker' ? '🕊️ PeaceMaker' :
+                      modName === 'peacemaker' ? '🕊️ Médiateur familial' :
                       modName === 'carte_familiale' ? '🗺️ Carte familiale' :
                       modName === 'menu_semaine' ? '🍳 Menu de la semaine' :
                       modName === 'demarches' ? '📋 Démarches' :
