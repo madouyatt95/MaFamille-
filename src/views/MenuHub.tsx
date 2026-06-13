@@ -596,10 +596,50 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   React.useEffect(() => { localStorage.setItem('mf_shared_quests', JSON.stringify(sharedQuests)); }, [sharedQuests]);
 
   // --- Feature 6: Health Emergency Card ---
-  const [healthSubTab, setHealthSubTab] = useState<'croissance' | 'vaccins' | 'urgence' | 'frais'>('croissance');
+  type HealthCareKind = 'consultation' | 'vaccine' | 'treatment' | 'prescription' | 'allergy' | 'document' | 'expense';
+  interface HealthCareEntry {
+    id: string;
+    kind: HealthCareKind;
+    memberId: string;
+    memberName: string;
+    title: string;
+    date: string;
+    time?: string;
+    practitioner?: string;
+    notes?: string;
+    documentId?: string;
+    createdAt: string;
+  }
+
+  const [healthSubTab, setHealthSubTab] = useState<'carnet' | 'soins' | 'documents' | 'croissance' | 'vaccins' | 'urgence' | 'frais'>('carnet');
   const [selectedHealthMemberId, setSelectedHealthMemberId] = useState(() => {
     return localStorage.getItem('mf_selected_health_member_id') || activeMemberId;
   });
+  const [showHealthQuickAdd, setShowHealthQuickAdd] = useState(false);
+  const [healthQuickKind, setHealthQuickKind] = useState<HealthCareKind>('consultation');
+  const [healthQuickTitle, setHealthQuickTitle] = useState('');
+  const [healthQuickDate, setHealthQuickDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [healthQuickTime, setHealthQuickTime] = useState('');
+  const [healthQuickPractitioner, setHealthQuickPractitioner] = useState('');
+  const [healthQuickNotes, setHealthQuickNotes] = useState('');
+  const [healthQuickAmount, setHealthQuickAmount] = useState('');
+  const [healthDocFile, setHealthDocFile] = useState<File | null>(null);
+  const [emergencyFullScreenMemberId, setEmergencyFullScreenMemberId] = useState<string | null>(null);
+  const [healthCareEntries, setHealthCareEntries] = useState<HealthCareEntry[]>(() => {
+    try {
+      const foyerId = foyer?.id || localStorage.getItem('mf_cloud_foyer_id') || 'default';
+      const raw = localStorage.getItem(`mf_health_care_entries_${foyerId}`) || '[]';
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  React.useEffect(() => {
+    const foyerId = foyer?.id || localStorage.getItem('mf_cloud_foyer_id') || 'default';
+    localStorage.setItem(`mf_health_care_entries_${foyerId}`, JSON.stringify(healthCareEntries));
+  }, [foyer?.id, healthCareEntries]);
 
   React.useEffect(() => {
     if (activeModule === 'sante') {
@@ -722,6 +762,192 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [editTreatments, setEditTreatments] = useState('');
   const [editEmergencyName, setEditEmergencyName] = useState('');
   const [editEmergencyPhone, setEditEmergencyPhone] = useState('');
+
+  const selectedHealthMember = members.find(m => m.id === selectedHealthMemberId) || members[0];
+  const healthDocuments = useMemo(() => {
+    return (documents || [])
+      .filter(doc => doc.category === 'health' || doc.tags?.some(tag => ['sante', 'santé', 'ordonnance', 'vaccin', 'analyse', 'mutuelle'].includes(String(tag).toLowerCase())))
+      .sort((a, b) => String(b.uploadDate || '').localeCompare(String(a.uploadDate || '')));
+  }, [documents]);
+
+  const healthMedicalEvents = useMemo(() => {
+    return (vaccines || [])
+      .map((vac: any) => ({
+        id: vac.id,
+        kind: 'vaccine' as HealthCareKind,
+        memberId: vac.memberId,
+        memberName: members.find(m => m.id === vac.memberId)?.name || 'Membre',
+        title: vac.name,
+        date: vac.date,
+        time: vac.time || '',
+        practitioner: vac.doctor || 'Médecin traitant',
+        notes: vac.note || vac.reminder || '',
+        createdAt: vac.date || new Date().toISOString()
+      }));
+  }, [members, vaccines]);
+
+  const healthTimeline = useMemo(() => {
+    return [...healthCareEntries, ...healthMedicalEvents]
+      .filter(entry => !selectedHealthMemberId || entry.memberId === selectedHealthMemberId)
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  }, [healthCareEntries, healthMedicalEvents, selectedHealthMemberId]);
+
+  const readHealthFileAsDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Lecture du document impossible'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const resetHealthQuickForm = () => {
+    setHealthQuickTitle('');
+    setHealthQuickDate(new Date().toISOString().split('T')[0]);
+    setHealthQuickTime('');
+    setHealthQuickPractitioner('');
+    setHealthQuickNotes('');
+    setHealthQuickAmount('');
+    setHealthDocFile(null);
+  };
+
+  const handleHealthQuickSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const member = selectedHealthMember;
+    if (!member) return;
+    const title = healthQuickTitle.trim() || (
+      healthQuickKind === 'consultation' ? 'Consultation médicale' :
+      healthQuickKind === 'vaccine' ? 'Vaccin / rappel' :
+      healthQuickKind === 'treatment' ? 'Traitement en cours' :
+      healthQuickKind === 'prescription' ? 'Ordonnance à renouveler' :
+      healthQuickKind === 'allergy' ? 'Allergie à surveiller' :
+      healthQuickKind === 'document' ? 'Document santé' :
+      'Frais santé'
+    );
+
+    let linkedDocumentId = '';
+    if ((healthQuickKind === 'document' || healthDocFile) && setDocuments) {
+      const fileBase64 = healthDocFile ? await readHealthFileAsDataUrl(healthDocFile) : undefined;
+      linkedDocumentId = `health-doc-${Date.now()}`;
+      const newDoc: DocumentFile = {
+        id: linkedDocumentId,
+        name: healthDocFile?.name || title,
+        category: 'health',
+        subCategory: healthQuickKind === 'prescription' ? 'Ordonnance' : healthQuickKind === 'vaccine' ? 'Vaccination' : 'Santé',
+        memberId: member.id,
+        memberName: member.name,
+        tags: ['sante', healthQuickKind, member.name],
+        uploadDate: new Date().toISOString(),
+        fileSize: healthDocFile ? `${Math.max(1, Math.round(healthDocFile.size / 1024))} Ko` : 'Référence',
+        isExpired: false,
+        description: healthQuickNotes.trim() || title,
+        fileBase64,
+        isSecure: true
+      };
+      setDocuments(prev => [newDoc, ...prev]);
+
+      const supabase = getSupabaseClient();
+      if (supabase && foyer?.id) {
+        try {
+          await supabase.from('documents').insert({
+            id: newDoc.id,
+            foyer_id: foyer.id,
+            name: newDoc.name,
+            category: newDoc.category,
+            sub_category: newDoc.subCategory || null,
+            member_id: newDoc.memberId || null,
+            member_name: newDoc.memberName || null,
+            tags: newDoc.tags,
+            upload_date: newDoc.uploadDate,
+            file_size: newDoc.fileSize,
+            is_expired: false,
+            description: newDoc.description || null,
+            is_secure: true
+          });
+        } catch (err) {
+          console.warn('Health document cloud sync warning:', err);
+        }
+      }
+    }
+
+    if (healthQuickKind === 'vaccine' && setVaccines) {
+      setVaccines(prev => [...prev, {
+        id: `v-${Date.now()}`,
+        memberId: member.id,
+        name: title,
+        date: healthQuickDate,
+        status: 'À faire',
+        doctor: healthQuickPractitioner.trim() || 'Médecin traitant',
+        time: healthQuickTime,
+        reminder: '1 jour avant',
+        note: healthQuickNotes.trim(),
+        documentUrl: ''
+      }]);
+    } else if ((healthQuickKind === 'treatment' || healthQuickKind === 'allergy') && setMembers) {
+      const updateListKey = healthQuickKind === 'treatment' ? 'treatments' : 'allergies';
+      setMembers(prev => prev.map(m => {
+        if (m.id !== member.id) return m;
+        const current = Array.isArray((m as any)[updateListKey]) ? (m as any)[updateListKey] : [];
+        const next = Array.from(new Set([...current, title]));
+        return { ...m, [updateListKey]: next } as Member;
+      }));
+
+      try {
+        await foyerService.updateMemberProfile(member.id, {
+          [updateListKey]: Array.from(new Set([...((member as any)[updateListKey] || []), title]))
+        });
+      } catch (err) {
+        console.warn('Health profile update warning:', err);
+      }
+    } else if ((healthQuickKind === 'consultation' || healthQuickKind === 'prescription' || healthQuickKind === 'treatment') && onAddEventDirect) {
+      onAddEventDirect({
+        title: healthQuickKind === 'prescription' ? `💊 Renouveler : ${title}` : `🩺 ${title}`,
+        type: 'medical',
+        dateTime: healthQuickTime ? `${healthQuickDate}T${healthQuickTime}:00` : `${healthQuickDate}T09:00:00`,
+        time: healthQuickTime || '09:00',
+        memberId: member.id,
+        memberName: member.name,
+        done: false,
+        description: JSON.stringify({
+          sourceModule: 'sante',
+          kind: healthQuickKind,
+          practitioner: healthQuickPractitioner.trim(),
+          notes: healthQuickNotes.trim(),
+          documentId: linkedDocumentId
+        })
+      });
+    } else if (healthQuickKind === 'expense' && onAddTransaction) {
+      const amount = parseFloat(healthQuickAmount);
+      onAddTransaction({
+        amount: Number.isFinite(amount) && amount > 0 ? amount : 1,
+        type: 'expense',
+        category: 'Santé',
+        subCategory: 'Soin',
+        title: `Santé : ${title} - ${member.name}`,
+        memberId: member.id,
+        memberName: member.name,
+        date: healthQuickDate,
+        moduleSource: 'sante',
+        comment: healthQuickNotes.trim()
+      });
+    }
+
+    setHealthCareEntries(prev => [{
+      id: `care-${Date.now()}`,
+      kind: healthQuickKind,
+      memberId: member.id,
+      memberName: member.name,
+      title,
+      date: healthQuickDate,
+      time: healthQuickTime,
+      practitioner: healthQuickPractitioner.trim(),
+      notes: healthQuickNotes.trim(),
+      documentId: linkedDocumentId,
+      createdAt: new Date().toISOString()
+    }, ...prev]);
+    resetHealthQuickForm();
+    setShowHealthQuickAdd(false);
+  };
 
   // --- Feature 8: House Plan View ---
   const [logementViewMode, setLogementViewMode] = useState<'list' | 'plan' | 'artisans' | 'charges'>('list');
@@ -1600,11 +1826,11 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-extrabold text-white">Carnet Santé & Vaccins</h2>
-              <p className="text-xs text-white/50">Vaccination, suivi de croissance & Fiche d'Urgence</p>
+              <p className="text-xs text-white/50">Rappels serveur, carnet médical, documents & urgence</p>
             </div>
             
             {/* Filtre de membre global pour la Santé */}
-            {(healthSubTab === 'croissance' || healthSubTab === 'vaccins') && (
+            {(healthSubTab === 'carnet' || healthSubTab === 'soins' || healthSubTab === 'documents' || healthSubTab === 'croissance' || healthSubTab === 'vaccins') && (
               <select
                 value={selectedHealthMemberId}
                 onChange={(e) => setSelectedHealthMemberId(e.target.value)}
@@ -1617,6 +1843,28 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 ))}
               </select>
             )}
+          </div>
+
+          <div className="rounded-[26px] border border-[#00D26A]/20 bg-[#00D26A]/8 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-2xl bg-[#00D26A]/15 border border-[#00D26A]/25 text-[#00D26A]">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-xs font-black text-white uppercase tracking-wider">Santé premium active</h3>
+                <p className="text-[11px] text-white/60 font-semibold leading-relaxed">
+                  Les vaccins, rendez-vous médicaux, traitements et ordonnances peuvent alimenter les rappels push serveur.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowHealthQuickAdd(true)}
+              className="px-4 py-3 rounded-2xl bg-gradient-to-r from-[#FF4D6D] to-[#FF8FA3] text-white text-[11px] font-black uppercase tracking-wider shadow-lg shadow-[#FF4D6D]/15 flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Ajouter un soin</span>
+            </button>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1726,7 +1974,16 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           )}
 
           {/* Sub-tab navigation */}
-          <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 grid grid-cols-4 gap-1">
+          <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1">
+            <button onClick={() => setHealthSubTab('carnet')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'carnet' ? 'bg-[#FF4D6D] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
+              🩺 Carnet
+            </button>
+            <button onClick={() => setHealthSubTab('soins')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'soins' ? 'bg-[#FF4D6D] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
+              📋 Soins
+            </button>
+            <button onClick={() => setHealthSubTab('documents')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'documents' ? 'bg-[#FF4D6D] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
+              📄 Docs
+            </button>
             <button onClick={() => setHealthSubTab('croissance')} className={`py-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${healthSubTab === 'croissance' ? 'bg-[#FF4D6D] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
               📈 Croissance
             </button>
@@ -1740,6 +1997,275 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               💶 Frais Santé
             </button>
           </div>
+
+          {showHealthQuickAdd && (
+            <div className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-4">
+              <form onSubmit={handleHealthQuickSubmit} className="w-full max-w-lg rounded-[30px] border border-white/10 bg-[#0B1626] shadow-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-black text-white uppercase tracking-wider">Ajouter un soin</h3>
+                    <p className="text-[11px] text-white/50 font-semibold">Un seul parcours pour santé, documents et rappels.</p>
+                  </div>
+                  <button type="button" onClick={() => setShowHealthQuickAdd(false)} className="p-2 rounded-xl bg-white/5 text-white/50 hover:text-white cursor-pointer">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    ['consultation', 'Consultation'],
+                    ['vaccine', 'Vaccin'],
+                    ['treatment', 'Traitement'],
+                    ['allergy', 'Allergie'],
+                    ['prescription', 'Ordonnance'],
+                    ['document', 'Document'],
+                    ['expense', 'Dépense']
+                  ] as [HealthCareKind, string][]).map(([kind, label]) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      onClick={() => setHealthQuickKind(kind)}
+                      className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer ${
+                        healthQuickKind === kind
+                          ? 'bg-[#FF4D6D] border-[#FF4D6D] text-white'
+                          : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="space-y-1 col-span-2">
+                    <label className="text-[9px] font-black text-white/40 uppercase tracking-wider">Titre</label>
+                    <input value={healthQuickTitle} onChange={(e) => setHealthQuickTitle(e.target.value)} placeholder="ex: Consultation pédiatre, Doliprane, ordonnance..." className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-[#FF4D6D]" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-white/40 uppercase tracking-wider">Date</label>
+                    <input type="date" value={healthQuickDate} onChange={(e) => setHealthQuickDate(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-[#FF4D6D]" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-white/40 uppercase tracking-wider">Heure</label>
+                    <input type="time" value={healthQuickTime} onChange={(e) => setHealthQuickTime(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-[#FF4D6D]" />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <label className="text-[9px] font-black text-white/40 uppercase tracking-wider">Médecin / pharmacie / lieu</label>
+                    <input value={healthQuickPractitioner} onChange={(e) => setHealthQuickPractitioner(e.target.value)} placeholder="ex: Dr Martin, Pharmacie centrale" className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-[#FF4D6D]" />
+                  </div>
+                  {healthQuickKind === 'expense' && (
+                    <div className="space-y-1 col-span-2">
+                      <label className="text-[9px] font-black text-white/40 uppercase tracking-wider">Montant</label>
+                      <input type="number" step="0.01" min="0" value={healthQuickAmount} onChange={(e) => setHealthQuickAmount(e.target.value)} placeholder="ex: 35.00" className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-[#FF4D6D]" />
+                    </div>
+                  )}
+                  <div className="space-y-1 col-span-2">
+                    <label className="text-[9px] font-black text-white/40 uppercase tracking-wider">Document lié</label>
+                    <input type="file" onChange={(e) => setHealthDocFile(e.target.files?.[0] || null)} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white/70 text-[11px] file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-white" />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <label className="text-[9px] font-black text-white/40 uppercase tracking-wider">Notes</label>
+                    <textarea value={healthQuickNotes} onChange={(e) => setHealthQuickNotes(e.target.value)} rows={3} placeholder="Posologie, consignes, symptômes, remboursement attendu..." className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-[#FF4D6D]" />
+                  </div>
+                </div>
+
+                <button type="submit" className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#FF4D6D] to-[#FF8FA3] text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer">
+                  <Save className="w-4 h-4" />
+                  <span>Enregistrer dans le carnet santé</span>
+                </button>
+              </form>
+            </div>
+          )}
+
+          {emergencyFullScreenMemberId && (() => {
+            const member = members.find(m => m.id === emergencyFullScreenMemberId);
+            if (!member) return null;
+            const emergencyPhone = (member as any).emergencyContactPhone || member.emergencyContact?.phone || '';
+            const emergencyName = (member as any).emergencyContactName || member.emergencyContact?.name || 'Contact d’urgence';
+            return (
+              <div className="fixed inset-0 z-[90] bg-[#07111F] text-white p-5 overflow-y-auto">
+                <div className="max-w-xl mx-auto min-h-full flex flex-col justify-center space-y-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#FF4D6D]">Mode urgence</p>
+                      <h2 className="text-3xl font-black text-white mt-1">{member.name}</h2>
+                    </div>
+                    <button type="button" onClick={() => setEmergencyFullScreenMemberId(null)} className="p-3 rounded-2xl bg-white/10 text-white cursor-pointer">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-[28px] bg-[#FF4D6D] p-5">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-white/70">Groupe sanguin</span>
+                      <p className="mt-2 text-4xl font-black text-white">{member.bloodGroup || '--'}</p>
+                    </div>
+                    <div className="rounded-[28px] bg-white/8 border border-white/10 p-5">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-white/45">Âge</span>
+                      <p className="mt-2 text-4xl font-black text-white">{member.age || '--'}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[28px] bg-[#FFB020]/12 border border-[#FFB020]/25 p-5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-[#FFB020]">Allergies</span>
+                    <p className="mt-2 text-xl font-black text-white leading-relaxed">{member.allergies?.length ? member.allergies.join(', ') : 'Aucune allergie connue'}</p>
+                  </div>
+
+                  <div className="rounded-[28px] bg-[#6C5CFF]/12 border border-[#6C5CFF]/25 p-5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-[#8FA2FF]">Traitements</span>
+                    <p className="mt-2 text-xl font-black text-white leading-relaxed">{member.treatments?.length ? member.treatments.join(', ') : 'Aucun traitement renseigné'}</p>
+                  </div>
+
+                  {emergencyPhone ? (
+                    <a href={`tel:${emergencyPhone}`} className="w-full py-5 rounded-[28px] bg-[#00D26A] text-[#03130A] text-center font-black uppercase tracking-wider flex items-center justify-center gap-3">
+                      <Phone className="w-6 h-6" />
+                      <span>Appeler {emergencyName}</span>
+                    </a>
+                  ) : (
+                    <div className="w-full py-5 rounded-[28px] bg-white/8 border border-white/10 text-center font-black text-white/50 uppercase tracking-wider">
+                      Contact d’urgence non renseigné
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* 0. Carnet médical */}
+          {healthSubTab === 'carnet' && (() => {
+            const member = selectedHealthMember;
+            const memberDocs = healthDocuments.filter(doc => !doc.memberId || doc.memberId === member?.id);
+            const memberCare = healthTimeline.slice(0, 5);
+            const nextCare = [...healthTimeline]
+              .filter(entry => entry.date >= new Date().toISOString().split('T')[0])
+              .sort((a, b) => String(a.date).localeCompare(String(b.date)))[0];
+
+            return (
+              <div className="space-y-4">
+                <div className="rounded-[30px] border border-white/8 bg-gradient-to-br from-white/8 to-white/3 p-5 space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img src={member?.photoUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${member?.name || 'family'}`} alt={member?.name || 'Membre'} className="w-14 h-14 rounded-2xl object-cover border border-white/10" />
+                      <div className="min-w-0">
+                        <h3 className="text-base font-black text-white truncate">{member?.name || 'Membre'}</h3>
+                        <p className="text-[11px] text-white/50 font-bold">
+                          {member?.age ? `${member.age} ans` : 'Âge non renseigné'} • {member?.bloodGroup || 'Groupe sanguin à renseigner'}
+                        </p>
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => member && setEmergencyFullScreenMemberId(member.id)} className="px-3 py-2 rounded-xl bg-[#FF4D6D]/15 border border-[#FF4D6D]/25 text-[#FF4D6D] text-[10px] font-black uppercase cursor-pointer">
+                      Urgence
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-3 rounded-2xl bg-white/5 border border-white/8">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-[#FFB020]">Allergies</span>
+                      <p className="mt-1 text-xs font-bold text-white leading-relaxed">{member?.allergies?.length ? member.allergies.join(', ') : 'Aucune renseignée'}</p>
+                    </div>
+                    <div className="p-3 rounded-2xl bg-white/5 border border-white/8">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-[#6C5CFF]">Traitements</span>
+                      <p className="mt-1 text-xs font-bold text-white leading-relaxed">{member?.treatments?.length ? member.treatments.join(', ') : 'Aucun renseigné'}</p>
+                    </div>
+                    <div className="p-3 rounded-2xl bg-white/5 border border-white/8">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-[#00D26A]">Prochaine échéance</span>
+                      <p className="mt-1 text-xs font-bold text-white leading-relaxed">{nextCare ? `${nextCare.title} • ${new Date(nextCare.date).toLocaleDateString('fr-FR')}` : 'Aucune échéance'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="glass-panel rounded-[26px] border border-white/8 p-4 space-y-3">
+                    <h4 className="text-xs font-black text-white uppercase tracking-wider">Historique récent</h4>
+                    {memberCare.length > 0 ? memberCare.map(entry => (
+                      <div key={entry.id} className="p-3 rounded-2xl bg-white/4 border border-white/6">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black text-white">{entry.title}</p>
+                            <p className="text-[10px] text-white/45 font-bold">{new Date(entry.date).toLocaleDateString('fr-FR')} {entry.time ? `• ${entry.time}` : ''} {entry.practitioner ? `• ${entry.practitioner}` : ''}</p>
+                          </div>
+                          <span className="px-2 py-1 rounded-lg bg-[#FF4D6D]/12 text-[#FF8FA3] text-[9px] font-black uppercase">{entry.kind}</span>
+                        </div>
+                        {entry.notes && <p className="mt-2 text-[11px] text-white/60 leading-relaxed">{entry.notes}</p>}
+                      </div>
+                    )) : (
+                      <div className="py-8 text-center text-white/35 text-xs font-bold">Aucun soin enregistré pour ce membre.</div>
+                    )}
+                  </div>
+
+                  <div className="glass-panel rounded-[26px] border border-white/8 p-4 space-y-3">
+                    <h4 className="text-xs font-black text-white uppercase tracking-wider">Documents liés</h4>
+                    {memberDocs.slice(0, 5).length > 0 ? memberDocs.slice(0, 5).map(doc => (
+                      <div key={doc.id} className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-white/4 border border-white/6">
+                        <div className="min-w-0">
+                          <p className="text-xs font-black text-white truncate">{doc.name}</p>
+                          <p className="text-[10px] text-white/45 font-bold">{doc.subCategory || 'Santé'} • {new Date(doc.uploadDate).toLocaleDateString('fr-FR')}</p>
+                        </div>
+                        <span className="text-[10px] text-white/35 font-bold shrink-0">{doc.fileSize}</span>
+                      </div>
+                    )) : (
+                      <div className="py-8 text-center text-white/35 text-xs font-bold">Aucun document santé relié.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* 0.5 Soins */}
+          {healthSubTab === 'soins' && (
+            <div className="space-y-3">
+              {healthTimeline.length > 0 ? healthTimeline.map(entry => (
+                <div key={entry.id} className="glass-panel rounded-[24px] border border-white/8 p-4 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm font-black text-white">{entry.title}</h3>
+                      <span className="px-2 py-1 rounded-lg bg-white/8 text-white/55 text-[9px] font-black uppercase">{entry.kind}</span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-white/45 font-bold">
+                      {entry.memberName} • {new Date(entry.date).toLocaleDateString('fr-FR')} {entry.time ? `à ${entry.time}` : ''} {entry.practitioner ? `• ${entry.practitioner}` : ''}
+                    </p>
+                    {entry.notes && <p className="mt-2 text-xs text-white/60 leading-relaxed">{entry.notes}</p>}
+                  </div>
+                  <button type="button" onClick={() => setHealthCareEntries(prev => prev.filter(item => item.id !== entry.id))} className="p-2 rounded-xl text-white/25 hover:text-[#FF4D6D] hover:bg-[#FF4D6D]/10 cursor-pointer">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )) : (
+                <div className="glass-panel rounded-[28px] border border-white/8 p-8 text-center">
+                  <p className="text-sm font-black text-white">Aucun soin enregistré</p>
+                  <p className="mt-1 text-xs text-white/45 font-semibold">Utilisez “Ajouter un soin” pour créer une consultation, un traitement ou une ordonnance.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 0.6 Documents santé */}
+          {healthSubTab === 'documents' && (
+            <div className="space-y-3">
+              {healthDocuments.length > 0 ? healthDocuments
+                .filter(doc => !selectedHealthMemberId || !doc.memberId || doc.memberId === selectedHealthMemberId)
+                .map(doc => (
+                  <div key={doc.id} className="glass-panel rounded-[24px] border border-white/8 p-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-black text-white truncate">{doc.name}</h3>
+                      <p className="text-[11px] text-white/45 font-bold">
+                        {doc.memberName || 'Famille'} • {doc.subCategory || 'Santé'} • {new Date(doc.uploadDate).toLocaleDateString('fr-FR')}
+                      </p>
+                      {doc.description && <p className="mt-1 text-[11px] text-white/55 truncate">{doc.description}</p>}
+                    </div>
+                    <span className="px-3 py-1 rounded-xl bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] text-[10px] font-black shrink-0">
+                      Sécurisé
+                    </span>
+                  </div>
+                )) : (
+                <div className="glass-panel rounded-[28px] border border-white/8 p-8 text-center">
+                  <p className="text-sm font-black text-white">Aucun document santé</p>
+                  <p className="mt-1 text-xs text-white/45 font-semibold">Ajoutez une ordonnance, analyse, mutuelle, certificat ou carnet de vaccination.</p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 1. Croissance */}
           {healthSubTab === 'croissance' && (() => {
