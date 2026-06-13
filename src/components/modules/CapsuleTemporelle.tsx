@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Camera, 
   Heart, 
@@ -27,14 +27,14 @@ interface CapsuleTemporelleProps {
 type ComicStyle = 'retro' | 'manga' | 'fantasy' | 'cyberpunk';
 
 const comicStyleOptions: { id: ComicStyle; label: string; desc: string }[] = [
-  { id: 'retro', label: '🦸 Comics Rétro', desc: 'Marvel Vintage 1980' },
-  { id: 'manga', label: '🏮 Shonen Manga', desc: 'Anime Moderne' },
-  { id: 'fantasy', label: '🧙 Fantasy Épique', desc: 'Livre Enchanté' },
-  { id: 'cyberpunk', label: '🌆 Cyberpunk', desc: 'Futur Néon' }
+  { id: 'retro', label: '🦸 BD rétro', desc: 'Couverture vintage' },
+  { id: 'manga', label: '🏮 Manga familial', desc: 'Illustration moderne' },
+  { id: 'fantasy', label: '🧙 Conte illustré', desc: 'Ambiance aventure' },
+  { id: 'cyberpunk', label: '🌆 Futuriste', desc: 'Néons et contraste' }
 ];
 
 const comicStylePrompts: Record<ComicStyle, string> = {
-  retro: 'retro marvel comic book cover, 1980s vintage style, ink drawings, highly detailed graphic novel, colorful speech bubbles, pop art accents',
+  retro: 'retro comic book cover, 1980s vintage style, ink drawings, highly detailed graphic novel, colorful speech bubbles, pop art accents',
   manga: 'shonen manga colorful volume cover, anime key visual, highly detailed art style, vibrant gradient lighting, emotional character pose',
   fantasy: 'epic high-fantasy novel illustration, oil painting style, glowing magical pipes, ancient wizard scrolls, grand warrior posture, warm fantasy lighting',
   cyberpunk: 'cyberpunk neon graphic novel panel, sci-fi concept art, dark futuristic background, glowing holographic symbols, high contrast violet and cyan'
@@ -202,6 +202,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
   const [newDate, setNewDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [albumFilter, setAlbumFilter] = useState<'all' | 'photos' | 'private' | 'mine'>('all');
   
   const [uploading, setUploading] = useState(false);
   const [generatingGazette, setGeneratingGazette] = useState(false);
@@ -307,7 +308,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
     setUploadedImages([]);
     setIsPrivate(false);
     setUploading(false);
-    alert("Nouveau souvenir partagé dans la Capsule de la Famille ! 📸");
+    alert("Souvenir ajouté à la capsule familiale.");
   };
 
   const handleLike = (id: string) => {
@@ -356,15 +357,31 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
   };
 
   // Filter memories based on parental privacy settings
-  const visibleMemories = memories.filter(m => {
+  const visibleMemories = useMemo(() => memories.filter(m => {
     if (m.isPrivate && !isParent) return false;
     return true;
-  });
+  }), [isParent, memories]);
+
+  const filteredAlbumMemories = useMemo(() => {
+    return visibleMemories.filter(memory => {
+      if (albumFilter === 'photos') return !!memory.imageUrl || (memory.imageUrls?.length || 0) > 0;
+      if (albumFilter === 'private') return memory.isPrivate === true;
+      if (albumFilter === 'mine') return memory.authorName === activeMember?.name;
+      return true;
+    });
+  }, [activeMember?.name, albumFilter, visibleMemories]);
+
+  const memoryStats = useMemo(() => {
+    const photos = visibleMemories.filter(memory => !!memory.imageUrl || (memory.imageUrls?.length || 0) > 0).length;
+    const authors = new Set(visibleMemories.map(memory => memory.authorName).filter(Boolean)).size;
+    const likes = visibleMemories.reduce((total, memory) => total + (memory.likesCount || 0), 0);
+    return { photos, authors, likes };
+  }, [visibleMemories]);
 
   // === BD GENERATION ENGINE ===
   const generateComicBook = useCallback(() => {
     setIsGeneratingComic(true);
-    setComicGenerationProgress("Chiffonnage du papier Comics vintage...");
+    setComicGenerationProgress("Préparation de la maquette illustrée...");
 
     const sampleMemories = memories.filter(m => !(m.isPrivate && !isParent)).slice(0, 3);
 
@@ -376,7 +393,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
     }
     
     setTimeout(() => {
-      setComicGenerationProgress("Scénarisation de l'aventure épique...");
+      setComicGenerationProgress("Sélection des souvenirs à transformer...");
       
       const chapters: { title: string; desc: string; author: string; photo?: string }[] = [];
       
@@ -413,7 +430,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
       setComicChapters(chapters);
 
       setTimeout(() => {
-        setComicGenerationProgress("Invoquer l'IA de Stable Diffusion pour peindre la couverture...");
+        setComicGenerationProgress("Préparation de la couverture illustrée...");
 
         const stylePrompt = comicStylePrompts[selectedComicStyle];
 
@@ -454,8 +471,8 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
 
     const newMemory: MemoryLog = {
       id: `mem-comic-${Date.now()}`,
-      title: `🦸 Gazette BD personnalisée`,
-      description: `Nous avons généré en direct notre BD personnalisée de la semaine basée sur nos souvenirs ! Style choisi : ${selectedComicStyle.toUpperCase()}.`,
+      title: `Gazette BD personnalisée`,
+      description: `BD personnalisée générée à partir des souvenirs réels du foyer. Style choisi : ${selectedComicStyle}.`,
       imageUrl: comicImage,
       imageUrls: [comicImage],
       date: new Date().toLocaleDateString('fr-FR'),
@@ -467,7 +484,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
     };
 
     setMemories(prev => [newMemory, ...prev]);
-    alert("Votre incroyable Bande Dessinée a été publiée sur le Mur de la Famille avec succès ! 🌟");
+    alert("La BD a été publiée dans l'album familial.");
     setActiveSubTab('album');
   };
 
@@ -481,10 +498,24 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
             <Camera className="w-6 h-6 animate-pulse" />
           </div>
           <div>
-            <h2 className="text-lg font-extrabold text-white">Capsule Temporelle & IA</h2>
-            <p className="text-xs text-white/50">Journal intime, souvenirs partagés et créations d'IA de votre foyer</p>
+            <h2 className="text-lg font-extrabold text-white">Capsule temporelle</h2>
+            <p className="text-xs text-white/50">Souvenirs, gazette familiale et BD personnalisée à partir de vos moments réels.</p>
           </div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          { label: 'Souvenirs', value: visibleMemories.length },
+          { label: 'Photos', value: memoryStats.photos },
+          { label: 'Auteurs', value: memoryStats.authors },
+          { label: 'Réactions', value: memoryStats.likes }
+        ].map(stat => (
+          <div key={stat.label} className="rounded-2xl border border-white/8 bg-white/[0.04] p-3">
+            <p className="text-lg font-extrabold text-white">{stat.value}</p>
+            <p className="text-[8px] text-white/40 font-bold uppercase tracking-wider truncate">{stat.label}</p>
+          </div>
+        ))}
       </div>
 
       {/* Navigation sub-tabs */}
@@ -497,7 +528,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
               : 'text-white/40 hover:text-white/60'
           }`}
         >
-          <span>📸 Album Photo</span>
+          <span>📸 Album</span>
         </button>
         <button
           onClick={() => setActiveSubTab('gazette')}
@@ -507,7 +538,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
               : 'text-white/40 hover:text-white/60'
           }`}
         >
-          <span>📰 Gazette Rétro</span>
+          <span>📰 Gazette</span>
         </button>
         <button
           onClick={() => {
@@ -524,7 +555,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
           }`}
         >
           <Sparkles className="w-3.5 h-3.5" />
-          <span>🦸 Gazette BD IA 👑</span>
+          <span>🦸 Gazette BD {!isPremium && <Lock className="inline-block w-3 h-3 ml-1 -mt-0.5" />}</span>
         </button>
       </div>
 
@@ -663,13 +694,33 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
               className="w-full py-3.5 rounded-[18px] bg-gradient-to-r from-[#FF4D6D] to-[#FFB020] text-white font-semibold text-xs shadow-md cursor-pointer transition-all hover:opacity-95 flex items-center justify-center space-x-2"
             >
               <Camera className="w-4 h-4" />
-              <span>{uploading ? 'Fixation chimique de l\'image...' : 'Publier dans l\'Album'}</span>
+              <span>{uploading ? 'Publication du souvenir...' : 'Publier dans l\'album'}</span>
             </button>
           </form>
 
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            {[
+              { id: 'all', label: 'Tous' },
+              { id: 'photos', label: 'Avec photo' },
+              ...(isParent ? [{ id: 'private', label: 'Privés' }] : []),
+              { id: 'mine', label: 'Mes souvenirs' }
+            ].map(filter => (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setAlbumFilter(filter.id as typeof albumFilter)}
+                className={`shrink-0 px-4 py-2 rounded-full text-[10px] font-bold border transition ${
+                  albumFilter === filter.id ? 'bg-white text-[#07111F] border-white' : 'bg-white/5 text-white/45 border-white/8'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+
           {/* Album grid view */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {visibleMemories.map(m => (
+            {filteredAlbumMemories.map(m => (
               <MemoryCard 
                 key={m.id}
                 m={m}
@@ -678,10 +729,10 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                 setMemories={setMemories}
               />
             ))}
-            {visibleMemories.length === 0 && (
+            {filteredAlbumMemories.length === 0 && (
               <div className="sm:col-span-2 rounded-[28px] border border-dashed border-white/10 bg-white/5 p-6 text-center">
                 <Camera className="w-8 h-8 text-white/25 mx-auto mb-3" />
-                <h3 className="text-sm font-black text-white">Aucun souvenir réel pour le moment</h3>
+                <h3 className="text-sm font-black text-white">{visibleMemories.length === 0 ? 'Aucun souvenir réel pour le moment' : 'Aucun souvenir dans ce filtre'}</h3>
                 <p className="text-xs text-white/45 mt-1 max-w-sm mx-auto">
                   Ajoutez une photo, une date et une petite histoire pour alimenter l'album, la gazette et la BD IA.
                 </p>
@@ -822,9 +873,9 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                 <div className="w-full p-4 rounded-[20px] bg-white/3 border border-white/6 flex flex-col items-center justify-center space-y-2.5 animate-pulse">
                   <RefreshCw className="w-5 h-5 text-[#FFB020] animate-spin" />
                   <span className="text-[10px] font-black text-white/70 uppercase tracking-widest font-sans">
-                    {gazetteStep === 1 ? 'Chiffonnage du papier vintage...' :
+                    {gazetteStep === 1 ? 'Préparation de la mise en page...' :
                      gazetteStep === 2 ? 'Impression des chroniques familiales...' :
-                     'Mise sous pli dorée de la gazette...'}
+                     'Finalisation de la gazette...'}
                   </span>
                 </div>
               ) : (
@@ -833,7 +884,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                   className="w-full py-4 rounded-[20px] bg-gradient-to-r from-[#FF4D6D] via-pink-500 to-[#FFB020] text-white font-black text-xs tracking-wider uppercase cursor-pointer transition-all hover:brightness-105 active:scale-[0.99] shadow-lg flex items-center justify-center space-x-2.5 font-sans"
                 >
                   <Printer className="w-4.5 h-4.5 text-white" />
-                  <span>Imprimer la Gazette Rétro de la Famille</span>
+                  <span>Imprimer la gazette familiale</span>
                 </button>
               )}
             </div>
@@ -861,7 +912,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
           <div className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
             <span className="text-[10px] font-black text-[#6C5CFF] uppercase tracking-widest block flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 animate-spin" style={{ animationDuration: '4s' }} />
-              Style Artistique de votre Bande Dessinée :
+              Style artistique de votre BD :
             </span>
             
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -887,7 +938,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
               className="w-full py-3.5 rounded-[18px] bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:brightness-105 transition-all shadow-md shadow-[#6C5CFF]/20 flex items-center justify-center gap-2"
             >
               <RefreshCw className={`w-4 h-4 ${isGeneratingComic ? 'animate-spin' : ''}`} />
-              <span>Re-générer l'œuvre de la semaine</span>
+              <span>Générer une nouvelle BD</span>
             </button>
           </div>
 
@@ -899,10 +950,10 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                 <Sparkles className="w-7 h-7 text-white animate-bounce" />
               </div>
               <div className="space-y-1.5">
-                <span className="text-[9px] font-bold text-[#FF4D6D] uppercase tracking-widest block">Studio d'IA Céleste</span>
+                <span className="text-[9px] font-bold text-[#FF4D6D] uppercase tracking-widest block">Atelier BD familial</span>
                 <h4 className="text-sm font-black text-white">{comicGenerationProgress}</h4>
                 <p className="text-[10px] text-white/40 italic font-sans max-w-xs mx-auto">
-                  Stable Diffusion dessine vos souvenirs à la volée. Cela peut prendre 3 à 6 secondes...
+                  La couverture se crée à partir des souvenirs visibles de votre foyer. Cela peut prendre quelques secondes.
                 </p>
               </div>
             </div>
@@ -912,7 +963,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
               {/* Planche de BD */}
               <div className="relative rounded-[36px] overflow-hidden border border-[#6C5CFF]/25 bg-black/60 p-6 md:p-8 space-y-8 shadow-[0_20px_60px_rgba(108,92,255,0.15)]">
                 
-                {/* 1. Couverture de Comics Héroïque */}
+                {/* 1. Couverture illustrée */}
                 {comicImage && (
                   <div className="relative w-full max-w-sm mx-auto rounded-[24px] overflow-hidden border-4 border-white shadow-2xl transform rotate-[-0.5deg] group hover:rotate-0 transition-transform duration-500">
                     <img src={comicImage} alt="Comic Cover" className="w-full h-auto object-cover" />
@@ -920,16 +971,13 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                     {/* Retro Comic Labels overlay */}
                     <div className="absolute top-0 inset-x-0 bg-gradient-to-b from-black/80 to-transparent p-4 flex justify-between items-start">
                       <div className="bg-[#FFB020] text-black px-2 py-0.5 rounded text-[8px] font-black tracking-widest uppercase">
-                        N° 01 • SEMAINE OR
-                      </div>
-                      <div className="bg-[#FF4D6D] text-white px-2 py-0.5 rounded text-[8px] font-black tracking-widest uppercase">
-                        0.15 €
+                        ÉDITION FAMILIALE
                       </div>
                     </div>
 
                     <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 text-center">
                       <span className="text-[8.5px] font-bold text-[#FFB020] uppercase tracking-widest block font-sans">
-                        Les Chroniques Héroïques du Clan
+                        Les chroniques du foyer
                       </span>
                       <h3 className="text-base font-black text-white font-serif tracking-tight uppercase leading-none mt-1">
                         L'Aventure Merveilleuse
@@ -945,7 +993,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                       📖 Épopée en 3 chapitres réels
                     </span>
                     <span className="text-[9px] text-[#6C5CFF] font-bold font-sans">
-                      Photos réelles de la semaine intégrées
+                      Souvenirs réels intégrés
                     </span>
                   </div>
 
@@ -964,7 +1012,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                           <div className="relative w-full h-32 rounded-xl overflow-hidden border border-white/8 bg-black/40 mb-3 shadow-inner">
                             <img src={ch.photo} alt={ch.title} className="w-full h-full object-cover grayscale brightness-90 hover:grayscale-0 hover:brightness-100 transition-all duration-500" />
                             <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/75 text-[7.5px] font-extrabold text-[#FFB020] uppercase tracking-wider">
-                              Capture Réelle
+                              Souvenir réel
                             </span>
                           </div>
                         )}
@@ -992,13 +1040,13 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4">
                   <a 
                     href={comicImage} 
-                    download="MaFamille_BD_Semaine.png"
+                    download="MyFamily_BD_Famille.png"
                     target="_blank"
                     rel="noreferrer"
                     className="py-3.5 rounded-xl border border-white/10 bg-white/5 text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:bg-white/10 transition-all flex items-center justify-center gap-2"
                   >
                     <Download className="w-4 h-4" />
-                    <span>Télécharger la Couverture</span>
+                    <span>Télécharger la couverture</span>
                   </a>
 
                   <button
@@ -1006,7 +1054,7 @@ export const CapsuleTemporelle: React.FC<CapsuleTemporelleProps> = ({
                     className="py-3.5 rounded-xl bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:brightness-110 transition-all shadow-md shadow-[#6C5CFF]/15 flex items-center justify-center gap-2"
                   >
                     <Share2 className="w-4 h-4" />
-                    <span>Publier la BD sur le Mur</span>
+                    <span>Publier dans l'album</span>
                   </button>
                 </div>
 
