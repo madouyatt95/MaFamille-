@@ -879,13 +879,20 @@ export const Accueil: React.FC<AccueilProps> = ({
               <StickyNote className="w-4 h-4 text-[#FFB020]" />
               <h2 className="text-sm font-black text-white uppercase tracking-wider">Mots de la famille</h2>
             </div>
-            <p className="text-[11px] text-white/50 font-semibold mt-1">
-              Petits mots visibles par tous : rappels maison, infos du jour et messages rapides.
-            </p>
           </div>
-          <span className="shrink-0 rounded-2xl border border-white/8 bg-white/5 px-3 py-1.5 text-[10px] font-black text-white/55">
-            {visibleMemos.length} mot{visibleMemos.length > 1 ? 's' : ''}
-          </span>
+          <div className="shrink-0 flex items-center gap-2">
+            <span className="rounded-2xl border border-white/8 bg-white/5 px-3 py-1.5 text-[10px] font-black text-white/55">
+              {visibleMemos.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => setMemoComposerOpen(prev => !prev)}
+              className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.04] text-white/45 hover:text-white hover:bg-white/10 transition flex items-center justify-center"
+              aria-label="Ajouter un mot"
+            >
+              {memoComposerOpen ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+            </button>
+          </div>
         </div>
 
         {memoComposerOpen && (
@@ -969,21 +976,10 @@ export const Accueil: React.FC<AccueilProps> = ({
                 </article>
               );
             })}
-          <button
-            type="button"
-            onClick={() => setMemoComposerOpen(true)}
-            className="min-h-[190px] rounded-[8px] border-2 border-dashed border-[#9D8CFF]/35 bg-white/[0.03] p-5 text-white/55 hover:text-white hover:bg-white/[0.06] transition flex flex-col items-center justify-center gap-4"
-          >
-            <Plus className="w-10 h-10" />
-            <span className="text-sm font-black">Ajouter un mot</span>
-          </button>
         </div>
 
         {visibleMemos.length === 0 && !memoComposerOpen && (
-          <div className="rounded-[22px] border border-dashed border-white/10 bg-white/[0.03] p-4 text-center">
-            <p className="text-xs font-bold text-white/50">Aucun mot affiché pour le moment.</p>
-            <p className="mt-1 text-[10px] text-white/35">Ajoutez une note rapide pour la famille, un membre ou une urgence maison.</p>
-          </div>
+          <p className="text-xs font-bold text-white/35">Aucun mot affiché.</p>
         )}
       </div>
 
