@@ -185,6 +185,69 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     other: { label: 'Autres', icon: FileText, color: 'text-gray-400 bg-gray-400/10' },
   };
 
+  const parseDocumentDate = (value?: string): Date | null => {
+    if (!value) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const parsed = new Date(`${value}T12:00:00`);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    const parts = value.split(/[./-]/);
+    if (parts.length === 3) {
+      const [day, month, year] = parts.map(Number);
+      const parsed = new Date(year, month - 1, day, 12, 0, 0);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const formatDocumentDate = (value?: string) => {
+    const parsed = parseDocumentDate(value);
+    return parsed ? parsed.toLocaleDateString('fr-FR') : value || '';
+  };
+
+  const getRenewalStatus = (doc: DocumentFile) => {
+    const date = parseDocumentDate(doc.expiryDate);
+    if (!date) {
+      return { status: 'none' as const, label: 'Sans échéance', days: null as number | null, accent: 'text-white/40', border: 'border-white/10', bg: 'bg-white/5' };
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const days = Math.ceil((date.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+    if (days < 0 || doc.isExpired) {
+      return { status: 'expired' as const, label: `Expiré depuis ${Math.abs(days)} j`, days, accent: 'text-[#FF4D6D]', border: 'border-[#FF4D6D]/35', bg: 'bg-[#FF4D6D]/10' };
+    }
+    if (days <= 30) {
+      return { status: 'urgent' as const, label: `À renouveler dans ${days} j`, days, accent: 'text-[#FFB020]', border: 'border-[#FFB020]/35', bg: 'bg-[#FFB020]/10' };
+    }
+    if (days <= 90) {
+      return { status: 'soon' as const, label: `À surveiller dans ${days} j`, days, accent: 'text-[#4F8CFF]', border: 'border-[#4F8CFF]/25', bg: 'bg-[#4F8CFF]/10' };
+    }
+    return { status: 'ok' as const, label: `Valide ${days} j`, days, accent: 'text-[#00D26A]', border: 'border-[#00D26A]/20', bg: 'bg-[#00D26A]/10' };
+  };
+
+  const renewalDocs = useMemo(() => {
+    return documents
+      .map(doc => ({ doc, renewal: getRenewalStatus(doc), expiryDate: parseDocumentDate(doc.expiryDate) }))
+      .filter(item => item.expiryDate && ['expired', 'urgent', 'soon'].includes(item.renewal.status))
+      .sort((a, b) => (a.expiryDate?.getTime() || 0) - (b.expiryDate?.getTime() || 0));
+  }, [documents]);
+
+  const activeDemarchesCount = demarches.filter(d => d.status !== 'completed' && d.status !== 'archived').length;
+  const completedDemarchesCount = demarches.filter(d => d.status === 'completed').length;
+  const protectedDocsCount = documents.filter(d => d.isSecure).length;
+  const readyPacksCount = packs.filter(p => p.documentIds.length > 0).length;
+
+  const addDocumentRenewalReminder = (doc: DocumentFile) => {
+    const parsed = parseDocumentDate(doc.expiryDate);
+    if (!parsed || !onAddEvent) return;
+    const reminderDate = new Date(parsed);
+    reminderDate.setDate(reminderDate.getDate() - 14);
+    const dateForCalendar = reminderDate > new Date() ? reminderDate : parsed;
+    onAddEvent(`Renouveler : ${doc.name}`, dateForCalendar.toISOString().split('T')[0]);
+    alert('📅 Rappel ajouté au calendrier familial.');
+  };
+
   const filteredDocs = useMemo(() => {
     return documents.filter(doc => {
       const matchSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -193,14 +256,10 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
       
       if (viewMode === 'expiring') {
         if (!doc.expiryDate) return false;
-        // Parse DD/MM/YYYY
-        const parts = doc.expiryDate.split('/');
-        if (parts.length === 3) {
-          const docDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-          const ninetyDaysFromNow = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
-          return docDate < ninetyDaysFromNow;
-        }
-        return false;
+        const docDate = parseDocumentDate(doc.expiryDate);
+        if (!docDate) return false;
+        const ninetyDaysFromNow = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+        return docDate < ninetyDaysFromNow;
       }
       return true;
     });
@@ -259,7 +318,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
       category: newDocCategory,
       memberId: member?.id,
       memberName: member?.name,
-      uploadDate: new Date().toLocaleDateString('fr-FR'),
+      uploadDate: new Date().toISOString().split('T')[0],
       expiryDate: newDocExpiry || undefined,
       fileSize: 'Modéré', // Computed size could be added here
       isExpired: false,
@@ -269,6 +328,15 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     };
 
     setDocuments(prev => [newDoc, ...prev]);
+    if (newDoc.expiryDate && onAddEvent) {
+      const parsed = parseDocumentDate(newDoc.expiryDate);
+      if (parsed) {
+        const reminderDate = new Date(parsed);
+        reminderDate.setDate(reminderDate.getDate() - 14);
+        const dateForCalendar = reminderDate > new Date() ? reminderDate : parsed;
+        onAddEvent(`Renouveler : ${newDoc.name}`, dateForCalendar.toISOString().split('T')[0]);
+      }
+    }
     setIsUploading(false);
     
     // Reset
@@ -331,7 +399,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
           </div>
           
           <div className="text-center space-y-2 max-w-sm">
-            <h2 className="text-xl font-extrabold tracking-tight">Activez votre Coffre-Fort Sécurisé</h2>
+            <h2 className="text-xl font-extrabold tracking-tight">Activez votre coffre-fort familial</h2>
             <p className="text-xs text-white/50 leading-relaxed">
               Pour stocker vos pièces d'identité, attestations de santé et justificatifs en toute sérénité, nous garantissons un traitement strictement conforme au RGPD.
             </p>
@@ -352,16 +420,16 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
               <div className="flex items-start space-x-3">
                 <span className="text-lg mt-0.5">🔒</span>
                 <div>
-                  <p className="font-bold text-white">Cryptage de Bout-en-Bout</p>
-                  <p className="text-[10px] text-white/40 leading-normal">Chiffrement AES-256 au repos et protocoles SSL/TLS en transit pour garantir que personne d'autre ne puisse intercepter vos fichiers.</p>
+                  <p className="font-bold text-white">Protection des fichiers</p>
+                  <p className="text-[10px] text-white/40 leading-normal">Chiffrement au repos et protocoles SSL/TLS en transit pour limiter les accès non autorisés à vos fichiers.</p>
                 </div>
               </div>
 
               <div className="flex items-start space-x-3">
                 <span className="text-lg mt-0.5">🗑️</span>
                 <div>
-                  <p className="font-bold text-white">Droit à l'Oubli & Portabilité</p>
-                  <p className="text-[10px] text-white/40 leading-normal">Chaque fichier supprimé l'est de manière définitive et physique de nos bases de données instantanément.</p>
+                  <p className="font-bold text-white">Suppression & portabilité</p>
+                  <p className="text-[10px] text-white/40 leading-normal">Vous pouvez supprimer vos documents et récupérer vos pièces importantes à tout moment depuis votre espace familial.</p>
                 </div>
               </div>
             </div>
@@ -392,7 +460,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h2 className="text-xl font-bold">Coffre-Fort</h2>
+                <h2 className="text-xl font-bold">Coffre-fort</h2>
                 <button
                   onClick={() => setShowRgpdCenter(true)}
                   className="px-2 py-0.5 rounded-full bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] text-[9px] font-bold hover:bg-[#00D26A]/20 transition flex items-center space-x-1"
@@ -400,7 +468,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   <span>🔒 RGPD</span>
                 </button>
               </div>
-              <p className="text-xs text-white/50">{documents.length} docs • {demarches.length} démarches • {packs.length} packs</p>
+              <p className="text-xs text-white/50">{documents.length} documents • {activeDemarchesCount} démarches ouvertes • {readyPacksCount} dossiers prêts</p>
             </div>
           </div>
           {mainTab === 'docs' && (
@@ -413,6 +481,45 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
             </button>
           )}
         </div>
+
+      <div className="px-4 pt-4 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => { setMainTab('docs'); setViewMode('all'); setSelectedCategory(null); }}
+          className="text-left rounded-2xl border border-white/8 bg-white/[0.04] p-3 active:scale-[0.98] transition"
+        >
+          <p className="text-[9px] uppercase tracking-widest text-white/35 font-extrabold">Documents</p>
+          <p className="text-lg font-extrabold text-white">{documents.length}</p>
+          <p className="text-[10px] text-white/45">{protectedDocsCount} protégés par code</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => { setMainTab('docs'); setViewMode('expiring'); setSelectedCategory(null); }}
+          className="text-left rounded-2xl border border-[#FFB020]/25 bg-[#FFB020]/10 p-3 active:scale-[0.98] transition"
+        >
+          <p className="text-[9px] uppercase tracking-widest text-[#FFB020]/80 font-extrabold">À renouveler</p>
+          <p className="text-lg font-extrabold text-white">{renewalDocs.length}</p>
+          <p className="text-[10px] text-white/45">pièces avec échéance proche</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => isPremium ? setMainTab('demarches') : onTriggerPaywall?.()}
+          className="text-left rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/10 p-3 active:scale-[0.98] transition"
+        >
+          <p className="text-[9px] uppercase tracking-widest text-[#9D8CFF] font-extrabold">Démarches</p>
+          <p className="text-lg font-extrabold text-white">{activeDemarchesCount}</p>
+          <p className="text-[10px] text-white/45">{completedDemarchesCount} terminées</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMainTab('packs')}
+          className="text-left rounded-2xl border border-[#00D26A]/20 bg-[#00D26A]/10 p-3 active:scale-[0.98] transition"
+        >
+          <p className="text-[9px] uppercase tracking-widest text-[#00D26A] font-extrabold">Dossiers prêts</p>
+          <p className="text-lg font-extrabold text-white">{readyPacksCount}</p>
+          <p className="text-[10px] text-white/45">packs justificatifs</p>
+        </button>
+      </div>
 
       {/* Main Tab Navigation */}
       <div className="p-3 border-b border-white/5">
@@ -430,7 +537,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
             }} 
             className={`py-2.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer relative ${mainTab === 'demarches' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}
           >
-            📋 Démarches 👑
+            📋 Démarches {!isPremium && <Lock className="inline-block w-3 h-3 ml-1 -mt-0.5" />}
             {demarches.filter(d => d.status !== 'completed').length > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#FFB020] rounded-full text-[8px] font-bold text-black flex items-center justify-center">{demarches.filter(d => d.status !== 'completed').length}</span>
             )}
@@ -470,7 +577,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
             >
               {mode === 'categories' && 'Catégories'}
               {mode === 'members' && 'Membres'}
-              {mode === 'expiring' && 'Expirations'}
+              {mode === 'expiring' && 'Échéances'}
               {mode === 'all' && 'Tous'}
             </button>
           ))}
@@ -674,20 +781,65 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
           <div className="space-y-3">
             <div className="flex items-center space-x-2 text-[#FFB020] bg-[#FFB020]/10 p-3 rounded-xl border border-[#FFB020]/20">
               <AlertTriangle className="w-5 h-5" />
-              <p className="text-sm font-medium">Documents à renouveler prochainement</p>
+              <div>
+                <p className="text-sm font-medium">Documents à renouveler</p>
+                <p className="text-[10px] text-white/45">Les pièces expirées ou proches de leur échéance sont regroupées ici.</p>
+              </div>
             </div>
-            {filteredDocs.map(doc => (
-               <div 
-                 key={doc.id} 
-                 onClick={() => setPreviewDoc(doc)}
-                 className="flex items-center justify-between p-3 bg-white/5 border border-[#FFB020]/30 rounded-xl cursor-pointer hover:bg-white/10 transition"
-               >
-                 <div>
-                   <p className="font-semibold text-sm truncate">{doc.name}</p>
-                   <p className="text-xs text-[#FFB020] mt-0.5">Expire le: {doc.expiryDate}</p>
-                 </div>
-               </div>
-            ))}
+            {renewalDocs.length > 0 ? renewalDocs.map(({ doc, renewal }) => {
+              const config = categoryConfig[doc.category];
+              const Icon = config?.icon || FileText;
+              return (
+                <div
+                  key={doc.id}
+                  className={`p-3 rounded-xl border ${renewal.border} ${renewal.bg} space-y-3`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleDocumentClick(doc)}
+                      className="flex items-center gap-3 min-w-0 text-left flex-1"
+                    >
+                      <div className={`p-2 rounded-lg ${config?.color || 'text-white bg-white/10'} shrink-0`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm truncate">{doc.name}</p>
+                        <p className="text-[10px] text-white/45 truncate">
+                          {doc.memberName || 'Famille'} • {config?.label || doc.category} • expire le {formatDocumentDate(doc.expiryDate)}
+                        </p>
+                      </div>
+                    </button>
+                    <span className={`text-[10px] font-extrabold shrink-0 ${renewal.accent}`}>{renewal.label}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleDocumentClick(doc)}
+                      className="flex-1 py-2 rounded-xl bg-white/8 border border-white/10 text-white text-[10px] font-bold"
+                    >
+                      Voir le document
+                    </button>
+                    {onAddEvent && (
+                      <button
+                        type="button"
+                        onClick={() => addDocumentRenewalReminder(doc)}
+                        className="flex-1 py-2 rounded-xl bg-[#4F8CFF]/10 border border-[#4F8CFF]/20 text-[#7AA8FF] text-[10px] font-bold flex items-center justify-center gap-1"
+                      >
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>Créer rappel</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            }) : (
+              <div className="text-center py-10 rounded-2xl border border-white/8 bg-white/[0.03]">
+                <CheckCircle2 className="w-8 h-8 text-[#00D26A] mx-auto mb-2" />
+                <p className="text-sm font-bold text-white">Aucune échéance urgente</p>
+                <p className="text-[10px] text-white/40 mt-1">Ajoutez une date d'expiration à vos documents pour suivre les renouvellements.</p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1143,11 +1295,8 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                             // Ne pas attacher de document expiré
                             if (d.isExpired) return false;
                             if (d.expiryDate) {
-                              const parts = d.expiryDate.split('/');
-                              if (parts.length === 3) {
-                                const docDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-                                if (docDate < new Date()) return false;
-                              }
+                              const docDate = parseDocumentDate(d.expiryDate);
+                              if (docDate && docDate < new Date()) return false;
                             }
                             // Correspondre au membre si assigné
                             if (member && d.memberId && d.memberId !== member.id) return false;
@@ -1198,10 +1347,10 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
       {mainTab === 'packs' && (
         <div className="flex-1 overflow-y-auto p-4 space-y-5">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Packs Justificatifs</span>
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Dossiers justificatifs</span>
             <button type="button" onClick={() => { setShowNewPack(true); setSelectedPackDocs([]); }} className="px-3 py-1.5 bg-[#6C5CFF] rounded-xl text-[10px] font-bold text-white cursor-pointer hover:opacity-90 transition flex items-center space-x-1">
               <Plus className="w-3 h-3" />
-              <span>Nouveau pack</span>
+              <span>Nouveau dossier</span>
             </button>
           </div>
 
@@ -1236,7 +1385,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                     className="py-2.5 rounded-xl bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] text-[10px] font-bold cursor-pointer hover:bg-[#00D26A]/20 transition flex items-center justify-center space-x-1.5"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>PDF Unique</span>
+                    <span>Exporter PDF</span>
                   </button>
                   <button
                     type="button"
@@ -1248,7 +1397,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                     className="py-2.5 rounded-xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF] text-[10px] font-bold cursor-pointer hover:bg-[#6C5CFF]/20 transition flex items-center justify-center space-x-1.5"
                   >
                     <Share2 className="w-3.5 h-3.5" />
-                    <span>Lien Externe</span>
+                    <span>Lien de partage</span>
                   </button>
                 </div>
               </div>
@@ -1267,10 +1416,10 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
             <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowNewPack(false)}>
               <div className="glass-panel border border-white/10 rounded-[28px] w-full max-w-md p-6 space-y-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-extrabold text-white">Nouveau Pack Justificatif</h3>
+                  <h3 className="text-sm font-extrabold text-white">Nouveau dossier justificatif</h3>
                   <button type="button" onClick={() => setShowNewPack(false)} className="p-1.5 bg-white/5 rounded-xl text-white/40 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
                 </div>
-                <input type="text" placeholder="Nom du pack (ex: Dossier location Paris)" value={newPackName} onChange={e => setNewPackName(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]" />
+                <input type="text" placeholder="Nom du dossier (ex: Location Paris)" value={newPackName} onChange={e => setNewPackName(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]" />
                 <select value={newPackType} onChange={e => setNewPackType(e.target.value as any)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]">
                   <option value="location">🏠 Location</option>
                   <option value="ecole">🎓 École</option>
@@ -1310,7 +1459,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   }}
                   className="w-full py-3 bg-[#6C5CFF] rounded-xl text-white text-xs font-extrabold cursor-pointer hover:opacity-90 transition"
                 >
-                  Créer le pack ({selectedPackDocs.length} doc{selectedPackDocs.length > 1 ? 's' : ''})
+                  Créer le dossier ({selectedPackDocs.length} doc{selectedPackDocs.length > 1 ? 's' : ''})
                 </button>
               </div>
             </div>
@@ -1331,17 +1480,17 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
               <div className="w-16 h-16 rounded-2xl bg-[#00D26A]/10 flex items-center justify-center border border-[#00D26A]/20 mb-2">
                 <Shield className="w-8 h-8 text-[#00D26A]" />
               </div>
-              <h3 className="text-lg font-bold">Espace de Sécurité & RGPD</h3>
+              <h3 className="text-lg font-bold">Espace sécurité & RGPD</h3>
               <p className="text-xs text-white/50 px-4">Vos documents sont protégés conformément au Règlement Général sur la Protection des Données (RGPD).</p>
               
               <div className="w-full text-left space-y-3 bg-white/[0.02] border border-white/5 rounded-2xl p-4 text-xs">
                 <div>
-                  <p className="font-bold text-white flex items-center"><span className="mr-1.5">🛡️</span> Droit à la suppression définitive</p>
-                  <p className="text-[10px] text-white/40 leading-normal mt-0.5">Toute suppression de document est définitive et immédiate sur nos serveurs de stockage cryptés en Union Européenne.</p>
+                  <p className="font-bold text-white flex items-center"><span className="mr-1.5">🛡️</span> Suppression des documents</p>
+                  <p className="text-[10px] text-white/40 leading-normal mt-0.5">Un document supprimé est retiré de votre coffre et de la synchronisation familiale.</p>
                 </div>
                 <div>
-                  <p className="font-bold text-white flex items-center"><span className="mr-1.5">🔑</span> Chiffrement fort</p>
-                  <p className="text-[10px] text-white/40 leading-normal mt-0.5">Tous les transferts s'effectuent via des tunnels sécurisés SSL/TLS (HTTPS). Vos fichiers sont encryptés en AES-256.</p>
+                  <p className="font-bold text-white flex items-center"><span className="mr-1.5">🔑</span> Protection des accès</p>
+                  <p className="text-[10px] text-white/40 leading-normal mt-0.5">Les transferts passent par HTTPS et les documents sensibles peuvent demander le code parental avant consultation.</p>
                 </div>
                 <div>
                   <p className="font-bold text-white flex items-center"><span className="mr-1.5">📁</span> Droit à la portabilité</p>
