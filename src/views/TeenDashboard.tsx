@@ -418,7 +418,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
     const pmKey = `mf_peacemaker_mediations_${mId}`;
     const pmCount = Number(localStorage.getItem(pmKey) || '0');
     if (pmCount >= 1) {
-      list.push({ id: 'badge-pm', title: 'Médiateur de Paix 🕊️', desc: 'Tu as résolu un conflit en utilisant PeaceMaker IA.', icon: '🕊️' });
+      list.push({ id: 'badge-pm', title: 'Médiateur de Paix 🕊️', desc: 'Tu as résolu un conflit avec le médiateur familial.', icon: '🕊️' });
     }
 
     const storyKey = `mf_stories_created_${mId}`;
@@ -803,7 +803,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
       list.push({
         id: `peacemaker-activity`,
         type: 'Médiation',
-        title: `Résolution PeaceMaker IA active 🕊️`,
+        title: `Médiation familiale active 🕊️`,
         description: `Tu as participé à ${pmCount} médiation(s) bienveillante(s) avec l'IA.`,
         date: new Date(),
         dateText: 'Récemment',
@@ -2344,7 +2344,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                   >
                     <span className="text-2xl">✌️</span>
                     <div>
-                      <h4 className="text-[10px] font-black text-white leading-tight">PeaceMaker IA</h4>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Médiateur familial</h4>
                       <p className="text-[8px] font-bold text-amber-400 mt-0.5 leading-none">Régler un souci</p>
                     </div>
                   </button>
@@ -2566,7 +2566,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
               { id: 'badge-hw', title: 'Premier devoir terminé 📚', desc: 'Tu as complété ton premier devoir scolaire.', icon: '📝' },
               { id: 'badge-task', title: 'Missionnaire Actif 🧹', desc: '5 missions d\'entraide familiale accomplies.', icon: '⚡' },
               { id: 'badge-vote', title: 'Citoyen du Foyer ⚖️', desc: 'Tu as participé aux votes du conseil de famille.', icon: '🗳️' },
-              { id: 'badge-pm', title: 'Médiateur de Paix 🕊️', desc: 'Tu as résolu un conflit en utilisant PeaceMaker IA.', icon: '🕊️' },
+              { id: 'badge-pm', title: 'Médiateur de Paix 🕊️', desc: 'Tu as résolu un conflit avec le médiateur familial.', icon: '🕊️' },
               { id: 'badge-story', title: 'Grand Conteur 🌙', desc: 'Tu as créé ton premier conte magique du soir.', icon: '📖' },
               { id: 'badge-save', title: 'Épargnant Sage 🪙', desc: 'Objectif d\'épargne personnel défini.', icon: '💰' },
               { id: 'badge-trip', title: 'Aventurier ✈️', desc: 'Voyage familial prévu à l\'horizon.', icon: '🗺️' },

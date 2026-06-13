@@ -175,7 +175,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           <HeartHandshake className="w-6 h-6" />
         </div>
         <div>
-          <h2 className="text-lg font-extrabold text-white">PeaceMaker IA</h2>
+          <h2 className="text-lg font-extrabold text-white">Médiateur familial IA</h2>
           <p className="text-xs text-white/50">Médiateur intelligent et gestion positive des conflits du quotidien</p>
         </div>
       </div>
@@ -233,7 +233,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
 
           <div className="flex items-center space-x-2 text-[#00D26A] border-b border-white/5 pb-3">
             <ShieldCheck className="w-5 h-5 shrink-0" />
-            <span className="text-xs font-extrabold uppercase tracking-wider">Résolution PeaceMaker IA</span>
+            <span className="text-xs font-extrabold uppercase tracking-wider">Résolution guidée</span>
           </div>
 
           {/* Underling feelings */}

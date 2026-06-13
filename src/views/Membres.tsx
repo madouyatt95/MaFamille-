@@ -1162,7 +1162,7 @@ export const Membres: React.FC<MembresProps> = ({
                     <div className="p-5 rounded-[24px] bg-slate-900/90 border border-[#6C5CFF]/30 space-y-4 animate-scale-up">
                       <div className="flex justify-between items-center pb-2 border-b border-white/5">
                         <span className="text-[10px] font-black text-[#6C5CFF] uppercase tracking-widest block font-sans">
-                          Générateur d'Avatars IA Premium
+                          Générateur d'avatars IA Plus
                         </span>
                         <button
                           onClick={() => setShowAvatarGenerator(false)}

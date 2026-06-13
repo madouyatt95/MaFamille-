@@ -79,7 +79,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
         status: 'active',
         expiresAt: expiresAt.toISOString()
       });
-      alert(`Mode test Premium activé pour l’offre ${selectedPlanLabel}. Aucun paiement réel n’a été lancé.`);
+      alert(`Mode test Plus activé pour l’offre ${selectedPlanLabel}. Aucun paiement réel n’a été lancé.`);
       onClose();
     }, 1800);
   };
@@ -108,7 +108,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
       icon: Users
     },
     {
-      label: 'Débloqué en Premium',
+      label: 'Inclus avec Plus',
       value: 'IA réelle, exports, démarches et modules famille avancés',
       icon: LockKeyhole
     },
@@ -187,7 +187,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
       <div className="relative w-full max-w-2xl glass-panel border border-[#6C5CFF]/30 rounded-[28px] overflow-hidden bg-[#07111F] shadow-[0_25px_70px_-20px_rgba(108,92,255,0.42)] max-h-[92vh] flex flex-col">
         <button 
           onClick={onClose}
-          aria-label="Fermer l'offre Premium"
+          aria-label="Fermer l'offre Plus"
           className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/8 border border-white/10 text-white/60 hover:text-white transition-colors cursor-pointer"
         >
           <X className="w-4 h-4" />
@@ -200,14 +200,14 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
             </div>
             <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-2xl font-extrabold text-white tracking-tight">MyFamily+ Premium</h2>
+                <h2 className="text-2xl font-extrabold text-white tracking-tight">MyFamily+ Plus</h2>
                 <span className="px-2.5 py-1 rounded-full bg-[#00D26A]/12 border border-[#00D26A]/20 text-[9px] text-[#00D26A] font-black uppercase tracking-wider">
                   {isWeb ? 'Paiement réel PWA' : 'Test iOS'}
                 </span>
               </div>
               <p className="text-sm text-white/58 leading-relaxed max-w-xl">
                 {isWeb
-                  ? "Essayez Premium 7 jours gratuitement, puis gardez une seule offre familiale pour débloquer les limites, les exports et les modules IA avancés. Paiement sécurisé par Stripe pour la PWA."
+                  ? "Essayez Plus 7 jours gratuitement, puis gardez une seule offre familiale pour débloquer les limites, les exports et les modules IA avancés. Paiement sécurisé par Stripe pour la PWA."
                   : "Une seule offre familiale pour débloquer les limites, les exports et les modules IA avancés. Le paiement iOS passera par l'App Store."}
               </p>
               <div className="flex flex-wrap gap-2">
@@ -352,7 +352,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
               ) : (
                 <>
                   <Check className="w-4 h-4" />
-                  <span>Activer Premium test · {selectedPrice}</span>
+                  <span>Activer Plus test · {selectedPrice}</span>
                 </>
               )}
             </button>
@@ -368,7 +368,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
           )}
           <p className="text-[10px] text-white/34 text-center font-sans leading-relaxed">
             {isWeb
-              ? "Stripe démarre l'abonnement avec 7 jours d'essai gratuit. Le foyer passera Premium automatiquement après confirmation."
+              ? "Stripe démarre l'abonnement avec 7 jours d'essai gratuit. Le foyer passera en offre Plus automatiquement après confirmation."
               : "Aucun prélèvement iOS pour le moment. L'achat App Store sera branché dans une étape séparée."}
           </p>
         </div>

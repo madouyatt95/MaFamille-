@@ -1104,7 +1104,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
   const modules = useMemo(() => [
     { id: 'conseil', title: 'Conseil de Famille', desc: 'Sondages actifs & Charte de vie', badge: 'Coopération', icon: Users, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
-    { id: 'conteur', title: 'Histoires du Soir', desc: 'Contes IA personnalisés interactifs', badge: 'Premium', icon: BookOpen, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
+    { id: 'conteur', title: 'Histoires du Soir', desc: 'Contes IA personnalisés interactifs', badge: 'Plus', icon: BookOpen, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
     { id: 'taches', title: 'Tâches', desc: 'Répartition des tâches et suivi', badge: `${tasks.filter(t => !t.done).length} en cours`, icon: Brush, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
     { id: 'argent', title: 'Argent de Poche & Karma', desc: 'Missions, boutique, et suivi du comportement', badge: 'Karma', icon: Coins, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
     { id: 'ecole', title: 'École & Devoirs', desc: 'Tuteur IA, devoirs & quizzes', badge: `${schoolTasks.filter(t => !t.done).length} devoirs`, icon: GraduationCap, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
@@ -1118,7 +1118,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     { id: 'animaux', title: 'Animaux', desc: 'Vaccins et vétérinaire', badge: 'Compagnons', icon: Dog, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
     { id: 'capsule', title: 'Capsule Temporelle', desc: 'Album de souvenirs & Gazette', badge: 'Souvenirs', icon: Camera, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
     { id: 'contacts', title: 'Répertoire Important', desc: 'Numéros utiles & urgences directes', badge: 'Urgent', icon: Phone, color: 'text-red-500 bg-red-500/10 hover:border-red-500/30' },
-    { id: 'peacemaker', title: 'PeaceMaker IA', desc: 'Médiateur de conflits intelligents', badge: 'Médiation', icon: HeartHandshake, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
+    { id: 'peacemaker', title: 'Médiateur familial IA', desc: 'Aide à résoudre les petits conflits', badge: 'Médiation', icon: HeartHandshake, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
     { id: 'settings', title: 'Réglages', desc: 'Configuration de l\'application', badge: 'Système', icon: Wrench, color: 'text-white/50 bg-white/5 hover:border-white/20' },
     { id: 'carte', title: 'Carte Familiale', desc: 'Localisation sécurisée en temps réel', badge: 'En direct', icon: MapIcon, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' }
   ], [documents.length, groceries, pendingVaccines, schoolTasks, tasks]);
@@ -1690,7 +1690,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 <Layers className="w-6 h-6" />
               </div>
               <div>
-                <h1 className="text-xl font-extrabold text-white tracking-tight">OS Familial</h1>
+                <h1 className="text-xl font-extrabold text-white tracking-tight">Espaces famille</h1>
                 <p className="text-xs text-white/50 font-medium font-sans">{visibleModules.length} module{visibleModules.length > 1 ? 's' : ''} disponible{visibleModules.length > 1 ? 's' : ''}</p>
               </div>
             </div>
@@ -1699,7 +1699,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             {isPremium && (
               <div className="text-right">
                 <span className="px-3.5 py-1.8 rounded-full bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white text-[9.5px] font-black uppercase tracking-wider shadow-md shadow-[#6C5CFF]/15 animate-fade-in">
-                  ✨ PREMIUM
+                  ✨ PLUS
                 </span>
               </div>
             )}
