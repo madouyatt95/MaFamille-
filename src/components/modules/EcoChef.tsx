@@ -433,6 +433,70 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
           Connexion IA indisponible ou quota atteint : l'Éco-Chef utilise une recette locale fiable pour continuer sans bloquer.
         </div>
       )}
+
+      <div className="glass-panel border border-[#00D26A]/20 rounded-[28px] p-4 space-y-3 bg-[#00D26A]/5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <span className="text-[10px] font-bold text-[#00D26A] uppercase tracking-widest flex items-center gap-1.5">
+              <BookOpen className="w-3.5 h-3.5" />
+              Carnet de recettes familiales
+            </span>
+            <p className="mt-1 text-[11px] text-white/45 font-semibold">
+              Gardez les recettes validées par la famille, puis ajoutez-les à la semaine ou aux courses.
+            </p>
+          </div>
+          <span className="shrink-0 rounded-2xl border border-white/8 bg-white/5 px-3 py-1.5 text-[10px] font-black text-white/55">
+            {familyRecipes.length}/40
+          </span>
+        </div>
+
+        {familyRecipes.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {familyRecipes.slice(0, 4).map(recipe => (
+              <div key={recipe.id} className="p-2.5 rounded-xl bg-white/[0.04] border border-white/7 space-y-2">
+                <button type="button" onClick={() => setSelectedRecipe(recipe)} className="w-full text-left">
+                  <p className="text-[11px] font-bold text-white truncate">{recipe.title}</p>
+                  <p className="text-[9px] text-white/40">{recipe.time} • {recipe.servings || 4} portions • {recipe.authorName}</p>
+                </button>
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleAddToWeek(recipe)}
+                    className="flex-1 py-1.5 rounded-lg bg-[#6C5CFF]/12 border border-[#6C5CFF]/20 text-[8px] font-black text-[#9D8CFF]"
+                  >
+                    Semaine
+                  </button>
+                  {recipe.missing.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleAddMissing(recipe.missing)}
+                      className="flex-1 py-1.5 rounded-lg bg-[#00D26A]/12 border border-[#00D26A]/20 text-[8px] font-black text-[#00D26A]"
+                    >
+                      Courses
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteFamilyRecipe(recipe.id)}
+                    className="p-1.5 rounded-lg bg-white/5 border border-white/8 text-white/35 hover:text-[#FF4D6D]"
+                    aria-label="Supprimer la recette"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-[22px] border border-dashed border-white/10 bg-white/[0.03] p-4 text-center">
+            <Save className="w-5 h-5 text-white/30 mx-auto mb-2" />
+            <p className="text-xs font-bold text-white/55">Aucune recette familiale gardée.</p>
+            <p className="mt-1 text-[10px] text-white/35">
+              Générez une recette, puis utilisez le bouton “Carnet” ou “Garder en favori” dans le détail.
+            </p>
+          </div>
+        )}
+      </div>
       
 
       {/* Fridge selector */}
@@ -535,55 +599,8 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
         </button>
       </div>
 
-      {(weeklyIdeas.length > 0 || favoriteRecipes.length > 0 || familyRecipes.length > 0) && (
+      {(weeklyIdeas.length > 0 || favoriteRecipes.length > 0) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {familyRecipes.length > 0 && (
-            <div className="glass-panel border border-[#00D26A]/20 rounded-[24px] p-4 space-y-2 sm:col-span-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-[#00D26A] uppercase tracking-widest flex items-center gap-1.5">
-                  <BookOpen className="w-3.5 h-3.5" />
-                  Carnet de recettes familiales
-                </span>
-                <span className="text-[9px] text-white/35 font-bold">{familyRecipes.length}/40</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {familyRecipes.slice(0, 4).map(recipe => (
-                  <div key={recipe.id} className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 space-y-2">
-                    <button type="button" onClick={() => setSelectedRecipe(recipe)} className="w-full text-left">
-                      <p className="text-[11px] font-bold text-white truncate">{recipe.title}</p>
-                      <p className="text-[9px] text-white/40">{recipe.time} • {recipe.servings || 4} portions • {recipe.authorName}</p>
-                    </button>
-                    <div className="flex items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleAddToWeek(recipe)}
-                        className="flex-1 py-1.5 rounded-lg bg-[#6C5CFF]/12 border border-[#6C5CFF]/20 text-[8px] font-black text-[#9D8CFF]"
-                      >
-                        Semaine
-                      </button>
-                      {recipe.missing.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => handleAddMissing(recipe.missing)}
-                          className="flex-1 py-1.5 rounded-lg bg-[#00D26A]/12 border border-[#00D26A]/20 text-[8px] font-black text-[#00D26A]"
-                        >
-                          Courses
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteFamilyRecipe(recipe.id)}
-                        className="p-1.5 rounded-lg bg-white/5 border border-white/8 text-white/35 hover:text-[#FF4D6D]"
-                        aria-label="Supprimer la recette"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           {weeklyIdeas.length > 0 && (
             <div className="glass-panel border border-[#6C5CFF]/20 rounded-[24px] p-4 space-y-2">
               <div className="flex items-center justify-between">

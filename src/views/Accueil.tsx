@@ -30,8 +30,6 @@ import {
   X,
   StickyNote,
   Plus,
-  Trash2,
-  Pin
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Member, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog, ChoreTask, GroceryItem, Transaction, Trip, DocumentFile, SchoolTask } from '../types';
@@ -159,6 +157,7 @@ export const Accueil: React.FC<AccueilProps> = ({
   const [memoText, setMemoText] = useState('');
   const [memoPriority, setMemoPriority] = useState<FamilyMemo['priority']>('normal');
   const [memoAssignee, setMemoAssignee] = useState('all');
+  const [memoComposerOpen, setMemoComposerOpen] = useState(false);
 
   const activeMember = members.find(m => m.id === activeMemberId) || members[0] || {
     id: activeMemberId || '1',
@@ -193,6 +192,7 @@ export const Accueil: React.FC<AccueilProps> = ({
     setMemoText('');
     setMemoPriority('normal');
     setMemoAssignee('all');
+    setMemoComposerOpen(false);
   };
 
   const handleToggleMemo = (memoId: string) => {
@@ -206,12 +206,26 @@ export const Accueil: React.FC<AccueilProps> = ({
   const visibleMemos = familyMemos
     .filter(memo => !memo.done)
     .filter(memo => memo.assignedTo === 'all' || memo.assignedTo === activeMember.id || !isChild)
-    .slice(0, 5);
+    .slice(0, 8);
 
-  const getMemoPriorityStyle = (priority: FamilyMemo['priority']) => {
-    if (priority === 'urgent') return 'border-[#FF4D6D]/30 bg-[#FF4D6D]/10 text-[#FF8BA0]';
-    if (priority === 'important') return 'border-[#FFB020]/30 bg-[#FFB020]/10 text-[#FFD18A]';
-    return 'border-[#6C5CFF]/25 bg-[#6C5CFF]/10 text-[#C9C3FF]';
+  const getMemoCardStyle = (priority: FamilyMemo['priority'], index: number) => {
+    if (priority === 'urgent') return 'bg-[#FFE0E7] text-[#4B1020] border-[#FF9BB0] rotate-[1deg]';
+    if (priority === 'important') return 'bg-[#FFF2BA] text-[#3E2604] border-[#FFD76A] -rotate-[1deg]';
+    return index % 2 === 0
+      ? 'bg-[#E9DDFF] text-[#251640] border-[#C8B4FF] rotate-[0.6deg]'
+      : 'bg-[#E0F8EA] text-[#0D3925] border-[#9BE8BC] -rotate-[0.6deg]';
+  };
+
+  const getMemoAgeLabel = (createdAt: string) => {
+    const created = new Date(createdAt).getTime();
+    if (!Number.isFinite(created)) return 'à l’instant';
+    const minutes = Math.max(0, Math.floor((Date.now() - created) / 60000));
+    if (minutes < 1) return 'à l’instant';
+    if (minutes < 60) return `il y a ${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `il y a ${hours} h`;
+    const days = Math.floor(hours / 24);
+    return `il y a ${days} j`;
   };
 
   // Compute unread messages count
@@ -857,101 +871,117 @@ export const Accueil: React.FC<AccueilProps> = ({
         </div>
       </div>
 
-      {/* Pense-bête familial */}
+      {/* Mots de la famille */}
       <div className="glass-panel rounded-[28px] border border-[#FFB020]/18 p-4 sm:p-5 space-y-4 bg-[#FFB020]/5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <StickyNote className="w-4 h-4 text-[#FFB020]" />
-              <h2 className="text-sm font-black text-white uppercase tracking-wider">Pense-bête familial</h2>
+              <h2 className="text-sm font-black text-white uppercase tracking-wider">Mots de la famille</h2>
             </div>
             <p className="text-[11px] text-white/50 font-semibold mt-1">
-              Notes rapides, rappels maison et petites choses à ne pas oublier.
+              Petits mots visibles par tous : rappels maison, infos du jour et messages rapides.
             </p>
           </div>
           <span className="shrink-0 rounded-2xl border border-white/8 bg-white/5 px-3 py-1.5 text-[10px] font-black text-white/55">
-            {visibleMemos.length} actif{visibleMemos.length > 1 ? 's' : ''}
+            {visibleMemos.length} mot{visibleMemos.length > 1 ? 's' : ''}
           </span>
         </div>
 
-        <form onSubmit={handleAddMemo} className="grid grid-cols-1 lg:grid-cols-[1fr_110px_130px_auto] gap-2">
-          <input
-            type="text"
-            value={memoText}
-            onChange={(e) => setMemoText(e.target.value)}
-            placeholder="ex: Penser au sac de sport, appeler l'école, reprendre une ordonnance..."
-            className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3 text-xs font-semibold text-white placeholder-white/35 outline-none focus:border-[#FFB020]/40"
-          />
-          <select
-            value={memoPriority}
-            onChange={(e) => setMemoPriority(e.target.value as FamilyMemo['priority'])}
-            className="rounded-2xl border border-white/8 bg-[#0F1E36] px-3 py-3 text-xs font-bold text-white outline-none"
-          >
-            <option value="normal">Normal</option>
-            <option value="important">Important</option>
-            <option value="urgent">Urgent</option>
-          </select>
-          <select
-            value={memoAssignee}
-            onChange={(e) => setMemoAssignee(e.target.value)}
-            className="rounded-2xl border border-white/8 bg-[#0F1E36] px-3 py-3 text-xs font-bold text-white outline-none"
-          >
-            <option value="all">Toute la famille</option>
-            {members.map(member => (
-              <option key={member.id} value={member.id}>{member.name}</option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            className="rounded-2xl bg-[#FFB020] px-4 py-3 text-xs font-black text-[#07111F] flex items-center justify-center gap-2 active:scale-[0.98]"
-          >
-            <Plus className="w-4 h-4" />
-            Ajouter
-          </button>
-        </form>
+        {memoComposerOpen && (
+          <form onSubmit={handleAddMemo} className="rounded-[24px] border border-white/10 bg-black/15 p-3 grid grid-cols-1 lg:grid-cols-[1fr_110px_150px_auto] gap-2">
+            <input
+              type="text"
+              value={memoText}
+              onChange={(e) => setMemoText(e.target.value)}
+              placeholder="ex: Papi & Mamie arrivent samedi midi..."
+              className="rounded-2xl border border-white/8 bg-white/[0.06] px-4 py-3 text-xs font-semibold text-white placeholder-white/35 outline-none focus:border-[#FFB020]/40"
+              autoFocus
+            />
+            <select
+              value={memoPriority}
+              onChange={(e) => setMemoPriority(e.target.value as FamilyMemo['priority'])}
+              className="rounded-2xl border border-white/8 bg-[#0F1E36] px-3 py-3 text-xs font-bold text-white outline-none"
+            >
+              <option value="normal">Doux</option>
+              <option value="important">Important</option>
+              <option value="urgent">Urgent</option>
+            </select>
+            <select
+              value={memoAssignee}
+              onChange={(e) => setMemoAssignee(e.target.value)}
+              className="rounded-2xl border border-white/8 bg-[#0F1E36] px-3 py-3 text-xs font-bold text-white outline-none"
+            >
+              <option value="all">Toute la famille</option>
+              {members.map(member => (
+                <option key={member.id} value={member.id}>{member.name}</option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="rounded-2xl bg-[#FFB020] px-4 py-3 text-xs font-black text-[#07111F] flex items-center justify-center gap-2 active:scale-[0.98]"
+            >
+              <Plus className="w-4 h-4" />
+              Publier
+            </button>
+          </form>
+        )}
 
-        {visibleMemos.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
-            {visibleMemos.map((memo) => {
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {visibleMemos.map((memo, index) => {
               const assignee = memo.assignedTo === 'all'
                 ? 'Toute la famille'
                 : members.find(member => member.id === memo.assignedTo)?.name || 'Membre';
               return (
-                <div key={memo.id} className={`rounded-[22px] border p-3 space-y-3 ${getMemoPriorityStyle(memo.priority)}`}>
-                  <div className="flex items-start gap-2">
-                    <Pin className="w-4 h-4 shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-black text-white leading-snug">{memo.text}</p>
-                      <p className="mt-1 text-[9px] font-bold text-white/45">
-                        {assignee} • par {memo.createdBy}
-                      </p>
+                <article
+                  key={memo.id}
+                  className={`relative min-h-[190px] rounded-[8px] border p-5 shadow-lg shadow-black/15 transition-transform hover:scale-[1.01] ${getMemoCardStyle(memo.priority, index)}`}
+                >
+                  <div className="absolute left-1/2 top-2 h-2 w-14 -translate-x-1/2 rounded-full bg-black/10" />
+                  <div className="flex h-full flex-col justify-between gap-6 pt-4">
+                    <p className="font-serif text-2xl sm:text-[26px] font-black italic leading-snug break-words">
+                      {memo.text}
+                    </p>
+                    <div className="flex items-end justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold opacity-70 truncate">pour {assignee}</p>
+                        <p className="text-xs font-semibold opacity-60 truncate">par {memo.createdBy} · {getMemoAgeLabel(memo.createdAt)}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleMemo(memo.id)}
+                          className="rounded-full bg-black/10 px-3 py-2 text-[10px] font-black hover:bg-black/15"
+                        >
+                          Fait
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteMemo(memo.id)}
+                          className="rounded-full bg-black/10 p-2 hover:bg-black/15"
+                          aria-label="Supprimer le mot"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleMemo(memo.id)}
-                      className="flex-1 rounded-xl bg-white/8 border border-white/10 py-2 text-[9px] font-black text-white/70 flex items-center justify-center gap-1.5"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Fait
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteMemo(memo.id)}
-                      className="rounded-xl bg-black/10 border border-white/10 p-2 text-white/45 hover:text-[#FF4D6D]"
-                      aria-label="Supprimer le pense-bête"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
+                </article>
               );
             })}
-          </div>
-        ) : (
+          <button
+            type="button"
+            onClick={() => setMemoComposerOpen(true)}
+            className="min-h-[190px] rounded-[8px] border-2 border-dashed border-[#9D8CFF]/35 bg-white/[0.03] p-5 text-white/55 hover:text-white hover:bg-white/[0.06] transition flex flex-col items-center justify-center gap-4"
+          >
+            <Plus className="w-10 h-10" />
+            <span className="text-sm font-black">Ajouter un mot</span>
+          </button>
+        </div>
+
+        {visibleMemos.length === 0 && !memoComposerOpen && (
           <div className="rounded-[22px] border border-dashed border-white/10 bg-white/[0.03] p-4 text-center">
-            <p className="text-xs font-bold text-white/50">Aucun pense-bête actif.</p>
+            <p className="text-xs font-bold text-white/50">Aucun mot affiché pour le moment.</p>
             <p className="mt-1 text-[10px] text-white/35">Ajoutez une note rapide pour la famille, un membre ou une urgence maison.</p>
           </div>
         )}
