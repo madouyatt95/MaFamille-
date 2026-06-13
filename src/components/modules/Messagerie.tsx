@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Search, Palette, X, Pin, PinOff, Smile, Play, Pause, Archive, Download, FileText, Reply, Trash2, MoreVertical, Plus } from 'lucide-react';
+import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Search, Palette, X, Pin, PinOff, Smile, Play, Pause, Archive, Download, FileText, Reply, Trash2, MoreVertical, Plus, Info, UserPlus } from 'lucide-react';
 import type { Member, ChatMessage, ChatGroup } from '../../types';
 import { foyerService } from '../../services/foyerService';
 import { getSupabaseClient } from '../../utils/supabase';
@@ -227,6 +227,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   const [showArchived, setShowArchived] = useState(false);
   const [conversationFilter, setConversationFilter] = useState<'all' | 'unread' | 'groups' | 'private'>('all');
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showConversationInfo, setShowConversationInfo] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMemberIds, setNewGroupMemberIds] = useState<string[]>([]);
 
@@ -411,6 +412,10 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
   useEffect(() => {
     if (!activeGroupId) return;
+    setShowGroupMenu(false);
+    setShowConversationInfo(false);
+    setShowMsgSearch(false);
+    setMessageSearchQuery('');
     requestAnimationFrame(() => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
@@ -972,6 +977,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     return {
       title,
       subtitle,
+      participants,
       preview,
       time: latestMessage?.timestamp || group.lastMessageTime || '',
       unreadCount,
@@ -1038,7 +1044,15 @@ export const Messagerie: React.FC<MessagerieProps> = ({
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowCreateGroup(true)}
-                className="p-2 rounded-full transition-all active:scale-95 border border-[#00D26A]/25 bg-[#00D26A]/10 text-[#00D26A] hover:bg-[#00D26A]/15"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-full transition-all active:scale-95 border border-[#00D26A]/25 bg-[#00D26A]/10 text-[#00D26A] hover:bg-[#00D26A]/15 text-[10px] font-black uppercase tracking-wide"
+                title="Créer un groupe"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Nouveau groupe</span>
+              </button>
+              <button
+                onClick={() => setShowCreateGroup(true)}
+                className="sm:hidden p-2 rounded-full transition-all active:scale-95 border border-[#00D26A]/25 bg-[#00D26A]/10 text-[#00D26A] hover:bg-[#00D26A]/15"
                 title="Créer un groupe"
               >
                 <Plus className="w-4 h-4" />
@@ -1167,6 +1181,22 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
         {/* Groups List */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+          {!showCreateGroup && (
+            <button
+              type="button"
+              onClick={() => setShowCreateGroup(true)}
+              className="w-full mb-3 flex items-center gap-3 rounded-[24px] border border-[#00D26A]/20 bg-[#00D26A]/10 p-4 text-left hover:bg-[#00D26A]/15 transition"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-[#00D26A]/15 border border-[#00D26A]/25 flex items-center justify-center text-[#00D26A] shrink-0">
+                <UserPlus className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-black text-white">Créer un groupe de discussion</p>
+                <p className="text-[10px] text-white/45 truncate">Choisissez les membres, donnez un nom, puis retrouvez le groupe dans la liste.</p>
+              </div>
+            </button>
+          )}
+
           {unarchivedGroups.length > 0 && (
             <>
               <h4 className="text-[10px] font-black text-white/35 uppercase tracking-widest pl-2 mb-1">Discussions</h4>
@@ -1325,6 +1355,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
   // CHAT VIEW
   const activeGroupMeta = activeGroup ? getConversationMeta(activeGroup) : null;
+  const activeParticipantNames = activeGroupMeta?.participants.map(m => m.name).filter(Boolean) || [];
   return (
     <div className="fixed inset-x-0 top-0 bottom-0 z-[80] flex min-h-0 flex-col overflow-hidden bg-[#0A0D18] pt-[env(safe-area-inset-top,0px)] text-white shadow-2xl md:relative md:inset-auto md:z-10 md:h-[calc(100dvh-9rem)] md:rounded-3xl md:border md:border-white/10 md:pt-0">
       {/* Chat Header */}
@@ -1347,11 +1378,22 @@ export const Messagerie: React.FC<MessagerieProps> = ({
           </div>
           <div className="min-w-0">
             <h2 className="text-base font-bold truncate">{activeGroupMeta?.title || activeGroup?.name}</h2>
-            <p className="text-[10px] text-white/50 truncate">{activeGroupMeta?.subtitle || `${activeGroup?.memberIds.length || 0} membres`}</p>
+            <p className="text-[10px] text-white/50 truncate">
+              {activeGroup?.isPrivate
+                ? activeGroupMeta?.subtitle || `${activeGroup?.memberIds.length || 0} membres`
+                : `${activeParticipantNames.length || activeGroup?.memberIds.length || 0} membres • ${activeParticipantNames.slice(0, 3).join(', ')}${activeParticipantNames.length > 3 ? '…' : ''}`}
+            </p>
           </div>
         </div>
 
         <div className="flex items-center space-x-1">
+          <button
+            onClick={() => setShowConversationInfo(prev => !prev)}
+            className={`p-2 hover:bg-white/10 rounded-full transition-colors ${showConversationInfo ? 'text-[#00D26A]' : 'text-white/60'}`}
+            title="Informations de discussion"
+          >
+            <Info className="w-5 h-5" />
+          </button>
           <button
             onClick={() => { setShowMsgSearch(!showMsgSearch); if (showMsgSearch) setMessageSearchQuery(''); }}
             className={`p-2 hover:bg-white/10 rounded-full transition-colors ${showMsgSearch ? 'text-[#00D26A]' : 'text-white/60'}`}
@@ -1377,7 +1419,11 @@ export const Messagerie: React.FC<MessagerieProps> = ({
                 className="fixed inset-0 z-[129] cursor-default bg-transparent"
                 onClick={() => setShowGroupMenu(false)}
               />
-              <div className="conversation-options-dropdown absolute right-0 mt-2 w-56 bg-[#0F1626]/98 border border-white/15 rounded-2xl shadow-[0_18px_60px_rgba(0,0,0,0.55)] py-2 z-[130] text-xs text-left animate-fade-in backdrop-blur-xl">
+              <div className="conversation-options-dropdown absolute right-0 mt-2 w-72 bg-[#0F1626]/98 border border-white/15 rounded-3xl shadow-[0_18px_60px_rgba(0,0,0,0.55)] p-2 z-[130] text-xs text-left animate-fade-in backdrop-blur-xl">
+                <div className="px-3 py-2 border-b border-white/5 mb-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white/35">Options de discussion</p>
+                  <p className="text-[10px] text-white/45 mt-0.5 truncate">{activeGroupMeta?.title}</p>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
@@ -1389,9 +1435,10 @@ export const Messagerie: React.FC<MessagerieProps> = ({
                       setActiveGroupId(null);
                     }
                   }}
-                  className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-white/80 transition cursor-pointer"
+                  className="w-full text-left px-3 py-3 rounded-2xl hover:bg-white/5 text-white/80 transition cursor-pointer"
                 >
-                  Supprimer pour moi
+                  <span className="block font-bold">Masquer pour moi</span>
+                  <span className="block text-[10px] text-white/40 mt-0.5">Retire la discussion de votre liste uniquement.</span>
                 </button>
 
                 <button
@@ -1407,17 +1454,19 @@ export const Messagerie: React.FC<MessagerieProps> = ({
                     alert(isArchived ? "Discussion désarchivée." : "Discussion archivée.");
                     setActiveGroupId(null);
                   }}
-                  className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-white/80 transition cursor-pointer"
+                  className="w-full text-left px-3 py-3 rounded-2xl hover:bg-white/5 text-white/80 transition cursor-pointer"
                 >
-                  {archivedGroupIds.includes(activeGroupId!) ? 'Désarchiver' : 'Archiver la discussion'}
+                  <span className="block font-bold">{archivedGroupIds.includes(activeGroupId!) ? 'Désarchiver' : 'Archiver la discussion'}</span>
+                  <span className="block text-[10px] text-white/40 mt-0.5">Range la conversation sans supprimer les messages.</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleClearConversationMessages}
-                  className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-white/80 transition cursor-pointer"
+                  className="w-full text-left px-3 py-3 rounded-2xl hover:bg-white/5 text-white/80 transition cursor-pointer"
                 >
-                  Vider les messages
+                  <span className="block font-bold">Vider les messages</span>
+                  <span className="block text-[10px] text-white/40 mt-0.5">Supprime le contenu, mais garde la conversation.</span>
                 </button>
 
                 {activeGroup && (
@@ -1435,9 +1484,10 @@ export const Messagerie: React.FC<MessagerieProps> = ({
                         setActiveGroupId(null);
                       }
                     }}
-                    className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-amber-400 transition cursor-pointer"
+                    className="w-full text-left px-3 py-3 rounded-2xl hover:bg-white/5 text-amber-400 transition cursor-pointer"
                   >
-                    Quitter le groupe
+                    <span className="block font-bold">Quitter le groupe</span>
+                    <span className="block text-[10px] text-amber-300/60 mt-0.5">Vous ne verrez plus cette conversation.</span>
                   </button>
                 )}
 
@@ -1468,9 +1518,10 @@ export const Messagerie: React.FC<MessagerieProps> = ({
                           setActiveGroupId(null);
                         }
                       }}
-                      className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-red-500 font-bold border-t border-white/5 transition cursor-pointer"
+                      className="w-full text-left px-3 py-3 rounded-2xl hover:bg-red-500/10 text-red-400 font-bold border-t border-white/5 transition cursor-pointer"
                     >
-                      Supprimer le groupe
+                      <span className="block font-bold">Supprimer le groupe</span>
+                      <span className="block text-[10px] text-red-300/60 mt-0.5">Supprime le groupe pour toute la famille.</span>
                     </button>
                   );
                 })()}
@@ -1480,6 +1531,37 @@ export const Messagerie: React.FC<MessagerieProps> = ({
           </div>
         </div>
       </div>
+
+      {showConversationInfo && activeGroupMeta && (
+        <div className="relative z-[110] shrink-0 border-b border-white/10 bg-[#0F1626]/95 p-4 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-black text-white">{activeGroupMeta.title}</h3>
+              <p className="text-[10px] text-white/45 mt-0.5">{activeGroup?.isPrivate ? 'Conversation privée' : 'Groupe de discussion'} • {activeGroupMeta.participants.length} membre(s)</p>
+            </div>
+            <button type="button" onClick={() => setShowConversationInfo(false)} className="p-1.5 rounded-full bg-white/5 text-white/45 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            {activeGroupMeta.participants.map(member => (
+              <div key={member.id} className="shrink-0 min-w-[120px] rounded-2xl border border-white/8 bg-white/[0.04] p-2.5 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-white/10 shrink-0">
+                  {member.photoUrl ? (
+                    <img src={member.photoUrl} alt={member.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-white/60">{member.name.charAt(0)}</div>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold text-white truncate">{member.name}</p>
+                  <p className="text-[9px] text-white/35 truncate">{member.role || 'Membre'}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Message Search Bar */}
       {showMsgSearch && (
