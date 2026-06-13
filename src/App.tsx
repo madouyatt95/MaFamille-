@@ -9301,9 +9301,21 @@ function App() {
         feedback = "🔒 Navigation : J'ouvre la Capsule Temporelle de vos souvenirs.";
         fallbackTarget = { tab: 'menu', module: 'capsule', toastMessage: 'Souvenirs ouverts' };
       } 
-      else if (promptLower.includes('peacemaker') || promptLower.includes('dispute') || promptLower.includes('arbitre') || promptLower.includes('juge')) {
-        feedback = "⚖️ Navigation : J'active le PeaceMaker IA pour résoudre le conflit.";
-        fallbackTarget = { tab: 'menu', module: 'peacemaker', toastMessage: 'PeaceMaker ouvert' };
+      else if (
+        promptLower.includes('peacemaker') ||
+        promptLower.includes('médiateur') ||
+        promptLower.includes('mediateur') ||
+        promptLower.includes('médiation') ||
+        promptLower.includes('mediation') ||
+        promptLower.includes('dispute') ||
+        promptLower.includes('conflit') ||
+        promptLower.includes('arbitre') ||
+        promptLower.includes('juge') ||
+        promptLower.includes('réconcil') ||
+        promptLower.includes('reconcil')
+      ) {
+        feedback = "⚖️ Navigation : J'ouvre le Médiateur familial pour apaiser le conflit.";
+        fallbackTarget = { tab: 'menu', module: 'peacemaker', toastMessage: 'Médiateur familial ouvert' };
       } 
       else if (promptLower.includes('simul') || promptLower.includes('mavie') || promptLower.includes('vie')) {
         feedback = "🎮 Navigation : Je lance le simulateur d'éducation MaVie.";
