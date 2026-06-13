@@ -251,6 +251,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   const [suggestionPts, setSuggestionPts] = useState(25);
   const [selectedRewardForRedeem, setSelectedRewardForRedeem] = useState<any | null>(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [missionNotice, setMissionNotice] = useState('');
 
   // Suggested rewards states
   const [sugRewardTitle, setSugRewardTitle] = useState('');
@@ -405,7 +406,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
              (t.validatedByParent || meta.status === 'validated');
     });
     if (completedCh.length >= 5) {
-      list.push({ id: 'badge-task', title: 'Missionnaire Actif 🧹', desc: '5 missions d\'entraide familiale accomplies.', icon: '⚡' });
+      list.push({ id: 'badge-task', title: 'Aide précieuse 🧹', desc: '5 missions d\'entraide familiale accomplies.', icon: '⚡' });
     }
 
     const castV = (votes || []).filter(v => 
@@ -899,7 +900,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
       console.error("[TeenDashboard] Failed to complete task:", err);
     }
 
-    alert(`Super travail ! Mission envoyée pour validation (+${points} pts en attente) 🌟`);
+    setMissionNotice(`Mission envoyée pour validation. ${points} points seront ajoutés après accord parent.`);
   };
 
   // Buy a boutique reward
@@ -2129,7 +2130,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                   >
                     <span className="text-2xl">📋</span>
                     <div>
-                      <h4 className="text-[10px] font-black text-white leading-tight">Mur des tâches</h4>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Missions ouvertes</h4>
                       <p className="text-[8px] font-bold text-indigo-400 mt-0.5 leading-none">
                         {tasks.filter(t => parseChoreTitle(t.title).attributionMode === 'wall' && !t.done).length} tâche{tasks.filter(t => parseChoreTitle(t.title).attributionMode === 'wall' && !t.done).length > 1 ? 's' : ''}
                       </p>
@@ -2157,7 +2158,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                   >
                     <span className="text-2xl">🛡️</span>
                     <div>
-                      <h4 className="text-[10px] font-black text-white leading-tight">Karma & Boucliers</h4>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Confiance</h4>
                       <p className="text-[8px] font-bold text-[#FFB020] mt-0.5 leading-none">
                         {myAccount.shields !== undefined ? `${myAccount.shields} 🛡️ restants` : "Disponible"}
                       </p>
@@ -2564,7 +2565,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {[
               { id: 'badge-hw', title: 'Premier devoir terminé 📚', desc: 'Tu as complété ton premier devoir scolaire.', icon: '📝' },
-              { id: 'badge-task', title: 'Missionnaire Actif 🧹', desc: '5 missions d\'entraide familiale accomplies.', icon: '⚡' },
+              { id: 'badge-task', title: 'Aide précieuse 🧹', desc: '5 missions d\'entraide familiale accomplies.', icon: '⚡' },
               { id: 'badge-vote', title: 'Citoyen du Foyer ⚖️', desc: 'Tu as participé aux votes du conseil de famille.', icon: '🗳️' },
               { id: 'badge-pm', title: 'Médiateur de Paix 🕊️', desc: 'Tu as résolu un conflit avec le médiateur familial.', icon: '🕊️' },
               { id: 'badge-story', title: 'Grand Conteur 🌙', desc: 'Tu as créé ton premier conte magique du soir.', icon: '📖' },
@@ -2981,6 +2982,19 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
               </div>
             </div>
 
+            {missionNotice && (
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-100">
+                <span className="font-bold">{missionNotice}</span>
+                <button
+                  type="button"
+                  onClick={() => setMissionNotice('')}
+                  className="text-[10px] font-black uppercase tracking-wider text-emerald-100/60 hover:text-emerald-100"
+                >
+                  OK
+                </button>
+              </div>
+            )}
+
             {/* Premium Sub-tabs navigation */}
             <div className="flex bg-white/5 border border-white/10 rounded-2xl p-1 relative z-20">
               <button
@@ -2992,7 +3006,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                 }`}
               >
                 📋
-                <span>Mes tâches ({todoTasks.length})</span>
+                <span>Mes missions ({todoTasks.length})</span>
               </button>
               <button
                 onClick={() => setTeenChoreSubTab('wall')}
@@ -3003,7 +3017,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                 }`}
               >
                 🔥
-                <span>Mur des tâches ({wallTasks.length})</span>
+                <span>Missions ouvertes ({wallTasks.length})</span>
               </button>
             </div>
 
@@ -3154,7 +3168,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                 )}
               </div>
             ) : (
-              // Marketplace-style "Mur des tâches" 🔥
+              // Shared missions marketplace
               <div className="space-y-6 animate-fade-in">
                 
                 {/* Mission du jour header card */}
@@ -3208,7 +3222,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                   </div>
                 ) : (
                   <div className="p-4 rounded-[24px] bg-[#6C5CFF]/10 border border-[#6C5CFF]/25 text-center text-xs font-bold text-white/60">
-                    💡 Astuce : Les missions du Mur sont ouvertes à tous ! Premier arrivé, premier servi 🚀
+                    💡 Astuce : ces missions sont ouvertes à tous les enfants. Premier arrivé, premier servi.
                   </div>
                 )}
 
@@ -3532,14 +3546,14 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
         </div>
       )}
 
-      {/* --- RENDER MODULE: KARMA & SHIELDS (karma) --- */}
+      {/* --- RENDER MODULE: TRUST & SHIELDS (karma) --- */}
       {internalTab === 'plus' && activeModule === 'karma' && (() => {
         const shieldsCount = myAccount.shields !== undefined ? myAccount.shields : 3;
         const streakCount = myAccount.streak !== undefined ? myAccount.streak : 0;
         const myApplied = (appliedMaluses || []).filter(m => m.memberId === member.id);
         const activeReparations = myApplied.filter(m => m.reparationTaskId && !m.repaired);
 
-        // Calculate recovery rate or general karma index
+        // Calculate recovery rate or general trust index
         const totalApplied = myApplied.length;
         const activeMaluses = myApplied.filter(m => !m.shieldUsed && !m.repaired);
 
@@ -3553,10 +3567,23 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
-                <h1 className="text-xl font-black text-white">Mon Espace Karma 🛡️</h1>
+                <h1 className="text-xl font-black text-white">Mon espace confiance 🛡️</h1>
                 <p className="text-[10px] text-white/50 font-bold">Suis ton comportement et protège tes récompenses</p>
               </div>
             </div>
+
+            {missionNotice && (
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-100">
+                <span className="font-bold">{missionNotice}</span>
+                <button
+                  type="button"
+                  onClick={() => setMissionNotice('')}
+                  className="text-[10px] font-black uppercase tracking-wider text-emerald-100/60 hover:text-emerald-100"
+                >
+                  OK
+                </button>
+              </div>
+            )}
 
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-2 gap-4">
@@ -3581,11 +3608,11 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
               </div>
             </div>
 
-            {/* General Karma Index Visualizer */}
+            {/* General trust index visualizer */}
             <div className="bg-white/5 border border-white/8 rounded-[32px] p-5 space-y-3">
               <div className="flex justify-between items-center text-xs">
                 <div>
-                  <span className="text-[9px] font-bold text-white/40 uppercase block">Indice de Karma :</span>
+                  <span className="text-[9px] font-bold text-white/40 uppercase block">Indice de confiance :</span>
                   <span className="font-extrabold text-white text-sm">
                     {activeMaluses.length === 0 ? "Comportement Exemplaire ✨" : "Attention requise ⚠️"}
                   </span>
@@ -3664,7 +3691,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                                     validated_by_parent: false 
                                   }).eq('id', task.id);
                                 }
-                                alert("Mission de rattrapage complétée ! En attente de validation parent pour récupérer tes étoiles ! 🎉");
+                                setMissionNotice("Mission de rattrapage envoyée. Un parent doit la valider pour rendre les points.");
                               } catch (err) {
                                 console.error("[TeenDashboard] Failed to complete reparation task:", err);
                               }

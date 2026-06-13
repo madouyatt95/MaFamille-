@@ -1106,7 +1106,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     { id: 'conseil', title: 'Conseil de Famille', desc: 'Sondages actifs & Charte de vie', badge: 'Coopération', icon: Users, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
     { id: 'conteur', title: 'Histoires du Soir', desc: 'Contes IA personnalisés interactifs', badge: 'Plus', icon: BookOpen, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
     { id: 'taches', title: 'Tâches', desc: 'Répartition des tâches et suivi', badge: `${tasks.filter(t => !t.done).length} en cours`, icon: Brush, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
-    { id: 'argent', title: 'Argent de Poche & Karma', desc: 'Missions, boutique, et suivi du comportement', badge: 'Karma', icon: Coins, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
+    { id: 'argent', title: 'Argent de poche & confiance', desc: 'Missions, récompenses et suivi familial', badge: 'Confiance', icon: Coins, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
     { id: 'ecole', title: 'École & Devoirs', desc: 'Tuteur IA, devoirs & quizzes', badge: `${schoolTasks.filter(t => !t.done).length} devoirs`, icon: GraduationCap, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
     { id: 'logement', title: 'Logement', desc: 'Maintenance et garanties', badge: 'Équipements', icon: HomeIcon, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
     { id: 'agenda', title: 'Agenda Familial', desc: 'Calendrier partagé de la maison', badge: 'Calendrier', icon: Calendar, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
@@ -4298,7 +4298,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                     >
                       <option value="single">Assignation unique (Membre spécifique)</option>
                       <option value="multiple">Assignations multiples (Clônée pour chacun)</option>
-                      <option value="wall">Ouverte à tous (Publiée sur le Mur) 🔥</option>
+                      <option value="wall">Ouverte à tous les enfants 🔥</option>
                     </select>
                   </div>
                 </div>
@@ -4606,7 +4606,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               <div className="flex flex-wrap gap-1.5 p-2 bg-white/5 rounded-2xl border border-white/5 text-left animate-slide-down">
                 {[
                   { id: 'all', label: 'Toutes les Archivées' },
-                  { id: 'wall', label: 'Missions Ouvertes (Mur)' },
+                  { id: 'wall', label: 'Missions ouvertes' },
                   { id: 'accepted', label: 'Missions Acceptées / En cours' },
                   { id: 'validated', label: 'Missions Validées' },
                   { id: 'refused', label: 'Missions Refusées' }
@@ -4816,7 +4816,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                                 </span>
                               )}
                               <span className="text-[8px] font-extrabold text-[#6C5CFF] uppercase tracking-widest bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 px-2 py-0.5 rounded-lg">
-                                {isWallTask ? 'Mur des tâches' : (task.recurrence === 'daily' ? 'Quotidienne' : task.recurrence === 'weekly' ? 'Hebdo' : 'Ponctuel')}
+                                {isWallTask ? 'Mission ouverte' : (task.recurrence === 'daily' ? 'Quotidienne' : task.recurrence === 'weekly' ? 'Hebdo' : 'Ponctuel')}
                               </span>
                               <span className={`text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-lg ${
                                 task.priority === 'high' 
@@ -4904,7 +4904,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
                         <div className="flex items-center justify-between pt-3 border-t border-white/5 mt-3">
                           <span className="text-[10px] text-white/50">
-                            {isWallTask ? 'Attribution :' : 'Assigné :'} <strong className="text-white">{isWallTask ? 'Mur / Ouverte' : task.assignedMemberName}</strong>
+                            {isWallTask ? 'Attribution :' : 'Assigné :'} <strong className="text-white">{isWallTask ? 'Ouverte aux enfants' : task.assignedMemberName}</strong>
                           </span>
                           {task.status === 'validated' || task.validatedByParent ? (
                             <span className="text-[10px] font-bold text-[#00D26A] flex items-center space-x-1">
@@ -7777,7 +7777,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   {[
                     { id: 'finance', label: '💶 Soldes & Règles' },
                     { id: 'boutique', label: '🎁 Boutique Cadeaux' },
-                    { id: 'karma', label: '🛡️ Karma & Malus' }
+                    { id: 'karma', label: '🛡️ Confiance & rattrapage' }
                   ].map((tab) => (
                     <button
                       key={tab.id}

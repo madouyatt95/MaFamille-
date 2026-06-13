@@ -377,7 +377,9 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
       console.error("[KidMissions] Failed to suggest reward:", err);
     }
 
-    alert(`Proposition envoyée ! Tes parents ont reçu ton idée : "${customRewardTitle.trim()}".`);
+    setConfettiMessage(`Proposition envoyée : "${customRewardTitle.trim()}". Tes parents pourront la valider.`);
+    setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 4000);
     setCustomRewardTitle('');
   };
 
@@ -427,7 +429,9 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
       console.error("[KidMissions] Failed to save task suggestion request to cloud:", err);
     }
 
-    alert(`Demande envoyée ! Les parents ont reçu ta proposition : "${requestText.trim()}" pour ${requestPoints} points.`);
+    setConfettiMessage(`Demande envoyée : "${requestText.trim()}" pour ${requestPoints} points.`);
+    setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 4000);
     setRequestText('');
   };
 
@@ -526,7 +530,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
           }`}
         >
           <span>🛡️</span>
-          <span>Karma</span>
+          <span>Confiance</span>
         </button>
       </div>
 
@@ -581,10 +585,13 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
 
           {/* Section: Missions disponibles */}
           <div className="space-y-3">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block text-left">🌟 Missions disponibles sur le Mur :</span>
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-wider block text-left">🌟 Missions ouvertes à la famille :</span>
             
             {wallTasks.length === 0 ? (
-              <p className="text-xs text-white/30 text-center py-4 italic">Aucune mission disponible sur le Mur pour le moment.</p>
+              <div className="rounded-[28px] border border-dashed border-white/10 bg-white/3 p-5 text-center">
+                <p className="text-xs font-bold text-white/45">Aucune mission ouverte pour le moment.</p>
+                <p className="mt-1 text-[10px] text-white/30">Tes parents peuvent en publier une depuis l'espace missions.</p>
+              </div>
             ) : (
               wallTasks.map((task: ChoreTask) => {
                 const isCandidate = task.candidates?.includes(member.id);
@@ -1116,14 +1123,14 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
         );
       })()}
 
-      {/* CONTENT: Karma & Behavior */}
+      {/* CONTENT: Trust & Behavior */}
       {activeSubTab === 'karma' && (() => {
         const shieldsCount = myAccount.shields !== undefined ? myAccount.shields : 3;
         const streakCount = myAccount.streak !== undefined ? myAccount.streak : 0;
         const myApplied = (appliedMaluses || []).filter(m => m.memberId === member.id);
         const activeReparations = myApplied.filter(m => m.reparationTaskId && !m.repaired);
 
-        // Calculate recovery rate or general karma index
+        // Calculate recovery rate or general trust index
         const totalApplied = myApplied.length;
         const activeMaluses = myApplied.filter(m => !m.shieldUsed && !m.repaired);
 
@@ -1152,13 +1159,13 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
               </div>
             </div>
 
-            {/* General Karma Index Visualizer */}
+            {/* General trust index visualizer */}
             <div className="bg-white/5 border border-white/8 rounded-[32px] p-5 space-y-3">
               <div className="flex justify-between items-center text-xs">
                 <div>
-                  <span className="text-[9px] font-bold text-white/40 uppercase block">Indice de Karma :</span>
+                  <span className="text-[9px] font-bold text-white/40 uppercase block">Indice de confiance :</span>
                   <span className="font-extrabold text-white text-sm">
-                    {activeMaluses.length === 0 ? "Comportement au Top ! ✨" : "Tâches à réparer ! ⚠️"}
+                    {activeMaluses.length === 0 ? "Tout va bien ! ✨" : "Rattrapage en cours ⚠️"}
                   </span>
                 </div>
                 <span className="font-black text-[#FFB020]">
@@ -1172,7 +1179,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
                 />
               </div>
               <p className="text-[9px] text-white/40 leading-relaxed font-medium">
-                Garde un bon karma pour prouver ton sérieux et obtenir les plus beaux cadeaux de la boutique !
+                La confiance augmente quand les missions sont faites et validées. Elle aide à débloquer plus facilement les récompenses.
               </p>
             </div>
 
@@ -1235,7 +1242,9 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
                                     validated_by_parent: false 
                                   }).eq('id', task.id);
                                 }
-                                alert("Mission de rattrapage complétée ! En attente de validation parent pour récupérer tes étoiles ! 🎉");
+                                setConfettiMessage("Mission de rattrapage envoyée. Un parent doit la valider pour rendre les points.");
+                                setShowConfetti(true);
+                                setTimeout(() => setShowConfetti(false), 4000);
                               } catch (err) {
                                 console.error("[KidMissions] Failed to complete reparation task:", err);
                               }
