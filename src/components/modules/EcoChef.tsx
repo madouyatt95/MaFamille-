@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   Sparkles, 
   Check, 
@@ -18,12 +18,15 @@ import {
   Trash2
 } from 'lucide-react';
 import { aiQuotaService } from '../../services/aiQuotaService';
+import { familyContentService, type CloudFamilyRecipe } from '../../services/familyContentService';
 
 interface EcoChefProps {
   onAddGroceryItem: (name: string, category: string, qty: string) => void;
   formatMoney: (amount: number) => string;
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
+  activeFoyerId?: string;
+  activeMemberName?: string;
 }
 
 interface Recipe {
@@ -42,12 +45,7 @@ interface Recipe {
   prepSteps?: string[];
 }
 
-type FamilyRecipe = Recipe & {
-  savedAt: string;
-  authorName: string;
-  tags: string[];
-  source: 'ia' | 'local' | 'family';
-};
+type FamilyRecipe = Recipe & CloudFamilyRecipe;
 
 const normalizeIngredient = (value: string) => value.trim().toLowerCase();
 
@@ -66,7 +64,7 @@ const readFamilyRecipes = (): FamilyRecipe[] => {
   }
 };
 
-export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, formatMoney, isPremium = false, onTriggerPaywall }) => {
+export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, formatMoney, isPremium = false, onTriggerPaywall, activeFoyerId, activeMemberName = 'Famille' }) => {
   const [fridgeIngredients, setFridgeIngredients] = useState<Array<{ id: string; name: string; checked: boolean; type: string }>>([]);
 
   const [generating, setGenerating] = useState(false);
@@ -101,6 +99,32 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, formatMoney,
   const savedPotential = useMemo(() => Math.max(0, activeIngredients.length * 1.4), [activeIngredients.length]);
   const favoriteRecipeIds = useMemo(() => new Set(favoriteRecipes.map(r => r.id)), [favoriteRecipes]);
   const familyRecipeIds = useMemo(() => new Set(familyRecipes.map(r => r.id)), [familyRecipes]);
+
+  useEffect(() => {
+    if (!activeFoyerId) return;
+    let cancelled = false;
+
+    const syncFamilyRecipes = async () => {
+      const localRecipes = readFamilyRecipes();
+      const cloudRecipes = await familyContentService.fetchRecipes(activeFoyerId);
+      if (cancelled) return;
+
+      if (cloudRecipes.length > 0) {
+        persistFamilyRecipes(cloudRecipes as FamilyRecipe[], false);
+        return;
+      }
+
+      if (localRecipes.length > 0) {
+        await familyContentService.migrateLocalRecipes(activeFoyerId, localRecipes);
+        if (!cancelled) persistFamilyRecipes(localRecipes, false);
+      }
+    };
+
+    void syncFamilyRecipes();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeFoyerId]);
 
   const handleToggleIngredient = (id: string) => {
     setFridgeIngredients(prev =>
@@ -151,10 +175,13 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, formatMoney,
     setRecipeNotice(`"${recipe.title}" ajouté aux idées repas de la semaine.`);
   };
 
-  const persistFamilyRecipes = (next: FamilyRecipe[]) => {
+  const persistFamilyRecipes = (next: FamilyRecipe[], syncCloud = true) => {
     const limited = next.slice(0, 40);
     setFamilyRecipes(limited);
     localStorage.setItem('mf_family_recipes', JSON.stringify(limited));
+    if (syncCloud && activeFoyerId) {
+      void Promise.all(limited.map(recipe => familyContentService.upsertRecipe(activeFoyerId, recipe))).catch(console.warn);
+    }
   };
 
   const handleSaveFamilyRecipe = (recipe: Recipe) => {
@@ -162,7 +189,7 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, formatMoney,
     const familyRecipe: FamilyRecipe = {
       ...recipe,
       savedAt: new Date().toISOString(),
-      authorName: 'Famille',
+      authorName: activeMemberName || 'Famille',
       source: recipe.id.startsWith('rec-gem') ? 'ia' : recipe.id.startsWith('rec-') ? 'local' : 'family',
       tags: [
         recipe.time,
@@ -180,6 +207,7 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, formatMoney,
 
   const handleDeleteFamilyRecipe = (recipeId: string) => {
     persistFamilyRecipes(familyRecipes.filter(recipe => recipe.id !== recipeId));
+    if (activeFoyerId) void familyContentService.deleteRecipe(activeFoyerId, recipeId).catch(console.warn);
     setRecipeNotice('Recette retirée du carnet familial.');
   };
 

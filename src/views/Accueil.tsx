@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Menu, 
   Bell, 
@@ -36,6 +36,7 @@ import type { Member, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog
 import type { UnifiedEvent } from '../utils/agendaHelper';
 import { buildSmartFamilyActions, filterSmartFamilyActions, getSmartFamilySetupProgress, type SmartFamilyAction, type SmartFamilyPreferences } from '../utils/smartFamily';
 import { buildGlobalSearchIndex, searchGlobalIndex, type GlobalSearchResult } from '../utils/globalSearch';
+import { familyContentService, type CloudFamilyMemo } from '../services/familyContentService';
 
 type AccueilUnifiedEvent = UnifiedEvent & {
   type?: string;
@@ -44,15 +45,7 @@ type AccueilUnifiedEvent = UnifiedEvent & {
   date?: string;
 };
 
-type FamilyMemo = {
-  id: string;
-  text: string;
-  priority: 'normal' | 'important' | 'urgent';
-  assignedTo: string;
-  createdBy: string;
-  createdAt: string;
-  done: boolean;
-};
+type FamilyMemo = CloudFamilyMemo;
 
 const readFamilyMemos = (): FamilyMemo[] => {
   try {
@@ -116,6 +109,7 @@ interface AccueilProps {
   onDeleteUnifiedEvent?: (id: string, moduleName: string) => Promise<void>;
   onArchiveUnifiedEvent?: (id: string, moduleName: string) => Promise<void>;
   activeFamilyName?: string;
+  activeFoyerId?: string;
   onOpenSpaceSelector?: () => void;
   smartPreferences?: SmartFamilyPreferences;
   onGlobalSearchResultOpen?: (result: GlobalSearchResult) => void;
@@ -145,6 +139,7 @@ export const Accueil: React.FC<AccueilProps> = ({
   onEventClick,
   onDeleteUnifiedEvent,
   onArchiveUnifiedEvent,
+  activeFoyerId,
   smartPreferences,
   onGlobalSearchResultOpen
 }) => {
@@ -176,6 +171,32 @@ export const Accueil: React.FC<AccueilProps> = ({
     localStorage.setItem('mf_family_memos', JSON.stringify(limited));
   };
 
+  useEffect(() => {
+    if (!activeFoyerId) return;
+    let cancelled = false;
+
+    const syncFamilyMemos = async () => {
+      const localMemos = readFamilyMemos();
+      const cloudMemos = await familyContentService.fetchMemos(activeFoyerId);
+      if (cancelled) return;
+
+      if (cloudMemos.length > 0) {
+        persistFamilyMemos(cloudMemos);
+        return;
+      }
+
+      if (localMemos.length > 0) {
+        await familyContentService.migrateLocalMemos(activeFoyerId, localMemos);
+        if (!cancelled) persistFamilyMemos(localMemos);
+      }
+    };
+
+    void syncFamilyMemos();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeFoyerId]);
+
   const handleAddMemo = (e: React.FormEvent) => {
     e.preventDefault();
     if (!memoText.trim()) return;
@@ -188,7 +209,9 @@ export const Accueil: React.FC<AccueilProps> = ({
       createdAt: new Date().toISOString(),
       done: false
     };
-    persistFamilyMemos([nextMemo, ...familyMemos]);
+    const next = [nextMemo, ...familyMemos];
+    persistFamilyMemos(next);
+    if (activeFoyerId) void familyContentService.upsertMemo(activeFoyerId, nextMemo).catch(console.warn);
     setMemoText('');
     setMemoPriority('normal');
     setMemoAssignee('all');
@@ -196,11 +219,15 @@ export const Accueil: React.FC<AccueilProps> = ({
   };
 
   const handleToggleMemo = (memoId: string) => {
-    persistFamilyMemos(familyMemos.map(memo => memo.id === memoId ? { ...memo, done: !memo.done } : memo));
+    const next = familyMemos.map(memo => memo.id === memoId ? { ...memo, done: !memo.done } : memo);
+    persistFamilyMemos(next);
+    const updated = next.find(memo => memo.id === memoId);
+    if (activeFoyerId && updated) void familyContentService.upsertMemo(activeFoyerId, updated).catch(console.warn);
   };
 
   const handleDeleteMemo = (memoId: string) => {
     persistFamilyMemos(familyMemos.filter(memo => memo.id !== memoId));
+    if (activeFoyerId) void familyContentService.deleteMemo(activeFoyerId, memoId).catch(console.warn);
   };
 
   const visibleMemos = familyMemos
@@ -209,11 +236,11 @@ export const Accueil: React.FC<AccueilProps> = ({
     .slice(0, 8);
 
   const getMemoCardStyle = (priority: FamilyMemo['priority'], index: number) => {
-    if (priority === 'urgent') return 'bg-[#FFE0E7] text-[#4B1020] border-[#FF9BB0] rotate-[1deg]';
-    if (priority === 'important') return 'bg-[#FFF2BA] text-[#3E2604] border-[#FFD76A] -rotate-[1deg]';
+    if (priority === 'urgent') return 'bg-[#FFD8E3] text-[#4B1020] border-[#FF9BAF] rotate-[1.2deg]';
+    if (priority === 'important') return 'bg-[#FFF1A8] text-[#3E2604] border-[#EEC85C] -rotate-[1deg]';
     return index % 2 === 0
-      ? 'bg-[#E9DDFF] text-[#251640] border-[#C8B4FF] rotate-[0.6deg]'
-      : 'bg-[#E0F8EA] text-[#0D3925] border-[#9BE8BC] -rotate-[0.6deg]';
+      ? 'bg-[#FFF7C7] text-[#3E2604] border-[#E9D678] rotate-[0.8deg]'
+      : 'bg-[#F9DDE8] text-[#451426] border-[#E9AFC2] -rotate-[0.7deg]';
   };
 
   const getMemoAgeLabel = (createdAt: string) => {
@@ -942,11 +969,11 @@ export const Accueil: React.FC<AccueilProps> = ({
               return (
                 <article
                   key={memo.id}
-                  className={`relative min-h-[190px] rounded-[8px] border p-5 shadow-lg shadow-black/15 transition-transform hover:scale-[1.01] ${getMemoCardStyle(memo.priority, index)}`}
+                  className={`relative min-h-[180px] rounded-[3px] border px-5 pb-5 pt-7 shadow-[0_18px_28px_rgba(0,0,0,0.22)] transition-transform hover:scale-[1.01] before:absolute before:inset-0 before:bg-[linear-gradient(135deg,rgba(255,255,255,0.35),rgba(255,255,255,0)_42%),repeating-linear-gradient(0deg,rgba(255,255,255,0.12)_0,rgba(255,255,255,0.12)_1px,transparent_1px,transparent_28px)] before:pointer-events-none ${getMemoCardStyle(memo.priority, index)}`}
                 >
-                  <div className="absolute left-1/2 top-2 h-2 w-14 -translate-x-1/2 rounded-full bg-black/10" />
-                  <div className="flex h-full flex-col justify-between gap-6 pt-4">
-                    <p className="font-serif text-2xl sm:text-[26px] font-black italic leading-snug break-words">
+                  <div className="absolute left-1/2 -top-3 h-7 w-20 -translate-x-1/2 rotate-[-2deg] rounded-sm bg-white/45 shadow-sm backdrop-blur-[1px]" />
+                  <div className="relative flex h-full flex-col justify-between gap-6">
+                    <p className="font-serif text-[25px] sm:text-[28px] font-black italic leading-tight break-words drop-shadow-[0_1px_0_rgba(255,255,255,0.25)]">
                       {memo.text}
                     </p>
                     <div className="flex items-end justify-between gap-3">

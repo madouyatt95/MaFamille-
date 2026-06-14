@@ -4038,6 +4038,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 formatMoney={formatMoney} 
                 isPremium={isPremium}
                 onTriggerPaywall={onTriggerPaywall}
+                activeFoyerId={foyer?.id}
+                activeMemberName={members.find(member => member.id === activeMemberId)?.name || 'Famille'}
               />
             ) : (
               <div className="p-8 text-center glass-panel border border-[#6C5CFF]/30 rounded-[32px] bg-gradient-to-b from-[#0F1E3D]/50 to-[#07111F]/80 space-y-4">

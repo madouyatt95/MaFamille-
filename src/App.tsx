@@ -12054,6 +12054,7 @@ function App() {
           onDeleteUnifiedEvent={handleDeleteUnifiedEvent}
           onArchiveUnifiedEvent={handleArchiveUnifiedEvent}
           activeFamilyName={appFoyer?.name}
+          activeFoyerId={appFoyer?.id}
           onOpenSpaceSelector={() => setSpaceSelectorOpen(true)}
           smartPreferences={smartFamilyPrefs}
           onGlobalSearchResultOpen={handleGlobalSearchResultOpen}
