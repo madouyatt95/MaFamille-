@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/purity -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md; legacy render helpers use date/random/derived calls; tracked for a dedicated refactor */
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { 
   Star, CheckCircle2, MapPin, 
   Clock, Trophy, 
@@ -9,16 +9,17 @@ import {
 } from 'lucide-react';
 import type { Member, ChoreTask, FamilyEvent, SchoolTask, SavingGoal, Transaction, NotificationAlert, FamilyVote, Foyer, DocumentFile, Trip, MemoryLog, Dish, ChatGroup, ChatMessage, FamilyModule } from '../types';
 import { parseChoreTitle, serializeChoreTitle, getDefaultPermissions } from '../types';
-import { TuteurScolaire } from '../components/modules/TuteurScolaire';
-import { PeaceMaker } from '../components/modules/PeaceMaker';
-import { ConteurIA } from '../components/modules/ConteurIA';
-import { ConseilFamille } from '../components/modules/ConseilFamille';
-import { CapsuleTemporelle } from '../components/modules/CapsuleTemporelle';
-import { CommuneHub } from '../components/modules/CommuneHub';
-import { FamilyMap } from './FamilyMap';
-import { MenuHub } from './MenuHub';
-import { Agenda } from './Agenda';
 import { getSupabaseClient } from '../utils/supabase';
+
+const TuteurScolaire = lazy(() => import('../components/modules/TuteurScolaire').then(module => ({ default: module.TuteurScolaire })));
+const PeaceMaker = lazy(() => import('../components/modules/PeaceMaker').then(module => ({ default: module.PeaceMaker })));
+const ConteurIA = lazy(() => import('../components/modules/ConteurIA').then(module => ({ default: module.ConteurIA })));
+const ConseilFamille = lazy(() => import('../components/modules/ConseilFamille').then(module => ({ default: module.ConseilFamille })));
+const CapsuleTemporelle = lazy(() => import('../components/modules/CapsuleTemporelle').then(module => ({ default: module.CapsuleTemporelle })));
+const CommuneHub = lazy(() => import('../components/modules/CommuneHub').then(module => ({ default: module.CommuneHub })));
+const FamilyMap = lazy(() => import('./FamilyMap').then(module => ({ default: module.FamilyMap })));
+const MenuHub = lazy(() => import('./MenuHub').then(module => ({ default: module.MenuHub })));
+const Agenda = lazy(() => import('./Agenda').then(module => ({ default: module.Agenda })));
 
 const LEGACY_DEMO_SCHOOL_TASK_IDS = new Set(['st-1', 'st-2', 'st-3', 'st-4', 'st-5']);
 const isValidDate = (date: Date) => !Number.isNaN(date.getTime());
@@ -1177,6 +1178,13 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   };
 
   return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32 flex items-center justify-center">
+        <div className="glass-panel rounded-[28px] border border-white/8 p-6 text-center text-sm font-bold text-white/60">
+          Chargement du module...
+        </div>
+      </div>
+    }>
     <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32 relative overflow-hidden flex flex-col items-center">
       {/* Background decoration blur halos */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#6C5CFF]/10 blur-[120px] pointer-events-none" />
@@ -3982,5 +3990,6 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
 
       </div>
     </div>
+    </Suspense>
   );
 };

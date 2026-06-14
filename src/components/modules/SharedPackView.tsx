@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { FileText, Download, ShieldCheck, CheckSquare, Square, PackageOpen } from 'lucide-react';
 import type { JustificatifPack, DocumentFile } from '../../types';
-import { generatePackPDF } from '../../utils/pdfGenerator';
 
 interface SharedPackViewProps {
   pack: JustificatifPack;
@@ -22,6 +21,7 @@ export const SharedPackView: React.FC<SharedPackViewProps> = ({ pack, documents 
   const handleDownload = async () => {
     setIsGenerating(true);
     const docsToInclude = documents.filter(d => selectedDocs.has(d.id));
+    const { generatePackPDF } = await import('../../utils/pdfGenerator');
     await generatePackPDF(pack, docsToInclude);
     setIsGenerating(false);
   };

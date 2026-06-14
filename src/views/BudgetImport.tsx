@@ -16,8 +16,7 @@ import {
 } from 'lucide-react';
 import { getSupabaseClient, serializeTransactionComment } from '../utils/supabase';
 import type { Transaction, CustomCategory, Account } from '../types';
-import * as XLSX from 'xlsx';
-import { createWorker } from 'tesseract.js';
+import type { WorkBook } from 'xlsx';
 
 interface BudgetImportProps {
   isOpen: boolean;
@@ -79,7 +78,7 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
   const [pasteText, setPasteText] = useState('');
   
   // Excel sheets
-  const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
+  const [workbook, setWorkbook] = useState<WorkBook | null>(null);
   const [sheetsList, setSheetsList] = useState<string[]>([]);
   const [selectedSheet, setSelectedSheet] = useState('');
   const [parsedHeaders, setParsedHeaders] = useState<string[]>([]);
@@ -235,9 +234,10 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
   const readExcelFile = (file: File) => {
     setLoading(true);
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const data = new Uint8Array(e.target?.result as ArrayBuffer);
       try {
+        const XLSX = await import('xlsx');
         const wb = XLSX.read(data, { type: 'array' });
         setWorkbook(wb);
         setSheetsList(wb.SheetNames);
@@ -245,15 +245,17 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
           setSelectedSheet(wb.SheetNames[0]);
           loadExcelSheet(wb, wb.SheetNames[0]);
         }
-      } catch (err: any) {
-        setErrorMsg(`Erreur Excel : ${err.message}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setErrorMsg(`Erreur Excel : ${message}`);
         setLoading(false);
       }
     };
     reader.readAsArrayBuffer(file);
   };
 
-  const loadExcelSheet = (wb: XLSX.WorkBook, sheetName: string) => {
+  const loadExcelSheet = async (wb: WorkBook, sheetName: string) => {
+    const XLSX = await import('xlsx');
     const ws = wb.Sheets[sheetName];
     const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
     if (data.length === 0) {
@@ -304,6 +306,7 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
     setLoadingProgress('Initialisation de Tesseract OCR...');
     
     try {
+      const { createWorker } = await import('tesseract.js');
       const worker = await createWorker('fra');
       setLoadingProgress('Lecture du document...');
       
@@ -312,7 +315,7 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
 
       // Extract transaction data from raw text
       parseOcrText(text);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('OCR Error:', err);
       setErrorMsg(`L'OCR local a échoué. Saisie manuelle suggérée.`);
       setLoading(false);

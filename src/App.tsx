@@ -163,7 +163,6 @@ import { spaceService, type Space } from './services/spaceService';
 import { deleteExternalCalendarSourceForReminders, syncExternalCalendarEventsForReminders } from './services/calendarReminderService';
 import { CommuneHub } from './components/modules/CommuneHub';
 import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction, serializeEventDescription, deserializeEventDescription, logQueryVolume, getCleanDescription } from './utils/supabase';
-import { notificationService } from './services/notificationService';
 import type { Foyer, FoyerMember } from './types';
 import { compressImageToBlob, uploadBlobToStorage } from './utils/imageCompressor';
 
@@ -2290,6 +2289,7 @@ function App() {
     if (pushMemberId && !isPushDisabled) {
       const setupPushNotifications = async () => {
         try {
+          const { notificationService } = await import('./services/notificationService');
           await notificationService.initializeFCM(pushMemberId, (payload) => {
             console.log("[App] Notification push reçue au premier plan :", payload);
             const newAlert: NotificationAlert = {
@@ -14359,6 +14359,7 @@ function App() {
                 <button
                   onClick={async () => {
                     try {
+                      const { notificationService } = await import('./services/notificationService');
                       const token = await notificationService.initializeFCM(activeMemberId, (payload) => {
                         console.log("[App Gesture] FCM notification received:", payload);
                         const newAlert = {

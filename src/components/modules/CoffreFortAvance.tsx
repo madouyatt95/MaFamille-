@@ -1,10 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect, @typescript-eslint/no-unused-vars, react-hooks/purity -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md; legacy synchronization effects intentionally set local state; legacy module keeps placeholders for future flows; legacy render helpers use date/random/derived calls; tracked for a dedicated refactor */
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, Briefcase, Car, Home, Plane, CreditCard, User, AlertTriangle, ArrowLeft, Trash2, Download, Share2, CheckCircle2, ChevronRight, Calendar, Users, Scan, Lock } from 'lucide-react';
-import Tesseract from 'tesseract.js';
 import type { DocumentFile, DocumentCategory, Member, Demarche, JustificatifPack, DemarcheTemplate } from '../../types';
 import { demarcheTemplates } from '../../data/demoData';
-import { generatePackPDF } from '../../utils/pdfGenerator';
 
 interface CoffreFortAvanceProps {
   documents: DocumentFile[];
@@ -140,6 +138,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     if (!selectedFileBase64 || !selectedFileBase64.startsWith('data:image')) return;
     setIsOcrProcessing(true);
     try {
+      const Tesseract = await import('tesseract.js');
       const { data: { text } } = await Tesseract.recognize(selectedFileBase64, 'fra', {
         logger: m => console.log(m)
       });
@@ -1381,7 +1380,10 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <button
                     type="button"
-                    onClick={() => generatePackPDF(pack, packDocs)}
+                    onClick={async () => {
+                      const { generatePackPDF } = await import('../../utils/pdfGenerator');
+                      await generatePackPDF(pack, packDocs);
+                    }}
                     className="py-2.5 rounded-xl bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] text-[10px] font-bold cursor-pointer hover:bg-[#00D26A]/20 transition flex items-center justify-center space-x-1.5"
                   >
                     <Download className="w-3.5 h-3.5" />

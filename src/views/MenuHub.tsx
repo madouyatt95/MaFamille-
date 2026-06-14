@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-useless-assignment -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md; legacy branching keeps intermediate variables for clarity */
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef, useMemo } from 'react';
 import { detectGroceryCategory, parseSmartNaturalSentence, getGroceryItemEmoji, formatGroceryQty, POPULAR_GROCERIES } from '../utils/groceryParser';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
@@ -78,20 +78,19 @@ import type {
 import { getDefaultPermissions, parseChoreTitle, serializeChoreTitle, serializePocketMoneyTitle } from '../types';
 import type { ModulePermissions, FamilyModule } from '../types';
 
-// Import newly built premium sub-modules
-import { EcoChef } from '../components/modules/EcoChef';
-import { TuteurScolaire } from '../components/modules/TuteurScolaire';
-import { CapsuleTemporelle } from '../components/modules/CapsuleTemporelle';
-import { VoyageIA } from '../components/modules/VoyageIA';
-import { ConseilFamille } from '../components/modules/ConseilFamille';
-import { PeaceMaker } from '../components/modules/PeaceMaker';
-import { MaVieSimulator } from '../components/modules/MaVieSimulator';
-import { CoffreFortAvance } from '../components/modules/CoffreFortAvance';
-import { Messagerie } from '../components/modules/Messagerie';
-import { WidgetMeteo } from '../components/modules/WidgetMeteo';
-import { FamilyMap } from './FamilyMap';
-import { ConteurIA } from '../components/modules/ConteurIA';
-import { ContactsImportants } from '../components/modules/ContactsImportants';
+const EcoChef = lazy(() => import('../components/modules/EcoChef').then(module => ({ default: module.EcoChef })));
+const TuteurScolaire = lazy(() => import('../components/modules/TuteurScolaire').then(module => ({ default: module.TuteurScolaire })));
+const CapsuleTemporelle = lazy(() => import('../components/modules/CapsuleTemporelle').then(module => ({ default: module.CapsuleTemporelle })));
+const VoyageIA = lazy(() => import('../components/modules/VoyageIA').then(module => ({ default: module.VoyageIA })));
+const ConseilFamille = lazy(() => import('../components/modules/ConseilFamille').then(module => ({ default: module.ConseilFamille })));
+const PeaceMaker = lazy(() => import('../components/modules/PeaceMaker').then(module => ({ default: module.PeaceMaker })));
+const MaVieSimulator = lazy(() => import('../components/modules/MaVieSimulator').then(module => ({ default: module.MaVieSimulator })));
+const CoffreFortAvance = lazy(() => import('../components/modules/CoffreFortAvance').then(module => ({ default: module.CoffreFortAvance })));
+const Messagerie = lazy(() => import('../components/modules/Messagerie').then(module => ({ default: module.Messagerie })));
+const WidgetMeteo = lazy(() => import('../components/modules/WidgetMeteo').then(module => ({ default: module.WidgetMeteo })));
+const FamilyMap = lazy(() => import('./FamilyMap').then(module => ({ default: module.FamilyMap })));
+const ConteurIA = lazy(() => import('../components/modules/ConteurIA').then(module => ({ default: module.ConteurIA })));
+const ContactsImportants = lazy(() => import('../components/modules/ContactsImportants').then(module => ({ default: module.ContactsImportants })));
 
 // Utility helper to parse French custom input dates (e.g. "12 Octobre 2027", "24/06/2026") into YYYY-MM-DD ISO strings.
 function parseCustomDateToISO(dateStr: string): string {
@@ -1602,6 +1601,13 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   };
 
   return (
+    <Suspense fallback={
+      <div className="pb-32 pt-6 px-4 md:px-8 max-w-4xl mx-auto premium-glow-purple">
+        <div className="glass-panel rounded-[28px] border border-white/8 p-6 text-center text-sm font-bold text-white/60">
+          Chargement du module...
+        </div>
+      </div>
+    }>
     <div className="pb-32 pt-6 px-4 md:px-8 space-y-6 max-w-4xl mx-auto premium-glow-purple">
       
       {/* Back button if active sub-module */}
@@ -9325,5 +9331,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       )}
 
     </div>
+    </Suspense>
   );
 };

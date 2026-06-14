@@ -16,9 +16,7 @@ import {
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
 import type { Transaction, Member, SavingGoal, CustomCategory, Account, Abonnement, Trip } from '../types';
-import * as XLSX from 'xlsx';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import type { WorkSheet } from 'xlsx';
 
 interface BudgetExportProps {
   isOpen: boolean;
@@ -462,10 +460,11 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
         fileBlob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
       }
       else if (format === 'excel') {
+        const XLSX = await import('xlsx');
         const wb = XLSX.utils.book_new();
 
         // Helper to format worksheets: autofilters and auto-widths
-        const formatSheet = (ws: XLSX.WorkSheet, colsCount: number, rowsCount: number) => {
+        const formatSheet = (ws: WorkSheet, colsCount: number, rowsCount: number) => {
           if (rowsCount > 0) {
             const colLetter = String.fromCharCode(65 + colsCount - 1);
             ws['!autofilter'] = { ref: `A1:${colLetter}${rowsCount + 1}` };
@@ -697,6 +696,11 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
         fileBlob = new Blob([wbout], { type: 'application/octet-stream' });
       }
       else if (format === 'pdf') {
+        const [{ jsPDF }, autoTableModule] = await Promise.all([
+          import('jspdf'),
+          import('jspdf-autotable')
+        ]);
+        const autoTable = autoTableModule.default;
         const doc = new jsPDF();
         const pageWidth = doc.internal.pageSize.getWidth();
 
