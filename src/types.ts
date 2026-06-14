@@ -193,6 +193,8 @@ export interface Transaction {
   memberName?: string;
   subCategory?: string;
   accountId?: string;
+  receiptUrl?: string;
+  attachmentUrl?: string;
   receiptBase64?: string;
   attachmentBase64?: string;
   comment?: string;
@@ -233,7 +235,9 @@ export interface DocumentFile {
   fileSize: string;
   isExpired: boolean;
   description?: string;
-  fileBase64?: string; // Stored locally
+  fileUrl?: string;
+  thumbnailUrl?: string;
+  fileBase64?: string; // Legacy local/database payload kept only for migration
   isSecure?: boolean; // Requires PIN to view/download
 }
 

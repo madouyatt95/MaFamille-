@@ -621,9 +621,9 @@ export const foyerService = {
 
     let selectQuery = '*';
     if (tableName === 'transactions') {
-      selectQuery = 'id, foyer_id, amount, type, category, date, title, member_id, member_name, sub_category, account_id, comment, modification_history, is_archived, recurrence, subscription_id, created_at';
+      selectQuery = 'id, foyer_id, amount, type, category, date, title, member_id, member_name, sub_category, account_id, receipt_url, attachment_url, comment, modification_history, is_archived, recurrence, subscription_id, created_at';
     } else if (tableName === 'documents') {
-      selectQuery = 'id, foyer_id, name, category, sub_category, member_id, member_name, tags, upload_date, expiry_date, file_size, is_expired, description, is_secure, created_at';
+      selectQuery = 'id, foyer_id, name, category, sub_category, member_id, member_name, tags, upload_date, expiry_date, file_size, is_expired, description, file_url, thumbnail_url, is_secure, created_at';
     }
 
     const { data, error } = await supabase

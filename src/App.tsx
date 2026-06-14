@@ -79,6 +79,19 @@ type LooseValue = any;
 type DbRow = Record<string, LooseValue>;
 type DbRows = LooseValue[];
 
+const storageUrlFromLegacy = (url?: string | null, legacy?: string | null): string | undefined => {
+  if (isRemoteUrl(url)) return url;
+  if (isRemoteUrl(legacy)) return legacy;
+  return undefined;
+};
+
+const legacyDataUrlOnly = (value?: string | null): string | undefined => (isDataUrl(value) ? value : undefined);
+
+const uploadJsonToStorage = async (foyerId: string, docId: string, jsonStr: string): Promise<string> => {
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  return uploadBlobToStorage('documents', `${foyerId}/${docId}.json`, blob);
+};
+
 const mapCloudMemory = (m: CloudMemoryRow): MemoryLog => {
   const imageUrls = Array.isArray(m.image_urls) ? m.image_urls.filter(Boolean) : [];
   return {
@@ -164,7 +177,7 @@ import { deleteExternalCalendarSourceForReminders, syncExternalCalendarEventsFor
 import { CommuneHub } from './components/modules/CommuneHub';
 import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction, serializeEventDescription, deserializeEventDescription, logQueryVolume, getCleanDescription } from './utils/supabase';
 import type { Foyer, FoyerMember } from './types';
-import { compressImageToBlob, uploadBlobToStorage } from './utils/imageCompressor';
+import { compressImageToBlob, dataUrlToBlob, extensionFromMimeType, isDataUrl, isRemoteUrl, uploadBlobToStorage } from './utils/imageCompressor';
 
 import { getUnifiedEvents } from './utils/agendaHelper';
 import { buildFamilyAssistantResponse, detectFamilyAssistantIntent } from './utils/familyAssistant';
@@ -2760,8 +2773,10 @@ function App() {
             memberName: t.member_name,
             subCategory: t.sub_category,
             accountId: t.account_id,
-            receiptBase64: t.receipt_base64,
-            attachmentBase64: t.attachment_base64,
+            receiptUrl: storageUrlFromLegacy(t.receipt_url, t.receipt_base64),
+            attachmentUrl: storageUrlFromLegacy(t.attachment_url, t.attachment_base64),
+            receiptBase64: legacyDataUrlOnly(t.receipt_base64),
+            attachmentBase64: legacyDataUrlOnly(t.attachment_base64),
             comment: comment,
             modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
             isArchived: !!t.is_archived,
@@ -2807,7 +2822,9 @@ function App() {
           fileSize: d.file_size,
           isExpired: d.is_expired,
           description: d.description,
-          fileBase64: d.file_base64,
+          fileUrl: storageUrlFromLegacy(d.file_url, d.file_base64),
+          thumbnailUrl: d.thumbnail_url || undefined,
+          fileBase64: legacyDataUrlOnly(d.file_base64),
           isSecure: d.is_secure
         })));
       }
@@ -3597,7 +3614,8 @@ function App() {
             id: t.id, amount: Number(t.amount), type: t.type, category: t.category,
             date: t.date, title: t.title, memberId: t.member_id, memberName: t.member_name,
             subCategory: t.sub_category, accountId: t.account_id,
-            receiptBase64: t.receipt_base64, attachmentBase64: t.attachment_base64, comment: comment,
+            receiptUrl: storageUrlFromLegacy(t.receipt_url, t.receipt_base64), attachmentUrl: storageUrlFromLegacy(t.attachment_url, t.attachment_base64),
+            receiptBase64: legacyDataUrlOnly(t.receipt_base64), attachmentBase64: legacyDataUrlOnly(t.attachment_base64), comment: comment,
             modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
             isArchived: !!t.is_archived, recurrence: t.recurrence || 'none', subscriptionId: t.subscription_id,
             moduleSource: metadata.moduleSource || undefined,
@@ -3636,7 +3654,7 @@ function App() {
           id: d.id, name: d.name, category: d.category, subCategory: d.sub_category,
           memberId: d.member_id, memberName: d.member_name, tags: d.tags || [],
           uploadDate: d.upload_date, expiryDate: d.expiry_date, fileSize: d.file_size,
-          isExpired: d.is_expired, description: d.description, fileBase64: d.file_base64, isSecure: d.is_secure
+          isExpired: d.is_expired, description: d.description, fileUrl: storageUrlFromLegacy(d.file_url, d.file_base64), thumbnailUrl: d.thumbnail_url || undefined, fileBase64: legacyDataUrlOnly(d.file_base64), isSecure: d.is_secure
         }));
         setDocuments(prev => {
           const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
@@ -4406,8 +4424,10 @@ function App() {
               memberName: t.member_name,
               subCategory: t.sub_category,
               accountId: t.account_id,
-              receiptBase64: t.receipt_base64,
-              attachmentBase64: t.attachment_base64,
+              receiptUrl: storageUrlFromLegacy(t.receipt_url, t.receipt_base64),
+              attachmentUrl: storageUrlFromLegacy(t.attachment_url, t.attachment_base64),
+              receiptBase64: legacyDataUrlOnly(t.receipt_base64),
+              attachmentBase64: legacyDataUrlOnly(t.attachment_base64),
               comment: comment,
               modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
               isArchived: !!t.is_archived,
@@ -4701,27 +4721,38 @@ function App() {
 
       const currentSessionId = ++syncSessionIdRef.current;
 
-      // Pre-upload LooseValue base64 images in background
+      // Pre-upload legacy data URLs to Storage before syncing Postgres rows.
       let hasUpdates = false;
 
       // 1. Documents
       const processedDocuments = await Promise.all(documents.map(async d => {
-        if (d.fileBase64 && d.fileBase64.startsWith('data:')) {
+        if (isRemoteUrl(d.fileBase64) && !d.fileUrl) {
+          hasUpdates = true;
+          return { ...d, fileUrl: d.fileBase64, fileBase64: undefined };
+        }
+        if (isDataUrl(d.fileBase64)) {
           try {
             console.log(`[Sync] Compressing & uploading document: ${d.name}`);
-            const { blob: docBlob } = await compressImageToBlob(d.fileBase64, 'document');
-            const publicUrl = await uploadBlobToStorage('documents', `${foyer.id}/${d.id}.webp`, docBlob);
+            const originalBlob = await dataUrlToBlob(d.fileBase64);
+            const ext = d.fileBase64.startsWith('data:image/')
+              ? (await compressImageToBlob(d.fileBase64, 'document')).ext
+              : extensionFromMimeType(originalBlob.type, 'bin');
+            const docBlob = d.fileBase64.startsWith('data:image/')
+              ? (await compressImageToBlob(d.fileBase64, 'document')).blob
+              : originalBlob;
+            const publicUrl = await uploadBlobToStorage('documents', `${foyer.id}/${d.id}.${ext}`, docBlob);
+            let thumbnailUrl: string | undefined;
             
             // Also generate a thumbnail
-            try {
+            if (d.fileBase64.startsWith('data:image/')) try {
               const { blob: thumbBlob } = await compressImageToBlob(d.fileBase64, 'thumbnail');
-              await uploadBlobToStorage('documents', `${foyer.id}/thumb_${d.id}.webp`, thumbBlob);
+              thumbnailUrl = await uploadBlobToStorage('documents', `${foyer.id}/thumb_${d.id}.webp`, thumbBlob);
             } catch (err) {
               console.warn("Failed to upload document thumbnail:", err);
             }
 
             hasUpdates = true;
-            return { ...d, fileBase64: publicUrl };
+            return { ...d, fileUrl: publicUrl, thumbnailUrl: thumbnailUrl || d.thumbnailUrl, fileBase64: undefined };
           } catch (err) {
             console.error("Failed to upload document image to Storage:", err);
           }
@@ -4737,23 +4768,35 @@ function App() {
       let txUpdated = false;
       const processedTxs = await Promise.all(transactions.map(async t => {
         const updatedT = { ...t };
-        if (t.receiptBase64 && t.receiptBase64.startsWith('data:')) {
+        if (isRemoteUrl(t.receiptBase64) && !t.receiptUrl) {
+          updatedT.receiptUrl = t.receiptBase64;
+          updatedT.receiptBase64 = undefined;
+          txUpdated = true;
+        }
+        if (isRemoteUrl(t.attachmentBase64) && !t.attachmentUrl) {
+          updatedT.attachmentUrl = t.attachmentBase64;
+          updatedT.attachmentBase64 = undefined;
+          txUpdated = true;
+        }
+        if (isDataUrl(t.receiptBase64)) {
           try {
             console.log(`[Sync] Compressing & uploading receipt for transaction: ${t.title}`);
             const { blob } = await compressImageToBlob(t.receiptBase64, 'classic');
             const url = await uploadBlobToStorage('receipts', `${foyer.id}/${t.id}_receipt.webp`, blob);
-            updatedT.receiptBase64 = url;
+            updatedT.receiptUrl = url;
+            updatedT.receiptBase64 = undefined;
             txUpdated = true;
           } catch (err) {
             console.error("Failed to upload transaction receipt to Storage:", err);
           }
         }
-        if (t.attachmentBase64 && t.attachmentBase64.startsWith('data:')) {
+        if (isDataUrl(t.attachmentBase64)) {
           try {
             console.log(`[Sync] Compressing & uploading attachment for transaction: ${t.title}`);
             const { blob } = await compressImageToBlob(t.attachmentBase64, 'classic');
             const url = await uploadBlobToStorage('receipts', `${foyer.id}/${t.id}_attach.webp`, blob);
-            updatedT.attachmentBase64 = url;
+            updatedT.attachmentUrl = url;
+            updatedT.attachmentBase64 = undefined;
             txUpdated = true;
           } catch (err) {
             console.error("Failed to upload transaction attachment to Storage:", err);
@@ -4790,15 +4833,19 @@ function App() {
       // 4. Chat Messages
       let chatUpdated = false;
       const processedChats = await Promise.all(chatMessages.map(async c => {
-        if (c.type === 'image' && c.content && c.content.startsWith('data:')) {
+        if ((c.type === 'image' || c.type === 'document') && c.content && c.content.startsWith('data:')) {
           try {
-            console.log(`[Sync] Compressing & uploading image for chat message: ${c.id}`);
-            const { blob } = await compressImageToBlob(c.content, 'classic');
-            const url = await uploadBlobToStorage('chats', `${foyer.id}/${c.id}.webp`, blob);
+            console.log(`[Sync] Uploading chat media message: ${c.id}`);
+            const rawContent = c.content.split('|')[0];
+            const suffix = c.content.includes('|') ? `|${c.content.split('|').slice(1).join('|')}` : '';
+            const { blob, ext } = rawContent.startsWith('data:image/')
+              ? await compressImageToBlob(rawContent, 'classic')
+              : { blob: await dataUrlToBlob(rawContent), ext: extensionFromMimeType((await dataUrlToBlob(rawContent)).type, 'bin') };
+            const url = await uploadBlobToStorage('chat-media', `${foyer.id}/${c.id}.${ext}`, blob);
             chatUpdated = true;
-            return { ...c, content: url };
+            return { ...c, content: `${url}${suffix}` };
           } catch (err) {
-            console.error("Failed to upload chat image to Storage:", err);
+            console.error("Failed to upload chat media to Storage:", err);
           }
         }
         return c;
@@ -4927,8 +4974,10 @@ function App() {
         member_name: t.memberName || null,
         sub_category: t.subCategory || null,
         account_id: t.accountId || null,
-        receipt_base64: t.receiptBase64 || null,
-        attachment_base64: t.attachmentBase64 || null,
+        receipt_url: t.receiptUrl || storageUrlFromLegacy(undefined, t.receiptBase64) || null,
+        attachment_url: t.attachmentUrl || storageUrlFromLegacy(undefined, t.attachmentBase64) || null,
+        receipt_base64: null,
+        attachment_base64: null,
         comment: t.comment || null,
         modification_history: t.modificationHistory ? JSON.stringify(t.modificationHistory) : null,
         is_archived: !!t.isArchived,
@@ -4951,7 +5000,9 @@ function App() {
         file_size: d.fileSize,
         is_expired: d.isExpired,
         description: d.description || null,
-        file_base64: d.fileBase64 || null,
+        file_url: d.fileUrl || storageUrlFromLegacy(undefined, d.fileBase64) || null,
+        thumbnail_url: d.thumbnailUrl || null,
+        file_base64: null,
         is_secure: d.isSecure
       }), true);
 
@@ -5173,6 +5224,121 @@ function App() {
     alerts, votes, schoolTasks, chatGroups, chatMessages, demarches,
     justificatifPacks, vehicles, maintenance, trips, pets, pocketMoney, artisans
   ]);
+
+  useEffect(() => {
+    if (!foyer || !isSyncReady) return;
+    const migrationKey = `mf_storage_payload_migration_v1_${foyer.id}`;
+    if (localStorage.getItem(migrationKey) === 'done') return;
+
+    let cancelled = false;
+
+    const migrateLegacyPayloads = async () => {
+      const client = getSupabaseClient();
+      if (!client) return;
+
+      let hadError = false;
+      const uploadDataUrl = async (bucket: string, pathBase: string, value: string, imagePreset: 'classic' | 'document') => {
+        if (value.startsWith('data:image/')) {
+          const { blob, ext } = await compressImageToBlob(value, imagePreset);
+          return uploadBlobToStorage(bucket, `${pathBase}.${ext}`, blob);
+        }
+        const blob = await dataUrlToBlob(value);
+        const ext = extensionFromMimeType(blob.type, 'bin');
+        return uploadBlobToStorage(bucket, `${pathBase}.${ext}`, blob);
+      };
+
+      try {
+        const { data: legacyTransactions, error: txError } = await client
+          .from('transactions')
+          .select('id, receipt_base64, attachment_base64, receipt_url, attachment_url')
+          .eq('foyer_id', foyer.id)
+          .or('receipt_base64.not.is.null,attachment_base64.not.is.null');
+        if (txError) throw txError;
+
+        for (const tx of legacyTransactions || []) {
+          if (cancelled) return;
+          const updates: DbRow = { receipt_base64: null, attachment_base64: null };
+          if (!tx.receipt_url && isRemoteUrl(tx.receipt_base64)) updates.receipt_url = tx.receipt_base64;
+          if (!tx.attachment_url && isRemoteUrl(tx.attachment_base64)) updates.attachment_url = tx.attachment_base64;
+          if (!tx.receipt_url && isDataUrl(tx.receipt_base64)) {
+            updates.receipt_url = await uploadDataUrl('receipts', `${foyer.id}/${tx.id}_receipt`, tx.receipt_base64, 'classic');
+          }
+          if (!tx.attachment_url && isDataUrl(tx.attachment_base64)) {
+            updates.attachment_url = await uploadDataUrl('receipts', `${foyer.id}/${tx.id}_attach`, tx.attachment_base64, 'classic');
+          }
+          const { error } = await client.from('transactions').update(updates).eq('foyer_id', foyer.id).eq('id', tx.id);
+          if (error) throw error;
+        }
+
+        const { data: legacyDocuments, error: docError } = await client
+          .from('documents')
+          .select('id, file_base64, file_url, thumbnail_url')
+          .eq('foyer_id', foyer.id)
+          .not('file_base64', 'is', null);
+        if (docError) throw docError;
+
+        for (const doc of legacyDocuments || []) {
+          if (cancelled) return;
+          const updates: DbRow = { file_base64: null };
+          if (!doc.file_url && isRemoteUrl(doc.file_base64)) updates.file_url = doc.file_base64;
+          if (!doc.file_url && isDataUrl(doc.file_base64)) {
+            updates.file_url = await uploadDataUrl('documents', `${foyer.id}/${doc.id}`, doc.file_base64, 'document');
+            if (!doc.thumbnail_url && doc.file_base64.startsWith('data:image/')) {
+              try {
+                const { blob: thumbBlob } = await compressImageToBlob(doc.file_base64, 'thumbnail');
+                updates.thumbnail_url = await uploadBlobToStorage('documents', `${foyer.id}/thumb_${doc.id}.webp`, thumbBlob);
+              } catch (err) {
+                console.warn('[Storage Migration] document thumbnail skipped:', err);
+              }
+            }
+          }
+          const { error } = await client.from('documents').update(updates).eq('foyer_id', foyer.id).eq('id', doc.id);
+          if (error) throw error;
+        }
+
+        const { data: legacyChatImages, error: chatImageError } = await client
+          .from('chat_messages')
+          .select('id, content')
+          .eq('foyer_id', foyer.id)
+          .like('content', 'data:%');
+        if (chatImageError) throw chatImageError;
+
+        const { data: legacyChatAttachments, error: chatAttachmentError } = await client
+          .from('chat_messages')
+          .select('id, content')
+          .eq('foyer_id', foyer.id)
+          .like('content', '%|data:%');
+        if (chatAttachmentError) throw chatAttachmentError;
+
+        const legacyChats = [...(legacyChatImages || []), ...(legacyChatAttachments || [])]
+          .filter((chat, index, all) => all.findIndex(item => item.id === chat.id) === index);
+
+        for (const chat of legacyChats) {
+          if (cancelled) return;
+          if (typeof chat.content !== 'string') continue;
+          const parts = chat.content.split('|');
+          const dataPartIndex = parts.findIndex((part: string) => part.startsWith('data:'));
+          if (dataPartIndex === -1) continue;
+          const url = await uploadDataUrl('chat-media', `${foyer.id}/${chat.id}`, parts[dataPartIndex], 'classic');
+          parts[dataPartIndex] = url;
+          const { error } = await client.from('chat_messages').update({ content: parts.join('|') }).eq('foyer_id', foyer.id).eq('id', chat.id);
+          if (error) throw error;
+        }
+      } catch (err) {
+        hadError = true;
+        console.warn('[Storage Migration] legacy payload migration incomplete:', err);
+      }
+
+      if (!cancelled && !hadError) {
+        localStorage.setItem(migrationKey, 'done');
+      }
+    };
+
+    migrateLegacyPayloads();
+    return () => {
+      cancelled = true;
+    };
+  }, [foyer, isSyncReady]);
 
   const closeVoiceAssistantAfterDelay = (
     delayMs: number = 2500,
@@ -9450,9 +9616,16 @@ function App() {
 
   useEffect(() => {
     const permDoc = documents.find(d => d.name === '__foyer_permissions__.json');
-    if (permDoc && permDoc.fileBase64) {
+    const loadPermissions = async () => {
+      if (!permDoc || (!permDoc.fileUrl && !permDoc.fileBase64)) {
+        setCommuneName("Commune à configurer");
+        setSchoolName("Collège Victor Hugo");
+        return;
+      }
       try {
-        const decodedStr = atob(permDoc.fileBase64);
+        const decodedStr = permDoc.fileUrl
+          ? await fetch(permDoc.fileUrl).then(res => res.text())
+          : atob(permDoc.fileBase64 || '');
         const parsed = JSON.parse(decodedStr);
         
         if (parsed && parsed.__config__) {
@@ -9477,10 +9650,8 @@ function App() {
       } catch (e) {
         console.warn("Failed to parse __foyer_permissions__.json from documents", e);
       }
-    } else {
-      setCommuneName("Commune à configurer");
-      setSchoolName("Collège Victor Hugo");
-    }
+    };
+    loadPermissions();
   }, [documents]);
 
   useEffect(() => {
@@ -10342,7 +10513,6 @@ function App() {
     };
     
     const jsonStr = JSON.stringify(dataToSave);
-    const base64Str = btoa(unescape(encodeURIComponent(jsonStr)));
     
     const docId = '__foyer_permissions__';
     const now = new Date().toISOString();
@@ -10355,7 +10525,7 @@ function App() {
       uploadDate: now.split('T')[0],
       fileSize: `${jsonStr.length} B`,
       isExpired: false,
-      fileBase64: base64Str,
+      fileUrl: undefined,
       isSecure: false
     };
 
@@ -10371,6 +10541,10 @@ function App() {
     const client = getSupabaseClient();
     if (client && foyer) {
       try {
+        const fileUrl = await uploadJsonToStorage(foyer.id, docId, jsonStr);
+        const cloudDoc = { ...newDoc, fileUrl };
+        setDocuments(prev => prev.some(d => d.id === docId) ? prev.map(d => d.id === docId ? cloudDoc : d) : [cloudDoc, ...prev]);
+
         const { data: existing } = await client
           .from('documents')
           .select('id')
@@ -10380,7 +10554,8 @@ function App() {
 
         if (existing) {
           await client.from('documents').update({
-            file_base_64: base64Str,
+            file_url: fileUrl,
+            file_base64: null,
             updated_at: now
           }).eq('id', existing.id);
         } else {
@@ -10391,7 +10566,8 @@ function App() {
             tags: ['system'],
             upload_date: now.split('T')[0],
             file_size: `${jsonStr.length} B`,
-            file_base_64: base64Str
+            file_url: fileUrl,
+            file_base64: null
           });
         }
       } catch (err) {
@@ -10413,7 +10589,6 @@ function App() {
     };
 
     const jsonStr = JSON.stringify(dataToSave);
-    const base64Str = btoa(unescape(encodeURIComponent(jsonStr)));
     
     const docId = '__foyer_permissions__';
     const now = new Date().toISOString();
@@ -10426,7 +10601,7 @@ function App() {
       uploadDate: now.split('T')[0],
       fileSize: `${jsonStr.length} B`,
       isExpired: false,
-      fileBase64: base64Str,
+      fileUrl: undefined,
       isSecure: false
     };
 
@@ -10439,6 +10614,10 @@ function App() {
     const client = getSupabaseClient();
     if (client && foyer) {
       try {
+        const fileUrl = await uploadJsonToStorage(foyer.id, docId, jsonStr);
+        const cloudDoc = { ...newDoc, fileUrl };
+        setDocuments(prev => prev.some(d => d.id === docId) ? prev.map(d => d.id === docId ? cloudDoc : d) : [cloudDoc, ...prev]);
+
         const { data: existing } = await client
           .from('documents')
           .select('id')
@@ -10448,7 +10627,8 @@ function App() {
 
         if (existing) {
           await client.from('documents').update({
-            file_base_64: base64Str,
+            file_url: fileUrl,
+            file_base64: null,
             updated_at: now
           }).eq('id', existing.id);
         } else {
@@ -10459,7 +10639,8 @@ function App() {
             tags: ['system'],
             upload_date: now.split('T')[0],
             file_size: `${jsonStr.length} B`,
-            file_base_64: base64Str
+            file_url: fileUrl,
+            file_base64: null
           });
         }
       } catch (err) {

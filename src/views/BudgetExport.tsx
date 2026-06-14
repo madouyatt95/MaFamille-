@@ -18,6 +18,21 @@ import { getSupabaseClient } from '../utils/supabase';
 import type { Transaction, Member, SavingGoal, CustomCategory, Account, Abonnement, Trip } from '../types';
 import type { WorkSheet } from 'xlsx';
 
+const blobToDataUrl = (blob: Blob): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result || ''));
+  reader.onerror = () => reject(reader.error);
+  reader.readAsDataURL(blob);
+});
+
+const resolveImagePayload = async (payload?: string): Promise<string | undefined> => {
+  if (!payload) return undefined;
+  if (!/^https?:\/\//i.test(payload)) return payload;
+  const response = await fetch(payload);
+  if (!response.ok) throw new Error(`Image download failed: ${response.status}`);
+  return blobToDataUrl(await response.blob());
+};
+
 interface BudgetExportProps {
   isOpen: boolean;
   onClose: () => void;
@@ -514,7 +529,7 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
             'Sous-catégorie': t.subCategory || '',
             Compte: accounts.find(a => a.id === t.accountId)?.name || 'N/A',
             Auteur: t.createdBy || 'N/A',
-            Justificatif: (t.receiptBase64 || t.attachmentBase64) ? 'Oui' : 'Non',
+            Justificatif: (t.receiptUrl || t.attachmentUrl || t.receiptBase64 || t.attachmentBase64) ? 'Oui' : 'Non',
             'Saisi Le': t.entryDate || '',
             'Heure Saisie': t.entryTime || '',
             Source: t.source_module || ''
@@ -534,7 +549,7 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
             'Sous-catégorie': t.subCategory || '',
             Compte: accounts.find(a => a.id === t.accountId)?.name || 'N/A',
             Auteur: t.createdBy || 'N/A',
-            Justificatif: (t.receiptBase64 || t.attachmentBase64) ? 'Oui' : 'Non',
+            Justificatif: (t.receiptUrl || t.attachmentUrl || t.receiptBase64 || t.attachmentBase64) ? 'Oui' : 'Non',
             'Saisi Le': t.entryDate || '',
             'Heure Saisie': t.entryTime || '',
             Source: t.source_module || ''
@@ -1129,7 +1144,7 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
 
         // 7. ANNEXE REÇUS
         if (includeReceipts) {
-          const receiptsTxs = filteredTxs.filter(t => t.receiptBase64 || t.attachmentBase64);
+          const receiptsTxs = filteredTxs.filter(t => t.receiptUrl || t.attachmentUrl || t.receiptBase64 || t.attachmentBase64);
           if (receiptsTxs.length > 0) {
             doc.addPage();
             doc.setFontSize(16);
@@ -1138,8 +1153,8 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
             doc.text("7. Justificatifs & Pièces Jointes", 15, 25);
 
             let receiptY = 35;
-            receiptsTxs.forEach((tx, idx) => {
-              const base64Data = tx.receiptBase64 || tx.attachmentBase64;
+            for (const [idx, tx] of receiptsTxs.entries()) {
+              const base64Data = await resolveImagePayload(tx.receiptUrl || tx.attachmentUrl || tx.receiptBase64 || tx.attachmentBase64);
               if (base64Data) {
                 let imgFormat = 'JPEG';
                 if (base64Data.includes('png')) imgFormat = 'PNG';
@@ -1166,7 +1181,7 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
                 }
                 receiptY += 52;
               }
-            });
+            }
           }
         }
 

@@ -21,6 +21,7 @@ import {
 import { foyerService } from '../services/foyerService';
 import { getSupabaseClient } from '../utils/supabase';
 import { shouldBlockMemberAdd } from '../utils/premiumFeatures';
+import { compressImageToBlob, uploadBlobToStorage } from '../utils/imageCompressor';
 import { ALL_FAMILY_MODULES, getDefaultPermissions } from '../types';
 import type { Member, Foyer, FoyerMember, FoyerMemberProfileUpdate, MemberRole, ModulePermissions, FamilyModule } from '../types';
 
@@ -471,29 +472,24 @@ export const Membres: React.FC<MembresProps> = ({
     const file = e.target.files?.[0];
     if (!file || !selectedMember) return;
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const base64String = event.target?.result as string;
-      if (!base64String) return;
+    try {
+      const { blob, ext } = await compressImageToBlob(file, 'profile');
+      const foyerId = foyer?.id || localStorage.getItem('mf_cloud_foyer_id') || 'local';
+      const photoUrl = await uploadBlobToStorage('avatars', `${foyerId}/${selectedMember.id}_${Date.now()}.${ext}`, blob);
 
-      try {
-        if (foyer) {
-          await foyerService.updateMemberProfile(selectedMember.id, {
-            photoUrl: base64String
-          });
-        }
-        if (onUpdateMemberProfile) {
-          onUpdateMemberProfile(selectedMember.id, { photoUrl: base64String });
-        }
-        setMembers(prev => prev.map(m => m.id === selectedMember.id ? { ...m, photoUrl: base64String } : m));
-        setSelectedMember(prev => prev ? { ...prev, photoUrl: base64String } : null);
-        alert("📷 Photo de profil mise à jour avec succès !");
-      } catch (err: unknown) {
-        console.error("Erreur lors de la sauvegarde de la photo :", err);
-        alert(`Impossible de sauvegarder la photo : ${getErrorMessage(err)}`);
+      if (foyer) {
+        await foyerService.updateMemberProfile(selectedMember.id, { photoUrl });
       }
-    };
-    reader.readAsDataURL(file);
+      if (onUpdateMemberProfile) {
+        onUpdateMemberProfile(selectedMember.id, { photoUrl });
+      }
+      setMembers(prev => prev.map(m => m.id === selectedMember.id ? { ...m, photoUrl } : m));
+      setSelectedMember(prev => prev ? { ...prev, photoUrl } : null);
+      alert("📷 Photo de profil mise à jour avec succès !");
+    } catch (err: unknown) {
+      console.error("Erreur lors de la sauvegarde de la photo :", err);
+      alert(`Impossible de sauvegarder la photo : ${getErrorMessage(err)}`);
+    }
   };
 
   const handleJoinFoyerSubmit = async (e: React.FormEvent) => {

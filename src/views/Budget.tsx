@@ -28,6 +28,7 @@ import type {
 } from '../types';
 import { getSupabaseClient, serializeCategoryIcon, serializeTransactionComment, getModuleIdFromTransaction } from '../utils/supabase';
 import { DEFAULT_CATEGORIES } from '../data/budgetCategories';
+import { compressImageToBlob, isDataUrl, isRemoteUrl, uploadBlobToStorage } from '../utils/imageCompressor';
 
 const BudgetExport = lazy(() => import('./BudgetExport').then(module => ({ default: module.BudgetExport })));
 const BudgetImport = lazy(() => import('./BudgetImport').then(module => ({ default: module.BudgetImport })));
@@ -42,6 +43,14 @@ const BudgetToolFallback = () => (
     </div>
   </div>
 );
+
+const ensureReceiptUrl = async (foyerId: string | undefined, txId: string, value?: string): Promise<string | undefined> => {
+  if (!value) return undefined;
+  if (isRemoteUrl(value)) return value;
+  if (!foyerId || !isDataUrl(value)) return undefined;
+  const { blob } = await compressImageToBlob(value, 'classic');
+  return uploadBlobToStorage('receipts', `${foyerId}/${txId}_receipt.webp`, blob);
+};
 
 interface BudgetProps {
   transactions: Transaction[];
@@ -931,7 +940,7 @@ export const Budget: React.FC<BudgetProps> = ({
       comment: tx.comment || '',
       recurrence: tx.recurrence || 'none',
       moduleSource: tx.moduleSource || 'budget',
-      receiptBase64: tx.receiptBase64 || ''
+      receiptBase64: tx.receiptUrl || tx.receiptBase64 || ''
     });
     setIsTxModalOpen(true);
   };
@@ -963,6 +972,8 @@ export const Budget: React.FC<BudgetProps> = ({
 
     if (editingTx) {
       newTxData.id = editingTx.id;
+      newTxData.receiptUrl = await ensureReceiptUrl(foyerId, newTxData.id, txForm.receiptBase64 || editingTx.receiptUrl);
+      newTxData.receiptBase64 = undefined;
       
       const history = [...(editingTx.modificationHistory || [])];
       const author = myMemberProfile?.displayName || 'Système';
@@ -1013,7 +1024,8 @@ export const Budget: React.FC<BudgetProps> = ({
             nextOccurrence: editingTx.nextOccurrence
           }),
           recurrence: newTxData.recurrence,
-          receipt_base64: newTxData.receiptBase64,
+          receipt_url: newTxData.receiptUrl || null,
+          receipt_base64: null,
           modification_history: JSON.stringify(newTxData.modificationHistory)
         }).eq('id', editingTx.id);
       }
@@ -1021,6 +1033,8 @@ export const Budget: React.FC<BudgetProps> = ({
       setTransactions(prev => prev.map(t => t.id === editingTx.id ? { ...t, ...newTxData } : t));
     } else {
       newTxData.id = `tx-${Date.now()}`;
+      newTxData.receiptUrl = await ensureReceiptUrl(foyerId, newTxData.id, txForm.receiptBase64);
+      newTxData.receiptBase64 = undefined;
       newTxData.modificationHistory = [{ author: myMemberProfile?.displayName || 'Système', date: new Date().toISOString(), action: 'Création manuelle' }];
       
       const now = new Date();
@@ -1047,7 +1061,8 @@ export const Budget: React.FC<BudgetProps> = ({
             entryDate: newTxData.entryDate
           }),
           recurrence: newTxData.recurrence,
-          receipt_base64: newTxData.receiptBase64,
+          receipt_url: newTxData.receiptUrl || null,
+          receipt_base64: null,
           modification_history: JSON.stringify(newTxData.modificationHistory)
         });
       }
@@ -1104,7 +1119,8 @@ export const Budget: React.FC<BudgetProps> = ({
           entryDate: dup.entryDate
         }),
         recurrence: dup.recurrence,
-        receipt_base64: dup.receiptBase64,
+        receipt_url: dup.receiptUrl || (isRemoteUrl(dup.receiptBase64) ? dup.receiptBase64 : null),
+        receipt_base64: null,
         modification_history: JSON.stringify([{ author: myMemberProfile?.displayName || 'Système', date: new Date().toISOString(), action: 'Duplication' }])
       });
     }
@@ -3956,12 +3972,12 @@ export const Budget: React.FC<BudgetProps> = ({
               )}
 
               {/* Attachment Receipt */}
-              {selectedTxDetail.receiptBase64 && (
+              {(selectedTxDetail.receiptUrl || selectedTxDetail.receiptBase64) && (
                 <div className="border-b border-white/5 pb-2.5 space-y-1">
                   <span className="text-white/50 block">Justificatif (Reçu/Ticket) :</span>
                   <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-white/5 p-1 w-full max-w-[200px] mx-auto aspect-video flex items-center justify-center">
                     <img 
-                      src={selectedTxDetail.receiptBase64} 
+                      src={selectedTxDetail.receiptUrl || selectedTxDetail.receiptBase64} 
                       alt="Reçu de paiement" 
                       className="max-w-full max-h-full object-contain rounded-xl"
                     />

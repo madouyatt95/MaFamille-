@@ -3,6 +3,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, Briefcase, Car, Home, Plane, CreditCard, User, AlertTriangle, ArrowLeft, Trash2, Download, Share2, CheckCircle2, ChevronRight, Calendar, Users, Scan, Lock } from 'lucide-react';
 import type { DocumentFile, DocumentCategory, Member, Demarche, JustificatifPack, DemarcheTemplate } from '../../types';
 import { demarcheTemplates } from '../../data/demoData';
+import { compressImageToBlob, dataUrlToBlob, extensionFromMimeType, isDataUrl, uploadBlobToStorage } from '../../utils/imageCompressor';
 
 interface CoffreFortAvanceProps {
   documents: DocumentFile[];
@@ -33,6 +34,29 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     return localStorage.getItem('mf_vault_rgpd_accepted') === 'true';
   });
   const [showRgpdCenter, setShowRgpdCenter] = useState(false);
+
+  const uploadSelectedDocument = async (docId: string, payload: string): Promise<{ fileUrl?: string; thumbnailUrl?: string; fileBase64?: string }> => {
+    const foyerId = localStorage.getItem('mf_cloud_foyer_id');
+    if (!foyerId || !isDataUrl(payload)) return { fileBase64: payload };
+
+    if (payload.startsWith('data:image/')) {
+      const { blob, ext } = await compressImageToBlob(payload, 'document');
+      const fileUrl = await uploadBlobToStorage('documents', `${foyerId}/${docId}.${ext}`, blob);
+      let thumbnailUrl: string | undefined;
+      try {
+        const { blob: thumbBlob } = await compressImageToBlob(payload, 'thumbnail');
+        thumbnailUrl = await uploadBlobToStorage('documents', `${foyerId}/thumb_${docId}.webp`, thumbBlob);
+      } catch (err) {
+        console.warn('Unable to create document thumbnail:', err);
+      }
+      return { fileUrl, thumbnailUrl };
+    }
+
+    const blob = await dataUrlToBlob(payload);
+    const ext = extensionFromMimeType(blob.type, 'bin');
+    const fileUrl = await uploadBlobToStorage('documents', `${foyerId}/${docId}.${ext}`, blob);
+    return { fileUrl };
+  };
 
   useEffect(() => {
     if (!isPremium && mainTab === 'demarches') {
@@ -307,12 +331,14 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     reader.readAsDataURL(file);
   };
 
-  const handleSubmitUpload = () => {
+  const handleSubmitUpload = async () => {
     if (!newDocName || !selectedFileBase64) return;
     
     const member = members.find(m => m.id === newDocMember);
+    const docId = `doc_${Date.now()}`;
+    const storagePayload = await uploadSelectedDocument(docId, selectedFileBase64);
     const newDoc: DocumentFile = {
-      id: `doc_${Date.now()}`,
+      id: docId,
       name: newDocName,
       category: newDocCategory,
       memberId: member?.id,
@@ -322,7 +348,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
       fileSize: 'Modéré', // Computed size could be added here
       isExpired: false,
       tags: newDocTags.split(',').map(t => t.trim()).filter(Boolean),
-      fileBase64: selectedFileBase64,
+      ...storagePayload,
       isSecure: newDocSecure
     };
 
@@ -1035,9 +1061,9 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
             
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {/* Image Preview if available */}
-              {previewDoc.fileBase64 ? (
+              {(previewDoc.fileUrl || previewDoc.fileBase64) ? (
                 <div className="w-full rounded-2xl overflow-hidden border border-white/10 bg-black/50 flex items-center justify-center">
-                  <img src={previewDoc.fileBase64} alt={previewDoc.name} className="max-w-full h-auto max-h-[40vh] object-contain" />
+                  <img src={previewDoc.fileUrl || previewDoc.fileBase64} alt={previewDoc.name} className="max-w-full h-auto max-h-[40vh] object-contain" />
                 </div>
               ) : (
                 <div className="w-full h-48 rounded-2xl border border-dashed border-white/20 flex flex-col items-center justify-center text-white/30">
@@ -1078,9 +1104,9 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
 
                 {/* Actions: Download / Share / Delete */}
                 <div className="flex gap-2 pt-3 mt-3 border-t border-white/10">
-                  {previewDoc.fileBase64 && (
+                  {(previewDoc.fileUrl || previewDoc.fileBase64) && (
                     <a 
-                      href={previewDoc.fileBase64} 
+                      href={previewDoc.fileUrl || previewDoc.fileBase64} 
                       download={previewDoc.name}
                       className="flex-1 py-2.5 bg-[#00D26A]/10 hover:bg-[#00D26A]/20 text-[#00D26A] border border-[#00D26A]/20 font-bold rounded-xl flex items-center justify-center space-x-1 transition text-[10px] sm:text-xs cursor-pointer text-center"
                     >

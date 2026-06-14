@@ -340,14 +340,20 @@ export const Settings: React.FC<SettingsProps> = ({
           }
         }
       }
+      if (myMemberProfile || activeMemberId) {
+        throw new Error("Upload Storage impossible pour cette photo.");
+      }
       // Fallback: compress to data URL
       const dataUrl = await compressAndConvert(file);
       setProfilePhoto(dataUrl);
     } catch (err) {
       console.error('Photo upload error:', err);
-      // Last resort fallback
-      const dataUrl = await compressAndConvert(file);
-      setProfilePhoto(dataUrl);
+      if (myMemberProfile || activeMemberId) {
+        setProfileMsg({ text: "Impossible d'envoyer la photo vers Storage. Réessayez dans un instant.", type: 'error' });
+      } else {
+        const dataUrl = await compressAndConvert(file);
+        setProfilePhoto(dataUrl);
+      }
     } finally {
       setUploadingPhoto(false);
       // Reset input so same file can be re-selected

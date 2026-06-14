@@ -3,15 +3,8 @@ import { Send, Mic, Paperclip, CheckCheck, MessageCircle, Users, ArrowLeft, Sear
 import type { Member, ChatMessage, ChatGroup } from '../../types';
 import { foyerService } from '../../services/foyerService';
 import { getSupabaseClient } from '../../utils/supabase';
-import { compressImage } from '../../utils/imageCompressor';
+import { compressImageToBlob, extensionFromMimeType, uploadBlobToStorage } from '../../utils/imageCompressor';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-
-const blobToDataUrl = (blob: Blob): Promise<string> => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => resolve(reader.result as string);
-  reader.onerror = () => reject(reader.error);
-  reader.readAsDataURL(blob);
-});
 
 const createLocalId = (prefix: string) => `${prefix}_${Date.now()}`;
 
@@ -509,50 +502,59 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeGroupId || !activeUser) return;
+    const foyerId = localStorage.getItem('mf_cloud_foyer_id');
+    if (!foyerId) {
+      alert("Connectez le foyer au cloud avant d'envoyer un fichier.");
+      return;
+    }
 
     if (!file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          const contentValue = `${event.target.result as string}|${file.name}`;
-          const newMsg: ChatMessage = {
-            id: createLocalId('msg'),
-            groupId: activeGroupId,
-            senderId: activeUser.id,
-            senderName: activeUser.name,
-            type: 'document',
-            content: contentValue,
-            timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-            readBy: [activeUser.id]
-          };
-          setMessages(prev => [...prev, newMsg]);
-          setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: `📄 ${file.name}`, lastMessageTime: newMsg.timestamp } : g));
-          saveMessageToCloud(newMsg);
+      try {
+        const msgId = createLocalId('msg');
+        const ext = extensionFromMimeType(file.type, file.name.split('.').pop() || 'bin');
+        const url = await uploadBlobToStorage('chat-media', `${foyerId}/${activeGroupId}/${msgId}.${ext}`, file);
+        const contentValue = `${url}|${file.name}`;
+        const newMsg: ChatMessage = {
+          id: msgId,
+          groupId: activeGroupId,
+          senderId: activeUser.id,
+          senderName: activeUser.name,
+          type: 'document',
+          content: contentValue,
+          timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          readBy: [activeUser.id]
+        };
+        setMessages(prev => [...prev, newMsg]);
+        setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: `📄 ${file.name}`, lastMessageTime: newMsg.timestamp } : g));
+        saveMessageToCloud(newMsg);
 
-          const activeGroup = groups.find(g => g.id === activeGroupId);
-          if (activeGroup) {
-            saveGroupToCloud({
-              ...activeGroup,
-              lastMessage: `📄 ${file.name}`,
-              lastMessageTime: newMsg.timestamp
-            });
-          }
+        const activeGroup = groups.find(g => g.id === activeGroupId);
+        if (activeGroup) {
+          saveGroupToCloud({
+            ...activeGroup,
+            lastMessage: `📄 ${file.name}`,
+            lastMessageTime: newMsg.timestamp
+          });
         }
+      } catch (err) {
+        console.error("Failed to upload chat document:", err);
+        alert("Impossible d'envoyer ce document. Réessayez dans un instant.");
       };
-      reader.readAsDataURL(file);
       return;
     }
 
     try {
-      const compressedData = await compressImage(file, 900, 900, 0.6);
-      if (compressedData) {
+      const { blob, ext } = await compressImageToBlob(file, 'classic');
+      const msgId = createLocalId('msg');
+      const uploadedUrl = await uploadBlobToStorage('chat-media', `${foyerId}/${activeGroupId}/${msgId}.${ext}`, blob);
+      if (uploadedUrl) {
         const newMsg: ChatMessage = {
-          id: createLocalId('msg'),
+          id: msgId,
           groupId: activeGroupId,
           senderId: activeUser.id,
           senderName: activeUser.name,
           type: 'image',
-          content: compressedData,
+          content: uploadedUrl,
           timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
           readBy: [activeUser.id]
         };
@@ -571,26 +573,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
       }
     } catch (err) {
       console.error("Failed to compress and upload image in chat:", err);
-      // Fallback
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          const newMsg: ChatMessage = {
-            id: createLocalId('msg'),
-            groupId: activeGroupId,
-            senderId: activeUser.id,
-            senderName: activeUser.name,
-            type: 'image',
-            content: event.target.result as string,
-            timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-            readBy: [activeUser.id]
-          };
-          setMessages(prev => [...prev, newMsg]);
-          setGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, lastMessage: '📷 Photo', lastMessageTime: newMsg.timestamp } : g));
-          saveMessageToCloud(newMsg);
-        }
-      };
-      reader.readAsDataURL(file);
+      alert("Impossible d'envoyer cette image. Réessayez dans un instant.");
     }
   };
 
@@ -643,7 +626,11 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
         try {
           const uploadedUrl = await uploadVoiceBlob(audioBlob, activeGroupId, activeUser.id);
-          const audioPayload = uploadedUrl || await blobToDataUrl(audioBlob);
+          if (!uploadedUrl) {
+            alert("Impossible d'envoyer ce message vocal. Réessayez dans un instant.");
+            return;
+          }
+          const audioPayload = uploadedUrl;
           const payload = `${recordingDuration}|${audioPayload}`;
 
           const newMsg: ChatMessage = {
@@ -775,17 +762,25 @@ export const Messagerie: React.FC<MessagerieProps> = ({
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   };
 
-  const sendDrawing = () => {
+  const sendDrawing = async () => {
     const canvas = canvasRef.current;
     if (!canvas || !activeGroupId || !activeUser) return;
-    const dataUrl = canvas.toDataURL('image/png');
+    const foyerId = localStorage.getItem('mf_cloud_foyer_id');
+    if (!foyerId) {
+      alert("Connectez le foyer au cloud avant d'envoyer un dessin.");
+      return;
+    }
+    const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png', 0.9));
+    if (!blob) return;
+    const msgId = createLocalId('msg');
+    const imageUrl = await uploadBlobToStorage('chat-media', `${foyerId}/${activeGroupId}/${msgId}.png`, blob);
     const newMsg: ChatMessage = {
-      id: createLocalId('msg'),
+      id: msgId,
       groupId: activeGroupId,
       senderId: activeUser.id,
       senderName: activeUser.name,
       type: 'image',
-      content: dataUrl,
+      content: imageUrl,
       timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
       readBy: [activeUser.id]
     };

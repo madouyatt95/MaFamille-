@@ -1,6 +1,25 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import type { JustificatifPack, DocumentFile } from '../types';
 
+const loadDocumentPayload = async (doc: DocumentFile): Promise<{ mime: string; bytes: Uint8Array } | null> => {
+  const source = doc.fileUrl || doc.fileBase64;
+  if (!source) return null;
+
+  if (/^https?:\/\//i.test(source)) {
+    const response = await fetch(source);
+    if (!response.ok) throw new Error(`Téléchargement impossible (${response.status})`);
+    const mime = response.headers.get('content-type') || '';
+    return { mime, bytes: new Uint8Array(await response.arrayBuffer()) };
+  }
+
+  const [meta, base64Data] = source.split(',');
+  if (!base64Data) return null;
+  return {
+    mime: meta,
+    bytes: Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
+  };
+};
+
 export const generatePackPDF = async (pack: JustificatifPack, documents: DocumentFile[]): Promise<void> => {
   try {
     // 1. Création d'un nouveau document PDF
@@ -52,27 +71,25 @@ export const generatePackPDF = async (pack: JustificatifPack, documents: Documen
       });
       yOffset -= 25;
 
-      if (!doc.fileBase64) continue;
+      if (!doc.fileUrl && !doc.fileBase64) continue;
 
       try {
-        // Extraction du type MIME et de la base64 brute
-        const [meta, base64Data] = doc.fileBase64.split(',');
+        const payload = await loadDocumentPayload(doc);
+        if (!payload) continue;
         
-        if (meta.includes('application/pdf')) {
+        if (payload.mime.includes('application/pdf')) {
           // Si c'est un PDF, on fusionne ses pages
-          const docBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-          const embeddedPdf = await PDFDocument.load(docBuffer);
+          const embeddedPdf = await PDFDocument.load(payload.bytes);
           const copiedPages = await pdfDoc.copyPages(embeddedPdf, embeddedPdf.getPageIndices());
           copiedPages.forEach((page) => pdfDoc.addPage(page));
         } 
-        else if (meta.includes('image/')) {
+        else if (payload.mime.includes('image/')) {
           // Si c'est une image, on l'ajoute sur une nouvelle page
-          const imgBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
           let embeddedImage;
-          if (meta.includes('image/png')) {
-            embeddedImage = await pdfDoc.embedPng(imgBuffer);
+          if (payload.mime.includes('image/png')) {
+            embeddedImage = await pdfDoc.embedPng(payload.bytes);
           } else {
-            embeddedImage = await pdfDoc.embedJpg(imgBuffer);
+            embeddedImage = await pdfDoc.embedJpg(payload.bytes);
           }
           
           const imgDims = embeddedImage.scaleToFit(width - 100, height - 100);

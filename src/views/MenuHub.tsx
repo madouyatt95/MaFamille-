@@ -4,6 +4,7 @@ import { detectGroceryCategory, parseSmartNaturalSentence, getGroceryItemEmoji, 
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
 import { PREMIUM_MODULE_FEATURES } from '../utils/premiumFeatures';
+import { compressImageToBlob, dataUrlToBlob, extensionFromMimeType, isDataUrl, uploadBlobToStorage } from '../utils/imageCompressor';
 import { 
   FolderLock, 
   HeartPulse, 
@@ -826,8 +827,26 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
     let linkedDocumentId = '';
     if ((healthQuickKind === 'document' || healthDocFile) && setDocuments) {
-      const fileBase64 = healthDocFile ? await readHealthFileAsDataUrl(healthDocFile) : undefined;
       linkedDocumentId = `health-doc-${Date.now()}`;
+      const fileBase64 = healthDocFile ? await readHealthFileAsDataUrl(healthDocFile) : undefined;
+      let fileUrl: string | undefined;
+      let thumbnailUrl: string | undefined;
+      if (fileBase64 && isDataUrl(fileBase64) && foyer?.id) {
+        if (fileBase64.startsWith('data:image/')) {
+          const { blob, ext } = await compressImageToBlob(fileBase64, 'document');
+          fileUrl = await uploadBlobToStorage('documents', `${foyer.id}/${linkedDocumentId}.${ext}`, blob);
+          try {
+            const { blob: thumbBlob } = await compressImageToBlob(fileBase64, 'thumbnail');
+            thumbnailUrl = await uploadBlobToStorage('documents', `${foyer.id}/thumb_${linkedDocumentId}.webp`, thumbBlob);
+          } catch (err) {
+            console.warn('Health document thumbnail warning:', err);
+          }
+        } else {
+          const blob = await dataUrlToBlob(fileBase64);
+          const ext = extensionFromMimeType(blob.type, 'bin');
+          fileUrl = await uploadBlobToStorage('documents', `${foyer.id}/${linkedDocumentId}.${ext}`, blob);
+        }
+      }
       const newDoc: DocumentFile = {
         id: linkedDocumentId,
         name: healthDocFile?.name || title,
@@ -840,7 +859,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
         fileSize: healthDocFile ? `${Math.max(1, Math.round(healthDocFile.size / 1024))} Ko` : 'Référence',
         isExpired: false,
         description: healthQuickNotes.trim() || title,
-        fileBase64,
+        fileUrl,
+        thumbnailUrl,
+        fileBase64: fileUrl ? undefined : fileBase64,
         isSecure: true
       };
       setDocuments(prev => [newDoc, ...prev]);
@@ -861,6 +882,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             file_size: newDoc.fileSize,
             is_expired: false,
             description: newDoc.description || null,
+            file_url: newDoc.fileUrl || null,
+            thumbnail_url: newDoc.thumbnailUrl || null,
+            file_base64: null,
             is_secure: true
           });
         } catch (err) {
@@ -6707,9 +6731,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                       <button 
                         type="button"
                         onClick={() => {
-                          if (doc.fileBase64) {
+                          const fileSrc = doc.fileUrl || doc.fileBase64;
+                          if (fileSrc) {
                             const w = window.open();
-                            if (w) w.document.write(`<iframe src="${doc.fileBase64}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                            if (w) w.document.write(`<iframe src="${fileSrc}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
                           } else {
                             alert("Ce document n'a pas de fichier associé.");
                           }

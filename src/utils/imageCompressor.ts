@@ -16,6 +16,32 @@ export const PRESETS: Record<'profile' | 'classic' | 'document' | 'thumbnail', C
   thumbnail: { maxWidth: 300, maxHeight: 300, quality: 0.75 }
 };
 
+export const isDataUrl = (value?: string | null): value is string =>
+  typeof value === 'string' && value.startsWith('data:');
+
+export const isRemoteUrl = (value?: string | null): value is string =>
+  typeof value === 'string' && /^https?:\/\//i.test(value);
+
+export const dataUrlToBlob = async (dataUrl: string): Promise<Blob> => {
+  const response = await fetch(dataUrl);
+  return response.blob();
+};
+
+export const extensionFromMimeType = (mimeType?: string, fallback = 'bin'): string => {
+  if (!mimeType) return fallback;
+  if (mimeType.includes('jpeg')) return 'jpg';
+  if (mimeType.includes('png')) return 'png';
+  if (mimeType.includes('webp')) return 'webp';
+  if (mimeType.includes('pdf')) return 'pdf';
+  if (mimeType.includes('json')) return 'json';
+  if (mimeType.includes('mpeg')) return 'mp3';
+  if (mimeType.includes('mp4')) return 'mp4';
+  if (mimeType.includes('ogg')) return 'ogg';
+  if (mimeType.includes('wav')) return 'wav';
+  if (mimeType.includes('webm')) return 'webm';
+  return fallback;
+};
+
 /**
  * Utility to compress images on the client side using HTML5 Canvas.
  * Reduces image dimensions and lowers JPEG quality to optimize payload sizes for Supabase.

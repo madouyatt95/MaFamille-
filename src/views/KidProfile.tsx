@@ -301,9 +301,9 @@ export const KidProfile: React.FC<KidProfileProps> = ({
 
             {/* Content Preview */}
             <div className="p-6 flex-1 overflow-y-auto flex items-center justify-center bg-black/10">
-              {previewDoc.fileBase64 ? (
-                previewDoc.fileBase64.startsWith('data:image/') || previewDoc.fileBase64.includes(';base64,') ? (
-                  <img src={previewDoc.fileBase64} alt={previewDoc.name} className="max-w-full h-auto max-h-[50vh] object-contain rounded-2xl shadow-lg border border-white/5" />
+              {(previewDoc.fileUrl || previewDoc.fileBase64) ? (
+                ((previewDoc.fileUrl || previewDoc.fileBase64 || '').startsWith('data:image/') || (previewDoc.fileUrl || previewDoc.fileBase64 || '').includes(';base64,') || /\.(jpg|jpeg|png|webp)(\?|$)/i.test(previewDoc.fileUrl || '')) ? (
+                  <img src={previewDoc.fileUrl || previewDoc.fileBase64} alt={previewDoc.name} className="max-w-full h-auto max-h-[50vh] object-contain rounded-2xl shadow-lg border border-white/5" />
                 ) : (
                   <div className="text-center p-6 space-y-3">
                     <span className="text-5xl">📄</span>
@@ -326,9 +326,9 @@ export const KidProfile: React.FC<KidProfileProps> = ({
               >
                 Fermer
               </button>
-              {previewDoc.fileBase64 && (
+              {(previewDoc.fileUrl || previewDoc.fileBase64) && (
                 <a 
-                  href={previewDoc.fileBase64} 
+                  href={previewDoc.fileUrl || previewDoc.fileBase64} 
                   download={previewDoc.name}
                   className="flex-1 py-3 bg-[#6C5CFF] hover:bg-[#5b4eff] rounded-2xl text-xs font-black uppercase text-white tracking-wider cursor-pointer text-center flex items-center justify-center space-x-1.5 shadow-lg shadow-[#6C5CFF]/20 no-underline"
                 >
