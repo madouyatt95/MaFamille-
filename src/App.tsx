@@ -2630,7 +2630,7 @@ function App() {
       wrapQuery('votes', client.from('votes').select('*').eq('foyer_id', foyerId)),
       wrapQuery('school_tasks', client.from('school_tasks').select('*').eq('foyer_id', foyerId)),
       wrapQuery('chat_groups', client.from('chat_groups').select('*').eq('foyer_id', foyerId)),
-      wrapQuery('chat_messages', client.from('chat_messages').select('*').eq('foyer_id', foyerId).order('created_at', { ascending: false }).limit(50)),
+      wrapQuery('chat_messages', client.from('chat_messages').select('*').eq('foyer_id', foyerId).order('created_at', { ascending: false }).limit(25)),
       wrapQuery('demarches', client.from('demarches').select('*').eq('foyer_id', foyerId)),
       wrapQuery('justificatif_packs', client.from('justificatif_packs').select('*').eq('foyer_id', foyerId)),
       wrapQuery('vehicles', client.from('vehicles').select('*').eq('foyer_id', foyerId)),
@@ -3934,20 +3934,28 @@ function App() {
     }
   };
 
-  // Timer loop for silent collaborative rehydration & Focus Sync (every 5 minutes or on tab focus)
+  // Timer loop for silent collaborative rehydration & Focus Sync.
+  // Realtime covers live updates; this is only a safety net, so keep it quiet to avoid Postgres egress spikes.
   useEffect(() => {
     if (!foyer || !isSyncReady) return;
+    let lastSyncAt = 0;
+    const minFocusSyncIntervalMs = 2 * 60 * 1000;
 
-    // Passive polling every 5 minutes
+    // Passive polling every 15 minutes, only while the tab is visible.
     const syncTimer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
       syncDataFromCloud(foyer.id);
-    }, 300000);
+      lastSyncAt = Date.now();
+    }, 900000);
 
-    // Sync on tab active/refocus (Web best practice to stop idle background leakage)
+    // Sync on tab active/refocus, throttled to avoid repeat egress from tab switching.
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        const now = Date.now();
+        if (now - lastSyncAt < minFocusSyncIntervalMs) return;
         console.log("[MaFamille+ Focus Sync] Tab focused, running immediate rehydration sync...");
         syncDataFromCloud(foyer.id);
+        lastSyncAt = now;
       }
     };
 
