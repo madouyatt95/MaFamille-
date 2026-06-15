@@ -371,7 +371,7 @@ html,
 .theme-sepia .text-white\/20,
 .theme-sepia .text-white\/15,
 .theme-sepia .text-white\/10 {
-  color: color-mix(in srgb, var(--family-text) 48%, transparent) !important;
+  color: color-mix(in srgb, var(--family-text) 56%, transparent) !important;
 }
 
 .theme-light .bg-white\/3,
@@ -704,7 +704,7 @@ html,
 .theme-light textarea::placeholder,
 .theme-sepia input::placeholder,
 .theme-sepia textarea::placeholder {
-  color: color-mix(in srgb, var(--family-text) 38%, transparent) !important;
+  color: color-mix(in srgb, var(--family-text) 48%, transparent) !important;
 }
 
 .theme-light .agenda-sources-modal {

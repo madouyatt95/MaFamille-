@@ -14,20 +14,14 @@ export type PremiumSubscriptionSnapshot = {
   platform: PremiumPlatform;
 };
 
-const addMonths = (date: Date, months: number): Date => {
-  const next = new Date(date);
-  next.setMonth(next.getMonth() + months);
-  return next;
-};
-
 export const billingService = {
   createTestSubscription(platform: PremiumPlatform, plan: PremiumPlan): PremiumSubscriptionSnapshot {
-    const expiresAt = addMonths(new Date(), plan === 'yearly' ? 12 : 1).toISOString();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     return {
       isPremium: true,
       source: 'test',
       plan,
-      status: 'active',
+      status: 'trialing',
       expiresAt,
       platform
     };
@@ -41,6 +35,7 @@ export const billingService = {
 
   getStatusLabel(foyer?: Foyer | null): string {
     if (!foyer?.isPremium) return 'Gratuit';
+    if (foyer.premiumStatus === 'trialing') return 'Essai Premium';
     if (foyer.premiumSource === 'test') return 'Premium test';
     if (foyer.premiumSource === 'stripe') return 'Premium Stripe';
     if (foyer.premiumSource === 'appstore') return 'Premium App Store';

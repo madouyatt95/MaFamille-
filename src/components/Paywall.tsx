@@ -40,7 +40,7 @@ interface PaywallProps {
     platform: 'web' | 'ios';
     plan: 'monthly' | 'yearly';
     source: 'test';
-    status: 'active';
+    status: 'trialing';
     expiresAt: string;
   }) => void;
 }
@@ -62,7 +62,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
   const selectedPrice = selectedPlan === 'monthly' ? priceMonthly : priceYearly;
   const selectedPlanLabel = getPremiumPlanLabel(platform, selectedPlan);
   const canUseStripe = isWeb && !!foyerId && !!onStartStripeCheckout;
-  const trialLabel = isWeb ? '7 jours offerts' : 'Mode test';
+  const trialLabel = 'Essai 7 jours inclus';
 
   if (!isOpen) return null;
 
@@ -70,16 +70,15 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
     setSimulating(true);
     setTimeout(() => {
       setSimulating(false);
-      const expiresAt = new Date();
-      expiresAt.setMonth(expiresAt.getMonth() + (selectedPlan === 'yearly' ? 12 : 1));
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       onUnlockPremium({
         platform,
         plan: selectedPlan,
         source: 'test',
-        status: 'active',
+        status: 'trialing',
         expiresAt: expiresAt.toISOString()
       });
-      alert(`Mode test Plus activé pour l’offre ${selectedPlanLabel}. Aucun paiement réel n’a été lancé.`);
+      alert(`Essai Plus activé 7 jours pour l’offre ${selectedPlanLabel}. Aucun paiement réel n’a été lancé.`);
       onClose();
     }, 1800);
   };
@@ -103,13 +102,13 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
 
   const mainBenefits = [
     {
-      label: 'Inclus gratuitement',
+      label: 'Offre gratuite',
       value: '3 membres, documents et organisation du quotidien',
       icon: Users
     },
     {
-      label: 'Inclus avec Plus',
-      value: 'IA réelle, exports, démarches et modules famille avancés',
+      label: 'Essai Plus',
+      value: '7 jours pour tester IA réelle, exports, démarches et modules avancés',
       icon: LockKeyhole
     },
     {
@@ -202,13 +201,13 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-2xl font-extrabold text-white tracking-tight">MyFamily+ Plus</h2>
                 <span className="px-2.5 py-1 rounded-full bg-[#00D26A]/12 border border-[#00D26A]/20 text-[9px] text-[#00D26A] font-black uppercase tracking-wider">
-                  {isWeb ? 'Paiement réel PWA' : 'Test iOS'}
+                  {isWeb ? 'Essai gratuit Stripe' : 'Essai test'}
                 </span>
               </div>
               <p className="text-sm text-white/58 leading-relaxed max-w-xl">
                 {isWeb
-                  ? "Essayez Plus 7 jours gratuitement, puis gardez une seule offre familiale pour débloquer les limites, les exports et les modules IA avancés. Paiement sécurisé par Stripe pour la PWA."
-                  : "Une seule offre familiale pour débloquer les limites, les exports et les modules IA avancés. Le paiement iOS passera par l'App Store."}
+                  ? "Essayez Plus gratuitement pendant 7 jours, puis gardez une seule offre familiale pour débloquer les limites, les exports et les modules IA avancés. Paiement sécurisé par Stripe pour la PWA."
+                  : "Essayez Plus en mode test pendant 7 jours. Le paiement iOS réel passera ensuite par l'App Store."}
               </p>
               <div className="flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#00D26A]/12 border border-[#00D26A]/20 text-[10px] text-[#00D26A] font-black uppercase tracking-wider">
@@ -267,7 +266,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
                   <span className="text-[9px] font-black text-white/42 uppercase tracking-widest block">Mensuel</span>
                   <span className="text-base font-black text-white block mt-1">{priceMonthly}</span>
                   <span className="text-[10px] text-[#7DB2FF] font-bold block mt-1">
-                    {isWeb ? '7 jours gratuits, puis sans engagement' : 'Sans engagement'}
+                    7 jours gratuits, puis sans engagement
                   </span>
                 </button>
 
@@ -285,7 +284,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
                   <span className="text-[9px] font-black text-white/42 uppercase tracking-widest block">Annuel</span>
                   <span className="text-base font-black text-white block mt-1">{priceYearly}</span>
                   <span className="text-[10px] text-[#00D26A] font-bold block mt-1">
-                    {isWeb ? `7 jours gratuits, puis ${priceMonthlyEquivalent} / mois` : `Soit ${priceMonthlyEquivalent} / mois`}
+                    7 jours gratuits, puis {priceMonthlyEquivalent} / mois
                   </span>
                 </button>
               </div>
@@ -334,7 +333,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
               ) : (
                 <>
                   <CreditCard className="w-4 h-4" />
-                  <span>Essayer 7 jours gratuits · puis {selectedPrice}</span>
+                  <span>Commencer l'essai gratuit · puis {selectedPrice}</span>
                 </>
               )}
             </button>
@@ -352,7 +351,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
               ) : (
                 <>
                   <Check className="w-4 h-4" />
-                  <span>Activer Plus test · {selectedPrice}</span>
+                  <span>Activer l'essai test 7 jours</span>
                 </>
               )}
             </button>
@@ -363,13 +362,13 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
               disabled={simulating || checkoutLoading}
               className="w-full py-3 rounded-[18px] bg-white/[0.055] border border-white/10 text-white/58 font-extrabold text-[10px] tracking-wider uppercase cursor-pointer hover:bg-white/[0.08] transition-all disabled:opacity-50"
             >
-              {simulating ? "Activation du test..." : "Garder le raccourci test"}
+              {simulating ? "Activation du test..." : "Activer un essai test 7 jours"}
             </button>
           )}
           <p className="text-[10px] text-white/34 text-center font-sans leading-relaxed">
             {isWeb
-              ? "Stripe démarre l'abonnement avec 7 jours d'essai gratuit. Le foyer passera en offre Plus automatiquement après confirmation."
-              : "Aucun prélèvement iOS pour le moment. L'achat App Store sera branché dans une étape séparée."}
+              ? "Stripe démarre avec 7 jours d'essai gratuit. Le premier paiement aura lieu après la période d'essai si l'abonnement reste actif."
+              : "Aucun prélèvement iOS pour le moment. Cet essai test expire automatiquement après 7 jours."}
           </p>
         </div>
       </div>
