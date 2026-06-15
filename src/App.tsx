@@ -2567,6 +2567,9 @@ function App() {
         
         localStorage.removeItem('mf_discover_mode');
         localStorage.removeItem('mf_is_premium');
+        checkUserFoyerSession(currentUser);
+      } else {
+        checkUserFoyerSession(null);
       }
     });
 

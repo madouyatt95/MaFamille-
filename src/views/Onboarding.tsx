@@ -21,7 +21,7 @@ interface OnboardingProps {
   userEmail: string;
 }
 
-export const Onboarding: React.FC<OnboardingProps> = () => {
+export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
   const [activeMode, setActiveMode] = useState<'login' | 'create' | 'forgot'>('login');
   
   const [firstName, setFirstName] = useState('');
@@ -31,7 +31,9 @@ export const Onboarding: React.FC<OnboardingProps> = () => {
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -94,6 +96,10 @@ export const Onboarding: React.FC<OnboardingProps> = () => {
       setErrorMessage("Le mot de passe doit faire au moins 6 caractères.");
       return;
     }
+    if (activeMode === 'create' && password !== confirmPassword) {
+      setErrorMessage("Les deux mots de passe ne correspondent pas.");
+      return;
+    }
 
     setLoading(true);
 
@@ -108,10 +114,11 @@ export const Onboarding: React.FC<OnboardingProps> = () => {
         if (error) throw error;
       } else {
         // Register account only
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
           options: {
+            emailRedirectTo: window.location.origin,
             data: {
               first_name: firstName.trim(),
               last_name: lastName.trim(),
@@ -124,7 +131,12 @@ export const Onboarding: React.FC<OnboardingProps> = () => {
 
         if (error) throw error;
 
-        setSuccessMessage("Votre compte MaFamille+ a été créé avec succès ! Connectez-vous maintenant pour commencer.");
+        if (data.session) {
+          setSuccessMessage("Votre compte MaFamille+ est créé. Préparation de votre espace familial...");
+          onSuccess('', familyRole);
+        } else {
+          setSuccessMessage("Compte créé. Vérifiez votre boîte mail pour confirmer votre adresse, puis connectez-vous.");
+        }
         
         // Reset fields
         setFirstName('');
@@ -132,6 +144,7 @@ export const Onboarding: React.FC<OnboardingProps> = () => {
         setPhotoUrl('');
         setEmail('');
         setPassword('');
+        setConfirmPassword('');
         
         // Redirect to login tab
         setActiveMode('login');
@@ -200,6 +213,7 @@ export const Onboarding: React.FC<OnboardingProps> = () => {
         {/* Panel Form */}
         <div className="glass-panel border border-white/8 rounded-[32px] p-6 sm:p-8 space-y-5 shadow-2xl relative bg-white/2 backdrop-blur-md">
           {activeMode === 'create' && (
+            <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
               {[
                 { id: 'admin', label: 'Chef', icon: ShieldAlert },
@@ -225,12 +239,16 @@ export const Onboarding: React.FC<OnboardingProps> = () => {
                 );
               })}
             </div>
+            <div className="rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/10 p-3 text-[11px] leading-relaxed text-white/65">
+              <span className="font-extrabold text-white">Chef de famille</span> : profil administrateur du foyer. Il crée la famille, invite ou valide les membres, gère les rôles, la sécurité et l'abonnement.
+            </div>
+            </div>
           )}
 
           {activeMode === 'create' && (
             <div className="grid grid-cols-3 gap-2 text-center">
               {[
-                { label: 'Compte', done: !!email && !!password },
+                { label: 'Compte', done: !!email && !!password && !!confirmPassword },
                 { label: 'Profil', done: !!firstName && !!lastName },
                 { label: 'Alertes', done: true, icon: Bell }
               ].map((step) => (
@@ -390,6 +408,38 @@ export const Onboarding: React.FC<OnboardingProps> = () => {
                     className="absolute right-3.5 top-3 text-white/30 hover:text-white/60 focus:outline-none cursor-pointer"
                   >
                     {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeMode === 'create' && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                  Confirmer le mot de passe
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-3 text-white/30">
+                    <Lock className="w-4 h-4" />
+                  </span>
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    required
+                    placeholder="Retapez le mot de passe"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF] focus:bg-white/8 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3.5 top-3 text-white/30 hover:text-white/60 focus:outline-none cursor-pointer"
+                  >
+                    {showConfirmPassword ? (
                       <EyeOff className="w-4 h-4" />
                     ) : (
                       <Eye className="w-4 h-4" />

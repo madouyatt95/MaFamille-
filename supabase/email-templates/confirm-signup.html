@@ -1,0 +1,27 @@
+<h2>Confirmez votre compte MaFamille+</h2>
+
+<p>Bonjour,</p>
+
+<p>
+  Merci d'avoir créé votre compte MaFamille+. Cliquez sur le bouton ci-dessous
+  pour confirmer votre adresse e-mail et accéder à votre espace familial.
+</p>
+
+<p>
+  <a
+    href="{{ .ConfirmationURL }}"
+    style="display:inline-block;padding:12px 18px;background:#6C5CFF;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"
+  >
+    Confirmer mon adresse e-mail
+  </a>
+</p>
+
+<p>
+  Si le bouton ne fonctionne pas, copiez-collez ce lien dans votre navigateur :
+  <br />
+  <a href="{{ .ConfirmationURL }}">{{ .ConfirmationURL }}</a>
+</p>
+
+<p style="color:#64748b;font-size:13px;">
+  Si vous n'avez pas demandé la création d'un compte MaFamille+, vous pouvez ignorer cet e-mail.
+</p>
