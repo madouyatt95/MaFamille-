@@ -11,7 +11,11 @@ import {
   Eye,
   EyeOff,
   Users,
-  Bell
+  Bell,
+  ShieldCheck,
+  Crown,
+  UserRound,
+  Check
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
 
@@ -46,6 +50,37 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
     'https://api.dicebear.com/7.x/adventurer/svg?seed=Sasha',
     'https://api.dicebear.com/7.x/adventurer/svg?seed=Buster',
     'https://api.dicebear.com/7.x/adventurer/svg?seed=Cookie'
+  ];
+
+  const roleOptions = [
+    {
+      id: 'admin' as const,
+      label: 'Chef',
+      title: 'Chef de famille',
+      description: "Administrateur du foyer : crée la famille, invite ou valide les membres, gère les rôles, la sécurité et l'abonnement.",
+      icon: Crown
+    },
+    {
+      id: 'parent' as const,
+      label: 'Parent',
+      title: 'Parent',
+      description: "Membre adulte avec accès aux modules familiaux, aux validations et au suivi du quotidien.",
+      icon: Users
+    },
+    {
+      id: 'child' as const,
+      label: 'Enfant',
+      title: 'Enfant',
+      description: "Profil enfant ou ado avec une expérience adaptée et des accès limités par les adultes.",
+      icon: UserRound
+    }
+  ];
+
+  const selectedRole = roleOptions.find(role => role.id === familyRole) || roleOptions[0];
+  const passwordChecks = [
+    { label: '6 caractères minimum', done: password.length >= 6 },
+    { label: 'Confirmation identique', done: !!confirmPassword && password === confirmPassword },
+    { label: 'E-mail renseigné', done: /\S+@\S+\.\S+/.test(email.trim()) }
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -173,8 +208,8 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-white/90 to-white/60 bg-clip-text text-transparent">
             MaFamille+
           </h1>
-          <p className="text-xs sm:text-sm text-white/50 max-w-xs mx-auto">
-            Le centre opérationnel de votre quotidien familial
+          <p className="text-xs sm:text-sm text-white/55 max-w-xs mx-auto leading-relaxed">
+            Votre espace familial sécurisé pour organiser, partager et piloter le quotidien.
           </p>
         </div>
 
@@ -192,7 +227,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                 activeMode === 'login' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white'
               }`}
             >
-              Se Connecter
+              Connexion
             </button>
             <button
               type="button"
@@ -205,21 +240,31 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                 activeMode === 'create' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white'
               }`}
             >
-              Créer un compte
+              Inscription
             </button>
           </div>
         )}
 
         {/* Panel Form */}
         <div className="glass-panel border border-white/8 rounded-[32px] p-6 sm:p-8 space-y-5 shadow-2xl relative bg-white/2 backdrop-blur-md">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#6C5CFF]">
+                {activeMode === 'create' ? 'Créer votre accès' : activeMode === 'forgot' ? 'Récupération' : 'Accès sécurisé'}
+              </p>
+              <h2 className="text-lg font-black text-white mt-1">
+                {activeMode === 'create' ? 'Bienvenue dans MaFamille+' : activeMode === 'forgot' ? 'Réinitialiser le mot de passe' : 'Ravi de vous revoir'}
+              </h2>
+            </div>
+            <div className="h-10 w-10 rounded-2xl bg-[#00D26A]/10 border border-[#00D26A]/20 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5 text-[#00D26A]" />
+            </div>
+          </div>
+
           {activeMode === 'create' && (
             <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
-              {[
-                { id: 'admin', label: 'Chef', icon: ShieldAlert },
-                { id: 'parent', label: 'Parent', icon: Users },
-                { id: 'child', label: 'Enfant', icon: User }
-              ].map((item) => {
+              {roleOptions.map((item) => {
                 const Icon = item.icon;
                 const selected = familyRole === item.id;
                 return (
@@ -240,7 +285,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
               })}
             </div>
             <div className="rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/10 p-3 text-[11px] leading-relaxed text-white/65">
-              <span className="font-extrabold text-white">Chef de famille</span> : profil administrateur du foyer. Il crée la famille, invite ou valide les membres, gère les rôles, la sécurité et l'abonnement.
+              <span className="font-extrabold text-white">{selectedRole.title}</span> : {selectedRole.description}
             </div>
             </div>
           )}
@@ -250,7 +295,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
               {[
                 { label: 'Compte', done: !!email && !!password && !!confirmPassword },
                 { label: 'Profil', done: !!firstName && !!lastName },
-                { label: 'Alertes', done: true, icon: Bell }
+                { label: 'Sécurité', done: passwordChecks.every(check => check.done), icon: Bell }
               ].map((step) => (
                 <div key={step.label} className={`py-2 rounded-xl border text-[9px] font-black uppercase tracking-wider ${
                   step.done
@@ -279,6 +324,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                     <input 
                       type="text" 
                       required
+                      autoComplete="given-name"
                       placeholder="Ex: Issa"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
@@ -298,6 +344,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                     <input 
                       type="text" 
                       required
+                      autoComplete="family-name"
                       placeholder="Ex: Yattabare"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
@@ -340,7 +387,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                   </div>
                   <input
                     type="text"
-                    placeholder="Ou collez l'URL d'une image"
+                    placeholder="URL d'image optionnelle"
                     value={photoUrl}
                     onChange={(e) => setPhotoUrl(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-[11px] focus:outline-none focus:border-[#6C5CFF]"
@@ -361,6 +408,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                 <input 
                   type="email" 
                   required
+                  autoComplete="email"
                   placeholder="Ex: issa.yatta@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -397,6 +445,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                   <input 
                     type={showPassword ? "text" : "password"} 
                     required
+                    autoComplete={activeMode === 'login' ? 'current-password' : 'new-password'}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -418,7 +467,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
             )}
 
             {activeMode === 'create' && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
                   Confirmer le mot de passe
                 </label>
@@ -429,6 +478,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                   <input
                     type={showConfirmPassword ? "text" : "password"}
                     required
+                    autoComplete="new-password"
                     placeholder="Retapez le mot de passe"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
@@ -445,6 +495,21 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                       <Eye className="w-4 h-4" />
                     )}
                   </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                  {passwordChecks.map(check => (
+                    <div
+                      key={check.label}
+                      className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-[9px] font-bold ${
+                        check.done
+                          ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]'
+                          : 'bg-white/5 border-white/8 text-white/35'
+                      }`}
+                    >
+                      <Check className="w-3 h-3 shrink-0" />
+                      <span>{check.label}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -494,10 +559,10 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                   <Sparkles className="w-4 h-4" />
                   <span>
                     {activeMode === 'login' 
-                      ? "Se Connecter" 
+                      ? "Se connecter" 
                       : activeMode === 'forgot'
-                        ? "Récupérer mon mot de passe"
-                        : "S'inscrire"}
+                        ? "Recevoir le lien"
+                        : "Créer mon compte"}
                   </span>
                 </>
               )}
@@ -509,8 +574,10 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
         </div>
 
         {/* Footer info */}
-        <div className="text-center text-[10px] text-white/30 font-medium">
-          MaFamille+ respecte la charte RGPD et protège vos données personnelles.
+        <div className="grid grid-cols-3 gap-2 text-center text-[9px] text-white/35 font-bold uppercase tracking-wider">
+          <span className="rounded-xl border border-white/5 bg-white/[0.03] py-2">RGPD</span>
+          <span className="rounded-xl border border-white/5 bg-white/[0.03] py-2">Cloud sécurisé</span>
+          <span className="rounded-xl border border-white/5 bg-white/[0.03] py-2">Famille privée</span>
         </div>
 
       </div>
