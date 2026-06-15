@@ -100,6 +100,48 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/*
+ * App-wide readability pass.
+ * Several legacy modules use very dense Tailwind micro-type. Keep the layout
+ * compact, but raise the floor so in-app text stays readable on phones.
+ */
+#root .text-\[9px\] {
+  font-size: 0.6875rem !important;
+  line-height: 1rem !important;
+}
+
+#root .text-\[10px\] {
+  font-size: 0.75rem !important;
+  line-height: 1rem !important;
+}
+
+#root .text-\[11px\] {
+  font-size: 0.8125rem !important;
+  line-height: 1.125rem !important;
+}
+
+#root .text-xs {
+  font-size: 0.8125rem !important;
+  line-height: 1.125rem !important;
+}
+
+@media (min-width: 768px) {
+  #root .text-\[9px\] {
+    font-size: 0.625rem !important;
+    line-height: 0.875rem !important;
+  }
+
+  #root .text-\[10px\] {
+    font-size: 0.6875rem !important;
+    line-height: 1rem !important;
+  }
+
+  #root .text-\[11px\] {
+    font-size: 0.75rem !important;
+    line-height: 1rem !important;
+  }
+}
+
 html,
 #root {
   min-height: 100%;
