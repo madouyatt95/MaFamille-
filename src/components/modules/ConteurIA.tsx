@@ -11,7 +11,6 @@ import {
   RotateCcw,
   Music,
   Sliders,
-  Sparkle,
   Plus,
   ShieldCheck,
   Crown,
@@ -339,6 +338,7 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
   const [selectedVoiceName, setSelectedVoiceName] = useState<string>('');
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [showVoiceSettings, setShowVoiceSettings] = useState<boolean>(false);
+  const [showAmbientSettings, setShowAmbientSettings] = useState<boolean>(false);
   const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('xl');
 
   // Soundscape (local WAV files in public/sounds/)
@@ -782,22 +782,6 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           perspective: 1200px;
           transform-style: preserve-3d;
         }
-        .book-cover-mock {
-          box-shadow: 0 35px 80px rgba(0,0,0,0.7), inset 0 2px 5px rgba(255,255,255,0.1), inset 0 -2px 5px rgba(0,0,0,0.5);
-          background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-          position: relative;
-        }
-        .book-cover-mock::after {
-          content: '';
-          position: absolute;
-          top: 0; left: 18px; bottom: 0; w: 4px;
-          background: rgba(255,255,255,0.06);
-          box-shadow: 1px 0 3px rgba(0,0,0,0.4);
-        }
-        .book-spine-line {
-          box-shadow: inset -2px 0 8px rgba(0,0,0,0.6), inset 2px 0 8px rgba(0,0,0,0.6);
-          background: rgba(15, 23, 42, 0.95);
-        }
         .audio-wave-bar {
           animation: dance 1.2s ease-in-out infinite alternate;
         }
@@ -822,10 +806,6 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           0% { transform: rotateY(0deg); opacity: 1; filter: brightness(1); }
           50% { transform: rotateY(90deg); opacity: 0.5; filter: brightness(0.7); }
           100% { transform: rotateY(180deg); opacity: 0; filter: brightness(0.4); }
-        }
-        .gold-border {
-          border: 1px solid rgba(251, 191, 36, 0.15);
-          box-shadow: 0 0 10px rgba(251, 191, 36, 0.05);
         }
         .animate-bounce-slow {
           animation: bounceSlow 3s ease-in-out infinite;
@@ -1196,418 +1176,183 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           </div>
         )}
 
-        {/* SCREEN 3: HIGH-FIDELITY 3D PHYSICAL STORYBOOK INTERFACE */}
+        {/* SCREEN 3: CALM READER */}
         {!isGenerating && activeStory && (
-          <div className="w-full max-w-4xl space-y-6 animate-scale-up">
-            
-            {/* The Leather / Wood physical 3D book cover layout */}
-            <div className="book-cover-mock rounded-[32px] p-4 md:p-5 border border-white/10 shadow-2xl relative">
-              
-              {/* Golden corner decorations */}
-              <div className="absolute top-2 left-2 w-6 h-6 border-t-2 border-l-2 border-[#FFB020]/40 rounded-tl-lg"></div>
-              <div className="absolute top-2 right-2 w-6 h-6 border-t-2 border-r-2 border-[#FFB020]/40 rounded-tr-lg"></div>
-              <div className="absolute bottom-2 left-2 w-6 h-6 border-b-2 border-l-2 border-[#FFB020]/40 rounded-bl-lg"></div>
-              <div className="absolute bottom-2 right-2 w-6 h-6 border-b-2 border-r-2 border-[#FFB020]/40 rounded-br-lg"></div>
-
-              {/* Opened Pages Area (Glassmorphism layout simulating open pages) */}
-              <div className="relative rounded-[24px] overflow-hidden bg-slate-900/90 border border-white/8 flex flex-col md:grid md:grid-cols-2 min-h-[460px] shadow-[inset_0_0_40px_rgba(0,0,0,0.8)]">
-                
-                {/* Physical Book Spine (The central fold shadow) */}
-                <div className="hidden md:block absolute top-0 bottom-0 left-1/2 -ml-[12px] w-[24px] z-20 book-spine-line opacity-80"></div>
-                
-                {/* LEFT PAGE: DYNAMIC GRAPHICAL SCENE REPRESENTATION */}
-                <div className="relative hidden md:flex flex-col justify-between p-0 text-center border-b md:border-b-0 md:border-r border-white/6 bg-slate-950 shadow-inner overflow-hidden min-h-[260px] md:min-h-full">
-                  
-                  {loadingStoryImage ? (
-                    <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center space-y-3 z-10">
-                      <RefreshCw className="w-8 h-8 text-[#7C3AED] animate-spin" />
-                      <span className="text-xs font-black text-white/60 uppercase tracking-wide font-sans">
-                        Création de l'illustration...
-                      </span>
-                    </div>
-                  ) : storyImage ? (
-                    <div className="absolute inset-0 w-full h-full group">
-                      <img 
-                        src={storyImage} 
-                        alt="Story Illustration" 
-                        className="w-full h-full object-cover transition-transform duration-[6000ms] group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30"></div>
-                      
-                      {/* Floating title overlay */}
-                      <div className="absolute bottom-4 inset-x-4 text-center z-10">
-                        <span className="text-[8px] font-black text-[#FFB020] uppercase tracking-widest block font-sans">
-                          {selectedHero} dans l'univers {UNIVERSES.find(u => u.id === selectedUniverse)?.name}
-                        </span>
-                        <h4 className="text-xs font-black text-white uppercase tracking-tight leading-tight mt-1 max-w-[200px] mx-auto">
-                          {activeStory.title}
-                        </h4>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="absolute inset-0 bg-[#0d1322] flex flex-col items-center justify-center p-6 space-y-4">
-                      <div className="relative w-20 h-20 rounded-full border border-white/10 flex items-center justify-center">
-                        <span className="text-4xl animate-bounce-slow">{activeStory.emoji}</span>
-                      </div>
-                      <h4 className="text-[11px] font-black text-white/80 uppercase tracking-widest">{activeStory.title}</h4>
-                    </div>
-                  )}
-
-                  {/* Left Page Header decoration overlay */}
-                  <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between text-[9px] font-bold text-white/40 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] font-sans">
-                    <span className="uppercase tracking-widest">{UNIVERSES.find(u => u.id === selectedUniverse)?.name}</span>
-                    <Sparkle className="w-3.5 h-3.5 text-[#FFB020] animate-spin-slow" />
+          <div className="w-full max-w-3xl space-y-4 animate-scale-up">
+            <article className="overflow-hidden rounded-[24px] border border-white/8 bg-[#0B1424]/92 shadow-2xl">
+              <div className="relative h-44 sm:h-56 overflow-hidden bg-[#0d1322]">
+                {loadingStoryImage ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                    <RefreshCw className="w-7 h-7 text-[#7C3AED] animate-spin" />
+                    <span className="text-xs font-bold text-white/60">Création de l'illustration...</span>
                   </div>
+                ) : storyImage ? (
+                  <img src={storyImage} alt={activeStory.title} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-6xl">{activeStory.emoji}</div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0B1424] via-black/20 to-black/15" />
+                <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
+                  <p className="text-xs font-bold text-[#FFB020]">{selectedHero} · {UNIVERSES.find(u => u.id === selectedUniverse)?.name}</p>
+                  <h2 className="mt-1 max-w-2xl text-xl sm:text-2xl font-black text-white leading-tight">{activeStory.title}</h2>
+                </div>
+              </div>
 
-                  {/* Left Page Footer decoration overlay */}
-                  <div className="absolute bottom-4 left-4 right-4 z-20 flex justify-center text-[8px] text-white/50 italic drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)] font-sans mt-auto">
-                    <span>Morale : {MORALS.find(m => m.id === selectedMoral)?.name}</span>
+              <div className={`p-5 sm:p-8 ${isFlipping ? (flipDirection === 'next' ? 'flip-active-next' : 'flip-active-prev') : ''}`}>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 pb-4">
+                  <div>
+                    <p className="text-xs font-bold text-white/45">Chapitre {currentChapterIndex + 1} sur {activeStory.chapters.length}</p>
+                    <h3 className="mt-1 text-base sm:text-lg font-black text-white">{activeStory.chapters[currentChapterIndex].title}</h3>
                   </div>
-
+                  <button
+                    onClick={handleToggleReadAloud}
+                    className={`min-w-[118px] px-4 py-3 rounded-xl border text-sm font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      isReadingAloud
+                        ? 'bg-[#FF4D6D]/15 border-[#FF4D6D]/50 text-[#FF4D6D]'
+                        : 'bg-[#6C5CFF] border-[#6C5CFF] text-white'
+                    }`}
+                  >
+                    {isReadingAloud ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    <span>{isReadingAloud ? 'Arrêter' : 'Écouter'}</span>
+                  </button>
                 </div>
 
-                {/* RIGHT PAGE: THE DENSE BOOK TEXT AREA */}
-                <div className={`relative flex flex-col justify-between p-6 md:p-8 min-h-[320px] md:min-h-full bg-slate-900/40 ${
-                  isFlipping ? (flipDirection === 'next' ? 'flip-active-next' : 'flip-active-prev') : ''
-                }`}>
-                  
-                  <div className="space-y-4 flex-1 flex flex-col justify-between">
-                    
-                    {/* Chapter Header & Voice Synthesis Panel Toggle */}
-                    <div className="flex items-center justify-between pb-3 border-b border-white/6">
-                      <span className="text-xs font-black uppercase tracking-wide text-white/55">
-                        {activeStory.chapters[currentChapterIndex].title}
-                      </span>
-
-                      {/* Control Panel Toggle */}
-                      <div className="flex items-center space-x-1.5">
-                        {/* Font size adjustment buttons */}
-                        <div className="flex items-center bg-white/5 border border-white/8 rounded-lg overflow-hidden mr-1">
-                          <button
-                            onClick={() => {
-                              if (fontSize === 'xl') setFontSize('lg');
-                              else if (fontSize === 'lg') setFontSize('base');
-                              else if (fontSize === 'base') setFontSize('sm');
-                            }}
-                            disabled={fontSize === 'sm'}
-                            className="px-2.5 py-1.5 text-xs font-black text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-20 disabled:pointer-events-none transition-all cursor-pointer border-r border-white/6"
-                            title="Texte plus petit"
-                          >
-                            A-
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (fontSize === 'sm') setFontSize('base');
-                              else if (fontSize === 'base') setFontSize('lg');
-                              else if (fontSize === 'lg') setFontSize('xl');
-                            }}
-                            disabled={fontSize === 'xl'}
-                            className="px-2.5 py-1.5 text-xs font-black text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-20 disabled:pointer-events-none transition-all cursor-pointer"
-                            title="Texte plus grand"
-                          >
-                            A+
-                          </button>
-                        </div>
-
-                        <button
-                          onClick={() => setShowVoiceSettings(prev => !prev)}
-                          className={`p-1.5 rounded-lg border text-white/50 hover:text-white transition-all cursor-pointer ${
-                            showVoiceSettings ? 'bg-white/10 border-white/20 text-white' : 'bg-transparent border-transparent'
-                          }`}
-                          title="Paramètres de conte"
-                        >
-                          <Sliders className="w-3.5 h-3.5" />
-                        </button>
-
-                        {/* Speech synthesis controller trigger */}
-                        <button
-                          onClick={handleToggleReadAloud}
-                          className={`px-3 py-2 rounded-lg border text-xs font-black uppercase tracking-wide flex items-center gap-1.5 transition-all cursor-pointer ${
-                            isReadingAloud 
-                              ? 'bg-[#FF4D6D]/15 border-[#FF4D6D] text-[#FF4D6D] shadow-[0_0_12px_rgba(255,77,109,0.15)]' 
-                              : 'bg-white/5 border-white/8 text-white/60 hover:text-white hover:bg-white/8'
-                          }`}
-                        >
-                          {isReadingAloud ? (
-                            <>
-                              <VolumeX className="w-3 h-3 animate-pulse" />
-                              <span>Stop</span>
-                            </>
-                          ) : (
-                            <>
-                              <Volume2 className="w-3 h-3" />
-                              <span>Vocaliser</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* DYNAMIC SETTINGS PANEL overlay */}
-                    {showVoiceSettings && (
-                      <div className="bg-slate-950/90 border border-white/10 rounded-2xl p-4 space-y-3 animate-fade-in relative z-35 my-2">
-                        <h4 className="text-sm font-black text-white">Réglages de lecture</h4>
-                        
-                        {/* Voice Selector */}
-                        <div className="space-y-1">
-                          <label className="text-xs font-extrabold uppercase text-white/55">Voix de lecture</label>
-                          <select
-                            value={selectedVoiceName}
-                            onChange={(e) => setSelectedVoiceName(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
-                          >
-                            {availableVoices.map(v => (
-                              <option key={v.name} value={v.name} className="bg-slate-950 text-white">
-                                {v.name} ({v.lang})
-                              </option>
-                            ))}
-                            {availableVoices.length === 0 && (
-                              <option className="bg-slate-950 text-white">Voix système par défaut...</option>
-                            )}
-                          </select>
-                        </div>
-
-                        {/* Tone & Pitch controls */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-xs font-extrabold uppercase text-white/55 flex justify-between">
-                              <span>Vitesse</span> <span>{Math.round(speechRate * 100)}%</span>
-                            </label>
-                            <input
-                              type="range"
-                              min="0.6"
-                              max="1.1"
-                              step="0.05"
-                              value={speechRate}
-                              onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
-                              className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#FFB020]"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs font-extrabold uppercase text-white/55 flex justify-between">
-                              <span>Hauteur</span> <span>{Math.round(speechPitch * 100)}%</span>
-                            </label>
-                            <input
-                              type="range"
-                              min="0.8"
-                              max="1.3"
-                              step="0.05"
-                              value={speechPitch}
-                              onChange={(e) => setSpeechPitch(parseFloat(e.target.value))}
-                              className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#FFB020]"
-                            />
-                          </div>
-                        </div>
-                        <p className="text-xs text-white/55">
-                          Une vitesse entre 75% et 85% donne généralement une lecture plus apaisante.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Mobile Themed Banner to remind children of the universe */}
-                    <div className="flex md:hidden items-center justify-between bg-white/5 border border-white/8 rounded-xl p-2.5 mb-1.5 backdrop-blur-sm">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-2xl filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] animate-bounce-slow">{activeStory.emoji}</span>
-                        <div className="flex flex-col text-left">
-                          <span className="text-xs font-black uppercase tracking-wide text-[#FFB020] leading-none">Histoire en cours</span>
-                          <span className="text-sm font-extrabold text-white leading-tight">{activeStory.title}</span>
-                        </div>
-                      </div>
-                      <span className="text-xs font-bold text-white/50">{selectedHero}</span>
-                    </div>
-
-                    {/* DENSE IMMERSIVE STORY TEXT WRAPPER */}
-                    <div className="flex-1 overflow-y-auto max-h-[300px] pr-2 space-y-4 py-2 custom-scrollbar">
-                      {activeStory.chapters[currentChapterIndex].content.map((paragraph: string, pIdx: number) => (
-                        <p 
-                          key={pIdx} 
-                          className={`leading-relaxed text-white/95 font-serif text-justify font-normal select-none indent-6 transition-all duration-350 ${
-                            fontSize === 'sm' ? 'text-sm md:text-[15px]' :
-                            fontSize === 'base' ? 'text-[15px] md:text-base' :
-                            fontSize === 'lg' ? 'text-base md:text-lg' :
-                            'text-lg md:text-xl'
-                          }`}
-                        >
-                          {paragraph}
-                        </p>
-                      ))}
-                    </div>
-
-                    {/* Speech active pulsating neon waveform */}
-                    {isReadingAloud && (
-                      <div className="flex items-center justify-center space-x-1.5 h-6 bg-gradient-to-r from-transparent via-[#FF4D6D]/10 to-transparent border-y border-[#FF4D6D]/15 rounded-lg py-1">
-                        <span className="text-xs font-bold text-[#FF4D6D] uppercase tracking-wide animate-pulse mr-1">Lecture en cours</span>
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(bar => (
-                          <div
-                            key={bar}
-                            className="w-[2px] bg-[#FF4D6D] rounded-full audio-wave-bar"
-                            style={{ 
-                              height: '100%', 
-                              animationDelay: `${bar * 0.12}s`,
-                              animationDuration: `${0.8 + Math.random() * 0.7}s`
-                            }}
-                          ></div>
-                        ))}
-                      </div>
-                    )}
-
-                  </div>
-
-                  {/* Right Page Footer controls */}
-                  <div className="flex items-center justify-between pt-4 border-t border-white/6 font-sans mt-2">
-                    <span className="text-xs font-black text-white/50">
-                      Chapitre {currentChapterIndex + 1} / {activeStory.chapters.length}
-                    </span>
-
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={handlePrevPage}
-                        disabled={currentChapterIndex === 0 || isFlipping}
-                        className="p-2 rounded-xl bg-white/5 border border-white/8 hover:bg-white/10 disabled:opacity-20 disabled:pointer-events-none transition-all cursor-pointer"
+                <div className="max-h-[52vh] overflow-y-auto py-6 pr-2 custom-scrollbar">
+                  <div className="mx-auto max-w-2xl space-y-5">
+                    {activeStory.chapters[currentChapterIndex].content.map((paragraph: string, pIdx: number) => (
+                      <p
+                        key={pIdx}
+                        className={`text-left leading-[1.8] text-white/92 font-serif font-normal transition-all ${
+                          fontSize === 'sm' ? 'text-sm sm:text-base' :
+                          fontSize === 'base' ? 'text-base sm:text-lg' :
+                          fontSize === 'lg' ? 'text-lg sm:text-xl' :
+                          'text-xl sm:text-[22px]'
+                        }`}
                       >
-                        <ChevronLeft className="w-4 h-4 text-white" />
-                      </button>
-
-                      {currentChapterIndex < activeStory.chapters.length - 1 ? (
-                        <button
-                          onClick={handleNextPage}
-                          disabled={isFlipping}
-                          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#FFB020] to-[#FF4D6D] text-black font-extrabold text-xs uppercase tracking-wide flex items-center space-x-1 hover:opacity-90 active:scale-95 transition-all shadow-md shadow-[#FFB020]/15 cursor-pointer"
-                        >
-                          <span>Tourner Page</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleReset}
-                          className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-extrabold text-xs uppercase tracking-wide flex items-center space-x-1.5 active:scale-95 transition-all border border-white/10 cursor-pointer"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Recommencer</span>
-                        </button>
-                      )}
-                    </div>
+                        {paragraph}
+                      </p>
+                    ))}
                   </div>
-
                 </div>
 
-              </div>
-
-            </div>
-
-            {/* DOWNTIME IMMERSIVE SOUNDSCAPE PANEL (AMPLIFYING AMBIENT NOISE & REMOVING ROBOT FEEL) */}
-            <div className="bg-slate-900/60 border border-white/8 rounded-3xl p-5 md:p-6 shadow-xl relative z-10 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Music className="w-4 h-4 text-[#FFB020]" />
-                  <h4 className="text-sm font-black text-white">
-                    Ambiance sonore
-                  </h4>
-                </div>
-                <span className="text-xs font-extrabold text-[#FFB020] uppercase tracking-wide bg-[#FFB020]/10 px-2.5 py-1 rounded-full">
-                  6 choix
-                </span>
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                {/* Mode Selector */}
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => { setAmbientSound('none'); stopAmbientSound(); }}
-                    className={`px-3 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
-                      ambientSound === 'none' 
-                        ? 'bg-white/15 border-white/30 text-white' 
-                        : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
-                    }`}
-                  >
-                    🔇 Silence
-                  </button>
-                  <button
-                    onClick={() => { setAmbientSound('rain'); startAmbientSound('rain'); }}
-                    className={`px-3 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
-                      ambientSound === 'rain' 
-                        ? 'bg-sky-500/20 border-sky-500 text-sky-400 shadow-[0_0_10px_rgba(14,165,233,0.15)]' 
-                        : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
-                    }`}
-                  >
-                    🌧️ Douce Pluie
-                  </button>
-                  <button
-                    onClick={() => { setAmbientSound('crickets'); startAmbientSound('crickets'); }}
-                    className={`px-3 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
-                      ambientSound === 'crickets' 
-                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.15)]' 
-                        : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
-                    }`}
-                  >
-                    🦗 Grillons d'Été
-                  </button>
-                  <button
-                    onClick={() => { setAmbientSound('lullaby'); startAmbientSound('lullaby'); }}
-                    className={`px-3 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
-                      ambientSound === 'lullaby' 
-                        ? 'bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_10px_rgba(236,72,153,0.15)]' 
-                        : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
-                    }`}
-                  >
-                    🎵 Berceuse Céleste
-                  </button>
-                  <button
-                    onClick={() => { setAmbientSound('ocean'); startAmbientSound('ocean'); }}
-                    className={`px-3 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
-                      ambientSound === 'ocean' 
-                        ? 'bg-blue-500/20 border-blue-500 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.15)]' 
-                        : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
-                    }`}
-                  >
-                    🌊 Vagues Océan
-                  </button>
-                  <button
-                    onClick={() => { setAmbientSound('wind'); startAmbientSound('wind'); }}
-                    className={`px-3 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
-                      ambientSound === 'wind' 
-                        ? 'bg-teal-500/20 border-teal-500 text-teal-400 shadow-[0_0_10px_rgba(20,184,166,0.15)]' 
-                        : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
-                    }`}
-                  >
-                    🌲 Vent Forêt
-                  </button>
-                  <button
-                    onClick={() => { setAmbientSound('stream'); startAmbientSound('stream'); }}
-                    className={`px-3 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
-                      ambientSound === 'stream' 
-                        ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.15)]' 
-                        : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
-                    }`}
-                  >
-                    💧 Ruisseau Calme
-                  </button>
-                </div>
-
-                {/* Volume slider */}
-                {ambientSound !== 'none' && (
-                  <div className="flex items-center space-x-3 bg-white/5 border border-white/8 rounded-2xl px-4 py-2">
-                    <span className="text-xs font-bold text-white/55">Volume</span>
-                    <input
-                      type="range"
-                      min="0.05"
-                      max="0.45"
-                      step="0.05"
-                      value={ambientVolume}
-                      onChange={(e) => setAmbientVolume(parseFloat(e.target.value))}
-                      className="w-24 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#FFB020]"
-                    />
-                    <span className="text-xs font-bold text-white/70 w-8 text-right">
-                      {Math.round(ambientVolume * 200)}%
-                    </span>
+                {isReadingAloud && (
+                  <div className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-[#FF4D6D]/20 bg-[#FF4D6D]/8 py-2 text-xs font-bold text-[#FF4D6D]">
+                    <Volume2 className="w-3.5 h-3.5 animate-pulse" />
+                    Lecture du chapitre en cours
                   </div>
                 )}
-              </div>
-              <p className="text-xs text-white/50 leading-relaxed">
-                La pluie douce et la berceuse peuvent accompagner la lecture. Gardez un volume faible pour que la voix reste claire.
-              </p>
-            </div>
 
+                <div className="sticky bottom-0 -mx-5 -mb-5 sm:-mx-8 sm:-mb-8 border-t border-white/8 bg-[#0B1424]/95 p-4 backdrop-blur-xl">
+                  <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+                    <button
+                      onClick={handlePrevPage}
+                      disabled={currentChapterIndex === 0 || isFlipping}
+                      className="h-11 w-11 rounded-xl border border-white/10 bg-white/5 text-white disabled:opacity-20 flex items-center justify-center"
+                      aria-label="Chapitre précédent"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowVoiceSettings(prev => !prev)}
+                        className={`h-11 w-11 rounded-xl border flex items-center justify-center ${showVoiceSettings ? 'bg-white/12 border-white/20 text-white' : 'bg-white/5 border-white/10 text-white/60'}`}
+                        aria-label="Réglages de lecture"
+                      >
+                        <Sliders className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setShowAmbientSettings(prev => !prev)}
+                        className={`h-11 w-11 rounded-xl border flex items-center justify-center ${showAmbientSettings ? 'bg-[#FFB020]/15 border-[#FFB020]/30 text-[#FFB020]' : 'bg-white/5 border-white/10 text-white/60'}`}
+                        aria-label="Ambiance sonore"
+                      >
+                        <Music className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {currentChapterIndex < activeStory.chapters.length - 1 ? (
+                      <button
+                        onClick={handleNextPage}
+                        disabled={isFlipping}
+                        className="h-11 px-4 rounded-xl bg-[#FFB020] text-[#07111F] font-black text-sm flex items-center gap-1.5"
+                      >
+                        <span>Suivant</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button onClick={handleReset} className="h-11 px-4 rounded-xl bg-white/10 border border-white/10 text-white font-black text-sm flex items-center gap-1.5">
+                        <RotateCcw className="w-4 h-4" />
+                        <span>Nouvelle</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            {showVoiceSettings && (
+              <div className="rounded-2xl border border-white/8 bg-[#0B1424]/90 p-4 sm:p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-black text-white">Confort de lecture</h4>
+                  <div className="flex overflow-hidden rounded-lg border border-white/10">
+                    <button
+                      onClick={() => setFontSize(fontSize === 'xl' ? 'lg' : fontSize === 'lg' ? 'base' : 'sm')}
+                      disabled={fontSize === 'sm'}
+                      className="px-3 py-2 text-xs font-black text-white/70 disabled:opacity-20 border-r border-white/10"
+                    >A-</button>
+                    <button
+                      onClick={() => setFontSize(fontSize === 'sm' ? 'base' : fontSize === 'base' ? 'lg' : 'xl')}
+                      disabled={fontSize === 'xl'}
+                      className="px-3 py-2 text-xs font-black text-white/70 disabled:opacity-20"
+                    >A+</button>
+                  </div>
+                </div>
+                <select value={selectedVoiceName} onChange={(e) => setSelectedVoiceName(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white">
+                  {availableVoices.map(v => <option key={v.name} value={v.name} className="bg-slate-950">{v.name} ({v.lang})</option>)}
+                  {availableVoices.length === 0 && <option className="bg-slate-950">Voix système par défaut</option>}
+                </select>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="text-xs font-bold text-white/60">Vitesse {Math.round(speechRate * 100)}%
+                    <input type="range" min="0.6" max="1.1" step="0.05" value={speechRate} onChange={(e) => setSpeechRate(parseFloat(e.target.value))} className="mt-2 w-full accent-[#FFB020]" />
+                  </label>
+                  <label className="text-xs font-bold text-white/60">Hauteur {Math.round(speechPitch * 100)}%
+                    <input type="range" min="0.8" max="1.3" step="0.05" value={speechPitch} onChange={(e) => setSpeechPitch(parseFloat(e.target.value))} className="mt-2 w-full accent-[#FFB020]" />
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {showAmbientSettings && (
+              <div className="rounded-2xl border border-white/8 bg-[#0B1424]/90 p-4 sm:p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-black text-white">Ambiance sonore</h4>
+                  {ambientSound !== 'none' && (
+                    <label className="flex items-center gap-2 text-xs font-bold text-white/55">
+                      Volume
+                      <input type="range" min="0.05" max="0.45" step="0.05" value={ambientVolume} onChange={(e) => setAmbientVolume(parseFloat(e.target.value))} className="w-24 accent-[#FFB020]" />
+                    </label>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    ['none', 'Silence'], ['rain', 'Pluie douce'], ['crickets', 'Grillons'],
+                    ['lullaby', 'Berceuse'], ['ocean', 'Vagues'], ['wind', 'Forêt'], ['stream', 'Ruisseau']
+                  ].map(([id, label]) => (
+                    <button
+                      key={id}
+                      onClick={() => {
+                        setAmbientSound(id as typeof ambientSound);
+                        if (id === 'none') stopAmbientSound();
+                        else startAmbientSound(id as Exclude<typeof ambientSound, 'none'>);
+                      }}
+                      className={`px-3 py-2.5 rounded-xl border text-xs font-bold ${ambientSound === id ? 'bg-[#FFB020]/15 border-[#FFB020]/35 text-[#FFB020]' : 'bg-white/5 border-white/10 text-white/60'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
