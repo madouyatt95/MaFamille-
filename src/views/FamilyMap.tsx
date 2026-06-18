@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Circle, MapContainer, TileLayer, Marker, Popup, useMap, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -23,7 +23,13 @@ import {
   UserX,
   MapPin,
   Info,
-  ExternalLink
+  ExternalLink,
+  Pill,
+  Stethoscope,
+  ShoppingBasket,
+  TrainFront,
+  Trees,
+  LocateFixed
 } from 'lucide-react';
 import type { FoyerMember, Member } from '../types';
 
@@ -31,6 +37,7 @@ const DEFAULT_MAP_CENTER: [number, number] = [46.603354, 1.888334];
 const FALLBACK_AVATAR = 'https://api.dicebear.com/7.x/adventurer/svg?seed=family-map';
 const createFavoriteId = (type: FavoritePlace['type']) => `fav-${Date.now()}-${type}`;
 const MAX_SEARCH_RESULTS = 8;
+const NEARBY_RADIUS_METERS = 5000;
 
 const getMemberCoords = (member?: Member | null): [number, number] | null => {
   if (!member || member.latitude === undefined || member.latitude === null || member.longitude === undefined || member.longitude === null) {
@@ -119,6 +126,8 @@ interface MapSearchResult {
   lon: string;
   display_name: string;
   name?: string;
+  distanceKm?: number;
+  nearbyCategory?: NearbyCategory;
   address?: {
     amenity?: string;
     road?: string;
@@ -132,6 +141,29 @@ interface MapSearchResult {
     country?: string;
   };
 }
+
+type NearbyCategory = 'school' | 'doctor' | 'pharmacy' | 'shopping' | 'station' | 'park';
+
+interface OverpassElement {
+  lat?: number;
+  lon?: number;
+  center?: { lat?: number; lon?: number };
+  tags?: Record<string, string>;
+}
+
+const nearbyCategories: Array<{
+  key: NearbyCategory;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  filter: string;
+}> = [
+  { key: 'school', label: 'École', icon: GraduationCap, filter: '["amenity"~"school|kindergarten|college"]' },
+  { key: 'doctor', label: 'Médecin', icon: Stethoscope, filter: '["amenity"~"doctors|clinic|hospital|dentist"]' },
+  { key: 'pharmacy', label: 'Pharmacie', icon: Pill, filter: '["amenity"="pharmacy"]' },
+  { key: 'shopping', label: 'Courses', icon: ShoppingBasket, filter: '["shop"~"supermarket|convenience|grocery"]' },
+  { key: 'station', label: 'Gare', icon: TrainFront, filter: '["railway"~"station|halt"]' },
+  { key: 'park', label: 'Parc', icon: Trees, filter: '["leisure"="park"]' }
+];
 
 const readStoredFavorites = (): FavoritePlace[] => {
   try {
@@ -209,6 +241,49 @@ const buildSearchUrl = (query: string, origin: [number, number] | null) => {
   return `https://nominatim.openstreetmap.org/search?${params.toString()}`;
 };
 
+const buildNearbyQuery = (category: NearbyCategory, origin: [number, number]) => {
+  const definition = nearbyCategories.find(item => item.key === category);
+  if (!definition) return '';
+  const [lat, lng] = origin;
+  return `[out:json][timeout:15];nwr${definition.filter}(around:${NEARBY_RADIUS_METERS},${lat},${lng});out center tags;`;
+};
+
+const overpassElementToSearchResult = (
+  element: OverpassElement,
+  category: NearbyCategory,
+  origin: [number, number]
+): MapSearchResult | null => {
+  const lat = element.lat ?? element.center?.lat;
+  const lon = element.lon ?? element.center?.lon;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+  const tags = element.tags || {};
+  const name = tags.name || tags.brand || nearbyCategories.find(item => item.key === category)?.label || 'Lieu';
+  const road = tags['addr:street'];
+  const houseNumber = tags['addr:housenumber'];
+  const city = tags['addr:city'] || tags['addr:town'] || tags['addr:village'];
+  const addressParts = [
+    houseNumber && road ? `${houseNumber} ${road}` : road,
+    city,
+    tags['addr:postcode']
+  ].filter(Boolean);
+
+  return {
+    lat: String(lat),
+    lon: String(lon),
+    name,
+    display_name: [name, ...addressParts].join(', '),
+    distanceKm: getHaversineDistance(origin[0], origin[1], lat as number, lon as number),
+    nearbyCategory: category,
+    address: {
+      road,
+      house_number: houseNumber,
+      city,
+      postcode: tags['addr:postcode']
+    }
+  };
+};
+
 const formatSearchResult = (result: MapSearchResult) => {
   const address = result?.address || {};
   const title =
@@ -281,6 +356,9 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const [mapNotice, setMapNotice] = useState<{ type: 'success' | 'info' | 'warning'; message: string } | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string>('Actif maintenant');
   const [isSharing, setIsSharing] = useState<boolean>(() => localStorage.getItem('mf_share_location') !== 'false');
+  const geolocationRequestRef = useRef(0);
+  const isSharingRef = useRef(isSharing);
+  const selectedStatusRef = useRef(selectedStatus);
   
   // Layer style: 'dark' | 'satellite'
   const [mapLayer, setMapLayer] = useState<'dark' | 'satellite'>('dark');
@@ -377,7 +455,48 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
   const me = members.find(m => m.id === activeMemberId);
   const activeMemberStoredLocation = useMemo(() => getMemberCoords(me), [me]);
-  const routeOrigin = isSharing ? (userLocation || activeMemberStoredLocation) : userLocation;
+  const routeOrigin = isSharing ? (userLocation || activeMemberStoredLocation) : null;
+
+  useEffect(() => {
+    isSharingRef.current = isSharing;
+  }, [isSharing]);
+
+  useEffect(() => {
+    selectedStatusRef.current = selectedStatus;
+  }, [selectedStatus]);
+
+  const searchNearbyPlaces = async (category: NearbyCategory) => {
+    const definition = nearbyCategories.find(item => item.key === category);
+    if (!routeOrigin || !definition) {
+      setSearchResults([]);
+      setSearchError("Activez votre position pour afficher les lieux réellement proches de vous.");
+      setMapNotice({ type: 'warning', message: "La recherche de proximité nécessite votre position actuelle." });
+      return;
+    }
+
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const query = buildNearbyQuery(category, routeOrigin);
+      const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+      if (!response.ok) throw new Error('nearby_search_failed');
+      const data = await response.json() as { elements?: OverpassElement[] };
+      const results = (data.elements || [])
+        .map(element => overpassElementToSearchResult(element, category, routeOrigin))
+        .filter((result): result is MapSearchResult => Boolean(result))
+        .sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
+      const compacted = compactSearchResults(results);
+      setSearchResults(compacted);
+      if (compacted.length === 0) {
+        setSearchError(`Aucun ${definition.label.toLowerCase()} trouvé dans un rayon de 5 km.`);
+      }
+    } catch (err) {
+      console.error('Nearby places search error:', err);
+      setSearchError("Les lieux proches sont momentanément indisponibles. Réessayez dans quelques instants.");
+    } finally {
+      setSearching(false);
+    }
+  };
   const safetyZones = useMemo<SafetyZone[]>(() => {
     return favorites
       .filter(fav => ['home', 'work', 'school'].includes(fav.type))
@@ -391,9 +510,15 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   }, [favorites]);
 
   useEffect(() => {
-    const bestCenter = userLocation || activeMemberStoredLocation || members.map(getMemberCoords).find(Boolean) || DEFAULT_MAP_CENTER;
+    const otherMemberLocation = members
+      .filter(member => member.id !== activeMemberId)
+      .map(getMemberCoords)
+      .find(Boolean);
+    const bestCenter = isSharing
+      ? userLocation || activeMemberStoredLocation || otherMemberLocation || favorites[0]?.coords || DEFAULT_MAP_CENTER
+      : otherMemberLocation || favorites[0]?.coords || DEFAULT_MAP_CENTER;
     queueMicrotask(() => setMapCenter(bestCenter as [number, number]));
-  }, [activeMemberStoredLocation, members, userLocation]);
+  }, [activeMemberId, activeMemberStoredLocation, favorites, isSharing, members, userLocation]);
 
   useEffect(() => {
     if (me && me.locationStatus) {
@@ -425,6 +550,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   }, [activeMemberId, me]);
 
   useEffect(() => {
+    const requestId = ++geolocationRequestRef.current;
+
     if (!isSharing) {
       queueMicrotask(() => {
         setUserLocation(null);
@@ -433,18 +560,9 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         setLoadingLoc(false);
         setLocationError(null);
       });
-      if (onUpdateMemberProfile) {
-        onUpdateMemberProfile(activeMemberId, {
-          latitude: null,
-          longitude: null,
-          locationStatus: 'Position masquée 🔒',
-          lastLocatedAt: new Date().toISOString()
-        });
-      }
       return;
     }
 
-    // True HTML5 GPS Geolocalisation
     if (navigator.geolocation) {
       queueMicrotask(() => {
         setLoadingLoc(true);
@@ -452,8 +570,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       });
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          if (requestId !== geolocationRequestRef.current || !isSharingRef.current) return;
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
+          const currentStatus = selectedStatusRef.current;
           setUserLocation([lat, lng]);
           setMapCenter([lat, lng]);
           setLoadingLoc(false);
@@ -462,13 +582,17 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
             onUpdateMemberProfile(activeMemberId, {
               latitude: lat,
               longitude: lng,
-              locationStatus: selectedStatus,
+              locationStatus: currentStatus,
               lastLocatedAt: new Date().toISOString()
+            }).catch((error) => {
+              console.error('Unable to publish member location:', error);
+              setMapNotice({ type: 'warning', message: "Votre position est visible sur cet appareil, mais sa synchronisation a échoué." });
             });
           }
-          addLocationHistoryEntry([lat, lng], selectedStatus);
+          addLocationHistoryEntry([lat, lng], currentStatus);
         },
         (err) => {
+          if (requestId !== geolocationRequestRef.current || !isSharingRef.current) return;
           console.error("GPS Access Error:", err);
           setLocationError("Position non disponible. Vérifiez l'autorisation GPS de l'appareil.");
           setLoadingLoc(false);
@@ -477,7 +601,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
             setMapCenter(activeMemberStoredLocation);
           }
         },
-        { enableHighAccuracy: true }
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
       );
     } else {
       queueMicrotask(() => {
@@ -485,9 +609,11 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         setLoadingLoc(false);
       });
     }
-  }, [activeMemberId, activeMemberStoredLocation, addLocationHistoryEntry, isSharing, onUpdateMemberProfile, selectedStatus]);
+  }, [activeMemberId, activeMemberStoredLocation, addLocationHistoryEntry, isSharing, onUpdateMemberProfile]);
 
   const updateLocationSharing = async (nextVal: boolean) => {
+    ++geolocationRequestRef.current;
+    isSharingRef.current = nextVal;
     setIsSharing(nextVal);
     localStorage.setItem('mf_share_location', nextVal ? 'true' : 'false');
 
@@ -499,12 +625,21 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       setRouteDuration(null);
       setLocationError(null);
       if (onUpdateMemberProfile) {
-        await onUpdateMemberProfile(activeMemberId, {
-          latitude: null,
-          longitude: null,
-          locationStatus: 'Position masquée 🔒',
-          lastLocatedAt: new Date().toISOString()
-        });
+        try {
+          await onUpdateMemberProfile(activeMemberId, {
+            latitude: null,
+            longitude: null,
+            locationStatus: 'Position masquée 🔒',
+            lastLocatedAt: new Date().toISOString()
+          });
+        } catch (error) {
+          console.error('Unable to disable location sharing:', error);
+          setMapNotice({
+            type: 'warning',
+            message: "La position est masquée sur cet appareil, mais la synchronisation avec le foyer a échoué."
+          });
+          return;
+        }
       }
     }
 
@@ -842,16 +977,19 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         </form>
 
         <div className="mt-2 flex gap-1.5 overflow-x-auto no-scrollbar">
-          {['École', 'Médecin', 'Pharmacie', 'Courses', 'Gare', 'Parc'].map((label) => (
+          {nearbyCategories.map(({ key, label, icon: Icon }) => (
             <button
-              key={label}
+              key={key}
               type="button"
-              onClick={() => {
-                setSearchQuery(label);
-                searchPlaces(label, true);
-              }}
-              className="shrink-0 px-2.5 py-1.5 rounded-xl bg-[#0F1E36]/85 border border-white/10 text-[9px] font-extrabold text-white/70 backdrop-blur-xl active:scale-95"
+              onClick={() => searchNearbyPlaces(key)}
+              className={`shrink-0 px-2.5 py-1.5 rounded-xl border text-[9px] font-extrabold backdrop-blur-xl active:scale-95 flex items-center gap-1.5 ${
+                routeOrigin
+                  ? 'bg-[#0F1E36]/90 border-white/10 text-white/75'
+                  : 'bg-[#0F1E36]/65 border-white/5 text-white/35'
+              }`}
+              title={routeOrigin ? `${label} à moins de 5 km` : 'Activez votre position pour rechercher à proximité'}
             >
+              <Icon className="h-3 w-3" />
               {label}
             </button>
           ))}
@@ -859,8 +997,14 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
         <div className="mt-2 rounded-2xl bg-[#0F1E36]/75 border border-white/8 px-3 py-2 backdrop-blur-xl">
           <p className="text-[9px] text-white/55 font-semibold leading-normal flex items-start gap-1.5">
-            <Info className="mt-0.5 h-3 w-3 shrink-0 text-[#6C5CFF]" />
-            <span>Recherchez un lieu, sélectionnez le résultat, puis enregistrez-le comme Maison, École, Travail ou Favori.</span>
+            {routeOrigin
+              ? <LocateFixed className="mt-0.5 h-3 w-3 shrink-0 text-[#00D26A]" />
+              : <Info className="mt-0.5 h-3 w-3 shrink-0 text-[#FFB020]" />}
+            <span>
+              {routeOrigin
+                ? 'Lieux proches triés par distance autour de votre position, dans un rayon de 5 km.'
+                : 'Position masquée : activez-la pour obtenir les écoles, pharmacies et services réellement proches.'}
+            </span>
           </p>
         </div>
 
@@ -897,6 +1041,11 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                   <span className="text-[11px] font-extrabold text-white flex items-center gap-1.5">
                     <span>📍</span>
                     <span className="truncate">{formatted.title}</span>
+                    {typeof res.distanceKm === 'number' && (
+                      <span className="ml-auto shrink-0 rounded-lg bg-[#00D26A]/10 px-1.5 py-0.5 text-[8px] text-[#00D26A]">
+                        {res.distanceKm < 1 ? `${Math.round(res.distanceKm * 1000)} m` : `${res.distanceKm.toFixed(1)} km`}
+                      </span>
+                    )}
                   </span>
                   <span className="text-[9px] text-white/45 block truncate mt-0.5">{formatted.subtitle}</span>
                 </button>
@@ -945,16 +1094,18 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         </button>
 
         {/* Manual Geolocate centering */}
-                        <button
-                          onClick={() => {
-                            if (!isSharing) {
-                              setMapNotice({ type: 'warning', message: "Activez le partage de position pour vous géolocaliser." });
-                              return;
-                            }
+        <button
+          onClick={() => {
+            if (!isSharing) {
+              setMapNotice({ type: 'warning', message: "Activez le partage de position pour vous géolocaliser." });
+              return;
+            }
             if (navigator.geolocation) {
+              const requestId = ++geolocationRequestRef.current;
               setLoadingLoc(true);
               navigator.geolocation.getCurrentPosition(
                 (pos) => {
+                  if (requestId !== geolocationRequestRef.current || !isSharingRef.current) return;
                   const lat = pos.coords.latitude;
                   const lng = pos.coords.longitude;
                   setUserLocation([lat, lng]);
@@ -964,10 +1115,12 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                   addLocationHistoryEntry([lat, lng], selectedStatus);
                 },
                 (err) => {
+                  if (requestId !== geolocationRequestRef.current || !isSharingRef.current) return;
                   console.error(err);
                   setLocationError("Position non disponible. Vérifiez l'autorisation GPS de l'appareil.");
                   setLoadingLoc(false);
-                }
+                },
+                { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
               );
             }
           }}
