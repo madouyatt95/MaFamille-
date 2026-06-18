@@ -473,7 +473,14 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const [sheetState, setSheetState] = useState<'collapsed' | 'half'>('collapsed');
 
   const me = members.find(m => m.id === activeMemberId);
-  const activeMemberStoredLocation = useMemo(() => getMemberCoords(me), [me]);
+  const activeMemberLatitude = Number(me?.latitude);
+  const activeMemberLongitude = Number(me?.longitude);
+  const activeMemberName = String(me?.name || '');
+  const activeMemberStoredLocation = useMemo<[number, number] | null>(() => {
+    return Number.isFinite(activeMemberLatitude) && Number.isFinite(activeMemberLongitude)
+      ? [activeMemberLatitude, activeMemberLongitude]
+      : null;
+  }, [activeMemberLatitude, activeMemberLongitude]);
   const routeOrigin = isSharing ? (userLocation || activeMemberStoredLocation) : null;
 
   useEffect(() => {
@@ -546,10 +553,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   }, [me]);
 
   const addLocationHistoryEntry = useCallback((coords: [number, number], status: string) => {
-    if (!me) return;
+    if (!activeMemberName) return;
     const entry: LocationHistoryEntry = {
       memberId: activeMemberId,
-      memberName: me.name,
+      memberName: activeMemberName,
       coords,
       status,
       timestamp: new Date().toISOString()
@@ -566,7 +573,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       }
       return [entry, ...prev].slice(0, 30);
     });
-  }, [activeMemberId, me]);
+  }, [activeMemberId, activeMemberName]);
 
   useEffect(() => {
     const requestId = ++geolocationRequestRef.current;
