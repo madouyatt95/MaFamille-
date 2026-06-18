@@ -29,7 +29,13 @@ import {
   ShoppingBasket,
   TrainFront,
   Trees,
-  LocateFixed
+  LocateFixed,
+  X,
+  Car,
+  Footprints,
+  ChevronDown,
+  ChevronUp,
+  LockKeyhole
 } from 'lucide-react';
 import type { FoyerMember, Member } from '../types';
 
@@ -77,6 +83,17 @@ const getEstimatedTime = (distKm: number) => {
     const min = Math.round((distKm / 40) * 60);
     return `${min > 0 ? min : 1} min en voiture 🚗`;
   }
+};
+
+const formatLocationFreshness = (timestamp?: string) => {
+  if (!timestamp) return 'Jamais synchronisée';
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return 'Mise à jour inconnue';
+  const elapsedMinutes = Math.max(0, Math.round((Date.now() - date.getTime()) / 60000));
+  if (elapsedMinutes < 1) return "À l'instant";
+  if (elapsedMinutes < 60) return `Il y a ${elapsedMinutes} min`;
+  if (elapsedMinutes < 24 * 60) return `Il y a ${Math.floor(elapsedMinutes / 60)} h`;
+  return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 };
 
 // Component to programmatically re-center the map
@@ -356,6 +373,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const [mapNotice, setMapNotice] = useState<{ type: 'success' | 'info' | 'warning'; message: string } | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string>('Actif maintenant');
   const [isSharing, setIsSharing] = useState<boolean>(() => localStorage.getItem('mf_share_location') !== 'false');
+  const [emergencyConfirmOpen, setEmergencyConfirmOpen] = useState(false);
+  const [emergencySharing, setEmergencySharing] = useState(false);
   const geolocationRequestRef = useRef(0);
   const isSharingRef = useRef(isSharing);
   const selectedStatusRef = useRef(selectedStatus);
@@ -685,20 +704,33 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   };
 
   const handleStatusChange = async (status: string) => {
+    if (status === '🚨 Urgence') {
+      setEmergencyConfirmOpen(true);
+      return;
+    }
     setSelectedStatus(status);
     const coords = routeOrigin;
-    if (onUpdateMemberProfile) {
-      await onUpdateMemberProfile(activeMemberId, {
-        ...(coords ? { latitude: coords[0], longitude: coords[1] } : {}),
-        locationStatus: status,
-        lastLocatedAt: new Date().toISOString()
-      });
+    try {
+      if (onUpdateMemberProfile) {
+        await onUpdateMemberProfile(activeMemberId, {
+          ...(coords ? { latitude: coords[0], longitude: coords[1] } : {}),
+          locationStatus: status,
+          lastLocatedAt: new Date().toISOString()
+        });
+      }
+      if (coords) addLocationHistoryEntry(coords, status);
+    } catch (error) {
+      console.error('Unable to update location status:', error);
+      setMapNotice({ type: 'warning', message: "Le statut n'a pas pu être synchronisé avec le foyer." });
     }
-    if (coords) addLocationHistoryEntry(coords, status);
   };
 
   const handleEmergencyShare = async () => {
+    if (emergencySharing) return;
+    setEmergencySharing(true);
+    setEmergencyConfirmOpen(false);
     setIsSharing(true);
+    isSharingRef.current = true;
     localStorage.setItem('mf_share_location', 'true');
     setSelectedStatus('🚨 Urgence');
 
@@ -721,23 +753,44 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       setLoadingLoc(true);
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
-          const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-          await publishEmergency(coords);
-          setLoadingLoc(false);
-          setLocationError(null);
-          setMapNotice({ type: 'success', message: "Position d'urgence partagée avec le foyer." });
+          try {
+            const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+            await publishEmergency(coords);
+            setLocationError(null);
+            setMapNotice({ type: 'success', message: "Alerte et position partagées avec le foyer." });
+          } catch (error) {
+            console.error('Unable to publish emergency:', error);
+            setMapNotice({ type: 'warning', message: "L'alerte d'urgence n'a pas pu être synchronisée. Réessayez." });
+          } finally {
+            setLoadingLoc(false);
+            setEmergencySharing(false);
+          }
         },
         async () => {
-          await publishEmergency(routeOrigin);
-          setLoadingLoc(false);
-          setLocationError("Position exacte indisponible. Le statut d'urgence a quand même été publié.");
-          setMapNotice({ type: 'warning', message: "Statut d'urgence publié. La position exacte reste indisponible." });
+          try {
+            await publishEmergency(routeOrigin);
+            setLocationError("Position exacte indisponible. Le statut d'urgence a quand même été publié.");
+            setMapNotice({ type: 'warning', message: "Alerte publiée, mais la position exacte reste indisponible." });
+          } catch (error) {
+            console.error('Unable to publish emergency fallback:', error);
+            setMapNotice({ type: 'warning', message: "L'alerte d'urgence n'a pas pu être synchronisée. Réessayez." });
+          } finally {
+            setLoadingLoc(false);
+            setEmergencySharing(false);
+          }
         },
-        { enableHighAccuracy: true }
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 }
       );
     } else {
-      await publishEmergency(routeOrigin);
-      setMapNotice({ type: 'warning', message: "Statut d'urgence publié. La géolocalisation n'est pas disponible sur cet appareil." });
+      try {
+        await publishEmergency(routeOrigin);
+        setMapNotice({ type: 'warning', message: "Alerte publiée. La géolocalisation n'est pas disponible sur cet appareil." });
+      } catch (error) {
+        console.error('Unable to publish emergency without geolocation:', error);
+        setMapNotice({ type: 'warning', message: "L'alerte d'urgence n'a pas pu être synchronisée. Réessayez." });
+      } finally {
+        setEmergencySharing(false);
+      }
     }
   };
 
@@ -931,13 +984,14 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const visibleLocatedMembers = mappedMembers.filter(m => m.pos && !m.isHiddenOnMap).length;
   const membersWithoutLocation = mappedMembers.filter(m => !m.pos).length;
   const activeSafetyZones = safetyZones.length;
+  const locationFreshness = formatLocationFreshness(me?.lastLocatedAt);
 
   const statuses = [
-    { label: '🏠 Maison', value: '🏠 À la maison' },
-    { label: '🏫 École', value: '🏫 À l\'école' },
-    { label: '💼 Bureau', value: '💼 Au bureau' },
-    { label: '🚗 Trajet', value: '🚗 En déplacement' },
-    { label: '🚨 Urgence', value: '🚨 Urgence' }
+    { label: 'Maison', value: '🏠 À la maison', icon: HomeIcon },
+    { label: 'École', value: '🏫 À l\'école', icon: GraduationCap },
+    { label: 'Bureau', value: '💼 Au bureau', icon: Briefcase },
+    { label: 'Trajet', value: '🚗 En déplacement', icon: Navigation },
+    { label: 'Urgence', value: '🚨 Urgence', icon: Bell }
   ];
 
   // TileLayer provider switcher
@@ -957,6 +1011,48 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         .leaflet-popup-content { margin: 12px; }
       `}} />
 
+      {emergencyConfirmOpen && (
+        <div className="absolute inset-0 z-[2000] flex items-center justify-center bg-[#020712]/75 px-5 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl border border-[#FF3B30]/30 bg-[#0F1E36] p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#FF3B30]/15 text-[#FF3B30]">
+                <Bell className="h-5 w-5" />
+              </div>
+              <button
+                type="button"
+                onClick={() => setEmergencyConfirmOpen(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 text-white/55 hover:bg-white/10 hover:text-white"
+                title="Fermer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <h2 className="mt-4 text-lg font-black text-white">Alerter votre famille ?</h2>
+            <p className="mt-2 text-sm font-medium leading-relaxed text-white/65">
+              Votre statut passera en urgence et votre position actuelle sera partagée avec les membres du foyer si elle est disponible.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setEmergencyConfirmOpen(false)}
+                className="min-h-11 rounded-xl border border-white/10 bg-white/5 text-sm font-bold text-white/70"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleEmergencyShare}
+                disabled={emergencySharing}
+                className="min-h-11 rounded-xl bg-[#FF3B30] text-sm font-black text-white shadow-lg shadow-[#FF3B30]/20 disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {emergencySharing ? <Crosshair className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+                Envoyer l'alerte
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Floating real search bar */}
       <div className="absolute top-4 left-4 right-4 z-[999] max-w-sm mx-auto">
         <form onSubmit={handleAddressSearch} className="flex items-center space-x-2 bg-[#0F1E36]/90 backdrop-blur-xl border border-white/10 p-2 rounded-2xl shadow-2xl">
@@ -970,9 +1066,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
           />
           <button
             type="submit"
-            className="bg-[#6C5CFF] text-white text-[10px] font-extrabold uppercase px-3 py-1.5 rounded-xl cursor-pointer hover:bg-[#5849E0] transition"
+            disabled={searching}
+            className="h-9 min-w-9 bg-[#6C5CFF] text-white text-[11px] font-extrabold px-3 rounded-xl cursor-pointer hover:bg-[#5849E0] transition disabled:opacity-60 flex items-center justify-center"
           >
-            {searching ? '...' : 'OK'}
+            {searching ? <Crosshair className="h-4 w-4 animate-spin" /> : 'OK'}
           </button>
         </form>
 
@@ -982,7 +1079,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
               key={key}
               type="button"
               onClick={() => searchNearbyPlaces(key)}
-              className={`shrink-0 px-2.5 py-1.5 rounded-xl border text-[9px] font-extrabold backdrop-blur-xl active:scale-95 flex items-center gap-1.5 ${
+              className={`shrink-0 min-h-9 px-3 py-2 rounded-xl border text-[10px] font-extrabold backdrop-blur-xl active:scale-95 flex items-center gap-1.5 ${
                 routeOrigin
                   ? 'bg-[#0F1E36]/90 border-white/10 text-white/75'
                   : 'bg-[#0F1E36]/65 border-white/5 text-white/35'
@@ -996,7 +1093,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         </div>
 
         <div className="mt-2 rounded-2xl bg-[#0F1E36]/75 border border-white/8 px-3 py-2 backdrop-blur-xl">
-          <p className="text-[9px] text-white/55 font-semibold leading-normal flex items-start gap-1.5">
+          <p className="text-[10px] text-white/60 font-semibold leading-normal flex items-start gap-1.5">
             {routeOrigin
               ? <LocateFixed className="mt-0.5 h-3 w-3 shrink-0 text-[#00D26A]" />
               : <Info className="mt-0.5 h-3 w-3 shrink-0 text-[#FFB020]" />}
@@ -1027,6 +1124,15 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
           </div>
         )}
 
+        {searching && searchResults.length === 0 && (
+          <div className="mt-2 rounded-2xl border border-white/10 bg-[#0F1E36]/95 p-3 backdrop-blur-xl shadow-2xl">
+            <div className="flex items-center gap-2 text-[11px] font-bold text-white/65">
+              <Crosshair className="h-4 w-4 animate-spin text-[#00D26A]" />
+              Recherche des meilleurs résultats...
+            </div>
+          </div>
+        )}
+
         {/* Nominatim Search Results Floating Panel */}
         {searchResults.length > 0 && (
           <div className="mt-2 bg-[#0F1E36]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-2 max-h-[180px] overflow-y-auto shadow-2xl space-y-1">
@@ -1042,12 +1148,12 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                     <span>📍</span>
                     <span className="truncate">{formatted.title}</span>
                     {typeof res.distanceKm === 'number' && (
-                      <span className="ml-auto shrink-0 rounded-lg bg-[#00D26A]/10 px-1.5 py-0.5 text-[8px] text-[#00D26A]">
+                      <span className="ml-auto shrink-0 rounded-lg bg-[#00D26A]/10 px-2 py-1 text-[10px] text-[#00D26A]">
                         {res.distanceKm < 1 ? `${Math.round(res.distanceKm * 1000)} m` : `${res.distanceKm.toFixed(1)} km`}
                       </span>
                     )}
                   </span>
-                  <span className="text-[9px] text-white/45 block truncate mt-0.5">{formatted.subtitle}</span>
+                  <span className="text-[10px] text-white/50 block truncate mt-1">{formatted.subtitle}</span>
                 </button>
               );
             })}
@@ -1063,11 +1169,11 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       </div>
 
       {/* FLOATING MAP LAYER STYLE SWITCHER */}
-      <div className="absolute top-20 right-4 z-[999] flex flex-col space-y-2">
+      <div className="absolute top-40 right-4 z-[999] flex flex-col space-y-2">
         <button
-          onClick={handleEmergencyShare}
+          onClick={() => setEmergencyConfirmOpen(true)}
           className="p-3 bg-[#FF3B30]/90 backdrop-blur-md rounded-2xl border border-[#FF3B30]/60 shadow-xl transition active:scale-95 flex items-center justify-center cursor-pointer text-white"
-          title="Partager une urgence avec le foyer"
+          title="Déclencher une alerte familiale"
         >
           <Bell className="w-4.5 h-4.5" />
         </button>
@@ -1340,9 +1446,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                           onClick={() => {
                             startRouteTo(searchMarker.name, searchMarker.coords);
                           }}
-                          className="w-full py-1.5 rounded bg-[#00D26A] hover:bg-[#00B85C] text-white text-[9px] font-bold transition cursor-pointer"
+                          className="w-full py-2 rounded bg-[#00D26A] hover:bg-[#00B85C] text-[#07111F] text-[10px] font-black transition cursor-pointer flex items-center justify-center gap-1.5"
                         >
-                          🚘 Itinéraire vers ce lieu
+                          <Route className="h-3.5 w-3.5" />
+                          Itinéraire
                         </button>
                         <button
                           onClick={() => {
@@ -1456,7 +1563,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                   routeMode === 'driving' ? 'bg-[#00D26A] text-[#07111F]' : 'bg-white/5 text-white/55'
                 }`}
               >
-                🚗 Voiture
+                <span className="flex items-center justify-center gap-1.5">
+                  <Car className="h-3.5 w-3.5" />
+                  Voiture
+                </span>
               </button>
               <button
                 type="button"
@@ -1465,7 +1575,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                   routeMode === 'walking' ? 'bg-[#00D26A] text-[#07111F]' : 'bg-white/5 text-white/55'
                 }`}
               >
-                🚶 À pied
+                <span className="flex items-center justify-center gap-1.5">
+                  <Footprints className="h-3.5 w-3.5" />
+                  À pied
+                </span>
               </button>
               <button
                 type="button"
@@ -1490,8 +1603,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
             >
               <div className="w-10 h-1 bg-white/20 rounded-full mb-2"></div>
               <div className="flex items-center justify-between w-full">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-white/50 flex items-center space-x-1.5">
-                  <Navigation className="w-3.5 h-3.5 text-[#6C5CFF]" />
+                <span className="text-[11px] font-bold text-white/65 flex items-center space-x-1.5">
+                  <Navigation className="w-4 h-4 text-[#6C5CFF]" />
                     <span>Carte familiale ({visibleLocatedMembers}/{members.length})</span>
                 </span>
                 <div className="flex items-center space-x-2">
@@ -1500,17 +1613,18 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                       e.stopPropagation();
                       updateLocationSharing(!isSharing);
                     }}
-                    className={`text-[9px] font-extrabold uppercase px-2.5 py-1 rounded-xl border transition-all cursor-pointer active:scale-95 ${
+                    className={`text-[10px] font-extrabold px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer active:scale-95 flex items-center gap-1.5 ${
                       isSharing
                         ? 'bg-[#00D26A]/10 border-[#00D26A]/30 text-[#00D26A]'
                         : 'bg-[#FF3B30]/10 border-[#FF3B30]/30 text-[#FF3B30]'
                     }`}
                   >
-                    {isSharing ? '📍 Actif' : '🔒 Masqué'}
+                    {isSharing ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                    {isSharing ? 'Partagée' : 'Masquée'}
                   </button>
-                  <span className="text-[9px] text-white/70 font-bold bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
-                    {sheetState === 'collapsed' ? 'Déplier 👆' : 'Replier 👇'}
-                  </span>
+                  {sheetState === 'collapsed'
+                    ? <ChevronUp className="h-4 w-4 text-white/50" />
+                    : <ChevronDown className="h-4 w-4 text-white/50" />}
                 </div>
               </div>
             </div>
@@ -1524,24 +1638,40 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
             )}
 
             {!isSharing && (
-              <div className="p-3 rounded-2xl bg-white/5 border border-white/8 flex items-start space-x-2">
-                <EyeOff className="w-4 h-4 text-white/50 shrink-0 mt-0.5" />
-                <p className="text-[10px] text-white/60 font-semibold leading-normal">
-                  Votre position est masquée. Les autres membres ne verront pas votre position actuelle.
-                </p>
+              <div className="p-3 rounded-2xl bg-white/5 border border-white/8 flex items-start space-x-2.5">
+                <LockKeyhole className="w-4 h-4 text-[#FFB020] shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[11px] text-white/75 font-bold leading-normal">Position privée</p>
+                  <p className="mt-0.5 text-[10px] text-white/50 font-semibold leading-normal">
+                    Aucun membre du foyer ne voit votre position. Dernière synchronisation : {locationFreshness}.
+                  </p>
+                </div>
               </div>
             )}
 
-            <div className="grid grid-cols-5 gap-1.5 pt-1.5 border-t border-white/5">
+            {isSharing && (
+              <div className="p-3 rounded-2xl bg-[#00D26A]/8 border border-[#00D26A]/15 flex items-start space-x-2.5">
+                <ShieldCheck className="w-4 h-4 text-[#00D26A] shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[11px] text-white/80 font-bold leading-normal">Visible par votre foyer uniquement</p>
+                  <p className="mt-0.5 text-[10px] text-white/50 font-semibold leading-normal">
+                    Position synchronisée : {locationFreshness}. Vous pouvez la masquer à tout moment.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-5 gap-1.5 pt-2 border-t border-white/5">
               {statuses.map((s) => {
                 const isActive = selectedStatus === s.value;
                 const isUrgent = s.value === '🚨 Urgence';
+                const StatusIcon = s.icon;
                 
                 return (
                   <button
                     key={s.value}
                     onClick={() => handleStatusChange(s.value)}
-                    className={`py-2 px-1 rounded-xl text-[9px] font-bold transition-all flex flex-col items-center justify-center space-y-1 active:scale-95 border ${
+                    className={`min-h-14 py-2 px-1 rounded-xl text-[10px] font-bold transition-all flex flex-col items-center justify-center space-y-1.5 active:scale-95 border ${
                       isActive
                         ? isUrgent
                           ? 'bg-[#FF3B30] border-[#FF3B30] text-white shadow-lg shadow-[#FF3B30]/30 font-black'
@@ -1551,8 +1681,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                         : 'bg-white/5 border-white/5 text-white/70 hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    <span>{s.label.split(' ')[0]}</span>
-                    <span className="scale-90 font-semibold">{s.label.split(' ')[1]}</span>
+                    <StatusIcon className="h-4 w-4" />
+                    <span className="font-semibold">{s.label}</span>
                   </button>
                 );
               })}
@@ -1560,19 +1690,19 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
             {/* EXPANDED CONTENT: Favorites addresses & Family Members Cards */}
             {sheetState === 'half' && (
-              <div className="pt-3 border-t border-white/5 space-y-4 max-h-[260px] overflow-y-auto no-scrollbar animate-fade-in">
+              <div className="pt-3 border-t border-white/5 space-y-4 max-h-[42vh] overflow-y-auto no-scrollbar animate-fade-in">
                 <div className="grid grid-cols-3 gap-1.5">
                   <div className="rounded-2xl border border-[#00D26A]/15 bg-[#00D26A]/8 p-2 text-center">
                     <p className="text-sm font-black text-[#00D26A]">{visibleLocatedMembers}</p>
-                    <p className="text-[8px] font-bold text-white/45 uppercase">visibles</p>
+                    <p className="text-[10px] font-bold text-white/50">Visibles</p>
                   </div>
                   <div className="rounded-2xl border border-[#6C5CFF]/15 bg-[#6C5CFF]/8 p-2 text-center">
                     <p className="text-sm font-black text-[#9E94FF]">{activeSafetyZones}</p>
-                    <p className="text-[8px] font-bold text-white/45 uppercase">zones</p>
+                    <p className="text-[10px] font-bold text-white/50">Zones</p>
                   </div>
                   <div className="rounded-2xl border border-[#FFB020]/15 bg-[#FFB020]/8 p-2 text-center">
                     <p className="text-sm font-black text-[#FFB020]">{membersWithoutLocation}</p>
-                    <p className="text-[8px] font-bold text-white/45 uppercase">masqués</p>
+                    <p className="text-[10px] font-bold text-white/50">Masqués</p>
                   </div>
                 </div>
                 
