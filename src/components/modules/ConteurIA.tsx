@@ -13,7 +13,9 @@ import {
   Sliders,
   Sparkle,
   Plus,
-  Shield,
+  ShieldCheck,
+  Crown,
+  Moon,
   Check,
   RefreshCw,
   X
@@ -337,7 +339,7 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
   const [selectedVoiceName, setSelectedVoiceName] = useState<string>('');
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [showVoiceSettings, setShowVoiceSettings] = useState<boolean>(false);
-  const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('lg');
+  const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('xl');
 
   // Soundscape (local WAV files in public/sounds/)
   const [ambientSound, setAmbientSound] = useState<'none' | 'rain' | 'crickets' | 'lullaby' | 'ocean' | 'wind' | 'stream'>('none');
@@ -745,14 +747,14 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
   };
 
   return (
-    <div className="relative glass-panel border border-white/10 rounded-[40px] p-6 md:p-8 overflow-hidden min-h-[660px] w-full flex flex-col justify-between transition-all duration-700 shadow-[0_25px_60px_rgba(0,0,0,0.5)] bg-[#070e17]/80">
+    <div className="relative glass-panel border border-white/10 rounded-[28px] p-5 md:p-8 overflow-hidden min-h-[660px] w-full flex flex-col justify-between transition-all duration-700 shadow-[0_25px_60px_rgba(0,0,0,0.5)] bg-[#070e17]/80">
       
       {/* Fallback notification toast / banner */}
       {fallbackNotice && (
         <div className="relative z-50 mb-4 bg-gradient-to-r from-amber-500/90 to-orange-500/90 border border-amber-400/40 p-4 rounded-3xl flex items-center justify-between shadow-lg text-white font-sans text-xs font-bold animate-fade-in animate-bounce-slow">
           <div className="flex items-center space-x-3">
             <span className="text-xl">✨</span>
-            <span>Oups, la connexion magique est un peu lente ce soir ! Ne t'inquiète pas, ton conteur a préparé une magnifique histoire de secours juste pour toi ! ✨</span>
+            <span>La génération en ligne est momentanément indisponible. Une histoire locale sécurisée a été préparée pour ce soir.</span>
           </div>
           <button 
             type="button"
@@ -874,7 +876,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           </button>
           <div className="flex items-center space-x-2 bg-white/5 border border-white/8 px-4 py-1.5 rounded-full">
             <Sparkles className="w-4 h-4 text-[#FFB020] animate-pulse" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-[#FFB020] font-sans">Le Conteur Céleste</span>
+            <span className="text-xs font-black uppercase tracking-wide text-[#FFB020] font-sans">Histoires du soir Plus</span>
           </div>
         </div>
       )}
@@ -895,25 +897,25 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                 {!isKidMode && (
                   <button 
                     onClick={onBack}
-                    className="p-2.5 rounded-2xl bg-white/3 border border-white/6 hover:bg-white/8 text-white/70 hover:text-white transition-all duration-300 cursor-pointer flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest"
+                    className="p-2.5 rounded-xl bg-white/3 border border-white/6 hover:bg-white/8 text-white/70 hover:text-white transition-all duration-300 cursor-pointer flex items-center space-x-2 text-xs font-black uppercase tracking-wide"
                   >
                     <ArrowLeft className="w-3.5 h-3.5 text-[#FFB020]" />
                     <span className="hidden sm:inline">Retour</span>
                   </button>
                 )}
 
-                <div className={`inline-flex items-center space-x-2 bg-gradient-to-r from-violet-600/15 via-pink-500/15 to-[#FFB020]/15 border border-white/8 px-4.5 py-1.8 rounded-full backdrop-blur-md ${isKidMode ? 'mx-auto' : ''}`}>
-                  <Sparkles className="w-4 h-4 text-[#FFB020] animate-pulse" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-[#FFB020] font-sans">Le Conteur Céleste IA</span>
+                <div className={`inline-flex items-center space-x-2 bg-[#FFB020]/10 border border-[#FFB020]/20 px-4 py-2 rounded-full backdrop-blur-md ${isKidMode ? 'mx-auto' : ''}`}>
+                  <Crown className="w-4 h-4 text-[#FFB020]" />
+                  <span className="text-xs font-black uppercase tracking-wide text-[#FFB020] font-sans">Fonction Plus</span>
                 </div>
               </div>
               
               <div className="text-center space-y-2 relative z-10">
                 <h2 className="text-xl md:text-3xl font-black text-white tracking-tight">
-                  Générer un Conte du Soir Merveilleux
+                  Créer l'histoire du soir
                 </h2>
-                <p className="text-xs text-white/50 max-w-md mx-auto">
-                  Configurez l'histoire magique et unique pour apaiser vos enfants avant le coucher.
+                <p className="text-sm text-white/60 max-w-lg mx-auto leading-relaxed">
+                  Une histoire personnalisée, douce et adaptée à votre enfant, avec lecture vocale et ambiance sonore.
                 </p>
               </div>
             </div>
@@ -934,8 +936,8 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     <div className="w-6 h-6 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/30 flex items-center justify-center text-[10px] font-black text-[#a78bfa]">
                       1
                     </div>
-                    <span className="text-[11px] font-black uppercase tracking-widest text-[#a78bfa]">
-                      Pour quel héros ?
+                    <span className="text-sm font-black text-white">
+                      Choisir le héros
                     </span>
                   </div>
 
@@ -1038,8 +1040,8 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                   <div className="w-6 h-6 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/30 flex items-center justify-center text-[10px] font-black text-[#a78bfa]">
                     2
                   </div>
-                  <span className="text-[11px] font-black uppercase tracking-widest text-[#a78bfa]">
-                    Dans quel univers magique ?
+                  <span className="text-sm font-black text-white">
+                    Choisir l'univers
                   </span>
                 </div>
 
@@ -1087,7 +1089,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                 </div>
                 
                 {/* Descriptive subquote */}
-                <p className="text-[10px] text-white/35 italic leading-relaxed text-center pt-1">
+                <p className="text-sm text-white/55 leading-relaxed text-center pt-1">
                   « {UNIVERSES.find(u => u.id === selectedUniverse)?.desc} »
                 </p>
               </div>
@@ -1098,8 +1100,8 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                   <div className="w-6 h-6 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/30 flex items-center justify-center text-[10px] font-black text-[#a78bfa]">
                     3
                   </div>
-                  <span className="text-[11px] font-black uppercase tracking-widest text-[#a78bfa]">
-                    Valeur douce enseignée (Morale)
+                  <span className="text-sm font-black text-white">
+                    Choisir la valeur transmise
                   </span>
                 </div>
 
@@ -1144,16 +1146,16 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                 >
                   <Sparkles className="w-4 h-4 text-white animate-pulse group-hover:scale-110 transition-transform" />
                   <div className="flex flex-col items-center">
-                    <span className="text-[10px] font-black uppercase tracking-widest leading-none">GÉNÉRER L'HISTOIRE MAGIQUE</span>
-                    <span className="text-[7.5px] text-white/85 font-extrabold tracking-widest mt-0.8 leading-none">COMMENCER L'AVENTURE DANS LES ÉTOILES &gt;</span>
+                    <span className="text-sm font-black uppercase tracking-wide leading-none">Créer l'histoire du soir</span>
+                    <span className="text-xs text-white/85 font-bold mt-1">3 chapitres personnalisés avec lecture vocale</span>
                   </div>
                 </button>
               </div>
 
               {/* Parent security safety advice badge */}
-              <div className="flex justify-center items-center space-x-1.5 text-[9px] text-white/35 pt-1 leading-none w-full relative z-10">
-                <Shield className="w-3.5 h-3.5 text-[#00D26A]" />
-                <span className="font-medium">Histoires adaptées • Contenu sécurisé • Validé par les parents</span>
+              <div className="flex justify-center items-center space-x-2 text-xs text-white/50 pt-1 w-full relative z-10">
+                <ShieldCheck className="w-4 h-4 text-[#00D26A]" />
+                <span className="font-semibold">Contenu familial sécurisé, adapté au coucher</span>
               </div>
 
             </div>
@@ -1172,13 +1174,13 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
             </div>
 
             <div className="space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#FFB020] animate-pulse">
+              <span className="text-xs font-black uppercase tracking-wide text-[#FFB020] animate-pulse">
                 {genStep === 1 ? 'Mélange magique...' :
                  genStep === 2 ? 'Écriture du conte long...' :
                  'Dessin des pages dorées...'}
               </span>
-              <h3 className="text-base font-extrabold text-white">Création du livre magique</h3>
-              <p className="text-[11px] text-white/50 leading-relaxed font-sans">
+              <h3 className="text-xl font-extrabold text-white">Création de l'histoire</h3>
+              <p className="text-sm text-white/60 leading-relaxed font-sans">
                 {genStep === 1 && `Rédaction de l'expédition de ${isCustomHero ? customHeroName.trim() : selectedHero} dans ${UNIVERSES.find(u => u.id === selectedUniverse)?.name}...`}
                 {genStep === 2 && `Incorporation des dialogues et de la leçon sur ${MORALS.find(m => m.id === selectedMoral)?.name.toLowerCase()}...`}
                 {genStep === 3 && `Génération des chapitres audio et de l'ambiance sonore...`}
@@ -1219,8 +1221,8 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                   {loadingStoryImage ? (
                     <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center space-y-3 z-10">
                       <RefreshCw className="w-8 h-8 text-[#7C3AED] animate-spin" />
-                      <span className="text-[9px] font-black text-white/50 uppercase tracking-widest font-sans">
-                        Création de l'image du conte...
+                      <span className="text-xs font-black text-white/60 uppercase tracking-wide font-sans">
+                        Création de l'illustration...
                       </span>
                     </div>
                   ) : storyImage ? (
@@ -1273,7 +1275,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     
                     {/* Chapter Header & Voice Synthesis Panel Toggle */}
                     <div className="flex items-center justify-between pb-3 border-b border-white/6">
-                      <span className="text-[9.5px] font-black uppercase tracking-widest text-white/40">
+                      <span className="text-xs font-black uppercase tracking-wide text-white/55">
                         {activeStory.chapters[currentChapterIndex].title}
                       </span>
 
@@ -1288,7 +1290,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                               else if (fontSize === 'base') setFontSize('sm');
                             }}
                             disabled={fontSize === 'sm'}
-                            className="px-2 py-1 text-[8.5px] font-black text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-20 disabled:pointer-events-none transition-all cursor-pointer border-r border-white/6"
+                            className="px-2.5 py-1.5 text-xs font-black text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-20 disabled:pointer-events-none transition-all cursor-pointer border-r border-white/6"
                             title="Texte plus petit"
                           >
                             A-
@@ -1300,7 +1302,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                               else if (fontSize === 'lg') setFontSize('xl');
                             }}
                             disabled={fontSize === 'xl'}
-                            className="px-2 py-1 text-[10px] font-black text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-20 disabled:pointer-events-none transition-all cursor-pointer"
+                            className="px-2.5 py-1.5 text-xs font-black text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-20 disabled:pointer-events-none transition-all cursor-pointer"
                             title="Texte plus grand"
                           >
                             A+
@@ -1320,7 +1322,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                         {/* Speech synthesis controller trigger */}
                         <button
                           onClick={handleToggleReadAloud}
-                          className={`px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                          className={`px-3 py-2 rounded-lg border text-xs font-black uppercase tracking-wide flex items-center gap-1.5 transition-all cursor-pointer ${
                             isReadingAloud 
                               ? 'bg-[#FF4D6D]/15 border-[#FF4D6D] text-[#FF4D6D] shadow-[0_0_12px_rgba(255,77,109,0.15)]' 
                               : 'bg-white/5 border-white/8 text-white/60 hover:text-white hover:bg-white/8'
@@ -1344,15 +1346,15 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     {/* DYNAMIC SETTINGS PANEL overlay */}
                     {showVoiceSettings && (
                       <div className="bg-slate-950/90 border border-white/10 rounded-2xl p-4 space-y-3 animate-fade-in relative z-35 my-2">
-                        <h4 className="text-[10px] font-black text-white uppercase tracking-wider">Réglages du Conte Vocalisé</h4>
+                        <h4 className="text-sm font-black text-white">Réglages de lecture</h4>
                         
                         {/* Voice Selector */}
                         <div className="space-y-1">
-                          <label className="text-[8.5px] font-extrabold uppercase text-white/40">Voix de lecture</label>
+                          <label className="text-xs font-extrabold uppercase text-white/55">Voix de lecture</label>
                           <select
                             value={selectedVoiceName}
                             onChange={(e) => setSelectedVoiceName(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white focus:outline-none"
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
                           >
                             {availableVoices.map(v => (
                               <option key={v.name} value={v.name} className="bg-slate-950 text-white">
@@ -1368,7 +1370,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                         {/* Tone & Pitch controls */}
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-1">
-                            <label className="text-[8.5px] font-extrabold uppercase text-white/40 flex justify-between">
+                            <label className="text-xs font-extrabold uppercase text-white/55 flex justify-between">
                               <span>Vitesse</span> <span>{Math.round(speechRate * 100)}%</span>
                             </label>
                             <input
@@ -1382,7 +1384,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-[8.5px] font-extrabold uppercase text-white/40 flex justify-between">
+                            <label className="text-xs font-extrabold uppercase text-white/55 flex justify-between">
                               <span>Hauteur</span> <span>{Math.round(speechPitch * 100)}%</span>
                             </label>
                             <input
@@ -1396,8 +1398,8 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                             />
                           </div>
                         </div>
-                        <p className="text-[8.5px] text-white/40 italic">
-                          💡 Conseil : Diminuez la vitesse à 75% ou 80% pour obtenir une tonalité de conte apaisante de qualité premium.
+                        <p className="text-xs text-white/55">
+                          Une vitesse entre 75% et 85% donne généralement une lecture plus apaisante.
                         </p>
                       </div>
                     )}
@@ -1407,11 +1409,11 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                       <div className="flex items-center space-x-2">
                         <span className="text-2xl filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] animate-bounce-slow">{activeStory.emoji}</span>
                         <div className="flex flex-col text-left">
-                          <span className="text-[8px] font-black uppercase tracking-widest text-[#FFB020] leading-none">Univers actif</span>
-                          <span className="text-[10px] font-extrabold text-white leading-tight">{activeStory.title}</span>
+                          <span className="text-xs font-black uppercase tracking-wide text-[#FFB020] leading-none">Histoire en cours</span>
+                          <span className="text-sm font-extrabold text-white leading-tight">{activeStory.title}</span>
                         </div>
                       </div>
-                      <span className="text-[9px] font-bold text-white/30 italic">{selectedHero} 🧸</span>
+                      <span className="text-xs font-bold text-white/50">{selectedHero}</span>
                     </div>
 
                     {/* DENSE IMMERSIVE STORY TEXT WRAPPER */}
@@ -1420,10 +1422,10 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                         <p 
                           key={pIdx} 
                           className={`leading-relaxed text-white/95 font-serif text-justify font-normal select-none indent-6 transition-all duration-350 ${
-                            fontSize === 'sm' ? 'text-[11px] md:text-xs' :
-                            fontSize === 'base' ? 'text-xs md:text-[13px]' :
-                            fontSize === 'lg' ? 'text-sm md:text-[15.5px]' :
-                            'text-[15px] md:text-[18px]'
+                            fontSize === 'sm' ? 'text-sm md:text-[15px]' :
+                            fontSize === 'base' ? 'text-[15px] md:text-base' :
+                            fontSize === 'lg' ? 'text-base md:text-lg' :
+                            'text-lg md:text-xl'
                           }`}
                         >
                           {paragraph}
@@ -1434,7 +1436,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     {/* Speech active pulsating neon waveform */}
                     {isReadingAloud && (
                       <div className="flex items-center justify-center space-x-1.5 h-6 bg-gradient-to-r from-transparent via-[#FF4D6D]/10 to-transparent border-y border-[#FF4D6D]/15 rounded-lg py-1">
-                        <span className="text-[8px] font-bold text-[#FF4D6D] uppercase tracking-widest animate-pulse mr-1">Lecture contée active</span>
+                        <span className="text-xs font-bold text-[#FF4D6D] uppercase tracking-wide animate-pulse mr-1">Lecture en cours</span>
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(bar => (
                           <div
                             key={bar}
@@ -1453,7 +1455,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
 
                   {/* Right Page Footer controls */}
                   <div className="flex items-center justify-between pt-4 border-t border-white/6 font-sans mt-2">
-                    <span className="text-[9.5px] font-black text-white/30">
+                    <span className="text-xs font-black text-white/50">
                       Chapitre {currentChapterIndex + 1} / {activeStory.chapters.length}
                     </span>
 
@@ -1470,7 +1472,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                         <button
                           onClick={handleNextPage}
                           disabled={isFlipping}
-                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#FFB020] to-[#FF4D6D] text-black font-extrabold text-[9px] uppercase tracking-widest flex items-center space-x-1 hover:opacity-90 active:scale-95 transition-all shadow-md shadow-[#FFB020]/15 animate-pulse-subtle cursor-pointer"
+                          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#FFB020] to-[#FF4D6D] text-black font-extrabold text-xs uppercase tracking-wide flex items-center space-x-1 hover:opacity-90 active:scale-95 transition-all shadow-md shadow-[#FFB020]/15 cursor-pointer"
                         >
                           <span>Tourner Page</span>
                           <ChevronRight className="w-3.5 h-3.5" />
@@ -1478,7 +1480,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                       ) : (
                         <button
                           onClick={handleReset}
-                          className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-extrabold text-[9px] uppercase tracking-widest flex items-center space-x-1.5 active:scale-95 transition-all border border-white/10 cursor-pointer"
+                          className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-extrabold text-xs uppercase tracking-wide flex items-center space-x-1.5 active:scale-95 transition-all border border-white/10 cursor-pointer"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
                           <span>Recommencer</span>
@@ -1498,12 +1500,12 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Music className="w-4 h-4 text-[#FFB020]" />
-                  <h4 className="text-[10px] font-black uppercase text-white tracking-widest">
-                    Veilleuse Sonore d'Ambiance
+                  <h4 className="text-sm font-black text-white">
+                    Ambiance sonore
                   </h4>
                 </div>
-                <span className="text-[8px] font-extrabold text-[#FFB020] uppercase tracking-widest bg-[#FFB020]/10 px-2 py-0.5 rounded-full">
-                  6 Ambiances
+                <span className="text-xs font-extrabold text-[#FFB020] uppercase tracking-wide bg-[#FFB020]/10 px-2.5 py-1 rounded-full">
+                  6 choix
                 </span>
               </div>
 
@@ -1512,7 +1514,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => { setAmbientSound('none'); stopAmbientSound(); }}
-                    className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    className={`px-3 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
                       ambientSound === 'none' 
                         ? 'bg-white/15 border-white/30 text-white' 
                         : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
@@ -1522,7 +1524,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                   </button>
                   <button
                     onClick={() => { setAmbientSound('rain'); startAmbientSound('rain'); }}
-                    className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    className={`px-3 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
                       ambientSound === 'rain' 
                         ? 'bg-sky-500/20 border-sky-500 text-sky-400 shadow-[0_0_10px_rgba(14,165,233,0.15)]' 
                         : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
@@ -1532,7 +1534,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                   </button>
                   <button
                     onClick={() => { setAmbientSound('crickets'); startAmbientSound('crickets'); }}
-                    className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    className={`px-3 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
                       ambientSound === 'crickets' 
                         ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.15)]' 
                         : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
@@ -1542,7 +1544,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                   </button>
                   <button
                     onClick={() => { setAmbientSound('lullaby'); startAmbientSound('lullaby'); }}
-                    className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    className={`px-3 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
                       ambientSound === 'lullaby' 
                         ? 'bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_10px_rgba(236,72,153,0.15)]' 
                         : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
@@ -1552,7 +1554,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                   </button>
                   <button
                     onClick={() => { setAmbientSound('ocean'); startAmbientSound('ocean'); }}
-                    className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    className={`px-3 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
                       ambientSound === 'ocean' 
                         ? 'bg-blue-500/20 border-blue-500 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.15)]' 
                         : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
@@ -1562,7 +1564,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                   </button>
                   <button
                     onClick={() => { setAmbientSound('wind'); startAmbientSound('wind'); }}
-                    className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    className={`px-3 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
                       ambientSound === 'wind' 
                         ? 'bg-teal-500/20 border-teal-500 text-teal-400 shadow-[0_0_10px_rgba(20,184,166,0.15)]' 
                         : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
@@ -1572,7 +1574,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                   </button>
                   <button
                     onClick={() => { setAmbientSound('stream'); startAmbientSound('stream'); }}
-                    className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    className={`px-3 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
                       ambientSound === 'stream' 
                         ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.15)]' 
                         : 'bg-white/5 border-white/8 text-white/50 hover:text-white'
@@ -1585,7 +1587,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                 {/* Volume slider */}
                 {ambientSound !== 'none' && (
                   <div className="flex items-center space-x-3 bg-white/5 border border-white/8 rounded-2xl px-4 py-2">
-                    <span className="text-[9px] font-bold text-white/40 uppercase">Volume fond :</span>
+                    <span className="text-xs font-bold text-white/55">Volume</span>
                     <input
                       type="range"
                       min="0.05"
@@ -1595,14 +1597,14 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                       onChange={(e) => setAmbientVolume(parseFloat(e.target.value))}
                       className="w-24 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#FFB020]"
                     />
-                    <span className="text-[9px] font-bold text-white/60 w-6 text-right">
+                    <span className="text-xs font-bold text-white/70 w-8 text-right">
                       {Math.round(ambientVolume * 200)}%
                     </span>
                   </div>
                 )}
               </div>
-              <p className="text-[8.5px] text-white/30 italic">
-                💡 Conseil premium : Lancez la « Berceuse Céleste » ou la « Douce Pluie » à 100% de volume de fond en activant en même temps la lecture contée. Les deux s'harmonisent magnifiquement pour plonger la chambre dans le sommeil.
+              <p className="text-xs text-white/50 leading-relaxed">
+                La pluie douce et la berceuse peuvent accompagner la lecture. Gardez un volume faible pour que la voix reste claire.
               </p>
             </div>
 
@@ -1612,9 +1614,9 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
       </div>
 
       {/* Footer information bar */}
-      <div className="relative z-10 pt-4 border-t border-white/6 flex items-center justify-between text-[9px] text-white/30">
-        <span>© MaFamille+ Conteur IA Merveilleux 2.0</span>
-        <span>Recommandé pour les contes du soir 🧸</span>
+      <div className="relative z-10 pt-4 border-t border-white/6 flex flex-wrap items-center justify-between gap-2 text-xs text-white/45">
+        <span className="inline-flex items-center gap-1.5"><Moon className="w-3.5 h-3.5" /> Histoires du soir MaFamille+</span>
+        <span>Contenu familial sécurisé</span>
       </div>
 
     </div>
