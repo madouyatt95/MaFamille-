@@ -4,6 +4,7 @@ import { FileText, Upload, Search, Shield, Plus, X, HeartPulse, GraduationCap, B
 import type { DocumentFile, DocumentCategory, Member, Demarche, JustificatifPack, DemarcheTemplate } from '../../types';
 import { demarcheTemplates } from '../../data/demoData';
 import { compressImageToBlob, dataUrlToBlob, extensionFromMimeType, isDataUrl, uploadBlobToStorage } from '../../utils/imageCompressor';
+import { foyerService } from '../../services/foyerService';
 
 interface CoffreFortAvanceProps {
   documents: DocumentFile[];
@@ -18,9 +19,10 @@ interface CoffreFortAvanceProps {
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
   defaultTab?: 'docs' | 'demarches' | 'packs';
+  foyerId?: string;
 }
 
-export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, setDocuments, members, demarches, setDemarches, packs, setPacks, onAddEvent, onAddTransaction, isPremium = false, onTriggerPaywall, defaultTab }) => {
+export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, setDocuments, members, demarches, setDemarches, packs, setPacks, onAddEvent, onAddTransaction, isPremium = false, onTriggerPaywall, defaultTab, foyerId }) => {
   const [mainTab, setMainTab] = useState<'docs' | 'demarches' | 'packs'>(defaultTab || 'docs');
   const [viewMode, setViewMode] = useState<'categories' | 'members' | 'expiring' | 'all'>('categories');
   const [searchQuery, setSearchQuery] = useState('');
@@ -30,6 +32,8 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
   const [docToUnlock, setDocToUnlock] = useState<DocumentFile | null>(null);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [pinErrorMessage, setPinErrorMessage] = useState('Code PIN incorrect');
+  const [pinVerifying, setPinVerifying] = useState(false);
   const [rgpdAccepted, setRgpdAccepted] = useState<boolean>(() => {
     return localStorage.getItem('mf_vault_rgpd_accepted') === 'true';
   });
@@ -75,15 +79,39 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     }
   };
 
-  const handlePinSubmit = () => {
-    const parentPin = localStorage.getItem('mf_parent_pin') || '0000';
-    if (pinInput === parentPin) {
+  const handlePinSubmit = async () => {
+    if (pinVerifying) return;
+    if (!foyerId) {
+      setPinErrorMessage('Vérification indisponible pour ce foyer.');
+      setPinError(true);
+      return;
+    }
+    setPinVerifying(true);
+    try {
+      const verification = await foyerService.verifyFoyerParentPin(foyerId, pinInput);
+      if (!verification.allowed) {
+        setPinErrorMessage(
+          verification.reason === 'locked'
+            ? 'Trop de tentatives. Réessayez dans quelques minutes.'
+            : verification.reason === 'not_configured'
+            ? 'Le PIN doit être configuré dans les paramètres parentaux.'
+            : verification.attemptsRemaining !== undefined
+            ? `Code incorrect. ${verification.attemptsRemaining} essai(s) restant(s).`
+            : 'Code PIN incorrect'
+        );
+        setPinError(true);
+        setPinInput('');
+        return;
+      }
       setPreviewDoc(docToUnlock);
       setDocToUnlock(null);
-    } else {
+    } catch (error) {
+      console.error('Unable to verify document PIN:', error);
+      setPinErrorMessage('Vérification indisponible. Contrôlez votre connexion.');
       setPinError(true);
-      setTimeout(() => setPinError(false), 2000);
       setPinInput('');
+    } finally {
+      setPinVerifying(false);
     }
   };
 
@@ -1004,7 +1032,11 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
                     <button
                       key={num}
-                      onClick={() => setPinInput(prev => prev.length < 4 ? prev + num : prev)}
+                      onClick={() => {
+                        setPinError(false);
+                        setPinInput(prev => prev.length < 4 ? prev + num : prev);
+                      }}
+                      disabled={pinVerifying}
                       className="py-3 rounded-2xl bg-white/5 border border-white/10 text-lg font-bold hover:bg-white/10 active:scale-95 transition-all"
                     >
                       {num}
@@ -1012,13 +1044,21 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   ))}
                   <div className="py-3"></div>
                   <button
-                    onClick={() => setPinInput(prev => prev.length < 4 ? prev + '0' : prev)}
+                    onClick={() => {
+                      setPinError(false);
+                      setPinInput(prev => prev.length < 4 ? prev + '0' : prev);
+                    }}
+                    disabled={pinVerifying}
                     className="py-3 rounded-2xl bg-white/5 border border-white/10 text-lg font-bold hover:bg-white/10 active:scale-95 transition-all"
                   >
                     0
                   </button>
                   <button
-                    onClick={() => setPinInput(prev => prev.slice(0, -1))}
+                    onClick={() => {
+                      setPinError(false);
+                      setPinInput(prev => prev.slice(0, -1));
+                    }}
+                    disabled={pinVerifying}
                     className="py-3 rounded-2xl bg-white/5 border border-white/10 text-lg font-bold text-[#FF4D6D] hover:bg-[#FF4D6D]/10 active:scale-95 transition-all"
                   >
                     ⌫
@@ -1028,12 +1068,13 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                 {pinInput.length === 4 && (
                   <button 
                     onClick={handlePinSubmit}
-                    className="w-full mt-6 py-3.5 bg-[#FF4D6D] text-white font-bold rounded-xl shadow-lg hover:bg-[#FF4D6D]/90 active:scale-95 transition-all"
+                    disabled={pinVerifying}
+                    className="w-full mt-6 py-3.5 bg-[#FF4D6D] disabled:opacity-50 text-white font-bold rounded-xl shadow-lg hover:bg-[#FF4D6D]/90 active:scale-95 transition-all"
                   >
-                    Déverrouiller
+                    {pinVerifying ? 'Vérification...' : 'Déverrouiller'}
                   </button>
                 )}
-                {pinError && <p className="text-[#FF4D6D] text-xs font-bold mt-4 animate-pulse">Code incorrect</p>}
+                {pinError && <p className="text-[#FF4D6D] text-xs font-bold mt-4 animate-pulse">{pinErrorMessage}</p>}
               </div>
             </div>
           </div>

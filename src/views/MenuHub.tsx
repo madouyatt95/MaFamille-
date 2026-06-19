@@ -1269,19 +1269,46 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   // Parental PIN Lock States and Validator
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [pinErrorMessage, setPinErrorMessage] = useState('Code PIN incorrect. Veuillez réessayer.');
+  const [pinVerifying, setPinVerifying] = useState(false);
   const [showPin, setShowPin] = useState(false);
   const [authorizedModules, setAuthorizedModules] = useState<string[]>([]);
 
-  const handleVerifyPin = (e: React.FormEvent) => {
+  const handleVerifyPin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const savedPin = foyer?.parentPin || localStorage.getItem('mf_parent_pin') || '0000';
-    if (pinInput === savedPin) {
+    if (pinVerifying) return;
+    if (!foyer) {
+      setPinErrorMessage('Vérification indisponible pour ce foyer.');
+      setPinError(true);
+      return;
+    }
+    setPinVerifying(true);
+    try {
+      const verification = await foyerService.verifyFoyerParentPin(foyer.id, pinInput);
+      if (!verification.allowed) {
+        setPinErrorMessage(
+          verification.reason === 'locked'
+            ? 'Trop de tentatives. Réessayez dans quelques minutes.'
+            : verification.reason === 'not_configured'
+            ? 'Le PIN doit être configuré dans les paramètres parentaux.'
+            : verification.attemptsRemaining !== undefined
+            ? `Code incorrect. ${verification.attemptsRemaining} essai(s) restant(s).`
+            : 'Code PIN incorrect. Veuillez réessayer.'
+        );
+        setPinError(true);
+        setPinInput('');
+        return;
+      }
       setAuthorizedModules(prev => [...prev, activeModule]);
       setPinInput('');
       setPinError(false);
-    } else {
+    } catch (error) {
+      console.error('Unable to verify module PIN:', error);
+      setPinErrorMessage('Vérification indisponible. Contrôlez votre connexion.');
       setPinError(true);
       setPinInput('');
+    } finally {
+      setPinVerifying(false);
     }
   };
 
@@ -1692,15 +1719,16 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 </button>
               </div>
               {pinError && (
-                <p className="text-[10px] text-[#FF4D6D] font-bold text-center mt-1">Code PIN incorrect. Veuillez réessayer.</p>
+                <p className="text-[10px] text-[#FF4D6D] font-bold text-center mt-1">{pinErrorMessage}</p>
               )}
             </div>
 
             <button
               type="submit"
-              className="w-full py-3.5 rounded-[18px] bg-gradient-to-r from-[#FF4D6D] to-[#6C5CFF] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:opacity-95 shadow-md flex items-center justify-center space-x-2"
+              disabled={pinInput.length !== 4 || pinVerifying}
+              className="w-full py-3.5 rounded-[18px] bg-gradient-to-r from-[#FF4D6D] to-[#6C5CFF] disabled:opacity-50 text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:opacity-95 shadow-md flex items-center justify-center space-x-2"
             >
-              <span>Déverrouiller l'accès</span>
+              <span>{pinVerifying ? 'Vérification...' : "Déverrouiller l'accès"}</span>
             </button>
             
           </form>
@@ -1831,6 +1859,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           onTriggerPaywall={onTriggerPaywall} 
           onAddTransaction={onAddTransaction} 
           defaultTab={activeModule === 'demarches' ? 'demarches' : 'docs'}
+          foyerId={foyer?.id}
         />
       )}
 

@@ -65,7 +65,6 @@ export interface Foyer {
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   appStoreOriginalTransactionId?: string | null;
-  parentPin?: string;
   malusSettings?: MalusSettings;
 }
 

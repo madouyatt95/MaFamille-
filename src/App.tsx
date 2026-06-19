@@ -933,6 +933,7 @@ function App() {
   const [pinTargetMemberId, setPinTargetMemberId] = useState<string | null>(null);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [pinErrorMessage, setPinErrorMessage] = useState('Code PIN incorrect');
   const [sharedPackId, setSharedPackId] = useState<string | null>(null);
 
 
@@ -942,6 +943,10 @@ function App() {
   const membersRef = useRef(members);
   const syncSessionIdRef = useRef(0);
   const pendingPinActionRef = useRef<(() => void | Promise<void>) | null>(null);
+
+  useEffect(() => {
+    localStorage.removeItem('mf_parent_pin');
+  }, []);
 
   useEffect(() => {
     activeMemberIdRef.current = activeMemberId;
@@ -2101,6 +2106,7 @@ function App() {
     setPinTargetMemberId(targetMemberId);
     setPinInput("");
     setPinError(false);
+    setPinErrorMessage('Code PIN incorrect');
     setPinVerificationOpen(true);
   };
 
@@ -2139,9 +2145,33 @@ function App() {
     requestParentPin(null, () => switchActiveFoyerMembership(membership));
   };
 
-  const handleVerifyPin = (inputCode: string) => {
-    const savedPin = foyer?.parentPin || localStorage.getItem('mf_parent_pin') || '0000';
-    if (inputCode === savedPin) {
+  const handleVerifyPin = async (inputCode: string) => {
+    if (!foyer) return;
+    try {
+      const verification = await foyerService.verifyFoyerParentPin(foyer.id, inputCode);
+      if (!verification.allowed) {
+        const lockedUntil = verification.lockedUntil ? new Date(verification.lockedUntil) : null;
+        const messages: Record<string, string> = {
+          incorrect: verification.attemptsRemaining !== undefined
+            ? `Code incorrect · ${verification.attemptsRemaining} essai(s) restant(s)`
+            : 'Code PIN incorrect',
+          locked: lockedUntil
+            ? `Trop de tentatives · réessayez à ${lockedUntil.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+            : 'Trop de tentatives · réessayez dans 5 minutes',
+          not_configured: 'PIN non configuré · ouvrez les paramètres parentaux',
+          forbidden: 'Accès refusé pour ce foyer',
+          not_authenticated: 'Votre session a expiré',
+          invalid_format: 'Le PIN doit contenir 4 chiffres'
+        };
+        setPinErrorMessage(messages[verification.reason] || 'Code PIN incorrect');
+        setPinError(true);
+        setTimeout(() => {
+          setPinInput('');
+          setPinError(false);
+        }, 1800);
+        return;
+      }
+
       const pendingAction = pendingPinActionRef.current;
       pendingPinActionRef.current = null;
       if (pendingAction) {
@@ -2154,12 +2184,14 @@ function App() {
       setPinTargetMemberId(null);
       setActiveTab('accueil');
       setActiveModule('');
-    } else {
+    } catch (error) {
+      console.error('Unable to verify parent PIN:', error);
+      setPinErrorMessage('Vérification indisponible · contrôlez votre connexion');
       setPinError(true);
       setTimeout(() => {
         setPinInput('');
         setPinError(false);
-      }, 1000);
+      }, 1800);
     }
   };
 
@@ -14927,7 +14959,7 @@ function App() {
                       const val = pinInput + num;
                       setPinInput(val);
                       if (val.length === 4) {
-                        handleVerifyPin(val);
+                        void handleVerifyPin(val);
                       }
                     }
                   }}
@@ -14957,7 +14989,7 @@ function App() {
                     const val = pinInput + '0';
                     setPinInput(val);
                     if (val.length === 4) {
-                      handleVerifyPin(val);
+                      void handleVerifyPin(val);
                     }
                   }
                 }}
@@ -14981,7 +15013,7 @@ function App() {
 
             {pinError && (
               <p className="text-xs font-bold text-[#FF4D6D] uppercase tracking-wider animate-shake">
-                Code PIN Incorrect
+                {pinErrorMessage}
               </p>
             )}
           </div>

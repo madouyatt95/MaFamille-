@@ -35,8 +35,14 @@ type FoyerDbRow = {
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
   app_store_original_transaction_id?: string | null;
-  parent_pin?: string;
   malus_settings?: MalusSettings;
+};
+
+export type ParentPinVerification = {
+  allowed: boolean;
+  reason: 'ok' | 'incorrect' | 'locked' | 'not_configured' | 'invalid_format' | 'forbidden' | 'not_authenticated';
+  attemptsRemaining?: number;
+  lockedUntil?: string | null;
 };
 
 type FoyerMemberDbRow = {
@@ -197,7 +203,6 @@ export const foyerService = {
           stripeCustomerId: foyerData.stripe_customer_id || null,
           stripeSubscriptionId: foyerData.stripe_subscription_id || null,
           appStoreOriginalTransactionId: foyerData.app_store_original_transaction_id || null,
-          parentPin: foyerData.parent_pin,
           malusSettings: foyerData.malus_settings
         };
 
@@ -296,7 +301,6 @@ export const foyerService = {
       stripeCustomerId: foyerData.stripe_customer_id || null,
       stripeSubscriptionId: foyerData.stripe_subscription_id || null,
       appStoreOriginalTransactionId: foyerData.app_store_original_transaction_id || null,
-      parentPin: foyerData.parent_pin,
       malusSettings: foyerData.malus_settings
     };
 
@@ -445,12 +449,39 @@ export const foyerService = {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
-    const { error } = await supabase
-      .from('foyers')
-      .update({ parent_pin: pinCode })
-      .eq('id', foyerId);
+    const { data, error } = await supabase.rpc('set_foyer_parent_pin', {
+      p_foyer_id: foyerId,
+      p_pin: pinCode
+    });
 
     if (error) throw error;
+    if (!data?.success) {
+      const messages: Record<string, string> = {
+        invalid_format: 'Le PIN doit contenir exactement 4 chiffres.',
+        weak_pin: 'Choisissez un PIN moins facile à deviner.',
+        forbidden: "Seuls les parents et administrateurs peuvent modifier le PIN.",
+        not_authenticated: 'Votre session a expiré.'
+      };
+      throw new Error(messages[data?.reason] || "Impossible d'enregistrer le PIN.");
+    }
+  },
+
+  async verifyFoyerParentPin(foyerId: string, pinCode: string): Promise<ParentPinVerification> {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Supabase n'est pas configuré");
+
+    const { data, error } = await supabase.rpc('verify_foyer_parent_pin', {
+      p_foyer_id: foyerId,
+      p_pin: pinCode
+    });
+
+    if (error) throw error;
+    return {
+      allowed: !!data?.allowed,
+      reason: data?.reason || 'incorrect',
+      attemptsRemaining: data?.attempts_remaining,
+      lockedUntil: data?.locked_until || null
+    };
   },
 
   /**

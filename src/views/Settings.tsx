@@ -93,22 +93,34 @@ export const Settings: React.FC<SettingsProps> = ({
   const [savingBackup, setSavingBackup] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'compte' | 'famille' | 'alertes' | 'avance'>('compte');
 
-  const [parentPinInput, setParentPinInput] = useState(() => {
-    return foyer?.parentPin || localStorage.getItem('mf_parent_pin') || '0000';
-  });
+  const [parentPinInput, setParentPinInput] = useState('');
+  const [parentPinConfirm, setParentPinConfirm] = useState('');
   const [showParentPin, setShowParentPin] = useState(false);
+  const [savingParentPin, setSavingParentPin] = useState(false);
+  const [parentPinMessage, setParentPinMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleSaveParentPin = async () => {
-    localStorage.setItem('mf_parent_pin', parentPinInput);
-    if (foyer && user) {
-      try {
-        await foyerService.updateFoyerParentPin(foyer.id, parentPinInput);
-        if (onRefreshFoyer) onRefreshFoyer();
-      } catch (err) {
-        console.error("Error saving parent pin to database:", err);
-      }
+    if (!foyer || !user || savingParentPin) return;
+    if (parentPinInput !== parentPinConfirm) {
+      setParentPinMessage({ type: 'error', text: 'Les deux codes PIN ne correspondent pas.' });
+      return;
     }
-    alert("Code PIN parent enregistré avec succès !");
+    setSavingParentPin(true);
+    setParentPinMessage(null);
+    try {
+        await foyerService.updateFoyerParentPin(foyer.id, parentPinInput);
+      localStorage.removeItem('mf_parent_pin');
+      setParentPinInput('');
+      setParentPinConfirm('');
+      setShowParentPin(false);
+      setParentPinMessage({ type: 'success', text: 'PIN enregistré et protégé côté serveur.' });
+      if (onRefreshFoyer) await onRefreshFoyer();
+    } catch (err) {
+      console.error("Error saving parent pin to database:", err);
+      setParentPinMessage({ type: 'error', text: getErrorMessage(err, "Impossible d'enregistrer le PIN.") });
+    } finally {
+      setSavingParentPin(false);
+    }
   };
 
   const [localCommune, setLocalCommune] = useState(communeName);
@@ -1183,17 +1195,20 @@ export const Settings: React.FC<SettingsProps> = ({
               <p className="text-[10px] text-white/50 leading-relaxed">
                 Définissez un code PIN à 4 chiffres requis pour basculer d'un profil enfant vers un profil parent/admin.
               </p>
-              <div className="flex items-center space-x-3 pt-1">
-                <div className="relative w-24">
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className="relative">
                   <input
                     type={showParentPin ? "text" : "password"}
                     maxLength={4}
                     pattern="[0-9]*"
                     inputMode="numeric"
-                    placeholder="PIN"
+                    placeholder="Nouveau PIN"
                     value={parentPinInput}
-                    onChange={(e) => setParentPinInput(e.target.value.replace(/\D/g, ''))}
-                    className="w-full pl-4 pr-9 py-3 rounded-xl bg-white/5 border border-white/10 text-white font-extrabold tracking-widest text-center text-sm focus:outline-none focus:border-[#6C5CFF]"
+                    onChange={(e) => {
+                      setParentPinInput(e.target.value.replace(/\D/g, ''));
+                      setParentPinMessage(null);
+                    }}
+                    className="w-full pl-3 pr-9 py-3 rounded-xl bg-white/5 border border-white/10 text-white font-extrabold tracking-widest text-center text-sm focus:outline-none focus:border-[#6C5CFF]"
                   />
                   <button
                     type="button"
@@ -1207,15 +1222,40 @@ export const Settings: React.FC<SettingsProps> = ({
                     )}
                   </button>
                 </div>
+                <input
+                  type={showParentPin ? "text" : "password"}
+                  maxLength={4}
+                  pattern="[0-9]*"
+                  inputMode="numeric"
+                  placeholder="Confirmer"
+                  value={parentPinConfirm}
+                  onChange={(e) => {
+                    setParentPinConfirm(e.target.value.replace(/\D/g, ''));
+                    setParentPinMessage(null);
+                  }}
+                  className="w-full px-3 py-3 rounded-xl bg-white/5 border border-white/10 text-white font-extrabold tracking-widest text-center text-sm focus:outline-none focus:border-[#6C5CFF]"
+                />
+              </div>
+              <div>
                 <button
                   type="button"
                   onClick={handleSaveParentPin}
-                  disabled={parentPinInput.length !== 4}
-                  className="flex-1 py-3.5 rounded-xl bg-[#6C5CFF]/15 hover:bg-[#6C5CFF]/25 border border-[#6C5CFF]/30 disabled:opacity-50 text-white font-extrabold text-[11px] uppercase tracking-wider transition-all active:scale-95 cursor-pointer text-center"
+                  disabled={parentPinInput.length !== 4 || parentPinConfirm.length !== 4 || savingParentPin}
+                  className="w-full py-3.5 rounded-xl bg-[#6C5CFF]/15 hover:bg-[#6C5CFF]/25 border border-[#6C5CFF]/30 disabled:opacity-50 text-white font-extrabold text-[11px] uppercase tracking-wider transition-all active:scale-95 cursor-pointer text-center"
                 >
-                  Enregistrer le PIN
+                  {savingParentPin ? 'Protection...' : 'Enregistrer le PIN'}
                 </button>
               </div>
+              {parentPinMessage && (
+                <p className={`text-[10px] font-bold ${
+                  parentPinMessage.type === 'success' ? 'text-[#00D26A]' : 'text-[#FF4D6D]'
+                }`}>
+                  {parentPinMessage.text}
+                </p>
+              )}
+              <p className="text-[9px] text-white/35 leading-normal">
+                Évitez les suites simples et les chiffres répétés. Après 5 erreurs, la saisie est bloquée pendant 5 minutes.
+              </p>
             </div>
           }
         </div>
