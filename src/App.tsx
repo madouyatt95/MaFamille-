@@ -12150,6 +12150,7 @@ function App() {
           members={appMembers}
           activeMemberId={appActiveMemberId}
           foyerId={appFoyer?.id}
+          familyName={appFoyer?.name}
           isPremium={isPremium}
           onTriggerPaywall={() => setPaywallOpen(true)}
           onBack={() => setActiveModule('')}

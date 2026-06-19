@@ -1,25 +1,40 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Brain,
+  Brush,
   Check,
   ChevronRight,
   Circle,
+  Clock3,
   Gamepad2,
   Grid3X3,
+  History,
   Lock,
-  Medal,
+  Mic2,
   Play,
   RefreshCw,
   RotateCcw,
   Sparkles,
   Star,
   Trophy,
-  Users
+  Users,
+  X
 } from 'lucide-react';
 import type { Member } from '../types';
+import { DrawGuessGame } from '../components/games/DrawGuessGame';
+import { MimeChallengeGame } from '../components/games/MimeChallengeGame';
+import { PrivateFamilyRoom } from '../components/games/PrivateFamilyRoom';
+import {
+  familyGameService,
+  type FamilyGameResult,
+  type FamilyGameRoom,
+  type FamilyGameType
+} from '../services/familyGameService';
+import { getChallengeQuestion } from '../data/familyChallengeQuestions';
+import { matchChallengeAnswer } from '../utils/familyChallengeMatcher';
 
-type GameId = 'memory' | 'connect4' | 'family-challenge';
+type GameId = FamilyGameType;
 type MemoryCard = {
   id: string;
   pairId: string;
@@ -33,64 +48,11 @@ interface FamilyGamesProps {
   members: Member[];
   activeMemberId: string;
   foyerId?: string;
+  familyName?: string;
   isPremium?: boolean;
   onBack: () => void;
   onTriggerPaywall?: () => void;
 }
-
-const BASE_CHALLENGES = [
-  {
-    question: 'Quelle est la première chose que l’on oublie avant de partir en vacances ?',
-    answers: ['Le chargeur', 'La brosse à dents', 'Les papiers', 'Le doudou', 'Les lunettes']
-  },
-  {
-    question: 'Quelle activité met presque toute la famille de bonne humeur ?',
-    answers: ['Un bon repas', 'Une sortie', 'Un film', 'Un jeu', 'De la musique']
-  },
-  {
-    question: 'Quel objet disparaît mystérieusement le plus souvent à la maison ?',
-    answers: ['Les clés', 'La télécommande', 'Les chaussettes', 'Le téléphone', 'Un stylo']
-  },
-  {
-    question: 'Que fait-on généralement quand personne ne sait quoi manger ?',
-    answers: ['Commander', 'Faire des pâtes', 'Regarder le frigo', 'Demander aux enfants', 'Improviser']
-  },
-  {
-    question: 'Quelle phrase entend-on souvent juste avant de quitter la maison ?',
-    answers: ['On y va !', 'Tu as tes clés ?', 'Dépêchez-vous', 'J’arrive !', 'Où est mon téléphone ?']
-  },
-  {
-    question: 'Quel est le meilleur moment d’une soirée en famille ?',
-    answers: ['Le repas', 'Le jeu', 'Le dessert', 'Le film', 'Les discussions']
-  }
-];
-
-const PREMIUM_CHALLENGES = [
-  {
-    question: 'Quelle petite habitude familiale ferait rire quelqu’un qui nous découvre ?',
-    answers: ['Nos surnoms', 'Nos chansons', 'Nos expressions', 'Nos débats', 'Nos danses']
-  },
-  {
-    question: 'Quel talent secret est le plus utile dans une famille ?',
-    answers: ['Retrouver les objets', 'Calmer les disputes', 'Cuisiner vite', 'Faire rire', 'Tout organiser']
-  },
-  {
-    question: 'Quelle mission du quotidien mérite une médaille ?',
-    answers: ['Le réveil', 'Les devoirs', 'Le rangement', 'Les courses', 'Le coucher']
-  },
-  {
-    question: 'Quel souvenir familial devrait devenir un film ?',
-    answers: ['Des vacances', 'Une fête', 'Une naissance', 'Une aventure imprévue', 'Un repas mémorable']
-  },
-  {
-    question: 'Quelle règle de la maison est la plus difficile à respecter ?',
-    answers: ['Ranger', 'Être à l’heure', 'Limiter les écrans', 'Finir son assiette', 'Parler calmement']
-  },
-  {
-    question: 'Quelle récompense motive le plus toute la famille ?',
-    answers: ['Une sortie', 'Un dessert', 'Une soirée film', 'Un voyage', 'Une journée sans corvées']
-  }
-];
 
 const FALLBACK_MEMORY_ITEMS = [
   { label: 'Vacances', emoji: '🏖️' },
@@ -159,25 +121,35 @@ export function FamilyGames({
   members,
   activeMemberId,
   foyerId = 'local',
+  familyName = 'Ma famille',
   isPremium = false,
   onBack,
   onTriggerPaywall
 }: FamilyGamesProps) {
   const [activeGame, setActiveGame] = useState<GameId | null>(null);
+  const [playerIds, setPlayerIds] = useState<[string, string]>(() => {
+    const first = members.find(member => member.id === activeMemberId)?.id || members[0]?.id || 'player-1';
+    const second = members.find(member => member.id !== first)?.id || 'player-2';
+    return [first, second];
+  });
+  const [results, setResults] = useState<FamilyGameResult[]>([]);
+  const [activeRoom, setActiveRoom] = useState<FamilyGameRoom | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
   const [memoryRound, setMemoryRound] = useState(1);
   const memoryDeck = useMemo(() => buildMemoryDeck(members, memoryRound), [members, memoryRound]);
   const [flippedCards, setFlippedCards] = useState<string[]>([]);
   const [matchedPairs, setMatchedPairs] = useState<string[]>([]);
   const [memoryMoves, setMemoryMoves] = useState(0);
+  const [memorySaved, setMemorySaved] = useState(false);
 
   const players = useMemo(() => {
-    const active = members.find(member => member.id === activeMemberId);
-    const others = members.filter(member => member.id !== activeMemberId);
+    const active = members.find(member => member.id === playerIds[0]);
+    const second = members.find(member => member.id === playerIds[1]);
     return [
       active || members[0] || { id: 'player-1', name: 'Équipe Soleil', role: 'Famille', photoUrl: '' },
-      others[0] || { id: 'player-2', name: 'Équipe Comète', role: 'Famille', photoUrl: '' }
+      second || members.find(member => member.id !== active?.id) || { id: 'player-2', name: 'Équipe Comète', role: 'Famille', photoUrl: '' }
     ];
-  }, [activeMemberId, members]);
+  }, [members, playerIds]);
 
   const [board, setBoard] = useState<ConnectCell[][]>(() => emptyBoard());
   const [currentPlayer, setCurrentPlayer] = useState<1 | 2>(1);
@@ -191,14 +163,99 @@ export function FamilyGames({
     }
   });
 
-  const challenges = useMemo(
-    () => isPremium ? [...BASE_CHALLENGES, ...PREMIUM_CHALLENGES] : BASE_CHALLENGES,
-    [isPremium]
-  );
   const [challengeIndex, setChallengeIndex] = useState(0);
-  const [revealedAnswers, setRevealedAnswers] = useState<number[]>([]);
   const [challengeScores, setChallengeScores] = useState<[number, number]>([0, 0]);
-  const challenge = challenges[challengeIndex % challenges.length];
+  const challengeQuestionCount = isPremium ? 48 : 12;
+  const challenge = useMemo(
+    () => getChallengeQuestion(challengeIndex, activeRoom?.code || foyerId, challengeQuestionCount),
+    [activeRoom?.code, challengeIndex, challengeQuestionCount, foyerId]
+  );
+  const [challengeSeconds, setChallengeSeconds] = useState(60);
+  const [challengeRunning, setChallengeRunning] = useState(false);
+  const [challengeStrikes, setChallengeStrikes] = useState(0);
+  const [challengeInputs, setChallengeInputs] = useState<[string, string]>(['', '']);
+  const [localSubmittedAnswers, setLocalSubmittedAnswers] = useState<[string | null, string | null]>([null, null]);
+  const [submittingAnswer, setSubmittingAnswer] = useState(false);
+  const [challengeError, setChallengeError] = useState('');
+  const [localAwardedRound, setLocalAwardedRound] = useState<number | null>(null);
+  const challengeTeams = useMemo(() => activeRoom ? [
+    { id: activeRoom.hostFoyerId, name: activeRoom.hostName, photoUrl: '' },
+    { id: activeRoom.guestFoyerId || 'guest-family', name: activeRoom.guestName || 'Famille invitée', photoUrl: '' }
+  ] : players, [activeRoom, players]);
+  const submittedAnswers = useMemo<[string | null, string | null]>(() => {
+    const roomAnswers = Array.isArray(activeRoom?.state.submittedAnswers)
+      ? activeRoom.state.submittedAnswers.filter((value): value is string => typeof value === 'string')
+      : [];
+    return activeRoom
+      ? [roomAnswers[0] || null, roomAnswers[1] || null]
+      : localSubmittedAnswers;
+  }, [activeRoom, localSubmittedAnswers]);
+  const challengeMatches = useMemo(
+    () => submittedAnswers.map(value => value ? matchChallengeAnswer(value, challenge) : null),
+    [challenge, submittedAnswers]
+  );
+  const challengeRevealed = submittedAnswers.every(Boolean);
+  const localTeamIndex = activeRoom?.guestFoyerId === foyerId ? 1 : 0;
+
+  useEffect(() => {
+    void familyGameService.fetchResults(foyerId).then(setResults);
+  }, [foyerId]);
+
+  useEffect(() => {
+    if (!challengeRunning || challengeSeconds <= 0) return;
+    const timer = window.setInterval(() => setChallengeSeconds(value => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [challengeRunning, challengeSeconds]);
+
+  useEffect(() => {
+    if (challengeRunning && challengeSeconds === 0) queueMicrotask(() => setChallengeRunning(false));
+  }, [challengeRunning, challengeSeconds]);
+
+  const saveResult = useCallback(async (
+    gameType: FamilyGameType,
+    scores: number[],
+    winnerName?: string,
+    metadata: Record<string, unknown> = {},
+    resultPlayerNames: string[] = players.map(player => player.name)
+  ) => {
+    const localResult: FamilyGameResult = {
+      id: crypto.randomUUID(),
+      gameType,
+      winnerName,
+      playerNames: resultPlayerNames,
+      scores,
+      metadata,
+      playedAt: new Date().toISOString()
+    };
+    setResults(previous => [localResult, ...previous].slice(0, 30));
+    const saved = await familyGameService.saveResult(foyerId, {
+      gameType,
+      winnerName,
+      playerNames: localResult.playerNames,
+      scores,
+      metadata
+    });
+    if (saved) {
+      setResults(previous => [saved, ...previous.filter(result => result.id !== localResult.id)].slice(0, 30));
+    }
+  }, [foyerId, players]);
+
+  const handleRoomReady = useCallback((room: FamilyGameRoom) => {
+    setActiveRoom(room);
+    const roomState = room.state;
+    if (Array.isArray(roomState.scores) && roomState.scores.length === 2) {
+      setChallengeScores([Number(roomState.scores[0]) || 0, Number(roomState.scores[1]) || 0]);
+    }
+    if (typeof roomState.challengeIndex === 'number') setChallengeIndex(roomState.challengeIndex);
+    if (typeof roomState.strikes === 'number') setChallengeStrikes(roomState.strikes);
+  }, []);
+
+  const syncRoomChallenge = useCallback((state: Record<string, unknown>) => {
+    if (!activeRoom) return;
+    const nextState = { ...activeRoom.state, ...state };
+    setActiveRoom(previous => previous ? { ...previous, state: nextState } : previous);
+    void familyGameService.updateRoom(activeRoom.id, { status: 'active', state: nextState });
+  }, [activeRoom]);
 
   useEffect(() => {
     localStorage.setItem(`mf_games_connect4_${foyerId}`, JSON.stringify(connectScores));
@@ -223,6 +280,7 @@ export function FamilyGames({
     setFlippedCards([]);
     setMatchedPairs([]);
     setMemoryMoves(0);
+    setMemorySaved(false);
   };
 
   const flipMemoryCard = (card: MemoryCard) => {
@@ -240,8 +298,10 @@ export function FamilyGames({
     const winner = getConnectWinner(next);
     setBoard(next);
     if (winner) {
+      navigator.vibrate?.([80, 40, 140]);
       setConnectWinner(winner);
       setConnectScores(previous => winner === 1 ? [previous[0] + 1, previous[1]] : [previous[0], previous[1] + 1]);
+      void saveResult('connect4', winner === 1 ? [1, 0] : [0, 1], players[winner - 1].name);
     } else {
       setCurrentPlayer(currentPlayer === 1 ? 2 : 1);
     }
@@ -254,9 +314,83 @@ export function FamilyGames({
   };
 
   const nextChallenge = () => {
-    setChallengeIndex(previous => (previous + 1) % challenges.length);
-    setRevealedAnswers([]);
+    setChallengeIndex(previous => previous + 1);
+    setChallengeSeconds(60);
+    setChallengeRunning(false);
+    setChallengeStrikes(0);
+    setChallengeInputs(['', '']);
+    setLocalSubmittedAnswers([null, null]);
+    setLocalAwardedRound(null);
+    setChallengeError('');
   };
+
+  const submitChallengeResponse = async (teamIndex: number) => {
+    const value = challengeInputs[teamIndex].trim();
+    if (!value) return;
+    setChallengeError('');
+    if (!activeRoom) {
+      setLocalSubmittedAnswers(previous => {
+        const next: [string | null, string | null] = [...previous];
+        next[teamIndex] = value;
+        return next;
+      });
+      return;
+    }
+    if (teamIndex !== localTeamIndex) return;
+    setSubmittingAnswer(true);
+    try {
+      const room = await familyGameService.submitChallengeAnswer(activeRoom.id, foyerId, challengeIndex, value);
+      handleRoomReady(room);
+    } catch (error) {
+      setChallengeError(error instanceof Error ? error.message : 'Envoi de la réponse impossible.');
+    } finally {
+      setSubmittingAnswer(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!challengeRevealed) return;
+    const awardedRound = Number(activeRoom?.state.awardedRound);
+    if (activeRoom && awardedRound === challengeIndex) return;
+    if (!activeRoom && localAwardedRound === challengeIndex) return;
+    if (activeRoom && activeRoom.hostFoyerId !== foyerId) return;
+
+    const roundPoints: [number, number] = [
+      challengeMatches[0]?.status === 'accepted' ? challengeMatches[0].answer?.points || 0 : 0,
+      challengeMatches[1]?.status === 'accepted' ? challengeMatches[1].answer?.points || 0 : 0
+    ];
+    const nextScores: [number, number] = [
+      challengeScores[0] + roundPoints[0],
+      challengeScores[1] + roundPoints[1]
+    ];
+    const strikes = challengeMatches.filter(match => match?.status === 'rejected').length;
+    queueMicrotask(() => {
+      setChallengeScores(nextScores);
+      setChallengeStrikes(strikes);
+      if (!activeRoom) setLocalAwardedRound(challengeIndex);
+      if (activeRoom) {
+        syncRoomChallenge({
+          scores: nextScores,
+          strikes,
+          awardedRound: challengeIndex,
+          matchResults: challengeMatches.map(match => ({
+            status: match?.status || 'rejected',
+            answerIndex: match?.answerIndex ?? -1,
+            confidence: match?.confidence || 0
+          }))
+        });
+      }
+    });
+  }, [
+    activeRoom,
+    challengeIndex,
+    challengeMatches,
+    challengeRevealed,
+    challengeScores,
+    foyerId,
+    localAwardedRound,
+    syncRoomChallenge
+  ]);
 
   const gameCards = [
     {
@@ -281,7 +415,23 @@ export function FamilyGames({
       description: 'Devinez les réponses les plus populaires et faites gagner votre équipe.',
       icon: Users,
       accent: '#FF4D6D',
-      meta: `${challenges.length} manches`
+      meta: `${challengeQuestionCount} questions`
+    },
+    {
+      id: 'draw-guess' as const,
+      title: 'Dessine et devine',
+      description: 'Dessinez avec le doigt pendant que la famille cherche le mot secret.',
+      icon: Brush,
+      accent: '#00D26A',
+      meta: '5 manches'
+    },
+    {
+      id: 'mime-challenge' as const,
+      title: 'Mimes et défis',
+      description: 'Mimez un maximum de cartes avant la fin du chronomètre.',
+      icon: Mic2,
+      accent: '#9E94FF',
+      meta: '60 secondes'
     }
   ];
 
@@ -390,6 +540,66 @@ export function FamilyGames({
               })}
             </div>
 
+            <section className="glass-panel rounded-[24px] border border-white/8 p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-black text-white">Joueurs de la prochaine partie</h3>
+                  <p className="text-[10px] text-white/45">Les scores seront associés à ces membres.</p>
+                </div>
+                <Users className="w-5 h-5 text-[#6C5CFF]" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {[0, 1].map(index => (
+                  <select
+                    key={index}
+                    value={playerIds[index]}
+                    onChange={event => setPlayerIds(previous => index === 0 ? [event.target.value, previous[1]] : [previous[0], event.target.value])}
+                    className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-bold text-white outline-none"
+                  >
+                    {members.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}
+                  </select>
+                ))}
+              </div>
+            </section>
+
+            <PrivateFamilyRoom
+              foyerId={foyerId}
+              familyName={familyName}
+              selectedGame="family-challenge"
+              onRoomReady={handleRoomReady}
+            />
+
+            <button
+              type="button"
+              onClick={() => setShowHistory(value => !value)}
+              className="w-full rounded-[22px] border border-white/8 bg-white/5 p-4 flex items-center justify-between text-left"
+            >
+              <span className="flex items-center gap-3">
+                <History className="w-5 h-5 text-[#4F8CFF]" />
+                <span>
+                  <strong className="block text-sm text-white">Historique familial</strong>
+                  <span className="text-[10px] text-white/45">{results.length} partie{results.length > 1 ? 's' : ''} enregistrée{results.length > 1 ? 's' : ''}</span>
+                </span>
+              </span>
+              <ChevronRight className={`w-5 h-5 text-white/40 transition-transform ${showHistory ? 'rotate-90' : ''}`} />
+            </button>
+
+            {showHistory && (
+              <div className="space-y-2">
+                {results.length === 0 ? (
+                  <p className="rounded-2xl border border-white/8 bg-white/5 p-4 text-center text-xs text-white/45">Les prochaines parties terminées apparaîtront ici.</p>
+                ) : results.slice(0, 8).map(result => (
+                  <div key={result.id} className="glass-panel rounded-2xl border border-white/8 p-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <strong className="block text-xs text-white truncate">{result.winnerName ? `Victoire de ${result.winnerName}` : 'Partie terminée'}</strong>
+                      <span className="text-[10px] text-white/45">{result.gameType} · {new Date(result.playedAt).toLocaleDateString('fr-FR')}</span>
+                    </div>
+                    <span className="text-xs font-black text-[#FFB020]">{result.scores.join(' - ')}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {!isPremium && (
               <button
                 type="button"
@@ -400,7 +610,7 @@ export function FamilyGames({
                   <span className="p-2.5 rounded-2xl bg-[#FFB020]/15 text-[#FFB020]"><Lock className="w-5 h-5" /></span>
                   <div>
                     <strong className="block text-sm text-white">Pack Défi famille Plus</strong>
-                    <span className="text-[11px] text-white/50">6 manches supplémentaires pour renouveler les soirées.</span>
+                    <span className="text-[11px] text-white/50">36 questions supplémentaires et davantage de thèmes.</span>
                   </div>
                 </div>
                 <ChevronRight className="w-5 h-5 shrink-0 text-[#FFB020]" />
@@ -463,6 +673,17 @@ export function FamilyGames({
                 <button type="button" onClick={resetMemory} className="mt-4 px-5 py-3 rounded-2xl bg-[#00D26A] text-[#07111F] text-xs font-black">
                   Nouvelle partie
                 </button>
+                <button
+                  type="button"
+                  disabled={memorySaved}
+                  onClick={() => {
+                    setMemorySaved(true);
+                    void saveResult('memory', [Math.max(0, 100 - memoryMoves)], players[0].name, { moves: memoryMoves });
+                  }}
+                  className="mt-2 ml-2 px-5 py-3 rounded-2xl border border-white/8 disabled:opacity-45 text-white text-xs font-black"
+                >
+                  {memorySaved ? 'Score enregistré' : 'Enregistrer le score'}
+                </button>
               </div>
             )}
           </>
@@ -521,8 +742,15 @@ export function FamilyGames({
         {activeGame === 'family-challenge' && (
           <>
             {gameHeader('Défi famille', 'Une personne anime, les deux équipes proposent leurs réponses.', Users)}
+            {activeRoom && (
+              <div className="rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/8 px-4 py-3 flex items-center justify-between gap-3">
+                <span className="text-xs font-black text-white">{activeRoom.hostName}</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-[#9E94FF]">Salle {activeRoom.code}</span>
+                <span className="text-xs font-black text-white">{activeRoom.guestName || 'En attente'}</span>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
-              {players.map((player, index) => (
+              {challengeTeams.map((player, index) => (
                 <div key={player.id} className="glass-panel rounded-[22px] border border-white/8 p-4 text-center">
                   <span className={`mx-auto w-10 h-10 rounded-full flex items-center justify-center text-sm font-black ${index === 0 ? 'bg-[#6C5CFF] text-white' : 'bg-[#FF4D6D] text-white'}`}>
                     {getInitials(player.name)}
@@ -534,47 +762,109 @@ export function FamilyGames({
             </div>
             <section className="family-games-challenge rounded-[28px] border p-5 sm:p-7">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[10px] font-black uppercase tracking-wider text-[#FF4D6D]">Manche {challengeIndex + 1}/{challenges.length}</span>
-                <Medal className="w-5 h-5 text-[#FFB020]" />
-              </div>
-              <h2 className="mt-4 text-lg sm:text-2xl font-black leading-snug text-white">{challenge.question}</h2>
-              <div className="mt-5 space-y-2.5">
-                {challenge.answers.map((answer, index) => {
-                  const revealed = revealedAnswers.includes(index);
-                  const points = (challenge.answers.length - index) * 10;
-                  return (
-                    <button
-                      key={answer}
-                      type="button"
-                      onClick={() => setRevealedAnswers(previous => previous.includes(index) ? previous : [...previous, index])}
-                      className={`w-full min-h-12 rounded-2xl border px-4 py-3 flex items-center justify-between text-left transition-colors ${
-                        revealed ? 'border-[#00D26A]/30 bg-[#00D26A]/10' : 'border-white/8 bg-white/5 hover:bg-white/8'
-                      }`}
-                    >
-                      <span className="flex items-center gap-3 min-w-0">
-                        <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-[10px] font-black ${revealed ? 'bg-[#00D26A] text-[#07111F]' : 'bg-white/8 text-white/35'}`}>
-                          {revealed ? index + 1 : '?'}
-                        </span>
-                        <strong className={`text-xs sm:text-sm truncate ${revealed ? 'text-white' : 'text-white/30'}`}>{revealed ? answer : 'Réponse masquée'}</strong>
-                      </span>
-                      {revealed && <span className="text-xs font-black text-[#00D26A]">+{points}</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-            <div className="grid grid-cols-2 gap-3">
-              {players.map((player, index) => (
-                <button
-                  key={player.id}
-                  type="button"
-                  onClick={() => setChallengeScores(previous => index === 0 ? [previous[0] + 10, previous[1]] : [previous[0], previous[1] + 10])}
-                  className={`rounded-2xl py-3 px-2 text-xs font-black text-white ${index === 0 ? 'bg-[#6C5CFF]' : 'bg-[#FF4D6D]'}`}
-                >
-                  +10 pour {player.name}
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#FF4D6D]">
+                  {challenge.category} · {challenge.difficulty} · Question {challengeIndex + 1}
+                </span>
+                <button type="button" onClick={() => setChallengeRunning(value => !value)} className={`flex items-center gap-1.5 text-sm font-black ${challengeSeconds <= 10 ? 'text-[#FF4D6D]' : 'text-[#FFB020]'}`}>
+                  <Clock3 className="w-4 h-4" /> {challengeSeconds}s
                 </button>
-              ))}
+              </div>
+              <h2 className="mt-4 text-lg sm:text-2xl font-black leading-snug text-white">{challenge.prompt}</h2>
+            </section>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {challengeTeams.map((team, index) => {
+                const isMyOnlineTeam = !activeRoom || index === localTeamIndex;
+                const submitted = activeRoom
+                  ? Boolean(index === 0 ? activeRoom.state.hostSubmitted : activeRoom.state.guestSubmitted)
+                  : Boolean(submittedAnswers[index]);
+                const match = challengeMatches[index];
+                return (
+                  <div key={team.id} className="glass-panel rounded-[22px] border border-white/8 p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <strong className="text-xs text-white truncate">{team.name}</strong>
+                      {submitted && !challengeRevealed && <span className="text-[9px] font-black text-[#00D26A]">Réponse validée</span>}
+                    </div>
+                    {!challengeRevealed ? (
+                      <>
+                        {isMyOnlineTeam ? (
+                          <input
+                            type="password"
+                            value={challengeInputs[index]}
+                            onChange={event => setChallengeInputs(previous => index === 0 ? [event.target.value, previous[1]] : [previous[0], event.target.value])}
+                            disabled={submitted || submittingAnswer}
+                            placeholder="Votre réponse..."
+                            maxLength={160}
+                            autoComplete="off"
+                            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none focus:border-[#6C5CFF] disabled:opacity-50"
+                          />
+                        ) : (
+                          <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-xs text-white/45">
+                            {submitted ? 'L’autre famille a répondu.' : 'L’autre famille réfléchit...'}
+                          </div>
+                        )}
+                        {isMyOnlineTeam && (
+                          <button
+                            type="button"
+                            disabled={submitted || submittingAnswer || !challengeInputs[index].trim()}
+                            onClick={() => void submitChallengeResponse(index)}
+                            className={`w-full py-3 rounded-2xl disabled:opacity-40 text-xs font-black text-white ${index === 0 ? 'bg-[#6C5CFF]' : 'bg-[#FF4D6D]'}`}
+                          >
+                            {submitted ? 'Réponse envoyée' : submittingAnswer ? 'Envoi...' : 'Valider secrètement'}
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <div className={`rounded-2xl border p-4 ${
+                        match?.status === 'accepted'
+                          ? 'border-[#00D26A]/30 bg-[#00D26A]/10'
+                          : match?.status === 'close'
+                            ? 'border-[#FFB020]/30 bg-[#FFB020]/10'
+                            : 'border-[#FF4D6D]/30 bg-[#FF4D6D]/10'
+                      }`}>
+                        <span className="text-[10px] font-bold text-white/45">Réponse donnée</span>
+                        <strong className="mt-1 block text-sm text-white">{submittedAnswers[index]}</strong>
+                        <div className="mt-3 flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-black text-white/60">
+                            {match?.status === 'accepted'
+                              ? `Acceptée : ${match.answer?.label}`
+                              : match?.status === 'close'
+                                ? `Réponse proche : ${match.answer?.label}`
+                                : 'Aucune réponse correspondante'}
+                          </span>
+                          <span className={`text-sm font-black ${match?.status === 'accepted' ? 'text-[#00D26A]' : 'text-[#FF4D6D]'}`}>
+                            +{match?.status === 'accepted' ? match.answer?.points || 0 : 0}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
+
+            {challengeError && <p className="text-center text-xs font-bold text-[#FF4D6D]">{challengeError}</p>}
+
+            {challengeRevealed && (
+              <div className="space-y-2">
+                <p className="text-center text-[10px] font-black uppercase tracking-wider text-white/40">Réponses les plus fréquentes</p>
+                {challenge.answers.map((answer, index) => (
+                  <div key={answer.label} className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-3">
+                      <span className="w-7 h-7 rounded-xl bg-[#6C5CFF]/12 text-[#6C5CFF] flex items-center justify-center text-[10px] font-black">{index + 1}</span>
+                      <strong className="text-xs text-white">{answer.label}</strong>
+                    </span>
+                    <span className="text-xs font-black text-[#FFB020]">{answer.points} pts</span>
+                  </div>
+                ))}
+                {challengeStrikes > 0 && (
+                  <div className="flex justify-center gap-2 pt-1">
+                    {Array.from({ length: challengeStrikes }, (_, index) => <X key={index} className="w-6 h-6 text-[#FF4D6D]" />)}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button
                 type="button"
@@ -586,13 +876,56 @@ export function FamilyGames({
               </button>
               <button
                 type="button"
-                onClick={nextChallenge}
-                className="flex-1 rounded-2xl bg-[#FFB020] py-3 text-[#07111F] text-xs font-black flex items-center justify-center gap-2"
+                disabled={!challengeRevealed}
+                onClick={() => {
+                  if ((challengeIndex + 1) % 10 === 0) {
+                    const winnerIndex = challengeScores[0] >= challengeScores[1] ? 0 : 1;
+                    void saveResult(
+                      'family-challenge',
+                      challengeScores,
+                      challengeTeams[winnerIndex].name,
+                      { roomId: activeRoom?.id },
+                      challengeTeams.map(team => team.name)
+                    );
+                  }
+                  syncRoomChallenge({
+                    challengeIndex: challengeIndex + 1,
+                    hostSubmitted: false,
+                    guestSubmitted: false,
+                    submittedAnswers: null,
+                    strikes: 0,
+                    scores: challengeScores,
+                    awardedRound: null,
+                    matchResults: null
+                  });
+                  nextChallenge();
+                }}
+                className="flex-1 rounded-2xl bg-[#FFB020] disabled:opacity-40 py-3 text-[#07111F] text-xs font-black flex items-center justify-center gap-2"
               >
                 <span>Manche suivante</span>
                 <Play className="w-4 h-4 fill-current" />
               </button>
             </div>
+          </>
+        )}
+
+        {activeGame === 'draw-guess' && (
+          <>
+            {gameHeader('Dessine et devine', 'Dessinez le mot secret avec le doigt. Les autres proposent à voix haute.', Brush)}
+            <DrawGuessGame
+              playerName={players[0].name}
+              onFinished={(score, rounds) => void saveResult('draw-guess', [score], players[0].name, { rounds })}
+            />
+          </>
+        )}
+
+        {activeGame === 'mime-challenge' && (
+          <>
+            {gameHeader('Mimes et défis', 'Faites deviner un maximum de cartes en 60 secondes.', Mic2)}
+            <MimeChallengeGame
+              playerName={players[0].name}
+              onFinished={(score, rounds) => void saveResult('mime-challenge', [score], players[0].name, { rounds })}
+            />
           </>
         )}
       </div>
