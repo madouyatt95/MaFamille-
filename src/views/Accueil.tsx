@@ -234,6 +234,7 @@ export const Accueil: React.FC<AccueilProps> = ({
     .filter(memo => !memo.done)
     .filter(memo => memo.assignedTo === 'all' || memo.assignedTo === activeMember.id || !isChild)
     .slice(0, 8);
+  const [memoEvaluationTime] = useState(() => Date.now());
 
   const getMemoCardStyle = (priority: FamilyMemo['priority'], index: number) => {
     if (priority === 'urgent') return 'bg-[#FFD8E3] text-[#4B1020] border-[#FF9BAF] rotate-[1.2deg]';
@@ -246,7 +247,7 @@ export const Accueil: React.FC<AccueilProps> = ({
   const getMemoAgeLabel = (createdAt: string) => {
     const created = new Date(createdAt).getTime();
     if (!Number.isFinite(created)) return 'à l’instant';
-    const minutes = Math.max(0, Math.floor((Date.now() - created) / 60000));
+    const minutes = Math.max(0, Math.floor((memoEvaluationTime - created) / 60000));
     if (minutes < 1) return 'à l’instant';
     if (minutes < 60) return `il y a ${minutes} min`;
     const hours = Math.floor(minutes / 60);

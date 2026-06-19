@@ -39,10 +39,22 @@ const CATEGORIES = [
   { id: 'other', label: '💡 Autres', icon: HelpCircle, color: 'text-slate-400' }
 ];
 
-export const ContactsImportants: React.FC = () => {
+interface ContactsImportantsProps {
+  canManage?: boolean;
+}
+
+const normalizePhoneLink = (value: string) => value.replace(/(?!^\+)[^0-9]/g, '');
+
+export const ContactsImportants: React.FC<ContactsImportantsProps> = ({ canManage = false }) => {
   const [contacts, setContacts] = useState<ImportantContact[]>(() => {
     const saved = localStorage.getItem('mf_important_contacts');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        localStorage.removeItem('mf_important_contacts');
+      }
+    }
     const isCloud = !!localStorage.getItem('mf_cloud_foyer_id');
     if (isCloud) return [];
     
@@ -147,7 +159,7 @@ export const ContactsImportants: React.FC = () => {
 
   const handleAddContact = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName.trim() || !newPhone.trim()) return;
+    if (!canManage || !newName.trim() || normalizePhoneLink(newPhone).length < 2) return;
 
     const contact: ImportantContact = {
       id: `contact-${Date.now()}`,
@@ -176,6 +188,7 @@ export const ContactsImportants: React.FC = () => {
   };
 
   const handleDeleteContact = (id: string, name: string) => {
+    if (!canManage) return;
     if (window.confirm(`Voulez-vous vraiment supprimer le contact "${name}" ?`)) {
       setContacts(prev => prev.filter(c => c.id !== id));
     }
@@ -190,18 +203,31 @@ export const ContactsImportants: React.FC = () => {
           <p className="text-xs text-white/50 font-medium">Numéros utiles & d'urgence de la famille</p>
         </div>
 
-        <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="p-3 rounded-2xl bg-[#6C5CFF] text-white hover:opacity-90 transition-all cursor-pointer shadow-md shadow-[#6C5CFF]/20 active:scale-95"
-        >
-          <Plus className="w-5 h-5" />
-        </button>
+        {canManage && (
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="p-3 rounded-2xl bg-[#6C5CFF] text-white hover:opacity-90 transition-all cursor-pointer shadow-md shadow-[#6C5CFF]/20 active:scale-95"
+            title={showAddForm ? 'Fermer le formulaire' : 'Ajouter un contact'}
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-2xl border border-white/6 bg-white/4 p-3">
+          <strong className="block text-lg font-black text-white">{contacts.length}</strong>
+          <span className="text-[10px] font-bold text-white/40">contacts enregistrés</span>
+        </div>
+        <div className="rounded-2xl border border-red-500/15 bg-red-500/5 p-3">
+          <strong className="block text-lg font-black text-red-400">{contacts.filter(contact => contact.isUrgent).length}</strong>
+          <span className="text-[10px] font-bold text-white/40">accessibles en urgence</span>
+        </div>
       </div>
 
 
-
       {/* Formulaire d'ajout rapide */}
-      {showAddForm && (
+      {showAddForm && canManage && (
         <form onSubmit={handleAddContact} className="glass-panel border-white/8 rounded-[28px] p-5 space-y-4 animate-fade-in">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider">Ajouter un contact important</h3>
           
@@ -408,7 +434,7 @@ export const ContactsImportants: React.FC = () => {
               <div className="flex items-center space-x-1.5 shrink-0">
                 {/* Appel */}
                 <a
-                  href={`tel:${contact.phone}`}
+                  href={`tel:${normalizePhoneLink(contact.phone)}`}
                   className="p-2.5 rounded-xl bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A] hover:bg-[#00D26A]/20 active:scale-90 transition-all cursor-pointer"
                   title="Appeler"
                 >
@@ -418,7 +444,7 @@ export const ContactsImportants: React.FC = () => {
                 {/* SMS */}
                 {contact.sms && (
                   <a
-                    href={`sms:${contact.sms}`}
+                    href={`sms:${normalizePhoneLink(contact.sms)}`}
                     className="p-2.5 rounded-xl bg-[#4F8CFF]/10 border border-[#4F8CFF]/20 text-[#4F8CFF] hover:bg-[#4F8CFF]/20 active:scale-90 transition-all cursor-pointer"
                     title="Envoyer un SMS"
                   >
@@ -453,13 +479,15 @@ export const ContactsImportants: React.FC = () => {
                 )}
 
                 {/* Delete */}
-                <button
-                  onClick={() => handleDeleteContact(contact.id, contact.name)}
-                  className="p-2.5 rounded-xl bg-white/3 border border-white/5 text-white/30 hover:text-red-500 hover:bg-red-500/10 hover:border-red-500/20 transition-all cursor-pointer active:scale-90"
-                  title="Supprimer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                {canManage && (
+                  <button
+                    onClick={() => handleDeleteContact(contact.id, contact.name)}
+                    className="p-2.5 rounded-xl bg-white/3 border border-white/5 text-white/30 hover:text-red-500 hover:bg-red-500/10 hover:border-red-500/20 transition-all cursor-pointer active:scale-90"
+                    title="Supprimer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           ))

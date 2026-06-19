@@ -18,7 +18,10 @@ import {
   Palette,
   Shield,
   Home,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ExternalLink,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
@@ -66,6 +69,7 @@ interface SettingsProps {
   communeName?: string;
   schoolName?: string;
   onUpdateFoyerConfig?: (commune: string, school: string) => Promise<void> | void;
+  onDeleteAccount?: () => Promise<void>;
 }
 
 export const Settings: React.FC<SettingsProps> = ({
@@ -88,10 +92,27 @@ export const Settings: React.FC<SettingsProps> = ({
   onSmartFamilyPrefsChange,
   communeName = '',
   schoolName = '',
-  onUpdateFoyerConfig
+  onUpdateFoyerConfig,
+  onDeleteAccount
 }) => {
   const [savingBackup, setSavingBackup] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'compte' | 'famille' | 'alertes' | 'avance'>('compte');
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+  const [deleteAccountConfirmation, setDeleteAccountConfirmation] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState('');
+
+  const handleDeleteAccount = async () => {
+    if (!onDeleteAccount || deleteAccountConfirmation !== 'SUPPRIMER' || deletingAccount) return;
+    setDeletingAccount(true);
+    setDeleteAccountError('');
+    try {
+      await onDeleteAccount();
+    } catch (err) {
+      setDeleteAccountError(getErrorMessage(err, 'La suppression du compte a échoué.'));
+      setDeletingAccount(false);
+    }
+  };
 
   const [parentPinInput, setParentPinInput] = useState('');
   const [parentPinConfirm, setParentPinConfirm] = useState('');
@@ -705,6 +726,33 @@ export const Settings: React.FC<SettingsProps> = ({
         </details>
       )}
 
+      {settingsTab === 'compte' && user && onDeleteAccount && (
+        <div className="rounded-[28px] border border-red-500/20 bg-red-500/5 p-5 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-red-400">
+              <Trash2 className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-xs font-black uppercase tracking-wider text-white">Supprimer mon compte</h3>
+              <p className="mt-1 text-xs leading-relaxed text-white/50">
+                Supprime définitivement votre accès, vos données personnelles et les contenus dont vous êtes l’unique propriétaire.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteAccountConfirmation('');
+              setDeleteAccountError('');
+              setDeleteAccountOpen(true);
+            }}
+            className="w-full rounded-xl border border-red-500/25 bg-red-500/10 py-3 text-xs font-black text-red-400 hover:bg-red-500/15"
+          >
+            Demander la suppression définitive
+          </button>
+        </div>
+      )}
+
       {/* Sélecteur de Mode d'Apparence */}
       {settingsTab === 'compte' && (
       <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
@@ -1308,7 +1356,7 @@ export const Settings: React.FC<SettingsProps> = ({
             <Lock className="w-4 h-4 text-[#00D26A]" />
             <span>Mentions Légales & RGPD</span>
           </h3>
-          <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-[#00D26A]/20 text-[#00D26A]">100% Conforme</span>
+          <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-[#00D26A]/20 text-[#00D26A]">Informations</span>
         </div>
         
         <p className="text-xs text-white/50 leading-relaxed font-medium">
@@ -1323,9 +1371,9 @@ export const Settings: React.FC<SettingsProps> = ({
               <span className="text-white/30 group-open:rotate-180 transition-transform">▼</span>
             </summary>
             <div className="p-4 pt-0 text-[10px] text-white/40 leading-relaxed space-y-2 border-t border-white/5">
-              <p><strong>Éditeur de l'application :</strong> à compléter avant publication commerciale.</p>
+              <p><strong>Éditeur de l'application :</strong> Yatta Digital.</p>
               <p><strong>Hébergement :</strong> Supabase & Vercel, selon la configuration du projet.</p>
-              <p><strong>Contact :</strong> à compléter avant publication commerciale.</p>
+              <p><strong>Contact confidentialité :</strong> dpo@mafamilleplus.fr.</p>
             </div>
           </details>
 
@@ -1362,8 +1410,108 @@ export const Settings: React.FC<SettingsProps> = ({
               <p>💾 <strong>Stockage technique uniquement :</strong> Seul le stockage local technique (localStorage / jetons sécurisés) est utilisé pour maintenir votre session ouverte et mémoriser votre mode d'affichage.</p>
             </div>
           </details>
+
+          <a
+            href="/legal/privacy.html"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/3 p-4 text-xs font-bold text-white hover:bg-white/5"
+          >
+            <span>Politique de confidentialité complète</span>
+            <ExternalLink className="h-4 w-4 text-white/35" />
+          </a>
+          <a
+            href="/legal/terms.html"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/3 p-4 text-xs font-bold text-white hover:bg-white/5"
+          >
+            <span>Conditions d’utilisation</span>
+            <ExternalLink className="h-4 w-4 text-white/35" />
+          </a>
+          <a
+            href="/legal/account-deletion.html"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/3 p-4 text-xs font-bold text-white hover:bg-white/5"
+          >
+            <span>Informations sur la suppression du compte</span>
+            <ExternalLink className="h-4 w-4 text-white/35" />
+          </a>
         </div>
       </div>
+      )}
+
+      {deleteAccountOpen && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/75 p-4 backdrop-blur-sm sm:items-center">
+          <div role="dialog" aria-modal="true" aria-labelledby="delete-account-title" className="w-full max-w-md rounded-[28px] border border-red-500/25 bg-[#0B1728] p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-2xl bg-red-500/10 p-3 text-red-400">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 id="delete-account-title" className="text-base font-black text-white">Suppression définitive</h2>
+                  <p className="mt-1 text-xs leading-relaxed text-white/50">Cette action est irréversible.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => !deletingAccount && setDeleteAccountOpen(false)}
+                className="rounded-xl bg-white/5 p-2 text-white/55 hover:text-white"
+                title="Fermer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-3 rounded-2xl border border-white/7 bg-white/3 p-4 text-xs leading-relaxed text-white/60">
+              <p>Votre compte de connexion et vos données personnelles seront supprimés.</p>
+              <p>Si un autre adulte administre le foyer, sa responsabilité lui sera transférée. Sinon, le foyer et ses données seront supprimés.</p>
+              <p>Un abonnement App Store reste géré par Apple. Annulez-le avant de continuer.</p>
+              <a href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-bold text-[#9E94FF]">
+                Gérer mes abonnements Apple
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </div>
+
+            <label className="mt-5 block text-[10px] font-black uppercase tracking-wider text-white/45">
+              Tapez SUPPRIMER pour confirmer
+            </label>
+            <input
+              value={deleteAccountConfirmation}
+              onChange={(event) => setDeleteAccountConfirmation(event.target.value.toUpperCase())}
+              autoComplete="off"
+              className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white outline-none focus:border-red-500/50"
+              placeholder="SUPPRIMER"
+            />
+
+            {deleteAccountError && (
+              <p role="alert" className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs font-bold text-red-300">
+                {deleteAccountError}
+              </p>
+            )}
+
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={deletingAccount}
+                onClick={() => setDeleteAccountOpen(false)}
+                className="rounded-xl border border-white/10 bg-white/5 py-3 text-xs font-bold text-white/70 disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={deleteAccountConfirmation !== 'SUPPRIMER' || deletingAccount}
+                onClick={handleDeleteAccount}
+                className="rounded-xl bg-red-500 py-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                {deletingAccount ? 'Suppression...' : 'Supprimer le compte'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

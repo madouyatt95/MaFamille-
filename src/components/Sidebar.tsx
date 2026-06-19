@@ -17,6 +17,7 @@ import {
   Dog, 
   Target, 
   Coins, 
+  Gamepad2,
   Settings, 
   Lock,
   ChevronDown 
@@ -74,6 +75,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'animaux', label: 'Suivi Animaux', icon: Dog, isTab: false, module: 'animaux' },
     { id: 'objectifs', label: 'Objectifs Familiaux', icon: Target, isTab: false, module: 'objectifs' },
     { id: 'argent', label: 'Argent de Poche', icon: Coins, isTab: false, module: 'argent' },
+    { id: 'games', label: 'Jeux en famille', icon: Gamepad2, isTab: false, module: 'games' },
     { id: 'settings', label: 'Paramètres & Sécurité', icon: Settings, isTab: false, module: 'settings' }
   ];
 

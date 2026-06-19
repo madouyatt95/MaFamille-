@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { 
   Sparkles, 
   Check, 
@@ -100,6 +100,15 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, formatMoney,
   const favoriteRecipeIds = useMemo(() => new Set(favoriteRecipes.map(r => r.id)), [favoriteRecipes]);
   const familyRecipeIds = useMemo(() => new Set(familyRecipes.map(r => r.id)), [familyRecipes]);
 
+  const persistFamilyRecipes = useCallback((next: FamilyRecipe[], syncCloud = true) => {
+    const limited = next.slice(0, 40);
+    setFamilyRecipes(limited);
+    localStorage.setItem('mf_family_recipes', JSON.stringify(limited));
+    if (syncCloud && activeFoyerId) {
+      void Promise.all(limited.map(recipe => familyContentService.upsertRecipe(activeFoyerId, recipe))).catch(console.warn);
+    }
+  }, [activeFoyerId]);
+
   useEffect(() => {
     if (!activeFoyerId) return;
     let cancelled = false;
@@ -124,7 +133,7 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, formatMoney,
     return () => {
       cancelled = true;
     };
-  }, [activeFoyerId]);
+  }, [activeFoyerId, persistFamilyRecipes]);
 
   const handleToggleIngredient = (id: string) => {
     setFridgeIngredients(prev =>
@@ -173,15 +182,6 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, formatMoney,
     setWeeklyIdeas(next);
     localStorage.setItem('mf_ecochef_weekly_ideas', JSON.stringify(next));
     setRecipeNotice(`"${recipe.title}" ajouté aux idées repas de la semaine.`);
-  };
-
-  const persistFamilyRecipes = (next: FamilyRecipe[], syncCloud = true) => {
-    const limited = next.slice(0, 40);
-    setFamilyRecipes(limited);
-    localStorage.setItem('mf_family_recipes', JSON.stringify(limited));
-    if (syncCloud && activeFoyerId) {
-      void Promise.all(limited.map(recipe => familyContentService.upsertRecipe(activeFoyerId, recipe))).catch(console.warn);
-    }
   };
 
   const handleSaveFamilyRecipe = (recipe: Recipe) => {

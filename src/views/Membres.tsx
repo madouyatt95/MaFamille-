@@ -475,7 +475,8 @@ export const Membres: React.FC<MembresProps> = ({
     try {
       const { blob, ext } = await compressImageToBlob(file, 'profile');
       const foyerId = foyer?.id || localStorage.getItem('mf_cloud_foyer_id') || 'local';
-      const photoUrl = await uploadBlobToStorage('avatars', `${foyerId}/${selectedMember.id}_${Date.now()}.${ext}`, blob);
+      const uploadVersion = Math.max(file.lastModified || 0, file.size);
+      const photoUrl = await uploadBlobToStorage('avatars', `${foyerId}/${selectedMember.id}_${uploadVersion}.${ext}`, blob);
 
       if (foyer) {
         await foyerService.updateMemberProfile(selectedMember.id, { photoUrl });
@@ -552,7 +553,7 @@ export const Membres: React.FC<MembresProps> = ({
           </div>
           <div>
             <h1 className="text-xl font-extrabold text-white tracking-tight">Membres</h1>
-            <p className="text-xs text-white/50 font-medium">Portail de dossiers de votre famille</p>
+            <p className="text-xs text-white/50 font-medium">Profils, rôles et accès de votre foyer</p>
           </div>
         </div>
         
@@ -565,6 +566,23 @@ export const Membres: React.FC<MembresProps> = ({
           </button>
         )}
       </div>
+
+      {foyer && (
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-2xl border border-white/6 bg-white/4 p-3">
+            <strong className="block text-lg font-black text-white">{approvedMembers.length}</strong>
+            <span className="text-[9px] font-bold text-white/40">membres actifs</span>
+          </div>
+          <div className="rounded-2xl border border-[#FFB020]/15 bg-[#FFB020]/5 p-3">
+            <strong className="block text-lg font-black text-[#FFB020]">{pendingRequests.length}</strong>
+            <span className="text-[9px] font-bold text-white/40">demandes</span>
+          </div>
+          <div className="rounded-2xl border border-[#6C5CFF]/15 bg-[#6C5CFF]/5 p-3">
+            <strong className="block text-sm font-black text-[#9E94FF]">{isPremium ? 'Illimité' : `${approvedMembers.length}/3`}</strong>
+            <span className="text-[9px] font-bold text-white/40">{isPremium ? 'offre Plus' : 'offre gratuite'}</span>
+          </div>
+        </div>
+      )}
 
       {!foyer ? (
         <div className="max-w-md mx-auto glass-panel rounded-[32px] border border-white/10 p-6 space-y-6 animate-scale-up">
@@ -654,7 +672,7 @@ export const Membres: React.FC<MembresProps> = ({
 
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
-                  Votre nom d'affichage (Chef de famille)
+                  Votre nom d'affichage (responsable du foyer)
                 </label>
                 <input
                   type="text"
@@ -671,8 +689,11 @@ export const Membres: React.FC<MembresProps> = ({
                 disabled={actionLoading}
                 className="w-full py-3.5 rounded-xl bg-[#00D26A] text-white text-xs font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-md shadow-[#00D26A]/15"
               >
-                {actionLoading ? 'Création...' : 'Créer le foyer et devenir Chef ➔'}
+                {actionLoading ? 'Création...' : 'Créer le foyer comme responsable ➔'}
               </button>
+              <p className="text-[10px] leading-relaxed text-white/40">
+                Le responsable peut inviter les proches, attribuer les rôles et gérer les accès sensibles. Ce rôle pourra être partagé avec un autre adulte.
+              </p>
             </form>
           )}
 

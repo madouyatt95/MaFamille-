@@ -467,11 +467,6 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
 
   return (
     <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32 relative overflow-hidden">
-      
-      {/* Dynamic Background Glows */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#FFB020]/10 blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#6C5CFF]/10 blur-[100px] pointer-events-none" />
-
       {/* Top Bar Switcher */}
       <div className="flex justify-between items-center w-full px-2 pt-[calc(1rem+env(safe-area-inset-top,0px))] relative z-20">
         <span className="text-[10px] font-black text-white/30 uppercase tracking-widest">ESPACE ENFANT 🧸</span>
@@ -490,11 +485,17 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
       <div className="flex flex-col items-center justify-center pt-8 pb-4 space-y-4">
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-tr from-[#6C5CFF] to-[#FFB020] rounded-full blur-lg opacity-50 animate-pulse"></div>
-          <img 
-            src={member.photoUrl} 
-            alt={member.name} 
-            className="w-24 h-24 rounded-full object-cover border-4 border-white relative z-10"
-          />
+          {member.photoUrl ? (
+            <img
+              src={member.photoUrl}
+              alt={member.name}
+              className="w-24 h-24 rounded-full object-cover border-4 border-white relative z-10"
+            />
+          ) : (
+            <div className="relative z-10 flex h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-[#6C5CFF] text-3xl font-black text-white">
+              {member.name.trim().charAt(0).toUpperCase() || '?'}
+            </div>
+          )}
           <div className="absolute -bottom-2 -right-2 bg-[#FFB020] text-[#07111F] font-black text-xs px-3 py-1.5 rounded-full border-2 border-white z-20 shadow-md">
             Niv. {level}
           </div>

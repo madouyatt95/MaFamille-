@@ -1,11 +1,22 @@
 import React, { useState } from 'react';
 import { 
+  CalendarClock,
   Users, 
-  Check 
+  Check,
+  Vote
 } from 'lucide-react';
 import type { FamilyVote, Member } from '../../types';
 
 const createPollId = () => `poll-${Date.now()}`;
+
+const readStoredValue = <T,>(key: string, fallback: T): T => {
+  try {
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) as T : fallback;
+  } catch {
+    return fallback;
+  }
+};
 
 interface ConseilFamilleProps {
   votes: FamilyVote[];
@@ -21,6 +32,7 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
   members
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'sondages' | 'charte'>('sondages');
+  const [pollEvaluationTime] = useState(() => Date.now());
   const activeMember = members?.find(m => m.id === activeMemberId);
   const isParent = activeMember 
     ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMember.role)
@@ -58,8 +70,8 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
 
   // Charter rules states
   const [charterRules, setCharterRules] = useState<string[]>(() => {
-    const stored = localStorage.getItem('mf_charter_rules');
-    if (stored) return JSON.parse(stored);
+    const stored = readStoredValue<string[]>('mf_charter_rules', []);
+    if (stored.length > 0) return stored;
     const isCloud = !!localStorage.getItem('mf_cloud_foyer_id');
     if (isCloud) return [];
     return [
@@ -76,8 +88,8 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
 
   // Charter signatures state indexed by member ID
   const [signatures, setSignatures] = useState<Record<string, boolean>>(() => {
-    const stored = localStorage.getItem('family_charter_signatures');
-    if (stored) return JSON.parse(stored);
+    const stored = readStoredValue<Record<string, boolean>>('family_charter_signatures', {});
+    if (Object.keys(stored).length > 0) return stored;
     const isCloud = !!localStorage.getItem('mf_cloud_foyer_id');
     if (isCloud) return {};
     return {
@@ -93,6 +105,9 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
   const [editedRules, setEditedRules] = useState<string[]>([]);
 
   const memberName = activeMember?.name || 'Membre du foyer';
+  const voterToken = activeMemberId ? `member:${activeMemberId}` : memberName;
+  const activePollCount = votes.filter(poll => poll.active !== false).length;
+  const signedCount = Object.values(signatures).filter(Boolean).length;
 
   const handleVote = (pollId: string, optionIdx: number) => {
     let alreadyVoted = false;
@@ -101,7 +116,7 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
       prev.map(p => {
         if (p.id !== pollId) return p;
 
-        const hasVotedThisPoll = p.options.some(o => o.votes.includes(memberName));
+        const hasVotedThisPoll = p.options.some(o => o.votes.includes(voterToken) || o.votes.includes(memberName));
         if (hasVotedThisPoll) {
           alreadyVoted = true;
           return p;
@@ -111,7 +126,7 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
           if (idx !== optionIdx) return o;
           return {
             ...o,
-            votes: [...o.votes, memberName]
+            votes: [...o.votes, voterToken]
           };
         });
 
@@ -227,6 +242,24 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
         </div>
       </div>
 
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-2xl border border-white/6 bg-white/4 p-3">
+          <Vote className="mb-2 h-4 w-4 text-[#6C5CFF]" />
+          <strong className="block text-base font-black text-white">{activePollCount}</strong>
+          <span className="text-[9px] font-bold text-white/40">vote{activePollCount > 1 ? 's' : ''} ouvert{activePollCount > 1 ? 's' : ''}</span>
+        </div>
+        <div className="rounded-2xl border border-white/6 bg-white/4 p-3">
+          <Check className="mb-2 h-4 w-4 text-[#00D26A]" />
+          <strong className="block text-base font-black text-white">{signedCount}/{members?.length || 4}</strong>
+          <span className="text-[9px] font-bold text-white/40">signatures</span>
+        </div>
+        <div className="rounded-2xl border border-white/6 bg-white/4 p-3">
+          <CalendarClock className="mb-2 h-4 w-4 text-[#FFB020]" />
+          <strong className="block text-base font-black text-white">v{charterVersion}</strong>
+          <span className="text-[9px] font-bold text-white/40">charte active</span>
+        </div>
+      </div>
+
       {/* Navigation tabs */}
       <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 flex">
         <button
@@ -257,10 +290,24 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
           <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block">Scrutins de la semaine :</span>
           
           <div className="space-y-4">
+            {votes.length === 0 && (
+              <div className="rounded-[24px] border border-dashed border-white/10 bg-white/3 px-5 py-8 text-center">
+                <Vote className="mx-auto mb-3 h-7 w-7 text-white/20" />
+                <p className="text-xs font-bold text-white/65">Aucun vote en cours</p>
+                <p className="mt-1 text-[10px] text-white/35">Un parent peut proposer le prochain sujet familial juste en dessous.</p>
+              </div>
+            )}
             {votes.map(poll => {
               const totalVotesCount = poll.options.reduce((sum: number, o: { votes: string[] }) => sum + o.votes.length, 0) || 1;
-              const hasVoted = poll.options.some(o => o.votes.includes(memberName));
+              const hasVoted = poll.options.some(o => o.votes.includes(voterToken) || o.votes.includes(memberName));
               const totalVotedCount = poll.options.reduce((sum: number, o: { votes: string[] }) => sum + o.votes.length, 0);
+              const parsedDueDate = poll.dueDate.includes('/')
+                ? (() => {
+                    const [day, month, year] = poll.dueDate.split('/').map(Number);
+                    return new Date(year, month - 1, day, 23, 59, 59);
+                  })()
+                : new Date(poll.dueDate);
+              const isClosed = poll.active === false || (!Number.isNaN(parsedDueDate.getTime()) && parsedDueDate.getTime() < pollEvaluationTime);
 
               return (
                 <div key={poll.id} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
@@ -268,6 +315,7 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
                     <div>
                       <h3 className="text-sm font-extrabold text-white leading-relaxed">{poll.question}</h3>
                       <p className="text-[10px] text-white/40 mt-1">Limite: {poll.dueDate} • {totalVotedCount} vote(s) exprimé(s)</p>
+                      {isClosed && <span className="mt-2 inline-flex rounded-lg bg-white/5 px-2 py-1 text-[8px] font-black uppercase text-white/40">Vote clôturé</span>}
                     </div>
                     {isParent && (
                       <div className="flex space-x-1 bg-white/5 p-1 rounded-xl border border-white/5 ml-4">
@@ -307,8 +355,8 @@ export const ConseilFamille: React.FC<ConseilFamilleProps> = ({
                         <button
                           key={idx}
                           onClick={() => handleVote(poll.id, idx)}
-                          disabled={hasVoted}
-                          className="w-full relative p-4 rounded-2xl border border-white/5 bg-white/5 overflow-hidden text-left transition-all hover:bg-white/8 flex justify-between items-center cursor-pointer group"
+                          disabled={hasVoted || isClosed}
+                          className="w-full relative p-4 rounded-2xl border border-white/5 bg-white/5 overflow-hidden text-left transition-all hover:bg-white/8 flex justify-between items-center cursor-pointer group disabled:cursor-default disabled:opacity-75"
                         >
                           <div 
                             className="absolute left-0 top-0 bottom-0 bg-[#6C5CFF]/15 transition-all duration-700 pointer-events-none"

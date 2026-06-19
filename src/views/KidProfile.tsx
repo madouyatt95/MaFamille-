@@ -35,6 +35,10 @@ export const KidProfile: React.FC<KidProfileProps> = ({
   onOpenChatWithMember
 }) => {
   const [previewDoc, setPreviewDoc] = useState<DocumentFile | null>(null);
+  const memberInitial = member.name.trim().charAt(0).toUpperCase() || '?';
+  const ageLabel = member.age && /^\d+$/.test(String(member.age).trim())
+    ? `${member.age} ans`
+    : 'Âge à compléter';
 
   const myRealDocs = documents.filter(d => d && d.memberId === member.id && !d.isSecure);
   // Find pocket money account
@@ -57,10 +61,6 @@ export const KidProfile: React.FC<KidProfileProps> = ({
 
   return (
     <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32 relative overflow-hidden">
-      
-      {/* Background magical glows */}
-      <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-[#6C5CFF]/10 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-[#FFB020]/10 blur-[120px] pointer-events-none" />
 
       {/* Header */}
       <div className="flex items-center justify-between pt-[calc(1rem+env(safe-area-inset-top,0px))] mb-6">
@@ -88,11 +88,17 @@ export const KidProfile: React.FC<KidProfileProps> = ({
       <div className="bg-gradient-to-br from-[#6C5CFF]/20 to-[#FFB020]/15 border-2 border-white/10 rounded-[36px] p-6 text-center space-y-4 shadow-xl relative">
         <div className="relative w-28 h-28 mx-auto">
           <div className="absolute inset-0 bg-gradient-to-tr from-[#6C5CFF] to-[#FFB020] rounded-full blur-md opacity-60 animate-pulse"></div>
-          <img 
-            src={member.photoUrl} 
-            alt={member.name} 
-            className="w-28 h-28 rounded-full object-cover border-4 border-white relative z-10"
-          />
+          {member.photoUrl ? (
+            <img
+              src={member.photoUrl}
+              alt={member.name}
+              className="w-28 h-28 rounded-full object-cover border-4 border-white relative z-10"
+            />
+          ) : (
+            <div className="relative z-10 flex h-28 w-28 items-center justify-center rounded-full border-4 border-white bg-[#6C5CFF] text-4xl font-black text-white">
+              {memberInitial}
+            </div>
+          )}
           <div className="absolute -bottom-2 -right-2 bg-[#FFB020] text-[#07111F] font-black text-xs px-3.5 py-1.5 rounded-full border-2 border-white z-20 shadow-md">
             Niv. {level}
           </div>
@@ -100,7 +106,7 @@ export const KidProfile: React.FC<KidProfileProps> = ({
 
         <div className="space-y-1">
           <h2 className="text-2xl font-black text-white">{member.name} 👋</h2>
-          <p className="text-xs text-white/60 font-bold">Membre junior • {member.age} ans</p>
+          <p className="text-xs text-white/60 font-bold">Membre junior • {ageLabel}</p>
         </div>
 
         {/* Level progress bar */}
@@ -170,7 +176,7 @@ export const KidProfile: React.FC<KidProfileProps> = ({
             <GraduationCap className="w-5 h-5 text-[#00D26A]" />
             <div>
               <span className="text-[9px] font-bold text-white/40 block">Établissement Scolaire :</span>
-              <span className="text-xs font-extrabold text-white">{foyer?.schoolName || 'École Primaire Les Lilas 🏫'}</span>
+              <span className="text-xs font-extrabold text-white">{foyer?.schoolName || member.schoolOrEmployer || 'À compléter par un parent'}</span>
             </div>
           </div>
           
@@ -178,7 +184,7 @@ export const KidProfile: React.FC<KidProfileProps> = ({
             <Landmark className="w-5 h-5 text-[#FFB020]" />
             <div>
               <span className="text-[9px] font-bold text-white/40 block">Ma Commune :</span>
-              <span className="text-xs font-extrabold text-white">{foyer?.communeName || 'Commune de Belleville-sur-Seine 🏡'}</span>
+              <span className="text-xs font-extrabold text-white">{foyer?.communeName || 'À compléter dans les réglages du foyer'}</span>
             </div>
           </div>
 
@@ -186,7 +192,7 @@ export const KidProfile: React.FC<KidProfileProps> = ({
             <Shield className="w-5 h-5 text-[#6C5CFF]" />
             <div>
               <span className="text-[9px] font-bold text-white/40 block">Foyer Familial :</span>
-              <span className="text-xs font-extrabold text-white">{foyer?.name || 'Famille Royale 👑'}</span>
+              <span className="text-xs font-extrabold text-white">{foyer?.name || 'Foyer non renseigné'}</span>
             </div>
           </div>
         </div>
@@ -260,11 +266,17 @@ export const KidProfile: React.FC<KidProfileProps> = ({
                     : 'border-white/5 cursor-pointer hover:border-[#6C5CFF]/40 active:scale-95 transition-all'
                 }`}
               >
-                <img 
-                  src={m.photoUrl} 
-                  alt={m.name} 
-                  className="w-10 h-10 rounded-full object-cover border border-white/10"
-                />
+                {m.photoUrl ? (
+                  <img
+                    src={m.photoUrl}
+                    alt={m.name}
+                    className="w-10 h-10 rounded-full object-cover border border-white/10"
+                  />
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[#6C5CFF]/20 text-sm font-black text-white">
+                    {m.name.trim().charAt(0).toUpperCase() || '?'}
+                  </div>
+                )}
                 <div>
                   <h4 className="text-[10px] font-black text-white leading-tight truncate w-20">{m.name}</h4>
                   <p className="text-[8px] text-white/45 font-bold uppercase tracking-wider truncate w-20">

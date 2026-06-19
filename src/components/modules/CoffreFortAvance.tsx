@@ -282,6 +282,8 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
       .map(doc => ({ doc, renewal: getRenewalStatus(doc), expiryDate: parseDocumentDate(doc.expiryDate) }))
       .filter(item => item.expiryDate && ['expired', 'urgent', 'soon'].includes(item.renewal.status))
       .sort((a, b) => (a.expiryDate?.getTime() || 0) - (b.expiryDate?.getTime() || 0));
+  // Renewal helpers are pure and intentionally scoped to the component.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documents]);
 
   const activeDemarchesCount = demarches.filter(d => d.status !== 'completed' && d.status !== 'archived').length;

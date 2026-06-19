@@ -1186,10 +1186,6 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
       </div>
     }>
     <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans pb-32 relative overflow-hidden flex flex-col items-center">
-      {/* Background decoration blur halos */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#6C5CFF]/10 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#FF4D6D]/10 blur-[120px] pointer-events-none" />
-
       <div className="w-full max-w-4xl mx-auto space-y-6 relative z-10 flex flex-col justify-start">
 
       {/* ---------------------------------------------------------------------- */}
@@ -1205,7 +1201,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                 className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[9px] font-extrabold text-[#FF4D6D] hover:bg-[#FF4D6D]/10 hover:text-white transition-all flex items-center space-x-1 cursor-pointer active:scale-95"
               >
                 <span>🚪</span>
-                <span>Déconnexion / PIN</span>
+                <span>Changer de profil</span>
               </button>
             )}
           </div>
@@ -1213,11 +1209,17 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
           <div className="flex items-center space-x-4 bg-white/5 border border-white/8 rounded-[32px] p-5 shadow-xl backdrop-blur-md">
             <div className="relative">
               <div className="absolute -inset-1.5 bg-gradient-to-tr from-[#6C5CFF] to-[#FF4D6D] rounded-full blur animate-pulse" />
-              <img 
-                src={member.photoUrl} 
-                alt={member.name} 
-                className="w-16 h-16 rounded-full object-cover border-2 border-[#6C5CFF]/30 relative z-10"
-              />
+              {member.photoUrl ? (
+                <img
+                  src={member.photoUrl}
+                  alt={member.name}
+                  className="w-16 h-16 rounded-full object-cover border-2 border-[#6C5CFF]/30 relative z-10"
+                />
+              ) : (
+                <div className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#6C5CFF]/30 bg-[#6C5CFF] text-xl font-black text-white">
+                  {member.name.trim().charAt(0).toUpperCase() || '?'}
+                </div>
+              )}
               <div className="absolute -bottom-1 -right-1 bg-gradient-to-r from-[#FFB020] to-[#FF8C00] text-[#07111F] font-black text-[9px] w-6 h-6 rounded-full border border-[#07111F] flex items-center justify-center z-20 shadow-md">
                 {level}
               </div>

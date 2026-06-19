@@ -46,7 +46,8 @@ import {
   Archive,
   RotateCcw,
   Filter,
-  AlertTriangle
+  AlertTriangle,
+  Gamepad2
 } from 'lucide-react';
 import type { 
   DocumentFile, 
@@ -92,6 +93,9 @@ const WidgetMeteo = lazy(() => import('../components/modules/WidgetMeteo').then(
 const FamilyMap = lazy(() => import('./FamilyMap').then(module => ({ default: module.FamilyMap })));
 const ConteurIA = lazy(() => import('../components/modules/ConteurIA').then(module => ({ default: module.ConteurIA })));
 const ContactsImportants = lazy(() => import('../components/modules/ContactsImportants').then(module => ({ default: module.ContactsImportants })));
+const VehiclesModule = lazy(() => import('../components/modules/VehiclesModule').then(module => ({ default: module.VehiclesModule })));
+const PetsModule = lazy(() => import('../components/modules/PetsModule').then(module => ({ default: module.PetsModule })));
+const FamilyGames = lazy(() => import('./FamilyGames').then(module => ({ default: module.FamilyGames })));
 
 // Utility helper to parse French custom input dates (e.g. "12 Octobre 2027", "24/06/2026") into YYYY-MM-DD ISO strings.
 function parseCustomDateToISO(dateStr: string): string {
@@ -275,7 +279,8 @@ const modIdToFamilyModule: Record<string, FamilyModule> = {
   'settings': 'parametres',
   'carte': 'carte_familiale',
   'menus': 'menu_semaine',
-  'argent': 'taches'
+  'argent': 'taches',
+  'games': 'jeux_famille'
 };
 
 const getTripDuration = (start: string, end: string) => {
@@ -1006,10 +1011,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [newFraisMemberId, setNewFraisMemberId] = useState(activeMemberId || '1');
   const [newFraisAccountId, setNewFraisAccountId] = useState('');
 
-  const [newVehExpenseSubCategory, setNewVehExpenseSubCategory] = useState('Essence');
-  const [newVehExpenseAmount, setNewVehExpenseAmount] = useState('');
-  const [newVehExpenseAccountId, setNewVehExpenseAccountId] = useState('');
-
   const [newLogChargeType, setNewLogChargeType] = useState('Loyer');
   const [newLogChargeAmount, setNewLogChargeAmount] = useState('');
   const [newLogChargeIsRecurring, setNewLogChargeIsRecurring] = useState(false);
@@ -1115,10 +1116,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [adjustmentAccountId, setAdjustmentAccountId] = useState('');
   const [isAdjusting, setIsAdjusting] = useState(false);
 
-  const [newPetExpenseSubCategory, setNewPetExpenseSubCategory] = useState('Nourriture');
-  const [newPetExpenseAmount, setNewPetExpenseAmount] = useState('');
-  const [newPetExpenseAccountId, setNewPetExpenseAccountId] = useState('');
-
   // Dynamically calculate pending vaccines for the active member only
   const pendingVaccines = (vaccines || []).filter((v) => v.memberId === activeMemberId && v.status === 'À faire').length;
 
@@ -1130,6 +1127,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     { id: 'conteur', title: 'Histoires du Soir', desc: 'Contes IA personnalisés interactifs', badge: 'Plus', icon: BookOpen, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
     { id: 'taches', title: 'Tâches', desc: 'Répartition des tâches et suivi', badge: `${tasks.filter(t => !t.done).length} en cours`, icon: Brush, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
     { id: 'argent', title: 'Argent de poche & confiance', desc: 'Missions, récompenses et suivi familial', badge: 'Confiance', icon: Coins, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
+    { id: 'games', title: 'Jeux en famille', desc: 'Memory, Puissance 4 et défis à plusieurs', badge: 'Nouveau', icon: Gamepad2, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
     { id: 'ecole', title: 'École & Devoirs', desc: 'Tuteur IA, devoirs & quizzes', badge: `${schoolTasks.filter(t => !t.done).length} devoirs`, icon: GraduationCap, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
     { id: 'logement', title: 'Logement', desc: 'Maintenance et garanties', badge: 'Équipements', icon: HomeIcon, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
     { id: 'agenda', title: 'Agenda Familial', desc: 'Calendrier partagé de la maison', badge: 'Calendrier', icon: Calendar, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
@@ -1316,60 +1314,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     ? ['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMember.role)
     : (activeMemberId === '1' || activeMemberId === '2');
   const isLockedForChild = !isParent && ['documents', 'demarches', 'finances_hub', 'vehicules', 'logement'].includes(activeModule) && !authorizedModules.includes(activeModule);
-
-  // Vehicles Form states
-  const [newVehName, setNewVehName] = useState('');
-  const [newVehPlate, setNewVehPlate] = useState('');
-  const [newVehCT, setNewVehCT] = useState('');
-  const [newVehAssur, setNewVehAssur] = useState('');
-  const [newVehService, setNewVehService] = useState('');
-
-  const handleAddVehicle = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newVehName || !newVehPlate) return;
-    const newV: Vehicle = {
-      id: `v-${Date.now()}`,
-      name: newVehName,
-      plate: newVehPlate,
-      insuranceExpiry: newVehAssur || '24 Juin 2026',
-      technicalControl: newVehCT || '12 Octobre 2027',
-      lastService: '14 Mai 2026',
-      nextService: newVehService || '14 Novembre 2026'
-    };
-    setVehicles(prev => [...prev, newV]);
-
-    // Agenda reminders integration
-    if (onAddEventDirect) {
-      onAddEventDirect({
-        title: `🚗 CT : ${newVehName}`,
-        type: 'other',
-        dateTime: parseCustomDateToISO(newV.technicalControl),
-        time: '09:00',
-        done: false
-      });
-      onAddEventDirect({
-        title: `🛡️ Assurance : ${newVehName}`,
-        type: 'other',
-        dateTime: parseCustomDateToISO(newV.insuranceExpiry),
-        time: '09:00',
-        done: false
-      });
-      onAddEventDirect({
-        title: `🔧 Révision : ${newVehName}`,
-        type: 'other',
-        dateTime: parseCustomDateToISO(newV.nextService),
-        time: '09:00',
-        done: false
-      });
-    }
-
-    setNewVehName('');
-    setNewVehPlate('');
-    setNewVehCT('');
-    setNewVehAssur('');
-    setNewVehService('');
-    alert('🚗 Véhicule ajouté avec succès et rappels planifiés dans l\'agenda !');
-  };
 
   // Maintenance Form states
   const [newMaintTitle, setNewMaintTitle] = useState('');
@@ -1572,55 +1516,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     alert('✈️ Voyage ajouté avec succès (impacts Finances / Agenda synchronisés) !');
   };
 
-  // Pets Form states
-  const [newPetName, setNewPetName] = useState('');
-  const [newPetSpecies, setNewPetSpecies] = useState('Chien');
-  const [newPetLastVaccine, setNewPetLastVaccine] = useState('');
-  const [newPetNextVaccine, setNewPetNextVaccine] = useState('');
-  const [newPetAppointment, setNewPetAppointment] = useState('');
-
-  const handleAddPet = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPetName) return;
-    const newP: PetRecord = {
-      id: `p-${Date.now()}`,
-      name: newPetName,
-      species: newPetSpecies,
-      lastVaccine: newPetLastVaccine || '10 Janvier 2026',
-      nextVaccine: newPetNextVaccine || '10 Janvier 2027',
-      vetAppointment: newPetAppointment || undefined
-    };
-    setPets(prev => [...prev, newP]);
-
-    // Agenda integration for vet & vaccine
-    if (onAddEventDirect) {
-      if (newP.nextVaccine) {
-        onAddEventDirect({
-          title: `💉 Vaccin : ${newPetName}`,
-          type: 'other',
-          dateTime: parseCustomDateToISO(newP.nextVaccine),
-          time: '10:00',
-          done: false
-        });
-      }
-      if (newP.vetAppointment) {
-        onAddEventDirect({
-          title: `🐶 RDV Vétérinaire : ${newPetName}`,
-          type: 'other',
-          dateTime: parseCustomDateToISO(newP.vetAppointment),
-          time: '14:00',
-          done: false
-        });
-      }
-    }
-
-    setNewPetName('');
-    setNewPetLastVaccine('');
-    setNewPetNextVaccine('');
-    setNewPetAppointment('');
-    alert('🐶 Animal ajouté et rappels vétérinaires ajoutés à l\'agenda !');
-  };
-
   const handleSaveMeal = (e: React.FormEvent) => {
     e.preventDefault();
     if (!mealName) return;
@@ -1812,6 +1707,18 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             </div>
           </div>
         </>
+      )}
+
+      {/* Family games */}
+      {activeModule === 'games' && (
+        <FamilyGames
+          members={members}
+          activeMemberId={activeMemberId}
+          foyerId={foyer?.id}
+          isPremium={isPremium}
+          onTriggerPaywall={onTriggerPaywall}
+          onBack={() => setActiveModule('')}
+        />
       )}
 
       {/* SUB-MODULE 0: Finances Hub Kid unlocked screen */}
@@ -4198,6 +4105,21 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               <p className="text-xs text-white/50">Rotation automatique et argent de poche</p>
             </div>
 
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-2xl border border-white/6 bg-white/4 p-3">
+                <strong className="block text-lg font-black text-white">{activeParsedTasks.length}</strong>
+                <span className="text-[9px] font-bold text-white/40">missions actives</span>
+              </div>
+              <div className="rounded-2xl border border-[#FFB020]/15 bg-[#FFB020]/5 p-3">
+                <strong className="block text-lg font-black text-[#FFB020]">{tasksToValidate.length}</strong>
+                <span className="text-[9px] font-bold text-white/40">à valider</span>
+              </div>
+              <div className="rounded-2xl border border-[#00D26A]/15 bg-[#00D26A]/5 p-3">
+                <strong className="block text-lg font-black text-[#00D26A]">{archivedParsedTasks.filter(task => task.status === 'validated' || task.validatedByParent).length}</strong>
+                <span className="text-[9px] font-bold text-white/40">terminées</span>
+              </div>
+            </div>
+
             {/* Formulaire ajout Tâche avec récompense financière */}
             {isParent && getPermission('taches', 'ajouter') && (
               <form 
@@ -5045,6 +4967,21 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             <p className="text-xs text-white/50">Emploi du temps, devoirs et bulletins</p>
           </div>
 
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-2xl border border-white/6 bg-white/4 p-3">
+              <strong className="block text-lg font-black text-white">{schoolTasks.filter(task => !task.done).length}</strong>
+              <span className="text-[9px] font-bold text-white/40">devoirs ouverts</span>
+            </div>
+            <div className="rounded-2xl border border-[#6C5CFF]/15 bg-[#6C5CFF]/5 p-3">
+              <strong className="block text-lg font-black text-[#9E94FF]">{schedule.length}</strong>
+              <span className="text-[9px] font-bold text-white/40">cours planifiés</span>
+            </div>
+            <div className="rounded-2xl border border-[#00D26A]/15 bg-[#00D26A]/5 p-3">
+              <strong className="block text-lg font-black text-[#00D26A]">{grades.length}</strong>
+              <span className="text-[9px] font-bold text-white/40">notes suivies</span>
+            </div>
+          </div>
+
           {/* School Schedule */}
           <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
@@ -5053,13 +4990,11 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             </h3>
             <div className="space-y-2">
               {schedule.filter(s => {
-                const isActiveParent = activeMember?.role === 'Chef de famille' || activeMember?.role === 'Gestionnaire';
-                return isActiveParent ? true : s.studentId === activeMemberId;
+                return isParent ? true : s.studentId === activeMemberId;
               }).length > 0 ? (
                 schedule
                   .filter(s => {
-                    const isActiveParent = activeMember?.role === 'Chef de famille' || activeMember?.role === 'Gestionnaire';
-                    return isActiveParent ? true : s.studentId === activeMemberId;
+                    return isParent ? true : s.studentId === activeMemberId;
                   })
                   .slice(0, 4)
                   .map((course, idx) => (
@@ -5084,13 +5019,11 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             <h3 className="text-xs font-bold text-white uppercase tracking-wider">Dernières Notes</h3>
             <div className="space-y-2">
               {grades.filter(g => {
-                const isActiveParent = activeMember?.role === 'Chef de famille' || activeMember?.role === 'Gestionnaire';
-                return isActiveParent ? true : g.studentId === activeMemberId;
+                return isParent ? true : g.studentId === activeMemberId;
               }).length > 0 ? (
                 grades
                   .filter(g => {
-                    const isActiveParent = activeMember?.role === 'Chef de famille' || activeMember?.role === 'Gestionnaire';
-                    return isActiveParent ? true : g.studentId === activeMemberId;
+                    return isParent ? true : g.studentId === activeMemberId;
                   })
                   .slice(0, 3)
                   .map((grade, idx) => {
@@ -5277,318 +5210,16 @@ export const MenuHub: React.FC<MenuHubProps> = ({
       )}
 
       {/* OTHER SUB-MODULES (SECONDARY) */}
-      {/* 6. Véhicules */}
       {activeModule === 'vehicules' && !isLockedForChild && (
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-lg font-extrabold text-white">Gestion Véhicules</h2>
-            <p className="text-xs text-white/50">Entretiens, contrôles et assurances</p>
-          </div>
-
-          <div className="space-y-4">
-            {vehicles.map((v) => {
-              const getVigilanceStatus = (dateStr: string) => {
-                if (!dateStr) return { class: 'text-white/60', label: 'Inconnu' };
-                const dateLower = dateStr.toLowerCase();
-                if (dateLower.includes('2026') || dateLower.includes('juin') || dateLower.includes('juillet')) {
-                  return { class: 'bg-[#FFB020]/10 border border-[#FFB020]/20 text-[#FFB020]', label: 'Vigilance' };
-                }
-                if (dateLower.includes('2025') || dateLower.includes('passé')) {
-                  return { class: 'bg-[#FF3B30]/10 border border-[#FF3B30]/20 text-[#FF3B30] animate-pulse', label: 'Urgent' };
-                }
-                return { class: 'bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A]', label: 'À jour' };
-              };
-
-              const ctStatus = getVigilanceStatus(v.technicalControl);
-              const insStatus = getVigilanceStatus(v.insuranceExpiry);
-              const revStatus = getVigilanceStatus(v.nextService);
-
-              return (
-                <div key={v.id} className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
-                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-2.5 rounded-xl bg-[#4F8CFF]/10 text-[#4F8CFF] border border-white/5">
-                        <Car className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-white">{v.name}</h3>
-                        <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider mt-0.5">Plaque: {v.plate}</p>
-                      </div>
-                    </div>
-                    {isParent && (
-                      <div className="flex space-x-1.5">
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            const newName = window.prompt("Modifier le modèle du véhicule :", v.name);
-                            if (!newName) return;
-                            const newPlate = window.prompt("Modifier la plaque d'immatriculation :", v.plate);
-                            if (!newPlate) return;
-                            setVehicles(prev => prev.map(item => item.id === v.id ? { ...item, name: newName, plate: newPlate } : item));
-                          }}
-                          className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/70 hover:text-white transition text-xs font-bold"
-                        >
-                          ✏️ Modifier
-                        </button>
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            if (window.confirm("Supprimer ce véhicule ?")) {
-                              setVehicles(prev => prev.filter(item => item.id !== v.id));
-                            }
-                          }}
-                          className="p-2 bg-red-500/10 hover:bg-red-500/20 rounded-xl text-red-400 hover:text-red-300 transition text-xs font-bold"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <div className="space-y-1">
-                      <p className="text-white/40 font-semibold">Expiration Assurance :</p>
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-white">{v.insuranceExpiry}</span>
-                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${insStatus.class}`}>{insStatus.label}</span>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-white/40 font-semibold">Contrôle Technique :</p>
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-white">{v.technicalControl}</span>
-                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${ctStatus.class}`}>{ctStatus.label}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-white/40 font-semibold">Dernière Révision :</p>
-                      <p className="font-bold text-white mt-0.5">{v.lastService}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-white/40 font-semibold">Prochaine Révision :</p>
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-white">{v.nextService}</span>
-                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${revStatus.class}`}>{revStatus.label}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Kilométrage Suivi */}
-                  <div className="pt-3 border-t border-white/5 flex items-center justify-between text-xs">
-                    <div className="flex items-center space-x-1">
-                      <span className="text-white/40">Kilométrage actuel :</span>
-                      <span className="font-extrabold text-[#4F8CFF]">{v.mileage || 0} km</span>
-                    </div>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        const newMileage = window.prompt(`Mettre à jour le kilométrage de ${v.name} (km) :`, String(v.mileage || 0));
-                        if (newMileage === null) return;
-                        setVehicles(prev => prev.map(item => item.id === v.id ? { ...item, mileage: Number(newMileage) } : item));
-                      }}
-                      className="text-[10px] font-extrabold text-[#4F8CFF] hover:underline"
-                    >
-                      ✏️ Mettre à jour
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Dashboard Coût Annuel & Formulaire de Dépenses Véhicules */}
-          {(() => {
-            const annualVehiclesCost = (transactions || [])
-              .filter(t => t.type === 'expense' && (t.category === 'Véhicules' || t.moduleSource === 'vehicules') && (new Date().getTime() - new Date(t.date).getTime()) <= 365 * 24 * 60 * 60 * 1000)
-              .reduce((sum, t) => sum + t.amount, 0);
-
-            const handleAddVehExpense = (e: React.FormEvent) => {
-              e.preventDefault();
-              const amt = parseFloat(newVehExpenseAmount);
-              if (isNaN(amt) || amt <= 0) return;
-
-              if (onAddTransaction) {
-                onAddTransaction({
-                  amount: amt,
-                  type: 'expense',
-                  category: 'Véhicules',
-                  subCategory: newVehExpenseSubCategory,
-                  title: `Véhicule : ${newVehExpenseSubCategory}`,
-                  date: new Date().toISOString().split('T')[0],
-                  accountId: newVehExpenseAccountId || null,
-                  moduleSource: 'vehicules'
-                });
-              }
-
-              setNewVehExpenseAmount('');
-              alert(`🚗 Dépense véhicule de ${amt.toFixed(2)}€ enregistrée !`);
-            };
-
-            return (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4">
-                {/* Card Coût Annuel */}
-                <div className="glass-panel border border-[#4F8CFF]/20 rounded-[28px] p-5 bg-[#4F8CFF]/5 flex flex-col justify-between">
-                  <div>
-                    <span className="text-[9px] font-bold text-[#4F8CFF] uppercase tracking-widest block">Suivi financier transport 📊</span>
-                    <h3 className="text-sm font-extrabold text-white mt-1">Dépenses Véhicules (365j)</h3>
-                  </div>
-                  <div className="mt-4">
-                    <span className="text-3xl font-black text-white">{annualVehiclesCost.toFixed(2)}€</span>
-                    <p className="text-[10px] text-white/40 mt-1 leading-normal">Total cumulé des dépenses de carburant, péage, entretien et assurance sur les 12 derniers mois.</p>
-                  </div>
-                </div>
-
-                {/* Formulaire ajout dépense */}
-                <form onSubmit={handleAddVehExpense} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-3">
-                  <span className="text-[10px] font-bold text-[#4F8CFF] uppercase tracking-widest block flex items-center space-x-1.5">
-                    <Coins className="w-3.5 h-3.5 text-[#4F8CFF]" />
-                    <span>Ajouter un frais de véhicule ⛽</span>
-                  </span>
-
-                  <div className="grid grid-cols-2 gap-2 text-left">
-                    <div>
-                      <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Catégorie de frais</label>
-                      <select
-                        value={newVehExpenseSubCategory}
-                        onChange={(e) => setNewVehExpenseSubCategory(e.target.value)}
-                        className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none"
-                      >
-                        <option value="Essence">Essence / Diesel</option>
-                        <option value="Péage">Péage / Parking</option>
-                        <option value="Maintenance">Entretien / Révision</option>
-                        <option value="Assurance">Assurance Auto</option>
-                        <option value="Autre">Autre frais</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Montant (€)</label>
-                      <input
-                        type="number"
-                        required
-                        step="0.01"
-                        placeholder="ex: 60"
-                        value={newVehExpenseAmount}
-                        onChange={(e) => setNewVehExpenseAmount(e.target.value)}
-                        className="w-full bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-[9px] font-bold text-white/40 uppercase block mb-1">Compte bancaire</label>
-                    <select
-                      value={newVehExpenseAccountId}
-                      onChange={(e) => setNewVehExpenseAccountId(e.target.value)}
-                      className="w-full bg-[#07111F] border border-white/8 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none"
-                    >
-                      <option value="">Sélectionner un compte...</option>
-                      {accounts.map(acc => (
-                        <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toFixed(2)}€)</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full py-2 rounded-xl bg-[#4F8CFF] hover:bg-[#3b7ae6] text-white font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer"
-                  >
-                    Enregistrer la dépense
-                  </button>
-                </form>
-              </div>
-            );
-          })()}
-
-          {/* Formulaire d'ajout de Véhicule */}
-          <form onSubmit={handleAddVehicle} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
-            <span className="text-[10px] font-bold text-[#4F8CFF] uppercase tracking-widest block flex items-center space-x-1.5">
-              <Plus className="w-3.5 h-3.5 text-[#4F8CFF]" />
-              <span>Ajouter un nouveau véhicule 🚗</span>
-            </span>
-            
-            <div className="grid grid-cols-2 gap-3 text-left">
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Marque / Modèle</label>
-                <input 
-                  type="text" 
-                  required
-                  placeholder="ex: Peugeot 3008..."
-                  value={newVehName}
-                  onChange={(e) => setNewVehName(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#4F8CFF]"
-                />
-              </div>
-
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Kilométrage initial</label>
-                <input 
-                  type="number" 
-                  required
-                  placeholder="ex: 45000"
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#4F8CFF]"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-left">
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Plaque d'Immatriculation</label>
-                <input 
-                  type="text" 
-                  required
-                  placeholder="ex: AA-123-BB..."
-                  value={newVehPlate}
-                  onChange={(e) => setNewVehPlate(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#4F8CFF]"
-                />
-              </div>
-
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Échéance CT</label>
-                <input 
-                  type="text" 
-                  placeholder="ex: 12 Octobre 2027"
-                  value={newVehCT}
-                  onChange={(e) => setNewVehCT(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#4F8CFF]"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-left">
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Échéance Assurance</label>
-                <input 
-                  type="text" 
-                  placeholder="ex: 24 Juin 2026"
-                  value={newVehAssur}
-                  onChange={(e) => setNewVehAssur(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#4F8CFF]"
-                />
-              </div>
-              
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Prochaine Révision</label>
-                <input 
-                  type="text" 
-                  placeholder="ex: 14 Novembre 2026"
-                  value={newVehService}
-                  onChange={(e) => setNewVehService(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#4F8CFF]"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3 rounded-[18px] bg-gradient-to-r from-[#4F8CFF] to-[#6C5CFF] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#4F8CFF]/20"
-            >
-              <Plus className="w-4 h-4 text-white" />
-              <span>Enregistrer le véhicule</span>
-            </button>
-          </form>
-        </div>
+        <VehiclesModule
+          vehicles={vehicles}
+          setVehicles={setVehicles}
+          accounts={accounts}
+          transactions={transactions}
+          isParent={isParent}
+          onAddTransaction={onAddTransaction}
+          onAddEventDirect={onAddEventDirect}
+        />
       )}
 
       {/* 7. Logement */}
@@ -5597,6 +5228,21 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           <div>
             <h2 className="text-lg font-extrabold text-white">Entretien Logement</h2>
             <p className="text-xs text-white/50">Maintenance, chaudière et interventions</p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-2xl border border-white/6 bg-white/4 p-3">
+              <strong className="block text-lg font-black text-white">{maintenance.length}</strong>
+              <span className="text-[9px] font-bold text-white/40">interventions</span>
+            </div>
+            <div className="rounded-2xl border border-[#FFB020]/15 bg-[#FFB020]/5 p-3">
+              <strong className="block text-lg font-black text-[#FFB020]">{maintenance.filter(item => item.status === 'scheduled').length}</strong>
+              <span className="text-[9px] font-bold text-white/40">planifiées</span>
+            </div>
+            <div className="rounded-2xl border border-red-500/15 bg-red-500/5 p-3">
+              <strong className="block text-lg font-black text-red-400">{maintenance.filter(item => item.status === 'urgent').length}</strong>
+              <span className="text-[9px] font-bold text-white/40">urgentes</span>
+            </div>
           </div>
 
           {/* View Toggle */}
@@ -5674,6 +5320,13 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           {logementViewMode === 'list' && (
             <>
               <div className="space-y-3">
+                {maintenance.length === 0 && (
+                  <div className="rounded-[24px] border border-dashed border-white/10 bg-white/3 p-7 text-center">
+                    <HomeIcon className="mx-auto mb-3 h-7 w-7 text-white/20" />
+                    <p className="text-xs font-bold text-white/60">Aucune intervention enregistrée</p>
+                    <p className="mt-1 text-[10px] text-white/35">Ajoutez un entretien prévu, un dépannage ou une réparation terminée.</p>
+                  </div>
+                )}
                 {maintenance.map((m) => (
                   <div key={m.id} className="glass-panel rounded-[28px] border border-white/8 p-4 flex items-center justify-between">
                     <div className="flex items-center space-x-3">
@@ -5779,8 +5432,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   <div className="space-y-1.5 text-left font-medium">
                     <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Date d'intervention</label>
                     <input 
-                      type="text" 
-                      placeholder="ex: 20 Mai 2026"
+                      type="date"
                       value={newMaintDate}
                       onChange={(e) => setNewMaintDate(e.target.value)}
                       className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
@@ -6653,306 +6305,15 @@ export const MenuHub: React.FC<MenuHubProps> = ({
 
       {/* 9. Animaux */}
       {activeModule === 'animaux' && (
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-lg font-extrabold text-white">Suivi Animaux</h2>
-            <p className="text-xs text-white/50">Vaccins et rendez-vous vétérinaires</p>
-          </div>
-
-          {pets.map((p) => (
-            <div key={p.id} className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
-              <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2.5 rounded-xl bg-[#00D26A]/10 text-[#00D26A] border border-white/5">
-                    <Dog className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white">{p.name}</h3>
-                    <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider mt-0.5">{p.species}</p>
-                  </div>
-                </div>
-                {isParent && (
-                  <div className="flex space-x-1.5">
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        const newName = window.prompt("Modifier le nom de l'animal :", p.name);
-                        if (!newName) return;
-                        const newSpecies = window.prompt("Modifier l'espèce / race :", p.species);
-                        if (!newSpecies) return;
-                        setPets(prev => prev.map(item => item.id === p.id ? { ...item, name: newName, species: newSpecies } : item));
-                      }}
-                      className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/70 hover:text-white transition text-xs font-bold"
-                    >
-                      ✏️ Modifier
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm("Supprimer ce compagnon ?")) {
-                          setPets(prev => prev.filter(item => item.id !== p.id));
-                        }
-                      }}
-                      className="p-2 bg-red-500/10 hover:bg-red-500/20 rounded-xl text-red-400 hover:text-red-300 transition text-xs font-bold"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div>
-                  <p className="text-white/40 font-semibold">Dernier Vaccin :</p>
-                  <p className="font-bold text-white mt-0.5">{p.lastVaccine}</p>
-                </div>
-                <div>
-                  <p className="text-white/40 font-semibold">Prochain Vaccin :</p>
-                  <p className="font-bold text-[#FFB020] mt-0.5">{p.nextVaccine}</p>
-                </div>
-                {p.vetAppointment && (
-                  <div className="col-span-2 p-3 rounded-2xl bg-white/5 border border-white/5">
-                    <p className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Rendez-vous vétérinaire</p>
-                    <p className="text-xs font-bold text-white mt-1">Le {p.vetAppointment} • Clinique Vétérinaire</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Weight history tracking */}
-              <div className="space-y-2 pt-3 border-t border-white/5 text-left">
-                <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest flex items-center space-x-1.5">
-                  <span>⚖️ Suivi de poids</span>
-                </p>
-                {p.weightHistory && p.weightHistory.length > 0 ? (
-                  <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-thin">
-                    {p.weightHistory.map((w, idx) => (
-                      <div key={idx} className="bg-white/5 border border-white/8 rounded-xl px-3 py-1.5 text-center shrink-0 min-w-[70px]">
-                        <span className="text-[9px] text-white/40 block">{w.date}</span>
-                        <span className="text-xs font-bold text-white block mt-0.5">{w.weight} kg</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[10px] text-white/30 italic">Aucun poids enregistré.</p>
-                )}
-                <button 
-                  type="button"
-                  onClick={() => {
-                    const weight = window.prompt("Entrez le poids en kg (ex: 4.2) :");
-                    if (!weight) return;
-                    const newHist = [...(p.weightHistory || []), { date: new Date().toLocaleDateString('fr-FR'), weight: Number(weight) }];
-                    setPets(prev => prev.map(item => item.id === p.id ? { ...item, weightHistory: newHist } : item));
-                  }}
-                  className="text-[10px] font-extrabold text-[#00D26A] hover:underline"
-                >
-                  + Enregistrer une pesée
-                </button>
-              </div>
-
-              {/* Documents liés */}
-              <div className="space-y-2 pt-3 border-t border-white/5 text-left">
-                <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Carnet de santé & Documents</p>
-                <div className="space-y-1.5">
-                  {documents.filter(doc => (p.documentIds || []).includes(doc.id)).map(doc => (
-                    <div key={doc.id} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 text-xs">
-                      <span className="text-white font-medium">📄 {doc.name}</span>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          const fileSrc = doc.fileUrl || doc.fileBase64;
-                          if (fileSrc) {
-                            const w = window.open();
-                            if (w) w.document.write(`<iframe src="${fileSrc}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-                          } else {
-                            alert("Ce document n'a pas de fichier associé.");
-                          }
-                        }}
-                        className="text-[9px] text-[#6C5CFF] font-bold hover:underline"
-                      >
-                        Consulter
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const availableDocs = documents.filter(doc => !(p.documentIds || []).includes(doc.id));
-                      if (availableDocs.length === 0) {
-                        alert("Aucun nouveau document disponible dans le coffre-fort.");
-                        return;
-                      }
-                      const list = availableDocs.map((d, i) => `${i + 1}. ${d.name}`).join('\n');
-                      const choice = window.prompt(`Sélectionnez le numéro du document à lier :\n\n${list}`);
-                      if (!choice) return;
-                      const idx = Number(choice) - 1;
-                      if (availableDocs[idx]) {
-                        const updatedDocIds = [...(p.documentIds || []), availableDocs[idx].id];
-                        setPets(prev => prev.map(item => item.id === p.id ? { ...item, documentIds: updatedDocIds } : item));
-                      }
-                    }}
-                    className="text-[10px] font-extrabold text-[#6C5CFF] hover:underline block"
-                  >
-                    + Lier un document du Coffre-Fort
-                  </button>
-                </div>
-              </div>
-
-              {/* Frais liés à l'animal */}
-              <div className="space-y-2 pt-3 border-t border-white/5 text-left font-sans">
-                <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest flex items-center space-x-1">
-                  <Coins className="w-3.5 h-3.5" />
-                  <span>Dépenses & Frais de {p.name}</span>
-                </p>
-
-                <form 
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const amt = parseFloat(newPetExpenseAmount);
-                    if (isNaN(amt) || amt <= 0) return;
-
-                    if (onAddTransaction) {
-                      onAddTransaction({
-                        amount: amt,
-                        type: 'expense',
-                        category: 'Animaux',
-                        subCategory: newPetExpenseSubCategory,
-                        title: `Animaux - ${p.name} : ${newPetExpenseSubCategory}`,
-                        date: new Date().toISOString().split('T')[0],
-                        accountId: newPetExpenseAccountId || null,
-                        moduleSource: 'animaux',
-                        comment: `Frais pour ${p.name} (${newPetExpenseSubCategory})`
-                      });
-                    }
-
-                    setNewPetExpenseAmount('');
-                    alert(`🐶 Dépense de ${amt.toFixed(2)}€ enregistrée pour ${p.name} !`);
-                  }}
-                  className="flex items-center space-x-2 font-sans font-medium"
-                >
-                  <select
-                    value={newPetExpenseSubCategory}
-                    onChange={(e) => setNewPetExpenseSubCategory(e.target.value)}
-                    className="bg-[#07111F] border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white focus:outline-none"
-                  >
-                    <option value="Nourriture">Nourriture</option>
-                    <option value="Vétérinaire">Vétérinaire</option>
-                    <option value="Médicaments">Soins / Traitement</option>
-                    <option value="Jouets">Jouets / Accessoires</option>
-                    <option value="Autre">Autre</option>
-                  </select>
-
-                  <input
-                    type="number"
-                    required
-                    step="0.01"
-                    placeholder="Montant (€)"
-                    value={newPetExpenseAmount}
-                    onChange={(e) => setNewPetExpenseAmount(e.target.value)}
-                    className="flex-1 bg-white/5 border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white placeholder-white/30 focus:outline-none"
-                  />
-
-                  <select
-                    value={newPetExpenseAccountId}
-                    onChange={(e) => setNewPetExpenseAccountId(e.target.value)}
-                    className="bg-[#07111F] border border-white/8 rounded-xl px-2 py-1 text-[10px] text-white focus:outline-none max-w-[100px]"
-                  >
-                    <option value="">Compte...</option>
-                    {accounts.map(acc => (
-                      <option key={acc.id} value={acc.id}>{acc.name}</option>
-                    ))}
-                  </select>
-
-                  <button
-                    type="submit"
-                    className="px-3 py-1 rounded-xl bg-[#00D26A] hover:bg-[#00b058] text-[10px] text-white font-bold transition cursor-pointer"
-                  >
-                    Ajouter
-                  </button>
-                </form>
-              </div>
-            </div>
-          ))}
-
-          {/* Formulaire d'ajout d'Animal */}
-          <form onSubmit={handleAddPet} className="glass-panel border border-white/8 rounded-[28px] p-5 space-y-4">
-            <span className="text-[10px] font-bold text-[#00D26A] uppercase tracking-widest block flex items-center space-x-1.5">
-              <Plus className="w-3.5 h-3.5 text-[#00D26A]" />
-              <span>Ajouter un animal au suivi 🐶</span>
-            </span>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Nom de l'Animal</label>
-                <input 
-                  type="text" 
-                  required
-                  placeholder="ex: Filou..."
-                  value={newPetName}
-                  onChange={(e) => setNewPetName(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#00D26A]"
-                />
-              </div>
-              
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Espèce / Race</label>
-                <select
-                  value={newPetSpecies}
-                  onChange={(e) => setNewPetSpecies(e.target.value)}
-                  className="w-full bg-[#07111F] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
-                >
-                  <option value="Chien">Chien</option>
-                  <option value="Chat">Chat</option>
-                  <option value="Lapin">Lapin</option>
-                  <option value="Oiseau">Oiseau</option>
-                  <option value="Autre">Autre</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 text-left">
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Dernier Vaccin</label>
-                <input 
-                  type="text" 
-                  placeholder="ex: 10 Janvier 2026"
-                  value={newPetLastVaccine}
-                  onChange={(e) => setNewPetLastVaccine(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#00D26A]"
-                />
-              </div>
-              
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Prochain Vaccin</label>
-                <input 
-                  type="text" 
-                  placeholder="ex: 10 Janvier 2027"
-                  value={newPetNextVaccine}
-                  onChange={(e) => setNewPetNextVaccine(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#00D26A]"
-                />
-              </div>
-              
-              <div className="space-y-1.5 text-left font-medium">
-                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Rdv Vétérinaire</label>
-                <input 
-                  type="text" 
-                  placeholder="ex: 15 Juin 2026 à 14h"
-                  value={newPetAppointment}
-                  onChange={(e) => setNewPetAppointment(e.target.value)}
-                  className="w-full bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#00D26A]"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3 rounded-[18px] bg-gradient-to-r from-[#00D26A] to-[#6C5CFF] text-white font-extrabold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center space-x-2 cursor-pointer border border-[#00D26A]/20"
-            >
-              <Plus className="w-4 h-4 text-white" />
-              <span>Enregistrer l'animal</span>
-            </button>
-          </form>
-        </div>
+        <PetsModule
+          pets={pets}
+          setPets={setPets}
+          documents={documents}
+          accounts={accounts}
+          isParent={isParent}
+          onAddTransaction={onAddTransaction}
+          onAddEventDirect={onAddEventDirect}
+        />
       )}
 
       {activeModule === 'argent' && (() => {
@@ -8956,7 +8317,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             <span>Retour aux espaces</span>
           </button>
           
-          <ContactsImportants />
+          <ContactsImportants canManage={isParent} />
         </div>
       )}
 

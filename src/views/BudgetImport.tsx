@@ -174,6 +174,11 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
   const handleFile = async (file: File) => {
     setErrorMsg('');
     setFileName(file.name);
+
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorMsg("Ce fichier dépasse 10 Mo. Exportez une période plus courte puis réessayez.");
+      return;
+    }
     
     const ext = file.name.split('.').pop()?.toLowerCase();
     
@@ -195,36 +200,36 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
   const readCsvFile = (file: File) => {
     setLoading(true);
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const text = e.target?.result as string;
       if (!text) {
         setErrorMsg("Le fichier CSV est vide.");
         setLoading(false);
         return;
       }
-      
-      const rows = text.split('\n').map(r => r.trim()).filter(r => r.length > 0);
-      if (rows.length === 0) {
-        setErrorMsg("Aucune ligne trouvée.");
+
+      try {
+        const XLSX = await import('xlsx');
+        const csvWorkbook = XLSX.read(text, { type: 'string' });
+        const firstSheetName = csvWorkbook.SheetNames[0];
+        if (!firstSheetName) throw new Error('Aucune feuille détectée');
+        const rawData = XLSX.utils.sheet_to_json<Record<string, unknown>>(csvWorkbook.Sheets[firstSheetName], { defval: '' });
+        if (rawData.length === 0) throw new Error('Aucune ligne de transaction détectée');
+        const headers = Object.keys(rawData[0]);
+
+        setParsedHeaders(headers);
+        setRawRows(rawData);
+        autoDetectMappings(headers);
+        setStep('mapping');
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setErrorMsg(`Lecture CSV impossible : ${message}`);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      // Basic parse headers
-      const headers = rows[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.replace(/^"|"$/g, '').trim());
-      const rawData = rows.slice(1).map(r => {
-        const cols = r.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(col => col.replace(/^"|"$/g, '').trim());
-        const rowObj: any = {};
-        headers.forEach((h, idx) => {
-          rowObj[h] = cols[idx] || '';
-        });
-        return rowObj;
-      });
-
-      setParsedHeaders(headers);
-      setRawRows(rawData);
-      autoDetectMappings(headers);
-      setStep('mapping');
+    };
+    reader.onerror = () => {
+      setErrorMsg("Le fichier CSV n'a pas pu être lu.");
       setLoading(false);
     };
     reader.readAsText(file);
@@ -458,7 +463,18 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
       let amount = parseFloat(String(rawAmount).replace(/[^0-9.-]/g, ''));
       if (isNaN(amount)) return;
       
-      const type = mappings.type && String(r[mappings.type]).toLowerCase().includes('revenu') || amount > 0 ? 'income' : 'expense';
+      const rawType = mappings.type ? String(r[mappings.type]).toLowerCase() : '';
+      const amountHeader = mappings.amount.toLowerCase();
+      const type: ParsedRow['type'] =
+        ['revenu', 'income', 'crédit', 'credit', 'entrée', 'entree'].some(label => rawType.includes(label))
+          ? 'income'
+          : ['dépense', 'depense', 'expense', 'débit', 'debit', 'sortie'].some(label => rawType.includes(label))
+            ? 'expense'
+            : amountHeader.includes('debit') || amountHeader.includes('débit')
+              ? 'expense'
+              : amountHeader.includes('credit') || amountHeader.includes('crédit')
+                ? 'income'
+                : amount > 0 ? 'income' : 'expense';
       amount = Math.abs(amount);
 
       // Clean date

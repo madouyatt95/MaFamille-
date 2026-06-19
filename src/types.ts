@@ -38,6 +38,7 @@ export type FamilyModule =
   | 'notifications'
   | 'parametres'
   | 'micro'
+  | 'jeux_famille'
   | 'commune'
   | 'etablissement';
 

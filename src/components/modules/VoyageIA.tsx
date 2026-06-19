@@ -79,10 +79,12 @@ export const VoyageIA: React.FC<VoyageIAProps> = ({
   const [quotaMessage, setQuotaMessage] = useState('');
 
   useEffect(() => {
-    setSelectedMemberIds(prev => {
-      const available = members.map(member => member.id);
-      const kept = prev.filter(id => available.includes(id));
-      return kept.length > 0 ? kept : members.slice(0, 5).map(member => member.id);
+    queueMicrotask(() => {
+      setSelectedMemberIds(prev => {
+        const available = members.map(member => member.id);
+        const kept = prev.filter(id => available.includes(id));
+        return kept.length > 0 ? kept : members.slice(0, 5).map(member => member.id);
+      });
     });
   }, [members]);
 

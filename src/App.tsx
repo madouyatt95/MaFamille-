@@ -170,6 +170,7 @@ import { QuickActionsSheet } from './components/QuickActionsSheet';
 import { DEFAULT_CATEGORIES } from './data/budgetCategories';
 import { Paywall } from './components/Paywall';
 import { billingService } from './services/billingService';
+import { accountService } from './services/accountService';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
 import { foyerService } from './services/foyerService';
 import { spaceService, type Space } from './services/spaceService';
@@ -204,6 +205,7 @@ const KidProfile = lazy(() => import('./views/KidProfile').then(module => ({ def
 const PeaceMaker = lazy(() => import('./components/modules/PeaceMaker').then(module => ({ default: module.PeaceMaker })));
 const CapsuleTemporelle = lazy(() => import('./components/modules/CapsuleTemporelle').then(module => ({ default: module.CapsuleTemporelle })));
 const ConseilFamille = lazy(() => import('./components/modules/ConseilFamille').then(module => ({ default: module.ConseilFamille })));
+const FamilyGames = lazy(() => import('./views/FamilyGames').then(module => ({ default: module.FamilyGames })));
 const Onboarding = lazy(() => import('./views/Onboarding').then(module => ({ default: module.Onboarding })));
 
 const AppLoadingFallback = () => (
@@ -8422,6 +8424,7 @@ function App() {
           { keywords: ['démarches', 'les démarches', 'demarches', 'les demarches', 'administratif', 'les démarches administratives'], tab: 'menu', module: 'documents', message: '📂 Navigation : J\'ouvre vos démarches administratives.' },
           { keywords: ['animaux', 'les animaux', 'animal', 'chien', 'chat', 'les chats', 'les chiens'], tab: 'menu', module: 'animaux', message: '🐶 Navigation : J\'ouvre le carnet animaux.' },
           { keywords: ['argent de poche', 'l\'argent de poche', 'argent', 'l\'argent', 'tirelire', 'pocket money'], tab: 'menu', module: 'argent', message: '🪙 Navigation : J\'ouvre l\'argent de poche.' },
+          { keywords: ['jeux', 'les jeux', 'jeu en famille', 'jeux en famille', 'memory', 'puissance 4', 'défi famille'], tab: 'menu', module: 'games', message: '🎮 Navigation : J\'ouvre les jeux en famille.' },
           { keywords: ['tâches', 'les tâches', 'taches', 'les taches', 'ménage', 'le ménage', 'choses à faire'], tab: 'menu', module: 'taches', message: '🧹 Navigation : J\'ouvre les tâches ménagères.' },
           { keywords: ['messagerie', 'la messagerie', 'messages', 'les messages', 'tchat', 'chat', 'discussions', 'discussion'], tab: 'menu', module: 'messagerie', message: '💬 Navigation : J\'ouvre la messagerie familiale.' },
           { keywords: ['souvenirs', 'les souvenirs', 'mur des moments', 'moments', 'le mur des moments', 'capsule', 'capsule temporelle'], tab: 'menu', module: 'capsule', message: '🔒 Navigation : J\'ouvre la capsule temporelle des souvenirs.' },
@@ -8460,6 +8463,7 @@ function App() {
             ecole: 'École',
             animaux: 'Animaux',
             argent: 'Argent de poche',
+            games: 'Jeux',
             taches: 'Tâches',
             messagerie: 'Messagerie',
             capsule: 'Souvenirs',
@@ -11883,6 +11887,19 @@ function App() {
     alert("Déconnexion réussie.");
   };
 
+  const handleDeleteAccount = async () => {
+    await accountService.deleteCurrentAccount();
+    const client = getSupabaseClient();
+    if (client) {
+      await client.auth.signOut({ scope: 'local' }).catch(() => undefined);
+    }
+    await clearAllStatesAndCache();
+    setUser(null);
+    setShowWelcomeScreen(false);
+    setOnboardingActive(true);
+    alert('Votre compte et les données associées ont été supprimés définitivement.');
+  };
+
   const handlePurgeDemoData = async () => {
     if (!foyer) return;
     const client = getSupabaseClient();
@@ -12124,6 +12141,19 @@ function App() {
             </button>
           </main>
         </div>
+      );
+    }
+
+    if (activeTab === 'menu' && activeModule === 'games') {
+      return (
+        <FamilyGames
+          members={appMembers}
+          activeMemberId={appActiveMemberId}
+          foyerId={appFoyer?.id}
+          isPremium={isPremium}
+          onTriggerPaywall={() => setPaywallOpen(true)}
+          onBack={() => setActiveModule('')}
+        />
       );
     }
 
@@ -12973,6 +13003,7 @@ function App() {
               communeName={communeName}
               schoolName={schoolName}
               onUpdateFoyerConfig={handleUpdateFoyerConfig}
+              onDeleteAccount={handleDeleteAccount}
             />
           </div>
         );

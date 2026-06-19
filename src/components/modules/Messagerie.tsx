@@ -405,10 +405,12 @@ export const Messagerie: React.FC<MessagerieProps> = ({
 
   useEffect(() => {
     if (!activeGroupId) return;
-    setShowGroupMenu(false);
-    setShowConversationInfo(false);
-    setShowMsgSearch(false);
-    setMessageSearchQuery('');
+    queueMicrotask(() => {
+      setShowGroupMenu(false);
+      setShowConversationInfo(false);
+      setShowMsgSearch(false);
+      setMessageSearchQuery('');
+    });
     requestAnimationFrame(() => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });

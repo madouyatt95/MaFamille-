@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { 
+  CheckCircle2,
   ShieldCheck, 
   Sparkles, 
-  HeartHandshake
+  HeartHandshake,
+  LockKeyhole,
+  RotateCcw
 } from 'lucide-react';
 import { aiQuotaService } from '../../services/aiQuotaService';
 
@@ -26,6 +29,7 @@ export const PeaceMaker: React.FC<PeaceMakerProps> = ({ isPremium = false, onTri
   const [mediating, setMediating] = useState(false);
   const [compromise, setCompromise] = useState<MediationResult | null>(null);
   const [fallbackMessage, setFallbackMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const presets = [
     { id: '1', label: 'Partage d’un jeu 🎮', text: 'Deux enfants se disputent un jeu vidéo : l’un l’utilise depuis longtemps, l’autre aimerait aussi avoir son tour.' },
@@ -38,11 +42,14 @@ export const PeaceMaker: React.FC<PeaceMakerProps> = ({ isPremium = false, onTri
   const handleSelectPreset = (text: string) => {
     setConflictDesc(text);
     setCompromise(null);
+    setFallbackMessage('');
+    setSuccessMessage('');
   };
 
   const runMediation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!conflictDesc) return;
+    const normalizedConflict = conflictDesc.trim();
+    if (normalizedConflict.length < 20) return;
 
     // 1. Contrôle d'accès Premium obligatoire
     if (!aiQuotaService.checkAIPremiumAccess(isPremium, onTriggerPaywall)) {
@@ -52,6 +59,7 @@ export const PeaceMaker: React.FC<PeaceMakerProps> = ({ isPremium = false, onTri
     setMediating(true);
     setCompromise(null);
     setFallbackMessage('');
+    setSuccessMessage('');
     let fallbackReason = '';
 
     // Tente d'utiliser l'IA réelle si le quota est disponible (soit via clé locale VITE_, soit via le proxy serveurless)
@@ -60,7 +68,7 @@ export const PeaceMaker: React.FC<PeaceMakerProps> = ({ isPremium = false, onTri
     if (useRealAI) {
       try {
         const prompt = `Tu es PeaceMaker IA, un médiateur de conflits familiaux expert en Communication Non Violente (CNV) pour l'application MyFamily+.
-Analyse le litige familial suivant : "${conflictDesc}".
+Analyse le litige familial suivant : "${normalizedConflict}".
 Identifie les sentiments sous-jacents et les besoins profonds des deux parties, puis propose un compromis bienveillant, équitable et ludique.
 
 Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\`\`json), sans texte d'accompagnement, contenant cette structure exacte :
@@ -100,7 +108,6 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
             mediationTip: `${parsedCompromise.mediationTip} ✨ (Médiation dynamique Groq Llama 3 • Quota restant : ${remaining}/${limit} aujourd'hui)`
           });
           setMediating(false);
-          alert("🕊️ Compromis de paix bienveillant calculé en temps réel par l'IA Groq !");
           return;
         } else {
           throw new Error('Structure JSON reçue incorrecte');
@@ -123,7 +130,8 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
         mediationTip: 'Chacun fait un pas vers l\'autre : le temps de révision d\'abord, le jeu partagé ensuite. Accord scellé sous le regard bienveillant des parents !'
       };
 
-      if (conflictDesc.includes('bruit') || conflictDesc.includes('concentrer')) {
+      const conflictLower = normalizedConflict.toLowerCase();
+      if (conflictLower.includes('bruit') || conflictLower.includes('concentrer')) {
         analysis = {
           feelingA: 'Énervé & Distrait',
           needA: 'Silence pour mener à bien ses objectifs du Tuteur IA',
@@ -132,7 +140,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           compromiseText: 'La personne qui fait du bruit choisit une activité plus calme ou change de pièce pendant le temps de devoirs. En échange, un moment de jeu partagé est prévu juste après.',
           mediationTip: 'Le calme est préservé sans bloquer le besoin de jeu. La collaboration renforce l\'empathie fraternelle !'
         };
-      } else if (conflictDesc.includes('vaisselle') || conflictDesc.includes('table')) {
+      } else if (conflictLower.includes('vaisselle') || conflictLower.includes('table')) {
         analysis = {
           feelingA: 'Fatiguée & Surchargée',
           needA: 'Soutien concret dans le foyer & Respect de la répartition des tâches',
@@ -141,7 +149,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           compromiseText: 'La tâche est faite immédiatement avec un minuteur court pour éviter que cela traîne. Une fois terminée, le parent reconnaît l’effort et laisse un vrai temps libre.',
           mediationTip: 'Une tâche rapide d\'abord, la liberté ensuite (méthode de la récompense immédiate) !'
         };
-      } else if (conflictDesc.includes('tablette') || conflictDesc.includes('écran') || conflictDesc.includes('téléphone')) {
+      } else if (conflictLower.includes('tablette') || conflictLower.includes('écran') || conflictLower.includes('téléphone')) {
         analysis = {
           feelingA: 'Inquiet & Soucieux',
           needA: 'Respect des règles familiales & Sommeil de qualité',
@@ -150,7 +158,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           compromiseText: 'L’écran est posé et chargé dans un endroit commun, sans négociation supplémentaire. En échange, l’enfant choisit une activité calme de transition avant le coucher.',
           mediationTip: 'Remplacer une transition d\'écran par une transition de connexion humaine et douce facilitera grandement le coucher !'
         };
-      } else if (conflictDesc.includes('chambre') || conflictDesc.includes('ranger') || conflictDesc.includes('désordre')) {
+      } else if (conflictLower.includes('chambre') || conflictLower.includes('ranger') || conflictLower.includes('désordre')) {
         analysis = {
           feelingA: 'Exaspérée & Impatiente',
           needA: 'Ordre visuel, clarté dans la maison & Respect du travail partagé',
@@ -170,14 +178,33 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
   return (
     <div className="space-y-6">
       
-      <div className="flex items-center space-x-3">
-        <div className="p-3 rounded-2xl bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A]">
-          <HeartHandshake className="w-6 h-6" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center space-x-3">
+          <div className="p-3 rounded-2xl bg-[#00D26A]/10 border border-[#00D26A]/20 text-[#00D26A]">
+            <HeartHandshake className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-lg font-extrabold text-white">Médiateur familial IA</h2>
+            <p className="text-xs text-white/50">Un cadre guidé pour écouter les deux côtés et préparer un accord concret</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-lg font-extrabold text-white">Médiateur familial IA</h2>
-          <p className="text-xs text-white/50">Médiateur intelligent et gestion positive des conflits du quotidien</p>
+        <div className="shrink-0 flex items-center gap-1.5 rounded-xl border border-[#00D26A]/20 bg-[#00D26A]/10 px-2.5 py-1.5 text-[9px] font-black uppercase text-[#00D26A]">
+          <LockKeyhole className="h-3 w-3" />
+          <span>Plus</span>
         </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          ['1', 'Décrire'],
+          ['2', 'Comprendre'],
+          ['3', 'Décider']
+        ].map(([step, label]) => (
+          <div key={step} className="rounded-2xl border border-white/6 bg-white/4 px-3 py-2.5">
+            <span className="block text-[9px] font-black text-[#00D26A]">{step}</span>
+            <span className="block text-[10px] font-bold text-white/70">{label}</span>
+          </div>
+        ))}
       </div>
 
       {/* Preset conflict selectors */}
@@ -205,20 +232,39 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
             rows={3}
             placeholder="Exprimez ce qui ne va pas (ex: un pull emprunté sans demander, un désaccord sur le film de ce soir)..."
             value={conflictDesc}
-            onChange={(e) => setConflictDesc(e.target.value)}
+            maxLength={1200}
+            onChange={(e) => {
+              setConflictDesc(e.target.value);
+              setSuccessMessage('');
+            }}
             className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#00D26A] resize-none"
           />
+          <div className="flex items-center justify-between gap-3 text-[9px] font-medium">
+            <span className={conflictDesc.trim().length > 0 && conflictDesc.trim().length < 20 ? 'text-amber-300' : 'text-white/35'}>
+              {conflictDesc.trim().length > 0 && conflictDesc.trim().length < 20
+                ? 'Ajoutez un peu de contexte pour une réponse utile.'
+                : 'Évitez les noms complets et les informations sensibles.'}
+            </span>
+            <span className="shrink-0 text-white/30">{conflictDesc.length}/1200</span>
+          </div>
         </div>
 
         <button
           type="submit"
-          disabled={mediating}
+          disabled={mediating || conflictDesc.trim().length < 20}
           className="w-full py-3.5 rounded-[18px] bg-[#00D26A] text-white font-semibold text-xs shadow-md cursor-pointer transition-all hover:opacity-95 flex items-center justify-center space-x-2"
         >
-          <Sparkles className="w-4 h-4 animate-spin-slow" />
-          <span>{mediating ? 'Écoute active & Calcul du compromis...' : 'Lancer la Médiation Bienveillante 🕊️'}</span>
+          <Sparkles className={`w-4 h-4 ${mediating ? 'animate-spin' : ''}`} />
+          <span>{mediating ? 'Analyse des deux points de vue...' : 'Préparer un compromis'}</span>
         </button>
       </form>
+
+      {successMessage && (
+        <div role="status" className="flex items-center gap-2 rounded-2xl border border-[#00D26A]/25 bg-[#00D26A]/10 p-3 text-xs font-bold text-[#00D26A]">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span>{successMessage}</span>
+        </div>
+      )}
 
       {/* Compromise Output Display */}
       {compromise && (
@@ -240,13 +286,13 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           <div className="grid grid-cols-2 gap-4 text-xs">
             <div className="p-3 rounded-2xl bg-white/5 border border-white/5 space-y-1">
               <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest block">Pour la partie A :</span>
-              <p className="text-white"><span className="text-white/40">Émotion:</span> {compromise.feelingB}</p>
-              <p className="text-white/70 mt-1 leading-normal"><span className="text-white/40">Besoin:</span> {compromise.needB}</p>
+              <p className="text-white"><span className="text-white/40">Émotion:</span> {compromise.feelingA}</p>
+              <p className="text-white/70 mt-1 leading-normal"><span className="text-white/40">Besoin:</span> {compromise.needA}</p>
             </div>
             <div className="p-3 rounded-2xl bg-white/5 border border-white/5 space-y-1">
               <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest block">Pour la partie B :</span>
-              <p className="text-white"><span className="text-white/40">Émotion:</span> {compromise.feelingA}</p>
-              <p className="text-white/70 mt-1 leading-normal"><span className="text-white/40">Besoin:</span> {compromise.needA}</p>
+              <p className="text-white"><span className="text-white/40">Émotion:</span> {compromise.feelingB}</p>
+              <p className="text-white/70 mt-1 leading-normal"><span className="text-white/40">Besoin:</span> {compromise.needB}</p>
             </div>
           </div>
 
@@ -261,19 +307,31 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
             </p>
           </div>
 
-          <button
-            onClick={() => {
-              setCompromise(null);
-              setConflictDesc('');
-              alert("🤝 Accord validé et signé par les deux parties ! Le calme et la bienveillance sont de retour.");
-              if (onMediationSuccess) {
-                onMediationSuccess();
-              }
-            }}
-            className="w-full py-3.5 rounded-[18px] bg-gradient-to-r from-[#00D26A] to-[#6C5CFF] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:opacity-95 shadow-md"
-          >
-            Accepter le compromis 🤝
-          </button>
+          <div className="grid grid-cols-[auto_1fr] gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCompromise(null);
+                setFallbackMessage('');
+              }}
+              className="flex items-center justify-center rounded-[18px] border border-white/10 bg-white/5 px-4 text-white/70 hover:bg-white/10"
+              title="Recommencer la médiation"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => {
+                setCompromise(null);
+                setConflictDesc('');
+                setFallbackMessage('');
+                setSuccessMessage('Accord enregistré. Vous pouvez maintenant le reformuler ensemble à voix haute.');
+                onMediationSuccess?.();
+              }}
+              className="w-full py-3.5 rounded-[18px] bg-gradient-to-r from-[#00D26A] to-[#6C5CFF] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:opacity-95 shadow-md"
+            >
+              Valider l’accord
+            </button>
+          </div>
         </div>
       )}
 
