@@ -77,7 +77,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
 
   const handlePinSubmit = () => {
     const parentPin = localStorage.getItem('mf_parent_pin') || '0000';
-    if (pinInput === '1234' || pinInput === parentPin) {
+    if (pinInput === parentPin) {
       setPreviewDoc(docToUnlock);
       setDocToUnlock(null);
     } else {

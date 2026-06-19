@@ -1275,7 +1275,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const handleVerifyPin = (e: React.FormEvent) => {
     e.preventDefault();
     const savedPin = foyer?.parentPin || localStorage.getItem('mf_parent_pin') || '0000';
-    if (pinInput === savedPin || pinInput === '0000' || pinInput === '1234') {
+    if (pinInput === savedPin) {
       setAuthorizedModules(prev => [...prev, activeModule]);
       setPinInput('');
       setPinError(false);
@@ -1703,7 +1703,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               <span>Déverrouiller l'accès</span>
             </button>
             
-            <p className="text-[9px] text-white/30 font-medium text-center">💡 Indice Démo: Entrez 0000 ou 1234</p>
           </form>
         </div>
       )}
