@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Brain,
-  Brush,
   Check,
   ChevronRight,
   Circle,
@@ -22,7 +21,6 @@ import {
   X
 } from 'lucide-react';
 import type { Member } from '../types';
-import { DrawGuessGame } from '../components/games/DrawGuessGame';
 import { MimeChallengeGame } from '../components/games/MimeChallengeGame';
 import { PrivateFamilyRoom } from '../components/games/PrivateFamilyRoom';
 import {
@@ -416,14 +414,6 @@ export function FamilyGames({
       icon: Users,
       accent: '#FF4D6D',
       meta: `${challengeQuestionCount} questions`
-    },
-    {
-      id: 'draw-guess' as const,
-      title: 'Dessine et devine',
-      description: 'Dessinez avec le doigt pendant que la famille cherche le mot secret.',
-      icon: Brush,
-      accent: '#00D26A',
-      meta: '5 manches'
     },
     {
       id: 'mime-challenge' as const,
@@ -906,16 +896,6 @@ export function FamilyGames({
                 <Play className="w-4 h-4 fill-current" />
               </button>
             </div>
-          </>
-        )}
-
-        {activeGame === 'draw-guess' && (
-          <>
-            {gameHeader('Dessine et devine', 'Dessinez le mot secret avec le doigt. Les autres proposent à voix haute.', Brush)}
-            <DrawGuessGame
-              playerName={players[0].name}
-              onFinished={(score, rounds) => void saveResult('draw-guess', [score], players[0].name, { rounds })}
-            />
           </>
         )}
 

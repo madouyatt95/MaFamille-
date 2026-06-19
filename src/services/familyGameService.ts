@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabaseClient } from '../utils/supabase';
 
-export type FamilyGameType = 'memory' | 'connect4' | 'family-challenge' | 'draw-guess' | 'mime-challenge';
+export type FamilyGameType = 'memory' | 'connect4' | 'family-challenge' | 'mime-challenge';
 
 export type FamilyGameResult = {
   id: string;
