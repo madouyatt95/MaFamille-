@@ -732,7 +732,7 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
         doc.setTextColor(255, 255, 255);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(32);
-        doc.text("MaFamille+", pageWidth / 2, 70, { align: 'center' });
+        doc.text("MyFamily+", pageWidth / 2, 70, { align: 'center' });
 
         doc.setFontSize(16);
         doc.setFont('helvetica', 'normal');
@@ -746,7 +746,7 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
-        doc.text(`Foyer : ${myMemberProfile?.foyerName || 'Foyer MaFamille+'}`, 40, 130);
+        doc.text(`Foyer : ${myMemberProfile?.foyerName || 'Foyer MyFamily+'}`, 40, 130);
         doc.text(`Générateur : ${myMemberProfile?.displayName || 'Parent'}`, 40, 145);
         doc.text(`Période : Du ${formattedStartStr} au ${formattedEndStr}`, 40, 160);
         doc.text(`Date d'export : ${new Date().toLocaleDateString()}`, 40, 175);
@@ -1192,7 +1192,7 @@ export const BudgetExport: React.FC<BudgetExportProps> = ({
           doc.setFontSize(8);
           doc.setTextColor(150, 150, 150);
           doc.text(`Page ${j} sur ${totalPages}`, pageWidth - 25, doc.internal.pageSize.getHeight() - 10);
-          doc.text(`MaFamille+ Budget Export - ${new Date().toLocaleDateString()}`, 15, doc.internal.pageSize.getHeight() - 10);
+          doc.text(`MyFamily+ Budget Export - ${new Date().toLocaleDateString()}`, 15, doc.internal.pageSize.getHeight() - 10);
         }
 
         fileBlob = doc.output('blob');

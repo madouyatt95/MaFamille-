@@ -245,7 +245,7 @@ export const EcoChef: React.FC<EcoChefProps> = ({ onAddGroceryItem, formatMoney,
 
     if (useRealAI) {
       try {
-        const prompt = `Tu es l'Éco-Chef IA de MaFamille+, un cuisinier virtuose qui invente des recettes de cuisine merveilleuses pour éviter le gaspillage alimentaire.
+        const prompt = `Tu es l'Éco-Chef IA de MyFamily+, un cuisinier virtuose qui invente des recettes de cuisine merveilleuses pour éviter le gaspillage alimentaire.
 Voici les ingrédients disponibles dans mon réfrigérateur : ${activeInFull.join(', ')}.
 Génère EXACTEMENT 3 idées de recettes originales sous format JSON uniquement (sans aucun texte explicatif avant ou après, pas de balise markdown, juste un tableau JSON brut et valide).
 Chaque recette doit être un objet JSON avec les propriétés suivantes rédigées en français :

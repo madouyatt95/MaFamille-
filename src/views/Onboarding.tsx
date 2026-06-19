@@ -167,7 +167,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
         if (error) throw error;
 
         if (data.session) {
-          setSuccessMessage("Votre compte MaFamille+ est créé. Préparation de votre espace familial...");
+          setSuccessMessage("Votre compte MyFamily+ est créé. Préparation de votre espace familial...");
           onSuccess('', familyRole);
         } else {
           setSuccessMessage("Compte créé. Vérifiez votre boîte mail pour confirmer votre adresse, puis connectez-vous.");
@@ -206,7 +206,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
             <Home className="w-8 h-8" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-white/90 to-white/60 bg-clip-text text-transparent">
-            MaFamille+
+            MyFamily+
           </h1>
           <p className="text-sm text-white/60 max-w-sm mx-auto leading-relaxed">
             Votre espace familial sécurisé pour organiser, partager et piloter le quotidien.
@@ -253,7 +253,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                 {activeMode === 'create' ? 'Créer votre accès' : activeMode === 'forgot' ? 'Récupération' : 'Accès sécurisé'}
               </p>
               <h2 className="text-xl font-black text-white mt-1">
-                {activeMode === 'create' ? 'Bienvenue dans MaFamille+' : activeMode === 'forgot' ? 'Réinitialiser le mot de passe' : 'Ravi de vous revoir'}
+                {activeMode === 'create' ? 'Bienvenue dans MyFamily+' : activeMode === 'forgot' ? 'Réinitialiser le mot de passe' : 'Ravi de vous revoir'}
               </h2>
             </div>
             <div className="h-10 w-10 rounded-2xl bg-[#00D26A]/10 border border-[#00D26A]/20 flex items-center justify-center shrink-0">

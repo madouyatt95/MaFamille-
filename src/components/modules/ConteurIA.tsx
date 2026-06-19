@@ -524,7 +524,7 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
     if (useRealAI) {
       try {
         setGenStep(2);
-        const prompt = `Tu es le Conteur Céleste IA de l'application MaFamille+.
+        const prompt = `Tu es le Conteur Céleste IA de l'application MyFamily+.
 Tu dois inventer une histoire merveilleuse, douce, poétique et apaisante pour endormir un enfant nommé ${finalHeroName}.
 L'univers de l'histoire est : "${universe.name} (${universe.desc})".
 La morale ou valeur à transmettre doucement à travers l'histoire est : "${moral.name} (${moral.desc})".
@@ -1360,7 +1360,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
 
       {/* Footer information bar */}
       <div className="relative z-10 pt-4 border-t border-white/6 flex flex-wrap items-center justify-between gap-2 text-xs text-white/45">
-        <span className="inline-flex items-center gap-1.5"><Moon className="w-3.5 h-3.5" /> Histoires du soir MaFamille+</span>
+        <span className="inline-flex items-center gap-1.5"><Moon className="w-3.5 h-3.5" /> Histoires du soir MyFamily+</span>
         <span>Contenu familial sécurisé</span>
       </div>
 

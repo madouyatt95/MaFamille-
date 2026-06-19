@@ -561,11 +561,11 @@ export const foyerService = {
     };
 
     try {
-      console.log('[MaFamille+ DB] updateMemberProfile executing RPC → memberId:', memberId);
+      console.log('[MyFamily+ DB] updateMemberProfile executing RPC → memberId:', memberId);
       const { data: rpcData, error: rpcError } = await runRpc(true);
 
       if (!rpcError) {
-        console.log('[MaFamille+ DB] RPC update_member_profile success:', rpcData);
+        console.log('[MyFamily+ DB] RPC update_member_profile success:', rpcData);
         return;
       }
 
@@ -576,7 +576,7 @@ export const foyerService = {
           && !errorMsg.includes('longitude')
           && !errorMsg.includes('location_status')
           && !errorMsg.includes('last_located_at')) {
-        console.warn('[MaFamille+ DB] Schema cache error detected on RPC, retrying without has_exemption:', errorMsg);
+        console.warn('[MyFamily+ DB] Schema cache error detected on RPC, retrying without has_exemption:', errorMsg);
         const { error: retryError } = await runRpc(false);
         if (retryError) throw retryError;
         return;
@@ -584,13 +584,13 @@ export const foyerService = {
 
 
       // Fallback direct si RPC n'existe pas
-      console.warn('[MaFamille+ DB] RPC failed with non-schema error, falling back to direct update:', errorMsg);
+      console.warn('[MyFamily+ DB] RPC failed with non-schema error, falling back to direct update:', errorMsg);
       const { data: directData, error: directError } = await runDirectUpdate(true);
 
       if (directError) {
         const directErrorMsg = directError.message || '';
         if (directErrorMsg.includes('has_exemption') || directErrorMsg.includes('hasExemption') || directErrorMsg.includes('column')) {
-          console.warn('[MaFamille+ DB] Schema cache error detected on Direct, retrying without has_exemption:', directErrorMsg);
+          console.warn('[MyFamily+ DB] Schema cache error detected on Direct, retrying without has_exemption:', directErrorMsg);
           const { error: directRetryError } = await runDirectUpdate(false);
           if (directRetryError) throw directRetryError;
           return;
@@ -599,11 +599,11 @@ export const foyerService = {
       }
 
       if (!directData || directData.length === 0) {
-        console.warn('[MaFamille+ DB] Direct UPDATE returned 0 rows — RLS blocked the update for memberId:', memberId);
+        console.warn('[MyFamily+ DB] Direct UPDATE returned 0 rows — RLS blocked the update for memberId:', memberId);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error('[MaFamille+ DB] updateMemberProfile failed permanently:', message);
+      console.error('[MyFamily+ DB] updateMemberProfile failed permanently:', message);
       // Ne pas planter l'application pour l'utilisateur, le localStorage a déjà été mis à jour
     }
   },
@@ -718,7 +718,7 @@ export const foyerService = {
       has_exemption: member.hasExemption || false
     };
 
-    console.log('[MaFamille+ DB] addMemberToFoyer -> payload:', JSON.stringify(dbMember));
+    console.log('[MyFamily+ DB] addMemberToFoyer -> payload:', JSON.stringify(dbMember));
     const { data, error } = await supabase
       .from('foyer_members')
       .insert(dbMember)
@@ -726,7 +726,7 @@ export const foyerService = {
       .single();
 
     if (error) {
-      console.error("[MaFamille+ DB] Erreur insertion membre foyer :", error);
+      console.error("[MyFamily+ DB] Erreur insertion membre foyer :", error);
       throw error;
     }
 
@@ -763,14 +763,14 @@ export const foyerService = {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
-    console.log('[MaFamille+ DB] removeMember -> memberId:', memberId);
+    console.log('[MyFamily+ DB] removeMember -> memberId:', memberId);
     const { error } = await supabase
       .from('foyer_members')
       .delete()
       .eq('id', memberId);
 
     if (error) {
-      console.error("[MaFamille+ DB] Erreur suppression membre foyer :", error);
+      console.error("[MyFamily+ DB] Erreur suppression membre foyer :", error);
       throw error;
     }
   },
@@ -782,7 +782,7 @@ export const foyerService = {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
-    console.log('[MaFamille+ DB] approveMember -> memberId:', memberId, 'role:', role);
+    console.log('[MyFamily+ DB] approveMember -> memberId:', memberId, 'role:', role);
     const updates: ApprovalUpdate = { approved: true };
     if (role) {
       updates.role = role;
@@ -794,7 +794,7 @@ export const foyerService = {
       .eq('id', memberId);
 
     if (error) {
-      console.error("[MaFamille+ DB] Erreur approbation membre foyer :", error);
+      console.error("[MyFamily+ DB] Erreur approbation membre foyer :", error);
       throw error;
     }
   },
@@ -806,14 +806,14 @@ export const foyerService = {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
-    console.log('[MaFamille+ DB] rejectMember -> memberId:', memberId);
+    console.log('[MyFamily+ DB] rejectMember -> memberId:', memberId);
     const { error: memberError } = await supabase
       .from('foyer_members')
       .update({ blood_group: 'STATUS:rejected', approved: false })
       .eq('id', memberId);
 
     if (memberError) {
-      console.error("[MaFamille+ DB] Erreur rejet membre foyer :", memberError);
+      console.error("[MyFamily+ DB] Erreur rejet membre foyer :", memberError);
       throw memberError;
     }
 
@@ -823,7 +823,7 @@ export const foyerService = {
       .eq('id', memberId);
 
     if (alertError) {
-      console.warn("[MaFamille+ DB] Erreur suppression alerte rejet :", alertError);
+      console.warn("[MyFamily+ DB] Erreur suppression alerte rejet :", alertError);
     }
   },
 

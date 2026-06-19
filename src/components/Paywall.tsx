@@ -199,7 +199,7 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
             </div>
             <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-2xl font-extrabold text-white tracking-tight">MyFamily+ Plus</h2>
+                <h2 className="text-2xl font-extrabold text-white tracking-tight">MyFamily+ Premium</h2>
                 <span className="px-2.5 py-1 rounded-full bg-[#00D26A]/12 border border-[#00D26A]/20 text-[9px] text-[#00D26A] font-black uppercase tracking-wider">
                   {isWeb ? 'Essai gratuit Stripe' : 'Essai test'}
                 </span>

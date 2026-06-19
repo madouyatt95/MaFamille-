@@ -1,4 +1,4 @@
-// Service Worker MaFamille+ (Fusionné avec Firebase Cloud Messaging)
+// Service Worker MyFamily+ (Fusionné avec Firebase Cloud Messaging)
 
 // Clic sur la notification.
 // Doit rester avant l'import Firebase pour éviter que FCM ne remplace ce comportement.
@@ -61,7 +61,7 @@ messaging.onBackgroundMessage((payload) => {
   // Si le payload contient déjà un objet notification, le SDK FCM/navigateur l'affichera automatiquement.
   // On ne l'affiche manuellement que pour les messages contenant uniquement des données pour éviter les doublons.
   if (!payload.notification) {
-    const title = payload.data?.title || 'MaFamille+';
+    const title = payload.data?.title || 'MyFamily+';
     const options = {
       body: payload.data?.body || '',
       icon: payload.data?.icon || '/icon-192x192.png',

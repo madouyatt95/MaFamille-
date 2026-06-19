@@ -59,7 +59,7 @@ export const PeaceMaker: React.FC<PeaceMakerProps> = ({ isPremium = false, onTri
 
     if (useRealAI) {
       try {
-        const prompt = `Tu es PeaceMaker IA, un médiateur de conflits familiaux expert en Communication Non Violente (CNV) pour l'application MaFamille+.
+        const prompt = `Tu es PeaceMaker IA, un médiateur de conflits familiaux expert en Communication Non Violente (CNV) pour l'application MyFamily+.
 Analyse le litige familial suivant : "${conflictDesc}".
 Identifie les sentiments sous-jacents et les besoins profonds des deux parties, puis propose un compromis bienveillant, équitable et ludique.
 

@@ -1,6 +1,6 @@
-# MaFamille+
+# MyFamily+
 
-MaFamille+ est une application familiale tout-en-un pour centraliser l'organisation du foyer : agenda, budget, tâches, école, documents, messagerie et modules d'assistance IA.
+MyFamily+ est une application familiale tout-en-un pour centraliser l'organisation du foyer : agenda, budget, tâches, école, documents, messagerie et modules d'assistance IA.
 
 ## Stack
 

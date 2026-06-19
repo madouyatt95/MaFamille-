@@ -424,7 +424,7 @@ serve(async (req) => {
       if (payload.type !== "INSERT") {
         return new Response(JSON.stringify({ message: "Ignored non-INSERT for scheduled_push_reminders" }), { status: 200 });
       }
-      title = asString(record.title) || "Rappel MaFamille+";
+      title = asString(record.title) || "Rappel MyFamily+";
       body = asString(record.body) || asString(record.description);
       targetModule = asString(record.target_module) || "agenda";
     } else if (payload.table === "alerts") {

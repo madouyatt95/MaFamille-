@@ -1,4 +1,4 @@
-# État des Notifications de MaFamille+ & Pistes d'Améliorations
+# État des Notifications de MyFamily+ & Pistes d'Améliorations
 
 Ce document récapitule le fonctionnement actuel des notifications de l'application et liste les fonctionnalités qui mériteraient d'y être reliées.
 

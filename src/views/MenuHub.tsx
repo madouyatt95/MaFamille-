@@ -4078,7 +4078,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 </div>
                 <h3 className="text-sm font-black text-white uppercase tracking-wider">Éco-Chef IA & Anti-Gaspi 🥦 👑</h3>
                 <p className="text-xs text-white/60 leading-relaxed max-w-xs mx-auto">
-                  Débloquez l'assistant culinaire intelligent MaFamille+ ! Éco-Chef analyse vos restes de frigo, planifie vos menus hebdomadaires équilibrés et génère des listes de courses en un clic.
+                  Débloquez l'assistant culinaire intelligent MyFamily+ ! Éco-Chef analyse vos restes de frigo, planifie vos menus hebdomadaires équilibrés et génère des listes de courses en un clic.
                 </p>
                 <button
                   type="button"

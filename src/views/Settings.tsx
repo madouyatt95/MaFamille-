@@ -1272,7 +1272,7 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
         
         <p className="text-xs text-white/50 leading-relaxed font-medium">
-          MaFamille+ est conçue pour respecter rigoureusement votre vie privée. Consultez nos politiques et vos droits légaux.
+          MyFamily+ est conçue pour respecter rigoureusement votre vie privée. Consultez nos politiques et vos droits légaux.
         </p>
 
         <div className="space-y-2 pt-2">
@@ -1318,7 +1318,7 @@ export const Settings: React.FC<SettingsProps> = ({
               <span className="text-white/30 group-open:rotate-180 transition-transform">▼</span>
             </summary>
             <div className="p-4 pt-0 text-[10px] text-white/40 leading-relaxed space-y-2 border-t border-white/5">
-              <p>🌱 <strong>Aucun traceur publicitaire :</strong> L'application MaFamille+ n'utilise aucun cookie tiers, traceur analytique invasif ou pixel publicitaire.</p>
+              <p>🌱 <strong>Aucun traceur publicitaire :</strong> L'application MyFamily+ n'utilise aucun cookie tiers, traceur analytique invasif ou pixel publicitaire.</p>
               <p>💾 <strong>Stockage technique uniquement :</strong> Seul le stockage local technique (localStorage / jetons sécurisés) est utilisé pour maintenir votre session ouverte et mémoriser votre mode d'affichage.</p>
             </div>
           </details>

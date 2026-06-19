@@ -162,7 +162,7 @@ export const VoyageIA: React.FC<VoyageIAProps> = ({
           .map(member => `  "${member.key}": [\n    {"text": "Objet précis à emporter pour ${member.name}", "checked": false}\n  ]`)
           .join(',\n');
 
-        const prompt = `Tu es le planificateur de voyages IA de l'application MaFamille+.
+        const prompt = `Tu es le planificateur de voyages IA de l'application MyFamily+.
 Génère des checklists de bagages extrêmement pertinentes et personnalisées pour ces membres réels du foyer :
 ${memberLines}
 

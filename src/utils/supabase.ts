@@ -49,7 +49,7 @@ export const getSupabaseClient = (customUrl?: string, customKey?: string): Supab
   const envKey = cleanInput(getConfiguredSupabaseAnonKey());
 
   // Log de debug sécurisé et informatif pour l'administrateur
-  console.log("[MaFamille+ DB Debug] URL détectée :", envUrl ? `'${envUrl}'` : "VIDE", "| Clé valide :", envKey.startsWith('eyJ'));
+  console.log("[MyFamily+ DB Debug] URL détectée :", envUrl ? `'${envUrl}'` : "VIDE", "| Clé valide :", envKey.startsWith('eyJ'));
 
   const isEnvValid = !!(envUrl && envKey && envKey.startsWith('eyJ') && (envUrl.startsWith('http://') || envUrl.startsWith('https://')));
 
@@ -61,7 +61,7 @@ export const getSupabaseClient = (customUrl?: string, customKey?: string): Supab
 
   // Validation stricte de format pour éviter l'exception d'initialisation Supabase
   if (!url || !key || (!url.startsWith('http://') && !url.startsWith('https://'))) {
-    console.warn("[MaFamille+ DB Warning] URL Supabase invalide ou non configurée :", url ? `'${url}'` : "VIDE");
+    console.warn("[MyFamily+ DB Warning] URL Supabase invalide ou non configurée :", url ? `'${url}'` : "VIDE");
     return null;
   }
 

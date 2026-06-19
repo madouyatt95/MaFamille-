@@ -1,6 +1,6 @@
 {
-  "name": "MaFamille+",
-  "short_name": "MaFamille+",
+  "name": "MyFamily+",
+  "short_name": "MyFamily+",
   "description": "Application familiale tout-en-un pour gérer agenda, budget, tâches, école, documents et IA.",
   "start_url": "/",
   "display": "standalone",

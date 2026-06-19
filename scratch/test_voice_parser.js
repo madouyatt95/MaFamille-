@@ -1,4 +1,4 @@
-// Node.js test script for MaFamille+ Voice Assistant parsing rules
+// Node.js test script for MyFamily+ Voice Assistant parsing rules
 import assert from 'assert';
 
 // 1. Mock constants and functions extracted from App.tsx

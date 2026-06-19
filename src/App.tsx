@@ -346,7 +346,7 @@ function App() {
     };
 
     if (hadCloudFoyer && hasDemoData()) {
-      console.log("[MaFamille+] Legacy demo cache detected. Purging cache...");
+      console.log("[MyFamily+] Legacy demo cache detected. Purging cache...");
       const keysToPurge = [
         'mf_members', 'mf_events', 'mf_transactions', 'mf_dishes', 'mf_documents', 
         'mf_tasks', 'mf_groceries', 'mf_vehicles', 'mf_maintenance', 'mf_trips', 
@@ -1024,7 +1024,7 @@ function App() {
       }
     } else {
       // Fallback guide for other browsers
-      alert("Pour installer MaFamille+ sur votre écran d'accueil :\n1. Cliquez sur le bouton Menu de votre navigateur (3 points ou bouton de partage).\n2. Sélectionnez 'Installer l'application' ou 'Ajouter à l'écran d'accueil'.");
+      alert("Pour installer MyFamily+ sur votre écran d'accueil :\n1. Cliquez sur le bouton Menu de votre navigateur (3 points ou bouton de partage).\n2. Sélectionnez 'Installer l'application' ou 'Ajouter à l'écran d'accueil'.");
     }
   };
 
@@ -1414,7 +1414,7 @@ function App() {
         ]
       }));
 
-      console.log("[MaFamille+ Boutique] Populating default rewards...");
+      console.log("[MyFamily+ Boutique] Populating default rewards...");
       setSavingGoals(prev => [...prev, ...defaultRewardsList]);
 
       const client = getSupabaseClient();
@@ -1431,9 +1431,9 @@ function App() {
             contributions: sg.contributions
           });
         })).then(() => {
-          console.log("[MaFamille+ Boutique] Default rewards successfully uploaded to Supabase.");
+          console.log("[MyFamily+ Boutique] Default rewards successfully uploaded to Supabase.");
         }).catch(err => {
-          console.error("[MaFamille+ Boutique] Error uploading default rewards:", err);
+          console.error("[MyFamily+ Boutique] Error uploading default rewards:", err);
         });
       }
       setHasCheckedDefaultRewards(true);
@@ -2285,7 +2285,7 @@ function App() {
       setActiveModule('');
       setQuickActionsOpen(true);
       setTimeout(() => {
-        alert("📷 Ticket de caisse partagé reçu ! MaFamille+ l'analyse avec l'IA...");
+        alert("📷 Ticket de caisse partagé reçu ! MyFamily+ l'analyse avec l'IA...");
       }, 500);
     }
     
@@ -2307,7 +2307,7 @@ function App() {
             console.log("[App] Notification push reçue au premier plan :", payload);
             const newAlert: NotificationAlert = {
               id: payload.data?.id || `alert-${Date.now()}`,
-              title: payload.notification?.title || 'Notification MaFamille+',
+              title: payload.notification?.title || 'Notification MyFamily+',
               description: payload.notification?.body || '',
               time: "À l'instant",
               type: ['info', 'warning', 'error', 'success'].includes(payload.data?.type || '')
@@ -2407,7 +2407,7 @@ function App() {
   // Check foyer session on startup or login
   const checkUserFoyerSession = async (currentUser: User | null) => {
     if (isSessionCheckingRef.current) {
-      console.log("[MaFamille+ Session] checkUserFoyerSession lock active, ignoring parallel check.");
+      console.log("[MyFamily+ Session] checkUserFoyerSession lock active, ignoring parallel check.");
       return;
     }
     isSessionCheckingRef.current = true;
@@ -2426,7 +2426,7 @@ function App() {
     }
 
     try {
-      console.log("[MaFamille+ Session] Fetching join requests...");
+      console.log("[MyFamily+ Session] Fetching join requests...");
       const joinRequests = await foyerService.getMyJoinRequests();
       const activeReq = joinRequests.find(r => r.status === 'pending' || r.status === 'rejected');
       setMyActiveRequest(activeReq || null);
@@ -2434,7 +2434,7 @@ function App() {
         setShowRequestInterceptor(true);
       }
 
-      console.log("[MaFamille+ Session] Fetching user foyers...");
+      console.log("[MyFamily+ Session] Fetching user foyers...");
       const foyersList = await foyerService.getMyFoyers();
       setMyFoyers(foyersList);
 
@@ -2459,7 +2459,7 @@ function App() {
         localStorage.setItem('mf_active_foyer_id', myFoyer.id);
         await loadFoyerData(myFoyer.id);
       } else {
-        console.log("[MaFamille+ Session] No foyer found in DB for user. Showing welcome screen.");
+        console.log("[MyFamily+ Session] No foyer found in DB for user. Showing welcome screen.");
         setFoyer(null);
         setMyMemberProfile(null);
         localStorage.removeItem('mf_cached_foyer');
@@ -3951,7 +3951,7 @@ function App() {
         });
       }
     } catch (silentErr: LooseValue) {
-      console.warn("[MaFamille+ Background Sync] Silent poll failure:", silentErr.message);
+      console.warn("[MyFamily+ Background Sync] Silent poll failure:", silentErr.message);
     }
   };
 
@@ -3974,7 +3974,7 @@ function App() {
       if (document.visibilityState === 'visible') {
         const now = Date.now();
         if (now - lastSyncAt < minFocusSyncIntervalMs) return;
-        console.log("[MaFamille+ Focus Sync] Tab focused, running immediate rehydration sync...");
+        console.log("[MyFamily+ Focus Sync] Tab focused, running immediate rehydration sync...");
         syncDataFromCloud(foyer.id);
         lastSyncAt = now;
       }
@@ -4704,7 +4704,7 @@ function App() {
       prevApprovedRef.current = isApproved;
 
       if (foyer && isApproved && wasApproved === false) {
-        console.log("[MaFamille+ Sync] User was approved! Fetching all foyer data...");
+        console.log("[MyFamily+ Sync] User was approved! Fetching all foyer data...");
         setIsSyncReady(false);
         loadFoyerData(foyer.id).then(() => {
           setIsSyncReady(true);
@@ -9647,7 +9647,7 @@ function App() {
         delete cleanPerms.__config__;
 
         if (JSON.stringify(cleanPerms) !== JSON.stringify(memberPermissions)) {
-          console.log("[MaFamille+ Permissions] Syncing permissions from document:", cleanPerms);
+          console.log("[MyFamily+ Permissions] Syncing permissions from document:", cleanPerms);
           setMemberPermissions(cleanPerms);
         }
       } catch (e) {
@@ -11860,7 +11860,7 @@ function App() {
     }
 
     const confirmPurge = window.confirm(
-      "Voulez-vous vraiment purger les anciennes données d'exemple MaFamille+ de votre base de données en ligne ? \n\n" +
+      "Voulez-vous vraiment purger les anciennes données d'exemple MyFamily+ de votre base de données en ligne ? \n\n" +
       "Les données personnelles que vous avez créées vous-même ne seront pas supprimées."
     );
     if (!confirmPurge) return;
@@ -12015,7 +12015,7 @@ function App() {
                 </svg>
               </button>
               <h1 className="text-lg font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/70">
-                MaFamille+
+                MyFamily+
               </h1>
             </div>
             
@@ -12043,7 +12043,7 @@ function App() {
                   Aucun foyer actif
                 </h2>
                 <p className="text-xs text-white/50 leading-relaxed max-w-xs mx-auto">
-                  Vous êtes connecté à votre compte unique MaFamille+, mais vous ne faites partie d'aucun foyer pour le moment.
+                  Vous êtes connecté à votre compte unique MyFamily+, mais vous ne faites partie d'aucun foyer pour le moment.
                 </p>
               </div>
             </div>
@@ -13091,7 +13091,7 @@ function App() {
           </div>
           <div className="space-y-2">
             <h1 className="text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/70">
-              MaFamille+
+              MyFamily+
             </h1>
             <p className="text-xs text-white/50 tracking-widest uppercase">
               Connexion en cours...
@@ -13286,7 +13286,7 @@ function App() {
                 <Home className="w-8 h-8" />
               </div>
               <div className="space-y-2">
-                <h2 className="text-xl sm:text-2xl font-black bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Bienvenue sur MaFamille+</h2>
+                <h2 className="text-xl sm:text-2xl font-black bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Bienvenue sur MyFamily+</h2>
                 <p className="text-xs text-white/50 leading-relaxed font-sans">Associez votre compte à une famille pour commencer l'aventure.</p>
               </div>
 
@@ -13705,7 +13705,7 @@ function App() {
                 premiumExpiresAt: subscription.expiresAt
               } : null);
             } catch (err) {
-              console.error("[MaFamille+ Paywall] Failed to update premium status in database:", err);
+              console.error("[MyFamily+ Paywall] Failed to update premium status in database:", err);
             }
           }
         }}
@@ -14556,7 +14556,7 @@ function App() {
                         console.log("[App Gesture] FCM notification received:", payload);
                         const newAlert = {
                           id: payload.data?.id || `alert-${Date.now()}`,
-                          title: payload.notification?.title || 'Notification MaFamille+',
+                          title: payload.notification?.title || 'Notification MyFamily+',
                           description: payload.notification?.body || '',
                           time: "À l'instant",
                           type: (payload.data?.type || 'info') as LooseValue,
@@ -15013,7 +15013,7 @@ function App() {
               <Sparkles className="w-5 h-5 text-[#FFB020] animate-pulse" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Installer l'application MaFamille+</h4>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Installer l'application MyFamily+</h4>
               <p className="text-[10px] text-white/60 leading-relaxed mt-0.5">Profitez de l'affichage plein écran, d'une rapidité accrue, et des raccourcis "+ Dépense" d'appui long !</p>
             </div>
           </div>
@@ -15049,7 +15049,7 @@ function App() {
               </div>
               
               <div className="space-y-1">
-                <h3 className="text-base font-black text-white uppercase tracking-wider">Installer MaFamille+</h3>
+                <h3 className="text-base font-black text-white uppercase tracking-wider">Installer MyFamily+</h3>
                 <p className="text-xs text-white/60">Ajoutez le raccourci sur votre écran d'accueil en 3 étapes simples :</p>
               </div>
 
@@ -15121,7 +15121,7 @@ function App() {
                   <Home className="w-8 h-8" />
                 </div>
                 <div className="space-y-2">
-                  <h2 className="text-xl sm:text-2xl font-black bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Bienvenue sur MaFamille+</h2>
+                  <h2 className="text-xl sm:text-2xl font-black bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Bienvenue sur MyFamily+</h2>
                   <p className="text-xs text-white/50 leading-relaxed">Que souhaitez-vous faire pour commencer ?</p>
                 </div>
 

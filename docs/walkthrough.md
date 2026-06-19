@@ -1,6 +1,6 @@
 # Walkthrough - Améliorations de l'UX de Messagerie
 
-Toutes les demandes concernant l'expérience utilisateur de la messagerie de l'application MaFamille+ ont été résolues.
+Toutes les demandes concernant l'expérience utilisateur de la messagerie de l'application MyFamily+ ont été résolues.
 
 ## Changements apportés
 

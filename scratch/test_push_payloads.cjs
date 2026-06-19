@@ -1,7 +1,7 @@
 /**
  * Test de validation unitaire pour le formatage des notifications de l'Edge Function.
  * Ce script valide toutes les règles métier appliquées par la fonction send-push
- * sur les tables de l'application MaFamille+ face aux webhooks Supabase.
+ * sur les tables de l'application MyFamily+ face aux webhooks Supabase.
  */
 
 const assert = require('assert').strict;

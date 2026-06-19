@@ -1220,7 +1220,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
               </div>
               <div>
                 <h4 className="text-xs font-black text-white">Mon Coach Académique</h4>
-                <p className="text-[8px] text-[#00D26A] font-bold uppercase tracking-wider">Professeur local MaFamille+</p>
+                <p className="text-[8px] text-[#00D26A] font-bold uppercase tracking-wider">Professeur local MyFamily+</p>
               </div>
             </div>
 
