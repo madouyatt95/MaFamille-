@@ -550,6 +550,73 @@ html,
     radial-gradient(circle at 12% 24%, rgba(255, 176, 32, 0.09), transparent 24rem);
 }
 
+/* Family games keeps strong contrast while following all three app themes. */
+.family-games {
+  --games-hero-bg: linear-gradient(145deg, #101A31 0%, #151B34 100%);
+  --games-hero-border: rgba(108, 92, 255, 0.28);
+  --games-member-bg: rgba(255, 255, 255, 0.055);
+  --games-member-border: rgba(255, 255, 255, 0.10);
+  --games-challenge-bg: linear-gradient(145deg, #171326 0%, #20152A 100%);
+  --games-challenge-border: rgba(255, 77, 109, 0.28);
+  --games-board-bg: #2454A6;
+  --games-board-border: rgba(79, 140, 255, 0.48);
+  --games-slot-bg: rgba(7, 17, 31, 0.78);
+  --games-slot-border: rgba(255, 255, 255, 0.12);
+}
+
+.family-games-hero {
+  background: var(--games-hero-bg);
+  border-color: var(--games-hero-border);
+  box-shadow: 0 18px 42px color-mix(in srgb, var(--family-shadow) 58%, transparent);
+}
+
+.family-games-member {
+  background: var(--games-member-bg);
+  border-color: var(--games-member-border);
+}
+
+.family-games-challenge {
+  background: var(--games-challenge-bg);
+  border-color: var(--games-challenge-border);
+  box-shadow: 0 18px 42px color-mix(in srgb, var(--family-shadow) 48%, transparent);
+}
+
+.family-games-board {
+  background: var(--games-board-bg);
+  border-color: var(--games-board-border);
+}
+
+.family-games-slot {
+  background: var(--games-slot-bg);
+  border-color: var(--games-slot-border);
+}
+
+.theme-light .family-games {
+  --games-hero-bg: linear-gradient(145deg, #FFFFFF 0%, #EEF3FF 100%);
+  --games-hero-border: rgba(91, 78, 250, 0.20);
+  --games-member-bg: rgba(91, 78, 250, 0.055);
+  --games-member-border: rgba(30, 41, 59, 0.10);
+  --games-challenge-bg: linear-gradient(145deg, #FFFFFF 0%, #FFF1F4 100%);
+  --games-challenge-border: rgba(225, 29, 72, 0.18);
+  --games-board-bg: #DDE9FF;
+  --games-board-border: rgba(37, 99, 235, 0.26);
+  --games-slot-bg: rgba(255, 255, 255, 0.92);
+  --games-slot-border: rgba(37, 99, 235, 0.16);
+}
+
+.theme-sepia .family-games {
+  --games-hero-bg: linear-gradient(145deg, #FFF9ED 0%, #F2E3CB 100%);
+  --games-hero-border: rgba(122, 78, 45, 0.22);
+  --games-member-bg: rgba(122, 78, 45, 0.055);
+  --games-member-border: rgba(91, 64, 41, 0.13);
+  --games-challenge-bg: linear-gradient(145deg, #FFF9ED 0%, #F4DFD8 100%);
+  --games-challenge-border: rgba(183, 65, 74, 0.20);
+  --games-board-bg: #D8C19E;
+  --games-board-border: rgba(122, 78, 45, 0.28);
+  --games-slot-bg: rgba(255, 249, 236, 0.94);
+  --games-slot-border: rgba(91, 64, 41, 0.16);
+}
+
 .theme-light [class^="bg-[#6C5CFF]"],
 .theme-light [class*=" bg-[#6C5CFF]"],
 .theme-light [class^="bg-[#5B4EFA]"],

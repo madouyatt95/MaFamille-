@@ -311,7 +311,7 @@ export function FamilyGames({
   };
 
   return (
-    <div className="min-h-screen pb-32 pt-[calc(1.5rem+env(safe-area-inset-top,0px))] px-4 md:px-8 premium-glow-purple">
+    <div className="family-games min-h-screen pb-32 pt-[calc(1.5rem+env(safe-area-inset-top,0px))] px-4 md:px-8 premium-glow-purple">
       <div className="max-w-5xl mx-auto space-y-6">
         {!activeGame && (
           <>
@@ -335,7 +335,7 @@ export function FamilyGames({
               </div>
             </div>
 
-            <section className="relative overflow-hidden rounded-[28px] border border-[#6C5CFF]/25 bg-[#101A31] p-5 sm:p-7">
+            <section className="family-games-hero relative overflow-hidden rounded-[28px] border p-5 sm:p-7">
               <div className="absolute right-[-30px] top-[-40px] w-40 h-40 rounded-full bg-[#6C5CFF]/15 blur-3xl pointer-events-none" />
               <div className="relative grid gap-5 md:grid-cols-[1.3fr_0.7fr] md:items-center">
                 <div>
@@ -349,7 +349,7 @@ export function FamilyGames({
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {players.concat(members.filter(member => !players.some(player => player.id === member.id)).slice(0, 1)).map(member => (
-                    <div key={member.id} className="aspect-square rounded-2xl border border-white/10 bg-white/5 p-2 flex flex-col items-center justify-center text-center">
+                    <div key={member.id} className="family-games-member aspect-square rounded-2xl border p-2 flex flex-col items-center justify-center text-center">
                       {member.photoUrl ? (
                         <img src={member.photoUrl} alt={member.name} className="w-10 h-10 rounded-full object-cover border-2 border-white/15" />
                       ) : (
@@ -486,14 +486,14 @@ export function FamilyGames({
                 </div>
               ))}
             </div>
-            <div className="max-w-xl mx-auto rounded-[24px] bg-[#2454A6] border border-[#4F8CFF]/40 p-2.5 sm:p-4 shadow-xl">
+            <div className="family-games-board max-w-xl mx-auto rounded-[24px] border p-2.5 sm:p-4 shadow-xl">
               <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
                 {board.map((row, rowIndex) => row.map((cell, colIndex) => (
                   <button
                     key={`${rowIndex}-${colIndex}`}
                     type="button"
                     onClick={() => dropConnectPiece(colIndex)}
-                    className="aspect-square rounded-full bg-[#07111F]/75 border border-white/10 p-[12%]"
+                    className="family-games-slot aspect-square rounded-full border p-[12%]"
                     aria-label={`Colonne ${colIndex + 1}`}
                   >
                     <span className={`block w-full h-full rounded-full transition-colors ${
@@ -532,7 +532,7 @@ export function FamilyGames({
                 </div>
               ))}
             </div>
-            <section className="rounded-[28px] border border-[#FF4D6D]/25 bg-[#171326] p-5 sm:p-7">
+            <section className="family-games-challenge rounded-[28px] border p-5 sm:p-7">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-[10px] font-black uppercase tracking-wider text-[#FF4D6D]">Manche {challengeIndex + 1}/{challenges.length}</span>
                 <Medal className="w-5 h-5 text-[#FFB020]" />
