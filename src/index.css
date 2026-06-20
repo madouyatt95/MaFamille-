@@ -101,6 +101,39 @@ body {
 }
 
 /*
+ * Prevent iOS WebView from turning a slightly long tap into text selection.
+ * Text fields and explicitly selectable content keep their native behavior.
+ */
+button,
+a,
+label,
+summary,
+[role="button"],
+[draggable="true"],
+.cursor-pointer {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+img,
+svg {
+  -webkit-user-drag: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"],
+.select-text {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/*
  * App-wide readability pass.
  * Several legacy modules use very dense Tailwind micro-type. Keep the layout
  * compact, but raise the floor so in-app text stays readable on phones.
