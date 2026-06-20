@@ -75,9 +75,10 @@ export function BattleshipGame({
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [privateFleetPlaced, setPrivateFleetPlaced] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const reportedPrivateWinner = useRef<number | null>(null);
   const privateRoom = room?.gameType === 'battleship' ? room : null;
-  const localPrivateIndex: 0 | 1 = privateRoom?.guestFoyerId === foyerId ? 1 : 0;
+  const localPrivateIndex: 0 | 1 = privateRoom?.guestUserId && privateRoom.guestUserId === currentUserId ? 1 : 0;
   const privateShots: [Shot[], Shot[]] = [
     parseShots(privateRoom?.state.hostShots),
     parseShots(privateRoom?.state.guestShots)
@@ -89,6 +90,12 @@ export function BattleshipGame({
     : null;
   const ownFleet = fleets[mode === 'private' ? localPrivateIndex : currentPlayer];
   const ownFleetSet = useMemo(() => fleetCells(ownFleet), [ownFleet]);
+  const rematchRequested = localPrivateIndex === 0
+    ? privateRoom?.state.rematchHost === true
+    : privateRoom?.state.rematchGuest === true;
+  const opponentRematchRequested = localPrivateIndex === 0
+    ? privateRoom?.state.rematchGuest === true
+    : privateRoom?.state.rematchHost === true;
 
   const reset = useCallback(() => {
     setFleets([randomFleet(), randomFleet()]);
@@ -100,6 +107,10 @@ export function BattleshipGame({
     setMessage('');
     setPrivateFleetPlaced(false);
     setBusy(false);
+  }, []);
+
+  useEffect(() => {
+    void familyGameService.getCurrentUserId().then(setCurrentUserId);
   }, []);
 
   useEffect(() => {
@@ -122,11 +133,26 @@ export function BattleshipGame({
   }, [foyerId, localPrivateIndex, onRoomChange, privateRoom?.id, privateRoom?.state.guestReady, privateRoom?.state.hostReady]);
 
   useEffect(() => {
+    if (!privateRoom || privateRoom.status !== 'active' || privateWinner !== null) return;
+    if (privateRoom.state.hostReady || privateRoom.state.guestReady) return;
+    if (!privateFleetPlaced && !started) return;
+    queueMicrotask(() => {
+      reportedPrivateWinner.current = null;
+      reset();
+      setMode('private');
+      setMessage('Revanche acceptée. Placez votre nouvelle flotte.');
+    });
+  }, [privateFleetPlaced, privateRoom, privateWinner, reset, started]);
+
+  useEffect(() => {
     if (privateWinner === null || reportedPrivateWinner.current === privateWinner || !privateRoom) return;
+    const shouldReport = currentUserId === privateRoom.hostUserId
+      || (privateRoom.guestFoyerId !== privateRoom.hostFoyerId && currentUserId === privateRoom.guestUserId);
+    if (!shouldReport) return;
     reportedPrivateWinner.current = privateWinner;
     const winnerName = privateWinner === 0 ? privateRoom.hostName : (privateRoom.guestName || 'Famille invitée');
     onFinished(privateWinner === localPrivateIndex ? [1, 0] : [0, 1], winnerName, 'private');
-  }, [localPrivateIndex, onFinished, privateRoom, privateWinner]);
+  }, [currentUserId, localPrivateIndex, onFinished, privateRoom, privateWinner]);
 
   const chooseBotCell = (botShots: Shot[]): string => {
     const tried = new Set(botShots.map(shot => shot.cell));
@@ -229,6 +255,28 @@ export function BattleshipGame({
       setMode('private');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Impossible de quitter la salle.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const requestPrivateRematch = async () => {
+    if (!privateRoom || busy) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      const nextRoom = await familyGameService.requestBattleshipRematch(privateRoom.id, foyerId);
+      onRoomChange(nextRoom);
+      if (nextRoom.status === 'active') {
+        reportedPrivateWinner.current = null;
+        reset();
+        setMode('private');
+        setMessage('Revanche lancée. Placez votre nouvelle flotte.');
+      } else {
+        setMessage('Demande envoyée. La revanche commencera lorsque l’autre joueur acceptera.');
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Revanche impossible.');
     } finally {
       setBusy(false);
     }
@@ -342,6 +390,24 @@ export function BattleshipGame({
                 <div className={`rounded-2xl border p-4 text-center ${privateTurn === localPrivateIndex ? 'border-[#00D26A]/25 bg-[#00D26A]/8' : 'border-white/8 bg-white/5'}`}>
                   <strong className="text-sm text-white">{privateWinner !== null ? 'Partie terminée' : !bothPrivateReady ? 'En attente de la flotte adverse...' : privateTurn === localPrivateIndex ? 'À vous de tirer' : 'L’autre famille réfléchit...'}</strong>
                 </div>
+                {privateWinner !== null && (
+                  <div className="rounded-[24px] border border-[#00D26A]/25 bg-[#00D26A]/8 p-5 text-center">
+                    <Check className="mx-auto h-9 w-9 text-[#00D26A]" />
+                    <h2 className="mt-2 text-lg font-black text-white">
+                      {privateWinner === localPrivateIndex ? 'Vous remportez la bataille !' : 'La flotte adverse remporte la bataille'}
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={() => void requestPrivateRematch()}
+                      disabled={busy || rematchRequested}
+                      className="mt-4 w-full rounded-2xl bg-[#4F8CFF] py-3 text-xs font-black text-white disabled:opacity-50"
+                    >
+                      {rematchRequested
+                        ? opponentRematchRequested ? 'Revanche en préparation...' : 'En attente de l’autre joueur'
+                        : 'Proposer une revanche'}
+                    </button>
+                  </div>
+                )}
                 <div>
                   <div className="mb-2 flex items-center justify-between"><strong className="text-xs text-white">Océan adverse</strong><Crosshair className="h-4 w-4 text-[#FF4D6D]" /></div>
                   {renderGrid(privateShots[localPrivateIndex], null, cell => void firePrivateShot(cell), !bothPrivateReady || privateTurn !== localPrivateIndex || privateWinner !== null || busy)}

@@ -20,6 +20,8 @@ export type FamilyGameRoom = {
   gameType: FamilyGameType;
   hostFoyerId: string;
   guestFoyerId?: string;
+  hostUserId?: string;
+  guestUserId?: string;
   hostName: string;
   guestName?: string;
   status: 'waiting' | 'active' | 'finished' | 'cancelled';
@@ -64,6 +66,8 @@ type GameRoomRow = {
   game_type: FamilyGameType;
   host_foyer_id: string;
   guest_foyer_id?: string | null;
+  host_user_id?: string | null;
+  guest_user_id?: string | null;
   host_name: string;
   guest_name?: string | null;
   status: FamilyGameRoom['status'];
@@ -89,6 +93,8 @@ const mapRoom = (row: GameRoomRow): FamilyGameRoom => ({
   gameType: row.game_type,
   hostFoyerId: row.host_foyer_id,
   guestFoyerId: row.guest_foyer_id || undefined,
+  hostUserId: row.host_user_id || undefined,
+  guestUserId: row.guest_user_id || undefined,
   hostName: row.host_name,
   guestName: row.guest_name || undefined,
   status: row.status,
@@ -140,13 +146,23 @@ const getRoomErrorMessage = (error: { message?: string; code?: string }): string
 };
 
 export const familyGameService = {
+  async getCurrentUserId(): Promise<string | null> {
+    const client = getSupabaseClient();
+    if (!client) return null;
+    const { data } = await client.auth.getUser();
+    return data.user?.id || null;
+  },
+
   async fetchActiveRoom(foyerId: string): Promise<FamilyGameRoom | null> {
     const client = getSupabaseClient();
     if (!client || !foyerId || foyerId === 'local') return null;
+    const { data: userData } = await client.auth.getUser();
+    const userId = userData.user?.id;
+    if (!userId) return null;
     const { data, error } = await client
       .from('family_game_rooms')
-      .select('id, room_code, game_type, host_foyer_id, guest_foyer_id, host_name, guest_name, status, state, created_at, expires_at')
-      .or(`host_foyer_id.eq.${foyerId},guest_foyer_id.eq.${foyerId}`)
+      .select('id, room_code, game_type, host_foyer_id, guest_foyer_id, host_user_id, guest_user_id, host_name, guest_name, status, state, created_at, expires_at')
+      .or(`host_user_id.eq.${userId},guest_user_id.eq.${userId}`)
       .in('status', ['waiting', 'active'])
       .gt('expires_at', new Date().toISOString())
       .order('updated_at', { ascending: false })
@@ -358,6 +374,43 @@ export const familyGameService = {
       p_room_id: roomId,
       p_foyer_id: foyerId,
       p_cell: cell
+    });
+    if (error) throw new Error(getRoomErrorMessage(error));
+    const row = Array.isArray(data) ? data[0] : data;
+    return mapRoom(row as GameRoomRow);
+  },
+
+  async requestBattleshipRematch(roomId: string, foyerId: string): Promise<FamilyGameRoom> {
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Connexion Supabase indisponible.');
+    const { data, error } = await client.rpc('request_battleship_rematch', {
+      p_room_id: roomId,
+      p_foyer_id: foyerId
+    });
+    if (error) throw new Error(getRoomErrorMessage(error));
+    const row = Array.isArray(data) ? data[0] : data;
+    return mapRoom(row as GameRoomRow);
+  },
+
+  async playConnect4Column(roomId: string, foyerId: string, column: number): Promise<FamilyGameRoom> {
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Connexion Supabase indisponible.');
+    const { data, error } = await client.rpc('play_private_connect4', {
+      p_room_id: roomId,
+      p_foyer_id: foyerId,
+      p_column: column
+    });
+    if (error) throw new Error(getRoomErrorMessage(error));
+    const row = Array.isArray(data) ? data[0] : data;
+    return mapRoom(row as GameRoomRow);
+  },
+
+  async requestConnect4Rematch(roomId: string, foyerId: string): Promise<FamilyGameRoom> {
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Connexion Supabase indisponible.');
+    const { data, error } = await client.rpc('request_connect4_rematch', {
+      p_room_id: roomId,
+      p_foyer_id: foyerId
     });
     if (error) throw new Error(getRoomErrorMessage(error));
     const row = Array.isArray(data) ? data[0] : data;

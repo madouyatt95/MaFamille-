@@ -108,8 +108,8 @@ export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, initialRo
           {active ? <Users className="w-6 h-6" /> : <Radio className="w-6 h-6 animate-pulse" />}
         </span>
         <div>
-          <h3 className="text-base font-black text-white">{active ? `${room.guestName} a rejoint la partie` : 'En attente d’une autre famille'}</h3>
-          <p className="mt-1 text-xs text-white/50">{active ? 'La salle privée est prête.' : 'Partagez uniquement ce code à une famille que vous connaissez.'}</p>
+          <h3 className="text-base font-black text-white">{active ? `${room.guestName} a rejoint la partie` : 'En attente d’un autre joueur'}</h3>
+          <p className="mt-1 text-xs text-white/50">{active ? 'La salle privée est prête.' : 'Partagez ce code à un proche ou à une famille que vous connaissez.'}</p>
         </div>
         <button type="button" onClick={copyCode} className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-4 flex items-center justify-between">
           <span className="text-2xl font-black tracking-[0.28em] text-white pl-[0.28em]">{room.code}</span>
@@ -128,8 +128,8 @@ export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, initialRo
       <div className="flex items-center gap-3">
         <span className="p-2.5 rounded-2xl bg-[#6C5CFF]/12 text-[#6C5CFF]"><Link2 className="w-5 h-5" /></span>
         <div>
-          <h3 className="text-sm font-black text-white">Défier une famille connue</h3>
-          <p className="text-[10px] text-white/45">Invitation privée, sans recherche publique.</p>
+          <h3 className="text-sm font-black text-white">Duel privé</h3>
+          <p className="text-[10px] text-white/45">Invitez un membre du foyer ou une famille connue, sans recherche publique.</p>
         </div>
       </div>
 

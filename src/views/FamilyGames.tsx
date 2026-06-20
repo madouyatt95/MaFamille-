@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Brain,
@@ -12,7 +12,9 @@ import {
   Grid3X3,
   History,
   Lock,
+  LogOut,
   Mic2,
+  Radio,
   RotateCcw,
   Ship,
   Sparkles,
@@ -51,6 +53,7 @@ type GameFilter = 'all' | 'free' | 'premium' | 'quick' | 'team' | 'kids';
 type MemoryMode = 'individual' | 'teams';
 type MemorySource = 'family' | 'memories';
 type BotDifficulty = 'easy' | 'normal' | 'hard';
+type ConnectMode = 'local' | 'bot' | 'private';
 type ChallengeMode = 'local' | 'private';
 type TeamSettings = { names: [string, string]; colors: [string, string] };
 type PendingGameReward = {
@@ -299,6 +302,9 @@ export function FamilyGames({
     () => members.find(member => member.id === activeMemberId),
     [activeMemberId, members]
   );
+  const privatePlayerName = activeMember?.name
+    ? `${familyName} · ${activeMember.name}`
+    : familyName;
   const isAdult = useMemo(() => {
     const role = (activeMember?.role || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     return ['chef', 'parent', 'gestionnaire', 'adulte', 'admin'].some(value => role.includes(value));
@@ -309,6 +315,11 @@ export function FamilyGames({
   const [connectWinner, setConnectWinner] = useState<ConnectCell>(0);
   const [connectDraw, setConnectDraw] = useState(false);
   const [connectVsBot, setConnectVsBot] = useState(false);
+  const [connectMode, setConnectMode] = useState<ConnectMode>('local');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [connectPrivateBusy, setConnectPrivateBusy] = useState(false);
+  const [connectPrivateMessage, setConnectPrivateMessage] = useState('');
+  const reportedPrivateConnectResultRef = useRef<string | null>(null);
   const [lastDroppedCell, setLastDroppedCell] = useState<{ row: number; column: number; nonce: number } | null>(null);
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>('normal');
   const [teamSettings, setTeamSettings] = useState<TeamSettings>(() => {
@@ -342,6 +353,7 @@ export function FamilyGames({
   });
 
   const challengeQuestionCount = isPremium ? FAMILY_CHALLENGE_QUESTIONS.length : 12;
+  const connectRoom = activeRoom?.gameType === 'connect4' ? activeRoom : null;
   const challengeRoom = activeRoom?.gameType === 'family-challenge' ? activeRoom : null;
   const challengeTeams = useMemo(() => {
     const sharedMembers = Array.isArray(challengeRoom?.state.teamMembers)
@@ -436,6 +448,7 @@ export function FamilyGames({
   }, [foyerId, tournament]);
 
   useEffect(() => {
+    void familyGameService.getCurrentUserId().then(setCurrentUserId);
     void familyGameService.fetchResults(foyerId).then(setResults);
     if (isPremium) {
       void familyGameService.fetchActiveRoom(foyerId).then(room => {
@@ -446,12 +459,27 @@ export function FamilyGames({
           void resume.then(nextRoom => {
             setActiveRoom(nextRoom);
             if (nextRoom.gameType === 'family-challenge') setChallengeMode('private');
+            if (nextRoom.gameType === 'connect4') setConnectMode('private');
             setActiveGame(nextRoom.gameType);
           });
         }
       });
     }
   }, [foyerId, isPremium]);
+
+  useEffect(() => {
+    if (!connectRoom?.id) return;
+    const channel = familyGameService.subscribeToRoom(connectRoom.id, setActiveRoom);
+    return () => {
+      void familyGameService.unsubscribe(channel);
+    };
+  }, [connectRoom?.id]);
+
+  useEffect(() => {
+    if (connectRoom?.status === 'active') {
+      reportedPrivateConnectResultRef.current = null;
+    }
+  }, [connectRoom?.status, connectRoom?.state.matchNumber]);
 
   useEffect(() => {
     try {
@@ -779,6 +807,94 @@ export function FamilyGames({
     setConnectDraw(false);
     setLastDroppedCell(null);
     setCurrentPlayer(previous => previous === 1 ? 2 : 1);
+  };
+
+  const privateConnectBoard = useMemo<ConnectCell[][]>(() => {
+    const flat = Array.isArray(connectRoom?.state.board)
+      ? connectRoom.state.board.map(value => value === 1 || value === 2 ? value : 0)
+      : Array(42).fill(0);
+    return Array.from({ length: 6 }, (_, row) => flat.slice(row * 7, row * 7 + 7) as ConnectCell[]);
+  }, [connectRoom]);
+  const privateConnectPlayer: 1 | 2 = connectRoom?.guestUserId === currentUserId ? 2 : 1;
+  const privateConnectTurn: 1 | 2 = connectRoom?.state.turn === 2 ? 2 : 1;
+  const privateConnectWinner = connectRoom?.state.winner === 1 || connectRoom?.state.winner === 2
+    ? connectRoom.state.winner
+    : 0;
+  const privateConnectDraw = connectRoom?.state.draw === true;
+  const privateConnectRematchRequested = privateConnectPlayer === 1
+    ? connectRoom?.state.rematchHost === true
+    : connectRoom?.state.rematchGuest === true;
+
+  useEffect(() => {
+    if (!connectRoom || connectRoom.status !== 'finished' || reportedPrivateConnectResultRef.current === connectRoom.id) return;
+    const shouldSave = currentUserId === connectRoom.hostUserId
+      || (connectRoom.guestFoyerId !== connectRoom.hostFoyerId && currentUserId === connectRoom.guestUserId);
+    if (!shouldSave) return;
+    reportedPrivateConnectResultRef.current = connectRoom.id;
+    const winnerName = privateConnectDraw
+      ? 'Égalité'
+      : privateConnectWinner === 1 ? connectRoom.hostName : (connectRoom.guestName || 'Joueur invité');
+    queueMicrotask(() => {
+      void saveResult(
+        'connect4',
+        privateConnectWinner === 1 ? [1, 0] : privateConnectWinner === 2 ? [0, 1] : [0, 0],
+        winnerName,
+        { mode: 'private', roomId: connectRoom.id },
+        [connectRoom.hostName, connectRoom.guestName || 'Joueur invité']
+      );
+    });
+  }, [connectRoom, currentUserId, privateConnectDraw, privateConnectWinner, saveResult]);
+
+  const playPrivateConnectColumn = async (column: number) => {
+    if (!connectRoom || connectRoom.status !== 'active' || privateConnectTurn !== privateConnectPlayer || connectPrivateBusy) return;
+    setConnectPrivateBusy(true);
+    setConnectPrivateMessage('');
+    try {
+      setActiveRoom(await familyGameService.playConnect4Column(connectRoom.id, foyerId, column));
+    } catch (error) {
+      setConnectPrivateMessage(error instanceof Error ? error.message : 'Coup impossible.');
+    } finally {
+      setConnectPrivateBusy(false);
+    }
+  };
+
+  const requestPrivateConnectRematch = async () => {
+    if (!connectRoom || connectPrivateBusy) return;
+    setConnectPrivateBusy(true);
+    setConnectPrivateMessage('');
+    try {
+      const nextRoom = await familyGameService.requestConnect4Rematch(connectRoom.id, foyerId);
+      setActiveRoom(nextRoom);
+      if (nextRoom.status === 'active') reportedPrivateConnectResultRef.current = null;
+      setConnectPrivateMessage(nextRoom.status === 'active'
+        ? 'Revanche lancée.'
+        : 'Demande envoyée. En attente de l’autre joueur.');
+    } catch (error) {
+      setConnectPrivateMessage(error instanceof Error ? error.message : 'Revanche impossible.');
+    } finally {
+      setConnectPrivateBusy(false);
+    }
+  };
+
+  const closePrivateConnectRoom = async () => {
+    if (!connectRoom || connectPrivateBusy) return;
+    setConnectPrivateBusy(true);
+    try {
+      if (connectRoom.status !== 'finished') {
+        await familyGameService.performRoomAction(
+          connectRoom.id,
+          foyerId,
+          connectRoom.status === 'active' ? 'leave' : connectRoom.hostFoyerId === foyerId ? 'cancel' : 'leave'
+        );
+      }
+      setActiveRoom(null);
+      setConnectMode('local');
+      setConnectPrivateMessage('');
+    } catch (error) {
+      setConnectPrivateMessage(error instanceof Error ? error.message : 'Impossible de quitter la salle.');
+    } finally {
+      setConnectPrivateBusy(false);
+    }
   };
 
   const assignChallengeMember = (memberId: string, teamIndex: 0 | 1) => {
@@ -1427,23 +1543,108 @@ export function FamilyGames({
         {activeGame === 'connect4' && (
           <>
             {gameHeader('Puissance 4', 'Alignez quatre jetons horizontalement, verticalement ou en diagonale.', Circle)}
+            <div className="grid grid-cols-3 gap-2 max-w-xl mx-auto">
+              {([
+                ['local', Users, 'Même écran'],
+                ['bot', Bot, 'Ordinateur'],
+                ['private', Radio, 'Duel privé']
+              ] as const).map(([value, Icon, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={Boolean(connectRoom && value !== 'private')}
+                  onClick={() => {
+                    if (value === 'private' && !isPremium) {
+                      onTriggerPaywall?.();
+                      return;
+                    }
+                    setConnectMode(value);
+                    setConnectVsBot(value === 'bot');
+                    if (value !== 'private') setActiveRoom(previous => previous?.gameType === 'connect4' ? null : previous);
+                    setBoard(emptyBoard());
+                    setConnectWinner(0);
+                    setConnectDraw(false);
+                    setCurrentPlayer(1);
+                  }}
+                  className={`rounded-2xl border p-3 text-center disabled:opacity-40 ${connectMode === value ? 'border-[#4F8CFF] bg-[#4F8CFF]/12' : 'border-white/8 bg-white/5'}`}
+                >
+                  <Icon className="mx-auto h-5 w-5 text-[#4F8CFF]" />
+                  <strong className="mt-2 block text-[10px] text-white">{label}</strong>
+                </button>
+              ))}
+            </div>
+            {connectMode === 'private' ? (
+              <div className="space-y-4">
+                {!connectRoom ? (
+                  <PrivateFamilyRoom
+                    foyerId={foyerId}
+                    familyName={privatePlayerName}
+                    selectedGame="connect4"
+                    onRoomReady={room => setActiveRoom(room)}
+                    onRoomClosed={() => {
+                      setActiveRoom(null);
+                      setConnectMode('local');
+                    }}
+                  />
+                ) : (
+                  <>
+                    <div className="rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/8 p-4 flex items-center justify-between gap-3">
+                      <span><strong className="block text-xs text-white">{connectRoom.hostName}</strong><span className="text-[9px] text-white/40">Rouge</span></span>
+                      <span className="text-[10px] font-black uppercase text-[#9E94FF]">Salle {connectRoom.code}</span>
+                      <span className="text-right"><strong className="block text-xs text-white">{connectRoom.guestName || 'En attente'}</strong><span className="text-[9px] text-white/40">Jaune</span></span>
+                    </div>
+                    <div className={`rounded-2xl border p-4 text-center ${privateConnectTurn === privateConnectPlayer && connectRoom.status === 'active' ? 'border-[#00D26A]/25 bg-[#00D26A]/8' : 'border-white/8 bg-white/5'}`}>
+                      <strong className="text-sm text-white">
+                        {connectRoom.status === 'waiting'
+                          ? 'En attente d’un autre joueur...'
+                          : connectRoom.status === 'finished'
+                            ? privateConnectDraw ? 'Grille pleine : égalité' : privateConnectWinner === privateConnectPlayer ? 'Vous remportez la manche !' : 'L’autre joueur remporte la manche'
+                            : privateConnectTurn === privateConnectPlayer ? 'À vous de jouer' : 'L’autre joueur réfléchit...'}
+                      </strong>
+                    </div>
+                    <div className="family-games-board max-w-xl mx-auto rounded-[24px] border p-2.5 sm:p-4 shadow-xl">
+                      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+                        {privateConnectBoard.map((row, rowIndex) => row.map((cell, colIndex) => (
+                          <button
+                            key={`${rowIndex}-${colIndex}`}
+                            type="button"
+                            disabled={connectRoom.status !== 'active' || privateConnectTurn !== privateConnectPlayer || connectPrivateBusy || privateConnectWinner !== 0 || privateConnectDraw}
+                            onClick={() => void playPrivateConnectColumn(colIndex)}
+                            className="family-games-slot aspect-square rounded-full border p-[12%] disabled:cursor-default"
+                            aria-label={`Colonne ${colIndex + 1}`}
+                          >
+                            <span className={`connect-piece block w-full h-full rounded-full ${
+                              cell === 1 ? 'bg-[#FF4D6D]' : cell === 2 ? 'bg-[#FFB020]' : 'bg-white/5'
+                            }`} />
+                          </button>
+                        )))}
+                      </div>
+                    </div>
+                    {connectRoom.status === 'finished' && (
+                      <button
+                        type="button"
+                        onClick={() => void requestPrivateConnectRematch()}
+                        disabled={connectPrivateBusy || privateConnectRematchRequested}
+                        className="w-full rounded-2xl bg-[#4F8CFF] py-3 text-xs font-black text-white disabled:opacity-50"
+                      >
+                        {privateConnectRematchRequested ? 'En attente de l’autre joueur' : 'Proposer une revanche'}
+                      </button>
+                    )}
+                    <button type="button" onClick={() => void closePrivateConnectRoom()} disabled={connectPrivateBusy} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[#FF4D6D]/20 py-3 text-xs font-black text-[#FF4D6D]">
+                      <LogOut className="h-4 w-4" /> Quitter le salon
+                    </button>
+                  </>
+                )}
+                {connectPrivateMessage && <p className="rounded-xl border border-white/8 bg-white/5 p-3 text-center text-xs font-bold text-white/60">{connectPrivateMessage}</p>}
+              </div>
+            ) : (
+              <>
             <div className="grid grid-cols-2 gap-2 max-w-xl mx-auto">
               {[0, 1].map(index => (
                 <select key={index} value={playerIds[index]} disabled={connectVsBot && index === 1} onChange={event => setPlayerIds(previous => index === 0 ? [event.target.value, previous[1]] : [previous[0], event.target.value])} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-bold text-white">
                   {members.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}
                 </select>
               ))}
-            </div>
-            <div className="flex justify-center">
-              <button type="button" onClick={() => {
-                setConnectVsBot(value => !value);
-                setBoard(emptyBoard());
-                setConnectWinner(0);
-                setConnectDraw(false);
-                setCurrentPlayer(1);
-              }} className={`rounded-full border px-4 py-2 text-xs font-black flex items-center gap-2 ${connectVsBot ? 'border-[#4F8CFF] bg-[#4F8CFF]/12 text-[#4F8CFF]' : 'border-white/8 bg-white/5 text-white/60'}`}>
-                <Bot className="w-4 h-4" /> {connectVsBot ? 'Adversaire automatique' : 'Jouer contre l’ordinateur'}
-              </button>
             </div>
             {connectVsBot && (
               <div className="grid grid-cols-3 gap-2 max-w-xl mx-auto">
@@ -1501,6 +1702,8 @@ export function FamilyGames({
                 <p className="text-sm font-bold text-white/70">À {connectVsBot && currentPlayer === 2 ? 'l’ordinateur' : players[currentPlayer - 1].name} de jouer</p>
               )}
             </div>
+              </>
+            )}
           </>
         )}
 
@@ -1509,7 +1712,7 @@ export function FamilyGames({
             {gameHeader('Bataille navale', 'Placez votre flotte, protégez vos positions et coulez les cinq bateaux adverses.', Ship)}
             <BattleshipGame
               foyerId={foyerId}
-              familyName={familyName}
+              familyName={privatePlayerName}
               isPremium={isPremium}
               playerNames={[players[0].name, players[1].name]}
               room={activeRoom?.gameType === 'battleship' ? activeRoom : null}
