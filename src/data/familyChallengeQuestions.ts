@@ -144,42 +144,211 @@ const CORE_FAMILY_CHALLENGE_QUESTIONS: FamilyChallengeQuestion[] = [
   question('fetes-06', 'Fêtes', 'Intermédiaire', 'Quel est le meilleur souvenir à conserver après une fête ?', ['Les photos|photo', 'Une vidéo', 'Une carte|mot écrit', 'Un objet souvenir', 'Les messages|témoignages'])
 ];
 
-const CONTEXT_PACKS: Array<Pick<FamilyChallengeQuestion, 'ageGroup' | 'pack'> & { key: string; lead: string }> = [
-  { key: 'kids', ageGroup: 'Enfants', pack: 'Enfants', lead: 'Selon les enfants, ' },
-  { key: 'teens', ageGroup: 'Adolescents', pack: 'Adolescents', lead: 'Selon les adolescents, ' },
-  { key: 'parents', ageGroup: 'Adultes', pack: 'Parents', lead: 'Selon les parents, ' },
-  { key: 'holiday', ageGroup: 'Famille', pack: 'Vacances', lead: 'Pendant les vacances, ' },
-  { key: 'traditions', ageGroup: 'Famille', pack: 'Culture familiale', lead: 'Dans les traditions familiales, ' }
+type ExpansionSeed = [
+  prompt: string,
+  pool: number,
+  difficulty?: FamilyChallengeQuestion['difficulty'],
+  ageGroup?: FamilyChallengeQuestion['ageGroup'],
+  pack?: FamilyChallengeQuestion['pack']
 ];
 
-const lowerFirst = (value: string): string => value ? value[0].toLocaleLowerCase('fr-FR') + value.slice(1) : value;
+const EXPANSION_POOLS: Record<FamilyChallengeQuestion['category'], string[][]> = {
+  Maison: [
+    ['Le canapé|sofa', 'La cuisine', 'Le lit', 'La télévision|télé', 'La salle de bain', 'Le balcon|terrasse', 'Le bureau', 'Le jardin'],
+    ['Les clés|clefs', 'Le téléphone|portable', 'La télécommande', 'Les lunettes', 'Le chargeur', 'Le portefeuille', 'Les chaussettes', 'Un stylo'],
+    ['Ranger', 'Passer l’aspirateur', 'Faire la vaisselle', 'Plier le linge', 'Sortir les poubelles', 'Nettoyer la salle de bain', 'Faire les vitres', 'Changer les draps'],
+    ['Un lave-vaisselle', 'Un aspirateur robot', 'Une machine à laver', 'Un grand réfrigérateur|frigo', 'Un sèche-linge', 'Un four', 'Des rangements', 'Une machine à café'],
+    ['La sonnette', 'Le réveil', 'L’aspirateur', 'Une porte qui claque', 'Un enfant qui pleure', 'Le téléphone', 'Le chien', 'Un objet qui tombe']
+  ],
+  Quotidien: [
+    ['Le téléphone|portable', 'Les clés|clefs', 'Le portefeuille', 'Le chargeur', 'Une veste', 'Les écouteurs', 'La gourde', 'Un document'],
+    ['Regarder l’heure', 'Éteindre le réveil', 'Regarder son téléphone', 'Aller aux toilettes', 'Boire un café', 'Ouvrir les volets', 'Prendre une douche', 'Boire de l’eau'],
+    ['Les embouteillages|bouchons', 'Chercher ses affaires', 'Les enfants ne sont pas prêts', 'Se rendormir', 'Un imprévu', 'Mal calculer le temps', 'Changer de tenue', 'Le réveil ne sonne pas'],
+    ['Un câlin|calin', 'Une bonne nouvelle', 'De la musique', 'Un café', 'Un compliment', 'Du soleil', 'Un bon repas', 'Voir un proche'],
+    ['Le repas', 'Le coucher', 'Le programme télé', 'Les tâches', 'Le temps d’écran', 'Les achats', 'Le week-end', 'La température de la maison']
+  ],
+  Repas: [
+    ['Des pâtes|pates', 'Une pizza', 'Des œufs|oeufs', 'Des sandwiches', 'Une salade', 'Des restes', 'Des céréales', 'Commander un repas'],
+    ['Le chocolat', 'Les bonbons', 'Les frites', 'La glace', 'La pizza', 'Les biscuits', 'Les chips', 'Un soda'],
+    ['La pizza', 'Les pâtes', 'Le poulet', 'Les crêpes', 'Le barbecue', 'Le couscous', 'Les lasagnes', 'La raclette'],
+    ['Le lait', 'Les œufs|oeufs', 'Le beurre', 'Le fromage', 'Les yaourts', 'Des légumes', 'Une sauce', 'Des restes'],
+    ['Le dessert', 'L’apéritif|apero', 'Le plat principal', 'Les discussions', 'Les cadeaux', 'Le fromage', 'Le café', 'Les photos']
+  ],
+  Vacances: [
+    ['Le chargeur', 'La brosse à dents', 'Les papiers', 'Le maillot de bain', 'Les lunettes de soleil', 'La crème solaire', 'Les médicaments', 'Une serviette'],
+    ['Poser les valises', 'Visiter la chambre', 'Tester le lit', 'Regarder la vue', 'Se connecter au wifi', 'Chercher la piscine', 'Prendre une photo', 'Se reposer'],
+    ['La pluie', 'Une dispute', 'Un retard', 'Un objet perdu', 'Être malade', 'La chaleur', 'Une réservation ratée', 'Un téléphone déchargé'],
+    ['Des photos', 'Un magnet', 'Une carte postale', 'Un vêtement', 'Une spécialité locale', 'Un porte-clés', 'Un coquillage', 'Un cadeau local'],
+    ['La baignade', 'Une promenade', 'Un restaurant', 'Une visite', 'Un jeu de société', 'Un pique-nique', 'Une excursion', 'Un spectacle']
+  ],
+  École: [
+    ['Un cahier', 'Une trousse', 'Les devoirs', 'Le goûter', 'La gourde', 'Un livre', 'Une règle', 'Les clés du casier'],
+    ['Les mathématiques|maths', 'Le français', 'L’anglais', 'La physique', 'L’histoire', 'La chimie', 'La géographie', 'La grammaire'],
+    ['Réviser', 'Bien dormir', 'Écouter en classe', 'Faire des exercices', 'Rester calme', 'Demander de l’aide', 'Faire une fiche', 'Relire ses réponses'],
+    ['Un stylo', 'Un crayon', 'Une gomme', 'Un cahier', 'Une règle', 'Un surligneur', 'De la colle', 'Des feuilles'],
+    ['La récréation|récré', 'La sortie', 'La cantine', 'Le sport', 'Les amis', 'Les activités artistiques', 'Le cours préféré', 'Le trajet du retour']
+  ],
+  Loisirs: [
+    ['Regarder un film', 'Jouer à un jeu', 'Écouter de la musique', 'Lire', 'Discuter', 'Faire une promenade', 'Cuisiner', 'Faire un puzzle'],
+    ['Le vélo', 'La randonnée', 'La natation', 'Le football', 'Le badminton', 'La course', 'Le basket', 'Le tennis'],
+    ['Un ballon', 'Une gourde', 'Un goûter', 'Une couverture', 'Un vélo', 'De la crème solaire', 'Un livre', 'Des raquettes'],
+    ['Les jeux vidéo', 'Une série', 'La lecture', 'Les réseaux sociaux', 'Le jardinage', 'Le dessin', 'La cuisine', 'Le sport'],
+    ['Le Monopoly', 'Le Uno', 'Les petits chevaux', 'Le Scrabble', 'Le jeu de l’oie', 'Le Cluedo', 'La bataille', 'Le Puissance 4']
+  ],
+  Famille: [
+    ['Le dîner', 'Le week-end', 'Un anniversaire', 'Les vacances', 'Une soirée film', 'Le petit-déjeuner', 'Une sortie', 'Une réunion familiale'],
+    ['L’organisation', 'L’humour', 'La cuisine', 'Calmer les disputes', 'Retrouver les objets', 'Réparer', 'Écouter', 'Conduire'],
+    ['Un câlin', 'Dire je t’aime', 'Un compliment', 'Un cadeau', 'Rendre service', 'Un message', 'Préparer un repas', 'Passer du temps ensemble'],
+    ['Les vacances', 'Les repas', 'Les anniversaires', 'Les photos', 'Les jeux', 'Les histoires', 'Une sortie annuelle', 'Une tradition'],
+    ['La patience', 'Le respect', 'L’écoute', 'L’entraide', 'L’humour', 'La confiance', 'La communication', 'Le pardon']
+  ],
+  Fêtes: [
+    ['Un gâteau', 'Des bougies', 'Des cadeaux', 'Des ballons', 'De la musique', 'Des invités', 'Des boissons', 'Des photos'],
+    ['La cuisine', 'La décoration', 'Choisir une tenue', 'Ranger la maison', 'Emballer les cadeaux', 'La liste des invités', 'La musique', 'Installer la table'],
+    ['Les anciennes photos', 'Une anecdote', 'La danse', 'Les jeux', 'Les enfants', 'Les blagues', 'Un cadeau inattendu', 'Un enfant qui danse'],
+    ['Chanter', 'Prendre une photo', 'Faire un vœu', 'Compter les bougies', 'Éteindre la lumière', 'Applaudir', 'Approcher le gâteau', 'Demander l’âge'],
+    ['Un invité en retard', 'Un plat raté', 'Un cadeau oublié', 'Une tenue tachée', 'La pluie', 'Une décoration qui tombe', 'Un invité surprise', 'Une panne de musique']
+  ]
+};
 
-const CONTEXTUAL_FAMILY_CHALLENGE_QUESTIONS = CORE_FAMILY_CHALLENGE_QUESTIONS.flatMap(base =>
-  CONTEXT_PACKS.map(context => ({
-    ...base,
-    id: `${base.id}-${context.key}`,
-    ageGroup: context.ageGroup,
-    pack: base.category === 'Fêtes' ? 'Fêtes' : context.pack,
-    prompt: `${context.lead}${lowerFirst(base.prompt)}`
-  }))
-);
+const EXPANSION_SEEDS: Record<FamilyChallengeQuestion['category'], ExpansionSeed[]> = {
+  Maison: [
+    ['Dans quel endroit de la maison aime-t-on se retrouver ?', 0], ['Où finit-on souvent par s’endormir sans le prévoir ?', 0], ['Quelle pièce montre-t-on en premier aux invités ?', 0],
+    ['Quel endroit devient vite le quartier général du week-end ?', 0], ['Quel objet cherche-t-on juste avant de sortir ?', 1], ['Quel objet est souvent emprunté sans demander ?', 1],
+    ['Quel objet retrouve-t-on dans un endroit improbable ?', 1], ['Quelle corvée demande le plus de motivation ?', 2], ['Quelle tâche donne le résultat le plus visible ?', 2],
+    ['Quelle corvée crée le plus de négociations ?', 2], ['Quelle tâche fait-on en urgence avant une visite ?', 2], ['Quel équipement ferait gagner le plus de temps ?', 3],
+    ['Quel appareil manque le plus lorsqu’il tombe en panne ?', 3], ['Quel achat rendrait une petite maison plus pratique ?', 3], ['Quel équipement est le plus utilisé chaque semaine ?', 3],
+    ['Quel bruit fait vérifier ce qui se passe dans la maison ?', 4], ['Quel bruit est le plus difficile à ignorer ?', 4], ['Quel son annonce souvent une interruption ?', 4],
+    ['Quel bruit déclenche le plus souvent un « qui a fait ça ? » ?', 4]
+  ],
+  Quotidien: [
+    ['Quel objet vérifie-t-on avant de fermer la porte ?', 0], ['Quel objet oublie-t-on au pire moment ?', 0], ['Que retourne-t-on chercher après être parti ?', 0],
+    ['Quel objet passe le plus souvent d’une poche à l’autre ?', 0], ['Quelle action est faite presque machinalement le matin ?', 1], ['Que fait-on pour gagner cinq minutes au réveil ?', 1],
+    ['Quelle habitude matinale est la plus difficile à changer ?', 1], ['Quelle est la cause la plus fréquente d’un départ retardé ?', 2], ['Quel imprévu bouleverse le plus facilement la matinée ?', 2],
+    ['Quelle excuse de retard semble la plus crédible ?', 2], ['Qu’est-ce qui transforme une journée ordinaire en bonne journée ?', 3], ['Quel petit plaisir est le plus facile à offrir ?', 3],
+    ['Qu’est-ce qui aide le plus à repartir après une mauvaise journée ?', 3], ['Quel geste améliore immédiatement l’ambiance ?', 3], ['Quel choix quotidien fait parler toute la famille ?', 4],
+    ['Quel sujet est reporté jusqu’au dernier moment ?', 4], ['Quelle décision prend plus de temps qu’elle ne devrait ?', 4], ['Sur quoi change-t-on le plus souvent d’avis ?', 4],
+    ['Quel sujet revient presque chaque soir ?', 4]
+  ],
+  Repas: [
+    ['Quel repas prépare-t-on avec très peu de temps ?', 0], ['Que cuisine-t-on lorsque le réfrigérateur semble vide ?', 0], ['Quel repas sauve le plus souvent un dimanche soir ?', 0],
+    ['Quel plat est le plus facile à adapter aux goûts de chacun ?', 0], ['Quelle gourmandise disparaît le plus vite du placard ?', 1], ['Quel aliment est le plus difficile à partager équitablement ?', 1],
+    ['Que réclame-t-on après avoir pourtant dit ne plus avoir faim ?', 1], ['Quel aliment est le plus associé à une soirée détente ?', 1], ['Quel plat fait venir tout le monde à table ?', 2],
+    ['Quel repas donne le plus envie de se resservir ?', 2], ['Quel plat convient le mieux à une grande tablée ?', 2], ['Quel repas crée le plus de souvenirs ?', 2],
+    ['Quel produit manque toujours quand on veut cuisiner ?', 3], ['Quel aliment vérifie-t-on le plus souvent avant les courses ?', 3], ['Que trouve-t-on dans presque tous les petits-déjeuners ?', 3],
+    ['Quel aliment sert le plus souvent à improviser un repas ?', 3], ['Quelle partie d’un repas de fête dure le plus longtemps ?', 4], ['Quel moment du repas rassemble le plus les générations ?', 4],
+    ['Qu’attend-on avec le plus d’impatience pendant un grand repas ?', 4]
+  ],
+  Vacances: [
+    ['Quel objet est indispensable mais souvent oublié en voyage ?', 0], ['Que vérifie-t-on plusieurs fois avant un départ ?', 0], ['Quel oubli oblige le plus souvent à acheter sur place ?', 0],
+    ['Quel objet prend toujours plus de place que prévu dans la valise ?', 0], ['Que fait-on pour découvrir immédiatement son lieu de vacances ?', 1], ['Quelle est la première vérification dans une location ?', 1],
+    ['Quelle activité fait-on avant même de défaire les bagages ?', 1], ['Quel détail peut gâcher une excursion ?', 2], ['Quel incident de voyage fait perdre le plus de temps ?', 2],
+    ['Qu’est-ce qui provoque le plus facilement une dispute en vacances ?', 2], ['Quel imprévu oblige à changer tout le programme ?', 2], ['Quel souvenir offre-t-on le plus facilement au retour ?', 3],
+    ['Quel objet rappelle le mieux un voyage plusieurs années après ?', 3], ['Que collectionne-t-on le plus volontiers pendant les vacances ?', 3], ['Quel souvenir coûte peu mais fait toujours plaisir ?', 3],
+    ['Quelle activité convient le mieux à une journée sans programme ?', 4], ['Quelle sortie permet de contenter plusieurs générations ?', 4], ['Quelle activité donne les meilleures photos ?', 4],
+    ['Quel programme choisit-on pour une dernière journée de vacances ?', 4]
+  ],
+  École: [
+    ['Quel objet scolaire est le plus souvent oublié à la maison ?', 0, 'Facile', 'Enfants', 'Enfants'], ['Que demande-t-on le plus souvent à un camarade de prêter ?', 0, 'Facile', 'Enfants', 'Enfants'],
+    ['Quel objet alourdit inutilement le cartable ?', 0, 'Intermédiaire', 'Enfants', 'Enfants'], ['Quelle matière demande le plus de concentration ?', 1, 'Facile', 'Enfants', 'Enfants'],
+    ['Quelle matière provoque le plus souvent une demande d’aide ?', 1, 'Intermédiaire', 'Adolescents', 'Adolescents'], ['Quel cours paraît passer le moins vite ?', 1, 'Intermédiaire', 'Adolescents', 'Adolescents'],
+    ['Quelle matière est la plus difficile à réviser seul ?', 1, 'Difficile', 'Adolescents', 'Adolescents'], ['Quelle habitude améliore le plus les résultats ?', 2, 'Facile', 'Enfants', 'Enfants'],
+    ['Que faut-il faire en premier avant un contrôle ?', 2, 'Intermédiaire', 'Adolescents', 'Adolescents'], ['Quel conseil scolaire est le plus souvent répété ?', 2, 'Facile', 'Enfants', 'Enfants'],
+    ['Qu’est-ce qui aide à reprendre confiance après une mauvaise note ?', 2, 'Difficile', 'Adolescents', 'Adolescents'], ['Quelle fourniture disparaît le plus vite ?', 3, 'Facile', 'Enfants', 'Enfants'],
+    ['Quel objet faut-il racheter plusieurs fois dans l’année ?', 3, 'Facile', 'Enfants', 'Enfants'], ['Quelle fourniture est la plus souvent personnalisée ?', 3, 'Intermédiaire', 'Enfants', 'Enfants'],
+    ['Quel objet scolaire est le plus souvent mâchouillé ou abîmé ?', 3, 'Facile', 'Enfants', 'Enfants'], ['Quel moment permet le mieux de retrouver ses amis ?', 4, 'Facile', 'Enfants', 'Enfants'],
+    ['Quel moment de l’école crée les meilleurs souvenirs ?', 4, 'Intermédiaire', 'Adolescents', 'Adolescents'], ['Quelle partie de la journée scolaire est la plus attendue ?', 4, 'Facile', 'Enfants', 'Enfants'],
+    ['Quel moment donne le plus envie de raconter sa journée ?', 4, 'Intermédiaire', 'Enfants', 'Enfants']
+  ],
+  Loisirs: [
+    ['Quelle activité choisit-on pour ralentir le rythme ?', 0], ['Que propose-t-on lorsqu’on veut rester à la maison ?', 0], ['Quelle activité est la plus facile à commencer sans préparation ?', 0],
+    ['Quel loisir permet le mieux de discuter en même temps ?', 0], ['Quel sport est le plus simple à pratiquer sans club ?', 1], ['Quelle activité sportive convient à plusieurs niveaux ?', 1],
+    ['Quel sport donne le plus facilement envie de sortir ?', 1], ['Quelle activité physique peut devenir une sortie familiale ?', 1], ['Quel objet oublie-t-on le plus souvent pour une sortie ?', 2],
+    ['Que faut-il toujours prévoir pour occuper les enfants dehors ?', 2], ['Quel accessoire rend une sortie plus confortable ?', 2], ['Quel loisir fait le plus oublier l’heure ?', 3],
+    ['Quelle activité absorbe le plus facilement toute l’attention ?', 3], ['Quel passe-temps peut durer bien plus longtemps que prévu ?', 3], ['Quel loisir est le plus difficile à interrompre ?', 3],
+    ['Quel jeu ressort le plus souvent lors d’une soirée familiale ?', 4], ['Quel jeu provoque le plus de revanche immédiate ?', 4], ['Quel jeu est expliqué le plus vite aux nouveaux joueurs ?', 4],
+    ['Quel classique traverse le mieux les générations ?', 4]
+  ],
+  Famille: [
+    ['Quel rendez-vous familial est le plus difficile à déplacer ?', 0], ['Quel moment permet le mieux de prendre des nouvelles de chacun ?', 0], ['Quand fait-on le plus facilement une photo de toute la famille ?', 0],
+    ['Quel moment mérite le plus d’éteindre les téléphones ?', 0], ['Quel talent familial est le plus sous-estimé ?', 1], ['Quelle compétence sauve le plus souvent une journée compliquée ?', 1],
+    ['Quel rôle finit toujours par être confié à la même personne ?', 1], ['Quel talent aimerait-on transmettre aux enfants ?', 1], ['Quel geste d’affection est compris à tout âge ?', 2],
+    ['Quelle attention fait plaisir sans coûter d’argent ?', 2], ['Comment montre-t-on le plus souvent qu’on pense à quelqu’un ?', 2], ['Quel geste réconcilie le plus vite après une dispute ?', 2],
+    ['Quelle tradition familiale serait la plus difficile à abandonner ?', 3], ['Quelle habitude mérite de devenir une tradition ?', 3], ['Quel rituel donne le plus le sentiment d’appartenir à une famille ?', 3],
+    ['Quel souvenir familial raconte-t-on le plus souvent ?', 3], ['Quelle qualité évite le plus de conflits ?', 4], ['Quelle valeur souhaite-t-on transmettre en premier ?', 4],
+    ['Quelle qualité aide le plus une famille dans une période difficile ?', 4]
+  ],
+  Fêtes: [
+    ['Quel élément annonce immédiatement qu’une fête commence ?', 0, 'Facile', 'Famille', 'Fêtes'], ['Que remarque-t-on en premier en arrivant à un anniversaire ?', 0, 'Facile', 'Enfants', 'Fêtes'],
+    ['Quel élément est indispensable sur les photos de fête ?', 0, 'Facile', 'Famille', 'Fêtes'], ['Quelle préparation est le plus souvent terminée en retard ?', 1, 'Intermédiaire', 'Adultes', 'Fêtes'],
+    ['Que prépare-t-on plusieurs jours avant une grande fête ?', 1, 'Intermédiaire', 'Adultes', 'Fêtes'], ['Quelle tâche de fête demande le plus d’aide ?', 1, 'Intermédiaire', 'Famille', 'Fêtes'],
+    ['Quel détail est changé au dernier moment ?', 1, 'Difficile', 'Adultes', 'Fêtes'], ['Qu’est-ce qui déclenche le plus facilement un fou rire en famille ?', 2, 'Facile', 'Famille', 'Fêtes'],
+    ['Quel moment de fête devient souvent une vidéo ?', 2, 'Facile', 'Famille', 'Fêtes'], ['Qu’est-ce que les enfants retiennent le plus d’une fête ?', 2, 'Facile', 'Enfants', 'Fêtes'],
+    ['Quel souvenir ressort lors des fêtes suivantes ?', 2, 'Intermédiaire', 'Famille', 'Fêtes'], ['Que fait presque tout le monde avant de couper le gâteau ?', 3, 'Facile', 'Famille', 'Fêtes'],
+    ['Quel geste provoque le plus de téléphones levés ?', 3, 'Facile', 'Famille', 'Fêtes'], ['Quel moment fait taire la salle quelques secondes ?', 3, 'Intermédiaire', 'Famille', 'Fêtes'],
+    ['Quel petit problème crée le plus de stress juste avant les invités ?', 4, 'Intermédiaire', 'Adultes', 'Fêtes'], ['Quel imprévu oblige à improviser pendant une fête ?', 4, 'Difficile', 'Adultes', 'Fêtes'],
+    ['Quel détail vérifie-t-on plusieurs fois avant une réception ?', 4, 'Intermédiaire', 'Adultes', 'Fêtes'], ['Quel incident est souvent drôle seulement après coup ?', 4, 'Difficile', 'Famille', 'Fêtes'],
+    ['Quel problème peut retarder le début de toute la fête ?', 4, 'Intermédiaire', 'Adultes', 'Fêtes']
+  ]
+};
 
-// 48 questions essentielles et 240 variantes éditoriales classées par âge et pack.
-// Chaque réponse conserve sa liste d'alias contrôlée afin que deux synonymes pointent
-// toujours vers la même case du tableau.
+const packForCategory = (
+  category: FamilyChallengeQuestion['category'],
+  ageGroup: FamilyChallengeQuestion['ageGroup']
+): FamilyChallengeQuestion['pack'] => {
+  if (category === 'Vacances') return 'Vacances';
+  if (category === 'Fêtes') return 'Fêtes';
+  if (ageGroup === 'Enfants') return 'Enfants';
+  if (ageGroup === 'Adolescents') return 'Adolescents';
+  if (ageGroup === 'Adultes') return 'Parents';
+  if (category === 'Famille') return 'Culture familiale';
+  return 'Essentiel';
+};
+
+const EXPANDED_FAMILY_CHALLENGE_QUESTIONS: FamilyChallengeQuestion[] = (
+  Object.entries(EXPANSION_SEEDS) as Array<[FamilyChallengeQuestion['category'], ExpansionSeed[]]>
+).flatMap(([category, seeds]) => seeds.map((seed, index) => {
+  const [prompt, poolIndex, difficulty = 'Intermédiaire', explicitAgeGroup, explicitPack] = seed;
+  const ageGroup = explicitAgeGroup || (['Enfants', 'Adolescents', 'Adultes', 'Famille'] as const)[index % 4];
+  return {
+    id: `survey-${category.toLocaleLowerCase('fr-FR').normalize('NFD').replace(/[\u0300-\u036f]/g, '')}-${String(index + 1).padStart(2, '0')}`,
+    category,
+    difficulty,
+    ageGroup,
+    pack: explicitPack || packForCategory(category, ageGroup),
+    prompt,
+    answers: EXPANSION_POOLS[category][poolIndex].map(answer)
+  };
+}));
+
+// 48 questions essentielles et 152 sondages supplémentaires réellement distincts.
+// Chaque tableau contient huit réponses et des alias contrôlés.
 export const FAMILY_CHALLENGE_QUESTIONS: FamilyChallengeQuestion[] = [
   ...CORE_FAMILY_CHALLENGE_QUESTIONS,
-  ...CONTEXTUAL_FAMILY_CHALLENGE_QUESTIONS
+  ...EXPANDED_FAMILY_CHALLENGE_QUESTIONS
 ];
+
+export type ChallengeQuestionFilters = {
+  pack?: FamilyChallengeQuestion['pack'];
+  category?: FamilyChallengeQuestion['category'];
+  difficulty?: FamilyChallengeQuestion['difficulty'];
+  ageGroup?: FamilyChallengeQuestion['ageGroup'];
+};
 
 export const getChallengeQuestion = (
   round: number,
   seed = 'family',
   limit = FAMILY_CHALLENGE_QUESTIONS.length,
   excludedIds: string[] = [],
-  pack?: FamilyChallengeQuestion['pack']
+  filters: ChallengeQuestionFilters = {}
 ): FamilyChallengeQuestion => {
-  const basePool = pack ? FAMILY_CHALLENGE_QUESTIONS.filter(item => item.pack === pack) : FAMILY_CHALLENGE_QUESTIONS;
+  const filteredPool = FAMILY_CHALLENGE_QUESTIONS.filter(item => (
+    (!filters.pack || item.pack === filters.pack)
+    && (!filters.category || item.category === filters.category)
+    && (!filters.difficulty || item.difficulty === filters.difficulty)
+    && (!filters.ageGroup || item.ageGroup === filters.ageGroup)
+  ));
+  const basePool = filteredPool.length > 0 ? filteredPool : FAMILY_CHALLENGE_QUESTIONS;
   const allowed = basePool.slice(0, Math.max(1, Math.min(limit, basePool.length)));
   const excluded = new Set(excludedIds);
   const available = allowed.filter(item => !excluded.has(item.id));

@@ -86,7 +86,9 @@ export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, initialRo
       await familyGameService.performRoomAction(
         room.id,
         foyerId,
-        room.hostFoyerId === foyerId ? 'cancel' : 'leave'
+        room.status === 'active'
+          ? 'leave'
+          : room.hostFoyerId === foyerId ? 'cancel' : 'leave'
       );
       setRoom(null);
       setMode('menu');

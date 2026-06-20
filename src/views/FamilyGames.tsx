@@ -25,7 +25,10 @@ import type { FamilyEvent, FamilyVote, Member, MemoryLog, PocketMoneyChild } fro
 import { getSupabaseClient } from '../utils/supabase';
 import { MimeChallengeGame } from '../components/games/MimeChallengeGame';
 import { PrivateFamilyRoom } from '../components/games/PrivateFamilyRoom';
-import { FamilyChallengeGame } from '../components/games/FamilyChallengeGame';
+import {
+  FamilyChallengeGame,
+  type FamilyChallengeRecap
+} from '../components/games/FamilyChallengeGame';
 import { BattleshipGame } from '../components/games/BattleshipGame';
 import {
   familyGameService,
@@ -234,7 +237,7 @@ export function FamilyGames({
   const [results, setResults] = useState<FamilyGameResult[]>([]);
   const [activeRoom, setActiveRoom] = useState<FamilyGameRoom | null>(null);
   const [showHistory, setShowHistory] = useState(false);
-  const [lastRecap, setLastRecap] = useState<{ scores: [number, number]; winnerName: string } | null>(null);
+  const [lastRecap, setLastRecap] = useState<FamilyChallengeRecap | null>(null);
   const [memoryRound, setMemoryRound] = useState(1);
   const [memoryPairCount, setMemoryPairCount] = useState<6 | 8 | 12>(6);
   const [memoryMode, setMemoryMode] = useState<MemoryMode>('individual');
@@ -315,6 +318,18 @@ export function FamilyGames({
     }
     return { names: ['Équipe Soleil', 'Équipe Comète'], colors: ['#FFB020', '#6C5CFF'] };
   });
+  const [challengeTeamMemberIds, setChallengeTeamMemberIds] = useState<[string[], string[]]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(`mf_games_challenge_members_${foyerId}`) || 'null');
+      if (Array.isArray(saved) && Array.isArray(saved[0]) && Array.isArray(saved[1])) return [saved[0], saved[1]];
+    } catch {
+      // Keep the balanced default.
+    }
+    return [
+      members.filter((_, index) => index % 2 === 0).map(member => member.id),
+      members.filter((_, index) => index % 2 === 1).map(member => member.id)
+    ];
+  });
   const [connectScores, setConnectScores] = useState<[number, number]>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(`mf_games_connect4_${foyerId}`) || '[0,0]');
@@ -326,13 +341,48 @@ export function FamilyGames({
 
   const challengeQuestionCount = isPremium ? FAMILY_CHALLENGE_QUESTIONS.length : 12;
   const challengeRoom = activeRoom?.gameType === 'family-challenge' ? activeRoom : null;
-  const challengeTeams = useMemo(() => challengeRoom ? [
-    { id: challengeRoom.hostFoyerId, name: challengeRoom.hostName, photoUrl: '' },
-    { id: challengeRoom.guestFoyerId || 'guest-family', name: challengeRoom.guestName || 'Famille invitée', photoUrl: '' }
-  ] : [
-    { id: 'team-1', name: teamSettings.names[0], photoUrl: '' },
-    { id: 'team-2', name: teamSettings.names[1], photoUrl: '' }
-  ], [challengeRoom, teamSettings.names]);
+  const challengeTeams = useMemo(() => {
+    const sharedMembers = Array.isArray(challengeRoom?.state.teamMembers)
+      ? challengeRoom.state.teamMembers as string[][]
+      : [];
+    const sharedCaptains = Array.isArray(challengeRoom?.state.teamCaptains)
+      ? challengeRoom.state.teamCaptains as string[]
+      : [];
+    if (challengeRoom) {
+      return [
+        {
+          id: challengeRoom.hostFoyerId,
+          name: challengeRoom.hostName,
+          photoUrl: '',
+          members: sharedMembers[0] || [challengeRoom.hostName],
+          captain: sharedCaptains[0] || challengeRoom.hostName
+        },
+        {
+          id: challengeRoom.guestFoyerId || 'guest-family',
+          name: challengeRoom.guestName || 'Famille invitée',
+          photoUrl: '',
+          members: sharedMembers[1] || [challengeRoom.guestName || 'Famille invitée'],
+          captain: sharedCaptains[1] || challengeRoom.guestName || 'Famille invitée'
+        }
+      ];
+    }
+    return [
+      {
+        id: 'team-1',
+        name: teamSettings.names[0],
+        photoUrl: '',
+        members: challengeTeamMemberIds[0].map(id => members.find(member => member.id === id)?.name).filter((name): name is string => Boolean(name)),
+        captain: members.find(member => member.id === challengeTeamMemberIds[0][0])?.name
+      },
+      {
+        id: 'team-2',
+        name: teamSettings.names[1],
+        photoUrl: '',
+        members: challengeTeamMemberIds[1].map(id => members.find(member => member.id === id)?.name).filter((name): name is string => Boolean(name)),
+        captain: members.find(member => member.id === challengeTeamMemberIds[1][0])?.name
+      }
+    ];
+  }, [challengeRoom, challengeTeamMemberIds, members, teamSettings.names]);
   const gameStats = useMemo(() => {
     const wins = new Map<string, number>();
     results.forEach(result => {
@@ -367,6 +417,10 @@ export function FamilyGames({
   }, [foyerId, teamSettings]);
 
   useEffect(() => {
+    localStorage.setItem(`mf_games_challenge_members_${foyerId}`, JSON.stringify(challengeTeamMemberIds));
+  }, [challengeTeamMemberIds, foyerId]);
+
+  useEffect(() => {
     localStorage.setItem(`mf_games_rewards_enabled_${foyerId}`, String(rewardsEnabled));
   }, [foyerId, rewardsEnabled]);
 
@@ -384,8 +438,13 @@ export function FamilyGames({
     if (isPremium) {
       void familyGameService.fetchActiveRoom(foyerId).then(room => {
         if (room && (room.status === 'waiting' || room.status === 'active')) {
-          setActiveRoom(room);
-          setActiveGame(room.gameType);
+          const resume = room.status === 'active'
+            ? familyGameService.refreshRoom(room.id, foyerId).catch(() => room)
+            : Promise.resolve(room);
+          void resume.then(nextRoom => {
+            setActiveRoom(nextRoom);
+            setActiveGame(nextRoom.gameType);
+          });
         }
       });
     }
@@ -718,6 +777,17 @@ export function FamilyGames({
     setCurrentPlayer(previous => previous === 1 ? 2 : 1);
   };
 
+  const assignChallengeMember = (memberId: string, teamIndex: 0 | 1) => {
+    setChallengeTeamMemberIds(previous => {
+      const next: [string[], string[]] = [
+        previous[0].filter(id => id !== memberId),
+        previous[1].filter(id => id !== memberId)
+      ];
+      next[teamIndex].push(memberId);
+      return next;
+    });
+  };
+
   useEffect(() => {
     if (!connectVsBot || currentPlayer !== 2 || connectWinner || connectDraw || activeGame !== 'connect4') return;
     const available = getAvailableColumns(board);
@@ -1027,6 +1097,36 @@ export function FamilyGames({
                     <input disabled={!isPremium} value={teamSettings.names[index]} maxLength={24} onChange={event => setTeamSettings(previous => ({ ...previous, names: index === 0 ? [event.target.value, previous.names[1]] : [previous.names[0], event.target.value] }))} className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none disabled:opacity-60" />
                   </label>
                 ))}
+              </div>
+              <div className="space-y-3">
+                <span className="block text-[9px] font-black uppercase text-white/40">Composition des équipes</span>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[0, 1].map(teamIndex => (
+                    <div key={teamIndex} className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                      <strong className="block truncate text-xs text-white">{teamSettings.names[teamIndex]}</strong>
+                      <span className="mt-1 block text-[9px] text-white/40">
+                        {challengeTeamMemberIds[teamIndex].length > 0
+                          ? `Capitaine : ${members.find(member => member.id === challengeTeamMemberIds[teamIndex][0])?.name || 'À choisir'}`
+                          : 'Ajoutez au moins un membre'}
+                      </span>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {members.map(member => {
+                          const selected = challengeTeamMemberIds[teamIndex].includes(member.id);
+                          return (
+                            <button
+                              key={member.id}
+                              type="button"
+                              onClick={() => assignChallengeMember(member.id, teamIndex as 0 | 1)}
+                              className={`rounded-full border px-3 py-1.5 text-[9px] font-black ${selected ? 'border-[#00D26A]/35 bg-[#00D26A]/12 text-[#00D26A]' : 'border-white/8 text-white/45'}`}
+                            >
+                              {member.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
               {!isPremium && (
                 <button type="button" onClick={onTriggerPaywall} className="w-full rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/8 py-3 text-[10px] font-black text-[#FFB020]">
@@ -1447,7 +1547,9 @@ export function FamilyGames({
                   void familyGameService.performRoomAction(
                     challengeRoom.id,
                     foyerId,
-                    challengeRoom.hostFoyerId === foyerId ? 'cancel' : 'leave'
+                    challengeRoom.status === 'active'
+                      ? 'leave'
+                      : challengeRoom.hostFoyerId === foyerId ? 'cancel' : 'leave'
                   ).finally(() => setActiveRoom(null));
                 }} className="rounded-xl border border-[#FF4D6D]/20 p-2 text-[#FF4D6D]" title="Quitter la partie">
                   <ArrowLeft className="w-4 h-4" />
@@ -1459,6 +1561,26 @@ export function FamilyGames({
                 <Trophy className="mx-auto w-12 h-12 text-[#FFB020]" />
                 <h2 className="mt-3 text-xl font-black text-white">{lastRecap.winnerName === 'Égalité' ? 'Égalité parfaite !' : `Victoire de ${lastRecap.winnerName}`}</h2>
                 <p className="mt-1 text-sm font-black text-[#FFB020]">{lastRecap.scores[0]} - {lastRecap.scores[1]}</p>
+                <p className="mt-2 text-xs text-white/50">
+                  {lastRecap.roundsPlayed} manche{lastRecap.roundsPlayed > 1 ? 's' : ''}
+                  {lastRecap.suddenDeath ? ' · départage en mort subite' : ''}
+                </p>
+                {lastRecap.roundHistory.length > 0 && (
+                  <div className="mt-4 grid gap-2 text-left sm:grid-cols-2">
+                    {lastRecap.roundHistory.map(summary => (
+                      <div key={summary.round} className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <strong className="text-xs text-white">Manche {summary.round}</strong>
+                          <span className="text-xs font-black text-[#FFB020]">{summary.bank} pts</span>
+                        </div>
+                        <span className="mt-1 block text-[9px] text-white/45">
+                          {challengeTeams[summary.winner]?.name || 'Équipe'} · {summary.foundAnswers.length}/8 réponses · {summary.strikes} erreur{summary.strikes > 1 ? 's' : ''}
+                          {summary.stolen ? ' · cagnotte volée' : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <button type="button" onClick={() => setLastRecap(null)} className="mt-4 rounded-2xl bg-[#FFB020] px-5 py-3 text-xs font-black text-[#07111F]">Nouvelle partie</button>
               </div>
             )}
@@ -1475,18 +1597,33 @@ export function FamilyGames({
               foyerId={foyerId}
               isPremium={isPremium}
               teams={[
-                { id: challengeTeams[0].id, name: challengeTeams[0].name },
-                { id: challengeTeams[1].id, name: challengeTeams[1].name }
+                {
+                  id: challengeTeams[0].id,
+                  name: challengeTeams[0].name,
+                  members: challengeTeams[0].members,
+                  captain: challengeTeams[0].captain
+                },
+                {
+                  id: challengeTeams[1].id,
+                  name: challengeTeams[1].name,
+                  members: challengeTeams[1].members,
+                  captain: challengeTeams[1].captain
+                }
               ]}
               room={challengeRoom}
               onRoomChange={handleRoomReady}
-              onFinished={(scores, winnerName) => {
-                setLastRecap({ scores, winnerName });
+              onFinished={recap => {
+                setLastRecap(recap);
                 void saveResult(
                   'family-challenge',
-                  scores,
-                  winnerName,
-                  { roomId: challengeRoom?.id, rounds: scores[0] + scores[1] },
+                  recap.scores,
+                  recap.winnerName,
+                  {
+                    roomId: challengeRoom?.id,
+                    rounds: recap.roundsPlayed,
+                    suddenDeath: recap.suddenDeath,
+                    roundHistory: recap.roundHistory
+                  },
                   challengeTeams.map(team => team.name)
                 );
               }}

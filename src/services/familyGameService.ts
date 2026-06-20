@@ -32,14 +32,20 @@ export type FamilyGameRoomAction =
   | 'configure'
   | 'start_timer'
   | 'expire_turn'
-  | 'resolve_faceoff'
-  | 'accept_answer'
-  | 'reject_answer'
-  | 'finish_round'
   | 'finish_game'
   | 'next_round'
+  | 'confirm_close_answer'
+  | 'reject_close_answer'
+  | 'resume'
+  | 'claim_forfeit'
   | 'leave'
   | 'cancel';
+
+export type FamilyChallengeSubmission = {
+  room: FamilyGameRoom;
+  status: 'accepted' | 'close' | 'rejected' | 'duplicate' | 'round_finished' | 'game_finished';
+  message?: string;
+};
 
 type GameResultRow = {
   id: string;
@@ -304,6 +310,32 @@ export const familyGameService = {
     if (error) throw new Error(getRoomErrorMessage(error));
     const row = Array.isArray(data) ? data[0] : data;
     return mapRoom(row as GameRoomRow);
+  },
+
+  async submitChallengeGuess(roomId: string, foyerId: string, answerText: string): Promise<FamilyChallengeSubmission> {
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Connexion Supabase indisponible.');
+    const { data, error } = await client.rpc('submit_family_challenge_guess', {
+      p_room_id: roomId,
+      p_foyer_id: foyerId,
+      p_answer_text: answerText
+    });
+    if (error) throw new Error(getRoomErrorMessage(error));
+    const value = (Array.isArray(data) ? data[0] : data) as {
+      room?: GameRoomRow;
+      status?: FamilyChallengeSubmission['status'];
+      message?: string;
+    } | null;
+    if (!value?.room) throw new Error('Supabase n’a pas retourné l’état de la partie.');
+    return {
+      room: mapRoom(value.room),
+      status: value.status || 'rejected',
+      message: value.message
+    };
+  },
+
+  async refreshRoom(roomId: string, foyerId: string): Promise<FamilyGameRoom> {
+    return this.performRoomAction(roomId, foyerId, 'resume');
   },
 
   async placeBattleshipFleet(roomId: string, foyerId: string, ships: string[][]): Promise<FamilyGameRoom> {
