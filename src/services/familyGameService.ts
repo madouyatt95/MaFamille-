@@ -31,10 +31,12 @@ export type FamilyGameRoom = {
 export type FamilyGameRoomAction =
   | 'configure'
   | 'start_timer'
+  | 'expire_turn'
   | 'resolve_faceoff'
   | 'accept_answer'
   | 'reject_answer'
   | 'finish_round'
+  | 'finish_game'
   | 'next_round'
   | 'leave'
   | 'cancel';

@@ -64,7 +64,7 @@ export function BattleshipGame({
   onTriggerPaywall,
   onFinished
 }: BattleshipGameProps) {
-  const [mode, setMode] = useState<Mode>('bot');
+  const [mode, setMode] = useState<Mode>(() => room?.gameType === 'battleship' ? 'private' : 'bot');
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [fleets, setFleets] = useState<[string[][], string[][]]>(() => [randomFleet(), randomFleet()]);
   const [shots, setShots] = useState<[Shot[], Shot[]]>([[], []]);
@@ -99,6 +99,7 @@ export function BattleshipGame({
     setWinner(null);
     setMessage('');
     setPrivateFleetPlaced(false);
+    setBusy(false);
   }, []);
 
   useEffect(() => {
@@ -147,7 +148,7 @@ export function BattleshipGame({
   };
 
   const fireLocalShot = (cell: string) => {
-    if (!started || winner !== null || passScreen || shots[currentPlayer].some(shot => shot.cell === cell)) return;
+    if (!started || winner !== null || passScreen || busy || shots[currentPlayer].some(shot => shot.cell === cell)) return;
     const targetFleet = fleetCells(fleets[currentPlayer === 0 ? 1 : 0]);
     const result: ShotResult = targetFleet.has(cell) ? 'hit' : 'miss';
     const nextShots = [...shots] as [Shot[], Shot[]];
@@ -163,6 +164,7 @@ export function BattleshipGame({
       setPassScreen(true);
       return;
     }
+    setBusy(true);
     const botCell = chooseBotCell(nextShots[1]);
     const botResult: ShotResult = fleetCells(fleets[0]).has(botCell) ? 'hit' : 'miss';
     window.setTimeout(() => {
@@ -174,6 +176,7 @@ export function BattleshipGame({
         }
         return updated;
       });
+      setBusy(false);
     }, 480);
   };
 
@@ -392,7 +395,7 @@ export function BattleshipGame({
         <>
           <div>
             <div className="mb-2 flex items-center justify-between"><strong className="text-xs text-white">Choisissez votre cible</strong><Crosshair className="h-4 w-4 text-[#FF4D6D]" /></div>
-            {renderGrid(playerShots, null, fireLocalShot)}
+            {renderGrid(playerShots, null, fireLocalShot, busy)}
           </div>
           <div>
             <div className="mb-2 flex items-center justify-between"><strong className="text-xs text-white">Votre flotte</strong><Ship className="h-4 w-4 text-[#6C5CFF]" /></div>

@@ -69,6 +69,13 @@ const BOT_DIFFICULTIES: Array<[BotDifficulty, string]> = [
   ['normal', 'Normal'],
   ['hard', 'Difficile']
 ];
+const GAME_LABELS: Record<FamilyGameType, string> = {
+  memory: 'Memory famille',
+  connect4: 'Puissance 4',
+  battleship: 'Bataille navale',
+  'family-challenge': 'Défi famille',
+  'mime-challenge': 'Mimes et défis'
+};
 
 interface FamilyGamesProps {
   members: Member[];
@@ -244,6 +251,10 @@ export function FamilyGames({
   const [matchedPairs, setMatchedPairs] = useState<string[]>([]);
   const [memoryMoves, setMemoryMoves] = useState(0);
   const [memorySaved, setMemorySaved] = useState(false);
+  const dailyChallengeKey = `mf_games_daily_${foyerId}_${new Date().toISOString().slice(0, 10)}`;
+  const [dailyChallengeComplete, setDailyChallengeComplete] = useState(() =>
+    localStorage.getItem(dailyChallengeKey) === '1'
+  );
   const [gameNightDate, setGameNightDate] = useState(() => {
     const date = new Date();
     date.setDate(date.getDate() + 1);
@@ -372,8 +383,9 @@ export function FamilyGames({
     void familyGameService.fetchResults(foyerId).then(setResults);
     if (isPremium) {
       void familyGameService.fetchActiveRoom(foyerId).then(room => {
-        if (room?.status === 'active') {
+        if (room && (room.status === 'waiting' || room.status === 'active')) {
           setActiveRoom(room);
+          setActiveGame(room.gameType);
         }
       });
     }
@@ -389,6 +401,8 @@ export function FamilyGames({
             setMemoryStarted(Boolean(saved.memory.started));
             setMemoryPairCount(saved.memory.pairCount || 6);
             setMemoryMode(saved.memory.mode || 'individual');
+            setMemorySource(saved.memory.source || 'family');
+            setMemoryRound(saved.memory.round || 1);
             setMemoryPlayerIds(saved.memory.playerIds || []);
             setMemoryScores(saved.memory.scores || []);
             setMemoryCurrentPlayer(saved.memory.currentPlayer || 0);
@@ -421,6 +435,8 @@ export function FamilyGames({
         started: memoryStarted,
         pairCount: memoryPairCount,
         mode: memoryMode,
+        source: memorySource,
+        round: memoryRound,
         playerIds: memoryPlayerIds,
         scores: memoryScores,
         currentPlayer: memoryCurrentPlayer,
@@ -429,7 +445,7 @@ export function FamilyGames({
       },
       connect4: { board, currentPlayer, winner: connectWinner, draw: connectDraw, vsBot: connectVsBot }
     }));
-  }, [activeGame, board, connectDraw, connectVsBot, connectWinner, currentPlayer, foyerId, matchedPairs, memoryCurrentPlayer, memoryMode, memoryMoves, memoryPairCount, memoryPlayerIds, memoryScores, memoryStarted]);
+  }, [activeGame, board, connectDraw, connectVsBot, connectWinner, currentPlayer, foyerId, matchedPairs, memoryCurrentPlayer, memoryMode, memoryMoves, memoryPairCount, memoryPlayerIds, memoryRound, memoryScores, memorySource, memoryStarted]);
 
   const saveResult = useCallback(async (
     gameType: FamilyGameType,
@@ -641,6 +657,12 @@ export function FamilyGames({
     return () => window.clearTimeout(timer);
   }, [flippedCards, memoryCurrentPlayer, memoryDeck, memoryScores.length]);
 
+  useEffect(() => {
+    if (memoryPairCount !== 8 || matchedPairs.length !== 8 || memoryMoves > 20 || dailyChallengeComplete) return;
+    localStorage.setItem(dailyChallengeKey, '1');
+    queueMicrotask(() => setDailyChallengeComplete(true));
+  }, [dailyChallengeComplete, dailyChallengeKey, matchedPairs.length, memoryMoves, memoryPairCount]);
+
   const resetMemory = () => {
     setMemoryRound(previous => previous + 1);
     setFlippedCards([]);
@@ -678,7 +700,8 @@ export function FamilyGames({
       navigator.vibrate?.([80, 40, 140]);
       setConnectWinner(winner);
       setConnectScores(previous => winner === 1 ? [previous[0] + 1, previous[1]] : [previous[0], previous[1] + 1]);
-      void saveResult('connect4', winner === 1 ? [1, 0] : [0, 1], players[winner - 1].name);
+      const winnerName = connectVsBot && winner === 2 ? 'Ordinateur' : players[winner - 1].name;
+      void saveResult('connect4', winner === 1 ? [1, 0] : [0, 1], winnerName);
     } else if (next.every(row => row.every(cell => cell !== 0))) {
       setConnectDraw(true);
       void saveResult('connect4', [0, 0], 'Égalité');
@@ -761,7 +784,7 @@ export function FamilyGames({
       description: 'Mimez un maximum de cartes avant la fin du chronomètre.',
       icon: Mic2,
       accent: '#9E94FF',
-      meta: '2 équipes · 5 à 15 min',
+      meta: isPremium ? '2 équipes · 6 paquets' : '2 équipes · 8 cartes',
       tags: ['free', 'quick', 'team', 'kids']
     }
   ];
@@ -848,12 +871,12 @@ export function FamilyGames({
               setMemoryPairCount(8);
               setMemoryStarted(false);
               setActiveGame('memory');
-            }} className="w-full rounded-[22px] border border-[#00D26A]/20 bg-[#00D26A]/8 p-4 text-left flex items-center justify-between gap-3">
+            }} className={`w-full rounded-[22px] border p-4 text-left flex items-center justify-between gap-3 ${dailyChallengeComplete ? 'border-[#00D26A]/30 bg-[#00D26A]/12' : 'border-[#00D26A]/20 bg-[#00D26A]/8'}`}>
               <span>
                 <strong className="block text-sm text-white">Défi du jour</strong>
-                <span className="mt-1 block text-[10px] text-white/50">Terminez un Memory de 8 paires en moins de 20 coups.</span>
+                <span className="mt-1 block text-[10px] text-white/50">{dailyChallengeComplete ? 'Défi réussi aujourd’hui. Revenez demain pour un nouveau défi.' : 'Terminez un Memory de 8 paires en moins de 20 coups.'}</span>
               </span>
-              <span className="rounded-full bg-[#00D26A]/15 px-3 py-1 text-[10px] font-black text-[#00D26A]">+1 trophée</span>
+              <span className="rounded-full bg-[#00D26A]/15 px-3 py-1 text-[10px] font-black text-[#00D26A]">{dailyChallengeComplete ? 'Réussi' : '+1 trophée'}</span>
             </button>
 
             <section className="glass-panel rounded-[24px] border border-[#FFB020]/20 p-5 space-y-4">
@@ -936,6 +959,11 @@ export function FamilyGames({
                       <span className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-black" style={{ color: game.accent }}>
                         Jouer <ChevronRight className="w-4 h-4" />
                       </span>
+                      {game.id === 'family-challenge' && !isPremium && (
+                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-[#FFB020]/12 px-2 py-1 text-[8px] font-black uppercase text-[#FFB020]">
+                          12 questions gratuites
+                        </span>
+                      )}
                     </div>
                   </button>
                 );
@@ -995,11 +1023,16 @@ export function FamilyGames({
               <div className="grid grid-cols-2 gap-3 border-t border-white/8 pt-4">
                 {[0, 1].map(index => (
                   <label key={index} className="flex items-center gap-2 rounded-2xl border border-white/8 bg-white/5 p-2">
-                    <input type="color" value={teamSettings.colors[index]} onChange={event => setTeamSettings(previous => ({ ...previous, colors: index === 0 ? [event.target.value, previous.colors[1]] : [previous.colors[0], event.target.value] }))} className="h-9 w-9 rounded-lg border-0 p-0" title={`Couleur équipe ${index + 1}`} />
-                    <input value={teamSettings.names[index]} maxLength={24} onChange={event => setTeamSettings(previous => ({ ...previous, names: index === 0 ? [event.target.value, previous.names[1]] : [previous.names[0], event.target.value] }))} className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none" />
+                    <input disabled={!isPremium} type="color" value={teamSettings.colors[index]} onChange={event => setTeamSettings(previous => ({ ...previous, colors: index === 0 ? [event.target.value, previous.colors[1]] : [previous.colors[0], event.target.value] }))} className="h-9 w-9 rounded-lg border-0 p-0 disabled:opacity-50" title={`Couleur équipe ${index + 1}`} />
+                    <input disabled={!isPremium} value={teamSettings.names[index]} maxLength={24} onChange={event => setTeamSettings(previous => ({ ...previous, names: index === 0 ? [event.target.value, previous.names[1]] : [previous.names[0], event.target.value] }))} className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none disabled:opacity-60" />
                   </label>
                 ))}
               </div>
+              {!isPremium && (
+                <button type="button" onClick={onTriggerPaywall} className="w-full rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/8 py-3 text-[10px] font-black text-[#FFB020]">
+                  Personnaliser les équipes avec Premium
+                </button>
+              )}
             </section>
 
             {(onAddEventDirect || setVotes || pendingRewards.length > 0) && (
@@ -1076,6 +1109,7 @@ export function FamilyGames({
                 foyerId={foyerId}
                 familyName={familyName}
                 selectedGame="family-challenge"
+                initialRoom={activeRoom?.gameType === 'family-challenge' ? activeRoom : null}
                 onRoomReady={handleRoomReady}
                 onRoomClosed={() => setActiveRoom(null)}
               />
@@ -1129,7 +1163,7 @@ export function FamilyGames({
               </section>
             )}
 
-            <button
+            {isPremium && <button
               type="button"
               onClick={() => setShowHistory(value => !value)}
               className="w-full rounded-[22px] border border-white/8 bg-white/5 p-4 flex items-center justify-between text-left"
@@ -1142,9 +1176,9 @@ export function FamilyGames({
                 </span>
               </span>
               <ChevronRight className={`w-5 h-5 text-white/40 transition-transform ${showHistory ? 'rotate-90' : ''}`} />
-            </button>
+            </button>}
 
-            {showHistory && (
+            {isPremium && showHistory && (
               <div className="space-y-2">
                 {results.length === 0 ? (
                   <p className="rounded-2xl border border-white/8 bg-white/5 p-4 text-center text-xs text-white/45">Les prochaines parties terminées apparaîtront ici.</p>
@@ -1152,7 +1186,7 @@ export function FamilyGames({
                   <div key={result.id} className="glass-panel rounded-2xl border border-white/8 p-3 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <strong className="block text-xs text-white truncate">{result.winnerName ? `Victoire de ${result.winnerName}` : 'Partie terminée'}</strong>
-                      <span className="text-[10px] text-white/45">{result.gameType} · {new Date(result.playedAt).toLocaleDateString('fr-FR')}</span>
+                      <span className="text-[10px] text-white/45">{GAME_LABELS[result.gameType]} · {new Date(result.playedAt).toLocaleDateString('fr-FR')}</span>
                     </div>
                     <span className="text-xs font-black text-[#FFB020]">{result.scores.join(' - ')}</span>
                   </div>
@@ -1404,7 +1438,7 @@ export function FamilyGames({
         {activeGame === 'family-challenge' && (
           <>
             {gameHeader('Défi famille', 'Prenez la main, complétez le tableau et protégez la cagnotte.', Users)}
-            {challengeRoom && (
+            {challengeRoom?.status === 'active' && (
               <div className="rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/8 px-4 py-3 flex items-center justify-between gap-3">
                 <span className="text-xs font-black text-white">{challengeRoom.hostName}</span>
                 <span className="text-[9px] font-black uppercase tracking-widest text-[#9E94FF]">Salle {challengeRoom.code}</span>
@@ -1428,7 +1462,16 @@ export function FamilyGames({
                 <button type="button" onClick={() => setLastRecap(null)} className="mt-4 rounded-2xl bg-[#FFB020] px-5 py-3 text-xs font-black text-[#07111F]">Nouvelle partie</button>
               </div>
             )}
-            <FamilyChallengeGame
+            {challengeRoom?.status === 'waiting' ? (
+              <PrivateFamilyRoom
+                foyerId={foyerId}
+                familyName={familyName}
+                selectedGame="family-challenge"
+                initialRoom={challengeRoom}
+                onRoomReady={handleRoomReady}
+                onRoomClosed={() => setActiveRoom(null)}
+              />
+            ) : <FamilyChallengeGame
               foyerId={foyerId}
               isPremium={isPremium}
               teams={[
@@ -1447,7 +1490,7 @@ export function FamilyGames({
                   challengeTeams.map(team => team.name)
                 );
               }}
-            />
+            />}
           </>
         )}
 
@@ -1456,6 +1499,8 @@ export function FamilyGames({
             {gameHeader('Mimes et défis', 'Faites deviner un maximum de cartes en 60 secondes.', Mic2)}
             <MimeChallengeGame
               teamNames={teamSettings.names}
+              isPremium={isPremium}
+              onTriggerPaywall={onTriggerPaywall}
               onFinished={(scores, rounds, winnerName) => void saveResult('mime-challenge', scores, winnerName, { rounds }, teamSettings.names)}
             />
           </>

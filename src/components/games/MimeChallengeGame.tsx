@@ -39,10 +39,14 @@ const MIME_PACKS: Record<MimePack, string[]> = {
 
 interface MimeChallengeGameProps {
   teamNames: [string, string];
+  isPremium: boolean;
+  onTriggerPaywall?: () => void;
   onFinished: (scores: [number, number], rounds: number, winnerName: string) => void;
 }
 
-export function MimeChallengeGame({ teamNames, onFinished }: MimeChallengeGameProps) {
+const FREE_MIME_CARDS = MIME_PACKS.famille.slice(0, 8);
+
+export function MimeChallengeGame({ teamNames, isPremium, onTriggerPaywall, onFinished }: MimeChallengeGameProps) {
   const [pack, setPack] = useState<MimePack>('famille');
   const [duration, setDuration] = useState<30 | 60 | 90>(60);
   const [totalRounds, setTotalRounds] = useState<2 | 4 | 6>(4);
@@ -69,7 +73,10 @@ export function MimeChallengeGame({ teamNames, onFinished }: MimeChallengeGamePr
     }
   });
   const completedRef = useRef(false);
-  const cards = useMemo(() => [...MIME_PACKS[pack], ...customCards], [customCards, pack]);
+  const cards = useMemo(
+    () => isPremium ? [...MIME_PACKS[pack], ...customCards] : FREE_MIME_CARDS,
+    [customCards, isPremium, pack]
+  );
   const activeTeam = round % 2 as 0 | 1;
 
   useEffect(() => {
@@ -173,13 +180,20 @@ export function MimeChallengeGame({ teamNames, onFinished }: MimeChallengeGamePr
           <h2 className="mt-3 text-xl font-black text-white">Préparer les manches</h2>
           <p className="mt-1 text-xs text-white/50">Les équipes jouent chacune leur tour. Le téléphone est tenu par la personne qui valide.</p>
         </div>
-        <label className="block"><span className="mb-2 block text-xs font-black text-white">Paquet</span>
-          <select value={pack} onChange={event => setPack(event.target.value as MimePack)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white">
-            <option value="enfants">Enfants</option><option value="famille">Toute la famille</option><option value="ados">Adolescents</option>
-            <option value="vacances">Vacances</option><option value="fetes">Fêtes</option><option value="cinema">Cinéma</option>
-          </select>
-        </label>
-        <div>
+        {isPremium ? (
+          <label className="block"><span className="mb-2 block text-xs font-black text-white">Paquet</span>
+            <select value={pack} onChange={event => setPack(event.target.value as MimePack)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white">
+              <option value="enfants">Enfants</option><option value="famille">Toute la famille</option><option value="ados">Adolescents</option>
+              <option value="vacances">Vacances</option><option value="fetes">Fêtes</option><option value="cinema">Cinéma</option>
+            </select>
+          </label>
+        ) : (
+          <button type="button" onClick={onTriggerPaywall} className="w-full rounded-2xl border border-[#FFB020]/25 bg-[#FFB020]/8 p-4 text-left">
+            <strong className="block text-xs text-white">Paquet découverte · 8 cartes</strong>
+            <span className="mt-1 block text-[10px] text-white/50">Premium débloque tous les âges, vacances, fêtes, cinéma et vos propres cartes.</span>
+          </button>
+        )}
+        {isPremium && <div>
           <span className="mb-2 block text-xs font-black text-white">Cartes familiales</span>
           <div className="flex gap-2">
             <input value={customCard} onChange={event => setCustomCard(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') addCustomCard(); }} placeholder="Ajouter un mime personnel" className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white" />
@@ -214,7 +228,7 @@ export function MimeChallengeGame({ teamNames, onFinished }: MimeChallengeGamePr
               )}
             </div>
           )}
-        </div>
+        </div>}
         <div className="grid grid-cols-3 gap-2">
           {[30, 60, 90].map(value => <button key={value} type="button" onClick={() => setDuration(value as 30 | 60 | 90)} className={`rounded-2xl border py-3 text-xs font-black ${duration === value ? 'border-[#FFB020] bg-[#FFB020]/12 text-[#FFB020]' : 'border-white/8 text-white/60'}`}>{value}s</button>)}
         </div>
@@ -245,7 +259,7 @@ export function MimeChallengeGame({ teamNames, onFinished }: MimeChallengeGamePr
           {teamNames.map((name, index) => <div key={name} className={`rounded-2xl border p-3 ${activeTeam === index ? 'border-[#FF4D6D]/40 bg-[#FF4D6D]/10' : 'border-white/8'}`}><strong className="block text-xs text-white">{name}</strong><span className="text-xl font-black text-[#FFB020]">{scores[index]}</span></div>)}
         </div>
         <h2 className="text-xl font-black text-white">{turnCompleted ? `${roundScore} mime${roundScore > 1 ? 's' : ''} trouvé${roundScore > 1 ? 's' : ''}` : `${teamNames[activeTeam]} fait deviner`}</h2>
-        <p className="text-xs text-white/50">Manche {round + 1} sur {totalRounds} · paquet {pack}</p>
+        <p className="text-xs text-white/50">Manche {round + 1} sur {totalRounds} · {isPremium ? `paquet ${pack}` : 'paquet découverte'}</p>
         {turnCompleted && <p className="text-[10px] text-white/40">{passes} carte{passes > 1 ? 's' : ''} passée{passes > 1 ? 's' : ''}</p>}
         {turnCompleted ? (
           <button type="button" onClick={nextRound} className="w-full rounded-2xl bg-[#FFB020] py-3 text-xs font-black text-[#07111F]">Équipe suivante</button>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Clock3, HelpCircle, Play, Shield, Trophy, Volume2, VolumeX, X } from 'lucide-react';
 import { FAMILY_CHALLENGE_QUESTIONS, getChallengeQuestion, type FamilyChallengeQuestion } from '../../data/familyChallengeQuestions';
 import { familyGameService, type FamilyGameRoom } from '../../services/familyGameService';
@@ -66,6 +66,7 @@ export function FamilyChallengeGame({
       return [];
     }
   });
+  const timerExpiredRef = useRef(false);
 
   const questionCount = isPremium ? FAMILY_CHALLENGE_QUESTIONS.length : 12;
   const question = useMemo(
@@ -148,6 +149,7 @@ export function FamilyChallengeGame({
   }, [seconds, timerRunning]);
 
   useEffect(() => {
+    if (seconds > 0) timerExpiredRef.current = false;
     if (seconds === 0) queueMicrotask(() => setTimerRunning(false));
   }, [seconds]);
 
@@ -227,6 +229,24 @@ export function FamilyChallengeGame({
     }, 'finish_round');
   };
 
+  useEffect(() => {
+    if (seconds !== 0 || timerExpiredRef.current || phase === 'round-end' || phase === 'faceoff') return;
+    if (room && localTeamIndex !== activeTeam) return;
+    timerExpiredRef.current = true;
+    queueMicrotask(() => {
+      if (phase === 'steal') {
+        finishRound(controllingTeam, foundAnswers, roundBank, `Temps écoulé : ${teams[controllingTeam].name} garde la cagnotte.`);
+        return;
+      }
+      setStrikes(3);
+      setPhase('steal');
+      setFeedback(`Temps écoulé : ${teams[controllingTeam === 0 ? 1 : 0].name} peut voler la cagnotte.`);
+      applyState({ challengePhase: 'steal', strikes: 3 }, 'expire_turn');
+    });
+  // finishRound intentionally reads the current round state when the timer expires.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTeam, applyState, controllingTeam, foundAnswers, localTeamIndex, phase, room, roundBank, seconds, teams]);
+
   const submitGuess = () => {
     const value = guessInput.trim();
     if (!value || (room && localTeamIndex !== activeTeam)) return;
@@ -286,6 +306,11 @@ export function FamilyChallengeGame({
     localStorage.setItem(`mf_family_challenge_played_${foyerId}`, JSON.stringify(nextPlayedIds));
     if (nextRoundNumber >= totalRounds) {
       const winnerName = scores[0] === scores[1] ? 'Égalité' : teams[scores[0] > scores[1] ? 0 : 1].name;
+      if (room && room.hostFoyerId === foyerId) {
+        void familyGameService.performRoomAction(room.id, foyerId, 'finish_game', { scores })
+          .then(onRoomChange)
+          .catch(error => console.warn('[FamilyChallenge] Game closure rejected:', error));
+      }
       onFinished(scores, winnerName);
       return;
     }
@@ -321,6 +346,18 @@ export function FamilyChallengeGame({
     }
     const nextFound = [...foundAnswers, closeMatch.answerIndex];
     const nextBank = roundBank + closeMatch.answer.points;
+    if (phase === 'steal') {
+      finishRound(activeTeam, nextFound, nextBank, `${teams[activeTeam].name} vole la cagnotte !`, closeMatch.answerIndex);
+      setGuessInput('');
+      setCloseMatch(null);
+      return;
+    }
+    if (nextFound.length === question.answers.length) {
+      finishRound(controllingTeam, nextFound, nextBank, `${teams[controllingTeam].name} a trouvé tout le tableau.`, closeMatch.answerIndex);
+      setGuessInput('');
+      setCloseMatch(null);
+      return;
+    }
     setFoundAnswers(nextFound);
     setRoundBank(nextBank);
     setFeedback(`${closeMatch.answer.label} est validée par l’arbitre.`);

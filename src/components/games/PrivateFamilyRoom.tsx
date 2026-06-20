@@ -6,13 +6,14 @@ interface PrivateFamilyRoomProps {
   foyerId: string;
   familyName: string;
   selectedGame: FamilyGameType;
+  initialRoom?: FamilyGameRoom | null;
   onRoomReady?: (room: FamilyGameRoom) => void;
   onRoomClosed?: () => void;
 }
 
-export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, onRoomReady, onRoomClosed }: PrivateFamilyRoomProps) {
-  const [mode, setMode] = useState<'menu' | 'create' | 'join'>('menu');
-  const [room, setRoom] = useState<FamilyGameRoom | null>(null);
+export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, initialRoom = null, onRoomReady, onRoomClosed }: PrivateFamilyRoomProps) {
+  const [mode, setMode] = useState<'menu' | 'create' | 'join'>(() => initialRoom ? 'create' : 'menu');
+  const [room, setRoom] = useState<FamilyGameRoom | null>(initialRoom);
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -22,13 +23,19 @@ export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, onRoomRea
   useEffect(() => {
     if (!roomId) return;
     const channel = familyGameService.subscribeToRoom(roomId, nextRoom => {
+      if (nextRoom.status === 'cancelled') {
+        setRoom(null);
+        setMode('menu');
+        onRoomClosed?.();
+        return;
+      }
       setRoom(nextRoom);
       if (nextRoom.status === 'active') onRoomReady?.(nextRoom);
     });
     return () => {
       void familyGameService.unsubscribe(channel);
     };
-  }, [onRoomReady, roomId]);
+  }, [onRoomClosed, onRoomReady, roomId]);
 
   const createRoom = async () => {
     setLoading(true);
