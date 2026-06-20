@@ -40,6 +40,13 @@ type MemoryCard = {
 type ConnectCell = 0 | 1 | 2;
 type GameFilter = 'all' | 'free' | 'premium' | 'quick' | 'team' | 'kids';
 type MemoryMode = 'individual' | 'teams';
+type BotDifficulty = 'easy' | 'normal' | 'hard';
+type TeamSettings = { names: [string, string]; colors: [string, string] };
+const BOT_DIFFICULTIES: Array<[BotDifficulty, string]> = [
+  ['easy', 'Facile'],
+  ['normal', 'Normal'],
+  ['hard', 'Difficile']
+];
 
 interface FamilyGamesProps {
   members: Member[];
@@ -120,6 +127,33 @@ const getConnectWinner = (board: ConnectCell[][]): ConnectCell => {
 const getInitials = (name: string): string =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || '?';
 
+const getAvailableColumns = (board: ConnectCell[][]): number[] =>
+  board[0].map((cell, column) => cell === 0 ? column : -1).filter(column => column >= 0);
+
+const simulateConnectMove = (board: ConnectCell[][], column: number, player: 1 | 2): ConnectCell[][] => {
+  const next = board.map(row => [...row]);
+  const targetRow = [...next].map((_, index) => index).reverse().find(row => next[row][column] === 0);
+  if (targetRow !== undefined) next[targetRow][column] = player;
+  return next;
+};
+
+const scoreConnectBoard = (board: ConnectCell[][]): number => {
+  const winner = getConnectWinner(board);
+  if (winner === 2) return 10000;
+  if (winner === 1) return -10000;
+  return board.flatMap(row => row).reduce<number>((score, cell, index) => {
+    const column = index % 7;
+    return score + (cell === 2 ? 4 - Math.abs(3 - column) : cell === 1 ? -(4 - Math.abs(3 - column)) : 0);
+  }, 0);
+};
+
+const minimaxConnect = (board: ConnectCell[][], depth: number, maximizing: boolean): number => {
+  const available = getAvailableColumns(board);
+  if (depth === 0 || getConnectWinner(board) || available.length === 0) return scoreConnectBoard(board);
+  const scores = available.map(column => minimaxConnect(simulateConnectMove(board, column, maximizing ? 2 : 1), depth - 1, !maximizing));
+  return maximizing ? Math.max(...scores) : Math.min(...scores);
+};
+
 export function FamilyGames({
   members,
   activeMemberId,
@@ -167,6 +201,16 @@ export function FamilyGames({
   const [connectWinner, setConnectWinner] = useState<ConnectCell>(0);
   const [connectDraw, setConnectDraw] = useState(false);
   const [connectVsBot, setConnectVsBot] = useState(false);
+  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>('normal');
+  const [teamSettings, setTeamSettings] = useState<TeamSettings>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(`mf_games_teams_${foyerId}`) || 'null');
+      if (saved?.names?.length === 2 && saved?.colors?.length === 2) return saved;
+    } catch {
+      // Keep the defaults.
+    }
+    return { names: ['Équipe Soleil', 'Équipe Comète'], colors: ['#FFB020', '#6C5CFF'] };
+  });
   const [connectScores, setConnectScores] = useState<[number, number]>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(`mf_games_connect4_${foyerId}`) || '[0,0]');
@@ -180,7 +224,10 @@ export function FamilyGames({
   const challengeTeams = useMemo(() => activeRoom ? [
     { id: activeRoom.hostFoyerId, name: activeRoom.hostName, photoUrl: '' },
     { id: activeRoom.guestFoyerId || 'guest-family', name: activeRoom.guestName || 'Famille invitée', photoUrl: '' }
-  ] : players, [activeRoom, players]);
+  ] : [
+    { id: 'team-1', name: teamSettings.names[0], photoUrl: '' },
+    { id: 'team-2', name: teamSettings.names[1], photoUrl: '' }
+  ], [activeRoom, teamSettings.names]);
   const gameStats = useMemo(() => {
     const wins = new Map<string, number>();
     results.forEach(result => {
@@ -206,9 +253,13 @@ export function FamilyGames({
   }, [results]);
   const memoryPlayers = useMemo(() => memoryPlayerIds.map(id => members.find(member => member.id === id)).filter((member): member is Member => Boolean(member)), [members, memoryPlayerIds]);
   const memoryCompetitorNames = useMemo(() => {
-    if (memoryMode === 'teams') return ['Équipe Soleil', 'Équipe Comète'];
+    if (memoryMode === 'teams') return teamSettings.names;
     return memoryPlayers.map(member => member.name);
-  }, [memoryMode, memoryPlayers]);
+  }, [memoryMode, memoryPlayers, teamSettings.names]);
+
+  useEffect(() => {
+    localStorage.setItem(`mf_games_teams_${foyerId}`, JSON.stringify(teamSettings));
+  }, [foyerId, teamSettings]);
 
   useEffect(() => {
     void familyGameService.fetchResults(foyerId).then(setResults);
@@ -382,29 +433,26 @@ export function FamilyGames({
 
   useEffect(() => {
     if (!connectVsBot || currentPlayer !== 2 || connectWinner || connectDraw || activeGame !== 'connect4') return;
-    const available = board[0].map((cell, column) => cell === 0 ? column : -1).filter(column => column >= 0);
+    const available = getAvailableColumns(board);
     if (available.length === 0) return;
     const timer = window.setTimeout(() => {
-      const winningColumn = available.find(column => {
-        const targetRow = [...board].map((_, index) => index).reverse().find(row => board[row][column] === 0);
-        if (targetRow === undefined) return false;
-        const test = board.map(row => [...row]);
-        test[targetRow][column] = 2;
-        return getConnectWinner(test) === 2;
-      });
-      const blockingColumn = available.find(column => {
-        const targetRow = [...board].map((_, index) => index).reverse().find(row => board[row][column] === 0);
-        if (targetRow === undefined) return false;
-        const test = board.map(row => [...row]);
-        test[targetRow][column] = 1;
-        return getConnectWinner(test) === 1;
-      });
-      dropConnectPiece(winningColumn ?? blockingColumn ?? available[Math.floor(Math.random() * available.length)]);
+      let selectedColumn = available[Math.floor(Math.random() * available.length)];
+      if (botDifficulty !== 'easy') {
+        const winningColumn = available.find(column => getConnectWinner(simulateConnectMove(board, column, 2)) === 2);
+        const blockingColumn = available.find(column => getConnectWinner(simulateConnectMove(board, column, 1)) === 1);
+        selectedColumn = winningColumn ?? blockingColumn ?? selectedColumn;
+      }
+      if (botDifficulty === 'hard') {
+        selectedColumn = available
+          .map(column => ({ column, score: minimaxConnect(simulateConnectMove(board, column, 2), 4, false) }))
+          .sort((left, right) => right.score - left.score)[0]?.column ?? selectedColumn;
+      }
+      dropConnectPiece(selectedColumn);
     }, 500);
     return () => window.clearTimeout(timer);
   // dropConnectPiece intentionally uses the latest render state for the delayed bot move.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeGame, board, connectDraw, connectVsBot, connectWinner, currentPlayer]);
+  }, [activeGame, board, botDifficulty, connectDraw, connectVsBot, connectWinner, currentPlayer]);
 
   const gameCards = [
     {
@@ -598,6 +646,14 @@ export function FamilyGames({
                   </select>
                 ))}
               </div>
+              <div className="grid grid-cols-2 gap-3 border-t border-white/8 pt-4">
+                {[0, 1].map(index => (
+                  <label key={index} className="flex items-center gap-2 rounded-2xl border border-white/8 bg-white/5 p-2">
+                    <input type="color" value={teamSettings.colors[index]} onChange={event => setTeamSettings(previous => ({ ...previous, colors: index === 0 ? [event.target.value, previous.colors[1]] : [previous.colors[0], event.target.value] }))} className="h-9 w-9 rounded-lg border-0 p-0" title={`Couleur équipe ${index + 1}`} />
+                    <input value={teamSettings.names[index]} maxLength={24} onChange={event => setTeamSettings(previous => ({ ...previous, names: index === 0 ? [event.target.value, previous.names[1]] : [previous.names[0], event.target.value] }))} className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none" />
+                  </label>
+                ))}
+              </div>
             </section>
 
             {isPremium ? (
@@ -743,7 +799,7 @@ export function FamilyGames({
               <>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {memoryCompetitorNames.map((name, index) => (
-                <div key={`${name}-${index}`} className={`rounded-2xl border p-3 ${memoryCurrentPlayer === index ? 'border-[#FFB020]/50 bg-[#FFB020]/10' : 'border-white/8 bg-white/5'}`}>
+                <div key={`${name}-${index}`} className={`rounded-2xl border p-3 ${memoryCurrentPlayer === index ? 'bg-white/10' : 'border-white/8 bg-white/5'}`} style={memoryMode === 'teams' && memoryCurrentPlayer === index ? { borderColor: teamSettings.colors[index] } : undefined}>
                   <strong className="block truncate text-xs text-white">{name}</strong>
                   <span className="text-[10px] text-white/45">{memoryScores[index] || 0} paire{memoryScores[index] === 1 ? '' : 's'}</span>
                 </div>
@@ -767,7 +823,7 @@ export function FamilyGames({
                     key={card.id}
                     type="button"
                     onClick={() => flipMemoryCard(card)}
-                    className={`aspect-[0.82] rounded-[20px] border transition-all overflow-hidden relative ${
+                    className={`memory-game-card aspect-[0.82] rounded-[20px] border transition-all overflow-hidden relative ${isVisible ? 'is-visible' : ''} ${isMatched ? 'is-matched' : ''} ${
                       isVisible
                         ? isMatched ? 'border-[#00D26A]/50 bg-[#00D26A]/10' : 'border-[#FFB020]/40 bg-white/8'
                         : 'border-[#6C5CFF]/25 bg-[#6C5CFF]/12 hover:bg-[#6C5CFF]/20'
@@ -846,6 +902,13 @@ export function FamilyGames({
                 <Bot className="w-4 h-4" /> {connectVsBot ? 'Adversaire automatique' : 'Jouer contre l’ordinateur'}
               </button>
             </div>
+            {connectVsBot && (
+              <div className="grid grid-cols-3 gap-2 max-w-xl mx-auto">
+                {BOT_DIFFICULTIES.map(([value, label]) => (
+                  <button key={value} type="button" onClick={() => setBotDifficulty(value)} className={`rounded-2xl border py-2.5 text-xs font-black ${botDifficulty === value ? 'border-[#4F8CFF] bg-[#4F8CFF]/12 text-[#4F8CFF]' : 'border-white/8 bg-white/5 text-white/55'}`}>{label}</button>
+                ))}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3 max-w-xl mx-auto">
               {players.map((player, index) => (
                 <div key={player.id} className={`rounded-2xl border p-3 flex items-center gap-3 ${currentPlayer === index + 1 && !connectWinner ? 'border-[#FFB020]/40 bg-[#FFB020]/10' : 'border-white/8 bg-white/5'}`}>
@@ -871,7 +934,7 @@ export function FamilyGames({
                     className="family-games-slot aspect-square rounded-full border p-[12%]"
                     aria-label={`Colonne ${colIndex + 1}`}
                   >
-                    <span className={`block w-full h-full rounded-full transition-colors ${
+                    <span className={`connect-piece block w-full h-full rounded-full transition-colors ${
                       cell === 1 ? 'bg-[#FF4D6D]' : cell === 2 ? 'bg-[#FFB020]' : 'bg-white/5'
                     }`} />
                   </button>
@@ -880,7 +943,7 @@ export function FamilyGames({
             </div>
             <div className="text-center">
               {connectWinner ? (
-                <div className="space-y-3">
+                <div className="game-victory space-y-3">
                   <p className="text-base font-black text-white"><Trophy className="inline w-5 h-5 mr-2 text-[#FFB020]" />{connectVsBot && connectWinner === 2 ? 'Ordinateur' : players[connectWinner - 1].name} remporte la manche !</p>
                   <button type="button" onClick={resetConnectBoard} className="px-5 py-3 rounded-2xl bg-[#6C5CFF] text-white text-xs font-black">
                     Revanche
@@ -952,8 +1015,8 @@ export function FamilyGames({
           <>
             {gameHeader('Mimes et défis', 'Faites deviner un maximum de cartes en 60 secondes.', Mic2)}
             <MimeChallengeGame
-              teamNames={[players[0].name, players[1].name]}
-              onFinished={(scores, rounds, winnerName) => void saveResult('mime-challenge', scores, winnerName, { rounds }, players.map(player => player.name))}
+              teamNames={teamSettings.names}
+              onFinished={(scores, rounds, winnerName) => void saveResult('mime-challenge', scores, winnerName, { rounds }, teamSettings.names)}
             />
           </>
         )}

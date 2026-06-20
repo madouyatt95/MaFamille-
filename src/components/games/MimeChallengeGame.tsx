@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Eye, Play, RotateCcw, SkipForward, Timer, Trophy } from 'lucide-react';
 
-type MimePack = 'enfants' | 'famille' | 'ados';
+type MimePack = 'enfants' | 'famille' | 'ados' | 'vacances' | 'fetes' | 'cinema';
 
 const MIME_PACKS: Record<MimePack, string[]> = {
   enfants: [
@@ -19,6 +19,21 @@ const MIME_PACKS: Record<MimePack, string[]> = {
     'Faire semblant de perdre le réseau', 'Prendre un selfie parfait', 'Arriver en retard en cours',
     'Danser dans un concert', 'Jouer à un jeu vidéo', 'Écrire un message très gênant',
     'Regarder une série en cachette', 'Essayer une nouvelle coiffure'
+  ],
+  vacances: [
+    'Monter une tente', 'Mettre de la crème solaire', 'Chercher sa valise',
+    'Nager avec un masque', 'Prendre l’avion', 'Faire une bataille d’eau',
+    'Lire une carte à l’envers', 'Dormir dans un hamac'
+  ],
+  fetes: [
+    'Décorer un sapin', 'Souffler des bougies', 'Emballer un cadeau',
+    'Lancer des confettis', 'Danser à un mariage', 'Chercher les œufs de Pâques',
+    'Faire un bonhomme de neige', 'Porter un gâteau très fragile'
+  ],
+  cinema: [
+    'Un détective qui enquête', 'Un pirate sur son bateau', 'Un monstre timide',
+    'Un astronaute en apesanteur', 'Un magicien qui rate son tour', 'Un espion discret',
+    'Un cow-boy à cheval', 'Un réalisateur qui donne des ordres'
   ]
 };
 
@@ -42,8 +57,16 @@ export function MimeChallengeGame({ teamNames, onFinished }: MimeChallengeGamePr
   const [revealed, setRevealed] = useState(false);
   const [finished, setFinished] = useState(false);
   const [cardIndex, setCardIndex] = useState(0);
+  const [customCard, setCustomCard] = useState('');
+  const [customCards, setCustomCards] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('mf_mime_custom_cards') || '[]');
+    } catch {
+      return [];
+    }
+  });
   const completedRef = useRef(false);
-  const cards = useMemo(() => MIME_PACKS[pack], [pack]);
+  const cards = useMemo(() => [...MIME_PACKS[pack], ...customCards], [customCards, pack]);
   const activeTeam = round % 2 as 0 | 1;
 
   useEffect(() => {
@@ -112,6 +135,15 @@ export function MimeChallengeGame({ teamNames, onFinished }: MimeChallengeGamePr
     completedRef.current = false;
   };
 
+  const addCustomCard = () => {
+    const value = customCard.trim();
+    if (!value || customCards.includes(value)) return;
+    const next = [...customCards, value].slice(-30);
+    setCustomCards(next);
+    localStorage.setItem('mf_mime_custom_cards', JSON.stringify(next));
+    setCustomCard('');
+  };
+
   if (!configured) {
     return (
       <div className="glass-panel rounded-[28px] border border-white/8 p-5 sm:p-6 space-y-5">
@@ -123,8 +155,17 @@ export function MimeChallengeGame({ teamNames, onFinished }: MimeChallengeGamePr
         <label className="block"><span className="mb-2 block text-xs font-black text-white">Paquet</span>
           <select value={pack} onChange={event => setPack(event.target.value as MimePack)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white">
             <option value="enfants">Enfants</option><option value="famille">Toute la famille</option><option value="ados">Adolescents</option>
+            <option value="vacances">Vacances</option><option value="fetes">Fêtes</option><option value="cinema">Cinéma</option>
           </select>
         </label>
+        <div>
+          <span className="mb-2 block text-xs font-black text-white">Cartes familiales</span>
+          <div className="flex gap-2">
+            <input value={customCard} onChange={event => setCustomCard(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') addCustomCard(); }} placeholder="Ajouter un mime personnel" className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white" />
+            <button type="button" onClick={addCustomCard} className="rounded-2xl bg-[#6C5CFF] px-4 text-xs font-black text-white">Ajouter</button>
+          </div>
+          {customCards.length > 0 && <p className="mt-2 text-[10px] text-white/40">{customCards.length} carte{customCards.length > 1 ? 's' : ''} personnelle{customCards.length > 1 ? 's' : ''}</p>}
+        </div>
         <div className="grid grid-cols-3 gap-2">
           {[30, 60, 90].map(value => <button key={value} type="button" onClick={() => setDuration(value as 30 | 60 | 90)} className={`rounded-2xl border py-3 text-xs font-black ${duration === value ? 'border-[#FFB020] bg-[#FFB020]/12 text-[#FFB020]' : 'border-white/8 text-white/60'}`}>{value}s</button>)}
         </div>
@@ -139,7 +180,7 @@ export function MimeChallengeGame({ teamNames, onFinished }: MimeChallengeGamePr
   if (finished) {
     const winner = scores[0] === scores[1] ? 'Égalité' : teamNames[scores[0] > scores[1] ? 0 : 1];
     return (
-      <div className="glass-panel rounded-[28px] border border-[#FFB020]/25 p-6 text-center">
+      <div className="game-victory glass-panel rounded-[28px] border border-[#FFB020]/25 p-6 text-center">
         <Trophy className="mx-auto w-12 h-12 text-[#FFB020]" />
         <h2 className="mt-3 text-xl font-black text-white">{winner === 'Égalité' ? 'Égalité parfaite !' : `Victoire de ${winner}`}</h2>
         <p className="mt-2 text-2xl font-black text-[#FFB020]">{scores[0]} - {scores[1]}</p>
@@ -173,7 +214,7 @@ export function MimeChallengeGame({ teamNames, onFinished }: MimeChallengeGamePr
         <span className={`flex items-center gap-1.5 text-base font-black ${seconds <= 10 ? 'text-[#FF4D6D]' : 'text-[#FFB020]'}`}><Timer className="w-5 h-5" /> {seconds}s</span>
         <button type="button" onClick={finishTurn} className="text-white/45" title="Arrêter"><RotateCcw className="w-4 h-4" /></button>
       </div>
-      <button type="button" onClick={() => setRevealed(true)} className="family-games-challenge w-full min-h-[320px] rounded-[28px] border p-6 flex flex-col items-center justify-center text-center">
+      <button type="button" onClick={() => setRevealed(true)} className={`mime-reveal-card family-games-challenge w-full min-h-[320px] rounded-[28px] border p-6 flex flex-col items-center justify-center text-center ${revealed ? 'is-revealed' : ''}`}>
         {revealed ? <><span className="text-[10px] font-black uppercase tracking-widest text-[#FF4D6D]">À mimer</span><strong className="mt-5 text-3xl sm:text-4xl leading-tight text-white">{cards[cardIndex]}</strong></> : <><Eye className="w-10 h-10 text-[#6C5CFF]" /><strong className="mt-4 text-lg text-white">Touchez pour révéler</strong></>}
       </button>
       <div className="grid grid-cols-2 gap-3">
