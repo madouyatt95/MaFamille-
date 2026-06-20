@@ -12069,6 +12069,10 @@ function App() {
           isPremium={isPremium}
           pocketMoney={appPocketMoney}
           setPocketMoney={setPocketMoney}
+          memories={memories}
+          setVotes={setVotes}
+          onAddEventDirect={handleAddEvent}
+          onSendNotification={sendLocalNotification}
           onTriggerPaywall={() => setPaywallOpen(true)}
           onBack={() => setActiveModule('')}
         />

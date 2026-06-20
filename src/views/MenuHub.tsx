@@ -1719,6 +1719,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           isPremium={isPremium}
           pocketMoney={pocketMoney}
           setPocketMoney={setPocketMoney}
+          memories={memories}
+          setVotes={setVotes}
+          onAddEventDirect={onAddEventDirect}
+          onSendNotification={onSendNotification}
           onTriggerPaywall={onTriggerPaywall}
           onBack={() => setActiveModule('')}
         />

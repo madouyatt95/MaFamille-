@@ -3,10 +3,12 @@ import {
   ArrowLeft,
   Brain,
   Bot,
+  CalendarDays,
   Check,
   ChevronRight,
   Circle,
   Gamepad2,
+  Gift,
   Grid3X3,
   History,
   Lock,
@@ -15,9 +17,10 @@ import {
   Sparkles,
   Star,
   Trophy,
-  Users
+  Users,
+  Vote
 } from 'lucide-react';
-import type { Member, PocketMoneyChild } from '../types';
+import type { FamilyEvent, FamilyVote, Member, MemoryLog, PocketMoneyChild } from '../types';
 import { getSupabaseClient } from '../utils/supabase';
 import { MimeChallengeGame } from '../components/games/MimeChallengeGame';
 import { PrivateFamilyRoom } from '../components/games/PrivateFamilyRoom';
@@ -41,8 +44,17 @@ type MemoryCard = {
 type ConnectCell = 0 | 1 | 2;
 type GameFilter = 'all' | 'free' | 'premium' | 'quick' | 'team' | 'kids';
 type MemoryMode = 'individual' | 'teams';
+type MemorySource = 'family' | 'memories';
 type BotDifficulty = 'easy' | 'normal' | 'hard';
 type TeamSettings = { names: [string, string]; colors: [string, string] };
+type PendingGameReward = {
+  id: string;
+  memberId: string;
+  memberName: string;
+  points: number;
+  gameType: FamilyGameType;
+  createdAt: string;
+};
 const BOT_DIFFICULTIES: Array<[BotDifficulty, string]> = [
   ['easy', 'Facile'],
   ['normal', 'Normal'],
@@ -59,6 +71,10 @@ interface FamilyGamesProps {
   onTriggerPaywall?: () => void;
   pocketMoney?: PocketMoneyChild[];
   setPocketMoney?: React.Dispatch<React.SetStateAction<PocketMoneyChild[]>>;
+  memories?: MemoryLog[];
+  setVotes?: React.Dispatch<React.SetStateAction<FamilyVote[]>>;
+  onAddEventDirect?: (newEvent: FamilyEvent) => void;
+  onSendNotification?: (title: string, description: string, moduleName?: string, type?: 'info' | 'warning' | 'error' | 'success') => Promise<void>;
 }
 
 const FALLBACK_MEMORY_ITEMS = [
@@ -82,7 +98,18 @@ const seededOrder = (value: string, round: number): number => {
   return x - Math.floor(x);
 };
 
-const buildMemoryDeck = (members: Member[], round: number, pairCount: number): MemoryCard[] => {
+const toLocalDateTimeValue = (date: Date): string => {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const buildMemoryDeck = (
+  members: Member[],
+  memories: MemoryLog[],
+  source: MemorySource,
+  round: number,
+  pairCount: number
+): MemoryCard[] => {
   const memberItems: Array<{ label: string; image?: string; emoji?: string }> = members
     .filter(member => member.name)
     .slice(0, pairCount)
@@ -91,7 +118,16 @@ const buildMemoryDeck = (members: Member[], round: number, pairCount: number): M
       image: member.photoUrl,
       emoji: '🙂'
     }));
-  const items: Array<{ label: string; image?: string; emoji?: string }> = [...memberItems];
+  const memoryItems: Array<{ label: string; image?: string; emoji?: string }> = memories
+    .filter(memory => memory.title && (memory.imageUrl || memory.imageUrls?.[0]))
+    .slice(0, pairCount)
+    .map(memory => ({
+      label: memory.title,
+      image: memory.imageUrl || memory.imageUrls?.[0],
+      emoji: '📸'
+    }));
+  const items: Array<{ label: string; image?: string; emoji?: string }> =
+    source === 'memories' && memoryItems.length > 0 ? [...memoryItems] : [...memberItems];
   for (const fallback of FALLBACK_MEMORY_ITEMS) {
     if (items.length >= pairCount) break;
     items.push(fallback);
@@ -166,7 +202,11 @@ export function FamilyGames({
   onBack,
   onTriggerPaywall,
   pocketMoney = [],
-  setPocketMoney
+  setPocketMoney,
+  memories = [],
+  setVotes,
+  onAddEventDirect,
+  onSendNotification
 }: FamilyGamesProps) {
   const [activeGame, setActiveGame] = useState<GameId | null>(null);
   const [gameFilter, setGameFilter] = useState<GameFilter>('all');
@@ -182,15 +222,36 @@ export function FamilyGames({
   const [memoryRound, setMemoryRound] = useState(1);
   const [memoryPairCount, setMemoryPairCount] = useState<6 | 8 | 12>(6);
   const [memoryMode, setMemoryMode] = useState<MemoryMode>('individual');
+  const [memorySource, setMemorySource] = useState<MemorySource>('family');
   const [memoryPlayerIds, setMemoryPlayerIds] = useState<string[]>(() => members.slice(0, Math.min(2, members.length)).map(member => member.id));
   const [memoryStarted, setMemoryStarted] = useState(false);
   const [memoryCurrentPlayer, setMemoryCurrentPlayer] = useState(0);
   const [memoryScores, setMemoryScores] = useState<number[]>([]);
-  const memoryDeck = useMemo(() => buildMemoryDeck(members, memoryRound, memoryPairCount), [members, memoryPairCount, memoryRound]);
+  const memoryDeck = useMemo(
+    () => buildMemoryDeck(members, memories, memorySource, memoryRound, memoryPairCount),
+    [members, memories, memoryPairCount, memoryRound, memorySource]
+  );
   const [flippedCards, setFlippedCards] = useState<string[]>([]);
   const [matchedPairs, setMatchedPairs] = useState<string[]>([]);
   const [memoryMoves, setMemoryMoves] = useState(0);
   const [memorySaved, setMemorySaved] = useState(false);
+  const [gameNightDate, setGameNightDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 1);
+    date.setHours(19, 0, 0, 0);
+    return toLocalDateTimeValue(date);
+  });
+  const [connectionMessage, setConnectionMessage] = useState('');
+  const [rewardsEnabled, setRewardsEnabled] = useState(() =>
+    localStorage.getItem(`mf_games_rewards_enabled_${foyerId}`) === 'true'
+  );
+  const [pendingRewards, setPendingRewards] = useState<PendingGameReward[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`mf_games_pending_rewards_${foyerId}`) || '[]');
+    } catch {
+      return [];
+    }
+  });
 
   const players = useMemo(() => {
     const active = members.find(member => member.id === playerIds[0]);
@@ -200,6 +261,14 @@ export function FamilyGames({
       second || members.find(member => member.id !== active?.id) || { id: 'player-2', name: 'Équipe Comète', role: 'Famille', photoUrl: '' }
     ];
   }, [members, playerIds]);
+  const activeMember = useMemo(
+    () => members.find(member => member.id === activeMemberId),
+    [activeMemberId, members]
+  );
+  const isAdult = useMemo(() => {
+    const role = (activeMember?.role || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return ['chef', 'parent', 'gestionnaire', 'adulte', 'admin'].some(value => role.includes(value));
+  }, [activeMember?.role]);
 
   const [board, setBoard] = useState<ConnectCell[][]>(() => emptyBoard());
   const [currentPlayer, setCurrentPlayer] = useState<1 | 2>(1);
@@ -266,6 +335,14 @@ export function FamilyGames({
   useEffect(() => {
     localStorage.setItem(`mf_games_teams_${foyerId}`, JSON.stringify(teamSettings));
   }, [foyerId, teamSettings]);
+
+  useEffect(() => {
+    localStorage.setItem(`mf_games_rewards_enabled_${foyerId}`, String(rewardsEnabled));
+  }, [foyerId, rewardsEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem(`mf_games_pending_rewards_${foyerId}`, JSON.stringify(pendingRewards));
+  }, [foyerId, pendingRewards]);
 
   useEffect(() => {
     void familyGameService.fetchResults(foyerId).then(setResults);
@@ -358,24 +435,132 @@ export function FamilyGames({
       setResults(previous => [saved, ...previous.filter(result => result.id !== localResult.id)].slice(0, 30));
     }
 
-    if (winnerName && winnerName !== 'Égalité' && setPocketMoney) {
+    if (rewardsEnabled && winnerName && winnerName !== 'Égalité' && setPocketMoney) {
       const winnerMember = members.find(member => member.name === winnerName);
       const winnerAccount = winnerMember ? pocketMoney.find(account => account.id === winnerMember.id) : undefined;
-      if (winnerAccount) {
-        const rewardPoints = 5;
-        const nextPoints = (winnerAccount.points || 0) + rewardPoints;
-        setPocketMoney(previous => previous.map(account => account.id === winnerAccount.id ? { ...account, points: nextPoints } : account));
-        const client = getSupabaseClient();
-        if (client && foyerId !== 'local') {
-          const { error } = await client.from('pocket_money')
-            .update({ points: nextPoints })
-            .eq('id', winnerAccount.id)
-            .eq('foyer_id', foyerId);
-          if (error) console.warn('[FamilyGames] Pocket money reward not synced:', error.message);
-        }
+      if (winnerMember && winnerAccount) {
+        const pendingReward: PendingGameReward = {
+          id: `game-reward-${localResult.id}`,
+          memberId: winnerMember.id,
+          memberName: winnerMember.name,
+          points: 5,
+          gameType,
+          createdAt: localResult.playedAt
+        };
+        setPendingRewards(previous => previous.some(reward => reward.id === pendingReward.id)
+          ? previous
+          : [pendingReward, ...previous].slice(0, 20));
+        void onSendNotification?.(
+          '🎁 Récompense de jeu à valider',
+          `${winnerMember.name} a gagné une partie. Un parent peut valider les 5 points depuis le module Jeux.`,
+          'games',
+          'info'
+        );
       }
     }
-  }, [foyerId, members, players, pocketMoney, setPocketMoney]);
+    void onSendNotification?.(
+      '🎮 Partie terminée',
+      winnerName && winnerName !== 'Égalité'
+        ? `${winnerName} remporte la partie de ${gameType}.`
+        : `La partie de ${gameType} se termine sur une égalité.`,
+      'games',
+      'success'
+    );
+  }, [foyerId, members, onSendNotification, players, pocketMoney, rewardsEnabled, setPocketMoney]);
+
+  const approveReward = async (reward: PendingGameReward) => {
+    if (!isAdult || !setPocketMoney) return;
+    const winnerAccount = pocketMoney.find(account => account.id === reward.memberId);
+    if (!winnerAccount) {
+      setConnectionMessage('Aucune tirelire ne correspond à ce membre.');
+      return;
+    }
+    const nextPoints = (winnerAccount.points || 0) + reward.points;
+    setPocketMoney(previous => previous.map(account =>
+      account.id === winnerAccount.id ? { ...account, points: nextPoints } : account
+    ));
+    setPendingRewards(previous => previous.filter(item => item.id !== reward.id));
+    const client = getSupabaseClient();
+    if (client && foyerId !== 'local') {
+      const { error } = await client.from('pocket_money')
+        .update({ points: nextPoints })
+        .eq('id', winnerAccount.id)
+        .eq('foyer_id', foyerId);
+      if (error) {
+        console.warn('[FamilyGames] Pocket money reward not synced:', error.message);
+        setConnectionMessage('Points ajoutés sur cet appareil, synchronisation cloud à réessayer.');
+        return;
+      }
+    }
+    setConnectionMessage(`${reward.points} points ajoutés à la tirelire de ${reward.memberName}.`);
+    void onSendNotification?.(
+      '✅ Récompense de jeu validée',
+      `${reward.memberName} reçoit ${reward.points} points dans sa tirelire.`,
+      'finances',
+      'success'
+    );
+  };
+
+  const rejectReward = (rewardId: string) => {
+    if (!isAdult) return;
+    setPendingRewards(previous => previous.filter(reward => reward.id !== rewardId));
+    setConnectionMessage('La récompense a été refusée.');
+  };
+
+  const scheduleGameNight = () => {
+    if (!onAddEventDirect || !gameNightDate) return;
+    const date = new Date(gameNightDate);
+    onAddEventDirect({
+      id: `game-night-${Date.now()}`,
+      title: 'Soirée jeux en famille',
+      type: 'social',
+      dateTime: gameNightDate,
+      time: date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      description: 'Un moment en famille depuis la salle de jeux MyFamily+.',
+      done: false
+    });
+    setConnectionMessage('La soirée jeux a été ajoutée à l’agenda.');
+  };
+
+  const createGameVote = async () => {
+    if (!setVotes || !isAdult) return;
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 1);
+    const vote: FamilyVote = {
+      id: crypto.randomUUID(),
+      question: 'À quel jeu jouons-nous lors de la prochaine soirée ?',
+      options: [
+        { text: 'Memory famille', votes: [] },
+        { text: 'Puissance 4', votes: [] },
+        { text: 'Mimes et défis', votes: [] },
+        { text: 'Défi famille', votes: [] }
+      ],
+      authorName: activeMember?.name || 'Un parent',
+      active: true,
+      dueDate: dueDate.toLocaleDateString('fr-FR')
+    };
+    setVotes(previous => [vote, ...previous]);
+    const client = getSupabaseClient();
+    if (client && foyerId !== 'local') {
+      const { error } = await client.from('votes').insert({
+        id: vote.id,
+        foyer_id: foyerId,
+        question: vote.question,
+        options: vote.options,
+        author_name: vote.authorName,
+        active: vote.active,
+        due_date: vote.dueDate
+      });
+      if (error) console.warn('[FamilyGames] Game vote not synced:', error.message);
+    }
+    setConnectionMessage('Le vote est disponible dans le Conseil de famille.');
+    void onSendNotification?.(
+      '🗳️ Vote pour la prochaine soirée jeux',
+      'La famille peut maintenant choisir son prochain jeu dans le Conseil de famille.',
+      'conseil',
+      'info'
+    );
+  };
 
   const handleRoomReady = useCallback((room: FamilyGameRoom) => {
     setActiveRoom(room.status === 'active' ? room : null);
@@ -673,9 +858,34 @@ export function FamilyGames({
                 ))}
               </div>
               {pocketMoney.length > 0 && (
-                <p className="rounded-xl border border-[#FFB020]/20 bg-[#FFB020]/8 px-3 py-2 text-[10px] font-bold text-white/55">
-                  Une victoire individuelle rapporte 5 points dans la tirelire du membre.
-                </p>
+                <div className="rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/8 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2">
+                      <Gift className="h-4 w-4 text-[#FFB020]" />
+                      <span>
+                        <strong className="block text-[11px] text-white">Récompenses de jeu</strong>
+                        <span className="block text-[9px] text-white/50">5 points proposés au gagnant, puis validés par un parent.</span>
+                      </span>
+                    </span>
+                    {isAdult && (
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={rewardsEnabled}
+                        onClick={() => setRewardsEnabled(value => !value)}
+                        className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${rewardsEnabled ? 'bg-[#00D26A]' : 'bg-white/15'}`}
+                        title={rewardsEnabled ? 'Désactiver les récompenses' : 'Activer les récompenses'}
+                      >
+                        <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-transform ${rewardsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                      </button>
+                    )}
+                  </div>
+                  {!isAdult && (
+                    <p className="mt-2 text-[9px] font-bold text-white/45">
+                      {rewardsEnabled ? 'Les gains restent en attente de validation parentale.' : 'Un parent peut activer cette option.'}
+                    </p>
+                  )}
+                </div>
               )}
               <div className="grid grid-cols-2 gap-3 border-t border-white/8 pt-4">
                 {[0, 1].map(index => (
@@ -686,6 +896,75 @@ export function FamilyGames({
                 ))}
               </div>
             </section>
+
+            {(onAddEventDirect || setVotes || pendingRewards.length > 0) && (
+              <section className="glass-panel rounded-[24px] border border-white/8 p-5 space-y-4">
+                <div>
+                  <h3 className="text-sm font-black text-white">Liens avec la famille</h3>
+                  <p className="text-[10px] text-white/45">Préparez la prochaine partie et gardez les récompenses sous contrôle.</p>
+                </div>
+
+                {onAddEventDirect && (
+                  <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <label className="rounded-2xl border border-white/8 bg-white/5 px-3 py-2">
+                      <span className="mb-1 block text-[9px] font-black uppercase text-white/40">Prochaine soirée jeux</span>
+                      <input
+                        type="datetime-local"
+                        value={gameNightDate}
+                        onChange={event => setGameNightDate(event.target.value)}
+                        className="w-full bg-transparent text-xs font-bold text-white outline-none"
+                      />
+                    </label>
+                    <button type="button" onClick={scheduleGameNight} className="flex items-center justify-center gap-2 rounded-2xl bg-[#4F8CFF] px-4 py-3 text-xs font-black text-white">
+                      <CalendarDays className="h-4 w-4" /> Ajouter
+                    </button>
+                  </div>
+                )}
+
+                {setVotes && (
+                  <button
+                    type="button"
+                    disabled={!isAdult}
+                    onClick={() => void createGameVote()}
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#6C5CFF]/25 bg-[#6C5CFF]/10 p-4 text-left disabled:opacity-45"
+                  >
+                    <span>
+                      <strong className="block text-xs text-white">Faire choisir le prochain jeu</strong>
+                      <span className="mt-1 block text-[9px] text-white/45">{isAdult ? 'Publie un vote dans le Conseil de famille.' : 'Seul un parent peut publier ce vote.'}</span>
+                    </span>
+                    <Vote className="h-5 w-5 shrink-0 text-[#9E94FF]" />
+                  </button>
+                )}
+
+                {pendingRewards.length > 0 && (
+                  <div className="space-y-2 border-t border-white/8 pt-4">
+                    <span className="text-[9px] font-black uppercase text-white/40">Récompenses en attente</span>
+                    {pendingRewards.map(reward => (
+                      <div key={reward.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/8 p-3">
+                        <span className="min-w-0">
+                          <strong className="block truncate text-xs text-white">{reward.memberName}</strong>
+                          <span className="text-[9px] text-white/45">+{reward.points} points · {reward.gameType}</span>
+                        </span>
+                        {isAdult ? (
+                          <span className="flex shrink-0 gap-2">
+                            <button type="button" onClick={() => rejectReward(reward.id)} className="rounded-xl border border-white/10 px-3 py-2 text-[9px] font-black text-white/55">Refuser</button>
+                            <button type="button" onClick={() => void approveReward(reward)} className="rounded-xl bg-[#00D26A] px-3 py-2 text-[9px] font-black text-[#07111F]">Valider</button>
+                          </span>
+                        ) : (
+                          <span className="shrink-0 rounded-full bg-white/8 px-3 py-1 text-[9px] font-black text-white/45">Parent</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {connectionMessage && (
+                  <p className="rounded-xl border border-[#00D26A]/20 bg-[#00D26A]/8 px-3 py-2 text-[10px] font-bold text-white/65">
+                    {connectionMessage}
+                  </p>
+                )}
+              </section>
+            )}
 
             {isPremium ? (
               <PrivateFamilyRoom
@@ -813,6 +1092,15 @@ export function FamilyGames({
                   <button type="button" onClick={() => setMemoryMode('individual')} className={`rounded-2xl border py-3 text-xs font-black ${memoryMode === 'individual' ? 'border-[#6C5CFF] bg-[#6C5CFF]/12 text-[#9E94FF]' : 'border-white/8 bg-white/5 text-white/60'}`}>Chacun pour soi</button>
                   <button type="button" onClick={() => setMemoryMode('teams')} className={`rounded-2xl border py-3 text-xs font-black ${memoryMode === 'teams' ? 'border-[#6C5CFF] bg-[#6C5CFF]/12 text-[#9E94FF]' : 'border-white/8 bg-white/5 text-white/60'}`}>Deux équipes</button>
                 </div>
+                {memories.some(memory => memory.imageUrl || memory.imageUrls?.[0]) && (
+                  <div>
+                    <span className="mb-2 block text-[9px] font-black uppercase text-white/40">Images des cartes</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => setMemorySource('family')} className={`rounded-2xl border py-3 text-xs font-black ${memorySource === 'family' ? 'border-[#FFB020] bg-[#FFB020]/12 text-[#FFB020]' : 'border-white/8 bg-white/5 text-white/60'}`}>Membres</button>
+                      <button type="button" onClick={() => setMemorySource('memories')} className={`rounded-2xl border py-3 text-xs font-black ${memorySource === 'memories' ? 'border-[#FFB020] bg-[#FFB020]/12 text-[#FFB020]' : 'border-white/8 bg-white/5 text-white/60'}`}>Souvenirs</button>
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {members.slice(0, 6).map(member => {
                     const selected = memoryPlayerIds.includes(member.id);
