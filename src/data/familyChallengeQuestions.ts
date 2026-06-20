@@ -9,7 +9,7 @@ export type FamilyChallengeQuestion = {
   category: 'Maison' | 'Quotidien' | 'Repas' | 'Vacances' | 'École' | 'Loisirs' | 'Famille' | 'Fêtes';
   difficulty: 'Facile' | 'Intermédiaire' | 'Difficile';
   ageGroup: 'Enfants' | 'Adolescents' | 'Famille' | 'Adultes';
-  pack: 'Essentiel' | 'Enfants' | 'Adolescents' | 'Parents' | 'Vacances' | 'Fêtes' | 'Culture familiale';
+  pack: 'Essentiel' | 'Enfants' | 'Adolescents' | 'Parents' | 'Vacances' | 'Fêtes' | 'Culture familiale' | 'Noël & hiver' | 'Été' | 'Grands-parents' | 'France & régions' | 'Monde & cultures';
   prompt: string;
   answers: ChallengeAnswer[];
 };
@@ -321,11 +321,77 @@ const EXPANDED_FAMILY_CHALLENGE_QUESTIONS: FamilyChallengeQuestion[] = (
   };
 }));
 
-// 48 questions essentielles et 152 sondages supplémentaires réellement distincts.
+const themedQuestion = (
+  id: string,
+  category: FamilyChallengeQuestion['category'],
+  difficulty: FamilyChallengeQuestion['difficulty'],
+  ageGroup: FamilyChallengeQuestion['ageGroup'],
+  pack: FamilyChallengeQuestion['pack'],
+  prompt: string,
+  values: string[]
+): FamilyChallengeQuestion => ({
+  id,
+  category,
+  difficulty,
+  ageGroup,
+  pack,
+  prompt,
+  answers: values.map(answer)
+});
+
+const THEMED_FAMILY_CHALLENGE_QUESTIONS: FamilyChallengeQuestion[] = [
+  themedQuestion('noel-01', 'Fêtes', 'Facile', 'Famille', 'Noël & hiver', 'Que fait-on en premier le matin de Noël ?', ['Ouvrir les cadeaux|cadeaux', 'Réveiller la famille', 'Regarder sous le sapin', 'Prendre un petit-déjeuner', 'Faire des photos', 'Mettre de la musique', 'Allumer les décorations', 'Appeler les proches']),
+  themedQuestion('noel-02', 'Fêtes', 'Facile', 'Enfants', 'Noël & hiver', 'Quelle décoration les enfants préfèrent-ils installer ?', ['Les boules du sapin|boules', 'Les guirlandes lumineuses|lumières', 'L’étoile du sapin|étoile', 'La crèche', 'Les décorations de fenêtre', 'Les chaussettes de Noël', 'La couronne de porte', 'Les figurines']),
+  themedQuestion('noel-03', 'Repas', 'Intermédiaire', 'Famille', 'Noël & hiver', 'Quel aliment évoque immédiatement les fêtes de fin d’année ?', ['Le chocolat', 'La bûche|buche de Noël', 'Les clémentines|mandarines', 'Le pain d’épices', 'Les marrons', 'Le saumon fumé', 'Les biscuits', 'Le fromage']),
+  themedQuestion('noel-04', 'Quotidien', 'Intermédiaire', 'Famille', 'Noël & hiver', 'Quelle activité familiale choisit-on lorsqu’il fait très froid ?', ['Regarder un film', 'Boire un chocolat chaud', 'Jouer à un jeu de société', 'Cuisiner', 'Faire une promenade dans la neige', 'Lire', 'Faire un puzzle', 'Décorer la maison']),
+  themedQuestion('noel-05', 'Vacances', 'Difficile', 'Adultes', 'Noël & hiver', 'Quel détail complique le plus un départ en vacances d’hiver ?', ['La météo|neige', 'Les bagages volumineux', 'Les routes chargées|embouteillages', 'Les chaînes ou pneus neige', 'Les cadeaux à transporter', 'Le froid au départ', 'Une réservation oubliée', 'Les enfants impatients']),
+  themedQuestion('noel-06', 'Fêtes', 'Intermédiaire', 'Famille', 'Noël & hiver', 'Quel cadeau de dernière minute achète-t-on le plus facilement ?', ['Du chocolat', 'Une carte cadeau', 'Un livre', 'Un parfum', 'Un vêtement', 'Un jeu', 'Des fleurs', 'Une bouteille']),
+  themedQuestion('noel-07', 'Famille', 'Difficile', 'Famille', 'Noël & hiver', 'Quelle tradition de fin d’année crée le plus de souvenirs ?', ['Décorer le sapin', 'Le repas familial', 'Ouvrir les cadeaux', 'Regarder un film de Noël', 'Faire une photo de famille', 'Préparer des biscuits', 'Voir les illuminations', 'Écrire des cartes']),
+  themedQuestion('noel-08', 'Maison', 'Facile', 'Enfants', 'Noël & hiver', 'Quel objet disparaît souvent pendant l’emballage des cadeaux ?', ['Le ruban adhésif|scotch', 'Les ciseaux', 'Le papier cadeau', 'Les étiquettes', 'Un stylo', 'Le ruban', 'La ficelle', 'Le cadeau lui-même']),
+
+  themedQuestion('ete-01', 'Vacances', 'Facile', 'Famille', 'Été', 'Que met-on en premier dans un sac pour la plage ?', ['La serviette', 'La crème solaire', 'Le maillot de bain', 'Une bouteille d’eau', 'Les lunettes de soleil', 'Un chapeau', 'Un goûter', 'Un livre']),
+  themedQuestion('ete-02', 'Repas', 'Facile', 'Enfants', 'Été', 'Quel aliment fait le plus penser à l’été ?', ['La glace', 'La pastèque', 'Le melon', 'Les fraises', 'Les tomates', 'Les grillades', 'Les pêches', 'La salade']),
+  themedQuestion('ete-03', 'Loisirs', 'Intermédiaire', 'Famille', 'Été', 'Quelle activité choisit-on pour profiter d’une longue soirée d’été ?', ['Un barbecue', 'Une promenade', 'Manger en terrasse', 'Jouer dehors', 'Regarder le coucher du soleil', 'Aller à un concert', 'Faire du vélo', 'Observer les étoiles']),
+  themedQuestion('ete-04', 'Quotidien', 'Intermédiaire', 'Famille', 'Été', 'Qu’est-ce qui gêne le plus pendant une nuit très chaude ?', ['Ne pas réussir à dormir', 'Les moustiques', 'Le bruit dehors', 'La chambre trop chaude', 'La soif', 'Les draps qui collent', 'Le ventilateur bruyant', 'La lumière du matin']),
+  themedQuestion('ete-05', 'Vacances', 'Difficile', 'Adultes', 'Été', 'Quel imprévu change le plus facilement une journée d’été ?', ['Un orage', 'Un coup de soleil', 'Une plage bondée', 'Une voiture en panne', 'Une réservation annulée', 'Un enfant malade', 'La canicule', 'Un objet oublié']),
+  themedQuestion('ete-06', 'Loisirs', 'Facile', 'Enfants', 'Été', 'Quel jeu fait-on facilement dehors pendant les vacances ?', ['Jouer au ballon', 'Faire une bataille d’eau', 'Jouer aux raquettes', 'Faire du vélo', 'Construire un château de sable', 'Jouer à cache-cache', 'Faire une course', 'Lancer un frisbee']),
+  themedQuestion('ete-07', 'Maison', 'Intermédiaire', 'Famille', 'Été', 'Quelle tâche fait-on juste avant de partir longtemps en vacances ?', ['Fermer les fenêtres', 'Vider le réfrigérateur', 'Sortir les poubelles', 'Arroser les plantes', 'Couper certains appareils', 'Vérifier les portes', 'Confier les clés', 'Ranger la maison']),
+  themedQuestion('ete-08', 'Famille', 'Difficile', 'Famille', 'Été', 'Quel souvenir d’été aime-t-on revoir en hiver ?', ['Les photos de plage', 'Un coucher de soleil', 'Une vidéo familiale', 'Une carte postale', 'Un coquillage', 'Les photos d’un repas', 'Un billet de visite', 'Un dessin des enfants']),
+
+  themedQuestion('grands-parents-01', 'Famille', 'Facile', 'Famille', 'Grands-parents', 'Qu’aime-t-on le plus faire chez ses grands-parents ?', ['Manger un bon repas', 'Écouter des histoires', 'Regarder les vieilles photos', 'Jouer à des jeux', 'Aller se promener', 'Cuisiner ensemble', 'Jardiner', 'Se faire gâter']),
+  themedQuestion('grands-parents-02', 'Repas', 'Intermédiaire', 'Famille', 'Grands-parents', 'Quel plat rappelle souvent la cuisine des grands-parents ?', ['Un gâteau maison', 'Un plat mijoté', 'Une soupe', 'Un rôti', 'Une tarte', 'Des crêpes', 'Un gratin', 'De la confiture']),
+  themedQuestion('grands-parents-03', 'Loisirs', 'Facile', 'Enfants', 'Grands-parents', 'Quel jeu traditionnel un grand-parent peut-il facilement apprendre ?', ['Les petits chevaux', 'La bataille', 'Les dominos', 'Les dames', 'Le jeu de l’oie', 'Le Scrabble', 'La belote', 'Les cartes']),
+  themedQuestion('grands-parents-04', 'Famille', 'Difficile', 'Adultes', 'Grands-parents', 'Quel savoir familial les grands-parents transmettent-ils le mieux ?', ['Les recettes', 'L’histoire de la famille', 'Le bricolage', 'Le jardinage', 'Les valeurs', 'La gestion de l’argent', 'Les traditions', 'La patience']),
+  themedQuestion('grands-parents-05', 'Maison', 'Intermédiaire', 'Famille', 'Grands-parents', 'Quel objet ancien intrigue le plus les enfants ?', ['Un téléphone à cadran', 'Une vieille photo', 'Un tourne-disque', 'Une machine à écrire', 'Une horloge', 'Un appareil photo argentique', 'Une cassette vidéo', 'Un vieux jouet']),
+  themedQuestion('grands-parents-06', 'Quotidien', 'Intermédiaire', 'Adolescents', 'Grands-parents', 'Pour quoi appelle-t-on volontiers un grand-parent ?', ['Demander une recette', 'Prendre des nouvelles', 'Demander un conseil', 'Raconter une bonne nouvelle', 'Organiser une visite', 'Demander une histoire familiale', 'Souhaiter un anniversaire', 'Demander de l’aide']),
+  themedQuestion('grands-parents-07', 'Famille', 'Facile', 'Famille', 'Grands-parents', 'Quel cadeau fait particulièrement plaisir à un grand-parent ?', ['Une photo de famille', 'Un dessin', 'Une visite', 'Un album photo', 'Un objet fait maison', 'Des fleurs', 'Une lettre', 'Un repas partagé']),
+  themedQuestion('grands-parents-08', 'Fêtes', 'Difficile', 'Famille', 'Grands-parents', 'Quel moment de fête les grands-parents apprécient-ils le plus ?', ['Voir toute la famille', 'Le repas', 'Les photos', 'Les enfants qui jouent', 'Les discussions', 'Les cadeaux faits maison', 'Raconter des souvenirs', 'La musique']),
+
+  themedQuestion('regions-01', 'Repas', 'Facile', 'Famille', 'France & régions', 'Quelle spécialité française partage-t-on facilement en famille ?', ['Les crêpes', 'La raclette', 'Le couscous', 'La quiche', 'Le gratin dauphinois', 'La bouillabaisse', 'La choucroute', 'Le cassoulet']),
+  themedQuestion('regions-02', 'Vacances', 'Intermédiaire', 'Famille', 'France & régions', 'Quel paysage français attire le plus pour les vacances ?', ['La mer', 'La montagne', 'La campagne', 'Les villages', 'Les grandes villes', 'Les lacs', 'Les forêts', 'Les vignobles']),
+  themedQuestion('regions-03', 'Loisirs', 'Facile', 'Enfants', 'France & régions', 'Quelle activité fait-on volontiers pendant une fête de village ?', ['Danser', 'Manger une spécialité', 'Écouter de la musique', 'Jouer à des stands', 'Regarder un défilé', 'Voir un feu d’artifice', 'Acheter au marché', 'Participer à une course']),
+  themedQuestion('regions-04', 'Famille', 'Difficile', 'Adultes', 'France & régions', 'Qu’est-ce qui donne le plus son identité à une région ?', ['La cuisine', 'L’accent', 'Les paysages', 'Les traditions', 'L’architecture', 'Les fêtes locales', 'La musique', 'Les produits locaux']),
+  themedQuestion('regions-05', 'Vacances', 'Intermédiaire', 'Famille', 'France & régions', 'Quel souvenir rapporte-t-on le plus volontiers d’une région française ?', ['Un produit alimentaire', 'Une carte postale', 'Un magnet', 'Une photo', 'Un objet artisanal', 'Une bouteille', 'Un vêtement', 'Un livre']),
+  themedQuestion('regions-06', 'Repas', 'Difficile', 'Adultes', 'France & régions', 'Quel produit trouve-t-on souvent sur un marché régional ?', ['Le fromage', 'La charcuterie', 'Les fruits', 'Le pain', 'Le miel', 'Les olives', 'Le vin', 'Les pâtisseries']),
+  themedQuestion('regions-07', 'Quotidien', 'Intermédiaire', 'Famille', 'France & régions', 'Quel détail remarque-t-on rapidement en changeant de région ?', ['L’accent', 'La météo', 'Les paysages', 'Les spécialités', 'Les noms de lieux', 'L’architecture', 'Le rythme de vie', 'Les expressions']),
+  themedQuestion('regions-08', 'Fêtes', 'Facile', 'Famille', 'France & régions', 'Quel événement local rassemble facilement les familles ?', ['Un marché de Noël', 'Une fête de village', 'Un carnaval', 'Une brocante', 'Un festival', 'Une foire', 'Un feu d’artifice', 'Une fête gastronomique']),
+
+  themedQuestion('monde-01', 'Repas', 'Facile', 'Famille', 'Monde & cultures', 'Quel plat étranger est largement connu des familles ?', ['La pizza', 'Le couscous', 'Les sushis', 'Le tajine', 'Les tacos', 'Le curry', 'Le kebab', 'Les nouilles']),
+  themedQuestion('monde-02', 'Vacances', 'Intermédiaire', 'Famille', 'Monde & cultures', 'Que veut-on découvrir en premier dans un nouveau pays ?', ['La cuisine', 'Les monuments', 'La langue', 'Les paysages', 'Les habitants', 'Les marchés', 'Les traditions', 'La musique']),
+  themedQuestion('monde-03', 'École', 'Facile', 'Enfants', 'Monde & cultures', 'Quel mot apprend-on souvent en premier dans une langue étrangère ?', ['Bonjour', 'Merci', 'Au revoir', 'Oui', 'Non', 'S’il vous plaît', 'Je m’appelle', 'Combien']),
+  themedQuestion('monde-04', 'Famille', 'Difficile', 'Adultes', 'Monde & cultures', 'Quelle habitude familiale varie beaucoup selon les cultures ?', ['Les repas', 'Les salutations', 'Les fêtes', 'L’éducation', 'Les horaires', 'Les vêtements', 'Les mariages', 'La place des grands-parents']),
+  themedQuestion('monde-05', 'Loisirs', 'Intermédiaire', 'Adolescents', 'Monde & cultures', 'Quel contenu donne envie de découvrir un autre pays ?', ['Un film', 'Une chanson', 'Une vidéo de voyage', 'Un livre', 'Une recette', 'Une série', 'Une photo', 'Un jeu vidéo']),
+  themedQuestion('monde-06', 'Fêtes', 'Facile', 'Famille', 'Monde & cultures', 'Quel élément retrouve-t-on dans de nombreuses fêtes du monde ?', ['La musique', 'Un repas', 'La danse', 'Des vêtements spéciaux', 'Des cadeaux', 'Des lumières', 'Une cérémonie', 'Des décorations']),
+  themedQuestion('monde-07', 'Vacances', 'Difficile', 'Adultes', 'Monde & cultures', 'Quelle difficulté rencontre-t-on le plus souvent lors d’un voyage à l’étranger ?', ['La langue', 'Les transports', 'La monnaie', 'Les horaires', 'La nourriture', 'L’orientation', 'Les formalités', 'La connexion internet']),
+  themedQuestion('monde-08', 'Famille', 'Intermédiaire', 'Famille', 'Monde & cultures', 'Quelle découverte culturelle plaît facilement aux enfants ?', ['Un plat nouveau', 'Une danse', 'Une légende', 'Un vêtement traditionnel', 'Un instrument', 'Un jeu', 'Un animal local', 'Une fête'])
+];
+
+// 48 questions essentielles, 152 sondages généraux et 40 questions thématiques.
 // Chaque tableau contient huit réponses et des alias contrôlés.
 export const FAMILY_CHALLENGE_QUESTIONS: FamilyChallengeQuestion[] = [
   ...CORE_FAMILY_CHALLENGE_QUESTIONS,
-  ...EXPANDED_FAMILY_CHALLENGE_QUESTIONS
+  ...EXPANDED_FAMILY_CHALLENGE_QUESTIONS,
+  ...THEMED_FAMILY_CHALLENGE_QUESTIONS
 ];
 
 export type ChallengeQuestionFilters = {

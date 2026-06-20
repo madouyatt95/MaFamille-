@@ -600,7 +600,21 @@ export function FamilyChallengeGame({
           {isPremium && <label className="block">
             <span className="mb-2 block text-xs font-black text-white">Pack de questions</span>
             <select value={selectedPack} onChange={event => setSelectedPack(event.target.value as FamilyChallengeQuestion['pack'] | 'Tous')} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white">
-              {['Tous', 'Essentiel', 'Enfants', 'Adolescents', 'Parents', 'Vacances', 'Fêtes', 'Culture familiale'].map(pack => <option key={pack} value={pack}>{pack}</option>)}
+              {[
+                'Tous',
+                'Essentiel',
+                'Enfants',
+                'Adolescents',
+                'Parents',
+                'Vacances',
+                'Fêtes',
+                'Culture familiale',
+                'Noël & hiver',
+                'Été',
+                'Grands-parents',
+                'France & régions',
+                'Monde & cultures'
+              ].map(pack => <option key={pack} value={pack}>{pack}</option>)}
             </select>
           </label>}
           {isPremium && <label className="block">
