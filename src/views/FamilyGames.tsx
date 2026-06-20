@@ -14,6 +14,7 @@ import {
   Lock,
   Mic2,
   RotateCcw,
+  Ship,
   Sparkles,
   Star,
   Trophy,
@@ -25,6 +26,7 @@ import { getSupabaseClient } from '../utils/supabase';
 import { MimeChallengeGame } from '../components/games/MimeChallengeGame';
 import { PrivateFamilyRoom } from '../components/games/PrivateFamilyRoom';
 import { FamilyChallengeGame } from '../components/games/FamilyChallengeGame';
+import { BattleshipGame } from '../components/games/BattleshipGame';
 import {
   familyGameService,
   type FamilyGameResult,
@@ -54,6 +56,13 @@ type PendingGameReward = {
   points: number;
   gameType: FamilyGameType;
   createdAt: string;
+};
+type TournamentState = {
+  active: boolean;
+  games: FamilyGameType[];
+  currentIndex: number;
+  playerNames: [string, string];
+  scores: [number, number];
 };
 const BOT_DIFFICULTIES: Array<[BotDifficulty, string]> = [
   ['easy', 'Facile'],
@@ -252,6 +261,15 @@ export function FamilyGames({
       return [];
     }
   });
+  const [showTournamentSetup, setShowTournamentSetup] = useState(false);
+  const [tournamentGames, setTournamentGames] = useState<FamilyGameType[]>(['memory', 'connect4', 'battleship']);
+  const [tournament, setTournament] = useState<TournamentState | null>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`mf_games_tournament_${foyerId}`) || 'null');
+    } catch {
+      return null;
+    }
+  });
 
   const players = useMemo(() => {
     const active = members.find(member => member.id === playerIds[0]);
@@ -296,13 +314,14 @@ export function FamilyGames({
   });
 
   const challengeQuestionCount = isPremium ? FAMILY_CHALLENGE_QUESTIONS.length : 12;
-  const challengeTeams = useMemo(() => activeRoom ? [
-    { id: activeRoom.hostFoyerId, name: activeRoom.hostName, photoUrl: '' },
-    { id: activeRoom.guestFoyerId || 'guest-family', name: activeRoom.guestName || 'Famille invitée', photoUrl: '' }
+  const challengeRoom = activeRoom?.gameType === 'family-challenge' ? activeRoom : null;
+  const challengeTeams = useMemo(() => challengeRoom ? [
+    { id: challengeRoom.hostFoyerId, name: challengeRoom.hostName, photoUrl: '' },
+    { id: challengeRoom.guestFoyerId || 'guest-family', name: challengeRoom.guestName || 'Famille invitée', photoUrl: '' }
   ] : [
     { id: 'team-1', name: teamSettings.names[0], photoUrl: '' },
     { id: 'team-2', name: teamSettings.names[1], photoUrl: '' }
-  ], [activeRoom, teamSettings.names]);
+  ], [challengeRoom, teamSettings.names]);
   const gameStats = useMemo(() => {
     const wins = new Map<string, number>();
     results.forEach(result => {
@@ -343,6 +362,11 @@ export function FamilyGames({
   useEffect(() => {
     localStorage.setItem(`mf_games_pending_rewards_${foyerId}`, JSON.stringify(pendingRewards));
   }, [foyerId, pendingRewards]);
+
+  useEffect(() => {
+    if (tournament) localStorage.setItem(`mf_games_tournament_${foyerId}`, JSON.stringify(tournament));
+    else localStorage.removeItem(`mf_games_tournament_${foyerId}`);
+  }, [foyerId, tournament]);
 
   useEffect(() => {
     void familyGameService.fetchResults(foyerId).then(setResults);
@@ -435,6 +459,21 @@ export function FamilyGames({
       setResults(previous => [saved, ...previous.filter(result => result.id !== localResult.id)].slice(0, 30));
     }
 
+    if (tournament?.active && tournament.games[tournament.currentIndex] === gameType) {
+      const nextScores: [number, number] = [...tournament.scores];
+      if (!winnerName || winnerName === 'Égalité') {
+        nextScores[0] += 1;
+        nextScores[1] += 1;
+      } else {
+        const winnerIndex = tournament.playerNames.findIndex(name => name === winnerName);
+        if (winnerIndex >= 0) nextScores[winnerIndex] += 3;
+      }
+      const nextIndex = tournament.currentIndex + 1;
+      const finished = nextIndex >= tournament.games.length;
+      setTournament({ ...tournament, scores: nextScores, currentIndex: nextIndex, active: !finished });
+      window.setTimeout(() => setActiveGame(finished ? null : tournament.games[nextIndex]), 700);
+    }
+
     if (rewardsEnabled && winnerName && winnerName !== 'Égalité' && setPocketMoney) {
       const winnerMember = members.find(member => member.name === winnerName);
       const winnerAccount = winnerMember ? pocketMoney.find(account => account.id === winnerMember.id) : undefined;
@@ -466,7 +505,21 @@ export function FamilyGames({
       'games',
       'success'
     );
-  }, [foyerId, members, onSendNotification, players, pocketMoney, rewardsEnabled, setPocketMoney]);
+  }, [foyerId, members, onSendNotification, players, pocketMoney, rewardsEnabled, setPocketMoney, tournament]);
+
+  const startTournament = () => {
+    if (tournamentGames.length < 2) return;
+    const nextTournament: TournamentState = {
+      active: true,
+      games: tournamentGames,
+      currentIndex: 0,
+      playerNames: [players[0].name, players[1].name],
+      scores: [0, 0]
+    };
+    setTournament(nextTournament);
+    setShowTournamentSetup(false);
+    setActiveGame(tournamentGames[0]);
+  };
 
   const approveReward = async (reward: PendingGameReward) => {
     if (!isAdult || !setPocketMoney) return;
@@ -685,6 +738,15 @@ export function FamilyGames({
       tags: ['free', 'quick', 'kids']
     },
     {
+      id: 'battleship' as const,
+      title: 'Bataille navale',
+      description: 'Cachez votre flotte, visez juste et défiez un proche ou une autre famille.',
+      icon: Ship,
+      accent: '#00A8E8',
+      meta: '1 à 2 joueurs · 15 min',
+      tags: ['free', 'team', 'kids']
+    },
+    {
       id: 'family-challenge' as const,
       title: 'Défi famille',
       description: 'Devinez les réponses les plus populaires et faites gagner votre équipe.',
@@ -793,6 +855,49 @@ export function FamilyGames({
               </span>
               <span className="rounded-full bg-[#00D26A]/15 px-3 py-1 text-[10px] font-black text-[#00D26A]">+1 trophée</span>
             </button>
+
+            <section className="glass-panel rounded-[24px] border border-[#FFB020]/20 p-5 space-y-4">
+              <button type="button" onClick={() => setShowTournamentSetup(value => !value)} className="flex w-full items-center justify-between gap-3 text-left">
+                <span>
+                  <strong className="flex items-center gap-2 text-sm text-white"><Trophy className="h-5 w-5 text-[#FFB020]" /> Tournoi familial</strong>
+                  <span className="mt-1 block text-[10px] text-white/45">Enchaînez plusieurs jeux, même hors connexion.</span>
+                </span>
+                <ChevronRight className={`h-5 w-5 text-white/40 transition-transform ${showTournamentSetup ? 'rotate-90' : ''}`} />
+              </button>
+              {tournament && (
+                <div className="rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/8 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <span><strong className="block text-xs text-white">{tournament.active ? `Manche ${Math.min(tournament.currentIndex + 1, tournament.games.length)}/${tournament.games.length}` : 'Tournoi terminé'}</strong><span className="text-[9px] text-white/45">{tournament.games.join(' · ')}</span></span>
+                    <strong className="text-lg text-[#FFB020]">{tournament.scores[0]} - {tournament.scores[1]}</strong>
+                  </div>
+                  <div className="mt-2 flex justify-between text-[10px] font-bold text-white/65"><span>{tournament.playerNames[0]}</span><span>{tournament.playerNames[1]}</span></div>
+                  {!tournament.active && (
+                    <button type="button" onClick={() => setTournament(null)} className="mt-3 w-full rounded-xl border border-white/8 py-2 text-[10px] font-black text-white/55">Fermer le podium</button>
+                  )}
+                </div>
+              )}
+              {showTournamentSetup && (
+                <div className="space-y-3 border-t border-white/8 pt-4">
+                  <p className="text-[10px] text-white/50">Choisissez entre 2 et 5 manches. Victoire : 3 points, égalité : 1 point chacun.</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      ['memory', 'Memory'],
+                      ['connect4', 'Puissance 4'],
+                      ['battleship', 'Bataille navale'],
+                      ['mime-challenge', 'Mimes']
+                    ] as Array<[FamilyGameType, string]>).map(([id, label]) => {
+                      const selected = tournamentGames.includes(id);
+                      return (
+                        <button key={id} type="button" onClick={() => setTournamentGames(previous => selected ? previous.filter(game => game !== id) : [...previous, id])} className={`rounded-2xl border p-3 text-left text-xs font-black ${selected ? 'border-[#FFB020] bg-[#FFB020]/10 text-[#FFB020]' : 'border-white/8 bg-white/5 text-white/50'}`}>
+                          {selected && <Check className="mr-1 inline h-4 w-4" />}{label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button type="button" disabled={tournamentGames.length < 2} onClick={startTournament} className="w-full rounded-2xl bg-[#FFB020] py-3 text-xs font-black text-[#07111F] disabled:opacity-40">Commencer le tournoi</button>
+                </div>
+              )}
+            </section>
 
             <div className="flex gap-2 overflow-x-auto pb-1">
               {([
@@ -1280,19 +1385,35 @@ export function FamilyGames({
           </>
         )}
 
+        {activeGame === 'battleship' && (
+          <>
+            {gameHeader('Bataille navale', 'Placez votre flotte, protégez vos positions et coulez les cinq bateaux adverses.', Ship)}
+            <BattleshipGame
+              foyerId={foyerId}
+              familyName={familyName}
+              isPremium={isPremium}
+              playerNames={[players[0].name, players[1].name]}
+              room={activeRoom?.gameType === 'battleship' ? activeRoom : null}
+              onRoomChange={setActiveRoom}
+              onTriggerPaywall={onTriggerPaywall}
+              onFinished={(scores, winnerName, mode) => void saveResult('battleship', scores, winnerName, { mode }, [players[0].name, players[1].name])}
+            />
+          </>
+        )}
+
         {activeGame === 'family-challenge' && (
           <>
             {gameHeader('Défi famille', 'Prenez la main, complétez le tableau et protégez la cagnotte.', Users)}
-            {activeRoom && (
+            {challengeRoom && (
               <div className="rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/8 px-4 py-3 flex items-center justify-between gap-3">
-                <span className="text-xs font-black text-white">{activeRoom.hostName}</span>
-                <span className="text-[9px] font-black uppercase tracking-widest text-[#9E94FF]">Salle {activeRoom.code}</span>
-                <span className="text-xs font-black text-white">{activeRoom.guestName || 'En attente'}</span>
+                <span className="text-xs font-black text-white">{challengeRoom.hostName}</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-[#9E94FF]">Salle {challengeRoom.code}</span>
+                <span className="text-xs font-black text-white">{challengeRoom.guestName || 'En attente'}</span>
                 <button type="button" onClick={() => {
                   void familyGameService.performRoomAction(
-                    activeRoom.id,
+                    challengeRoom.id,
                     foyerId,
-                    activeRoom.hostFoyerId === foyerId ? 'cancel' : 'leave'
+                    challengeRoom.hostFoyerId === foyerId ? 'cancel' : 'leave'
                   ).finally(() => setActiveRoom(null));
                 }} className="rounded-xl border border-[#FF4D6D]/20 p-2 text-[#FF4D6D]" title="Quitter la partie">
                   <ArrowLeft className="w-4 h-4" />
@@ -1314,7 +1435,7 @@ export function FamilyGames({
                 { id: challengeTeams[0].id, name: challengeTeams[0].name },
                 { id: challengeTeams[1].id, name: challengeTeams[1].name }
               ]}
-              room={activeRoom}
+              room={challengeRoom}
               onRoomChange={handleRoomReady}
               onFinished={(scores, winnerName) => {
                 setLastRecap({ scores, winnerName });
@@ -1322,7 +1443,7 @@ export function FamilyGames({
                   'family-challenge',
                   scores,
                   winnerName,
-                  { roomId: activeRoom?.id, rounds: scores[0] + scores[1] },
+                  { roomId: challengeRoom?.id, rounds: scores[0] + scores[1] },
                   challengeTeams.map(team => team.name)
                 );
               }}

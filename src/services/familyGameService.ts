@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabaseClient } from '../utils/supabase';
 
-export type FamilyGameType = 'memory' | 'connect4' | 'family-challenge' | 'mime-challenge';
+export type FamilyGameType = 'memory' | 'connect4' | 'family-challenge' | 'mime-challenge' | 'battleship';
 
 export type FamilyGameResult = {
   id: string;
@@ -89,6 +89,31 @@ const mapRoom = (row: GameRoomRow): FamilyGameRoom => ({
   expiresAt: row.expires_at
 });
 
+const localResultsKey = (foyerId: string) => `mf_family_game_results_${foyerId}`;
+const pendingResultsKey = (foyerId: string) => `mf_family_game_results_pending_${foyerId}`;
+
+const readLocalResults = (foyerId: string): FamilyGameResult[] => {
+  try {
+    const value = JSON.parse(localStorage.getItem(localResultsKey(foyerId)) || '[]');
+    return Array.isArray(value) ? value.slice(0, 30) : [];
+  } catch {
+    return [];
+  }
+};
+
+const storeLocalResult = (foyerId: string, result: FamilyGameResult, pending: boolean) => {
+  const local = [result, ...readLocalResults(foyerId).filter(item => item.id !== result.id)].slice(0, 30);
+  localStorage.setItem(localResultsKey(foyerId), JSON.stringify(local));
+  if (pending) {
+    try {
+      const queued = JSON.parse(localStorage.getItem(pendingResultsKey(foyerId)) || '[]') as FamilyGameResult[];
+      localStorage.setItem(pendingResultsKey(foyerId), JSON.stringify([result, ...queued.filter(item => item.id !== result.id)].slice(0, 50)));
+    } catch {
+      localStorage.setItem(pendingResultsKey(foyerId), JSON.stringify([result]));
+    }
+  }
+};
+
 const getRoomErrorMessage = (error: { message?: string; code?: string }): string => {
   const message = `${error.message || ''} ${error.code || ''}`.toLowerCase();
   if (message.includes('create_family_game_room') || message.includes('apply_family_game_action') || message.includes('pgrst202')) {
@@ -128,7 +153,9 @@ export const familyGameService = {
 
   async fetchResults(foyerId: string): Promise<FamilyGameResult[]> {
     const client = getSupabaseClient();
-    if (!client || !foyerId || foyerId === 'local') return [];
+    const local = readLocalResults(foyerId);
+    if (!client || !foyerId || foyerId === 'local') return local;
+    await this.syncPendingResults(foyerId);
     const { data, error } = await client
       .from('family_game_results')
       .select('id, game_type, winner_name, player_names, scores, duration_seconds, metadata, played_at')
@@ -137,20 +164,31 @@ export const familyGameService = {
       .limit(30);
     if (error) {
       console.warn('[familyGameService] Results unavailable:', error.message);
-      return [];
+      return local;
     }
-    return (data || []).map(row => mapResult(row as GameResultRow));
+    const cloud = (data || []).map(row => mapResult(row as GameResultRow));
+    const merged = [...cloud, ...local.filter(item => !cloud.some(cloudItem => cloudItem.id === item.id))]
+      .sort((left, right) => right.playedAt.localeCompare(left.playedAt))
+      .slice(0, 30);
+    localStorage.setItem(localResultsKey(foyerId), JSON.stringify(merged));
+    return merged;
   },
 
   async saveResult(foyerId: string, result: Omit<FamilyGameResult, 'id' | 'playedAt'>): Promise<FamilyGameResult | null> {
+    const localResult: FamilyGameResult = {
+      ...result,
+      id: crypto.randomUUID(),
+      playedAt: new Date().toISOString()
+    };
     const client = getSupabaseClient();
-    if (!client || !foyerId || foyerId === 'local') return null;
-    const id = crypto.randomUUID();
-    const playedAt = new Date().toISOString();
+    if (!client || !foyerId || foyerId === 'local') {
+      storeLocalResult(foyerId, localResult, foyerId !== 'local');
+      return localResult;
+    }
     const { data, error } = await client
       .from('family_game_results')
       .insert({
-        id,
+        id: localResult.id,
         foyer_id: foyerId,
         game_type: result.gameType,
         winner_name: result.winnerName || null,
@@ -158,15 +196,46 @@ export const familyGameService = {
         scores: result.scores,
         duration_seconds: result.durationSeconds ?? null,
         metadata: result.metadata || {},
-        played_at: playedAt
+        played_at: localResult.playedAt
       })
       .select('id, game_type, winner_name, player_names, scores, duration_seconds, metadata, played_at')
       .single();
     if (error) {
       console.warn('[familyGameService] Result kept locally:', error.message);
-      return null;
+      storeLocalResult(foyerId, localResult, true);
+      return localResult;
     }
-    return mapResult(data as GameResultRow);
+    const saved = mapResult(data as GameResultRow);
+    storeLocalResult(foyerId, saved, false);
+    return saved;
+  },
+
+  async syncPendingResults(foyerId: string): Promise<void> {
+    const client = getSupabaseClient();
+    if (!client || !foyerId || foyerId === 'local') return;
+    let pending: FamilyGameResult[];
+    try {
+      pending = JSON.parse(localStorage.getItem(pendingResultsKey(foyerId)) || '[]');
+    } catch {
+      return;
+    }
+    if (!Array.isArray(pending) || pending.length === 0) return;
+    const remaining: FamilyGameResult[] = [];
+    for (const result of pending.slice(0, 10)) {
+      const { error } = await client.from('family_game_results').insert({
+        id: result.id,
+        foyer_id: foyerId,
+        game_type: result.gameType,
+        winner_name: result.winnerName || null,
+        player_names: result.playerNames,
+        scores: result.scores,
+        duration_seconds: result.durationSeconds ?? null,
+        metadata: result.metadata || {},
+        played_at: result.playedAt
+      });
+      if (error && error.code !== '23505') remaining.push(result);
+    }
+    localStorage.setItem(pendingResultsKey(foyerId), JSON.stringify([...remaining, ...pending.slice(10)]));
   },
 
   async createRoom(foyerId: string, gameType: FamilyGameType, hostName: string): Promise<FamilyGameRoom> {
@@ -175,7 +244,8 @@ export const familyGameService = {
     if (!foyerId || foyerId === 'local') throw new Error('Sélectionnez une famille synchronisée pour créer une partie privée.');
 
     const existingRoom = await this.fetchActiveRoom(foyerId);
-    if (existingRoom) return existingRoom;
+    if (existingRoom?.gameType === gameType) return existingRoom;
+    if (existingRoom) throw new Error('Une autre salle privée est déjà ouverte. Fermez-la avant de créer cette partie.');
 
     const { data, error } = await client.rpc('create_family_game_room', {
       p_foyer_id: foyerId,
@@ -232,6 +302,46 @@ export const familyGameService = {
     if (error) throw new Error(getRoomErrorMessage(error));
     const row = Array.isArray(data) ? data[0] : data;
     return mapRoom(row as GameRoomRow);
+  },
+
+  async placeBattleshipFleet(roomId: string, foyerId: string, ships: string[][]): Promise<FamilyGameRoom> {
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Connexion Supabase indisponible.');
+    const { data, error } = await client.rpc('place_battleship_fleet', {
+      p_room_id: roomId,
+      p_foyer_id: foyerId,
+      p_ships: ships
+    });
+    if (error) throw new Error(getRoomErrorMessage(error));
+    const row = Array.isArray(data) ? data[0] : data;
+    return mapRoom(row as GameRoomRow);
+  },
+
+  async fireBattleshipShot(roomId: string, foyerId: string, cell: string): Promise<FamilyGameRoom> {
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Connexion Supabase indisponible.');
+    const { data, error } = await client.rpc('fire_battleship_shot', {
+      p_room_id: roomId,
+      p_foyer_id: foyerId,
+      p_cell: cell
+    });
+    if (error) throw new Error(getRoomErrorMessage(error));
+    const row = Array.isArray(data) ? data[0] : data;
+    return mapRoom(row as GameRoomRow);
+  },
+
+  async getBattleshipFleet(roomId: string, foyerId: string): Promise<string[]> {
+    const client = getSupabaseClient();
+    if (!client) return [];
+    const { data, error } = await client.rpc('get_battleship_fleet', {
+      p_room_id: roomId,
+      p_foyer_id: foyerId
+    });
+    if (error) {
+      console.warn('[familyGameService] Battleship fleet unavailable:', error.message);
+      return [];
+    }
+    return Array.isArray(data) ? data.filter((cell): cell is string => typeof cell === 'string') : [];
   },
 
   subscribeToRoom(roomId: string, onRoom: (room: FamilyGameRoom) => void): RealtimeChannel | null {
