@@ -947,6 +947,8 @@ function App() {
   const activeMemberIdRef = useRef(activeMemberId);
   const membersRef = useRef(members);
   const syncSessionIdRef = useRef(0);
+  const syncTableSnapshotsRef = useRef<Map<string, Map<string, string>>>(new Map());
+  const syncSnapshotFoyerIdRef = useRef<string | null>(null);
   const pendingPinActionRef = useRef<(() => void | Promise<void>) | null>(null);
 
   useEffect(() => {
@@ -2663,7 +2665,7 @@ function App() {
     };
 
     // Load everything in parallel to minimize load times
-    Promise.all([
+    return Promise.all([
       foyerService.getFoyerMembers(foyerId).catch(err => {
         console.error("Error loading members:", err);
         return [];
@@ -2675,13 +2677,13 @@ function App() {
       wrapQuery('events', client.from('events').select('*').eq('foyer_id', foyerId)),
       wrapQuery('groceries', client.from('groceries').select('*').eq('foyer_id', foyerId)),
       wrapQuery('archived_lists', client.from('archived_lists').select('*').eq('foyer_id', foyerId)),
-      wrapQuery('transactions', client.from('transactions').select('id, foyer_id, amount, type, category, date, title, member_id, member_name, sub_category, account_id, comment, modification_history, is_archived, recurrence, subscription_id, created_at').eq('foyer_id', foyerId)),
-      wrapQuery('documents', client.from('documents').select('id, foyer_id, name, category, sub_category, member_id, member_name, tags, upload_date, expiry_date, file_size, is_expired, description, is_secure, created_at').eq('foyer_id', foyerId)),
+      wrapQuery('transactions', client.from('transactions').select('id, foyer_id, amount, type, category, date, title, member_id, member_name, sub_category, account_id, receipt_url, attachment_url, comment, modification_history, is_archived, recurrence, subscription_id, created_at').eq('foyer_id', foyerId)),
+      wrapQuery('documents', client.from('documents').select('id, foyer_id, name, category, sub_category, member_id, member_name, tags, upload_date, expiry_date, file_size, is_expired, description, file_url, thumbnail_url, is_secure, created_at').eq('foyer_id', foyerId)),
       wrapQuery('dishes', client.from('dishes').select('*').eq('foyer_id', foyerId)),
       wrapQuery('chore_tasks', client.from('chore_tasks').select('*').eq('foyer_id', foyerId)),
       wrapQuery('saving_goals', client.from('saving_goals').select('*').eq('foyer_id', foyerId)),
       wrapQuery('alerts', client.from('alerts').select('*').eq('foyer_id', foyerId)),
-      wrapQuery('memories', client.from('memories').select('*').eq('foyer_id', foyerId)),
+      wrapQuery('memories', client.from('memories').select('id, foyer_id, date, title, description, author_name, author_photo, image_url, likes_count, is_private, theme, created_at').eq('foyer_id', foyerId)),
       wrapQuery('votes', client.from('votes').select('*').eq('foyer_id', foyerId)),
       wrapQuery('school_tasks', client.from('school_tasks').select('*').eq('foyer_id', foyerId)),
       wrapQuery('chat_groups', client.from('chat_groups').select('*').eq('foyer_id', foyerId)),
@@ -4676,6 +4678,10 @@ function App() {
       if (!client) return;
 
       const currentSessionId = ++syncSessionIdRef.current;
+      if (syncSnapshotFoyerIdRef.current !== foyer.id) {
+        syncTableSnapshotsRef.current.clear();
+        syncSnapshotFoyerIdRef.current = foyer.id;
+      }
 
       // Pre-upload legacy data URLs to Storage before syncing Postgres rows.
       let hasUpdates = false;
@@ -4811,78 +4817,52 @@ function App() {
         return;
       }
 
-      // Helper function to sync a table cleanly
+      // Compare with the previous local snapshot instead of downloading the
+      // complete remote table on every state change.
       const syncTable = async (tableName: string, localItems: LooseValue[], mapToDb: (item: LooseValue) => LooseValue, allowDelete: boolean = false) => {
         if (currentSessionId !== syncSessionIdRef.current) return;
+        let previousSnapshot: Map<string, string> | undefined;
         try {
-          const { data: cloudItems } = await client.from(tableName).select('*').eq('foyer_id', foyer.id);
-          if (currentSessionId !== syncSessionIdRef.current) return;
-          
           const localMapped = localItems.map(mapToDb);
-          const cloudIds = (cloudItems || []).map(item => item.id);
-          const localIds = localMapped.map(item => item.id);
+          const currentSnapshot = new Map<string, string>();
+          for (const item of localMapped) {
+            currentSnapshot.set(String(item.id), JSON.stringify(item));
+          }
 
-          // Delete missing
+          previousSnapshot = syncTableSnapshotsRef.current.get(tableName);
+          if (!previousSnapshot) {
+            syncTableSnapshotsRef.current.set(tableName, currentSnapshot);
+            return;
+          }
+          const baselineSnapshot = previousSnapshot;
+
+          // Mark the local version before the request. Realtime can echo the same
+          // write before Supabase resolves it, and must not create an upsert loop.
+          syncTableSnapshotsRef.current.set(tableName, currentSnapshot);
+
           if (allowDelete) {
-            const deletedIds = cloudIds.filter(id => !localIds.includes(id));
+            const deletedIds = [...baselineSnapshot.keys()].filter(id => !currentSnapshot.has(id));
             if (deletedIds.length > 0) {
               await client.from(tableName).delete().eq('foyer_id', foyer.id).in('id', deletedIds);
               if (currentSessionId !== syncSessionIdRef.current) return;
             }
           }
 
-          // Filter local items that are actually different from the cloud items
-          const itemsToUpsert = localMapped.filter(localItem => {
-            const cloudItem = (cloudItems || []).find(c => c.id === localItem.id);
-            if (!cloudItem) return true; // New item
+          const itemsToUpsert = localMapped.filter(item => (
+            baselineSnapshot.get(String(item.id)) !== currentSnapshot.get(String(item.id))
+          ));
 
-            // Check if LooseValue value is different
-            for (const key of Object.keys(localItem)) {
-              const valLocal = localItem[key];
-              const valCloud = cloudItem[key];
-
-              if (valLocal === null && valCloud === undefined) continue;
-              if (valLocal === undefined && valCloud === null) continue;
-
-              // If it's an object/array (like modification_history or contributions)
-              if (typeof valLocal === 'object' && valLocal !== null) {
-                if (JSON.stringify(valLocal) !== JSON.stringify(valCloud)) {
-                  return true;
-                }
-              } else if (valLocal !== valCloud) {
-                // If it is a string representation of an object (like JSON columns)
-                if (typeof valLocal === 'string' && typeof valCloud === 'object' && valCloud !== null) {
-                  try {
-                    if (JSON.stringify(JSON.parse(valLocal)) !== JSON.stringify(valCloud)) {
-                      return true;
-                    }
-                    continue; // They are equivalent JSON
-                  } catch {
-                    // Fall through to the regular value comparison.
-                  }
-                }
-                if (typeof valCloud === 'string' && typeof valLocal === 'object' && valLocal !== null) {
-                  try {
-                    if (JSON.stringify(valLocal) !== JSON.stringify(JSON.parse(valCloud))) {
-                      return true;
-                    }
-                    continue; // They are equivalent JSON
-                  } catch {
-                    // Fall through to the regular value comparison.
-                  }
-                }
-                return true;
-              }
-            }
-            return false;
-          });
-
-          // Upsert current only if different
           if (itemsToUpsert.length > 0) {
             await client.from(tableName).upsert(itemsToUpsert);
+            if (currentSessionId !== syncSessionIdRef.current) return;
           }
         } catch (err) {
           console.warn(`Sync error for table ${tableName}:`, err);
+          if (previousSnapshot) {
+            syncTableSnapshotsRef.current.set(tableName, previousSnapshot);
+          } else {
+            syncTableSnapshotsRef.current.delete(tableName);
+          }
         }
       };
 
