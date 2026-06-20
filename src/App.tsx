@@ -167,6 +167,8 @@ const formatRelativeTime = (dateInput: string | Date | undefined, fallback: stri
 import { BottomNav } from './components/BottomNav';
 import { Sidebar } from './components/Sidebar';
 import { QuickActionsSheet } from './components/QuickActionsSheet';
+import { MemberAvatar } from './components/MemberAvatar';
+import { isGeneratedAvatar } from './utils/avatar';
 
 import { DEFAULT_CATEGORIES } from './data/budgetCategories';
 import { Paywall } from './components/Paywall';
@@ -2375,7 +2377,7 @@ function App() {
   // Helper map function from FoyerMember to UI Member
   const mapFoyerMemberToMember = (fm: FoyerMember): Member => {
     let preciseRole: string;
-    let bloodGroup = fm.bloodGroup || 'O+';
+    let bloodGroup = fm.bloodGroup || '';
     let phone = '';
     
     if (fm.role === 'admin') {
@@ -2384,13 +2386,13 @@ function App() {
       preciseRole = 'chef_famille';
       if (fm.bloodGroup?.startsWith('ROLE:')) {
         const parts = fm.bloodGroup.substring(5).split('|');
-        bloodGroup = parts[1] || 'O+';
+        bloodGroup = parts[1] || '';
         phone = parts[2] || '';
       }
     } else if (fm.bloodGroup && fm.bloodGroup.startsWith('ROLE:')) {
       const parts = fm.bloodGroup.substring(5).split('|');
       preciseRole = parts[0];
-      bloodGroup = parts[1] || 'O+';
+      bloodGroup = parts[1] || '';
       phone = parts[2] || '';
     } else {
       // Fallback inference if not yet serialized
@@ -2431,7 +2433,7 @@ function App() {
         relation: fm.emergencyContactRelation || ''
       },
       schoolOrEmployer: fm.schoolOrEmployer || '',
-      photoUrl: fm.photoUrl || 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150',
+      photoUrl: isGeneratedAvatar(fm.photoUrl) ? '' : (fm.photoUrl || ''),
       hasExemption: fm.hasExemption || false,
       approved: fm.approved !== false,
       medicalHistory: [],
@@ -2583,11 +2585,6 @@ function App() {
   // Monitor Supabase Auth changes
   useEffect(() => {
     if (isInitializingAuth) return;
-
-    // Request notification permission on startup
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
 
     const client = getSupabaseClient();
     if (!client) {
@@ -10372,7 +10369,10 @@ function App() {
         // Traduire le membre retourné de Supabase au format UI frontend
         const mappedMember = mapFoyerMemberToMember(addedMem);
         setMembers(prev => [...prev, mappedMember]);
-        alert(`🎉 Fiche membre de ${mappedMember.name} créée et enregistrée avec succès dans le Cloud ! ✨`);
+        setActiveToast({
+          title: 'Membre ajouté',
+          description: `${mappedMember.name} fait maintenant partie de votre foyer.`
+        });
       } catch (err: LooseValue) {
         console.error("Erreur lors de la création du membre sur Supabase :", err);
         alert(`Impossible d'enregistrer le membre dans le cloud : ${err.message || err}`);
@@ -11727,16 +11727,17 @@ function App() {
     setWelcomeError(null);
     try {
       const email = user?.email || '';
-      const avatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=${welcomeDisplayName.trim()}`;
-      
       await foyerService.sendJoinRequest(
         welcomeInviteCode.trim(), 
         welcomeDisplayName.trim(), 
         email, 
-        avatar,
+        '',
         false
       );
-      alert("🎉 Votre demande d'adhésion a été envoyée ! Elle sera soumise à validation du Chef de famille.");
+      setActiveToast({
+        title: 'Demande envoyée',
+        description: 'Un parent du foyer doit maintenant valider votre arrivée.'
+      });
       
       const joinRequests = await foyerService.getMyJoinRequests();
       const activeReq = joinRequests.find(r => r.status === 'pending' || r.status === 'rejected');
@@ -14480,7 +14481,7 @@ function App() {
           onClick={() => setProfileSwitcherOpen(true)}
           className="fixed top-[calc(1rem+env(safe-area-inset-top,0px))] right-4 z-[40] w-12 h-12 rounded-full border-2 border-white/20 shadow-[0_0_15px_rgba(108,92,255,0.4)] overflow-hidden active:scale-95 transition-transform"
         >
-          <img src={activeMemberObj.photoUrl} alt="Profil" className="w-full h-full object-cover" />
+          <MemberAvatar name={activeMemberObj.name} photoUrl={activeMemberObj.photoUrl} className="w-full h-full rounded-full" />
         </button>
       )}
 
@@ -14730,11 +14731,7 @@ function App() {
                     }`}
                   >
                     <div className="relative">
-                      <img 
-                        src={m.photoUrl} 
-                        alt={m.name} 
-                        className="w-14 h-14 rounded-full object-cover border border-white/10"
-                      />
+                      <MemberAvatar name={m.name} photoUrl={m.photoUrl} className="w-14 h-14 rounded-full border border-white/10" />
                       <span className="absolute bottom-0 right-0 text-xs bg-[#07111F] rounded-full w-5 h-5 flex items-center justify-center border border-white/10">
                         {memberMoods[m.id] || "☀️"}
                       </span>

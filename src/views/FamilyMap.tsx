@@ -38,9 +38,10 @@ import {
   LockKeyhole
 } from 'lucide-react';
 import type { FoyerMember, Member } from '../types';
+import { MemberAvatar } from '../components/MemberAvatar';
+import { getMemberInitials } from '../utils/avatar';
 
 const DEFAULT_MAP_CENTER: [number, number] = [46.603354, 1.888334];
-const FALLBACK_AVATAR = 'https://api.dicebear.com/7.x/adventurer/svg?seed=family-map';
 const createFavoriteId = (type: FavoritePlace['type']) => `fav-${Date.now()}-${type}`;
 const MAX_SEARCH_RESULTS = 8;
 const NEARBY_RADIUS_METERS = 5000;
@@ -678,6 +679,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   // Leaflet custom circular avatar marker creator
   const createCustomIcon = (member: Member, isMe: boolean) => {
     const color = isMe ? '#00D26A' : '#6C5CFF';
+    const markerInitials = getMemberInitials(member.name).replace(/[^A-ZÀ-ÖØ-Ý]/g, '') || '?';
     return L.divIcon({
       className: 'custom-avatar-marker',
       html: `
@@ -691,18 +693,9 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
             opacity: 0.3; 
             animation: ${isMe ? 'pulse 2s infinite' : 'none'};
           "></div>
-          <img 
-            src="${member.photoUrl || FALLBACK_AVATAR}" 
-            style="
-              width: 40px; 
-              height: 40px; 
-              border-radius: 50%; 
-              border: 3px solid ${color}; 
-              object-fit: cover; 
-              z-index: 10;
-              box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            " 
-          />
+          <div style="width:40px;height:40px;border-radius:50%;border:3px solid ${color};z-index:10;box-shadow:0 4px 10px rgba(0,0,0,0.5);overflow:hidden;background:#10182b;display:flex;align-items:center;justify-content:center;">
+            <span style="font:800 13px sans-serif;color:${color};">${markerInitials}</span>
+          </div>
         </div>
       `,
       iconSize: [48, 48],
@@ -2041,7 +2034,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-2.5 min-w-0">
-                              <img src={m.photoUrl || FALLBACK_AVATAR} className="w-8 h-8 rounded-full border border-white/10 object-cover shrink-0" />
+                              <MemberAvatar name={m.name} photoUrl={m.photoUrl} className="w-8 h-8 rounded-full border border-white/10" />
                               <div className="min-w-0">
                                 <div className="flex items-center space-x-1.5">
                                   <span className="text-xs font-bold text-white truncate">{m.name}</span>

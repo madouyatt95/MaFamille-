@@ -37,6 +37,7 @@ import type { UnifiedEvent } from '../utils/agendaHelper';
 import { buildSmartFamilyActions, filterSmartFamilyActions, getSmartFamilySetupProgress, type SmartFamilyAction, type SmartFamilyPreferences } from '../utils/smartFamily';
 import { buildGlobalSearchIndex, searchGlobalIndex, type GlobalSearchResult } from '../utils/globalSearch';
 import { familyContentService, type CloudFamilyMemo } from '../services/familyContentService';
+import { MemberAvatar } from '../components/MemberAvatar';
 
 type AccueilUnifiedEvent = UnifiedEvent & {
   type?: string;
@@ -158,7 +159,7 @@ export const Accueil: React.FC<AccueilProps> = ({
     id: activeMemberId || '1',
     name: 'Chargement...',
     role: 'Parent',
-    photoUrl: 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150',
+    photoUrl: '',
     allergies: [],
     treatments: [],
     emergencyContact: { name: '', phone: '', relation: '' }
@@ -774,16 +775,9 @@ export const Accueil: React.FC<AccueilProps> = ({
             </h1>
             <div className="flex items-center space-x-2 mt-1">
               <p className="text-[11px] text-white/50 font-medium">Famille :</p>
-              <div className="flex -space-x-1.5 overflow-hidden">
-                {members.slice(0, 5).map(m => (
-                  <img 
-                    key={m.id}
-                    className="inline-block h-5 w-5 rounded-full ring-1 ring-[#07111F] object-cover" 
-                    src={m.photoUrl} 
-                    alt={m.name} 
-                  />
-                ))}
-              </div>
+              <span className="text-[11px] font-bold text-white/65">
+                {members.length} membre{members.length > 1 ? 's' : ''}
+              </span>
             </div>
           </div>
         </div>
@@ -828,11 +822,7 @@ export const Accueil: React.FC<AccueilProps> = ({
             className="relative cursor-pointer transition-all hover:scale-105 active:scale-95 border border-white/10 rounded-full p-0.5"
             title="Changer de profil"
           >
-            <img 
-              src={activeMember.photoUrl} 
-              alt={activeMember.name} 
-              className="w-10 h-10 rounded-full object-cover border border-white/10"
-            />
+            <MemberAvatar name={activeMember.name} photoUrl={activeMember.photoUrl} className="w-10 h-10 rounded-full border border-white/10" />
             <span className="absolute bottom-0 right-0 w-3 h-3 bg-[#00D26A] rounded-full border-2 border-[#07111F]"></span>
           </button>
         </div>

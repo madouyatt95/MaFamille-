@@ -29,6 +29,7 @@ import { notificationService } from '../services/notificationService';
 import type { Foyer, FoyerMember, Member } from '../types';
 import type { User } from '@supabase/supabase-js';
 import { defaultSmartFamilyPreferences, type SmartFamilyPreferences } from '../utils/smartFamily';
+import { MemberAvatar } from '../components/MemberAvatar';
 
 type NotificationPrefs = Record<string, boolean>;
 
@@ -563,10 +564,10 @@ export const Settings: React.FC<SettingsProps> = ({
                   <RefreshCw className="w-6 h-6 text-[#6C5CFF] animate-spin" />
                 </div>
               ) : (
-                <img 
-                  src={profilePhoto || 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150'} 
-                  alt="Avatar" 
-                  className="w-20 h-20 rounded-full object-cover border-2 border-[#6C5CFF] shadow-[0_0_15px_rgba(108,92,255,0.3)]"
+                <MemberAvatar
+                  name={members.find(member => member.id === activeMemberId)?.name || myMemberProfile?.displayName}
+                  photoUrl={profilePhoto}
+                  className="w-20 h-20 rounded-full border-2 border-[#6C5CFF] shadow-[0_0_15px_rgba(108,92,255,0.3)]"
                 />
               )}
               <span className="absolute bottom-0 right-0 bg-[#6C5CFF] text-white p-1 rounded-full text-[9px] font-black border border-[#07111F]">

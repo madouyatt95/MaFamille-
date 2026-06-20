@@ -20,6 +20,7 @@ import {
   X
 } from 'lucide-react';
 import { aiQuotaService } from '../../services/aiQuotaService';
+import { MemberAvatar } from '../MemberAvatar';
 
 interface ConteurIAProps {
   onBack: () => void;
@@ -952,14 +953,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                         }`}
                       >
                         <div className="relative">
-                          <img 
-                            src={heroItem.photoUrl} 
-                            alt={heroItem.name}
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${heroItem.name}`;
-                            }}
-                            className="w-12 h-12 rounded-full object-cover bg-slate-900 border border-white/10"
-                          />
+                          <MemberAvatar name={heroItem.name} photoUrl={heroItem.photoUrl} className="w-12 h-12 rounded-full border border-white/10" />
                           {isSelected && (
                             <div className="absolute -bottom-1 -right-1 w-4.5 h-4.5 rounded-full bg-[#7C3AED] border border-[#a78bfa] flex items-center justify-center shadow-md animate-scale-up">
                               <Check className="w-2.5 h-2.5 text-white stroke-[3.5]" />

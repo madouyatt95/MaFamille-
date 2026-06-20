@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import type { Member } from '../types';
 import type { User } from '@supabase/supabase-js';
+import { MemberAvatar } from './MemberAvatar';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -55,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const activeMember = members.find(m => m.id === activeMemberId) || {
     name: 'Parent',
     role: 'Chef de famille',
-    photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150'
+    photoUrl: ''
   };
 
   const menuItems = [
@@ -130,11 +131,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="flex items-center space-x-3 px-1 pt-1">
             <div className="relative">
-              <img 
-                src={activeMember.photoUrl} 
-                alt={`${activeMember.name} Avatar`} 
-                className="w-9 h-9 rounded-full border border-[#6C5CFF] object-cover"
-              />
+              <MemberAvatar name={activeMember.name} photoUrl={activeMember.photoUrl} className="w-9 h-9 rounded-full border border-[#6C5CFF]" />
               <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#00D26A] border border-[#07111F] rounded-full"></span>
             </div>
             <div>

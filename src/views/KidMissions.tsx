@@ -5,6 +5,7 @@ import type { Member, ChoreTask, NotificationAlert, Transaction, Foyer, PocketMo
 import { parseChoreTitle, serializeChoreTitle } from '../types';
 import type { SavingGoal } from '../types';
 import { getSupabaseClient } from '../utils/supabase';
+import { MemberAvatar } from '../components/MemberAvatar';
 
 interface KidMissionsProps {
   member: Member;
@@ -987,7 +988,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
                   {kidsRanking[1] && (
                     <div className="flex flex-col items-center space-y-1.5 flex-1 max-w-[80px]">
                       <div className="relative">
-                        <img src={kidsRanking[1].avatar || '/placeholder_avatar.png'} alt={kidsRanking[1].name} className="w-10 h-10 rounded-full object-cover border-2 border-slate-300" />
+                        <MemberAvatar name={kidsRanking[1].name} photoUrl={kidsRanking[1].avatar} className="w-10 h-10 rounded-full border-2 border-slate-300" />
                         <div className="absolute -top-2 -right-2 bg-slate-300 text-slate-900 text-[9px] w-5 h-5 rounded-full flex items-center justify-center font-black">2</div>
                       </div>
                       <span className="text-[10px] font-bold text-white truncate max-w-full block">{kidsRanking[1].name}</span>
@@ -1000,7 +1001,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
                   {kidsRanking[0] && (
                     <div className="flex flex-col items-center space-y-1.5 flex-1 max-w-[90px] -translate-y-2">
                       <div className="relative">
-                        <img src={kidsRanking[0].avatar || '/placeholder_avatar.png'} alt={kidsRanking[0].name} className="w-12 h-12 rounded-full object-cover border-2 border-[#FFB020]" />
+                        <MemberAvatar name={kidsRanking[0].name} photoUrl={kidsRanking[0].avatar} className="w-12 h-12 rounded-full border-2 border-[#FFB020]" />
                         <div className="absolute -top-2 -right-2 bg-[#FFB020] text-[#07111F] text-[10px] w-6 h-6 rounded-full flex items-center justify-center font-black">1</div>
                       </div>
                       <span className="text-[11px] font-black text-white truncate max-w-full block">{kidsRanking[0].name}</span>
@@ -1013,7 +1014,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
                   {kidsRanking[2] && (
                     <div className="flex flex-col items-center space-y-1.5 flex-1 max-w-[80px]">
                       <div className="relative">
-                        <img src={kidsRanking[2].avatar || '/placeholder_avatar.png'} alt={kidsRanking[2].name} className="w-10 h-10 rounded-full object-cover border-2 border-amber-600" />
+                        <MemberAvatar name={kidsRanking[2].name} photoUrl={kidsRanking[2].avatar} className="w-10 h-10 rounded-full border-2 border-amber-600" />
                         <div className="absolute -top-2 -right-2 bg-amber-600 text-white text-[9px] w-5 h-5 rounded-full flex items-center justify-center font-black">3</div>
                       </div>
                       <span className="text-[10px] font-bold text-white truncate max-w-full block">{kidsRanking[2].name}</span>

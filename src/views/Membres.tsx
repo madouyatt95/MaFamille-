@@ -14,14 +14,13 @@ import {
   Copy,
   Check,
   Camera,
-  LogOut,
-  Link,
-  CheckCircle2
+  LogOut
 } from 'lucide-react';
 import { foyerService } from '../services/foyerService';
 import { getSupabaseClient } from '../utils/supabase';
 import { shouldBlockMemberAdd } from '../utils/premiumFeatures';
 import { compressImageToBlob, uploadBlobToStorage } from '../utils/imageCompressor';
+import { MemberAvatar } from '../components/MemberAvatar';
 import { ALL_FAMILY_MODULES, getDefaultPermissions } from '../types';
 import type { Member, Foyer, FoyerMember, FoyerMemberProfileUpdate, MemberRole, ModulePermissions, FamilyModule } from '../types';
 
@@ -123,7 +122,7 @@ export const Membres: React.FC<MembresProps> = ({
   const [addRole, setAddRole] = useState<string>('enfant');
   const [addAge, setAddAge] = useState('');
   const [addBirth, setAddBirth] = useState('');
-  const [addBlood, setAddBlood] = useState('A+');
+  const [addBlood, setAddBlood] = useState('');
   const [addAllergies, setAddAllergies] = useState('');
   const [addTreatments, setAddTreatments] = useState('');
   const [addSchool, setAddSchool] = useState('');
@@ -191,7 +190,7 @@ export const Membres: React.FC<MembresProps> = ({
       setAddRole('enfant');
       setAddAge('');
       setAddBirth('');
-      setAddBlood('A+');
+      setAddBlood('');
       setAddPhone('');
       setAddAllergies('');
       setAddTreatments('');
@@ -261,7 +260,7 @@ export const Membres: React.FC<MembresProps> = ({
   const [editRole, setEditRole] = useState('');
   const [editAge, setEditAge] = useState('');
   const [editBirth, setEditBirth] = useState('');
-  const [editBlood, setEditBlood] = useState('A+');
+  const [editBlood, setEditBlood] = useState('');
   const [editSchool, setEditSchool] = useState('');
   const [editHasExemption, setEditHasExemption] = useState(false);
   const [editPhone, setEditPhone] = useState('');
@@ -504,13 +503,11 @@ export const Membres: React.FC<MembresProps> = ({
       const supabase = getSupabaseClient();
       const { data: { session } } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
       const email = session?.user?.email || '';
-      const avatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=${displayNameInput.trim()}`;
-      
       const data = await foyerService.sendJoinRequest(
         inviteCodeInput.trim(), 
         displayNameInput.trim(), 
         email, 
-        avatar,
+        '',
         false
       );
       alert(`🎉 Demande envoyée ! Le Chef de famille du foyer "${data.familyName}" doit maintenant valider votre demande.`);
@@ -741,11 +738,7 @@ export const Membres: React.FC<MembresProps> = ({
                       }`}
                     >
                       <div className="flex items-center space-x-3">
-                        <img 
-                          src={req.applicantAvatar} 
-                          alt={req.applicantName} 
-                          className="w-10 h-10 rounded-full object-cover border border-white/10"
-                        />
+                        <MemberAvatar name={req.applicantName} photoUrl={req.applicantAvatar} className="w-10 h-10 rounded-full border border-white/10" />
                         <div>
                           <h3 className="text-xs font-bold text-white">
                             <span className="text-[#6C5CFF]">{req.applicantName}</span> souhaite rejoindre
@@ -773,11 +766,7 @@ export const Membres: React.FC<MembresProps> = ({
               }`}
             >
               <div className="flex items-center space-x-4">
-                <img 
-                  src={member.photoUrl} 
-                  alt={member.name} 
-                  className="w-12 h-12 rounded-full object-cover border-2 border-white/10"
-                />
+                <MemberAvatar name={member.name} photoUrl={member.photoUrl} className="w-12 h-12 rounded-full border-2 border-white/10" />
                 <div>
                   <h3 className="text-sm font-bold text-white">{member.name}</h3>
                   <p className="text-[11px] text-white/50 mt-0.5">{member.role}</p>
@@ -1136,11 +1125,7 @@ export const Membres: React.FC<MembresProps> = ({
                   {/* Photo & Identity Heading */}
                   <div className="flex flex-col items-center text-center space-y-2 pt-4">
                     <div className="relative group">
-                      <img 
-                        src={selectedMember.photoUrl} 
-                        alt={selectedMember.name} 
-                        className="w-24 h-24 rounded-full object-cover border-4 border-[#6C5CFF]/20"
-                      />
+                      <MemberAvatar name={selectedMember.name} photoUrl={selectedMember.photoUrl} className="w-24 h-24 rounded-full border-4 border-[#6C5CFF]/20" />
                       <label
                         className="absolute -bottom-1.5 -left-1.5 p-2 rounded-full bg-[#00D26A] text-white hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer flex items-center justify-center"
                         title="Téléverser une photo"
@@ -1321,8 +1306,7 @@ export const Membres: React.FC<MembresProps> = ({
                                     setGeneratingAvatar(false);
                                   };
                                   img.onerror = () => {
-                                    // Fallback standard
-                                    setGeneratedAvatar(`https://api.dicebear.com/7.x/bottts/svg?seed=${targetName}`);
+                                    setGeneratedAvatar('');
                                     setGeneratingAvatar(false);
                                   };
                                 }, 1200);
@@ -1371,93 +1355,6 @@ export const Membres: React.FC<MembresProps> = ({
                         </div>
                       )}
                     </div>
-
-                    {/* Section Liaison de compte pour le Chef de famille / Admin */}
-                    {(myMemberProfile?.role === 'admin' || myMemberProfile?.role === 'chef_famille' || myMemberProfile?.role === 'parent') && foyer && (
-                      <div className="space-y-3 pt-3 border-t border-white/5">
-                        <h4 className="text-[10px] font-bold text-white/40 uppercase tracking-widest flex items-center space-x-1">
-                          <Link className="w-3.5 h-3.5 text-[#6C5CFF]" />
-                          <span>Liaison de compte</span>
-                        </h4>
-                        
-                        {selectedMember.userId ? (
-                          <div className="p-3 rounded-2xl bg-white/3 border border-white/5 flex flex-col space-y-2">
-                            <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-bold text-[#00D26A] flex items-center gap-1">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Compte utilisateur lié
-                              </span>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  if (confirm("Voulez-vous vraiment délier ce compte ?")) {
-                                    try {
-                                      if (onUpdateMemberProfile) {
-                                        await onUpdateMemberProfile(selectedMember.id, { userId: null });
-                                      }
-                                      setSelectedMember(prev => prev ? { ...prev, userId: undefined } : null);
-                                      setMembers(prev => prev.map(m => m.id === selectedMember.id ? { ...m, userId: undefined } : m));
-                                      alert("Compte délié avec succès !");
-                                    } catch (err: unknown) {
-                                      alert("Erreur lors de la déliaison : " + getErrorMessage(err));
-                                    }
-                                  }
-                                }}
-                                className="text-[9px] font-bold text-[#FF4D6D] hover:underline cursor-pointer"
-                              >
-                                Délier
-                              </button>
-                            </div>
-                            <p className="text-[9px] text-white/50 font-mono select-all truncate">
-                              ID: {selectedMember.userId}
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="p-3 rounded-2xl bg-white/3 border border-white/5 space-y-2">
-                            <p className="text-[9.5px] text-white/50 leading-normal">
-                              Associez ce profil local à un compte utilisateur Supabase (UUID ou e-mail).
-                            </p>
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                placeholder="UUID de l'utilisateur ou Email"
-                                id="link-account-input"
-                                className="flex-1 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white text-[11px] focus:outline-none focus:border-[#6C5CFF]"
-                              />
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  const input = (document.getElementById('link-account-input') as HTMLInputElement)?.value?.trim();
-                                  if (!input) return;
-                                  
-                                  // Valid UUID format check
-                                  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-                                  if (uuidRegex.test(input)) {
-                                    try {
-                                      if (onUpdateMemberProfile) {
-                                        await onUpdateMemberProfile(selectedMember.id, { userId: input });
-                                      }
-                                      setSelectedMember(prev => prev ? { ...prev, userId: input } : null);
-                                      setMembers(prev => prev.map(m => m.id === selectedMember.id ? { ...m, userId: input } : m));
-                                      alert("🎉 Compte lié avec succès !");
-                                      (document.getElementById('link-account-input') as HTMLInputElement).value = '';
-                                    } catch (err: unknown) {
-                                      alert("Erreur lors de la liaison : " + getErrorMessage(err));
-                                    }
-                                  } else if (input.includes('@')) {
-                                    alert("ℹ️ Par mesure de sécurité RGPD et restrictions techniques de Supabase, la liaison par e-mail requiert de saisir directement l'UUID de l'utilisateur. Veuillez demander à l'utilisateur de vous transmettre son ID unique (disponible dans ses paramètres de profil).");
-                                  } else {
-                                    alert("⚠️ Format invalide. Veuillez saisir un UUID utilisateur Supabase valide (ex: 123e4567-e89b-12d3-a456-426614174000).");
-                                  }
-                                }}
-                                className="px-3 py-1.5 rounded-xl bg-[#6C5CFF] text-white text-[10px] font-extrabold cursor-pointer hover:bg-[#5b4eff] transition-colors"
-                              >
-                                Lier
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
 
                     {/* Medical Section Header & Confidential Lock */}
                     {isChild && selectedMember.id !== activeMemberId ? (
@@ -1596,11 +1493,7 @@ export const Membres: React.FC<MembresProps> = ({
 
               {/* Avatar & Identity */}
               <div className="flex flex-col items-center text-center space-y-3 py-4">
-                <img 
-                  src={selectedRequest.applicantAvatar} 
-                  alt={selectedRequest.applicantName} 
-                  className="w-24 h-24 rounded-full object-cover border-4 border-[#6C5CFF]/20"
-                />
+                <MemberAvatar name={selectedRequest.applicantName} photoUrl={selectedRequest.applicantAvatar} className="w-24 h-24 rounded-full border-4 border-[#6C5CFF]/20" />
                 <div>
                   <h2 className="text-lg font-extrabold text-white">{selectedRequest.applicantName}</h2>
                   <p className="text-xs text-[#4F8CFF] font-semibold">Demandeur d'adhésion</p>
@@ -1713,7 +1606,7 @@ export const Membres: React.FC<MembresProps> = ({
                       relation: insertedMember.emergency_contact_relation || ''
                     },
                     schoolOrEmployer: insertedMember.school_or_employer || '',
-                    photoUrl: insertedMember.photo_url || 'https://images.unsplash.com/photo-1590031905406-f18a426d772d?w=150',
+                    photoUrl: insertedMember.photo_url || '',
                     hasExemption: insertedMember.has_exemption || false,
                     approved: true,
                     medicalHistory: []
@@ -2018,6 +1911,11 @@ export const Membres: React.FC<MembresProps> = ({
                     </div>
                   )}
 
+                  <details className="rounded-2xl border border-white/8 bg-white/3 p-4">
+                    <summary className="cursor-pointer text-xs font-black text-white/65">
+                      Ajouter des informations facultatives
+                    </summary>
+                    <div className="mt-4 space-y-4">
                   <div className="grid grid-cols-2 gap-3.5">
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Date de naissance</label>
@@ -2074,6 +1972,7 @@ export const Membres: React.FC<MembresProps> = ({
                           onChange={(e) => setAddBlood(e.target.value)}
                           className="w-full px-3 py-1.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
                         >
+                          <option value="">Non renseigné</option>
                           <option value="A+">A+</option>
                           <option value="A-">A-</option>
                           <option value="B+">B+</option>
@@ -2096,6 +1995,8 @@ export const Membres: React.FC<MembresProps> = ({
                       </div>
                     </div>
                   </div>
+                    </div>
+                  </details>
 
                   {/* Submit Button */}
                   <button 

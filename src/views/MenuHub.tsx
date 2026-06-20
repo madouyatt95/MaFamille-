@@ -79,6 +79,7 @@ import type {
 } from '../types';
 import { getDefaultPermissions, parseChoreTitle, serializeChoreTitle, serializePocketMoneyTitle } from '../types';
 import type { ModulePermissions, FamilyModule } from '../types';
+import { MemberAvatar } from '../components/MemberAvatar';
 
 const EcoChef = lazy(() => import('../components/modules/EcoChef').then(module => ({ default: module.EcoChef })));
 const TuteurScolaire = lazy(() => import('../components/modules/TuteurScolaire').then(module => ({ default: module.TuteurScolaire })));
@@ -2117,7 +2118,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                 <div className="rounded-[30px] border border-white/8 bg-gradient-to-br from-white/8 to-white/3 p-5 space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <img src={member?.photoUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${member?.name || 'family'}`} alt={member?.name || 'Membre'} className="w-14 h-14 rounded-2xl object-cover border border-white/10" />
+                      <MemberAvatar name={member?.name} photoUrl={member?.photoUrl} className="w-14 h-14 rounded-2xl border border-white/10" />
                       <div className="min-w-0">
                         <h3 className="text-base font-black text-white truncate">{member?.name || 'Membre'}</h3>
                         <p className="text-[11px] text-white/50 font-bold">
@@ -2714,7 +2715,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             const startEditingEmergency = (m: Member) => {
               const mem = m as any;
               setEditingEmergencyMemberId(m.id);
-              setEditBlood(mem.bloodGroup || 'O+');
+              setEditBlood(mem.bloodGroup || '');
               setEditAllergies((mem.allergies || []).join(', '));
               setEditTreatments((mem.treatments || []).join(', '));
               setEditEmergencyName(mem.emergencyContactName || mem.emergencyContact?.name || '');
@@ -2834,7 +2835,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                               </h4>
                             </div>
                             <span className="px-3 py-1 rounded-xl bg-[#FF4D6D]/15 border border-[#FF4D6D]/30 text-[#FF4D6D] text-xs font-black shadow-md shadow-[#FF4D6D]/5">
-                              {member.bloodGroup || 'O+'}
+                              {member.bloodGroup || 'Non renseigné'}
                             </span>
                           </div>
 
@@ -7184,7 +7185,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                       }`}
                       style={{ minWidth: '220px' }}
                     >
-                      <img src={k.photoUrl || '/placeholder_avatar.png'} alt={k.name} className="w-10 h-10 rounded-full object-cover border border-white/10" />
+                      <MemberAvatar name={k.name} photoUrl={k.photoUrl} className="w-10 h-10 rounded-full border border-white/10" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs truncate font-extrabold text-white">{k.name}</p>
                         <p className="text-[9px] text-white/40 truncate">{childAge} • {k.schoolOrEmployer || 'Classe N/A'}</p>

@@ -1,27 +1,28 @@
-<h2>Confirmez votre compte MyFamily+</h2>
-
-<p>Bonjour,</p>
-
-<p>
-  Merci d'avoir créé votre compte MyFamily+. Cliquez sur le bouton ci-dessous
-  pour confirmer votre adresse e-mail et accéder à votre espace familial.
-</p>
-
-<p>
-  <a
-    href="{{ .ConfirmationURL }}"
-    style="display:inline-block;padding:12px 18px;background:#6C5CFF;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"
-  >
-    Confirmer mon adresse e-mail
-  </a>
-</p>
-
-<p>
-  Si le bouton ne fonctionne pas, copiez-collez ce lien dans votre navigateur :
-  <br />
-  <a href="{{ .ConfirmationURL }}">{{ .ConfirmationURL }}</a>
-</p>
-
-<p style="color:#64748b;font-size:13px;">
-  Si vous n'avez pas demandé la création d'un compte MyFamily+, vous pouvez ignorer cet e-mail.
-</p>
+<!doctype html>
+<html lang="fr">
+  <body style="margin:0;background:#07111f;font-family:Arial,sans-serif;color:#ffffff;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#07111f;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#111a2d;border:1px solid #29324a;border-radius:20px;padding:32px;">
+            <tr>
+              <td>
+                <p style="margin:0 0 8px;color:#9e94ff;font-size:13px;font-weight:700;text-transform:uppercase;">MyFamily+</p>
+                <h1 style="margin:0 0 16px;font-size:25px;line-height:1.25;">Confirmez votre adresse e-mail</h1>
+                <p style="margin:0 0 24px;color:#cbd5e1;font-size:16px;line-height:1.6;">
+                  Votre compte est presque prêt. Confirmez votre adresse pour créer votre famille ou rejoindre un foyer existant.
+                </p>
+                <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 20px;background:#6c5cff;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;">
+                  Confirmer mon adresse
+                </a>
+                <p style="margin:24px 0 0;color:#94a3b8;font-size:13px;line-height:1.5;">
+                  Si vous n’avez pas demandé la création de ce compte, ignorez simplement cet e-mail.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
