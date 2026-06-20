@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/immutability, react-hooks/purity, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect, react-hooks/preserve-manual-memoization -- App.tsx is still a legacy monolith. These rules are tracked in docs/lint_cleanup_remaining.md for a dedicated refactor. */
 import { lazy, Suspense, useState, useEffect, useRef, useMemo } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import type { User } from '@supabase/supabase-js';
@@ -3989,36 +3990,25 @@ function App() {
     }
   };
 
-  // Timer loop for silent collaborative rehydration & Focus Sync.
-  // Realtime covers live updates; this is only a safety net, so keep it quiet to avoid Postgres egress spikes.
+  // Realtime handles normal collaboration. A full refresh is only useful after the
+  // browser actually reconnects, otherwise focus changes generate excessive egress.
   useEffect(() => {
     if (!foyer || !isSyncReady) return;
-    let lastSyncAt = 0;
-    const minFocusSyncIntervalMs = 2 * 60 * 1000;
+    let lastRecoverySyncAt = Date.now();
+    const minRecoveryIntervalMs = 30 * 60 * 1000;
 
-    // Passive polling every 15 minutes, only while the tab is visible.
-    const syncTimer = setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
+    const handleOnline = () => {
+      const now = Date.now();
+      if (now - lastRecoverySyncAt < minRecoveryIntervalMs) return;
+      console.log("[MyFamily+ Recovery Sync] Network restored, refreshing cloud data...");
       syncDataFromCloud(foyer.id);
-      lastSyncAt = Date.now();
-    }, 900000);
-
-    // Sync on tab active/refocus, throttled to avoid repeat egress from tab switching.
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        const now = Date.now();
-        if (now - lastSyncAt < minFocusSyncIntervalMs) return;
-        console.log("[MyFamily+ Focus Sync] Tab focused, running immediate rehydration sync...");
-        syncDataFromCloud(foyer.id);
-        lastSyncAt = now;
-      }
+      lastRecoverySyncAt = now;
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
 
     return () => {
-      clearInterval(syncTimer);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
     };
   }, [foyer, isSyncReady]);
 
@@ -4026,30 +4016,50 @@ function App() {
   useEffect(() => {
     if (!foyer) return;
 
-    const subEvents = foyerService.subscribeToChanges('events', foyer.id, () => {
-      foyerService.fetchTableData('events', foyer.id).then(eventsData => {
-        if (eventsData) {
-          const mapped = eventsData.map(e => ({
-            id: e.id,
-            title: e.title,
-            type: e.type,
-            dateTime: e.date_time,
-            time: e.time,
-            memberId: e.member_id,
-            memberName: e.member_name,
-            location: e.location,
-            description: e.description,
-            done: e.done,
-            amount: e.amount ? Number(e.amount) : undefined
-          }));
-          setEvents(prev => {
-            const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
-            const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
-            if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
-            return mapped;
-          });
-        }
+    const applyRealtimeRow = <T extends { id: string }>(
+      payload: LooseValue,
+      setter: Dispatch<SetStateAction<T[]>>,
+      mapRow: (row: DbRow) => T | null
+    ) => {
+      if (!payload) return;
+      const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+      const rowId = String(row?.id || '');
+      if (!rowId) return;
+
+      if (payload.eventType === 'DELETE') {
+        setter(previous => previous.filter(item => item.id !== rowId));
+        return;
+      }
+
+      const mapped = mapRow(row);
+      if (!mapped) {
+        setter(previous => previous.filter(item => item.id !== rowId));
+        return;
+      }
+
+      setter(previous => {
+        const existingIndex = previous.findIndex(item => item.id === mapped.id);
+        if (existingIndex === -1) return [mapped, ...previous];
+        const next = [...previous];
+        next[existingIndex] = mapped;
+        return next;
       });
+    };
+
+    const subEvents = foyerService.subscribeToChanges('events', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<FamilyEvent>(payload, setEvents, e => ({
+        id: e.id,
+        title: e.title,
+        type: e.type,
+        dateTime: e.date_time,
+        time: e.time,
+        memberId: e.member_id,
+        memberName: e.member_name,
+        location: e.location,
+        description: e.description,
+        done: e.done,
+        amount: e.amount ? Number(e.amount) : undefined
+      }));
     });
 
     const subGroceries = foyerService.subscribeToChanges('groceries', foyer.id, (payload: LooseValue) => {
@@ -4141,39 +4151,29 @@ function App() {
       }
     });
 
-    const subTasks = foyerService.subscribeToChanges('chore_tasks', foyer.id, () => {
-      foyerService.fetchTableData('chore_tasks', foyer.id).then(tasksData => {
-        if (tasksData) {
-          const mapped = tasksData.map(t => {
-            const meta = parseChoreTitle(t.title);
-            return {
-              id: t.id,
-              title: meta.title || t.title,
-              rewardPoints: t.reward_points,
-              assignedMemberId: t.assigned_member_id,
-              assignedMemberName: t.assigned_member_name,
-              done: t.done,
-              rotation: t.rotation,
-              validatedByParent: t.validated_by_parent,
-              dueDate: t.due_date,
-              rewardAmount: t.reward_amount ? Number(t.reward_amount) : undefined,
-              description: meta.description,
-              priority: meta.priority,
-              status: meta.status,
-              validationRequired: meta.validationRequired,
-              isArchived: meta.isArchived,
-              time: meta.time,
-              assignedMemberIds: meta.assignedMemberIds,
-              recurrence: meta.recurrence
-            };
-          });
-          setTasks(prev => {
-            const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
-            const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
-            if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
-            return mapped;
-          });
-        }
+    const subTasks = foyerService.subscribeToChanges('chore_tasks', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<ChoreTask>(payload, setTasks, t => {
+        const meta = parseChoreTitle(t.title);
+        return {
+          id: t.id,
+          title: meta.title || t.title,
+          rewardPoints: t.reward_points,
+          assignedMemberId: t.assigned_member_id,
+          assignedMemberName: t.assigned_member_name,
+          done: t.done,
+          rotation: t.rotation,
+          validatedByParent: t.validated_by_parent,
+          dueDate: t.due_date,
+          rewardAmount: t.reward_amount ? Number(t.reward_amount) : undefined,
+          description: meta.description,
+          priority: meta.priority,
+          status: meta.status,
+          validationRequired: meta.validationRequired,
+          isArchived: meta.isArchived,
+          time: meta.time,
+          assignedMemberIds: meta.assignedMemberIds,
+          recurrence: meta.recurrence
+        };
       });
     });
 
@@ -4287,154 +4287,114 @@ function App() {
       });
     });
 
-    const subVehicles = foyerService.subscribeToChanges('vehicles', foyer.id, () => {
-      foyerService.fetchTableData('vehicles', foyer.id).then(vehiclesData => {
-        if (vehiclesData) {
-          setVehicles(vehiclesData.map(v => ({
-            id: v.id,
-            name: v.name,
-            plate: v.plate || '',
-            insuranceExpiry: v.insurance_expiry || '',
-            technicalControl: v.technical_control || '',
-            lastService: v.last_service || '',
-            nextService: v.next_service || '',
-            mileage: v.mileage ? Number(v.mileage) : 0
-          })));
-        }
+    const subVehicles = foyerService.subscribeToChanges('vehicles', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<Vehicle>(payload, setVehicles, v => ({
+        id: v.id,
+        name: v.name,
+        plate: v.plate || '',
+        insuranceExpiry: v.insurance_expiry || '',
+        technicalControl: v.technical_control || '',
+        lastService: v.last_service || '',
+        nextService: v.next_service || '',
+        mileage: v.mileage ? Number(v.mileage) : 0
+      }));
+    });
+
+    const subMaintenance = foyerService.subscribeToChanges('maintenance', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<HomeMaintenance>(payload, setMaintenance, m => ({
+        id: m.id,
+        title: m.title,
+        provider: m.provider || '',
+        date: m.date || '',
+        cost: Number(m.cost || 0),
+        status: (m.status as LooseValue) || 'scheduled'
+      }));
+    });
+
+    const subTrips = foyerService.subscribeToChanges('trips', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<Trip>(payload, setTrips, t => ({
+        id: t.id,
+        destination: t.destination,
+        startDate: t.start_date || '',
+        endDate: t.end_date || '',
+        budget: Number(t.budget || 0),
+        checklist: typeof t.checklist === 'string' ? JSON.parse(t.checklist) : t.checklist || [],
+        bookingRefs: t.booking_refs || []
+      }));
+    });
+
+    const subPets = foyerService.subscribeToChanges('pets', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<PetRecord>(payload, setPets, p => ({
+        id: p.id,
+        name: p.name,
+        species: p.species || '',
+        lastVaccine: p.last_vaccine || '',
+        nextVaccine: p.next_vaccine || '',
+        vetAppointment: p.vet_appointment || undefined,
+        notes: p.notes || undefined,
+        weightHistory: typeof p.weight_history === 'string' ? JSON.parse(p.weight_history) : p.weight_history || [],
+        documentIds: p.document_ids || []
+      }));
+    });
+
+    const subPocketMoney = foyerService.subscribeToChanges('pocket_money', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<PocketMoneyChild>(payload, setPocketMoney, p => {
+        const meta = parsePocketMoneyTitle(p.goal_title || '');
+        return {
+          id: p.id,
+          name: p.name,
+          balance: Number(p.balance || 0),
+          points: Number(p.points || 0),
+          avatar: p.avatar || '',
+          shields: p.shields !== undefined && p.shields !== null ? Number(p.shields) : 3,
+          streak: p.streak !== undefined && p.streak !== null ? Number(p.streak) : 0,
+          lastShieldReset: p.last_shield_reset || undefined,
+          lastConnection: p.last_connection || undefined,
+          goalTitle: meta.goalTitle || '',
+          goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined,
+          goalType: meta.goalType || 'money',
+          rules: meta.rules || []
+        };
       });
     });
 
-    const subMaintenance = foyerService.subscribeToChanges('maintenance', foyer.id, () => {
-      foyerService.fetchTableData('maintenance', foyer.id).then(maintData => {
-        if (maintData) {
-          setMaintenance(maintData.map(m => ({
-            id: m.id,
-            title: m.title,
-            provider: m.provider || '',
-            date: m.date || '',
-            cost: Number(m.cost || 0),
-            status: (m.status as LooseValue) || 'scheduled'
-          })));
-        }
-      });
-    });
-
-    const subTrips = foyerService.subscribeToChanges('trips', foyer.id, () => {
-      foyerService.fetchTableData('trips', foyer.id).then(tripsData => {
-        if (tripsData) {
-          setTrips(tripsData.map(t => ({
-            id: t.id,
-            destination: t.destination,
-            startDate: t.start_date || '',
-            endDate: t.end_date || '',
-            budget: Number(t.budget || 0),
-            checklist: typeof t.checklist === 'string' ? JSON.parse(t.checklist) : t.checklist || [],
-            bookingRefs: t.booking_refs || []
-          })));
-        }
-      });
-    });
-
-    const subPets = foyerService.subscribeToChanges('pets', foyer.id, () => {
-      foyerService.fetchTableData('pets', foyer.id).then(petsData => {
-        if (petsData) {
-          setPets(petsData.map(p => ({
-            id: p.id,
-            name: p.name,
-            species: p.species || '',
-            lastVaccine: p.last_vaccine || '',
-            nextVaccine: p.next_vaccine || '',
-            vetAppointment: p.vet_appointment || undefined,
-            notes: p.notes || undefined,
-            weightHistory: typeof p.weight_history === 'string' ? JSON.parse(p.weight_history) : p.weight_history || [],
-            documentIds: p.document_ids || []
-          })));
-        }
-      });
-    });
-
-    const subPocketMoney = foyerService.subscribeToChanges('pocket_money', foyer.id, () => {
-      foyerService.fetchTableData('pocket_money', foyer.id).then(pmData => {
-        if (pmData) {
-          setPocketMoney(pmData.map((p: DbRow) => {
-            const meta = parsePocketMoneyTitle(p.goal_title || '');
-            return {
-              id: p.id,
-              name: p.name,
-              balance: Number(p.balance || 0),
-              points: Number(p.points || 0),
-              avatar: p.avatar || '',
-              shields: p.shields !== undefined && p.shields !== null ? Number(p.shields) : 3,
-              streak: p.streak !== undefined && p.streak !== null ? Number(p.streak) : 0,
-              lastShieldReset: p.last_shield_reset || undefined,
-              lastConnection: p.last_connection || undefined,
-              goalTitle: meta.goalTitle || '',
-              goalAmount: p.goal_amount ? Number(p.goal_amount) : undefined,
-              goalType: meta.goalType || 'money',
-              rules: meta.rules || []
-            };
-          }));
-        }
-      });
-    });
-
-    const subArtisans = foyerService.subscribeToChanges('artisans', foyer.id, () => {
-      foyerService.fetchTableData('artisans', foyer.id).then(artisansData => {
-        if (artisansData) {
-          setArtisans(artisansData.map(a => ({
-            id: a.id,
-            name: a.name,
-            specialty: a.specialty,
-            phone: a.phone || '',
-            email: a.email || '',
-            rating: a.rating || 5,
-            notes: a.notes || ''
-          })));
-        }
-      });
+    const subArtisans = foyerService.subscribeToChanges('artisans', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<Artisan>(payload, setArtisans, a => ({
+        id: a.id,
+        name: a.name,
+        specialty: a.specialty,
+        phone: a.phone || '',
+        email: a.email || '',
+        rating: a.rating || 5,
+        notes: a.notes || ''
+      }));
     });
 
     const subAlerts = foyerService.subscribeToChanges('alerts', foyer.id, (payload: LooseValue) => {
-      if (payload && payload.eventType === 'DELETE') {
-        const deletedId = payload.old?.id;
-        if (deletedId) {
-          setAlerts(prev => prev.filter(a => a.id !== deletedId));
-          return;
-        }
-      }
-
-      const client = getSupabaseClient();
-      if (!client) return;
-      
-      let query = client.from('alerts').select('*').eq('foyer_id', foyer.id);
       const selfMember = myMemberProfileRef.current || myMemberProfile;
       const joinedAtVal = selfMember ? selfMember.joinedAt : null;
-      if (joinedAtVal) {
-        query = query.gte('created_at', joinedAtVal);
-      }
-
-      query.then(({ data: alertsData }) => {
-        if (alertsData) {
-          setAlerts(alertsData.map(a => ({
-            id: a.id,
-            title: a.title,
-            description: a.description,
-            time: a.time,
-            type: a.type,
-            read: a.read,
-            module: a.module,
-            senderUserId: a.sender_user_id,
-            senderMemberId: a.sender_member_id,
-            senderName: a.sender_name,
-            senderAvatar: a.sender_avatar,
-            createdAt: a.created_at
-          })));
-        }
+      applyRealtimeRow<NotificationAlert>(payload, setAlerts, a => {
+        const isNewerThanJoined = !joinedAtVal
+          || (a.created_at && new Date(a.created_at) >= new Date(joinedAtVal));
+        if (!isNewerThanJoined) return null;
+        return {
+          id: a.id,
+          title: a.title,
+          description: a.description,
+          time: a.time,
+          type: a.type,
+          read: a.read,
+          module: a.module,
+          senderUserId: a.sender_user_id,
+          senderMemberId: a.sender_member_id,
+          senderName: a.sender_name,
+          senderAvatar: a.sender_avatar,
+          createdAt: a.created_at
+        };
       });
 
       if (payload && payload.eventType === 'INSERT') {
         const isCreatedByMe = payload.new.id && payload.new.id.includes(`-by-${activeMemberIdRef.current}`);
-        const joinedAtVal = myMemberProfileRef.current?.joinedAt || myMemberProfile?.joinedAt;
         const isNewerThanJoined = !joinedAtVal || (payload.new.created_at && new Date(payload.new.created_at) >= new Date(joinedAtVal));
         if (!isCreatedByMe && isNewerThanJoined) {
           setActiveToast({
@@ -4445,258 +4405,213 @@ function App() {
       }
     });
 
-    const subTransactions = foyerService.subscribeToChanges('transactions', foyer.id, () => {
-      foyerService.fetchTableData('transactions', foyer.id).then(transData => {
-        if (transData) {
-          setTransactions(transData.map(t => {
-            const { comment, metadata } = deserializeTransactionComment(t.comment);
-            return {
-              id: t.id,
-              amount: Number(t.amount || 0),
-              type: t.type,
-              category: t.category,
-              date: t.date,
-              title: t.title,
-              memberId: t.member_id,
-              memberName: t.member_name,
-              subCategory: t.sub_category,
-              accountId: t.account_id,
-              receiptUrl: storageUrlFromLegacy(t.receipt_url, t.receipt_base64),
-              attachmentUrl: storageUrlFromLegacy(t.attachment_url, t.attachment_base64),
-              receiptBase64: legacyDataUrlOnly(t.receipt_base64),
-              attachmentBase64: legacyDataUrlOnly(t.attachment_base64),
-              comment: comment,
-              modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
-              isArchived: !!t.is_archived,
-              recurrence: t.recurrence || 'none',
-              subscriptionId: t.subscription_id,
-              moduleSource: metadata.moduleSource || undefined,
-              categoryId: metadata.moduleSource || undefined,
-              subCategoryId: t.sub_category || undefined,
-              currency: 'EUR',
-              travelId: metadata.travelId || undefined,
-              travel_id: metadata.travelId || undefined,
-              recurrenceInterval: metadata.recurrenceInterval ? Number(metadata.recurrenceInterval) : undefined,
-              startDate: metadata.startDate || undefined,
-              endDate: metadata.endDate || undefined,
-              nextOccurrence: metadata.nextOccurrence || undefined,
-              entryTime: (() => {
-                if (metadata.entryTime) return metadata.entryTime;
-                if (t.created_at) {
-                  const d = new Date(t.created_at.replace(' ', 'T'));
-                  if (!isNaN(d.getTime())) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-                }
-                return undefined;
-              })(),
-              entryDate: metadata.entryDate || t.date || undefined,
-              createdAt: t.created_at || undefined,
-              updatedAt: t.created_at || undefined
-            };
-          }));
-        }
+    const subTransactions = foyerService.subscribeToChanges('transactions', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<Transaction>(payload, setTransactions, t => {
+        const { comment, metadata } = deserializeTransactionComment(t.comment);
+        return {
+          id: t.id,
+          amount: Number(t.amount || 0),
+          type: t.type,
+          category: t.category,
+          date: t.date,
+          title: t.title,
+          memberId: t.member_id,
+          memberName: t.member_name,
+          subCategory: t.sub_category,
+          accountId: t.account_id,
+          receiptUrl: storageUrlFromLegacy(t.receipt_url, t.receipt_base64),
+          attachmentUrl: storageUrlFromLegacy(t.attachment_url, t.attachment_base64),
+          receiptBase64: legacyDataUrlOnly(t.receipt_base64),
+          attachmentBase64: legacyDataUrlOnly(t.attachment_base64),
+          comment,
+          modificationHistory: typeof t.modification_history === 'string' ? JSON.parse(t.modification_history) : t.modification_history || [],
+          isArchived: !!t.is_archived,
+          recurrence: t.recurrence || 'none',
+          subscriptionId: t.subscription_id,
+          moduleSource: metadata.moduleSource || undefined,
+          categoryId: metadata.moduleSource || undefined,
+          subCategoryId: t.sub_category || undefined,
+          currency: 'EUR',
+          travelId: metadata.travelId || undefined,
+          travel_id: metadata.travelId || undefined,
+          recurrenceInterval: metadata.recurrenceInterval ? Number(metadata.recurrenceInterval) : undefined,
+          startDate: metadata.startDate || undefined,
+          endDate: metadata.endDate || undefined,
+          nextOccurrence: metadata.nextOccurrence || undefined,
+          entryTime: (() => {
+            if (metadata.entryTime) return metadata.entryTime;
+            if (t.created_at) {
+              const d = new Date(t.created_at.replace(' ', 'T'));
+              if (!isNaN(d.getTime())) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            }
+            return undefined;
+          })(),
+          entryDate: metadata.entryDate || t.date || undefined,
+          createdAt: t.created_at || undefined,
+          updatedAt: t.created_at || undefined
+        };
       });
     });
 
-    const subSavingGoals = foyerService.subscribeToChanges('saving_goals', foyer.id, () => {
-      foyerService.fetchTableData('saving_goals', foyer.id).then(goalsData => {
-        if (goalsData) {
-          setSavingGoals(goalsData.map(g => ({
-            id: g.id,
-            title: g.title,
-            targetAmount: Number(g.target_amount || 0),
-            currentAmount: Number(g.current_amount || 0),
-            targetDate: g.target_date || '',
-            category: g.category || 'General',
-            contributions: typeof g.contributions === 'string' ? JSON.parse(g.contributions) : g.contributions || []
-          })));
-        }
+    const subSavingGoals = foyerService.subscribeToChanges('saving_goals', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<SavingGoal>(payload, setSavingGoals, g => ({
+        id: g.id,
+        title: g.title,
+        targetAmount: Number(g.target_amount || 0),
+        currentAmount: Number(g.current_amount || 0),
+        targetDate: g.target_date || '',
+        category: g.category || 'General',
+        contributions: typeof g.contributions === 'string' ? JSON.parse(g.contributions) : g.contributions || []
+      }));
+    });
+
+    const subCustomCategories = foyerService.subscribeToChanges('custom_categories', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<CustomCategory>(payload, setCustomCategories, cc => {
+        const meta = deserializeCategoryIcon(cc.icon);
+        return {
+          id: cc.id,
+          name: cc.name,
+          icon: meta.icon,
+          color: cc.color,
+          budget: Number(cc.budget || 0),
+          displayOrder: Number(cc.display_order || 0),
+          subcategories: meta.subcategories.length > 0 ? meta.subcategories : undefined,
+          isArchived: meta.isArchived || undefined
+        };
       });
     });
 
-    const subCustomCategories = foyerService.subscribeToChanges('custom_categories', foyer.id, () => {
-      foyerService.fetchTableData('custom_categories', foyer.id).then(data => {
-        if (data) {
-          setCustomCategories(data.map(cc => {
-            const meta = deserializeCategoryIcon(cc.icon);
-            return {
-              id: cc.id,
-              name: cc.name,
-              icon: meta.icon,
-              color: cc.color,
-              budget: Number(cc.budget || 0),
-              displayOrder: Number(cc.display_order || 0),
-              subcategories: meta.subcategories.length > 0 ? meta.subcategories : undefined,
-              isArchived: meta.isArchived || undefined
-            };
-          }));
-        }
+    const subAccounts = foyerService.subscribeToChanges('accounts', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<Account>(payload, setAccounts, a => {
+        const metadataStr = localStorage.getItem('mf_accounts_metadata');
+        const metadata = metadataStr ? JSON.parse(metadataStr) : {};
+        const meta = metadata[a.id] || {};
+        return {
+          id: a.id,
+          name: a.name,
+          type: a.type || 'bank',
+          balance: Number(a.balance || 0),
+          icon: meta.icon || undefined,
+          color: meta.color || undefined,
+          initialBalance: meta.initialBalance !== undefined ? Number(meta.initialBalance) : undefined
+        };
       });
     });
 
-    const subAccounts = foyerService.subscribeToChanges('accounts', foyer.id, () => {
-      foyerService.fetchTableData('accounts', foyer.id).then(data => {
-        if (data) {
-          const metadataStr = localStorage.getItem('mf_accounts_metadata');
-          const metadata = metadataStr ? JSON.parse(metadataStr) : {};
-          setAccounts(data.map(a => {
-            const meta = metadata[a.id] || {};
-            return {
-              id: a.id,
-              name: a.name,
-              type: a.type || 'bank',
-              balance: Number(a.balance || 0),
-              icon: meta.icon || undefined,
-              color: meta.color || undefined,
-              initialBalance: meta.initialBalance !== undefined ? Number(meta.initialBalance) : undefined
-            };
-          }));
-        }
+    const subAbonnements = foyerService.subscribeToChanges('abonnements', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<Abonnement>(payload, setAbonnements, a => ({
+        id: a.id,
+        name: a.name,
+        amount: Number(a.amount || 0),
+        period: a.period || 'monthly',
+        nextBillingDate: a.next_billing_date || '',
+        category: a.category
+      }));
+    });
+
+    const subDebts = foyerService.subscribeToChanges('debts', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<Debt>(payload, setDebts, d => ({
+        id: d.id,
+        title: d.title,
+        amount: Number(d.amount || 0),
+        payerId: d.payer_id,
+        payerName: d.payer_name,
+        debtorId: d.debtor_id,
+        debtorName: d.debtor_name,
+        isRepaid: !!d.is_repaid
+      }));
+    });
+
+    const subVotes = foyerService.subscribeToChanges('votes', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<FamilyVote>(payload, setVotes, v => ({
+        id: v.id,
+        question: v.question || v.title || '',
+        options: typeof v.options === 'string' ? JSON.parse(v.options) : v.options || [],
+        authorName: v.author_name || v.created_by_name || 'Parent',
+        active: !!v.active,
+        dueDate: v.due_date || v.deadline || ''
+      }));
+    });
+
+    const subSchoolTasks = foyerService.subscribeToChanges('school_tasks', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<SchoolTask>(payload, setSchoolTasks, t => {
+        if (LEGACY_DEMO_SCHOOL_TASK_IDS.has(String(t.id || ''))) return null;
+        return {
+          id: t.id,
+          subject: t.subject,
+          title: t.title,
+          dueDate: t.due_date || '',
+          done: !!t.done,
+          assignedMemberId: t.assigned_member_id || '',
+          difficulty: t.difficulty || 'easy',
+          grade: t.grade
+        };
       });
     });
 
-    const subAbonnements = foyerService.subscribeToChanges('abonnements', foyer.id, () => {
-      foyerService.fetchTableData('abonnements', foyer.id).then(data => {
-        if (data) {
-          setAbonnements(data.map(a => ({
-            id: a.id,
-            name: a.name,
-            amount: Number(a.amount || 0),
-            period: a.period || 'monthly',
-            nextBillingDate: a.next_billing_date || '',
-            category: a.category
-          })));
-        }
-      });
+    const subDemarches = foyerService.subscribeToChanges('demarches', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<Demarche>(payload, setDemarches, d => ({
+        id: d.id,
+        templateId: d.template_id,
+        title: d.title,
+        icon: d.icon || 'FileText',
+        status: d.status || 'à faire',
+        assignedMemberId: d.assigned_member_id,
+        assignedMemberName: d.assigned_member_name,
+        steps: typeof d.steps === 'string' ? JSON.parse(d.steps) : d.steps || [],
+        pieces: typeof d.pieces === 'string' ? JSON.parse(d.pieces) : d.pieces || [],
+        createdAt: d.created_at_text || '',
+        notes: d.notes || ''
+      }));
     });
 
-    const subDebts = foyerService.subscribeToChanges('debts', foyer.id, () => {
-      foyerService.fetchTableData('debts', foyer.id).then(data => {
-        if (data) {
-          setDebts(data.map(d => ({
-            id: d.id,
-            title: d.title,
-            amount: Number(d.amount || 0),
-            payerId: d.payer_id,
-            payerName: d.payer_name,
-            debtorId: d.debtor_id,
-            debtorName: d.debtor_name,
-            isRepaid: !!d.is_repaid
-          })));
-        }
-      });
+    const subJustificatifPacks = foyerService.subscribeToChanges('justificatif_packs', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<JustificatifPack>(payload, setJustificatifPacks, p => ({
+        id: p.id,
+        name: p.name || p.title || '',
+        templateType: p.template_type || '',
+        documentIds: p.document_ids || [],
+        createdAt: p.created_at_text || ''
+      }));
     });
 
-    const subVotes = foyerService.subscribeToChanges('votes', foyer.id, () => {
-      foyerService.fetchTableData('votes', foyer.id).then(votesData => {
-        if (votesData) {
-          setVotes(votesData.map(v => ({
-            id: v.id,
-            question: v.question || v.title || '',
-            options: typeof v.options === 'string' ? JSON.parse(v.options) : v.options || [],
-            authorName: v.author_name || v.created_by_name || 'Parent',
-            active: !!v.active,
-            dueDate: v.due_date || v.deadline || ''
-          })));
-        }
-      });
+    const subMalusTemplates = foyerService.subscribeToChanges('malus_templates', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<MalusTemplate>(payload, setMalusTemplates, m => ({
+        id: m.id,
+        foyerId: m.foyer_id,
+        title: m.title,
+        emoji: m.emoji,
+        description: m.description || '',
+        category: m.category,
+        starsRemoved: Number(m.stars_removed || 0),
+        xpRemoved: Number(m.xp_removed || 0),
+        lossStreak: !!m.loss_streak,
+        lossShield: !!m.loss_shield,
+        commentRequired: !!m.comment_required,
+        doubleParentValidation: !!m.double_parent_validation,
+        createdAt: m.created_at
+      }));
     });
 
-    const subSchoolTasks = foyerService.subscribeToChanges('school_tasks', foyer.id, () => {
-      foyerService.fetchTableData('school_tasks', foyer.id).then(tasksData => {
-        if (tasksData) {
-          setSchoolTasks(removeLegacyDemoSchoolTasks(tasksData).map(t => ({
-            id: t.id,
-            subject: t.subject,
-            title: t.title,
-            dueDate: t.due_date || '',
-            done: !!t.done,
-            assignedMemberId: t.assigned_member_id || '',
-            difficulty: t.difficulty || 'easy',
-            grade: t.grade
-          })));
-        }
-      });
-    });
-
-    const subDemarches = foyerService.subscribeToChanges('demarches', foyer.id, () => {
-      foyerService.fetchTableData('demarches', foyer.id).then(demarchesData => {
-        if (demarchesData) {
-          setDemarches(demarchesData.map(d => ({
-            id: d.id,
-            templateId: d.template_id,
-            title: d.title,
-            icon: d.icon || 'FileText',
-            status: d.status || 'à faire',
-            assignedMemberId: d.assigned_member_id,
-            assignedMemberName: d.assigned_member_name,
-            steps: typeof d.steps === 'string' ? JSON.parse(d.steps) : d.steps || [],
-            pieces: typeof d.pieces === 'string' ? JSON.parse(d.pieces) : d.pieces || [],
-            createdAt: d.created_at_text || '',
-            notes: d.notes || ''
-          })));
-        }
-      });
-    });
-
-    const subJustificatifPacks = foyerService.subscribeToChanges('justificatif_packs', foyer.id, () => {
-      foyerService.fetchTableData('justificatif_packs', foyer.id).then(packsData => {
-        if (packsData) {
-          setJustificatifPacks(packsData.map(p => ({
-            id: p.id,
-            name: p.name || p.title || '',
-            templateType: p.template_type || '',
-            documentIds: p.document_ids || [],
-            createdAt: p.created_at_text || ''
-          })));
-        }
-      });
-    });
-
-    const subMalusTemplates = foyerService.subscribeToChanges('malus_templates', foyer.id, () => {
-      foyerService.fetchTableData('malus_templates', foyer.id).then(templatesData => {
-        if (templatesData) {
-          setMalusTemplates(templatesData.map((m: DbRow) => ({
-            id: m.id,
-            foyerId: m.foyer_id,
-            title: m.title,
-            emoji: m.emoji,
-            description: m.description || '',
-            category: m.category,
-            starsRemoved: Number(m.stars_removed || 0),
-            xpRemoved: Number(m.xp_removed || 0),
-            lossStreak: !!m.loss_streak,
-            lossShield: !!m.loss_shield,
-            commentRequired: !!m.comment_required,
-            doubleParentValidation: !!m.double_parent_validation,
-            createdAt: m.created_at
-          })));
-        }
-      });
-    });
-
-    const subAppliedMaluses = foyerService.subscribeToChanges('malus_applied', foyer.id, () => {
-      foyerService.fetchTableData('malus_applied', foyer.id).then(appliedData => {
-        if (appliedData) {
-          setAppliedMaluses(appliedData.map((m: DbRow) => ({
-            id: m.id,
-            foyerId: m.foyer_id,
-            memberId: m.member_id,
-            title: m.title,
-            emoji: m.emoji,
-            description: m.description || '',
-            starsRemoved: Number(m.stars_removed || 0),
-            xpRemoved: Number(m.xp_removed || 0),
-            lossStreak: !!m.loss_streak,
-            lossShield: !!m.loss_shield,
-            comment: m.comment || '',
-            shieldUsed: !!m.shield_used,
-            repaired: !!m.repaired,
-            repairedAt: m.repaired_at,
-            reparationTaskId: m.reparation_task_id || '',
-            createdAt: m.created_at
-          })));
-        }
-      });
+    const subAppliedMaluses = foyerService.subscribeToChanges('malus_applied', foyer.id, (payload: LooseValue) => {
+      applyRealtimeRow<AppliedMalus>(payload, setAppliedMaluses, m => ({
+        id: m.id,
+        foyerId: m.foyer_id,
+        memberId: m.member_id,
+        title: m.title,
+        emoji: m.emoji,
+        description: m.description || '',
+        starsRemoved: Number(m.stars_removed || 0),
+        xpRemoved: Number(m.xp_removed || 0),
+        lossStreak: !!m.loss_streak,
+        lossShield: !!m.loss_shield,
+        comment: m.comment || '',
+        shieldUsed: !!m.shield_used,
+        repaired: !!m.repaired,
+        repairedAt: m.repaired_at,
+        reparationTaskId: m.reparation_task_id || '',
+        createdAt: m.created_at
+      }));
     });
 
     return () => {
