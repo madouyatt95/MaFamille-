@@ -920,3 +920,70 @@ html,
 .theme-sepia .create-group-box button.bg-\[\#00D26A\]\/10 * {
   color: #2f7d52 !important;
 }
+
+/* Histoires du soir: preserve a readable book surface in every app theme. */
+.theme-light .conteur-module {
+  background: linear-gradient(180deg, #ffffff 0%, #f4f7ff 100%) !important;
+  border-color: #d8e0f0 !important;
+  box-shadow: 0 18px 44px rgba(38, 51, 77, 0.14) !important;
+}
+
+.theme-sepia .conteur-module {
+  background: linear-gradient(180deg, #fffaf0 0%, #f4e8d2 100%) !important;
+  border-color: #d9c5a6 !important;
+  box-shadow: 0 18px 44px rgba(89, 63, 38, 0.15) !important;
+}
+
+.theme-light .conteur-config-panel,
+.theme-light .conteur-settings-panel {
+  background: rgba(255, 255, 255, 0.88) !important;
+  border-color: #d8e0f0 !important;
+}
+
+.theme-sepia .conteur-config-panel,
+.theme-sepia .conteur-settings-panel {
+  background: rgba(255, 249, 237, 0.92) !important;
+  border-color: #d9c5a6 !important;
+}
+
+.theme-light .conteur-story-card {
+  background: #ffffff !important;
+  border-color: #d8e0f0 !important;
+}
+
+.theme-sepia .conteur-story-card {
+  background: #fff9ed !important;
+  border-color: #d9c5a6 !important;
+}
+
+.theme-light .conteur-story-card p[class*="font-serif"] {
+  color: #24324a !important;
+}
+
+.theme-sepia .conteur-story-card p[class*="font-serif"] {
+  color: #4f3b29 !important;
+}
+
+.theme-light .conteur-reader-toolbar {
+  background: rgba(248, 250, 255, 0.97) !important;
+  border-color: #d8e0f0 !important;
+}
+
+.theme-sepia .conteur-reader-toolbar {
+  background: rgba(248, 238, 220, 0.97) !important;
+  border-color: #d9c5a6 !important;
+}
+
+.theme-light .conteur-module input,
+.theme-light .conteur-module select {
+  background: #ffffff !important;
+  color: #172033 !important;
+  border-color: #cdd7e8 !important;
+}
+
+.theme-sepia .conteur-module input,
+.theme-sepia .conteur-module select {
+  background: #fffaf0 !important;
+  color: #4f3b29 !important;
+  border-color: #d4bea0 !important;
+}

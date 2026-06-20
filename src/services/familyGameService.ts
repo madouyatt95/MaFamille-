@@ -89,6 +89,23 @@ const mapRoom = (row: GameRoomRow): FamilyGameRoom => ({
   expiresAt: row.expires_at
 });
 
+const getRoomErrorMessage = (error: { message?: string; code?: string }): string => {
+  const message = `${error.message || ''} ${error.code || ''}`.toLowerCase();
+  if (message.includes('create_family_game_room') || message.includes('apply_family_game_action') || message.includes('pgrst202')) {
+    return 'Le service de parties privées doit être activé sur Supabase. Appliquez la dernière migration puis réessayez.';
+  }
+  if (message.includes('jwt') || message.includes('session') || message.includes('auth')) {
+    return 'Votre session a expiré. Reconnectez-vous puis réessayez.';
+  }
+  if (message.includes('rate') || message.includes('tentative')) {
+    return 'Trop de tentatives rapprochées. Patientez une minute puis réessayez.';
+  }
+  if (message.includes('permission') || message.includes('accès refusé') || message.includes('row-level')) {
+    return 'Ce compte n’a pas accès à cette famille.';
+  }
+  return error.message || 'Le service de parties privées est momentanément indisponible.';
+};
+
 export const familyGameService = {
   async fetchActiveRoom(foyerId: string): Promise<FamilyGameRoom | null> {
     const client = getSupabaseClient();
@@ -155,13 +172,19 @@ export const familyGameService = {
   async createRoom(foyerId: string, gameType: FamilyGameType, hostName: string): Promise<FamilyGameRoom> {
     const client = getSupabaseClient();
     if (!client) throw new Error('Connexion Supabase indisponible.');
+    if (!foyerId || foyerId === 'local') throw new Error('Sélectionnez une famille synchronisée pour créer une partie privée.');
+
+    const existingRoom = await this.fetchActiveRoom(foyerId);
+    if (existingRoom) return existingRoom;
+
     const { data, error } = await client.rpc('create_family_game_room', {
       p_foyer_id: foyerId,
       p_game_type: gameType,
       p_host_name: hostName
     });
-    if (error) throw error;
+    if (error) throw new Error(getRoomErrorMessage(error));
     const row = Array.isArray(data) ? data[0] : data;
+    if (!row) throw new Error('Supabase n’a pas retourné la salle créée.');
     return mapRoom(row as GameRoomRow);
   },
 
@@ -173,7 +196,7 @@ export const familyGameService = {
       p_room_code: code.trim().toUpperCase(),
       p_guest_name: guestName
     });
-    if (error) throw error;
+    if (error) throw new Error(getRoomErrorMessage(error));
     const row = Array.isArray(data) ? data[0] : data;
     return mapRoom(row as GameRoomRow);
   },
@@ -192,7 +215,7 @@ export const familyGameService = {
       p_action: action,
       p_payload: payload
     });
-    if (error) throw error;
+    if (error) throw new Error(getRoomErrorMessage(error));
     const row = Array.isArray(data) ? data[0] : data;
     return mapRoom(row as GameRoomRow);
   },
@@ -206,7 +229,7 @@ export const familyGameService = {
       p_round_number: roundNumber,
       p_answer_text: answerText
     });
-    if (error) throw error;
+    if (error) throw new Error(getRoomErrorMessage(error));
     const row = Array.isArray(data) ? data[0] : data;
     return mapRoom(row as GameRoomRow);
   },

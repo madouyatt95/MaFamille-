@@ -747,7 +747,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
   };
 
   return (
-    <div className="relative glass-panel border border-white/10 rounded-[28px] p-5 md:p-8 overflow-hidden min-h-[660px] w-full flex flex-col justify-between transition-all duration-700 shadow-[0_25px_60px_rgba(0,0,0,0.5)] bg-[#070e17]/80">
+    <div className="conteur-module relative glass-panel border border-white/10 rounded-[28px] p-5 md:p-8 overflow-hidden min-h-[660px] w-full flex flex-col justify-between transition-all duration-700 shadow-[0_25px_60px_rgba(0,0,0,0.5)] bg-[#070e17]/80">
       
       {/* Fallback notification toast / banner */}
       {fallbackNotice && (
@@ -901,7 +901,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
             </div>
 
             {/* MAIN FULL-SCREEN CONFIGURATOR PANEL */}
-            <div className="bg-white/4 border border-white/8 rounded-[36px] p-5 md:p-8 backdrop-blur-xl space-y-7 relative overflow-hidden">
+            <div className="conteur-config-panel bg-white/4 border border-white/8 rounded-[36px] p-5 md:p-8 backdrop-blur-xl space-y-7 relative overflow-hidden">
               
 
               
@@ -1179,7 +1179,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
         {/* SCREEN 3: CALM READER */}
         {!isGenerating && activeStory && (
           <div className="w-full max-w-3xl space-y-4 animate-scale-up">
-            <article className="overflow-hidden rounded-[24px] border border-white/8 bg-[#0B1424]/92 shadow-2xl">
+            <article className="conteur-story-card overflow-hidden rounded-[24px] border border-white/8 bg-[#0B1424]/92 shadow-2xl">
               <div className="relative h-44 sm:h-56 overflow-hidden bg-[#0d1322]">
                 {loadingStoryImage ? (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
@@ -1242,7 +1242,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                   </div>
                 )}
 
-                <div className="sticky bottom-0 -mx-5 -mb-5 sm:-mx-8 sm:-mb-8 border-t border-white/8 bg-[#0B1424]/95 p-4 backdrop-blur-xl">
+                <div className="conteur-reader-toolbar sticky bottom-0 -mx-5 -mb-5 sm:-mx-8 sm:-mb-8 border-t border-white/8 bg-[#0B1424]/95 p-4 backdrop-blur-xl">
                   <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
                     <button
                       onClick={handlePrevPage}
@@ -1291,7 +1291,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
             </article>
 
             {showVoiceSettings && (
-              <div className="rounded-2xl border border-white/8 bg-[#0B1424]/90 p-4 sm:p-5 space-y-4">
+              <div className="conteur-settings-panel rounded-2xl border border-white/8 bg-[#0B1424]/90 p-4 sm:p-5 space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-black text-white">Confort de lecture</h4>
                   <div className="flex overflow-hidden rounded-lg border border-white/10">
@@ -1323,7 +1323,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
             )}
 
             {showAmbientSettings && (
-              <div className="rounded-2xl border border-white/8 bg-[#0B1424]/90 p-4 sm:p-5 space-y-4">
+              <div className="conteur-settings-panel rounded-2xl border border-white/8 bg-[#0B1424]/90 p-4 sm:p-5 space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-black text-white">Ambiance sonore</h4>
                   {ambientSound !== 'none' && (

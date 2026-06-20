@@ -37,6 +37,7 @@ export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, onRoomRea
       const nextRoom = await familyGameService.createRoom(foyerId, selectedGame, familyName);
       setRoom(nextRoom);
       setMode('create');
+      if (nextRoom.status === 'active') onRoomReady?.(nextRoom);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : 'Création de la partie impossible.');
     } finally {
