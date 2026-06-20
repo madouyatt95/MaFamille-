@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
+  ArrowLeft,
   Home, 
   User, 
   ArrowRight,
@@ -14,6 +15,18 @@ import {
   Check
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
+
+const AUTH_REDIRECT_URL = 'https://ma-famille-nu.vercel.app';
+
+const getAuthErrorMessage = (error: unknown): string => {
+  const message = error instanceof Error ? error.message.toLowerCase() : '';
+  if (message.includes('invalid login credentials')) return 'Adresse e-mail ou mot de passe incorrect.';
+  if (message.includes('email not confirmed')) return 'Confirmez d’abord votre adresse depuis l’e-mail reçu.';
+  if (message.includes('user already registered')) return 'Un compte existe déjà avec cette adresse e-mail.';
+  if (message.includes('password')) return 'Le mot de passe ne respecte pas les critères de sécurité.';
+  if (message.includes('rate') || message.includes('too many')) return 'Trop de tentatives rapprochées. Patientez quelques minutes.';
+  return error instanceof Error ? error.message : 'Une erreur est survenue. Réessayez dans un instant.';
+};
 
 interface OnboardingProps {
   onSuccess: (foyerId: string, memberRole: string) => void;
@@ -31,10 +44,41 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [legalAccepted, setLegalAccepted] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(false);
   
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const passwordChecks = useMemo(() => ({
+    length: password.length >= 8,
+    number: /\d/.test(password),
+    match: password.length > 0 && password === confirmPassword
+  }), [confirmPassword, password]);
+
+  const resendConfirmation = async () => {
+    if (!pendingEmail || resendCooldown) return;
+    setErrorMessage(null);
+    setLoading(true);
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) throw new Error("Supabase n'est pas disponible.");
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: pendingEmail,
+        options: { emailRedirectTo: AUTH_REDIRECT_URL }
+      });
+      if (error) throw error;
+      setSuccessMessage('Un nouvel e-mail de confirmation vient d’être envoyé.');
+      setResendCooldown(true);
+      window.setTimeout(() => setResendCooldown(false), 30_000);
+    } catch (error) {
+      setErrorMessage(getAuthErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,13 +95,14 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
       setLoading(true);
       try {
         if (!supabase) throw new Error("Supabase n'est pas disponible.");
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: 'https://ma-famille-nu.vercel.app'
+        const normalizedEmail = email.trim().toLowerCase();
+        const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+          redirectTo: AUTH_REDIRECT_URL
         });
         if (error) throw error;
         setSuccessMessage("Un e-mail de récupération a été envoyé !");
       } catch (err: unknown) {
-        setErrorMessage(err instanceof Error ? err.message : "Erreur lors de l'envoi");
+        setErrorMessage(getAuthErrorMessage(err));
       } finally {
         setLoading(false);
       }
@@ -80,12 +125,16 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
       setErrorMessage("Veuillez remplir les champs email et mot de passe.");
       return;
     }
-    if (activeMode === 'create' && password.length < 6) {
-      setErrorMessage("Le mot de passe doit faire au moins 6 caractères.");
+    if (activeMode === 'create' && (!passwordChecks.length || !passwordChecks.number)) {
+      setErrorMessage("Choisissez un mot de passe d’au moins 8 caractères avec un chiffre.");
       return;
     }
     if (activeMode === 'create' && password !== confirmPassword) {
       setErrorMessage("Les deux mots de passe ne correspondent pas.");
+      return;
+    }
+    if (activeMode === 'create' && !legalAccepted) {
+      setErrorMessage("Veuillez accepter les conditions d’utilisation et la politique de confidentialité.");
       return;
     }
 
@@ -96,17 +145,17 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
 
       if (activeMode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           password
         });
         if (error) throw error;
       } else {
         // Register account only
         const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           password,
           options: {
-            emailRedirectTo: 'https://ma-famille-nu.vercel.app',
+            emailRedirectTo: AUTH_REDIRECT_URL,
             data: {
               first_name: firstName.trim(),
               last_name: lastName.trim(),
@@ -122,22 +171,13 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
           setSuccessMessage("Votre compte MyFamily+ est créé. Préparation de votre espace familial...");
           onSuccess('', 'pending');
         } else {
-          setSuccessMessage("Compte créé. Vérifiez votre boîte mail pour confirmer votre adresse, puis connectez-vous.");
+          setPendingEmail(email.trim().toLowerCase());
+          setSuccessMessage(null);
         }
-        
-        // Reset fields
-        setFirstName('');
-        setLastName('');
-        setEmail('');
-        setPassword('');
-        setConfirmPassword('');
-        
-        // Redirect to login tab
-        setActiveMode('login');
       }
     } catch (err: unknown) {
       console.error("[Onboarding Error]", err);
-      setErrorMessage(err instanceof Error ? err.message : "Une erreur est survenue.");
+      setErrorMessage(getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -164,6 +204,34 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
           </p>
         </div>
 
+        {pendingEmail ? (
+          <div className="glass-panel border border-[#00D26A]/20 rounded-[32px] p-6 sm:p-8 space-y-5 shadow-2xl text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl border border-[#00D26A]/25 bg-[#00D26A]/10 text-[#00D26A]">
+              <Mail className="h-7 w-7" />
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#00D26A]">Dernière étape</p>
+              <h2 className="mt-2 text-xl font-black text-white">Confirmez votre adresse e-mail</h2>
+              <p className="mt-2 text-xs leading-relaxed text-white/60">
+                Nous avons envoyé un lien à <strong className="text-white">{pendingEmail}</strong>. Touchez ce lien pour activer votre compte, puis MyFamily+ vous proposera de créer ou rejoindre votre famille.
+              </p>
+            </div>
+            {successMessage && <p className="rounded-2xl border border-[#00D26A]/20 bg-[#00D26A]/8 p-3 text-xs font-bold text-[#00D26A]">{successMessage}</p>}
+            {errorMessage && <p className="rounded-2xl border border-[#FF4D6D]/20 bg-[#FF4D6D]/8 p-3 text-xs font-bold text-[#FF4D6D]">{errorMessage}</p>}
+            <button type="button" onClick={() => void resendConfirmation()} disabled={loading || resendCooldown} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-xs font-black text-white disabled:opacity-45">
+              {loading ? 'Envoi...' : resendCooldown ? 'E-mail renvoyé' : 'Renvoyer l’e-mail'}
+            </button>
+            <button type="button" onClick={() => {
+              setPendingEmail('');
+              setActiveMode('login');
+              setEmail(pendingEmail);
+              setPassword('');
+              setConfirmPassword('');
+            }} className="inline-flex items-center gap-2 text-xs font-bold text-white/55 hover:text-white">
+              <ArrowLeft className="h-4 w-4" /> Retour à la connexion
+            </button>
+          </div>
+        ) : <>
         {/* Tab Selection */}
         {activeMode !== 'forgot' && (
           <div className="grid grid-cols-2 gap-1.5 p-1 bg-white/5 rounded-2xl border border-white/5 shadow-inner">
@@ -222,7 +290,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
             
             {/* Input Prénom et Nom (S'inscrire seulement) */}
             {activeMode === 'create' && (
-              <div className="grid grid-cols-2 gap-3 animate-fade-in">
+              <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3 animate-fade-in">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-white/50 uppercase tracking-wide block">
                     Prénom
@@ -323,6 +391,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                     className="absolute right-3.5 top-3 text-white/30 hover:text-white/60 focus:outline-none cursor-pointer"
                   >
                     {showPassword ? (
@@ -356,6 +425,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    aria-label={showConfirmPassword ? 'Masquer la confirmation' : 'Afficher la confirmation'}
                     className="absolute right-3.5 top-3 text-white/30 hover:text-white/60 focus:outline-none cursor-pointer"
                   >
                     {showConfirmPassword ? (
@@ -366,14 +436,22 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                   </button>
                 </div>
                 {(password || confirmPassword) && (
-                  <p className={`flex items-center gap-1.5 text-xs font-bold ${
-                    password.length >= 6 && password === confirmPassword ? 'text-[#00D26A]' : 'text-white/40'
-                  }`}>
-                    <Check className="w-3 h-3 shrink-0" />
-                    6 caractères minimum et deux mots de passe identiques
-                  </p>
+                  <div className="grid gap-1 text-[11px] font-bold">
+                    <p className={passwordChecks.length ? 'text-[#00D26A]' : 'text-white/40'}><Check className="mr-1.5 inline h-3 w-3" />8 caractères minimum</p>
+                    <p className={passwordChecks.number ? 'text-[#00D26A]' : 'text-white/40'}><Check className="mr-1.5 inline h-3 w-3" />Au moins un chiffre</p>
+                    <p className={passwordChecks.match ? 'text-[#00D26A]' : 'text-white/40'}><Check className="mr-1.5 inline h-3 w-3" />Mots de passe identiques</p>
+                  </div>
                 )}
               </div>
+            )}
+
+            {activeMode === 'create' && (
+              <label className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/3 p-3 text-left">
+                <input type="checkbox" checked={legalAccepted} onChange={event => setLegalAccepted(event.target.checked)} aria-label="Accepter les conditions et la politique de confidentialité" className="mt-0.5 h-4 w-4 accent-[#6C5CFF]" />
+                <span className="text-[11px] leading-relaxed text-white/55">
+                  J’accepte les <a href="/legal/terms.html" target="_blank" rel="noreferrer" className="font-bold text-[#9E94FF] underline">conditions d’utilisation</a> et la <a href="/legal/privacy.html" target="_blank" rel="noreferrer" className="font-bold text-[#9E94FF] underline">politique de confidentialité</a>.
+                </span>
+              </label>
             )}
 
             {activeMode === 'forgot' && (
@@ -434,6 +512,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
           </form>
 
         </div>
+        </>}
 
         {/* Footer info */}
         <div className="grid grid-cols-3 gap-2 text-center text-xs text-white/40 font-bold uppercase tracking-wide">

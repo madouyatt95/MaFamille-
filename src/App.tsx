@@ -1486,13 +1486,14 @@ function App() {
   const [showWelcomeScreen, setShowWelcomeScreen] = useState(false);
 
   const [defaultFamilyId, setDefaultFamilyId] = useState<string | null>(() => localStorage.getItem('mf_default_family_id'));
-  const [welcomeScreenMode, setWelcomeScreenMode] = useState<'select' | 'create' | 'join' | 'success'>('select');
+  const initialJoinCode = new URLSearchParams(window.location.search).get('join')?.trim().toUpperCase() || '';
+  const [welcomeScreenMode, setWelcomeScreenMode] = useState<'select' | 'create' | 'join' | 'success'>(initialJoinCode ? 'join' : 'select');
   const [welcomeCreatedFoyer, setWelcomeCreatedFoyer] = useState<Foyer | null>(null);
   const [welcomeLoading, setWelcomeLoading] = useState(false);
   const [welcomeError, setWelcomeError] = useState<string | null>(null);
-  const [welcomeInviteCode, setWelcomeInviteCode] = useState("");
+  const [welcomeInviteCode, setWelcomeInviteCode] = useState(initialJoinCode);
   const [welcomeDisplayName, setWelcomeDisplayName] = useState("");
-  const [welcomeRole, setWelcomeRole] = useState<'parent' | 'child' | 'guest'>('parent');
+  const [welcomeFamilyName, setWelcomeFamilyName] = useState("");
   const [communeName, setCommuneName] = useState("Commune à configurer");
   const [schoolName, setSchoolName] = useState("Collège Victor Hugo");
 
@@ -2612,6 +2613,12 @@ function App() {
         
         localStorage.removeItem('mf_discover_mode');
         localStorage.removeItem('mf_is_premium');
+        if (
+          event === 'SIGNED_IN'
+          && (window.location.hash.includes('access_token=') || window.location.hash.includes('type=signup'))
+        ) {
+          window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+        }
       }
       if (event === 'PASSWORD_RECOVERY') {
         setIsRecoveringPassword(true);
@@ -11687,9 +11694,9 @@ function App() {
     setWelcomeLoading(true);
     setWelcomeError(null);
     try {
-      const lastName = user?.user_metadata?.last_name || '';
       const firstName = user?.user_metadata?.first_name || user?.user_metadata?.display_name || 'Utilisateur';
-      const familyName = lastName ? `Famille ${lastName}` : `Famille de ${firstName}`;
+      const lastName = user?.user_metadata?.last_name || '';
+      const familyName = welcomeFamilyName.trim() || (lastName ? `Famille ${lastName}` : `Famille de ${firstName}`);
       
       const res = await foyerService.createFoyer(familyName, firstName, false);
       
@@ -11697,7 +11704,7 @@ function App() {
         id: res.foyer_id,
         name: familyName,
         inviteCode: res.invite_code,
-        inviteLink: `mafamille.app/join/${res.invite_code}`,
+        inviteLink: `https://ma-famille-nu.vercel.app/?join=${encodeURIComponent(res.invite_code)}`,
         createdBy: user?.id || '',
         createdAt: new Date().toISOString(),
         isPremium: false,
@@ -11783,11 +11790,11 @@ function App() {
         setShowWelcomeScreen(false);
       } else {
         console.warn("[Onboarding] Foyer not yet found in list. Informing user to retry.");
-        alert("La synchronisation de votre nouveau foyer prend un peu plus de temps que prévu. Veuillez cliquer à nouveau sur 'Commencer' pour réessayer.");
+        setWelcomeError("La synchronisation prend un peu plus de temps que prévu. Touchez à nouveau le bouton pour réessayer.");
       }
     } catch (err) {
       console.error("Error finalizing success screen:", err);
-      alert("Une erreur est survenue lors de la synchronisation de votre foyer. Veuillez réessayer.");
+      setWelcomeError("Impossible de terminer la synchronisation pour le moment. Réessayez dans un instant.");
     } finally {
       setWelcomeLoading(false);
     }
@@ -13278,7 +13285,13 @@ function App() {
 
               <div className="space-y-3 pt-2">
                 <button
-                  onClick={handleWelcomeCreateFoyer}
+                  onClick={() => {
+                    const lastName = user?.user_metadata?.last_name || '';
+                    const firstName = user?.user_metadata?.first_name || user?.user_metadata?.display_name || '';
+                    setWelcomeFamilyName(lastName ? `Famille ${lastName}` : firstName ? `Famille de ${firstName}` : '');
+                    setWelcomeError(null);
+                    setWelcomeScreenMode('create');
+                  }}
                   disabled={welcomeLoading}
                   className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs tracking-wider uppercase transition-all shadow-[0_4px_15px_rgba(108,92,255,0.3)] flex items-center justify-center space-x-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
                 >
@@ -13288,6 +13301,9 @@ function App() {
                 <button
                   onClick={() => {
                     setWelcomeError(null);
+                    if (!welcomeDisplayName.trim()) {
+                      setWelcomeDisplayName(user?.user_metadata?.display_name || user?.user_metadata?.first_name || '');
+                    }
                     setWelcomeScreenMode('join');
                   }}
                   disabled={welcomeLoading}
@@ -13307,12 +13323,26 @@ function App() {
               </div>
 
               <div className="space-y-4 pt-2">
+                <label className="block text-left">
+                  <span className="mb-2 block text-[10px] font-black uppercase tracking-wider text-white/45">Nom de la famille</span>
+                  <input
+                    value={welcomeFamilyName}
+                    onChange={event => setWelcomeFamilyName(event.target.value)}
+                    maxLength={60}
+                    placeholder="Ex : Famille Yattabare"
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none focus:border-[#6C5CFF]"
+                  />
+                </label>
+                <div className="rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/10 p-3 text-left">
+                  <strong className="block text-xs text-white">Vous serez Chef de famille</strong>
+                  <span className="mt-1 block text-[10px] leading-relaxed text-white/55">Ce rôle administre le foyer, les invitations, les rôles, la sécurité et l’abonnement. Il pourra être transmis plus tard.</span>
+                </div>
                 <button
                   onClick={handleWelcomeCreateFoyer}
-                  disabled={welcomeLoading}
+                  disabled={welcomeLoading || !welcomeFamilyName.trim()}
                   className="w-full py-3.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5b4eff] text-white font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 flex items-center justify-center space-x-2 cursor-pointer"
                 >
-                  {welcomeLoading ? 'Création...' : 'Confirmer la création automatique'}
+                  {welcomeLoading ? 'Création...' : 'Créer ma famille'}
                 </button>
 
                 {welcomeError && (
@@ -13352,6 +13382,9 @@ function App() {
                     className="w-full bg-[#07111F] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white uppercase font-bold focus:outline-none focus:border-[#6C5CFF]"
                   />
                 </div>
+                <p className="rounded-2xl border border-white/8 bg-white/5 p-3 text-[10px] leading-relaxed text-white/50">
+                  Après votre demande, un parent gestionnaire choisira votre rôle avant de vous donner accès au foyer.
+                </p>
 
                 <div className="space-y-1">
                   <label className="text-[9px] font-bold text-white/40 uppercase tracking-widest block">Votre Prénom / Nom d'affichage</label>
@@ -13388,6 +13421,27 @@ function App() {
               >
                 Retour
               </button>
+            </div>
+          )}
+
+          {welcomeScreenMode === 'success' && welcomeCreatedFoyer && (
+            <div className="space-y-5 text-center relative z-10 animate-fade-in">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl border border-[#00D26A]/25 bg-[#00D26A]/10 text-[#00D26A]">
+                <Check className="h-7 w-7" />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-white">Votre famille est prête</h2>
+                <p className="mt-1 text-xs text-white/55">{welcomeCreatedFoyer.name} a été créée. Vous êtes maintenant Chef de famille.</p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-4 text-left">
+                <span className="text-[9px] font-black uppercase tracking-wider text-white/35">Code d’invitation</span>
+                <strong className="mt-1 block font-mono text-lg text-white">{welcomeCreatedFoyer.inviteCode}</strong>
+                <p className="mt-2 text-[10px] leading-relaxed text-white/45">Vous pourrez retrouver et partager ce code plus tard depuis le module Membres.</p>
+              </div>
+              <button type="button" onClick={handleWelcomeSuccessFinish} disabled={welcomeLoading} className="w-full rounded-2xl bg-[#00D26A] py-4 text-xs font-black uppercase text-[#07111F] disabled:opacity-50">
+                {welcomeLoading ? 'Préparation...' : 'Entrer dans ma famille'}
+              </button>
+              {welcomeError && <p className="rounded-2xl border border-[#FF4D6D]/20 bg-[#FF4D6D]/8 p-3 text-xs font-bold text-[#FF4D6D]">{welcomeError}</p>}
             </div>
           )}
         </div>
@@ -15094,7 +15148,13 @@ function App() {
 
                 <div className="space-y-3 pt-2">
                   <button
-                    onClick={handleWelcomeCreateFoyer}
+                    onClick={() => {
+                      const lastName = user?.user_metadata?.last_name || '';
+                      const firstName = user?.user_metadata?.first_name || user?.user_metadata?.display_name || '';
+                      setWelcomeFamilyName(lastName ? `Famille ${lastName}` : firstName ? `Famille de ${firstName}` : '');
+                      setWelcomeError(null);
+                      setWelcomeScreenMode('create');
+                    }}
                     disabled={welcomeLoading}
                     className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs tracking-wider uppercase transition-all shadow-[0_4px_15px_rgba(108,92,255,0.3)] flex items-center justify-center space-x-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
                   >
@@ -15104,6 +15164,9 @@ function App() {
                   <button
                     onClick={() => {
                       setWelcomeError(null);
+                      if (!welcomeDisplayName.trim()) {
+                        setWelcomeDisplayName(user?.user_metadata?.display_name || user?.user_metadata?.first_name || '');
+                      }
                       setWelcomeScreenMode('join');
                     }}
                     disabled={welcomeLoading}
@@ -15133,12 +15196,26 @@ function App() {
                 </div>
 
                 <div className="space-y-4 pt-2">
+                  <label className="block text-left">
+                    <span className="mb-2 block text-[10px] font-black uppercase tracking-wider text-white/45">Nom de la famille</span>
+                    <input
+                      value={welcomeFamilyName}
+                      onChange={event => setWelcomeFamilyName(event.target.value)}
+                      maxLength={60}
+                      placeholder="Ex : Famille Yattabare"
+                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none focus:border-[#6C5CFF]"
+                    />
+                  </label>
+                  <div className="rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/10 p-3 text-left">
+                    <strong className="block text-xs text-white">Vous serez Chef de famille</strong>
+                    <span className="mt-1 block text-[10px] leading-relaxed text-white/55">Ce rôle administre le foyer, les invitations, les rôles, la sécurité et l’abonnement. Il pourra être transmis plus tard.</span>
+                  </div>
                   <button
                     onClick={handleWelcomeCreateFoyer}
-                    disabled={welcomeLoading}
+                    disabled={welcomeLoading || !welcomeFamilyName.trim()}
                     className="w-full py-3.5 rounded-xl bg-[#6C5CFF] hover:bg-[#5b4eff] text-white font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 flex items-center justify-center space-x-2 cursor-pointer"
                   >
-                    {welcomeLoading ? 'Création...' : 'Confirmer la création automatique'}
+                    {welcomeLoading ? 'Création...' : 'Créer ma famille'}
                   </button>
 
                   {welcomeError && (
@@ -15191,25 +15268,9 @@ function App() {
                     />
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block font-sans">Rôle souhaité</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(['parent', 'child', 'guest'] as const).map((r) => (
-                        <button
-                          key={r}
-                          type="button"
-                          onClick={() => setWelcomeRole(r)}
-                          className={`py-2 rounded-xl text-[10px] font-bold border transition-all cursor-pointer capitalize ${
-                            welcomeRole === r 
-                              ? 'bg-[#6C5CFF]/15 border-[#6C5CFF] text-white' 
-                              : 'bg-[#07111F] border-transparent text-white/50 hover:text-white'
-                          }`}
-                        >
-                          {r === 'parent' ? 'Parent 👨‍👩‍👧' : r === 'child' ? 'Enfant 🧒' : 'Invité 👥'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <p className="rounded-2xl border border-white/8 bg-white/5 p-3 text-[10px] leading-relaxed text-white/50">
+                    Après votre demande, un parent gestionnaire choisira votre rôle avant de vous donner accès au foyer.
+                  </p>
 
                   {welcomeError && (
                     <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start space-x-2">
@@ -15257,16 +15318,19 @@ function App() {
                     <span className="text-[9px] font-bold text-white/30 uppercase tracking-wider block">Lien de Partage</span>
                     <span className="text-[11px] font-mono text-[#6C5CFF] select-all block mt-0.5 break-all">{welcomeCreatedFoyer.inviteLink}</span>
                   </div>
-                  <div className="flex flex-col items-center justify-center pt-2">
-                    <span className="text-[9px] font-bold text-white/30 uppercase tracking-wider block mb-2">QR Code d'Invitation</span>
-                    <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent("mafamille.app/join/" + welcomeCreatedFoyer.inviteCode)}`} 
-                      alt="QR Code" 
-                      className="w-36 h-36 border border-white/10 rounded-2xl p-2 bg-white" 
-                    />
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(welcomeCreatedFoyer.inviteLink || `https://ma-famille-nu.vercel.app/?join=${welcomeCreatedFoyer.inviteCode}`);
+                      setActiveToast({ title: 'Lien copié', description: 'Vous pouvez maintenant l’envoyer à vos proches.' });
+                    }}
+                    className="w-full rounded-xl border border-white/10 bg-white/5 py-3 text-[10px] font-black text-white"
+                  >
+                    Copier le lien d’invitation
+                  </button>
                 </div>
 
+                {welcomeError && <p className="rounded-2xl border border-[#FF4D6D]/20 bg-[#FF4D6D]/8 p-3 text-xs font-bold text-[#FF4D6D]">{welcomeError}</p>}
                 <button
                   onClick={handleWelcomeSuccessFinish}
                   disabled={welcomeLoading}
