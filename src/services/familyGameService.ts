@@ -28,6 +28,17 @@ export type FamilyGameRoom = {
   expiresAt: string;
 };
 
+export type FamilyGameRoomAction =
+  | 'configure'
+  | 'start_timer'
+  | 'resolve_faceoff'
+  | 'accept_answer'
+  | 'reject_answer'
+  | 'finish_round'
+  | 'next_round'
+  | 'leave'
+  | 'cancel';
+
 type GameResultRow = {
   id: string;
   game_type: FamilyGameType;
@@ -79,6 +90,25 @@ const mapRoom = (row: GameRoomRow): FamilyGameRoom => ({
 });
 
 export const familyGameService = {
+  async fetchActiveRoom(foyerId: string): Promise<FamilyGameRoom | null> {
+    const client = getSupabaseClient();
+    if (!client || !foyerId || foyerId === 'local') return null;
+    const { data, error } = await client
+      .from('family_game_rooms')
+      .select('id, room_code, game_type, host_foyer_id, guest_foyer_id, host_name, guest_name, status, state, created_at, expires_at')
+      .or(`host_foyer_id.eq.${foyerId},guest_foyer_id.eq.${foyerId}`)
+      .in('status', ['waiting', 'active'])
+      .gt('expires_at', new Date().toISOString())
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      console.warn('[familyGameService] Active room unavailable:', error.message);
+      return null;
+    }
+    return data ? mapRoom(data as GameRoomRow) : null;
+  },
+
   async fetchResults(foyerId: string): Promise<FamilyGameResult[]> {
     const client = getSupabaseClient();
     if (!client || !foyerId || foyerId === 'local') return [];
@@ -148,14 +178,23 @@ export const familyGameService = {
     return mapRoom(row as GameRoomRow);
   },
 
-  async updateRoom(roomId: string, updates: { status?: FamilyGameRoom['status']; state?: Record<string, unknown> }): Promise<void> {
+  async performRoomAction(
+    roomId: string,
+    foyerId: string,
+    action: FamilyGameRoomAction,
+    payload: Record<string, unknown> = {}
+  ): Promise<FamilyGameRoom> {
     const client = getSupabaseClient();
-    if (!client) return;
-    const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (updates.status) payload.status = updates.status;
-    if (updates.state) payload.state = updates.state;
-    const { error } = await client.from('family_game_rooms').update(payload).eq('id', roomId);
+    if (!client) throw new Error('Connexion Supabase indisponible.');
+    const { data, error } = await client.rpc('apply_family_game_action', {
+      p_room_id: roomId,
+      p_foyer_id: foyerId,
+      p_action: action,
+      p_payload: payload
+    });
     if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    return mapRoom(row as GameRoomRow);
   },
 
   async submitChallengeAnswer(roomId: string, foyerId: string, roundNumber: number, answerText: string): Promise<FamilyGameRoom> {

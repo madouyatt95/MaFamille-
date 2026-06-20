@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Copy, Link2, Loader2, LogIn, Radio, Users } from 'lucide-react';
+import { Check, Copy, Link2, Loader2, LogIn, Radio, Users, X } from 'lucide-react';
 import { familyGameService, type FamilyGameRoom, type FamilyGameType } from '../../services/familyGameService';
 
 interface PrivateFamilyRoomProps {
@@ -7,9 +7,10 @@ interface PrivateFamilyRoomProps {
   familyName: string;
   selectedGame: FamilyGameType;
   onRoomReady?: (room: FamilyGameRoom) => void;
+  onRoomClosed?: () => void;
 }
 
-export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, onRoomReady }: PrivateFamilyRoomProps) {
+export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, onRoomReady, onRoomClosed }: PrivateFamilyRoomProps) {
   const [mode, setMode] = useState<'menu' | 'create' | 'join'>('menu');
   const [room, setRoom] = useState<FamilyGameRoom | null>(null);
   const [code, setCode] = useState('');
@@ -69,6 +70,26 @@ export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, onRoomRea
     }
   };
 
+  const closeRoom = async () => {
+    if (!room) return;
+    setLoading(true);
+    setError('');
+    try {
+      await familyGameService.performRoomAction(
+        room.id,
+        foyerId,
+        room.hostFoyerId === foyerId ? 'cancel' : 'leave'
+      );
+      setRoom(null);
+      setMode('menu');
+      onRoomClosed?.();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : 'Impossible de quitter la salle.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (room) {
     const active = room.status === 'active';
     return (
@@ -84,7 +105,10 @@ export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, onRoomRea
           <span className="text-2xl font-black tracking-[0.28em] text-white pl-[0.28em]">{room.code}</span>
           {copied ? <Check className="w-5 h-5 text-[#00D26A]" /> : <Copy className="w-5 h-5 text-white/50" />}
         </button>
-        <p className="text-[10px] text-white/40">Le code expire automatiquement sous 24 heures.</p>
+        <p className="text-[10px] text-white/40">Le code expire automatiquement sous 2 heures.</p>
+        <button type="button" onClick={() => void closeRoom()} disabled={loading} className="w-full rounded-2xl border border-[#FF4D6D]/20 py-3 text-xs font-black text-[#FF4D6D] flex items-center justify-center gap-2">
+          <X className="w-4 h-4" /> {room.hostFoyerId === foyerId ? 'Annuler la salle' : 'Quitter la partie'}
+        </button>
       </div>
     );
   }

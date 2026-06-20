@@ -26,6 +26,7 @@ import {
   type FamilyGameRoom,
   type FamilyGameType
 } from '../services/familyGameService';
+import { FAMILY_CHALLENGE_QUESTIONS } from '../data/familyChallengeQuestions';
 
 type GameId = FamilyGameType;
 type MemoryCard = {
@@ -128,6 +129,7 @@ export function FamilyGames({
   const [results, setResults] = useState<FamilyGameResult[]>([]);
   const [activeRoom, setActiveRoom] = useState<FamilyGameRoom | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [lastRecap, setLastRecap] = useState<{ scores: [number, number]; winnerName: string } | null>(null);
   const [memoryRound, setMemoryRound] = useState(1);
   const memoryDeck = useMemo(() => buildMemoryDeck(members, memoryRound), [members, memoryRound]);
   const [flippedCards, setFlippedCards] = useState<string[]>([]);
@@ -156,15 +158,39 @@ export function FamilyGames({
     }
   });
 
-  const challengeQuestionCount = isPremium ? 48 : 12;
+  const challengeQuestionCount = isPremium ? FAMILY_CHALLENGE_QUESTIONS.length : 12;
   const challengeTeams = useMemo(() => activeRoom ? [
     { id: activeRoom.hostFoyerId, name: activeRoom.hostName, photoUrl: '' },
     { id: activeRoom.guestFoyerId || 'guest-family', name: activeRoom.guestName || 'Famille invitée', photoUrl: '' }
   ] : players, [activeRoom, players]);
+  const gameStats = useMemo(() => {
+    const wins = new Map<string, number>();
+    results.forEach(result => {
+      if (result.winnerName && result.winnerName !== 'Égalité') {
+        wins.set(result.winnerName, (wins.get(result.winnerName) || 0) + 1);
+      }
+    });
+    const leader = [...wins.entries()].sort((left, right) => right[1] - left[1])[0];
+    const challengeGames = results.filter(result => result.gameType === 'family-challenge');
+    return {
+      total: results.length,
+      challengeGames: challengeGames.length,
+      leaderName: leader?.[0],
+      leaderWins: leader?.[1] || 0,
+      bestChallengeScore: Math.max(0, ...challengeGames.flatMap(result => result.scores))
+    };
+  }, [results]);
 
   useEffect(() => {
     void familyGameService.fetchResults(foyerId).then(setResults);
-  }, [foyerId]);
+    if (isPremium) {
+      void familyGameService.fetchActiveRoom(foyerId).then(room => {
+        if (room?.status === 'active') {
+          setActiveRoom(room);
+        }
+      });
+    }
+  }, [foyerId, isPremium]);
 
   const saveResult = useCallback(async (
     gameType: FamilyGameType,
@@ -196,7 +222,7 @@ export function FamilyGames({
   }, [foyerId, players]);
 
   const handleRoomReady = useCallback((room: FamilyGameRoom) => {
-    setActiveRoom(room);
+    setActiveRoom(room.status === 'active' ? room : null);
   }, []);
 
   useEffect(() => {
@@ -417,12 +443,39 @@ export function FamilyGames({
               </div>
             </section>
 
-            <PrivateFamilyRoom
-              foyerId={foyerId}
-              familyName={familyName}
-              selectedGame="family-challenge"
-              onRoomReady={handleRoomReady}
-            />
+            {isPremium ? (
+              <PrivateFamilyRoom
+                foyerId={foyerId}
+                familyName={familyName}
+                selectedGame="family-challenge"
+                onRoomReady={handleRoomReady}
+                onRoomClosed={() => setActiveRoom(null)}
+              />
+            ) : (
+              <button type="button" onClick={onTriggerPaywall} className="w-full rounded-[24px] border border-[#6C5CFF]/20 bg-[#6C5CFF]/8 p-5 text-left flex items-center justify-between gap-3">
+                <span>
+                  <strong className="block text-sm text-white">Défis privés entre familles</strong>
+                  <span className="mt-1 block text-[11px] text-white/50">Invitations par code, reprise et minuteur synchronisé avec Premium.</span>
+                </span>
+                <Lock className="w-5 h-5 text-[#9E94FF]" />
+              </button>
+            )}
+
+            {isPremium && results.length > 0 && (
+              <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  ['Parties', gameStats.total],
+                  ['Défis', gameStats.challengeGames],
+                  ['Record', gameStats.bestChallengeScore],
+                  ['Leader', gameStats.leaderName ? `${gameStats.leaderName} · ${gameStats.leaderWins}` : '—']
+                ].map(([label, value]) => (
+                  <div key={label} className="glass-panel rounded-2xl border border-white/8 p-4">
+                    <span className="block text-[9px] font-black uppercase text-white/40">{label}</span>
+                    <strong className="mt-1 block truncate text-base text-white">{value}</strong>
+                  </div>
+                ))}
+              </section>
+            )}
 
             <button
               type="button"
@@ -465,7 +518,7 @@ export function FamilyGames({
                   <span className="p-2.5 rounded-2xl bg-[#FFB020]/15 text-[#FFB020]"><Lock className="w-5 h-5" /></span>
                   <div>
                     <strong className="block text-sm text-white">Pack Défi famille Plus</strong>
-                    <span className="text-[11px] text-white/50">36 questions supplémentaires et davantage de thèmes.</span>
+                    <span className="text-[11px] text-white/50">{FAMILY_CHALLENGE_QUESTIONS.length - 12} questions supplémentaires, packs, statistiques et défis privés.</span>
                   </div>
                 </div>
                 <ChevronRight className="w-5 h-5 shrink-0 text-[#FFB020]" />
@@ -602,6 +655,23 @@ export function FamilyGames({
                 <span className="text-xs font-black text-white">{activeRoom.hostName}</span>
                 <span className="text-[9px] font-black uppercase tracking-widest text-[#9E94FF]">Salle {activeRoom.code}</span>
                 <span className="text-xs font-black text-white">{activeRoom.guestName || 'En attente'}</span>
+                <button type="button" onClick={() => {
+                  void familyGameService.performRoomAction(
+                    activeRoom.id,
+                    foyerId,
+                    activeRoom.hostFoyerId === foyerId ? 'cancel' : 'leave'
+                  ).finally(() => setActiveRoom(null));
+                }} className="rounded-xl border border-[#FF4D6D]/20 p-2 text-[#FF4D6D]" title="Quitter la partie">
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            {lastRecap && (
+              <div className="rounded-[28px] border border-[#FFB020]/30 bg-[#FFB020]/10 p-6 text-center animate-fade-in">
+                <Trophy className="mx-auto w-12 h-12 text-[#FFB020]" />
+                <h2 className="mt-3 text-xl font-black text-white">{lastRecap.winnerName === 'Égalité' ? 'Égalité parfaite !' : `Victoire de ${lastRecap.winnerName}`}</h2>
+                <p className="mt-1 text-sm font-black text-[#FFB020]">{lastRecap.scores[0]} - {lastRecap.scores[1]}</p>
+                <button type="button" onClick={() => setLastRecap(null)} className="mt-4 rounded-2xl bg-[#FFB020] px-5 py-3 text-xs font-black text-[#07111F]">Nouvelle partie</button>
               </div>
             )}
             <FamilyChallengeGame
@@ -613,13 +683,16 @@ export function FamilyGames({
               ]}
               room={activeRoom}
               onRoomChange={handleRoomReady}
-              onFinished={(scores, winnerName) => void saveResult(
-                'family-challenge',
-                scores,
-                winnerName,
-                { roomId: activeRoom?.id },
-                challengeTeams.map(team => team.name)
-              )}
+              onFinished={(scores, winnerName) => {
+                setLastRecap({ scores, winnerName });
+                void saveResult(
+                  'family-challenge',
+                  scores,
+                  winnerName,
+                  { roomId: activeRoom?.id, rounds: scores[0] + scores[1] },
+                  challengeTeams.map(team => team.name)
+                );
+              }}
             />
           </>
         )}

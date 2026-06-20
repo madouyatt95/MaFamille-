@@ -8,6 +8,8 @@ export type FamilyChallengeQuestion = {
   id: string;
   category: 'Maison' | 'Quotidien' | 'Repas' | 'Vacances' | 'École' | 'Loisirs' | 'Famille' | 'Fêtes';
   difficulty: 'Facile' | 'Intermédiaire' | 'Difficile';
+  ageGroup: 'Enfants' | 'Adolescents' | 'Famille' | 'Adultes';
+  pack: 'Essentiel' | 'Enfants' | 'Adolescents' | 'Parents' | 'Vacances' | 'Fêtes' | 'Culture familiale';
   prompt: string;
   answers: ChallengeAnswer[];
 };
@@ -78,11 +80,13 @@ const question = (
   id,
   category,
   difficulty,
+  ageGroup: category === 'École' ? 'Enfants' : category === 'Famille' ? 'Famille' : 'Adultes',
+  pack: category === 'Vacances' ? 'Vacances' : category === 'Fêtes' ? 'Fêtes' : 'Essentiel',
   prompt,
   answers: [...values, ...(EXTRA_ANSWERS[id] || [])].slice(0, 8).map(answer)
 });
 
-export const FAMILY_CHALLENGE_QUESTIONS: FamilyChallengeQuestion[] = [
+const CORE_FAMILY_CHALLENGE_QUESTIONS: FamilyChallengeQuestion[] = [
   question('maison-01', 'Maison', 'Facile', 'Quel objet disparaît le plus souvent à la maison ?', ['Les clés|clefs', 'La télécommande|commande télé', 'Le téléphone|portable|smartphone', 'Les chaussettes|chaussette', 'Un stylo|crayon']),
   question('maison-02', 'Maison', 'Facile', 'Quelle pièce de la maison se salit le plus vite ?', ['La cuisine', 'La salle de bain|sdb', 'Le salon|séjour', 'La chambre des enfants|chambre enfant', 'L’entrée|entree']),
   question('maison-03', 'Maison', 'Intermédiaire', 'Quelle corvée est le plus souvent repoussée ?', ['Ranger|rangement', 'Faire la vaisselle|vaisselle', 'Passer l’aspirateur|aspirateur', 'Plier le linge|linge', 'Nettoyer la salle de bain|nettoyage salle de bain']),
@@ -140,14 +144,46 @@ export const FAMILY_CHALLENGE_QUESTIONS: FamilyChallengeQuestion[] = [
   question('fetes-06', 'Fêtes', 'Intermédiaire', 'Quel est le meilleur souvenir à conserver après une fête ?', ['Les photos|photo', 'Une vidéo', 'Une carte|mot écrit', 'Un objet souvenir', 'Les messages|témoignages'])
 ];
 
+const CONTEXT_PACKS: Array<Pick<FamilyChallengeQuestion, 'ageGroup' | 'pack'> & { key: string; lead: string }> = [
+  { key: 'kids', ageGroup: 'Enfants', pack: 'Enfants', lead: 'Selon les enfants, ' },
+  { key: 'teens', ageGroup: 'Adolescents', pack: 'Adolescents', lead: 'Selon les adolescents, ' },
+  { key: 'parents', ageGroup: 'Adultes', pack: 'Parents', lead: 'Selon les parents, ' },
+  { key: 'holiday', ageGroup: 'Famille', pack: 'Vacances', lead: 'Pendant les vacances, ' },
+  { key: 'traditions', ageGroup: 'Famille', pack: 'Culture familiale', lead: 'Dans les traditions familiales, ' }
+];
+
+const lowerFirst = (value: string): string => value ? value[0].toLocaleLowerCase('fr-FR') + value.slice(1) : value;
+
+const CONTEXTUAL_FAMILY_CHALLENGE_QUESTIONS = CORE_FAMILY_CHALLENGE_QUESTIONS.flatMap(base =>
+  CONTEXT_PACKS.map(context => ({
+    ...base,
+    id: `${base.id}-${context.key}`,
+    ageGroup: context.ageGroup,
+    pack: base.category === 'Fêtes' ? 'Fêtes' : context.pack,
+    prompt: `${context.lead}${lowerFirst(base.prompt)}`
+  }))
+);
+
+// 48 questions essentielles et 240 variantes éditoriales classées par âge et pack.
+// Chaque réponse conserve sa liste d'alias contrôlée afin que deux synonymes pointent
+// toujours vers la même case du tableau.
+export const FAMILY_CHALLENGE_QUESTIONS: FamilyChallengeQuestion[] = [
+  ...CORE_FAMILY_CHALLENGE_QUESTIONS,
+  ...CONTEXTUAL_FAMILY_CHALLENGE_QUESTIONS
+];
+
 export const getChallengeQuestion = (
   round: number,
   seed = 'family',
-  limit = FAMILY_CHALLENGE_QUESTIONS.length
+  limit = FAMILY_CHALLENGE_QUESTIONS.length,
+  excludedIds: string[] = []
 ): FamilyChallengeQuestion => {
-  const available = FAMILY_CHALLENGE_QUESTIONS.slice(0, Math.max(1, Math.min(limit, FAMILY_CHALLENGE_QUESTIONS.length)));
+  const allowed = FAMILY_CHALLENGE_QUESTIONS.slice(0, Math.max(1, Math.min(limit, FAMILY_CHALLENGE_QUESTIONS.length)));
+  const excluded = new Set(excludedIds);
+  const available = allowed.filter(item => !excluded.has(item.id));
+  const pool = available.length > 0 ? available : allowed;
   const hash = [...seed].reduce((total, character, index) => total + character.charCodeAt(0) * (index + 11), 0);
-  const start = hash % available.length;
+  const start = hash % pool.length;
   const step = 17;
-  return available[(start + round * step) % available.length];
+  return pool[(start + round * step) % pool.length];
 };
