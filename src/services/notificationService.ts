@@ -136,7 +136,10 @@ export const notificationService = {
 
     try {
       const swUrl = '/sw.js';
-      const registration = await navigator.serviceWorker.register(swUrl, { scope: '/' });
+      const registration = await navigator.serviceWorker.register(swUrl, {
+        scope: '/',
+        updateViaCache: 'none',
+      });
       console.log('[FCM] Service Worker enregistré avec succès, scope:', registration.scope);
       return registration;
     } catch (err) {

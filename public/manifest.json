@@ -1,12 +1,18 @@
 {
+  "id": "/",
   "name": "MyFamily+",
   "short_name": "MyFamily+",
   "description": "Application familiale tout-en-un pour gérer agenda, budget, tâches, école, documents et IA.",
   "start_url": "/",
+  "scope": "/",
+  "lang": "fr-FR",
+  "dir": "ltr",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#07111F",
   "theme_color": "#07111F",
   "orientation": "portrait-primary",
+  "prefer_related_applications": false,
   "categories": ["utilities", "productivity", "finance"],
   "shortcuts": [
     {
@@ -16,9 +22,9 @@
       "url": "/?tab=budget&action=add-expense",
       "icons": [
         {
-          "src": "/favicon.svg",
+          "src": "/icon-192x192.png?v=3",
           "sizes": "192x192",
-          "type": "image/svg+xml"
+          "type": "image/png"
         }
       ]
     }
@@ -44,16 +50,28 @@
       "purpose": "any"
     },
     {
-      "src": "/icon-192x192.png",
+      "src": "/icon-192x192.png?v=3",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/icon-512x512.png",
+      "src": "/icon-512x512.png?v=3",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-192x192.png?v=3",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-maskable-512x512.png?v=3",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

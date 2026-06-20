@@ -75,13 +75,17 @@ messaging.onBackgroundMessage((payload) => {
 });
 
 // PARTIE CACHING PWA
-const CACHE_NAME = 'myfamily-plus-cache-v2';
+const CACHE_NAME = 'myfamily-plus-cache-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
   '/favicon.svg',
-  '/icons.svg'
+  '/icons.svg',
+  '/icon-192x192.png',
+  '/icon-512x512.png',
+  '/icon-maskable-192x192.png',
+  '/icon-maskable-512x512.png'
 ];
 
 // Install Event
@@ -128,9 +132,10 @@ self.addEventListener('fetch', (event) => {
   }
 
   const isNavigation = request.mode === 'navigate';
+  const isManifest = url.endsWith('/manifest.json');
   const isAppShellAsset = url.includes('/assets/') || url.endsWith('/index.html');
 
-  if (isNavigation || isAppShellAsset) {
+  if (isNavigation || isAppShellAsset || isManifest) {
     event.respondWith(
       fetch(request).then((response) => {
         if (!response || response.status !== 200 || response.type !== 'basic') {
