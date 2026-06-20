@@ -1034,7 +1034,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                       <button
                         key={u.id}
                         onClick={() => setSelectedUniverse(u.id)}
-                        className={`rounded-2xl border transition-all duration-350 cursor-pointer overflow-hidden flex flex-col justify-between h-[125px] relative group ${
+                        className={`conteur-universe-card rounded-2xl border transition-all duration-350 cursor-pointer overflow-hidden flex flex-col justify-between h-[125px] relative group ${
                           isSelected 
                             ? 'border-[#7C3AED] shadow-[0_0_18px_rgba(124,58,237,0.35)] scale-[1.02] ring-2 ring-[#a78bfa]/20' 
                             : 'border-white/8 hover:border-white/18 hover:shadow-[0_5px_15px_rgba(0,0,0,0.3)]'
@@ -1047,7 +1047,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                             alt={u.name}
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-[3000ms] ease-out filter brightness-[0.75] contrast-[1.05]"
                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent"></div>
+                          <div className="conteur-universe-overlay absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent"></div>
                         </div>
 
                         {/* Selection Check Indicator */}
@@ -1058,7 +1058,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                         )}
 
                         {/* Card bottom banner in high-fidelity glassmorphism */}
-                        <div className="w-full py-2 backdrop-blur-md bg-black/60 border-t border-white/5 text-center relative z-10 mt-auto">
+                        <div className="conteur-universe-label w-full py-2 backdrop-blur-md bg-black/60 border-t border-white/5 text-center relative z-10 mt-auto">
                           <span className="text-[9px] font-black text-white uppercase tracking-wider block">
                             {u.name}
                           </span>

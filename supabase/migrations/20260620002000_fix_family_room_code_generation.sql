@@ -1,0 +1,57 @@
+CREATE OR REPLACE FUNCTION public.create_family_game_room(
+  p_foyer_id UUID,
+  p_game_type TEXT,
+  p_host_name TEXT
+)
+RETURNS public.family_game_rooms
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_room public.family_game_rooms;
+  v_code TEXT;
+BEGIN
+  PERFORM public.enforce_family_game_rate_limit('create_room', 5, interval '1 minute');
+
+  IF p_foyer_id NOT IN (SELECT public.user_foyer_ids()) THEN
+    RAISE EXCEPTION 'Accès refusé à ce foyer';
+  END IF;
+  IF p_game_type NOT IN ('memory', 'connect4', 'family-challenge', 'mime-challenge') THEN
+    RAISE EXCEPTION 'Jeu non pris en charge';
+  END IF;
+
+  LOOP
+    v_code := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6));
+    EXIT WHEN NOT EXISTS (
+      SELECT 1
+      FROM public.family_game_rooms
+      WHERE room_code = v_code
+        AND expires_at > now()
+    );
+  END LOOP;
+
+  INSERT INTO public.family_game_rooms (
+    room_code,
+    game_type,
+    host_foyer_id,
+    host_name,
+    created_by,
+    expires_at
+  )
+  VALUES (
+    v_code,
+    p_game_type,
+    p_foyer_id,
+    left(trim(p_host_name), 80),
+    auth.uid(),
+    now() + interval '2 hours'
+  )
+  RETURNING * INTO v_room;
+
+  RETURN v_room;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_family_game_room(UUID, TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.create_family_game_room(UUID, TEXT, TEXT) TO authenticated;

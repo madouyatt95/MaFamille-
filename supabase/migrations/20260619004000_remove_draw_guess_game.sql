@@ -41,7 +41,7 @@ BEGIN
   END IF;
 
   LOOP
-    v_code := upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 6));
+    v_code := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6));
     EXIT WHEN NOT EXISTS (
       SELECT 1 FROM public.family_game_rooms
       WHERE room_code = v_code AND expires_at > now()

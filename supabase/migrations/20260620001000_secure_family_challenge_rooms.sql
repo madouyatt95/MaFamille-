@@ -202,7 +202,7 @@ BEGIN
   IF p_foyer_id NOT IN (SELECT public.user_foyer_ids()) THEN RAISE EXCEPTION 'Accès refusé à ce foyer'; END IF;
   IF p_game_type NOT IN ('memory', 'connect4', 'family-challenge', 'mime-challenge') THEN RAISE EXCEPTION 'Jeu non pris en charge'; END IF;
   LOOP
-    v_code := upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 6));
+    v_code := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6));
     EXIT WHEN NOT EXISTS (SELECT 1 FROM public.family_game_rooms WHERE room_code = v_code AND expires_at > now());
   END LOOP;
   INSERT INTO public.family_game_rooms (room_code, game_type, host_foyer_id, host_name, created_by, expires_at)
