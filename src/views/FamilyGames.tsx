@@ -51,6 +51,7 @@ type GameFilter = 'all' | 'free' | 'premium' | 'quick' | 'team' | 'kids';
 type MemoryMode = 'individual' | 'teams';
 type MemorySource = 'family' | 'memories';
 type BotDifficulty = 'easy' | 'normal' | 'hard';
+type ChallengeMode = 'local' | 'private';
 type TeamSettings = { names: [string, string]; colors: [string, string] };
 type PendingGameReward = {
   id: string;
@@ -236,6 +237,7 @@ export function FamilyGames({
   });
   const [results, setResults] = useState<FamilyGameResult[]>([]);
   const [activeRoom, setActiveRoom] = useState<FamilyGameRoom | null>(null);
+  const [challengeMode, setChallengeMode] = useState<ChallengeMode | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [lastRecap, setLastRecap] = useState<FamilyChallengeRecap | null>(null);
   const [memoryRound, setMemoryRound] = useState(1);
@@ -443,6 +445,7 @@ export function FamilyGames({
             : Promise.resolve(room);
           void resume.then(nextRoom => {
             setActiveRoom(nextRoom);
+            if (nextRoom.gameType === 'family-challenge') setChallengeMode('private');
             setActiveGame(nextRoom.gameType);
           });
         }
@@ -691,6 +694,7 @@ export function FamilyGames({
   };
 
   const handleRoomReady = useCallback((room: FamilyGameRoom) => {
+    setChallengeMode('private');
     setActiveRoom(room.status === 'active' ? room : null);
   }, []);
 
@@ -1079,7 +1083,7 @@ export function FamilyGames({
                         className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${rewardsEnabled ? 'bg-[#00D26A]' : 'bg-white/15'}`}
                         title={rewardsEnabled ? 'Désactiver les récompenses' : 'Activer les récompenses'}
                       >
-                        <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-transform ${rewardsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                        <span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${rewardsEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                       </button>
                     )}
                   </div>
@@ -1202,25 +1206,6 @@ export function FamilyGames({
                   </p>
                 )}
               </section>
-            )}
-
-            {isPremium ? (
-              <PrivateFamilyRoom
-                foyerId={foyerId}
-                familyName={familyName}
-                selectedGame="family-challenge"
-                initialRoom={activeRoom?.gameType === 'family-challenge' ? activeRoom : null}
-                onRoomReady={handleRoomReady}
-                onRoomClosed={() => setActiveRoom(null)}
-              />
-            ) : (
-              <button type="button" onClick={onTriggerPaywall} className="w-full rounded-[24px] border border-[#6C5CFF]/20 bg-[#6C5CFF]/8 p-5 text-left flex items-center justify-between gap-3">
-                <span>
-                  <strong className="block text-sm text-white">Défis privés entre familles</strong>
-                  <span className="mt-1 block text-[11px] text-white/50">Invitations par code, reprise et minuteur synchronisé avec Premium.</span>
-                </span>
-                <Lock className="w-5 h-5 text-[#9E94FF]" />
-              </button>
             )}
 
             {isPremium && results.length > 0 && (
@@ -1538,6 +1523,48 @@ export function FamilyGames({
         {activeGame === 'family-challenge' && (
           <>
             {gameHeader('Défi famille', 'Prenez la main, complétez le tableau et protégez la cagnotte.', Users)}
+            {!challengeRoom && !challengeMode && !lastRecap && (
+              <section className="family-games-challenge rounded-[28px] border p-5 sm:p-7 space-y-5">
+                <div className="text-center">
+                  <h2 className="text-xl font-black text-white">Comment souhaitez-vous jouer ?</h2>
+                  <p className="mt-2 text-xs leading-relaxed text-white/50">Préparez deux équipes dans votre foyer ou invitez une famille connue avec un code privé.</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setChallengeMode('local')}
+                    className="glass-panel min-h-40 rounded-[22px] border border-[#FF4D6D]/25 p-5 text-left hover:bg-white/8 transition-colors"
+                  >
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FF4D6D]/12 text-[#FF4D6D]">
+                      <Users className="h-5 w-5" />
+                    </span>
+                    <strong className="mt-4 block text-sm text-white">Jouer dans ce foyer</strong>
+                    <span className="mt-1 block text-[10px] leading-relaxed text-white/45">Deux équipes jouent ensemble sur le même appareil.</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => isPremium ? setChallengeMode('private') : onTriggerPaywall?.()}
+                    className="glass-panel relative min-h-40 rounded-[22px] border border-[#6C5CFF]/25 p-5 text-left hover:bg-white/8 transition-colors"
+                  >
+                    {!isPremium && <Lock className="absolute right-4 top-4 h-4 w-4 text-[#FFB020]" />}
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#6C5CFF]/12 text-[#9E94FF]">
+                      <Gamepad2 className="h-5 w-5" />
+                    </span>
+                    <strong className="mt-4 block text-sm text-white">Défier une famille</strong>
+                    <span className="mt-1 block text-[10px] leading-relaxed text-white/45">Créez ou rejoignez une salle privée avec un code à six caractères.</span>
+                  </button>
+                </div>
+              </section>
+            )}
+            {!challengeRoom && challengeMode && !lastRecap && (
+              <button
+                type="button"
+                onClick={() => setChallengeMode(null)}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-[10px] font-black text-white/55"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" /> Changer de mode
+              </button>
+            )}
             {challengeRoom?.status === 'active' && (
               <div className="rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/8 px-4 py-3 flex items-center justify-between gap-3">
                 <span className="text-xs font-black text-white">{challengeRoom.hostName}</span>
@@ -1584,16 +1611,30 @@ export function FamilyGames({
                 <button type="button" onClick={() => setLastRecap(null)} className="mt-4 rounded-2xl bg-[#FFB020] px-5 py-3 text-xs font-black text-[#07111F]">Nouvelle partie</button>
               </div>
             )}
-            {challengeRoom?.status === 'waiting' ? (
+            {challengeMode === 'private' && !challengeRoom && !lastRecap ? (
+              <PrivateFamilyRoom
+                foyerId={foyerId}
+                familyName={familyName}
+                selectedGame="family-challenge"
+                onRoomReady={handleRoomReady}
+                onRoomClosed={() => {
+                  setActiveRoom(null);
+                  setChallengeMode(null);
+                }}
+              />
+            ) : challengeRoom?.status === 'waiting' ? (
               <PrivateFamilyRoom
                 foyerId={foyerId}
                 familyName={familyName}
                 selectedGame="family-challenge"
                 initialRoom={challengeRoom}
                 onRoomReady={handleRoomReady}
-                onRoomClosed={() => setActiveRoom(null)}
+                onRoomClosed={() => {
+                  setActiveRoom(null);
+                  setChallengeMode(null);
+                }}
               />
-            ) : <FamilyChallengeGame
+            ) : (challengeMode === 'local' || challengeRoom) && !lastRecap ? <FamilyChallengeGame
               foyerId={foyerId}
               isPremium={isPremium}
               teams={[
@@ -1627,7 +1668,7 @@ export function FamilyGames({
                   challengeTeams.map(team => team.name)
                 );
               }}
-            />}
+            /> : null}
           </>
         )}
 
