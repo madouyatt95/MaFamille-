@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Eye, Play, RotateCcw, SkipForward, Timer, Trophy } from 'lucide-react';
+import { Check, ChevronDown, Eye, Pencil, Play, RotateCcw, SkipForward, Timer, Trash2, Trophy, X } from 'lucide-react';
 
 type MimePack = 'enfants' | 'famille' | 'ados' | 'vacances' | 'fetes' | 'cinema';
 
@@ -58,6 +58,9 @@ export function MimeChallengeGame({ teamNames, onFinished }: MimeChallengeGamePr
   const [finished, setFinished] = useState(false);
   const [cardIndex, setCardIndex] = useState(0);
   const [customCard, setCustomCard] = useState('');
+  const [showCustomCards, setShowCustomCards] = useState(false);
+  const [editingCard, setEditingCard] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState('');
   const [customCards, setCustomCards] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem('mf_mime_custom_cards') || '[]');
@@ -144,6 +147,24 @@ export function MimeChallengeGame({ teamNames, onFinished }: MimeChallengeGamePr
     setCustomCard('');
   };
 
+  const persistCustomCards = (next: string[]) => {
+    setCustomCards(next);
+    localStorage.setItem('mf_mime_custom_cards', JSON.stringify(next));
+  };
+
+  const deleteCustomCard = (card: string) => {
+    persistCustomCards(customCards.filter(item => item !== card));
+    if (editingCard === card) setEditingCard(null);
+  };
+
+  const saveEditedCard = () => {
+    const value = editingValue.trim();
+    if (!editingCard || !value) return;
+    persistCustomCards(customCards.map(item => item === editingCard ? value : item));
+    setEditingCard(null);
+    setEditingValue('');
+  };
+
   if (!configured) {
     return (
       <div className="glass-panel rounded-[28px] border border-white/8 p-5 sm:p-6 space-y-5">
@@ -164,7 +185,35 @@ export function MimeChallengeGame({ teamNames, onFinished }: MimeChallengeGamePr
             <input value={customCard} onChange={event => setCustomCard(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') addCustomCard(); }} placeholder="Ajouter un mime personnel" className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white" />
             <button type="button" onClick={addCustomCard} className="rounded-2xl bg-[#6C5CFF] px-4 text-xs font-black text-white">Ajouter</button>
           </div>
-          {customCards.length > 0 && <p className="mt-2 text-[10px] text-white/40">{customCards.length} carte{customCards.length > 1 ? 's' : ''} personnelle{customCards.length > 1 ? 's' : ''}</p>}
+          {customCards.length > 0 && (
+            <div className="mt-3 rounded-2xl border border-white/8 bg-white/3">
+              <button type="button" onClick={() => setShowCustomCards(value => !value)} className="flex w-full items-center justify-between px-4 py-3 text-left">
+                <span className="text-[10px] font-black text-white/60">{customCards.length} mime{customCards.length > 1 ? 's' : ''} personnalisé{customCards.length > 1 ? 's' : ''}</span>
+                <ChevronDown className={`w-4 h-4 text-white/40 transition-transform ${showCustomCards ? 'rotate-180' : ''}`} />
+              </button>
+              {showCustomCards && (
+                <div className="border-t border-white/8 p-2 space-y-2">
+                  {customCards.map(card => (
+                    <div key={card} className="rounded-xl border border-white/8 bg-white/5 p-2">
+                      {editingCard === card ? (
+                        <div className="flex gap-2">
+                          <input value={editingValue} onChange={event => setEditingValue(event.target.value)} className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white" />
+                          <button type="button" onClick={saveEditedCard} className="rounded-xl bg-[#00D26A] p-2 text-[#07111F]" title="Enregistrer"><Check className="w-4 h-4" /></button>
+                          <button type="button" onClick={() => setEditingCard(null)} className="rounded-xl border border-white/8 p-2 text-white/50" title="Annuler"><X className="w-4 h-4" /></button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="min-w-0 flex-1 text-xs text-white/75">{card}</span>
+                          <button type="button" onClick={() => { setEditingCard(card); setEditingValue(card); }} className="rounded-lg p-2 text-[#4F8CFF]" title="Modifier"><Pencil className="w-3.5 h-3.5" /></button>
+                          <button type="button" onClick={() => deleteCustomCard(card)} className="rounded-lg p-2 text-[#FF4D6D]" title="Supprimer"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-3 gap-2">
           {[30, 60, 90].map(value => <button key={value} type="button" onClick={() => setDuration(value as 30 | 60 | 90)} className={`rounded-2xl border py-3 text-xs font-black ${duration === value ? 'border-[#FFB020] bg-[#FFB020]/12 text-[#FFB020]' : 'border-white/8 text-white/60'}`}>{value}s</button>)}

@@ -17,7 +17,8 @@ import {
   Trophy,
   Users
 } from 'lucide-react';
-import type { Member } from '../types';
+import type { Member, PocketMoneyChild } from '../types';
+import { getSupabaseClient } from '../utils/supabase';
 import { MimeChallengeGame } from '../components/games/MimeChallengeGame';
 import { PrivateFamilyRoom } from '../components/games/PrivateFamilyRoom';
 import { FamilyChallengeGame } from '../components/games/FamilyChallengeGame';
@@ -56,6 +57,8 @@ interface FamilyGamesProps {
   isPremium?: boolean;
   onBack: () => void;
   onTriggerPaywall?: () => void;
+  pocketMoney?: PocketMoneyChild[];
+  setPocketMoney?: React.Dispatch<React.SetStateAction<PocketMoneyChild[]>>;
 }
 
 const FALLBACK_MEMORY_ITEMS = [
@@ -161,7 +164,9 @@ export function FamilyGames({
   familyName = 'Ma famille',
   isPremium = false,
   onBack,
-  onTriggerPaywall
+  onTriggerPaywall,
+  pocketMoney = [],
+  setPocketMoney
 }: FamilyGamesProps) {
   const [activeGame, setActiveGame] = useState<GameId | null>(null);
   const [gameFilter, setGameFilter] = useState<GameFilter>('all');
@@ -201,6 +206,7 @@ export function FamilyGames({
   const [connectWinner, setConnectWinner] = useState<ConnectCell>(0);
   const [connectDraw, setConnectDraw] = useState(false);
   const [connectVsBot, setConnectVsBot] = useState(false);
+  const [lastDroppedCell, setLastDroppedCell] = useState<{ row: number; column: number; nonce: number } | null>(null);
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>('normal');
   const [teamSettings, setTeamSettings] = useState<TeamSettings>(() => {
     try {
@@ -351,7 +357,25 @@ export function FamilyGames({
     if (saved) {
       setResults(previous => [saved, ...previous.filter(result => result.id !== localResult.id)].slice(0, 30));
     }
-  }, [foyerId, players]);
+
+    if (winnerName && winnerName !== 'Égalité' && setPocketMoney) {
+      const winnerMember = members.find(member => member.name === winnerName);
+      const winnerAccount = winnerMember ? pocketMoney.find(account => account.id === winnerMember.id) : undefined;
+      if (winnerAccount) {
+        const rewardPoints = 5;
+        const nextPoints = (winnerAccount.points || 0) + rewardPoints;
+        setPocketMoney(previous => previous.map(account => account.id === winnerAccount.id ? { ...account, points: nextPoints } : account));
+        const client = getSupabaseClient();
+        if (client && foyerId !== 'local') {
+          const { error } = await client.from('pocket_money')
+            .update({ points: nextPoints })
+            .eq('id', winnerAccount.id)
+            .eq('foyer_id', foyerId);
+          if (error) console.warn('[FamilyGames] Pocket money reward not synced:', error.message);
+        }
+      }
+    }
+  }, [foyerId, members, players, pocketMoney, setPocketMoney]);
 
   const handleRoomReady = useCallback((room: FamilyGameRoom) => {
     setActiveRoom(room.status === 'active' ? room : null);
@@ -409,6 +433,7 @@ export function FamilyGames({
     if (targetRow === undefined) return;
     const next = board.map(row => [...row]);
     next[targetRow][column] = currentPlayer;
+    setLastDroppedCell({ row: targetRow, column, nonce: Date.now() });
     const winner = getConnectWinner(next);
     setBoard(next);
     if (winner) {
@@ -428,6 +453,7 @@ export function FamilyGames({
     setBoard(emptyBoard());
     setConnectWinner(0);
     setConnectDraw(false);
+    setLastDroppedCell(null);
     setCurrentPlayer(previous => previous === 1 ? 2 : 1);
   };
 
@@ -646,6 +672,11 @@ export function FamilyGames({
                   </select>
                 ))}
               </div>
+              {pocketMoney.length > 0 && (
+                <p className="rounded-xl border border-[#FFB020]/20 bg-[#FFB020]/8 px-3 py-2 text-[10px] font-bold text-white/55">
+                  Une victoire individuelle rapporte 5 points dans la tirelire du membre.
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-3 border-t border-white/8 pt-4">
                 {[0, 1].map(index => (
                   <label key={index} className="flex items-center gap-2 rounded-2xl border border-white/8 bg-white/5 p-2">
@@ -934,7 +965,7 @@ export function FamilyGames({
                     className="family-games-slot aspect-square rounded-full border p-[12%]"
                     aria-label={`Colonne ${colIndex + 1}`}
                   >
-                    <span className={`connect-piece block w-full h-full rounded-full transition-colors ${
+                    <span key={lastDroppedCell?.row === rowIndex && lastDroppedCell.column === colIndex ? lastDroppedCell.nonce : `${rowIndex}-${colIndex}-piece`} className={`connect-piece block w-full h-full rounded-full transition-colors ${lastDroppedCell?.row === rowIndex && lastDroppedCell.column === colIndex ? 'is-dropping' : ''} ${
                       cell === 1 ? 'bg-[#FF4D6D]' : cell === 2 ? 'bg-[#FFB020]' : 'bg-white/5'
                     }`} />
                   </button>

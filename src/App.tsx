@@ -12067,6 +12067,8 @@ function App() {
           foyerId={appFoyer?.id}
           familyName={appFoyer?.name}
           isPremium={isPremium}
+          pocketMoney={appPocketMoney}
+          setPocketMoney={setPocketMoney}
           onTriggerPaywall={() => setPaywallOpen(true)}
           onBack={() => setActiveModule('')}
         />

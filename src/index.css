@@ -592,18 +592,20 @@ html,
 }
 
 .memory-game-card {
+  perspective: 1000px;
   transform-style: preserve-3d;
+  backface-visibility: hidden;
 }
 
 .memory-game-card.is-visible {
-  animation: memory-card-flip 320ms ease-out;
+  animation: memory-card-flip 420ms cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
 .memory-game-card.is-matched {
   animation: memory-card-match 420ms ease-out;
 }
 
-.connect-piece:not(.bg-white\/5) {
+.connect-piece.is-dropping {
   animation: connect-piece-drop 360ms cubic-bezier(0.2, 0.8, 0.3, 1.2);
 }
 
@@ -616,7 +618,8 @@ html,
 }
 
 @keyframes memory-card-flip {
-  from { transform: rotateY(90deg) scale(0.92); }
+  from { transform: rotateY(180deg) scale(0.94); }
+  55% { transform: rotateY(70deg) scale(0.98); }
   to { transform: rotateY(0deg) scale(1); }
 }
 
@@ -626,8 +629,10 @@ html,
 }
 
 @keyframes connect-piece-drop {
-  from { transform: translateY(-90%); opacity: 0.35; }
-  to { transform: translateY(0); opacity: 1; }
+  0% { transform: translateY(-620%); opacity: 0.4; }
+  78% { transform: translateY(8%); opacity: 1; }
+  90% { transform: translateY(-5%); }
+  100% { transform: translateY(0); opacity: 1; }
 }
 
 @keyframes mime-card-reveal {

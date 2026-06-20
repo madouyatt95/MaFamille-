@@ -1717,6 +1717,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           foyerId={foyer?.id}
           familyName={foyer?.name}
           isPremium={isPremium}
+          pocketMoney={pocketMoney}
+          setPocketMoney={setPocketMoney}
           onTriggerPaywall={onTriggerPaywall}
           onBack={() => setActiveModule('')}
         />
