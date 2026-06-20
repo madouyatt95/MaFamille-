@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Brain,
+  Bot,
   Check,
   ChevronRight,
   Circle,
@@ -37,6 +38,8 @@ type MemoryCard = {
   emoji?: string;
 };
 type ConnectCell = 0 | 1 | 2;
+type GameFilter = 'all' | 'free' | 'premium' | 'quick' | 'team' | 'kids';
+type MemoryMode = 'individual' | 'teams';
 
 interface FamilyGamesProps {
   members: Member[];
@@ -55,6 +58,12 @@ const FALLBACK_MEMORY_ITEMS = [
   { label: 'Repas', emoji: '🍕' },
   { label: 'Musique', emoji: '🎵' },
   { label: 'Étoile', emoji: '⭐' }
+  ,{ label: 'Cinéma', emoji: '🎬' }
+  ,{ label: 'Voyage', emoji: '🧳' }
+  ,{ label: 'Anniversaire', emoji: '🎂' }
+  ,{ label: 'Lecture', emoji: '📚' }
+  ,{ label: 'Sport', emoji: '⚽' }
+  ,{ label: 'Nature', emoji: '🌿' }
 ];
 
 const seededOrder = (value: string, round: number): number => {
@@ -63,10 +72,10 @@ const seededOrder = (value: string, round: number): number => {
   return x - Math.floor(x);
 };
 
-const buildMemoryDeck = (members: Member[], round: number): MemoryCard[] => {
+const buildMemoryDeck = (members: Member[], round: number, pairCount: number): MemoryCard[] => {
   const memberItems: Array<{ label: string; image?: string; emoji?: string }> = members
     .filter(member => member.name)
-    .slice(0, 6)
+    .slice(0, pairCount)
     .map(member => ({
       label: member.name,
       image: member.photoUrl,
@@ -74,10 +83,10 @@ const buildMemoryDeck = (members: Member[], round: number): MemoryCard[] => {
     }));
   const items: Array<{ label: string; image?: string; emoji?: string }> = [...memberItems];
   for (const fallback of FALLBACK_MEMORY_ITEMS) {
-    if (items.length >= 6) break;
+    if (items.length >= pairCount) break;
     items.push(fallback);
   }
-  return items
+  return items.slice(0, pairCount)
     .flatMap((item, index) => [
       { ...item, id: `${round}-${index}-a`, pairId: `pair-${index}` },
       { ...item, id: `${round}-${index}-b`, pairId: `pair-${index}` }
@@ -121,6 +130,7 @@ export function FamilyGames({
   onTriggerPaywall
 }: FamilyGamesProps) {
   const [activeGame, setActiveGame] = useState<GameId | null>(null);
+  const [gameFilter, setGameFilter] = useState<GameFilter>('all');
   const [playerIds, setPlayerIds] = useState<[string, string]>(() => {
     const first = members.find(member => member.id === activeMemberId)?.id || members[0]?.id || 'player-1';
     const second = members.find(member => member.id !== first)?.id || 'player-2';
@@ -131,7 +141,13 @@ export function FamilyGames({
   const [showHistory, setShowHistory] = useState(false);
   const [lastRecap, setLastRecap] = useState<{ scores: [number, number]; winnerName: string } | null>(null);
   const [memoryRound, setMemoryRound] = useState(1);
-  const memoryDeck = useMemo(() => buildMemoryDeck(members, memoryRound), [members, memoryRound]);
+  const [memoryPairCount, setMemoryPairCount] = useState<6 | 8 | 12>(6);
+  const [memoryMode, setMemoryMode] = useState<MemoryMode>('individual');
+  const [memoryPlayerIds, setMemoryPlayerIds] = useState<string[]>(() => members.slice(0, Math.min(2, members.length)).map(member => member.id));
+  const [memoryStarted, setMemoryStarted] = useState(false);
+  const [memoryCurrentPlayer, setMemoryCurrentPlayer] = useState(0);
+  const [memoryScores, setMemoryScores] = useState<number[]>([]);
+  const memoryDeck = useMemo(() => buildMemoryDeck(members, memoryRound, memoryPairCount), [members, memoryPairCount, memoryRound]);
   const [flippedCards, setFlippedCards] = useState<string[]>([]);
   const [matchedPairs, setMatchedPairs] = useState<string[]>([]);
   const [memoryMoves, setMemoryMoves] = useState(0);
@@ -149,6 +165,8 @@ export function FamilyGames({
   const [board, setBoard] = useState<ConnectCell[][]>(() => emptyBoard());
   const [currentPlayer, setCurrentPlayer] = useState<1 | 2>(1);
   const [connectWinner, setConnectWinner] = useState<ConnectCell>(0);
+  const [connectDraw, setConnectDraw] = useState(false);
+  const [connectVsBot, setConnectVsBot] = useState(false);
   const [connectScores, setConnectScores] = useState<[number, number]>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(`mf_games_connect4_${foyerId}`) || '[0,0]');
@@ -177,9 +195,20 @@ export function FamilyGames({
       challengeGames: challengeGames.length,
       leaderName: leader?.[0],
       leaderWins: leader?.[1] || 0,
-      bestChallengeScore: Math.max(0, ...challengeGames.flatMap(result => result.scores))
+      bestChallengeScore: Math.max(0, ...challengeGames.flatMap(result => result.scores)),
+      streak: results.reduce((best, result, index, list) => {
+        if (!result.winnerName || result.winnerName === 'Égalité') return best;
+        let count = 1;
+        while (list[index + count]?.winnerName === result.winnerName) count += 1;
+        return Math.max(best, count);
+      }, 0)
     };
   }, [results]);
+  const memoryPlayers = useMemo(() => memoryPlayerIds.map(id => members.find(member => member.id === id)).filter((member): member is Member => Boolean(member)), [members, memoryPlayerIds]);
+  const memoryCompetitorNames = useMemo(() => {
+    if (memoryMode === 'teams') return ['Équipe Soleil', 'Équipe Comète'];
+    return memoryPlayers.map(member => member.name);
+  }, [memoryMode, memoryPlayers]);
 
   useEffect(() => {
     void familyGameService.fetchResults(foyerId).then(setResults);
@@ -191,6 +220,58 @@ export function FamilyGames({
       });
     }
   }, [foyerId, isPremium]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(`mf_games_resume_${foyerId}`) || 'null');
+      if (saved?.activeGame) {
+        queueMicrotask(() => {
+          setActiveGame(saved.activeGame);
+          if (saved.memory) {
+            setMemoryStarted(Boolean(saved.memory.started));
+            setMemoryPairCount(saved.memory.pairCount || 6);
+            setMemoryMode(saved.memory.mode || 'individual');
+            setMemoryPlayerIds(saved.memory.playerIds || []);
+            setMemoryScores(saved.memory.scores || []);
+            setMemoryCurrentPlayer(saved.memory.currentPlayer || 0);
+            setMatchedPairs(saved.memory.matchedPairs || []);
+            setMemoryMoves(saved.memory.moves || 0);
+          }
+          if (saved.connect4) {
+            setBoard(saved.connect4.board || emptyBoard());
+            setCurrentPlayer(saved.connect4.currentPlayer || 1);
+            setConnectWinner(saved.connect4.winner || 0);
+            setConnectDraw(Boolean(saved.connect4.draw));
+            setConnectVsBot(Boolean(saved.connect4.vsBot));
+          }
+        });
+      }
+    } catch {
+      // A corrupted local resume must never block the games hub.
+    }
+  }, [foyerId]);
+
+  useEffect(() => {
+    if (!activeGame) {
+      localStorage.removeItem(`mf_games_resume_${foyerId}`);
+      return;
+    }
+    localStorage.setItem(`mf_games_resume_${foyerId}`, JSON.stringify({
+      activeGame,
+      updatedAt: new Date().toISOString(),
+      memory: {
+        started: memoryStarted,
+        pairCount: memoryPairCount,
+        mode: memoryMode,
+        playerIds: memoryPlayerIds,
+        scores: memoryScores,
+        currentPlayer: memoryCurrentPlayer,
+        matchedPairs,
+        moves: memoryMoves
+      },
+      connect4: { board, currentPlayer, winner: connectWinner, draw: connectDraw, vsBot: connectVsBot }
+    }));
+  }, [activeGame, board, connectDraw, connectVsBot, connectWinner, currentPlayer, foyerId, matchedPairs, memoryCurrentPlayer, memoryMode, memoryMoves, memoryPairCount, memoryPlayerIds, memoryScores, memoryStarted]);
 
   const saveResult = useCallback(async (
     gameType: FamilyGameType,
@@ -235,13 +316,17 @@ export function FamilyGames({
     if (first && second && first.pairId === second.pairId) {
       queueMicrotask(() => {
         setMatchedPairs(previous => previous.includes(first.pairId) ? previous : [...previous, first.pairId]);
+        setMemoryScores(previous => previous.map((score, index) => index === memoryCurrentPlayer ? score + 1 : score));
         setFlippedCards([]);
       });
       return;
     }
-    const timer = window.setTimeout(() => setFlippedCards([]), 700);
+    const timer = window.setTimeout(() => {
+      setFlippedCards([]);
+      setMemoryCurrentPlayer(current => (current + 1) % Math.max(1, memoryScores.length));
+    }, 700);
     return () => window.clearTimeout(timer);
-  }, [flippedCards, memoryDeck]);
+  }, [flippedCards, memoryCurrentPlayer, memoryDeck, memoryScores.length]);
 
   const resetMemory = () => {
     setMemoryRound(previous => previous + 1);
@@ -249,6 +334,16 @@ export function FamilyGames({
     setMatchedPairs([]);
     setMemoryMoves(0);
     setMemorySaved(false);
+    setMemoryCurrentPlayer(0);
+    setMemoryScores(Array.from({ length: Math.max(1, memoryCompetitorNames.length) }, () => 0));
+  };
+
+  const startMemory = () => {
+    const competitorCount = memoryMode === 'teams' ? 2 : memoryPlayers.length;
+    if (competitorCount < 1) return;
+    setMemoryStarted(true);
+    setMemoryScores(Array.from({ length: competitorCount }, () => 0));
+    resetMemory();
   };
 
   const flipMemoryCard = (card: MemoryCard) => {
@@ -258,7 +353,7 @@ export function FamilyGames({
   };
 
   const dropConnectPiece = (column: number) => {
-    if (connectWinner) return;
+    if (connectWinner || connectDraw) return;
     const targetRow = [...board].map((_, index) => index).reverse().find(row => board[row][column] === 0);
     if (targetRow === undefined) return;
     const next = board.map(row => [...row]);
@@ -270,6 +365,9 @@ export function FamilyGames({
       setConnectWinner(winner);
       setConnectScores(previous => winner === 1 ? [previous[0] + 1, previous[1]] : [previous[0], previous[1] + 1]);
       void saveResult('connect4', winner === 1 ? [1, 0] : [0, 1], players[winner - 1].name);
+    } else if (next.every(row => row.every(cell => cell !== 0))) {
+      setConnectDraw(true);
+      void saveResult('connect4', [0, 0], 'Égalité');
     } else {
       setCurrentPlayer(currentPlayer === 1 ? 2 : 1);
     }
@@ -278,8 +376,35 @@ export function FamilyGames({
   const resetConnectBoard = () => {
     setBoard(emptyBoard());
     setConnectWinner(0);
+    setConnectDraw(false);
     setCurrentPlayer(previous => previous === 1 ? 2 : 1);
   };
+
+  useEffect(() => {
+    if (!connectVsBot || currentPlayer !== 2 || connectWinner || connectDraw || activeGame !== 'connect4') return;
+    const available = board[0].map((cell, column) => cell === 0 ? column : -1).filter(column => column >= 0);
+    if (available.length === 0) return;
+    const timer = window.setTimeout(() => {
+      const winningColumn = available.find(column => {
+        const targetRow = [...board].map((_, index) => index).reverse().find(row => board[row][column] === 0);
+        if (targetRow === undefined) return false;
+        const test = board.map(row => [...row]);
+        test[targetRow][column] = 2;
+        return getConnectWinner(test) === 2;
+      });
+      const blockingColumn = available.find(column => {
+        const targetRow = [...board].map((_, index) => index).reverse().find(row => board[row][column] === 0);
+        if (targetRow === undefined) return false;
+        const test = board.map(row => [...row]);
+        test[targetRow][column] = 1;
+        return getConnectWinner(test) === 1;
+      });
+      dropConnectPiece(winningColumn ?? blockingColumn ?? available[Math.floor(Math.random() * available.length)]);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  // dropConnectPiece intentionally uses the latest render state for the delayed bot move.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGame, board, connectDraw, connectVsBot, connectWinner, currentPlayer]);
 
   const gameCards = [
     {
@@ -288,7 +413,8 @@ export function FamilyGames({
       description: 'Retrouvez les paires avec les visages et les souvenirs de votre foyer.',
       icon: Grid3X3,
       accent: '#FFB020',
-      meta: '1 à 6 joueurs'
+      meta: '1 à 6 joueurs · 5 min',
+      tags: ['free', 'quick', 'kids', 'team']
     },
     {
       id: 'connect4' as const,
@@ -296,7 +422,8 @@ export function FamilyGames({
       description: 'Un duel rapide, tactile et parfait pour départager deux membres.',
       icon: Circle,
       accent: '#4F8CFF',
-      meta: '2 joueurs'
+      meta: '1 à 2 joueurs · 8 min',
+      tags: ['free', 'quick', 'kids']
     },
     {
       id: 'family-challenge' as const,
@@ -304,7 +431,8 @@ export function FamilyGames({
       description: 'Devinez les réponses les plus populaires et faites gagner votre équipe.',
       icon: Users,
       accent: '#FF4D6D',
-      meta: `${challengeQuestionCount} questions`
+      meta: `2 équipes · ${challengeQuestionCount} questions`,
+      tags: ['premium', 'team']
     },
     {
       id: 'mime-challenge' as const,
@@ -312,9 +440,11 @@ export function FamilyGames({
       description: 'Mimez un maximum de cartes avant la fin du chronomètre.',
       icon: Mic2,
       accent: '#9E94FF',
-      meta: '60 secondes'
+      meta: '2 équipes · 5 à 15 min',
+      tags: ['free', 'quick', 'team', 'kids']
     }
   ];
+  const visibleGameCards = gameCards.filter(game => gameFilter === 'all' || game.tags.includes(gameFilter));
 
   const gameHeader = (title: string, subtitle: string, icon: typeof Gamepad2) => {
     const Icon = icon;
@@ -393,8 +523,35 @@ export function FamilyGames({
               </div>
             </section>
 
+            <button type="button" onClick={() => {
+              setMemoryPairCount(8);
+              setMemoryStarted(false);
+              setActiveGame('memory');
+            }} className="w-full rounded-[22px] border border-[#00D26A]/20 bg-[#00D26A]/8 p-4 text-left flex items-center justify-between gap-3">
+              <span>
+                <strong className="block text-sm text-white">Défi du jour</strong>
+                <span className="mt-1 block text-[10px] text-white/50">Terminez un Memory de 8 paires en moins de 20 coups.</span>
+              </span>
+              <span className="rounded-full bg-[#00D26A]/15 px-3 py-1 text-[10px] font-black text-[#00D26A]">+1 trophée</span>
+            </button>
+
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {([
+                ['all', 'Tous'],
+                ['free', 'Gratuits'],
+                ['premium', 'Premium'],
+                ['quick', 'Rapides'],
+                ['team', 'Équipes'],
+                ['kids', 'Enfants']
+              ] as Array<[GameFilter, string]>).map(([value, label]) => (
+                <button key={value} type="button" onClick={() => setGameFilter(value)} className={`shrink-0 rounded-full border px-3 py-2 text-[10px] font-black ${gameFilter === value ? 'border-[#6C5CFF] bg-[#6C5CFF] text-white' : 'border-white/8 bg-white/5 text-white/55'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {gameCards.map(game => {
+              {visibleGameCards.map(game => {
                 const Icon = game.icon;
                 return (
                   <button
@@ -477,6 +634,30 @@ export function FamilyGames({
               </section>
             )}
 
+            {isPremium && (
+              <section className="glass-panel rounded-[24px] border border-white/8 p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-black text-white">Trophées familiaux</h3>
+                    <p className="text-[10px] text-white/45">Progression calculée à partir des parties enregistrées.</p>
+                  </div>
+                  <Trophy className="w-5 h-5 text-[#FFB020]" />
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  {[
+                    ['Première partie', gameStats.total >= 1],
+                    ['Série de 3', gameStats.streak >= 3],
+                    ['Soirée jeux', gameStats.total >= 10]
+                  ].map(([label, unlocked]) => (
+                    <div key={String(label)} className={`rounded-2xl border p-3 text-center ${unlocked ? 'border-[#FFB020]/30 bg-[#FFB020]/10' : 'border-white/8 bg-white/5 opacity-50'}`}>
+                      <Star className={`mx-auto w-5 h-5 ${unlocked ? 'text-[#FFB020] fill-[#FFB020]' : 'text-white/30'}`} />
+                      <strong className="mt-2 block text-[9px] text-white">{label}</strong>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             <button
               type="button"
               onClick={() => setShowHistory(value => !value)}
@@ -529,17 +710,55 @@ export function FamilyGames({
 
         {activeGame === 'memory' && (
           <>
-            {gameHeader('Memory famille', 'Retrouvez toutes les paires en un minimum de coups.', Brain)}
+            {gameHeader('Memory famille', 'Trouvez une paire pour rejouer, sinon passez la main.', Brain)}
+            {!memoryStarted ? (
+              <section className="glass-panel rounded-[24px] border border-white/8 p-5 space-y-5">
+                <div>
+                  <h2 className="text-base font-black text-white">Préparer la partie</h2>
+                  <p className="mt-1 text-xs text-white/50">Choisissez jusqu’à six joueurs et la taille du plateau.</p>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {[6, 8, 12].map(value => (
+                    <button key={value} type="button" onClick={() => setMemoryPairCount(value as 6 | 8 | 12)} className={`rounded-2xl border py-3 text-xs font-black ${memoryPairCount === value ? 'border-[#FFB020] bg-[#FFB020]/12 text-[#FFB020]' : 'border-white/8 bg-white/5 text-white/60'}`}>{value} paires</button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setMemoryMode('individual')} className={`rounded-2xl border py-3 text-xs font-black ${memoryMode === 'individual' ? 'border-[#6C5CFF] bg-[#6C5CFF]/12 text-[#9E94FF]' : 'border-white/8 bg-white/5 text-white/60'}`}>Chacun pour soi</button>
+                  <button type="button" onClick={() => setMemoryMode('teams')} className={`rounded-2xl border py-3 text-xs font-black ${memoryMode === 'teams' ? 'border-[#6C5CFF] bg-[#6C5CFF]/12 text-[#9E94FF]' : 'border-white/8 bg-white/5 text-white/60'}`}>Deux équipes</button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {members.slice(0, 6).map(member => {
+                    const selected = memoryPlayerIds.includes(member.id);
+                    return (
+                      <button key={member.id} type="button" onClick={() => setMemoryPlayerIds(previous => selected ? previous.filter(id => id !== member.id) : previous.length < 6 ? [...previous, member.id] : previous)} className={`rounded-2xl border p-3 text-left ${selected ? 'border-[#00D26A]/45 bg-[#00D26A]/10' : 'border-white/8 bg-white/5'}`}>
+                        <strong className="block truncate text-xs text-white">{member.name}</strong>
+                        <span className="text-[9px] text-white/45">{selected ? memoryMode === 'teams' ? `Équipe ${memoryPlayerIds.indexOf(member.id) % 2 === 0 ? 'Soleil' : 'Comète'}` : 'Participe' : 'Ajouter'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button type="button" onClick={startMemory} disabled={memoryPlayerIds.length === 0 || (memoryMode === 'teams' && memoryPlayerIds.length < 2)} className="w-full rounded-2xl bg-[#FFB020] py-4 text-sm font-black text-[#07111F] disabled:opacity-40">Commencer</button>
+              </section>
+            ) : (
+              <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {memoryCompetitorNames.map((name, index) => (
+                <div key={`${name}-${index}`} className={`rounded-2xl border p-3 ${memoryCurrentPlayer === index ? 'border-[#FFB020]/50 bg-[#FFB020]/10' : 'border-white/8 bg-white/5'}`}>
+                  <strong className="block truncate text-xs text-white">{name}</strong>
+                  <span className="text-[10px] text-white/45">{memoryScores[index] || 0} paire{memoryScores[index] === 1 ? '' : 's'}</span>
+                </div>
+              ))}
+            </div>
             <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
               <div className="flex items-center gap-5">
                 <span className="text-xs text-white/50">Coups <strong className="ml-1 text-white">{memoryMoves}</strong></span>
-                <span className="text-xs text-white/50">Paires <strong className="ml-1 text-[#00D26A]">{matchedPairs.length}/6</strong></span>
+                <span className="text-xs text-white/50">Paires <strong className="ml-1 text-[#00D26A]">{matchedPairs.length}/{memoryPairCount}</strong></span>
               </div>
               <button type="button" onClick={resetMemory} className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10" title="Recommencer">
                 <RotateCcw className="w-4 h-4" />
               </button>
             </div>
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 sm:gap-4 max-w-2xl mx-auto">
+            <div className={`grid gap-2.5 sm:gap-4 max-w-3xl mx-auto ${memoryPairCount === 12 ? 'grid-cols-4 sm:grid-cols-6' : 'grid-cols-3 sm:grid-cols-4'}`}>
               {memoryDeck.map(card => {
                 const isVisible = flippedCards.includes(card.id) || matchedPairs.includes(card.pairId);
                 const isMatched = matchedPairs.includes(card.pairId);
@@ -573,11 +792,16 @@ export function FamilyGames({
                 );
               })}
             </div>
-            {matchedPairs.length === 6 && (
+            {matchedPairs.length === memoryPairCount && (
               <div className="glass-panel rounded-[24px] border border-[#00D26A]/25 p-5 text-center">
                 <Trophy className="w-10 h-10 mx-auto text-[#FFB020]" />
-                <h2 className="mt-2 text-lg font-black text-white">Toutes les paires retrouvées !</h2>
+                <h2 className="mt-2 text-lg font-black text-white">{Math.max(...memoryScores) === Math.min(...memoryScores) ? 'Égalité !' : `Victoire de ${memoryCompetitorNames[memoryScores.indexOf(Math.max(...memoryScores))]}`}</h2>
                 <p className="mt-1 text-xs text-white/50">Partie terminée en {memoryMoves} coups.</p>
+                <div className="mt-4 space-y-2">
+                  {memoryCompetitorNames.map((name, index) => ({ name, score: memoryScores[index] || 0 })).sort((a, b) => b.score - a.score).map((entry, index) => (
+                    <div key={entry.name} className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2 text-xs"><span className="text-white">{index + 1}. {entry.name}</span><strong className="text-[#FFB020]">{entry.score}</strong></div>
+                  ))}
+                </div>
                 <button type="button" onClick={resetMemory} className="mt-4 px-5 py-3 rounded-2xl bg-[#00D26A] text-[#07111F] text-xs font-black">
                   Nouvelle partie
                 </button>
@@ -586,7 +810,9 @@ export function FamilyGames({
                   disabled={memorySaved}
                   onClick={() => {
                     setMemorySaved(true);
-                    void saveResult('memory', [Math.max(0, 100 - memoryMoves)], players[0].name, { moves: memoryMoves });
+                    const topScore = Math.max(...memoryScores);
+                    const winners = memoryCompetitorNames.filter((_, index) => memoryScores[index] === topScore);
+                    void saveResult('memory', memoryScores, winners.length > 1 ? 'Égalité' : winners[0], { moves: memoryMoves, pairs: memoryPairCount, mode: memoryMode }, memoryCompetitorNames);
                   }}
                   className="mt-2 ml-2 px-5 py-3 rounded-2xl border border-white/8 disabled:opacity-45 text-white text-xs font-black"
                 >
@@ -594,12 +820,32 @@ export function FamilyGames({
                 </button>
               </div>
             )}
+              </>
+            )}
           </>
         )}
 
         {activeGame === 'connect4' && (
           <>
             {gameHeader('Puissance 4', 'Alignez quatre jetons horizontalement, verticalement ou en diagonale.', Circle)}
+            <div className="grid grid-cols-2 gap-2 max-w-xl mx-auto">
+              {[0, 1].map(index => (
+                <select key={index} value={playerIds[index]} disabled={connectVsBot && index === 1} onChange={event => setPlayerIds(previous => index === 0 ? [event.target.value, previous[1]] : [previous[0], event.target.value])} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-bold text-white">
+                  {members.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}
+                </select>
+              ))}
+            </div>
+            <div className="flex justify-center">
+              <button type="button" onClick={() => {
+                setConnectVsBot(value => !value);
+                setBoard(emptyBoard());
+                setConnectWinner(0);
+                setConnectDraw(false);
+                setCurrentPlayer(1);
+              }} className={`rounded-full border px-4 py-2 text-xs font-black flex items-center gap-2 ${connectVsBot ? 'border-[#4F8CFF] bg-[#4F8CFF]/12 text-[#4F8CFF]' : 'border-white/8 bg-white/5 text-white/60'}`}>
+                <Bot className="w-4 h-4" /> {connectVsBot ? 'Adversaire automatique' : 'Jouer contre l’ordinateur'}
+              </button>
+            </div>
             <div className="grid grid-cols-2 gap-3 max-w-xl mx-auto">
               {players.map((player, index) => (
                 <div key={player.id} className={`rounded-2xl border p-3 flex items-center gap-3 ${currentPlayer === index + 1 && !connectWinner ? 'border-[#FFB020]/40 bg-[#FFB020]/10' : 'border-white/8 bg-white/5'}`}>
@@ -609,7 +855,7 @@ export function FamilyGames({
                     <span className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-black ${index === 0 ? 'bg-[#FF4D6D] text-white' : 'bg-[#FFB020] text-[#07111F]'}`}>{getInitials(player.name)}</span>
                   )}
                   <div className="min-w-0">
-                    <strong className="block text-xs text-white truncate">{player.name}</strong>
+                    <strong className="block text-xs text-white truncate">{connectVsBot && index === 1 ? 'Ordinateur' : player.name}</strong>
                     <span className="text-[10px] text-white/45">{connectScores[index]} victoire{connectScores[index] > 1 ? 's' : ''}</span>
                   </div>
                 </div>
@@ -635,13 +881,18 @@ export function FamilyGames({
             <div className="text-center">
               {connectWinner ? (
                 <div className="space-y-3">
-                  <p className="text-base font-black text-white"><Trophy className="inline w-5 h-5 mr-2 text-[#FFB020]" />{players[connectWinner - 1].name} remporte la manche !</p>
+                  <p className="text-base font-black text-white"><Trophy className="inline w-5 h-5 mr-2 text-[#FFB020]" />{connectVsBot && connectWinner === 2 ? 'Ordinateur' : players[connectWinner - 1].name} remporte la manche !</p>
                   <button type="button" onClick={resetConnectBoard} className="px-5 py-3 rounded-2xl bg-[#6C5CFF] text-white text-xs font-black">
                     Revanche
                   </button>
                 </div>
+              ) : connectDraw ? (
+                <div className="space-y-3">
+                  <p className="text-base font-black text-white">Grille pleine : égalité !</p>
+                  <button type="button" onClick={resetConnectBoard} className="px-5 py-3 rounded-2xl bg-[#6C5CFF] text-white text-xs font-black">Rejouer</button>
+                </div>
               ) : (
-                <p className="text-sm font-bold text-white/70">À {players[currentPlayer - 1].name} de jouer</p>
+                <p className="text-sm font-bold text-white/70">À {connectVsBot && currentPlayer === 2 ? 'l’ordinateur' : players[currentPlayer - 1].name} de jouer</p>
               )}
             </div>
           </>
@@ -701,8 +952,8 @@ export function FamilyGames({
           <>
             {gameHeader('Mimes et défis', 'Faites deviner un maximum de cartes en 60 secondes.', Mic2)}
             <MimeChallengeGame
-              playerName={players[0].name}
-              onFinished={(score, rounds) => void saveResult('mime-challenge', [score], players[0].name, { rounds })}
+              teamNames={[players[0].name, players[1].name]}
+              onFinished={(scores, rounds, winnerName) => void saveResult('mime-challenge', scores, winnerName, { rounds }, players.map(player => player.name))}
             />
           </>
         )}

@@ -176,9 +176,11 @@ export const getChallengeQuestion = (
   round: number,
   seed = 'family',
   limit = FAMILY_CHALLENGE_QUESTIONS.length,
-  excludedIds: string[] = []
+  excludedIds: string[] = [],
+  pack?: FamilyChallengeQuestion['pack']
 ): FamilyChallengeQuestion => {
-  const allowed = FAMILY_CHALLENGE_QUESTIONS.slice(0, Math.max(1, Math.min(limit, FAMILY_CHALLENGE_QUESTIONS.length)));
+  const basePool = pack ? FAMILY_CHALLENGE_QUESTIONS.filter(item => item.pack === pack) : FAMILY_CHALLENGE_QUESTIONS;
+  const allowed = basePool.slice(0, Math.max(1, Math.min(limit, basePool.length)));
   const excluded = new Set(excludedIds);
   const available = allowed.filter(item => !excluded.has(item.id));
   const pool = available.length > 0 ? available : allowed;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Clock3, HelpCircle, Play, Shield, Trophy, Volume2, VolumeX, X } from 'lucide-react';
-import { FAMILY_CHALLENGE_QUESTIONS, getChallengeQuestion } from '../../data/familyChallengeQuestions';
+import { FAMILY_CHALLENGE_QUESTIONS, getChallengeQuestion, type FamilyChallengeQuestion } from '../../data/familyChallengeQuestions';
 import { familyGameService, type FamilyGameRoom } from '../../services/familyGameService';
 import { matchChallengeAnswer } from '../../utils/familyChallengeMatcher';
 
@@ -58,6 +58,7 @@ export function FamilyChallengeGame({
   const [totalRounds, setTotalRounds] = useState(() => typeof roomState.totalRounds === 'number' ? roomState.totalRounds : 5);
   const [silentMode, setSilentMode] = useState(() => localStorage.getItem('mf_games_silent') === '1');
   const [closeMatch, setCloseMatch] = useState<ReturnType<typeof matchChallengeAnswer> | null>(null);
+  const [selectedPack, setSelectedPack] = useState<FamilyChallengeQuestion['pack'] | 'Tous'>('Tous');
   const [playedQuestionIds, setPlayedQuestionIds] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem(`mf_family_challenge_played_${foyerId}`) || '[]');
@@ -68,8 +69,8 @@ export function FamilyChallengeGame({
 
   const questionCount = isPremium ? FAMILY_CHALLENGE_QUESTIONS.length : 12;
   const question = useMemo(
-    () => getChallengeQuestion(round, room?.code || foyerId, questionCount, playedQuestionIds.slice(-120)),
-    [foyerId, playedQuestionIds, questionCount, room?.code, round]
+    () => getChallengeQuestion(round, room?.code || foyerId, questionCount, playedQuestionIds.slice(-120), selectedPack === 'Tous' ? undefined : selectedPack),
+    [foyerId, playedQuestionIds, questionCount, room?.code, round, selectedPack]
   );
   const localTeamIndex: 0 | 1 = room?.guestFoyerId === foyerId ? 1 : 0;
   const activeTeam: 0 | 1 = phase === 'steal' ? (controllingTeam === 0 ? 1 : 0) : controllingTeam;
@@ -348,12 +349,20 @@ export function FamilyChallengeGame({
           ))}
         </div>
         {!room && (
+          <>
+          {isPremium && <label className="block">
+            <span className="mb-2 block text-xs font-black text-white">Pack de questions</span>
+            <select value={selectedPack} onChange={event => setSelectedPack(event.target.value as FamilyChallengeQuestion['pack'] | 'Tous')} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white">
+              {['Tous', 'Essentiel', 'Enfants', 'Adolescents', 'Parents', 'Vacances', 'Fêtes', 'Culture familiale'].map(pack => <option key={pack} value={pack}>{pack}</option>)}
+            </select>
+          </label>}
           <label className="block">
             <span className="mb-2 block text-xs font-black text-white">Nombre de manches</span>
             <select value={totalRounds} onChange={event => setTotalRounds(Number(event.target.value))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white">
               {[1, 3, 5, 7, 9].map(value => <option key={value} value={value}>{value} manche{value > 1 ? 's' : ''}</option>)}
             </select>
           </label>
+          </>
         )}
         <button type="button" onClick={() => {
           localStorage.setItem('mf_family_challenge_rules_seen', '1');
@@ -404,7 +413,7 @@ export function FamilyChallengeGame({
       <section className="family-games-challenge rounded-[28px] border p-5 sm:p-7">
         <div className="flex items-center justify-between gap-3">
           <span className="text-[10px] font-black uppercase tracking-wider text-[#FF4D6D]">
-            {question.category} · Manche {round + 1}
+            {question.pack} · {question.ageGroup} · Manche {round + 1}
           </span>
           <button type="button" onClick={() => {
             const next = !timerRunning;
