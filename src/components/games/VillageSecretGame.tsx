@@ -252,6 +252,7 @@ const SAVE_KEY = 'mf_village_secret_active_game_v3';
 const RESULTS_KEY = 'mf_village_secret_results_v1';
 const VOICE_PREFERENCE_KEY = `mf_village_secret_voice_${nativeSpeech.platform()}`;
 const ROLE_ART_ORDER: Role[] = ['villager', 'traitor', 'protector', 'investigator', 'healer', 'cupid', 'jester', 'elder', 'mayor', 'raven', 'archivist', 'diplomat'];
+const EXTRA_ROLE_ART_ORDER: Role[] = ['watcher', 'messenger', 'twin', 'confessor', 'silencer', 'repentant'];
 const BOT_NAMES = ['Camille', 'Nolan', 'Jade', 'Sacha', 'Lina', 'Noé', 'Mila', 'Eden', 'Lou', 'Maël', 'Inès', 'Naël', 'Rose', 'Léo', 'Aya', 'Tom', 'Zoé', 'Adam', 'Nina'];
 const BOT_PERSONALITIES: BotPersonality[] = ['prudent', 'accuser', 'discreet', 'unpredictable'];
 const BOT_PERSONALITY_LABELS: Record<BotPersonality, string> = {
@@ -2540,32 +2541,35 @@ function NarratorScene({ icon, eyebrow, title, detail, action, onAction, narrato
 
 function RolePortrait({ role, className = '' }: { role: Role; className?: string }) {
   const index = ROLE_ART_ORDER.indexOf(role);
-  if (index < 0) {
-    const info = ROLE_INFO[role];
+  if (index >= 0) {
+    const column = index % 4;
+    const row = Math.floor(index / 4);
     return (
       <div
         role="img"
-        aria-label={`Illustration ${info.name}`}
-        className={`role-portrait flex aspect-square items-center justify-center bg-[#111827] ${className}`}
+        aria-label={`Illustration ${ROLE_INFO[role].name}`}
+        className={`role-portrait aspect-square bg-cover bg-no-repeat ${className}`}
         style={{
-          backgroundImage: `radial-gradient(circle at 50% 38%, ${info.color}33, transparent 45%), linear-gradient(145deg, #18233A, #090D1A)`
+          backgroundImage: "url('/game-assets/village-secret-roles-hd.webp')",
+          backgroundSize: '400% 300%',
+          backgroundPosition: `${column * (100 / 3)}% ${row * 50}%`
         }}
-      >
-        <span className="text-5xl drop-shadow-[0_8px_18px_rgba(0,0,0,0.4)] sm:text-6xl">{info.icon}</span>
-      </div>
+      />
     );
   }
-  const column = index % 4;
-  const row = Math.floor(index / 4);
+
+  const extraIndex = EXTRA_ROLE_ART_ORDER.indexOf(role);
+  const column = extraIndex % 3;
+  const row = Math.floor(extraIndex / 3);
   return (
     <div
       role="img"
       aria-label={`Illustration ${ROLE_INFO[role].name}`}
       className={`role-portrait aspect-square bg-cover bg-no-repeat ${className}`}
       style={{
-        backgroundImage: "url('/game-assets/village-secret-roles-hd.webp')",
-        backgroundSize: '400% 300%',
-        backgroundPosition: `${column * (100 / 3)}% ${row * 50}%`
+        backgroundImage: "url('/game-assets/village-secret-roles-extra-hd.webp')",
+        backgroundSize: '300% 200%',
+        backgroundPosition: `${column * 50}% ${row * 100}%`
       }}
     />
   );
