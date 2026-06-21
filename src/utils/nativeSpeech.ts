@@ -9,6 +9,8 @@ export type NativeSpeechVoice = {
   gender: 'Féminine' | 'Masculine' | 'Non précisé';
   isNovelty?: boolean;
   isPersonal?: boolean;
+  isInstalled?: boolean;
+  requiresNetwork?: boolean;
 };
 
 type PluginListenerHandle = {
@@ -28,7 +30,8 @@ type NativeSpeechPlugin = {
 const plugin = registerPlugin<NativeSpeechPlugin>('NativeSpeech');
 
 export const nativeSpeech = {
-  isAvailable: () => Capacitor.getPlatform() === 'ios',
+  isAvailable: () => ['ios', 'android'].includes(Capacitor.getPlatform()),
+  platform: () => Capacitor.getPlatform(),
   getVoices: async () => (await plugin.getVoices()).voices,
   speak: (text: string, voiceId = '') => plugin.speak({
     text,

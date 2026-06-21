@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import {
   BookOpen,
   Check,
+  ChevronDown,
   Crown,
   Eye,
   EyeOff,
@@ -333,6 +334,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   const [enabledRoles, setEnabledRoles] = useState<Role[]>(DEFAULT_SPECIAL_ROLES);
   const [showRoleSettings, setShowRoleSettings] = useState(false);
   const [showRules, setShowRules] = useState(false);
+  const [showSoundSettings, setShowSoundSettings] = useState(false);
   const [ravenTarget, setRavenTarget] = useState<string | null>(null);
   const [archivistUsed, setArchivistUsed] = useState(false);
   const [archivistTarget, setArchivistTarget] = useState<string | null>(null);
@@ -385,10 +387,11 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     return getFrenchVoices();
   }, [voiceRefresh]);
   const usesNativeVoice = nativeSpeech.isAvailable();
+  const nativeVoicePlatform = nativeSpeech.platform();
   const availableVoices = usesNativeVoice
     ? nativeVoices.map(voice => ({
         id: voice.id,
-        name: `${voice.name} · ${voice.language} · ${voice.qualityLabel}${voice.isPersonal ? ' · Personnelle' : ''}`
+        name: `${voice.name} · ${voice.language} · ${voice.qualityLabel}${voice.isPersonal ? ' · Personnelle' : ''}${voice.requiresNetwork ? ' · En ligne' : ''}${voice.isInstalled === false ? ' · À télécharger' : ''}`
       }))
     : webFrenchVoices.map(voice => ({ id: voice.voiceURI, name: `${voice.name} · ${voice.lang}` }));
 
@@ -1099,66 +1102,95 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
           </div>
         </div>
 
-        <div className="mt-5 grid gap-2 sm:grid-cols-2">
-          <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 p-3">
-            <span className="flex items-center gap-2 text-xs font-bold text-white/70">{narratorEnabled ? <Volume2 className="h-4 w-4 text-[#00D26A]" /> : <VolumeX className="h-4 w-4" />} Narrateur</span>
-            <button type="button" role="switch" aria-checked={narratorEnabled} onClick={() => setNarratorEnabled(value => {
-              const next = !value;
-              if (next) previewVoice('Le maître du jeu est prêt.');
-              return next;
-            })} className={`relative h-7 w-12 rounded-full ${narratorEnabled ? 'bg-[#00D26A]' : 'bg-white/15'}`}><span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white transition-transform ${narratorEnabled ? 'translate-x-5' : ''}`} /></button>
-          </div>
-          <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 p-3">
-            <span className="flex items-center gap-2 text-xs font-bold text-white/70">
-              <Music2 className={`h-4 w-4 ${soundEnabled ? 'text-[#FFB020]' : 'text-white/35'}`} />
-              <span>Effets sonores<button type="button" onClick={() => void playEffect('success', effectsVolume)} className="ml-2 text-[9px] font-black text-[#FFB020] underline">Tester</button></span>
+        <div className="mt-5 overflow-hidden rounded-2xl border border-white/8 bg-white/4">
+          <button
+            type="button"
+            onClick={() => setShowSoundSettings(value => !value)}
+            aria-expanded={showSoundSettings}
+            className="flex w-full items-center justify-between gap-3 p-4 text-left"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#9E94FF]/10 text-[#C4BEFF]">
+                {narratorEnabled || soundEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+              </span>
+              <span className="min-w-0">
+                <strong className="block text-xs text-white">Son et narration</strong>
+                <span className="mt-1 block truncate text-[9px] text-white/45">
+                  Narrateur {narratorEnabled ? 'actif' : 'coupé'} · Effets {soundEnabled ? 'actifs' : 'coupés'}
+                </span>
+              </span>
             </span>
-            <button type="button" role="switch" aria-checked={soundEnabled} onClick={() => setSoundEnabled(value => {
-              const next = !value;
-              if (next) void playEffect('success', effectsVolume);
-              return next;
-            })} className={`relative h-7 w-12 rounded-full ${soundEnabled ? 'bg-[#FFB020]' : 'bg-white/15'}`}><span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : ''}`} /></button>
-          </div>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-white/45 transition-transform ${showSoundSettings ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showSoundSettings && (
+            <div className="space-y-3 border-t border-white/8 p-4">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 p-3">
+                  <span className="flex items-center gap-2 text-xs font-bold text-white/70">{narratorEnabled ? <Volume2 className="h-4 w-4 text-[#00D26A]" /> : <VolumeX className="h-4 w-4" />} Narrateur</span>
+                  <button type="button" role="switch" aria-checked={narratorEnabled} onClick={() => setNarratorEnabled(value => {
+                    const next = !value;
+                    if (next) previewVoice('Le maître du jeu est prêt.');
+                    return next;
+                  })} className={`relative h-7 w-12 rounded-full ${narratorEnabled ? 'bg-[#00D26A]' : 'bg-white/15'}`}><span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white transition-transform ${narratorEnabled ? 'translate-x-5' : ''}`} /></button>
+                </div>
+                <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 p-3">
+                  <span className="flex items-center gap-2 text-xs font-bold text-white/70">
+                    <Music2 className={`h-4 w-4 ${soundEnabled ? 'text-[#FFB020]' : 'text-white/35'}`} />
+                    Effets sonores
+                  </span>
+                  <button type="button" role="switch" aria-checked={soundEnabled} onClick={() => setSoundEnabled(value => {
+                    const next = !value;
+                    if (next) void playEffect('success', effectsVolume);
+                    return next;
+                  })} className={`relative h-7 w-12 rounded-full ${soundEnabled ? 'bg-[#FFB020]' : 'bg-white/15'}`}><span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : ''}`} /></button>
+                </div>
+              </div>
+
+              {narratorEnabled && (
+                <div className="grid gap-2 rounded-2xl border border-white/8 bg-white/4 p-3 sm:grid-cols-[1fr_auto_auto]">
+                  <label className="min-w-0">
+                    <span className="mb-1 block text-[9px] font-black uppercase text-white/40">Voix du maître du jeu</span>
+                    <select value={voiceURI} onChange={event => setVoiceURI(event.target.value)} className="w-full rounded-xl border border-white/10 bg-[#111827] px-3 py-2.5 text-xs font-bold text-white outline-none">
+                      <option value="">Meilleure voix française disponible</option>
+                      {availableVoices.map(voice => (
+                        <option key={voice.id} value={voice.id}>{voice.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="button" onClick={() => previewVoice('La nuit tombe doucement sur le Village. Fermez les yeux et écoutez.')} className="self-end rounded-xl border border-[#9E94FF]/25 bg-[#9E94FF]/10 px-4 py-2.5 text-[10px] font-black text-[#C4BEFF]">
+                    Écouter
+                  </button>
+                  <button type="button" onClick={refreshAvailableVoices} className="self-end rounded-xl border border-white/10 bg-white/5 p-2.5 text-white/55" title="Actualiser les voix disponibles" aria-label="Actualiser les voix disponibles">
+                    <RefreshCw className="h-4 w-4" />
+                  </button>
+                  <p className="sm:col-span-3 text-[9px] leading-relaxed text-white/35">
+                    {availableVoices.length} voix française{availableVoices.length > 1 ? 's' : ''} exposée{availableVoices.length > 1 ? 's' : ''} à cette application.
+                    {voicesRefreshedAt ? ' Liste actualisée.' : ''} {nativeVoicePlatform === 'ios'
+                      ? 'Les voix Siri, VoiceOver et certaines voix téléchargées ne sont pas toujours proposées par iOS aux applications.'
+                      : nativeVoicePlatform === 'android'
+                        ? 'Voix du moteur de synthèse Android sélectionné dans les réglages du téléphone.'
+                        : 'En PWA, la liste dépend du moteur vocal fourni au navigateur.'}
+                  </p>
+                </div>
+              )}
+
+              {soundEnabled && (
+                <div className="grid gap-3 rounded-2xl border border-white/8 bg-white/4 p-4 sm:grid-cols-2">
+                  <label>
+                    <span className="flex items-center justify-between text-[9px] font-black uppercase text-white/45"><span>Sons des actions</span><span>{Math.round(effectsVolume * 100)} %</span></span>
+                    <input type="range" min="0" max="1" step="0.05" value={effectsVolume} onChange={event => setEffectsVolume(Number(event.target.value))} className="mt-2 w-full accent-[#FFB020]" />
+                    <button type="button" onClick={() => void playEffect('success', effectsVolume)} className="mt-2 text-[9px] font-black text-[#FFB020] underline">Tester les effets</button>
+                  </label>
+                  <label>
+                    <span className="flex items-center justify-between text-[9px] font-black uppercase text-white/45"><span>Ambiance de nuit</span><span>{Math.round(ambienceVolume * 100)} %</span></span>
+                    <input type="range" min="0" max="1" step="0.05" value={ambienceVolume} onChange={event => setAmbienceVolume(Number(event.target.value))} className="mt-2 w-full accent-[#9E94FF]" />
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-
-        {narratorEnabled && (
-          <div className="mt-2 grid gap-2 rounded-2xl border border-white/8 bg-white/4 p-3 sm:grid-cols-[1fr_auto_auto]">
-            <label className="min-w-0">
-              <span className="mb-1 block text-[9px] font-black uppercase text-white/40">Voix du maître du jeu</span>
-              <select value={voiceURI} onChange={event => setVoiceURI(event.target.value)} className="w-full rounded-xl border border-white/10 bg-[#111827] px-3 py-2.5 text-xs font-bold text-white outline-none">
-                <option value="">Meilleure voix française disponible</option>
-                {availableVoices.map(voice => (
-                  <option key={voice.id} value={voice.id}>{voice.name}</option>
-                ))}
-              </select>
-            </label>
-            <button type="button" onClick={() => previewVoice('La nuit tombe doucement sur le Village. Fermez les yeux et écoutez.')} className="self-end rounded-xl border border-[#9E94FF]/25 bg-[#9E94FF]/10 px-4 py-2.5 text-[10px] font-black text-[#C4BEFF]">
-              Écouter
-            </button>
-            <button type="button" onClick={refreshAvailableVoices} className="self-end rounded-xl border border-white/10 bg-white/5 p-2.5 text-white/55" title="Actualiser les voix disponibles" aria-label="Actualiser les voix disponibles">
-              <RefreshCw className="h-4 w-4" />
-            </button>
-            <p className="sm:col-span-3 text-[9px] leading-relaxed text-white/35">
-              {availableVoices.length} voix française{availableVoices.length > 1 ? 's' : ''} exposée{availableVoices.length > 1 ? 's' : ''} à cette application.
-              {voicesRefreshedAt ? ' Liste actualisée.' : ''} {usesNativeVoice
-                ? 'Les voix Siri, VoiceOver et certaines voix téléchargées ne sont pas toujours proposées par iOS aux applications.'
-                : 'Une PWA installée reste limitée aux voix fournies par Safari.'}
-            </p>
-          </div>
-        )}
-
-        {soundEnabled && (
-          <div className="mt-2 grid gap-3 rounded-2xl border border-white/8 bg-white/4 p-4 sm:grid-cols-2">
-            <label>
-              <span className="flex items-center justify-between text-[9px] font-black uppercase text-white/45"><span>Sons des actions</span><span>{Math.round(effectsVolume * 100)} %</span></span>
-              <input type="range" min="0" max="1" step="0.05" value={effectsVolume} onChange={event => setEffectsVolume(Number(event.target.value))} className="mt-2 w-full accent-[#FFB020]" />
-            </label>
-            <label>
-              <span className="flex items-center justify-between text-[9px] font-black uppercase text-white/45"><span>Ambiance de nuit</span><span>{Math.round(ambienceVolume * 100)} %</span></span>
-              <input type="range" min="0" max="1" step="0.05" value={ambienceVolume} onChange={event => setAmbienceVolume(Number(event.target.value))} className="mt-2 w-full accent-[#9E94FF]" />
-            </label>
-          </div>
-        )}
 
         <div className="mt-3 flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-[10px]">
           <span className="text-white/50">{enabledRoles.length} personnages avec une capacité</span>
