@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Brain,
@@ -14,6 +14,7 @@ import {
   Lock,
   LogOut,
   Mic2,
+  Moon,
   Radio,
   RotateCcw,
   Ship,
@@ -40,7 +41,7 @@ import {
 } from '../services/familyGameService';
 import { FAMILY_CHALLENGE_QUESTIONS } from '../data/familyChallengeQuestions';
 
-type GameId = FamilyGameType;
+type GameId = FamilyGameType | 'village-secret';
 type MemoryCard = {
   id: string;
   pairId: string;
@@ -83,6 +84,11 @@ const GAME_LABELS: Record<FamilyGameType, string> = {
   'family-challenge': 'Défi famille',
   'mime-challenge': 'Mimes et défis'
 };
+
+const VillageSecretGame = lazy(async () => {
+  const module = await import('../components/games/VillageSecretGame');
+  return { default: module.VillageSecretGame };
+});
 
 interface FamilyGamesProps {
   members: Member[];
@@ -1017,6 +1023,16 @@ export function FamilyGames({
       accent: '#9E94FF',
       meta: isPremium ? '2 équipes · 6 paquets' : '2 équipes · 8 cartes',
       tags: ['free', 'quick', 'team', 'kids']
+    },
+    {
+      id: 'village-secret' as const,
+      title: 'Village Secret',
+      description: 'Douze rôles, phases guidées, votes secrets et maître du jeu automatique.',
+      icon: Moon,
+      accent: '#C4BEFF',
+      meta: '5 à 20 joueurs · 25 min',
+      tags: ['premium', 'team'],
+      premiumOnly: true
     }
   ];
   const visibleGameCards = gameCards.filter(game => gameFilter === 'all' || game.tags.includes(gameFilter));
@@ -1175,7 +1191,13 @@ export function FamilyGames({
                   <button
                     key={game.id}
                     type="button"
-                    onClick={() => setActiveGame(game.id)}
+                    onClick={() => {
+                      if ('premiumOnly' in game && game.premiumOnly && !isPremium) {
+                        onTriggerPaywall?.();
+                        return;
+                      }
+                      setActiveGame(game.id);
+                    }}
                     className="glass-panel min-h-[220px] rounded-[28px] border border-white/8 p-5 text-left flex flex-col justify-between hover:bg-white/8 hover:-translate-y-1 transition-all"
                   >
                     <div className="flex items-start justify-between">
@@ -1193,6 +1215,11 @@ export function FamilyGames({
                       {game.id === 'family-challenge' && !isPremium && (
                         <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-[#FFB020]/12 px-2 py-1 text-[8px] font-black uppercase text-[#FFB020]">
                           12 questions gratuites
+                        </span>
+                      )}
+                      {game.id === 'village-secret' && !isPremium && (
+                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-[#FFB020]/12 px-2 py-1 text-[8px] font-black uppercase text-[#FFB020]">
+                          <Lock className="h-3 w-3" /> Premium
                         </span>
                       )}
                     </div>
@@ -1925,6 +1952,15 @@ export function FamilyGames({
               onTriggerPaywall={onTriggerPaywall}
               onFinished={(scores, rounds, winnerName) => void saveResult('mime-challenge', scores, winnerName, { rounds }, teamSettings.names)}
             />
+          </>
+        )}
+
+        {activeGame === 'village-secret' && (
+          <>
+            {gameHeader('Village Secret', 'Rôles cachés, nuit, débat et vote guidés automatiquement.', Moon)}
+            <Suspense fallback={<div className="rounded-[28px] border border-white/8 bg-white/5 p-8 text-center text-xs font-bold text-white/55">Préparation du village...</div>}>
+              <VillageSecretGame members={members} />
+            </Suspense>
           </>
         )}
       </div>

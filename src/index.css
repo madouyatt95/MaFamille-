@@ -1255,3 +1255,75 @@ html.high-contrast [class*="text-white/5"] {
 .theme-sepia .kid-school button[class*="from-[#6C5CFF]"] {
   color: #ffffff !important;
 }
+
+/* Village Secret keeps its theatrical game board readable in every app theme. */
+.theme-light .night-village,
+.theme-sepia .night-village {
+  background: #0b1020 !important;
+  border-color: rgba(158, 148, 255, 0.28) !important;
+  color: #ffffff !important;
+}
+
+.theme-light .night-village .text-white,
+.theme-sepia .night-village .text-white {
+  color: #ffffff !important;
+}
+
+.theme-light .night-village [class*="text-white/"],
+.theme-sepia .night-village [class*="text-white/"] {
+  color: rgba(255, 255, 255, 0.68) !important;
+}
+
+.theme-light .night-village [class*="bg-white/"],
+.theme-sepia .night-village [class*="bg-white/"] {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.theme-light .night-village [class*="border-white/"],
+.theme-sepia .night-village [class*="border-white/"] {
+  border-color: rgba(255, 255, 255, 0.13) !important;
+}
+
+.theme-light .night-village input,
+.theme-sepia .night-village input {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  color: #ffffff !important;
+}
+
+.theme-light .night-village input::placeholder,
+.theme-sepia .night-village input::placeholder {
+  color: rgba(255, 255, 255, 0.42) !important;
+}
+
+.night-village button,
+.night-village input {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.night-village button {
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+@media (max-width: 380px) {
+  .night-village {
+    padding: 1rem !important;
+    border-radius: 22px !important;
+  }
+
+  .night-village h2 {
+    font-size: 1.25rem !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .night-village *,
+  .night-village *::before,
+  .night-village *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
