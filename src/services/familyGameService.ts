@@ -175,6 +175,21 @@ export const familyGameService = {
     return data ? mapRoom(data as GameRoomRow) : null;
   },
 
+  async fetchRoom(roomId: string): Promise<FamilyGameRoom | null> {
+    const client = getSupabaseClient();
+    if (!client || !roomId) return null;
+    const { data, error } = await client
+      .from('family_game_rooms')
+      .select('id, room_code, game_type, host_foyer_id, guest_foyer_id, host_user_id, guest_user_id, host_name, guest_name, status, state, created_at, expires_at')
+      .eq('id', roomId)
+      .maybeSingle();
+    if (error) {
+      console.warn('[familyGameService] Room refresh unavailable:', error.message);
+      return null;
+    }
+    return data ? mapRoom(data as GameRoomRow) : null;
+  },
+
   async fetchResults(foyerId: string): Promise<FamilyGameResult[]> {
     const client = getSupabaseClient();
     const local = readLocalResults(foyerId);

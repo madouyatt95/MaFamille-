@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, Link2, Loader2, LogIn, Radio, Users, X } from 'lucide-react';
 import { familyGameService, type FamilyGameRoom, type FamilyGameType } from '../../services/familyGameService';
 
@@ -19,23 +19,63 @@ export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, initialRo
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const roomId = room?.id;
+  const roomStatus = room?.status;
+  const onRoomReadyRef = useRef(onRoomReady);
+  const onRoomClosedRef = useRef(onRoomClosed);
+
+  useEffect(() => {
+    onRoomReadyRef.current = onRoomReady;
+    onRoomClosedRef.current = onRoomClosed;
+  }, [onRoomClosed, onRoomReady]);
 
   useEffect(() => {
     if (!roomId) return;
-    const channel = familyGameService.subscribeToRoom(roomId, nextRoom => {
+    let disposed = false;
+    let refreshInProgress = false;
+
+    const applyRoom = (nextRoom: FamilyGameRoom) => {
+      if (disposed) return;
       if (nextRoom.status === 'cancelled') {
         setRoom(null);
         setMode('menu');
-        onRoomClosed?.();
+        onRoomClosedRef.current?.();
         return;
       }
       setRoom(nextRoom);
-      if (nextRoom.status === 'active') onRoomReady?.(nextRoom);
-    });
+      if (nextRoom.status === 'active') onRoomReadyRef.current?.(nextRoom);
+    };
+
+    const refreshRoom = async () => {
+      if (disposed || refreshInProgress) return;
+      refreshInProgress = true;
+      try {
+        const nextRoom = await familyGameService.fetchRoom(roomId);
+        if (nextRoom) applyRoom(nextRoom);
+      } finally {
+        refreshInProgress = false;
+      }
+    };
+
+    const channel = familyGameService.subscribeToRoom(roomId, applyRoom);
+    const refreshTimer = roomStatus === 'waiting'
+      ? window.setInterval(() => void refreshRoom(), 3000)
+      : null;
+    if (roomStatus === 'waiting') void refreshRoom();
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refreshRoom();
+    };
+    window.addEventListener('online', refreshRoom);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+
     return () => {
+      disposed = true;
+      if (refreshTimer !== null) window.clearInterval(refreshTimer);
+      window.removeEventListener('online', refreshRoom);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
       void familyGameService.unsubscribe(channel);
     };
-  }, [onRoomClosed, onRoomReady, roomId]);
+  }, [roomId, roomStatus]);
 
   const createRoom = async () => {
     setLoading(true);
