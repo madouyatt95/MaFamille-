@@ -14,26 +14,83 @@ public class NativeSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
 
     private let synthesizer = AVSpeechSynthesizer()
 
+    public override func load() {
+        if #available(iOS 17.0, *) {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(availableVoicesDidChange),
+                name: AVSpeechSynthesizer.availableVoicesDidChangeNotification,
+                object: nil
+            )
+        }
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     @objc func getVoices(_ call: CAPPluginCall) {
-        var seen = Set<String>()
-        let voices = AVSpeechSynthesisVoice.speechVoices()
+        call.resolve(["voices": serializedFrenchVoices()])
+    }
+
+    @objc private func availableVoicesDidChange() {
+        notifyListeners("voicesChanged", data: ["voices": serializedFrenchVoices()])
+    }
+
+    private func serializedFrenchVoices() -> [[String: Any]] {
+        AVSpeechSynthesisVoice.speechVoices()
             .filter { $0.language.lowercased().hasPrefix("fr") }
             .sorted {
-                if $0.quality != $1.quality { return $0.quality.rawValue > $1.quality.rawValue }
-                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+                if $0.language != $1.language {
+                    return $0.language.localizedCaseInsensitiveCompare($1.language) == .orderedAscending
+                }
+                if $0.name != $1.name {
+                    return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+                }
+                if $0.quality != $1.quality {
+                    return $0.quality.rawValue > $1.quality.rawValue
+                }
+                return $0.identifier.localizedCaseInsensitiveCompare($1.identifier) == .orderedAscending
             }
-            .compactMap { voice -> [String: Any]? in
-                let key = "\(voice.name.lowercased())|\(voice.language.lowercased())"
-                guard seen.insert(key).inserted else { return nil }
-                return [
+            .map { voice -> [String: Any] in
+                var result: [String: Any] = [
                     "id": voice.identifier,
                     "name": voice.name,
                     "language": voice.language,
-                    "quality": voice.quality.rawValue
+                    "quality": voice.quality.rawValue,
+                    "qualityLabel": qualityLabel(for: voice.quality),
+                    "gender": genderLabel(for: voice.gender)
                 ]
-            }
 
-        call.resolve(["voices": voices])
+                if #available(iOS 17.0, *) {
+                    result["isNovelty"] = voice.voiceTraits.contains(.isNoveltyVoice)
+                    result["isPersonal"] = voice.voiceTraits.contains(.isPersonalVoice)
+                }
+                return result
+            }
+    }
+
+    private func qualityLabel(for quality: AVSpeechSynthesisVoiceQuality) -> String {
+        if #available(iOS 16.0, *), quality == .premium {
+            return "Premium"
+        }
+        switch quality {
+        case .enhanced:
+            return "Améliorée"
+        default:
+            return "Standard"
+        }
+    }
+
+    private func genderLabel(for gender: AVSpeechSynthesisVoiceGender) -> String {
+        switch gender {
+        case .female:
+            return "Féminine"
+        case .male:
+            return "Masculine"
+        default:
+            return "Non précisé"
+        }
     }
 
     @objc func speak(_ call: CAPPluginCall) {

@@ -1972,8 +1972,8 @@ export function FamilyGames({
             </Suspense>
             {showVillageCloseConfirm && (
               <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 p-4 sm:items-center">
-                <div className="w-full max-w-sm rounded-[24px] border border-white/10 bg-[#111827] p-5 shadow-2xl">
-                  <h2 className="text-lg font-black text-white">Fermer cette partie ?</h2>
+                <div role="dialog" aria-modal="true" aria-labelledby="village-close-title" className="app-dialog-surface w-full max-w-sm rounded-[24px] border border-white/10 bg-[#111827] p-5 shadow-2xl">
+                  <h2 id="village-close-title" className="text-lg font-black text-white">Fermer cette partie ?</h2>
                   <p className="mt-2 text-xs leading-relaxed text-white/55">La partie et sa sauvegarde locale seront supprimées. Cette action ne peut pas être annulée.</p>
                   <div className="mt-5 grid grid-cols-2 gap-2">
                     <button type="button" onClick={() => setShowVillageCloseConfirm(false)} className="rounded-2xl border border-white/10 py-3 text-xs font-black text-white/60">Continuer à jouer</button>

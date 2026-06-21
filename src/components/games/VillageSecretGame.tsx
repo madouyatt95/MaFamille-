@@ -386,8 +386,11 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   }, [voiceRefresh]);
   const usesNativeVoice = nativeSpeech.isAvailable();
   const availableVoices = usesNativeVoice
-    ? nativeVoices.map(voice => ({ id: voice.id, name: voice.name }))
-    : webFrenchVoices.map(voice => ({ id: voice.voiceURI, name: voice.name }));
+    ? nativeVoices.map(voice => ({
+        id: voice.id,
+        name: `${voice.name} · ${voice.language} · ${voice.qualityLabel}${voice.isPersonal ? ' · Personnelle' : ''}`
+      }))
+    : webFrenchVoices.map(voice => ({ id: voice.voiceURI, name: `${voice.name} · ${voice.lang}` }));
 
   const refreshAvailableVoices = () => {
     window.speechSynthesis?.cancel();
@@ -433,9 +436,37 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   useEffect(() => {
     if (!nativeSpeech.isAvailable()) return;
     void nativeSpeech.getVoices()
-      .then(setNativeVoices)
+      .then(voices => {
+        setNativeVoices(voices);
+        if (voiceURI && !voices.some(voice => voice.id === voiceURI)) setVoiceURI('');
+      })
       .catch(() => setNativeVoices([]));
-  }, [voiceRefresh]);
+  }, [voiceRefresh, voiceURI]);
+
+  useEffect(() => {
+    if (!nativeSpeech.isAvailable()) return;
+    let active = true;
+    let listenerHandle: { remove(): Promise<void> } | undefined;
+
+    void nativeSpeech.onVoicesChanged(voices => {
+      if (!active) return;
+      setNativeVoices(voices);
+      setVoicesRefreshedAt(Date.now());
+    }).then(handle => {
+      listenerHandle = handle;
+    });
+
+    const refreshOnReturn = () => {
+      if (document.visibilityState === 'visible') setVoiceRefresh(value => value + 1);
+    };
+    document.addEventListener('visibilitychange', refreshOnReturn);
+
+    return () => {
+      active = false;
+      document.removeEventListener('visibilitychange', refreshOnReturn);
+      if (listenerHandle) void listenerHandle.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (stage !== 'discussion' || seconds <= 0) return;
@@ -1108,8 +1139,10 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
               <RefreshCw className="h-4 w-4" />
             </button>
             <p className="sm:col-span-3 text-[9px] leading-relaxed text-white/35">
-              {availableVoices.length} voix française{availableVoices.length > 1 ? 's' : ''} accessible{availableVoices.length > 1 ? 's' : ''} à cette application.
-              {voicesRefreshedAt ? ' Liste actualisée.' : ''} {usesNativeVoice ? 'Voix natives iOS.' : 'Une PWA installée reste limitée aux voix fournies par Safari.'}
+              {availableVoices.length} voix française{availableVoices.length > 1 ? 's' : ''} exposée{availableVoices.length > 1 ? 's' : ''} à cette application.
+              {voicesRefreshedAt ? ' Liste actualisée.' : ''} {usesNativeVoice
+                ? 'Les voix Siri, VoiceOver et certaines voix téléchargées ne sont pas toujours proposées par iOS aux applications.'
+                : 'Une PWA installée reste limitée aux voix fournies par Safari.'}
             </p>
           </div>
         )}
