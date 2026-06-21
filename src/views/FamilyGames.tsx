@@ -1978,7 +1978,7 @@ export function FamilyGames({
                   <div className="mt-5 grid grid-cols-2 gap-2">
                     <button type="button" onClick={() => setShowVillageCloseConfirm(false)} className="rounded-2xl border border-white/10 py-3 text-xs font-black text-white/60">Continuer à jouer</button>
                     <button type="button" onClick={() => {
-                      localStorage.removeItem('mf_village_secret_active_game_v2');
+                      localStorage.removeItem('mf_village_secret_active_game_v3');
                       window.speechSynthesis?.cancel();
                       setShowVillageCloseConfirm(false);
                       setActiveGame(null);
