@@ -1029,7 +1029,7 @@ export function FamilyGames({
     {
       id: 'village-secret' as const,
       title: 'Village Secret',
-      description: 'Douze rôles, phases guidées, votes secrets et maître du jeu automatique.',
+      description: 'Douze personnages secrets, étapes expliquées, votes cachés et maître du jeu automatique.',
       icon: Moon,
       accent: '#C4BEFF',
       meta: '5 à 20 joueurs · 25 min',

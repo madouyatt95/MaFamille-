@@ -1256,44 +1256,92 @@ html.high-contrast [class*="text-white/5"] {
   color: #ffffff !important;
 }
 
-/* Village Secret keeps its theatrical game board readable in every app theme. */
-.theme-light .night-village,
+/* Village Secret uses genuine light and sepia game surfaces. */
+.theme-light .night-village {
+  background: #f7f9fe !important;
+  border-color: #d7dfef !important;
+  color: #172033 !important;
+  box-shadow: 0 18px 42px rgba(38, 51, 77, 0.12) !important;
+}
+
 .theme-sepia .night-village {
-  background: #0b1020 !important;
-  border-color: rgba(158, 148, 255, 0.28) !important;
-  color: #ffffff !important;
+  background: #f7eddc !important;
+  border-color: #d7c3a3 !important;
+  color: #493728 !important;
+  box-shadow: 0 18px 42px rgba(89, 63, 38, 0.13) !important;
 }
 
-.theme-light .night-village .text-white,
+.theme-light .night-village .text-white {
+  color: #172033 !important;
+}
+
 .theme-sepia .night-village .text-white {
-  color: #ffffff !important;
+  color: #493728 !important;
 }
 
-.theme-light .night-village [class*="text-white/"],
+.theme-light .night-village [class*="text-white/"] {
+  color: #58677f !important;
+}
+
 .theme-sepia .night-village [class*="text-white/"] {
-  color: rgba(255, 255, 255, 0.68) !important;
+  color: #75604c !important;
 }
 
-.theme-light .night-village [class*="bg-white/"],
+.theme-light .night-village [class*="bg-white/"] {
+  background-color: rgba(255, 255, 255, 0.88) !important;
+}
+
 .theme-sepia .night-village [class*="bg-white/"] {
-  background-color: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 249, 237, 0.9) !important;
 }
 
-.theme-light .night-village [class*="border-white/"],
+.theme-light .night-village [class*="border-white/"] {
+  border-color: #d7dfef !important;
+}
+
 .theme-sepia .night-village [class*="border-white/"] {
-  border-color: rgba(255, 255, 255, 0.13) !important;
+  border-color: #d7c3a3 !important;
 }
 
 .theme-light .night-village input,
-.theme-sepia .night-village input {
-  background-color: rgba(255, 255, 255, 0.06) !important;
-  border-color: rgba(255, 255, 255, 0.14) !important;
+.theme-light .night-village select {
+  background-color: #ffffff !important;
+  border-color: #cbd6e8 !important;
+  color: #172033 !important;
+}
+
+.theme-sepia .night-village input,
+.theme-sepia .night-village select {
+  background-color: #fff9ed !important;
+  border-color: #cfb995 !important;
+  color: #493728 !important;
+}
+
+.theme-light .night-village input::placeholder {
+  color: #8794a8 !important;
+}
+
+.theme-sepia .night-village input::placeholder {
+  color: #9b876f !important;
+}
+
+.theme-light .night-village button[class*="bg-[#6C5CFF]"],
+.theme-light .night-village button[class*="bg-[#FF4D6D]"],
+.theme-sepia .night-village button[class*="bg-[#6C5CFF]"],
+.theme-sepia .night-village button[class*="bg-[#FF4D6D]"] {
   color: #ffffff !important;
 }
 
-.theme-light .night-village input::placeholder,
-.theme-sepia .night-village input::placeholder {
-  color: rgba(255, 255, 255, 0.42) !important;
+.theme-light .night-village button[class*="bg-[#FFB020]"],
+.theme-light .night-village button[class*="bg-[#00D26A]"],
+.theme-sepia .night-village button[class*="bg-[#FFB020]"],
+.theme-sepia .night-village button[class*="bg-[#00D26A]"] {
+  color: #07111f !important;
+}
+
+.theme-light .night-village .role-portrait,
+.theme-sepia .night-village .role-portrait {
+  border-color: rgba(108, 92, 255, 0.24) !important;
 }
 
 .night-village button,

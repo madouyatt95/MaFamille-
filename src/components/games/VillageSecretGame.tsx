@@ -10,6 +10,7 @@ import {
   Moon,
   Music2,
   Play,
+  RefreshCw,
   RotateCcw,
   Save,
   Settings2,
@@ -25,6 +26,7 @@ import {
   X
 } from 'lucide-react';
 import type { Member } from '../../types';
+import { nativeSpeech, type NativeSpeechVoice } from '../../utils/nativeSpeech';
 
 type Role =
   | 'villager'
@@ -78,6 +80,14 @@ type Player = {
   diplomatShield: boolean;
 };
 
+type GameMoment = {
+  id: string;
+  night: number;
+  kind: 'start' | 'night' | 'investigation' | 'protection' | 'healing' | 'link' | 'vote' | 'result';
+  title: string;
+  detail: string;
+};
+
 interface VillageSecretGameProps {
   members: Member[];
   onFinished?: (winner: 'village' | 'traitors', rounds: number) => void;
@@ -108,7 +118,7 @@ const ROLE_INFO: Record<Role, { name: string; icon: string; description: string;
   investigator: {
     name: 'Enquêteur',
     icon: '🔮',
-    description: 'Découvrez un alignement. Une seule enquête à 5–6 joueurs, une nuit sur deux à 7–9.',
+    description: 'Découvrez si une personne est un Traître. Une seule vérification à 5–6 joueurs, une nuit sur deux à 7–9.',
     alignment: 'village',
     color: '#9E94FF'
   },
@@ -143,7 +153,7 @@ const ROLE_INFO: Record<Role, { name: string; icon: string; description: string;
   mayor: {
     name: 'Maire',
     icon: '👑',
-    description: 'Votre bulletin compte double pendant chaque vote du village.',
+    description: 'À 5–6 joueurs, ajoutez une voix une seule fois. À partir de 7 joueurs, votre voix compte double.',
     alignment: 'village',
     color: '#FFD166'
   },
@@ -197,24 +207,37 @@ const buildRoles = (count: number, enabledRoles: Role[]): Role[] => {
   return shuffle(roles);
 };
 
-const speakText = (text: string) => {
+const getFrenchVoices = (): SpeechSynthesisVoice[] => {
+  if (!('speechSynthesis' in window)) return [];
+  const voices = window.speechSynthesis.getVoices().filter(voice => voice.lang.toLowerCase().startsWith('fr'));
+  const unique = new Map<string, SpeechSynthesisVoice>();
+  voices.forEach(voice => {
+    const key = `${voice.name.trim().toLocaleLowerCase('fr')}|${voice.lang.toLocaleLowerCase('fr')}`;
+    const current = unique.get(key);
+    if (!current || (!current.localService && voice.localService)) unique.set(key, voice);
+  });
+  return [...unique.values()].sort((left, right) => left.name.localeCompare(right.name, 'fr'));
+};
+
+const speakText = (text: string, selectedVoiceURI = '') => {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = 'fr-FR';
-  const voices = window.speechSynthesis.getVoices();
-  const frenchVoices = voices.filter(voice => voice.lang.toLowerCase().startsWith('fr'));
-  const preferredNames = ['audrey', 'thomas', 'amelie', 'amélie', 'marie', 'denise', 'google français', 'natural'];
-  utterance.voice = preferredNames
+  const frenchVoices = getFrenchVoices();
+  const preferredNames = ['audrey', 'thomas', 'amélie', 'amelie', 'aurélie', 'aurelie', 'marie', 'denise', 'natural', 'google français'];
+  utterance.voice = frenchVoices.find(voice => voice.voiceURI === selectedVoiceURI)
+    || preferredNames
     .map(name => frenchVoices.find(voice => voice.name.toLowerCase().includes(name)))
     .find(Boolean) || frenchVoices[0] || null;
-  utterance.rate = 0.86;
-  utterance.pitch = 1.02;
-  utterance.volume = 0.95;
+  utterance.rate = 0.94;
+  utterance.pitch = 1;
+  utterance.volume = 1;
   window.speechSynthesis.speak(utterance);
 };
 
 let sharedAudioContext: AudioContext | null = null;
+let ambientNodes: { oscillators: OscillatorNode[]; gain: GainNode } | null = null;
 
 const getAudioContext = async (): Promise<AudioContext | null> => {
   const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -224,7 +247,7 @@ const getAudioContext = async (): Promise<AudioContext | null> => {
   return sharedAudioContext;
 };
 
-const playEffect = async (effect: 'success' | 'danger' | 'victory') => {
+const playEffect = async (effect: 'success' | 'danger' | 'victory', volume = 0.7) => {
   try {
     const context = await getAudioContext();
     if (!context) return;
@@ -235,7 +258,7 @@ const playEffect = async (effect: 'success' | 'danger' | 'victory') => {
       oscillator.frequency.value = frequency;
       oscillator.type = effect === 'danger' ? 'triangle' : 'sine';
       gain.gain.setValueAtTime(0.0001, context.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.14, context.currentTime + index * 0.1 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.001, 0.2 * volume), context.currentTime + index * 0.1 + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + index * 0.1 + 0.26);
       oscillator.connect(gain);
       gain.connect(context.destination);
@@ -245,6 +268,41 @@ const playEffect = async (effect: 'success' | 'danger' | 'victory') => {
   } catch {
     // Embedded browsers can defer Web Audio until a later user interaction.
   }
+};
+
+const startAmbience = async (volume: number) => {
+  if (ambientNodes) {
+    ambientNodes.gain.gain.value = 0.018 * volume;
+    return;
+  }
+  if (volume <= 0) return;
+  try {
+    const context = await getAudioContext();
+    if (!context) return;
+    const gain = context.createGain();
+    gain.gain.value = 0.018 * volume;
+    gain.connect(context.destination);
+    const oscillators = [110, 164.81].map((frequency, index) => {
+      const oscillator = context.createOscillator();
+      oscillator.type = index === 0 ? 'sine' : 'triangle';
+      oscillator.frequency.value = frequency;
+      oscillator.detune.value = index === 0 ? -7 : 5;
+      oscillator.connect(gain);
+      oscillator.start();
+      return oscillator;
+    });
+    ambientNodes = { oscillators, gain };
+  } catch {
+    ambientNodes = null;
+  }
+};
+
+const stopAmbience = () => {
+  ambientNodes?.oscillators.forEach(oscillator => {
+    try { oscillator.stop(); } catch { /* Already stopped. */ }
+  });
+  ambientNodes?.gain.disconnect();
+  ambientNodes = null;
 };
 
 export function VillageSecretGame({ members, onFinished }: VillageSecretGameProps) {
@@ -297,6 +355,17 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   const [dummyTarget, setDummyTarget] = useState<string | null>(null);
   const [investigationsUsed, setInvestigationsUsed] = useState(0);
   const [lastProtectedTarget, setLastProtectedTarget] = useState<string | null>(null);
+  const [mayorBonusUsed, setMayorBonusUsed] = useState(false);
+  const [mayorBonusVoterId, setMayorBonusVoterId] = useState<string | null>(null);
+  const [mayorWantsBonus, setMayorWantsBonus] = useState(false);
+  const [voteTarget, setVoteTarget] = useState<string | null>(null);
+  const [voiceRefresh, setVoiceRefresh] = useState(0);
+  const [voiceURI, setVoiceURI] = useState('');
+  const [voicesRefreshedAt, setVoicesRefreshedAt] = useState<number | null>(null);
+  const [nativeVoices, setNativeVoices] = useState<NativeSpeechVoice[]>([]);
+  const [effectsVolume, setEffectsVolume] = useState(0.7);
+  const [ambienceVolume, setAmbienceVolume] = useState(0.45);
+  const [gameMoments, setGameMoments] = useState<GameMoment[]>([]);
 
   const alivePlayers = useMemo(() => players.filter(player => player.alive), [players]);
   const aliveTraitors = useMemo(() => alivePlayers.filter(player => player.role === 'traitor'), [alivePlayers]);
@@ -311,12 +380,62 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   const currentNightPlayer = alivePlayers[nightTurnIndex];
   const familyMemberNames = useMemo(() => new Set(members.map(member => member.name)), [members]);
   const guestNames = names.filter(name => !familyMemberNames.has(name));
+  const webFrenchVoices = useMemo(() => {
+    void voiceRefresh;
+    return getFrenchVoices();
+  }, [voiceRefresh]);
+  const usesNativeVoice = nativeSpeech.isAvailable();
+  const availableVoices = usesNativeVoice
+    ? nativeVoices.map(voice => ({ id: voice.id, name: voice.name }))
+    : webFrenchVoices.map(voice => ({ id: voice.voiceURI, name: voice.name }));
+
+  const refreshAvailableVoices = () => {
+    window.speechSynthesis?.cancel();
+    if (nativeSpeech.isAvailable()) void nativeSpeech.stop();
+    setVoiceRefresh(value => value + 1);
+    setVoicesRefreshedAt(Date.now());
+  };
 
   const narrate = useCallback((text: string) => {
-    if (narratorEnabled) speakText(text);
-  }, [narratorEnabled]);
+    if (!narratorEnabled) return;
+    if (nativeSpeech.isAvailable()) void nativeSpeech.speak(text, voiceURI);
+    else speakText(text, voiceURI);
+  }, [narratorEnabled, voiceURI]);
 
-  useEffect(() => () => window.speechSynthesis?.cancel(), []);
+  const previewVoice = (text: string) => {
+    if (nativeSpeech.isAvailable()) void nativeSpeech.speak(text, voiceURI);
+    else speakText(text, voiceURI);
+  };
+
+  useEffect(() => () => {
+    window.speechSynthesis?.cancel();
+    if (nativeSpeech.isAvailable()) void nativeSpeech.stop();
+  }, []);
+
+  useEffect(() => {
+    const nightIsActive = stage === 'night-intro' || stage === 'night-player-pass' || stage === 'night-player-action';
+    if (soundEnabled && nightIsActive) void startAmbience(ambienceVolume);
+    else stopAmbience();
+    return () => {
+      if (!nightIsActive) stopAmbience();
+    };
+  }, [ambienceVolume, soundEnabled, stage]);
+
+  useEffect(() => () => stopAmbience(), []);
+
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) return;
+    const refreshVoices = () => setVoiceRefresh(value => value + 1);
+    window.speechSynthesis.addEventListener('voiceschanged', refreshVoices);
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', refreshVoices);
+  }, []);
+
+  useEffect(() => {
+    if (!nativeSpeech.isAvailable()) return;
+    void nativeSpeech.getVoices()
+      .then(setNativeVoices)
+      .catch(() => setNativeVoices([]));
+  }, [voiceRefresh]);
 
   useEffect(() => {
     if (stage !== 'discussion' || seconds <= 0) return;
@@ -366,13 +485,20 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       traitorVotes,
       healerTarget,
       investigationsUsed,
-      lastProtectedTarget
+      lastProtectedTarget,
+      mayorBonusUsed,
+      mayorBonusVoterId,
+      voiceURI,
+      effectsVolume,
+      ambienceVolume,
+      gameMoments
     }));
   }, [
     archivistUsed, cupidTargets, dawnMessage, discussionSeconds, eliminationHistory, healerSaveAvailable,
     night, nightHealerSaved, narratorEnabled, oracleTarget, players, protectedTarget, ravenTarget,
-    healerTarget, investigationsUsed, lastProtectedTarget, nightTurnIndex, revealIndex, revealRoles, seconds,
-    shadowTarget, soloWinner, soundEnabled, stage, traitorVotes, voteMessage, voterIndex, votes, winner
+    healerTarget, investigationsUsed, lastProtectedTarget, mayorBonusUsed, mayorBonusVoterId, nightTurnIndex,
+    revealIndex, revealRoles, seconds, shadowTarget, soloWinner, soundEnabled, stage, traitorVotes,
+    ambienceVolume, effectsVolume, gameMoments, voiceURI, voteMessage, voterIndex, votes, winner
   ]);
 
   const checkWinner = useCallback((nextPlayers: Player[]) => {
@@ -383,6 +509,16 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     if (traitors >= village) return 'traitors' as const;
     return null;
   }, []);
+
+  const addMoment = (kind: GameMoment['kind'], title: string, detail: string, momentNight = night) => {
+    setGameMoments(previous => [...previous, {
+      id: crypto.randomUUID(),
+      night: momentNight,
+      kind,
+      title,
+      detail
+    }]);
+  };
 
   const recordResult = (resultWinner: string) => {
     const result = { winner: resultWinner, nights: night, playedAt: new Date().toISOString() };
@@ -397,7 +533,8 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     setWinner(nextWinner);
     setStage('finished');
     navigator.vibrate?.([120, 80, 180]);
-    if (soundEnabled) playEffect('victory');
+    if (soundEnabled) playEffect('victory', effectsVolume);
+    addMoment('result', 'Fin de la partie', nextWinner === 'village' ? 'Le Village a démasqué tous les Traîtres.' : 'Les Traîtres ont pris le contrôle du Village.');
     narrate(nextWinner === 'village'
       ? 'Les derniers Traîtres sont démasqués. Le Village remporte la partie.'
       : 'Les Traîtres de la nuit contrôlent désormais le Village.');
@@ -435,6 +572,12 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     setHealerTarget(null);
     setInvestigationsUsed(0);
     setLastProtectedTarget(null);
+    setMayorBonusUsed(false);
+    setMayorBonusVoterId(null);
+    setMayorWantsBonus(false);
+    setVoteTarget(null);
+    setGameMoments([{ id: crypto.randomUUID(), night: 0, kind: 'start', title: 'Début de la partie', detail: `${cleanNames.length} personnes entrent dans le Village.` }]);
+    if (soundEnabled) void playEffect('success', effectsVolume);
     setStage('reveal-pass');
     setResumeAvailable(true);
     narrate('Village Secret commence. Passez le téléphone à chaque joueur pour découvrir son rôle secret.');
@@ -477,6 +620,12 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       setHealerTarget(saved.healerTarget || null);
       setInvestigationsUsed(saved.investigationsUsed || 0);
       setLastProtectedTarget(saved.lastProtectedTarget || null);
+      setMayorBonusUsed(Boolean(saved.mayorBonusUsed));
+      setMayorBonusVoterId(saved.mayorBonusVoterId || null);
+      setVoiceURI(saved.voiceURI || '');
+      setEffectsVolume(saved.effectsVolume ?? 0.7);
+      setAmbienceVolume(saved.ambienceVolume ?? 0.45);
+      setGameMoments(saved.gameMoments || []);
     } catch {
       localStorage.removeItem(SAVE_KEY);
       setResumeAvailable(false);
@@ -514,6 +663,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   };
 
   const startNightActions = () => {
+    if (soundEnabled) void playEffect('danger', effectsVolume);
     setShadowTarget(null);
     setProtectedTarget(null);
     setOracleTarget(null);
@@ -550,6 +700,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     nextProtectionTarget = protectedTarget,
     nextHealerTarget = healerTarget
   ) => {
+    if (soundEnabled) void playEffect('success', effectsVolume);
     setOracleResultVisible(false);
     setDummyTarget(null);
     if (nightTurnIndex + 1 < alivePlayers.length) {
@@ -560,6 +711,8 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     }
     const attackTarget = resolveTraitorTarget(nextTraitorVotes);
     setShadowTarget(attackTarget);
+    const attacked = players.find(player => player.id === attackTarget);
+    if (attacked) addMoment('night', `Choix des Traîtres`, `${attacked.name} a été choisi pendant la nuit.`);
     resolveDawn(Boolean(attackTarget && nextHealerTarget === attackTarget), attackTarget, nextProtectionTarget);
   };
 
@@ -672,7 +825,12 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     }
     setDawnMessage(message);
     setStage('dawn');
-    if (soundEnabled) playEffect(message.includes('éliminé') ? 'danger' : 'success');
+    addMoment(
+      message.includes('éliminé') ? 'result' : 'protection',
+      `Lever du jour ${night}`,
+      message
+    );
+    if (soundEnabled) playEffect(message.includes('éliminé') ? 'danger' : 'success', effectsVolume);
     narrate(message);
     const nextWinner = checkWinner(nextPlayers);
     if (nextWinner) window.setTimeout(() => finishWithWinner(nextWinner), 900);
@@ -684,10 +842,18 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     narrate(`Le débat commence. Vous avez ${discussionSeconds / 60} minute${discussionSeconds > 60 ? 's' : ''} pour identifier un Traître.`);
   };
 
-  const submitVote = (targetId: string) => {
+  const submitVote = (targetId: string, useMayorBonus = false) => {
     if (!currentVoter) return;
+    if (soundEnabled) void playEffect('success', effectsVolume);
     const nextVotes = { ...votes, [currentVoter.id]: targetId };
+    const nextMayorBonusVoterId = useMayorBonus ? currentVoter.id : mayorBonusVoterId;
     setVotes(nextVotes);
+    if (useMayorBonus) {
+      setMayorBonusUsed(true);
+      setMayorBonusVoterId(currentVoter.id);
+    }
+    setMayorWantsBonus(false);
+    setVoteTarget(null);
     if (voterIndex + 1 < alivePlayers.length) {
       setVoterIndex(value => value + 1);
       setStage('vote-pass');
@@ -695,7 +861,9 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     }
     const counts = Object.entries(nextVotes).reduce<Record<string, number>>((accumulator, [voterId, targetId]) => {
       const voter = players.find(player => player.id === voterId);
-      accumulator[targetId] = (accumulator[targetId] || 0) + (voter?.role === 'mayor' ? 2 : 1);
+      const mayorAddsVoice = voter?.role === 'mayor'
+        && (players.length >= 7 || voterId === nextMayorBonusVoterId);
+      accumulator[targetId] = (accumulator[targetId] || 0) + (mayorAddsVoice ? 2 : 1);
       return accumulator;
     }, ravenTarget ? { [ravenTarget]: 1 } : {});
     const highest = Math.max(...Object.values(counts));
@@ -703,8 +871,9 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     if (leaders.length !== 1) {
       setVoteMessage('Le vote se termine sur une égalité. Personne ne quitte le Village.');
       setStage('vote-result');
-      if (soundEnabled) playEffect('danger');
+      if (soundEnabled) playEffect('danger', effectsVolume);
       narrate('Égalité parfaite. Personne ne quitte le Village.');
+      addMoment('vote', `Vote du jour ${night}`, 'Le vote s’est terminé sur une égalité.');
       return;
     }
     const eliminated = players.find(player => player.id === leaders[0]);
@@ -715,17 +884,19 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       localStorage.removeItem(SAVE_KEY);
       setResumeAvailable(false);
       recordResult(`Farceur · ${eliminated.name}`);
-      if (soundEnabled) playEffect('victory');
+      if (soundEnabled) playEffect('victory', effectsVolume);
       navigator.vibrate?.([100, 60, 100, 60, 180]);
       narrate(`${eliminated.name} était le Farceur. Il remporte immédiatement la partie.`);
+      addMoment('vote', `Vote du jour ${night}`, `${eliminated.name} a été choisi et remporte la partie en tant que Farceur.`);
       return;
     }
     if (eliminated?.role === 'diplomat' && eliminated.diplomatShield) {
       setPlayers(previous => previous.map(player => player.id === eliminated.id ? { ...player, diplomatShield: false } : player));
       setVoteMessage(`${eliminated.name} révèle son rôle de Diplomate et annule cette première décision contre lui.`);
       setStage('vote-result');
-      if (soundEnabled) playEffect('success');
+      if (soundEnabled) playEffect('success', effectsVolume);
       narrate(`${eliminated.name} était le Diplomate. Il reste dans le Village cette fois-ci.`);
+      addMoment('vote', `Vote du jour ${night}`, `${eliminated.name} a annulé sa première élimination grâce au Diplomate.`);
       return;
     }
     const linkedId = eliminated?.linkedId;
@@ -743,13 +914,15 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     ]);
     setVoteMessage(`${eliminated?.name} quitte le Village.${revealRoles && eliminated ? ` Son rôle était ${ROLE_INFO[eliminated.role].name}.` : ''}${linked ? ` ${linked.name} le suit à cause du lien secret.` : ''}`);
     setStage('vote-result');
-    if (soundEnabled) playEffect('danger');
+    if (soundEnabled) playEffect('danger', effectsVolume);
     narrate(`${eliminated?.name} quitte le Village.${revealRoles && eliminated ? ` Son rôle est révélé à l’écran.` : ''}`);
+    if (eliminated) addMoment('vote', `Vote du jour ${night}`, `${eliminated.name} a quitté le Village avec ${highest} voix.`);
     const nextWinner = checkWinner(nextPlayers);
     if (nextWinner) window.setTimeout(() => finishWithWinner(nextWinner), 900);
   };
 
   const nextNight = () => {
+    if (soundEnabled) void playEffect('danger', effectsVolume);
     setNight(value => value + 1);
     setStage('night-intro');
     narrate('La nuit revient sur le Village. Tout le monde ferme les yeux.');
@@ -775,7 +948,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
             <Moon className="h-8 w-8 text-[#C4BEFF]" />
           </div>
           <h2 className="mt-4 text-2xl font-black text-white">Village Secret</h2>
-          <p className="mx-auto mt-2 max-w-lg text-xs leading-relaxed text-white/55">Un jeu familial de déduction à rôles cachés. Le maître du jeu automatique guide chaque phase, même hors connexion.</p>
+          <p className="mx-auto mt-2 max-w-lg text-xs leading-relaxed text-white/55">Un jeu familial où chacun reçoit un personnage secret. Le maître du jeu automatique explique chaque étape, même sans connexion.</p>
         </div>
 
         {resumeAvailable && (
@@ -795,7 +968,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
           </button>
           <button type="button" onClick={() => setShowRoleSettings(value => !value)} className={`rounded-2xl border p-3 text-left ${showRoleSettings ? 'border-[#FFB020]/35 bg-[#FFB020]/10' : 'border-white/8 bg-white/5'}`}>
             <Settings2 className="h-5 w-5 text-[#FFB020]" />
-            <strong className="mt-2 block text-xs text-white">Composition</strong>
+            <strong className="mt-2 block text-xs text-white">Choix des personnages</strong>
           </button>
         </div>
 
@@ -803,7 +976,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
           <div className="mt-3 rounded-2xl border border-white/8 bg-white/5 p-4">
             <ol className="space-y-3 text-xs leading-relaxed text-white/65">
               <li><strong className="text-white">1. Distribution :</strong> chacun consulte sa carte secrète puis masque l’écran.</li>
-              <li><strong className="text-white">2. Nuit :</strong> le téléphone passe à tout le monde. Les rôles agissent et les autres reçoivent un leurre.</li>
+              <li><strong className="text-white">2. Nuit :</strong> le téléphone passe à tout le monde. Certains choix ont un effet, les autres servent seulement à garder le secret.</li>
               <li><strong className="text-white">3. Jour :</strong> la victime est annoncée, puis la famille débat pendant le temps choisi.</li>
               <li><strong className="text-white">4. Vote :</strong> chaque joueur vote seul. Le Village gagne en éliminant tous les Traîtres.</li>
             </ol>
@@ -900,25 +1073,62 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
             <span className="flex items-center gap-2 text-xs font-bold text-white/70">{narratorEnabled ? <Volume2 className="h-4 w-4 text-[#00D26A]" /> : <VolumeX className="h-4 w-4" />} Narrateur</span>
             <button type="button" role="switch" aria-checked={narratorEnabled} onClick={() => setNarratorEnabled(value => {
               const next = !value;
-              if (next) speakText('Le maître du jeu est prêt.');
+              if (next) previewVoice('Le maître du jeu est prêt.');
               return next;
             })} className={`relative h-7 w-12 rounded-full ${narratorEnabled ? 'bg-[#00D26A]' : 'bg-white/15'}`}><span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white transition-transform ${narratorEnabled ? 'translate-x-5' : ''}`} /></button>
           </div>
           <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 p-3">
             <span className="flex items-center gap-2 text-xs font-bold text-white/70">
               <Music2 className={`h-4 w-4 ${soundEnabled ? 'text-[#FFB020]' : 'text-white/35'}`} />
-              <span>Effets sonores<button type="button" onClick={() => void playEffect('success')} className="ml-2 text-[9px] font-black text-[#FFB020] underline">Tester</button></span>
+              <span>Effets sonores<button type="button" onClick={() => void playEffect('success', effectsVolume)} className="ml-2 text-[9px] font-black text-[#FFB020] underline">Tester</button></span>
             </span>
             <button type="button" role="switch" aria-checked={soundEnabled} onClick={() => setSoundEnabled(value => {
               const next = !value;
-              if (next) void playEffect('success');
+              if (next) void playEffect('success', effectsVolume);
               return next;
             })} className={`relative h-7 w-12 rounded-full ${soundEnabled ? 'bg-[#FFB020]' : 'bg-white/15'}`}><span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : ''}`} /></button>
           </div>
         </div>
 
+        {narratorEnabled && (
+          <div className="mt-2 grid gap-2 rounded-2xl border border-white/8 bg-white/4 p-3 sm:grid-cols-[1fr_auto_auto]">
+            <label className="min-w-0">
+              <span className="mb-1 block text-[9px] font-black uppercase text-white/40">Voix du maître du jeu</span>
+              <select value={voiceURI} onChange={event => setVoiceURI(event.target.value)} className="w-full rounded-xl border border-white/10 bg-[#111827] px-3 py-2.5 text-xs font-bold text-white outline-none">
+                <option value="">Meilleure voix française disponible</option>
+                {availableVoices.map(voice => (
+                  <option key={voice.id} value={voice.id}>{voice.name}</option>
+                ))}
+              </select>
+            </label>
+            <button type="button" onClick={() => previewVoice('La nuit tombe doucement sur le Village. Fermez les yeux et écoutez.')} className="self-end rounded-xl border border-[#9E94FF]/25 bg-[#9E94FF]/10 px-4 py-2.5 text-[10px] font-black text-[#C4BEFF]">
+              Écouter
+            </button>
+            <button type="button" onClick={refreshAvailableVoices} className="self-end rounded-xl border border-white/10 bg-white/5 p-2.5 text-white/55" title="Actualiser les voix disponibles" aria-label="Actualiser les voix disponibles">
+              <RefreshCw className="h-4 w-4" />
+            </button>
+            <p className="sm:col-span-3 text-[9px] leading-relaxed text-white/35">
+              {availableVoices.length} voix française{availableVoices.length > 1 ? 's' : ''} accessible{availableVoices.length > 1 ? 's' : ''} à cette application.
+              {voicesRefreshedAt ? ' Liste actualisée.' : ''} {usesNativeVoice ? 'Voix natives iOS.' : 'Une PWA installée reste limitée aux voix fournies par Safari.'}
+            </p>
+          </div>
+        )}
+
+        {soundEnabled && (
+          <div className="mt-2 grid gap-3 rounded-2xl border border-white/8 bg-white/4 p-4 sm:grid-cols-2">
+            <label>
+              <span className="flex items-center justify-between text-[9px] font-black uppercase text-white/45"><span>Sons des actions</span><span>{Math.round(effectsVolume * 100)} %</span></span>
+              <input type="range" min="0" max="1" step="0.05" value={effectsVolume} onChange={event => setEffectsVolume(Number(event.target.value))} className="mt-2 w-full accent-[#FFB020]" />
+            </label>
+            <label>
+              <span className="flex items-center justify-between text-[9px] font-black uppercase text-white/45"><span>Ambiance de nuit</span><span>{Math.round(ambienceVolume * 100)} %</span></span>
+              <input type="range" min="0" max="1" step="0.05" value={ambienceVolume} onChange={event => setAmbienceVolume(Number(event.target.value))} className="mt-2 w-full accent-[#9E94FF]" />
+            </label>
+          </div>
+        )}
+
         <div className="mt-3 flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-[10px]">
-          <span className="text-white/50">{enabledRoles.length} rôles spéciaux activés</span>
+          <span className="text-white/50">{enabledRoles.length} personnages avec une capacité</span>
           <span className="font-black text-[#FF4D6D]">{names.length >= 16 ? 4 : names.length >= 11 ? 3 : names.length >= 7 ? 2 : 1} Traître{names.length >= 7 ? 's' : ''}</span>
         </div>
 
@@ -1001,14 +1211,14 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   }
 
   if (stage === 'night-intro') {
-    return <NarratorScene icon={<Moon className="h-10 w-10" />} eyebrow={`Nuit ${night}`} title="Le Village s’endort" detail="Le téléphone passera à tout le monde. Chaque personne aura un écran secret, avec une action réelle ou un leurre." action="Commencer la nuit" onAction={startNightActions} narratorEnabled={narratorEnabled} onToggleNarrator={() => setNarratorEnabled(value => !value)} />;
+    return <NarratorScene icon={<Moon className="h-10 w-10" />} eyebrow={`Nuit ${night}`} title="Le Village s’endort" detail="Le téléphone passera à tout le monde. Certains choix changeront la partie, les autres serviront seulement à protéger les secrets." action="Commencer la nuit" onAction={startNightActions} narratorEnabled={narratorEnabled} onToggleNarrator={() => setNarratorEnabled(value => !value)} />;
   }
 
   if (stage === 'night-player-pass' && currentNightPlayer) {
     return (
       <SecretPass
         title={`Passez le téléphone à ${currentNightPlayer.name}`}
-        detail={`Tour secret ${nightTurnIndex + 1}/${alivePlayers.length}. Toutes les personnes jouent, quel que soit leur rôle.`}
+        detail={`Passage ${nightTurnIndex + 1}/${alivePlayers.length}. Tout le monde reçoit un écran secret.`}
         onReady={() => setStage('night-player-action')}
       />
     );
@@ -1032,11 +1242,11 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       return (
         <SecretPanel>
           <Skull className="mx-auto h-10 w-10 text-[#FF4D6D]" />
-          <h2 className="mt-3 text-center text-xl font-black text-white">Sondage des Traîtres</h2>
-          <p className="mt-2 text-center text-xs text-white/50">Les choix déjà exprimés sont visibles, sans révéler qui a voté.</p>
+          <h2 className="mt-3 text-center text-xl font-black text-white">Choix des Traîtres</h2>
+          <p className="mt-2 text-center text-xs text-white/50">Vous voyez les choix déjà faits, mais jamais le nom de leurs auteurs.</p>
           {Object.keys(previousCounts).length > 0 && (
             <div className="mt-4 rounded-2xl border border-[#FF4D6D]/20 bg-[#FF4D6D]/8 p-3">
-              <strong className="text-[9px] uppercase text-[#FF9BAF]">Tendance actuelle</strong>
+              <strong className="text-[9px] uppercase text-[#FF9BAF]">Choix déjà faits</strong>
               <div className="mt-2 space-y-1.5">
                 {Object.entries(previousCounts).sort((left, right) => right[1] - left[1]).map(([targetId, count]) => (
                   <div key={targetId} className="flex items-center justify-between text-xs text-white/70">
@@ -1073,7 +1283,12 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
                   <button key={player.id} type="button" onClick={() => setOracleTarget(player.id)} className={`rounded-2xl border p-3 text-xs font-black ${oracleTarget === player.id ? 'border-[#9E94FF] bg-[#9E94FF]/12 text-white' : 'border-white/8 bg-white/5 text-white/55'}`}>{player.name}</button>
                 ))}
               </div>
-              <button type="button" disabled={!oracleTarget} onClick={() => { setOracleResultVisible(true); setInvestigationsUsed(value => value + 1); }} className="mt-4 w-full rounded-2xl bg-[#9E94FF] py-3 text-xs font-black text-[#090D1A] disabled:opacity-35">Voir l’alignement</button>
+              <button type="button" disabled={!oracleTarget} onClick={() => {
+                setOracleResultVisible(true);
+                setInvestigationsUsed(value => value + 1);
+                const checked = players.find(player => player.id === oracleTarget);
+                if (checked) addMoment('investigation', 'Vérification de l’Enquêteur', `${checked.name} ${checked.role === 'traitor' ? 'était un Traître' : 'n’était pas un Traître'}.`);
+              }} className="mt-4 w-full rounded-2xl bg-[#9E94FF] py-3 text-xs font-black text-[#090D1A] disabled:opacity-35">Savoir si cette personne est un Traître</button>
             </>
           ) : (
             <>
@@ -1099,6 +1314,8 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
           onSelect={setProtectedTarget}
           onConfirm={() => {
             setLastProtectedTarget(protectedTarget);
+            const protectedPlayer = players.find(player => player.id === protectedTarget);
+            if (protectedPlayer) addMoment('protection', 'Choix du Protecteur', `${protectedPlayer.name} a été protégé pendant cette nuit.`);
             advanceNightTurn(traitorVotes, protectedTarget);
           }}
         />
@@ -1118,7 +1335,12 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
             <button type="button" onClick={() => advanceNightTurn()} className="rounded-2xl border border-white/10 py-3 text-xs font-black text-white/60">Conserver</button>
-            <button type="button" disabled={!healerTarget} onClick={() => { setHealerSaveAvailable(false); advanceNightTurn(traitorVotes, protectedTarget, healerTarget); }} className="rounded-2xl bg-[#42D6C5] py-3 text-xs font-black text-[#07111F] disabled:opacity-35">Utiliser</button>
+            <button type="button" disabled={!healerTarget} onClick={() => {
+              setHealerSaveAvailable(false);
+              const healed = players.find(player => player.id === healerTarget);
+              if (healed) addMoment('healing', 'Remède utilisé', `${healed.name} a reçu le remède du Guérisseur.`);
+              advanceNightTurn(traitorVotes, protectedTarget, healerTarget);
+            }} className="rounded-2xl bg-[#42D6C5] py-3 text-xs font-black text-[#07111F] disabled:opacity-35">Utiliser</button>
           </div>
         </SecretPanel>
       );
@@ -1139,6 +1361,9 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
           <button type="button" disabled={cupidTargets.length !== 2} onClick={() => {
             const [firstId, secondId] = cupidTargets;
             setPlayers(previous => previous.map(player => player.id === firstId ? { ...player, linkedId: secondId } : player.id === secondId ? { ...player, linkedId: firstId } : player));
+            const first = players.find(player => player.id === firstId);
+            const second = players.find(player => player.id === secondId);
+            if (first && second) addMoment('link', 'Lien créé', `${first.name} et ${second.name} ont été liés par Cupidon.`);
             advanceNightTurn();
           }} className="mt-5 w-full rounded-2xl bg-[#FF72B6] py-3 text-xs font-black text-[#090D1A] disabled:opacity-35">Créer le lien</button>
         </SecretPanel>
@@ -1182,7 +1407,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       <SecretPanel>
         <Moon className="mx-auto h-10 w-10 text-[#9E94FF]" />
         <h2 className="mt-3 text-center text-xl font-black text-white">Observation nocturne</h2>
-        <p className="mt-2 text-center text-xs text-white/50">Choisissez la personne qui vous paraît la plus suspecte. Ce choix est un leurre et ne modifie pas la partie.</p>
+        <p className="mt-2 text-center text-xs text-white/50">Choisissez la personne qui vous paraît la plus suspecte. Ce choix sert uniquement à ne pas révéler votre personnage.</p>
         <div className="mt-5 grid grid-cols-2 gap-2">
           {alivePlayers.filter(player => player.id !== currentNightPlayer.id).map(player => (
             <button key={player.id} type="button" onClick={() => setDummyTarget(player.id)} className={`rounded-2xl border p-3 text-xs font-black ${dummyTarget === player.id ? 'border-[#9E94FF] bg-[#9E94FF]/12 text-white' : 'border-white/8 bg-white/5 text-white/55'}`}>{player.name}</button>
@@ -1218,7 +1443,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
                 <button key={player.id} type="button" onClick={() => setOracleTarget(player.id)} className={`rounded-2xl border p-3 text-xs font-black ${oracleTarget === player.id ? 'border-[#9E94FF] bg-[#9E94FF]/12 text-white' : 'border-white/8 bg-white/5 text-white/55'}`}>{player.name}</button>
               ))}
             </div>
-            <button type="button" disabled={!oracleTarget} onClick={() => setOracleResultVisible(true)} className="mt-4 w-full rounded-2xl bg-[#9E94FF] py-3 text-xs font-black text-[#090D1A] disabled:opacity-35">Révéler l’alignement</button>
+            <button type="button" disabled={!oracleTarget} onClick={() => setOracleResultVisible(true)} className="mt-4 w-full rounded-2xl bg-[#9E94FF] py-3 text-xs font-black text-[#090D1A] disabled:opacity-35">Savoir si cette personne est un Traître</button>
           </>
         ) : (
           <>
@@ -1324,7 +1549,14 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
         <div className="mt-5 grid grid-cols-3 gap-2">
           {([60, 120, 180] as const).map(value => <button key={value} type="button" onClick={() => { setDiscussionSeconds(value); setSeconds(value); }} className={`rounded-xl border py-2 text-[10px] font-black ${discussionSeconds === value ? 'border-[#FFB020] text-[#FFB020]' : 'border-white/8 text-white/40'}`}>{value / 60} min</button>)}
         </div>
-        <button type="button" onClick={() => { setVoterIndex(0); setVotes({}); setStage('vote-pass'); narrate('Le vote commence. Passez le téléphone à chaque joueur encore présent.'); }} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#FFB020] py-3 text-xs font-black text-[#07111F]"><Vote className="h-4 w-4" /> Passer au vote</button>
+        <button type="button" onClick={() => {
+          setVoterIndex(0);
+          setVotes({});
+          setVoteTarget(null);
+          setMayorWantsBonus(false);
+          setStage('vote-pass');
+          narrate('Le vote commence. Passez le téléphone à chaque joueur encore présent.');
+        }} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#FFB020] py-3 text-xs font-black text-[#07111F]"><Vote className="h-4 w-4" /> Passer au vote</button>
         {eliminationHistory.length > 0 && (
           <div className="mt-5 border-t border-white/8 pt-4 text-left">
             <strong className="text-[10px] uppercase text-white/40">Éliminations</strong>
@@ -1346,6 +1578,31 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   }
 
   if (stage === 'vote' && currentVoter) {
+    const mayorCanUseSingleBonus = currentVoter.role === 'mayor' && players.length <= 6 && !mayorBonusUsed;
+    if (mayorCanUseSingleBonus) {
+      return (
+        <SecretPanel>
+          <Crown className="mx-auto h-10 w-10 text-[#FFB020]" />
+          <h2 className="mt-3 text-center text-xl font-black text-white">Vote de {currentVoter.name}</h2>
+          <p className="mt-2 text-center text-xs text-white/50">Le Maire peut ajouter une voix à son choix une seule fois dans la partie.</p>
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            {alivePlayers.filter(player => player.id !== currentVoter.id).map(player => (
+              <button key={player.id} type="button" onClick={() => setVoteTarget(player.id)} className={`rounded-2xl border p-3 text-xs font-black ${voteTarget === player.id ? 'border-[#FFB020] bg-[#FFB020]/12 text-white' : 'border-white/8 bg-white/5 text-white/55'}`}>
+                {player.name}
+              </button>
+            ))}
+          </div>
+          <button type="button" onClick={() => setMayorWantsBonus(value => !value)} className={`mt-4 flex w-full items-center justify-between rounded-2xl border p-3 text-left ${mayorWantsBonus ? 'border-[#FFB020]/40 bg-[#FFB020]/12' : 'border-white/8 bg-white/5'}`}>
+            <span>
+              <strong className="block text-xs text-white">Ajouter ma voix supplémentaire</strong>
+              <span className="mt-1 block text-[9px] text-white/45">{mayorWantsBonus ? 'Elle sera utilisée pour ce vote.' : 'La conserver pour un prochain vote.'}</span>
+            </span>
+            <span className={`flex h-5 w-5 items-center justify-center rounded-md border ${mayorWantsBonus ? 'border-[#FFB020] bg-[#FFB020] text-[#07111F]' : 'border-white/20 text-transparent'}`}><Check className="h-3.5 w-3.5" /></span>
+          </button>
+          <button type="button" disabled={!voteTarget} onClick={() => voteTarget && submitVote(voteTarget, mayorWantsBonus)} className="mt-4 w-full rounded-2xl bg-[#FFB020] py-3 text-xs font-black text-[#07111F] disabled:opacity-35">Valider mon vote</button>
+        </SecretPanel>
+      );
+    }
     return <SecretChoice icon={<Vote className="h-8 w-8 text-[#FFB020]" />} title={`Vote de ${currentVoter.name}`} detail="Qui doit quitter le Village ?" players={alivePlayers.filter(player => player.id !== currentVoter.id)} selectedId={null} onSelect={submitVote} immediate />;
   }
 
@@ -1359,6 +1616,37 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       <span className="mt-4 block text-[10px] font-black uppercase tracking-widest text-[#FFB020]">Partie terminée</span>
       <h2 className="mt-1 text-2xl font-black text-white">{soloWinner ? `Victoire du Farceur ${soloWinner}` : winner === 'village' ? 'Victoire du Village' : 'Victoire des Traîtres'}</h2>
       <p className="mt-2 text-xs text-white/50">{night} nuit{night > 1 ? 's' : ''} jouée{night > 1 ? 's' : ''}</p>
+      {gameMoments.length > 0 && (
+        <div className="mt-6 rounded-3xl border border-white/8 bg-white/5 p-4 text-left">
+          <div className="flex items-center gap-2">
+            <History className="h-5 w-5 text-[#9E94FF]" />
+            <div>
+              <strong className="block text-sm text-white">Histoire de la partie</strong>
+              <span className="text-[9px] text-white/40">Tous les choix importants, maintenant révélés.</span>
+            </div>
+          </div>
+          <div className="relative mt-5 space-y-4 before:absolute before:bottom-2 before:left-[9px] before:top-2 before:w-px before:bg-white/10">
+            {gameMoments.map(moment => (
+              <div key={moment.id} className="relative pl-7">
+                <span className={`absolute left-0 top-1.5 h-[19px] w-[19px] rounded-full border-4 border-[#111827] ${
+                  moment.kind === 'result' ? 'bg-[#FFB020]' :
+                  moment.kind === 'vote' ? 'bg-[#FF4D6D]' :
+                  moment.kind === 'investigation' ? 'bg-[#9E94FF]' :
+                  moment.kind === 'protection' || moment.kind === 'healing' ? 'bg-[#00D26A]' :
+                  'bg-[#4F8CFF]'
+                }`} />
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <strong className="block text-xs text-white">{moment.title}</strong>
+                    <p className="mt-1 text-[10px] leading-relaxed text-white/50">{moment.detail}</p>
+                  </div>
+                  <span className="shrink-0 text-[8px] font-black uppercase text-white/30">{moment.night === 0 ? 'Début' : `Nuit ${moment.night}`}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="mt-5 grid grid-cols-2 gap-2">
         {players.map(player => <div key={player.id} className="overflow-hidden rounded-2xl border border-white/8 bg-white/5"><RolePortrait role={player.role} className="w-full" /><div className="p-3"><strong className="block text-xs text-white">{player.name}</strong><span className="mt-1 block text-[10px]" style={{ color: ROLE_INFO[player.role].color }}>{ROLE_INFO[player.role].name}</span></div></div>)}
       </div>
