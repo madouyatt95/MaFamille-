@@ -21,6 +21,10 @@ import {
   SlidersHorizontal,
   ExternalLink,
   AlertTriangle,
+  Accessibility,
+  CaseSensitive,
+  Contrast,
+  Gauge,
   X
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
@@ -232,6 +236,24 @@ export const Settings: React.FC<SettingsProps> = ({
     }
     localStorage.setItem('app_appearance_mode', theme);
   }, [theme]);
+
+  const [textSize, setTextSize] = useState<'standard' | 'large' | 'extra-large'>(() => {
+    const saved = localStorage.getItem('mf_accessibility_text_size');
+    return saved === 'large' || saved === 'extra-large' ? saved : 'standard';
+  });
+  const [highContrast, setHighContrast] = useState(() => localStorage.getItem('mf_accessibility_high_contrast') === 'true');
+  const [reduceMotion, setReduceMotion] = useState(() => localStorage.getItem('mf_accessibility_reduce_motion') === 'true');
+
+  useEffect(() => {
+    document.documentElement.classList.remove('text-size-large', 'text-size-extra-large', 'high-contrast', 'reduce-motion');
+    if (textSize === 'large') document.documentElement.classList.add('text-size-large');
+    if (textSize === 'extra-large') document.documentElement.classList.add('text-size-extra-large');
+    if (highContrast) document.documentElement.classList.add('high-contrast');
+    if (reduceMotion) document.documentElement.classList.add('reduce-motion');
+    localStorage.setItem('mf_accessibility_text_size', textSize);
+    localStorage.setItem('mf_accessibility_high_contrast', String(highContrast));
+    localStorage.setItem('mf_accessibility_reduce_motion', String(reduceMotion));
+  }, [highContrast, reduceMotion, textSize]);
 
   // Notification module preferences (groceries, tasks, agenda, finances, chat, health, vault, sos)
   const [localPrefs, setLocalPrefs] = useState<NotificationPrefs>(() => {
@@ -792,6 +814,52 @@ export const Settings: React.FC<SettingsProps> = ({
       </div>
       )}
 
+      {settingsTab === 'compte' && (
+        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+          <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white">
+            <Accessibility className="h-4 w-4 text-[#00D26A]" />
+            Accessibilité
+          </h3>
+          <div className="space-y-3">
+            <div>
+              <span className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase text-white/45">
+                <CaseSensitive className="h-4 w-4" /> Taille du texte
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ['standard', 'Standard'],
+                  ['large', 'Grand'],
+                  ['extra-large', 'Très grand']
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setTextSize(value)}
+                    className={`rounded-xl border px-2 py-3 text-[10px] font-black ${textSize === value ? 'border-[#6C5CFF] bg-[#6C5CFF]/15 text-white' : 'border-white/8 bg-white/5 text-white/50'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button type="button" onClick={() => setHighContrast(value => !value)} className="flex w-full items-center justify-between rounded-2xl border border-white/8 bg-white/3 p-3 text-left">
+              <span>
+                <strong className="flex items-center gap-2 text-xs text-white"><Contrast className="h-4 w-4 text-[#FFB020]" /> Contraste renforcé</strong>
+                <small className="mt-1 block text-[9px] text-white/40">Textes secondaires et contours plus visibles.</small>
+              </span>
+              <span className={`relative h-6 w-11 rounded-full ${highContrast ? 'bg-[#00D26A]' : 'bg-white/15'}`}><span className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform ${highContrast ? 'translate-x-5' : ''}`} /></span>
+            </button>
+            <button type="button" onClick={() => setReduceMotion(value => !value)} className="flex w-full items-center justify-between rounded-2xl border border-white/8 bg-white/3 p-3 text-left">
+              <span>
+                <strong className="flex items-center gap-2 text-xs text-white"><Gauge className="h-4 w-4 text-[#4F8CFF]" /> Réduire les animations</strong>
+                <small className="mt-1 block text-[9px] text-white/40">Limite retournements, pulsations et transitions.</small>
+              </span>
+              <span className={`relative h-6 w-11 rounded-full ${reduceMotion ? 'bg-[#00D26A]' : 'bg-white/15'}`}><span className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform ${reduceMotion ? 'translate-x-5' : ''}`} /></span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Notifications Push */}
       {settingsTab === 'alertes' && (
       <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
@@ -1231,6 +1299,55 @@ export const Settings: React.FC<SettingsProps> = ({
               </div>
             </div>
           }
+
+          <div className="rounded-2xl border border-[#00D26A]/15 bg-[#00D26A]/5 p-5 space-y-4">
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-white">Récompenses transversales</h4>
+              <p className="mt-1 text-[10px] leading-relaxed text-white/50">Un même cadre pour les tâches, l’école et les jeux.</p>
+            </div>
+            <button type="button" onClick={() => handleSaveMalusSettings({ rewards_enabled: malusSettings.rewards_enabled === false })} className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/3 p-3 text-left">
+              <span className="text-xs font-bold text-white">Activer les récompenses</span>
+              <span className={`relative h-6 w-11 rounded-full ${malusSettings.rewards_enabled !== false ? 'bg-[#00D26A]' : 'bg-white/15'}`}><span className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform ${malusSettings.rewards_enabled !== false ? 'translate-x-5' : ''}`} /></span>
+            </button>
+            <button type="button" onClick={() => handleSaveMalusSettings({ reward_parent_validation: malusSettings.reward_parent_validation === false })} className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/3 p-3 text-left">
+              <span>
+                <strong className="block text-xs text-white">Validation parentale</strong>
+                <small className="text-[9px] text-white/40">Recommandée avant d’ajouter des points.</small>
+              </span>
+              <span className={`relative h-6 w-11 rounded-full ${malusSettings.reward_parent_validation !== false ? 'bg-[#00D26A]' : 'bg-white/15'}`}><span className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform ${malusSettings.reward_parent_validation !== false ? 'translate-x-5' : ''}`} /></span>
+            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-[9px] font-bold uppercase text-white/40">Plafond quotidien
+                <input type="number" min={1} max={500} value={malusSettings.reward_daily_cap || 50} onChange={(event) => handleSaveMalusSettings({ reward_daily_cap: Math.max(1, Number(event.target.value) || 50) })} className="mt-1 w-full rounded-xl border border-white/10 bg-[#07111F] px-3 py-2 text-xs text-white" />
+              </label>
+              <label className="text-[9px] font-bold uppercase text-white/40">Victoire à un jeu
+                <input type="number" min={1} max={50} value={malusSettings.reward_game_points || 5} onChange={(event) => handleSaveMalusSettings({ reward_game_points: Math.max(1, Number(event.target.value) || 5) })} className="mt-1 w-full rounded-xl border border-white/10 bg-[#07111F] px-3 py-2 text-xs text-white" />
+              </label>
+            </div>
+            <div>
+              <span className="mb-2 block text-[9px] font-bold uppercase text-white/40">Modules autorisés</span>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ['tasks', 'Tâches'],
+                  ['school', 'École'],
+                  ['games', 'Jeux']
+                ] as const).map(([source, label]) => {
+                  const sources = malusSettings.reward_sources || { tasks: true, school: true, games: true };
+                  const active = sources[source] !== false;
+                  return (
+                    <button
+                      key={source}
+                      type="button"
+                      onClick={() => handleSaveMalusSettings({ reward_sources: { ...sources, [source]: !active } })}
+                      className={`rounded-xl border px-2 py-2.5 text-[9px] font-black ${active ? 'border-[#00D26A]/30 bg-[#00D26A]/10 text-[#00D26A]' : 'border-white/8 bg-white/3 text-white/35'}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
 
           <div className="pt-2"></div>
 

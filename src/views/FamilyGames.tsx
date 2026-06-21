@@ -23,7 +23,7 @@ import {
   Users,
   Vote
 } from 'lucide-react';
-import type { FamilyEvent, FamilyVote, Member, MemoryLog, PocketMoneyChild } from '../types';
+import type { FamilyEvent, FamilyVote, MalusSettings, Member, MemoryLog, PocketMoneyChild } from '../types';
 import { getSupabaseClient } from '../utils/supabase';
 import { MimeChallengeGame } from '../components/games/MimeChallengeGame';
 import { PrivateFamilyRoom } from '../components/games/PrivateFamilyRoom';
@@ -98,6 +98,7 @@ interface FamilyGamesProps {
   setVotes?: React.Dispatch<React.SetStateAction<FamilyVote[]>>;
   onAddEventDirect?: (newEvent: FamilyEvent) => void;
   onSendNotification?: (title: string, description: string, moduleName?: string, type?: 'info' | 'warning' | 'error' | 'success') => Promise<void>;
+  rewardSettings?: MalusSettings;
 }
 
 const FALLBACK_MEMORY_ITEMS = [
@@ -229,7 +230,8 @@ export function FamilyGames({
   memories = [],
   setVotes,
   onAddEventDirect,
-  onSendNotification
+  onSendNotification,
+  rewardSettings
 }: FamilyGamesProps) {
   const [activeGame, setActiveGame] = useState<GameId | null>(null);
   const [gameFilter, setGameFilter] = useState<GameFilter>('all');
@@ -271,7 +273,8 @@ export function FamilyGames({
   });
   const [connectionMessage, setConnectionMessage] = useState('');
   const [rewardsEnabled, setRewardsEnabled] = useState(() =>
-    localStorage.getItem(`mf_games_rewards_enabled_${foyerId}`) === 'true'
+    rewardSettings?.rewards_enabled !== false
+      && localStorage.getItem(`mf_games_rewards_enabled_${foyerId}`) === 'true'
   );
   const [pendingRewards, setPendingRewards] = useState<PendingGameReward[]>(() => {
     try {
@@ -281,6 +284,18 @@ export function FamilyGames({
     }
   });
   const [showTournamentSetup, setShowTournamentSetup] = useState(false);
+  const gameRewardPoints = Math.max(1, rewardSettings?.reward_game_points || 5);
+  const rewardDailyCap = Math.max(gameRewardPoints, rewardSettings?.reward_daily_cap || 50);
+  const gameRewardsAllowed = rewardSettings?.rewards_enabled !== false
+    && rewardSettings?.reward_sources?.games !== false;
+  const rewardLedgerKey = `mf_games_reward_ledger_${foyerId}_${new Date().toISOString().slice(0, 10)}`;
+  const readAwardedPoints = useCallback(() => {
+    const value = Number(localStorage.getItem(rewardLedgerKey) || 0);
+    return Number.isFinite(value) ? Math.max(0, value) : 0;
+  }, [rewardLedgerKey]);
+  const recordAwardedPoints = useCallback((points: number) => {
+    localStorage.setItem(rewardLedgerKey, String(readAwardedPoints() + points));
+  }, [readAwardedPoints, rewardLedgerKey]);
   const [tournamentGames, setTournamentGames] = useState<FamilyGameType[]>(['memory', 'connect4', 'battleship']);
   const [tournament, setTournament] = useState<TournamentState | null>(() => {
     try {
@@ -580,27 +595,46 @@ export function FamilyGames({
       window.setTimeout(() => setActiveGame(finished ? null : tournament.games[nextIndex]), 700);
     }
 
-    if (rewardsEnabled && winnerName && winnerName !== 'Égalité' && setPocketMoney) {
+    if (gameRewardsAllowed && rewardsEnabled && winnerName && winnerName !== 'Égalité' && setPocketMoney) {
       const winnerMember = members.find(member => member.name === winnerName);
       const winnerAccount = winnerMember ? pocketMoney.find(account => account.id === winnerMember.id) : undefined;
       if (winnerMember && winnerAccount) {
+        const availableToday = Math.max(0, rewardDailyCap - readAwardedPoints());
+        const points = Math.min(gameRewardPoints, availableToday);
+        if (points <= 0) {
+          setConnectionMessage(`Plafond quotidien de ${rewardDailyCap} points atteint.`);
+          return;
+        }
         const pendingReward: PendingGameReward = {
           id: `game-reward-${localResult.id}`,
           memberId: winnerMember.id,
           memberName: winnerMember.name,
-          points: 5,
+          points,
           gameType,
           createdAt: localResult.playedAt
         };
-        setPendingRewards(previous => previous.some(reward => reward.id === pendingReward.id)
-          ? previous
-          : [pendingReward, ...previous].slice(0, 20));
-        void onSendNotification?.(
-          '🎁 Récompense de jeu à valider',
-          `${winnerMember.name} a gagné une partie. Un parent peut valider les 5 points depuis le module Jeux.`,
-          'games',
-          'info'
-        );
+        if (rewardSettings?.reward_parent_validation === false) {
+          const nextPoints = (winnerAccount.points || 0) + points;
+          setPocketMoney(previous => previous.map(account =>
+            account.id === winnerAccount.id ? { ...account, points: nextPoints } : account
+          ));
+          recordAwardedPoints(points);
+          const client = getSupabaseClient();
+          if (client && foyerId !== 'local') {
+            void client.from('pocket_money').update({ points: nextPoints }).eq('id', winnerAccount.id).eq('foyer_id', foyerId);
+          }
+          setConnectionMessage(`${points} points ajoutés automatiquement à ${winnerMember.name}.`);
+        } else {
+          setPendingRewards(previous => previous.some(reward => reward.id === pendingReward.id)
+            ? previous
+            : [pendingReward, ...previous].slice(0, 20));
+          void onSendNotification?.(
+            '🎁 Récompense de jeu à valider',
+            `${winnerMember.name} a gagné une partie. Un parent peut valider les ${points} points depuis le module Jeux.`,
+            'games',
+            'info'
+          );
+        }
       }
     }
     void onSendNotification?.(
@@ -611,7 +645,7 @@ export function FamilyGames({
       'games',
       'success'
     );
-  }, [foyerId, members, onSendNotification, players, pocketMoney, rewardsEnabled, setPocketMoney, tournament]);
+  }, [foyerId, gameRewardPoints, gameRewardsAllowed, members, onSendNotification, players, pocketMoney, readAwardedPoints, recordAwardedPoints, rewardDailyCap, rewardSettings?.reward_parent_validation, rewardsEnabled, setPocketMoney, tournament]);
 
   const startTournament = () => {
     if (tournamentGames.length < 2) return;
@@ -634,11 +668,18 @@ export function FamilyGames({
       setConnectionMessage('Aucune tirelire ne correspond à ce membre.');
       return;
     }
-    const nextPoints = (winnerAccount.points || 0) + reward.points;
+    const availableToday = Math.max(0, rewardDailyCap - readAwardedPoints());
+    const awardedPoints = Math.min(reward.points, availableToday);
+    if (awardedPoints <= 0) {
+      setConnectionMessage(`Plafond quotidien de ${rewardDailyCap} points atteint.`);
+      return;
+    }
+    const nextPoints = (winnerAccount.points || 0) + awardedPoints;
     setPocketMoney(previous => previous.map(account =>
       account.id === winnerAccount.id ? { ...account, points: nextPoints } : account
     ));
     setPendingRewards(previous => previous.filter(item => item.id !== reward.id));
+    recordAwardedPoints(awardedPoints);
     const client = getSupabaseClient();
     if (client && foyerId !== 'local') {
       const { error } = await client.from('pocket_money')
@@ -651,10 +692,10 @@ export function FamilyGames({
         return;
       }
     }
-    setConnectionMessage(`${reward.points} points ajoutés à la tirelire de ${reward.memberName}.`);
+    setConnectionMessage(`${awardedPoints} points ajoutés à la tirelire de ${reward.memberName}.`);
     void onSendNotification?.(
       '✅ Récompense de jeu validée',
-      `${reward.memberName} reçoit ${reward.points} points dans sa tirelire.`,
+      `${reward.memberName} reçoit ${awardedPoints} points dans sa tirelire.`,
       'finances',
       'success'
     );
@@ -1187,7 +1228,7 @@ export function FamilyGames({
                       <Gift className="h-4 w-4 text-[#FFB020]" />
                       <span>
                         <strong className="block text-[11px] text-white">Récompenses de jeu</strong>
-                        <span className="block text-[9px] text-white/50">5 points proposés au gagnant, puis validés par un parent.</span>
+                        <span className="block text-[9px] text-white/50">{gameRewardPoints} points proposés au gagnant, puis validés par un parent.</span>
                       </span>
                     </span>
                     {isAdult && (

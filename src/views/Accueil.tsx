@@ -32,7 +32,7 @@ import {
   Plus,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { Member, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog, ChoreTask, GroceryItem, Transaction, Trip, DocumentFile, SchoolTask } from '../types';
+import type { Member, Dish, NotificationAlert, ChatGroup, ChatMessage, MemoryLog, ChoreTask, GroceryItem, Transaction, Trip, DocumentFile, SchoolTask, SavingGoal } from '../types';
 import type { UnifiedEvent } from '../utils/agendaHelper';
 import { buildSmartFamilyActions, filterSmartFamilyActions, getSmartFamilySetupProgress, type SmartFamilyAction, type SmartFamilyPreferences } from '../utils/smartFamily';
 import { buildGlobalSearchIndex, searchGlobalIndex, type GlobalSearchResult } from '../utils/globalSearch';
@@ -106,7 +106,7 @@ interface AccueilProps {
   onDeleteMemory: (id: string) => void;
   onLikeMemory: (id: string, newLikesCount: number) => void;
 
-  savingGoals?: unknown[];
+  savingGoals?: SavingGoal[];
   onDeleteUnifiedEvent?: (id: string, moduleName: string) => Promise<void>;
   onArchiveUnifiedEvent?: (id: string, moduleName: string) => Promise<void>;
   activeFamilyName?: string;
@@ -137,6 +137,8 @@ export const Accueil: React.FC<AccueilProps> = ({
   onAvatarClick,
   chatGroups,
   chatMessages,
+  memories,
+  savingGoals = [],
   onEventClick,
   onDeleteUnifiedEvent,
   onArchiveUnifiedEvent,
@@ -149,6 +151,7 @@ export const Accueil: React.FC<AccueilProps> = ({
   const [selectedEventForMenu, setSelectedEventForMenu] = useState<AccueilUnifiedEvent | null>(null);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [todayScope, setTodayScope] = useState<'me' | 'family'>('family');
   const [familyMemos, setFamilyMemos] = useState<FamilyMemo[]>(readFamilyMemos);
   const [memoText, setMemoText] = useState('');
   const [memoPriority, setMemoPriority] = useState<FamilyMemo['priority']>('normal');
@@ -284,8 +287,9 @@ export const Accueil: React.FC<AccueilProps> = ({
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const allUnifiedEvents: AccueilUnifiedEvent[] = (isChild
-    ? events.filter(e => e.member_id === activeMember.id || e.event_type === 'school')
+  const personalScope = isChild || todayScope === 'me';
+  const allUnifiedEvents: AccueilUnifiedEvent[] = (personalScope
+    ? events.filter(e => !e.member_id || e.member_id === activeMember.id || e.event_type === 'school')
     : events
   ).filter(e => e && !hiddenEventIds.includes(e.id));
 
@@ -360,7 +364,7 @@ export const Accueil: React.FC<AccueilProps> = ({
 
   const activeTasks = tasks.filter(task => {
     if (!task || task.done || task.isArchived || task.status === 'validated') return false;
-    if (!isChild) return true;
+    if (!personalScope) return true;
     return task.assignedMemberId === activeMember.id || task.assignedMemberIds?.includes(activeMember.id);
   });
 
@@ -640,7 +644,10 @@ export const Accueil: React.FC<AccueilProps> = ({
     schoolTasks,
     dishes,
     chatGroups,
-    chatMessages
+    chatMessages,
+    alerts,
+    memories,
+    savingGoals
   });
 
   const globalSearchResults = searchGlobalIndex(globalSearchQuery, globalSearchIndex, 10);
@@ -840,13 +847,32 @@ export const Accueil: React.FC<AccueilProps> = ({
               Vue rapide de ce qui mérite votre attention maintenant.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setActiveTab('timeline')}
-            className="shrink-0 px-3 py-2 rounded-2xl bg-white/5 border border-white/8 text-[10px] font-black text-white/65 hover:text-white hover:bg-white/10 transition-all"
-          >
-            Journal
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {!isChild && (
+              <div className="flex rounded-xl border border-white/8 bg-white/5 p-1">
+                {([
+                  ['me', 'Pour moi'],
+                  ['family', 'Famille']
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setTodayScope(value)}
+                    className={`rounded-lg px-2.5 py-1.5 text-[9px] font-black transition-colors ${todayScope === value ? 'bg-[#6C5CFF] text-white' : 'text-white/45 hover:text-white'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setActiveTab('timeline')}
+              className="px-3 py-2 rounded-2xl bg-white/5 border border-white/8 text-[10px] font-black text-white/65 hover:text-white hover:bg-white/10 transition-all"
+            >
+              Journal
+            </button>
+          </div>
         </div>
 
         <div className="relative z-10 grid grid-cols-2 lg:grid-cols-4 gap-2.5">

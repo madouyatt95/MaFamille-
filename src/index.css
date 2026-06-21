@@ -100,6 +100,44 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+html.text-size-large {
+  font-size: 17px;
+}
+
+html.text-size-extra-large {
+  font-size: 18px;
+}
+
+html.high-contrast {
+  --family-text-secondary: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(255, 255, 255, 0.2);
+}
+
+html.theme-light.high-contrast {
+  --family-text-secondary: rgba(17, 24, 39, 0.84);
+  --glass-border: rgba(15, 23, 42, 0.25);
+}
+
+html.theme-sepia.high-contrast {
+  --family-text-secondary: rgba(58, 41, 31, 0.86);
+  --glass-border: rgba(91, 64, 41, 0.28);
+}
+
+html.high-contrast [class*="text-white/3"],
+html.high-contrast [class*="text-white/4"],
+html.high-contrast [class*="text-white/5"] {
+  color: var(--family-text-secondary) !important;
+}
+
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
+}
+
 /*
  * Prevent iOS WebView from turning a slightly long tap into text selection.
  * Text fields and explicitly selectable content keep their native behavior.

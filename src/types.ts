@@ -48,6 +48,15 @@ export interface MalusSettings {
   weekly_shields: number;
   reparation_enabled: boolean;
   max_malus_per_day: number;
+  rewards_enabled?: boolean;
+  reward_parent_validation?: boolean;
+  reward_daily_cap?: number;
+  reward_game_points?: number;
+  reward_sources?: {
+    tasks: boolean;
+    school: boolean;
+    games: boolean;
+  };
 }
 
 export interface Foyer {

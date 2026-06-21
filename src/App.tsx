@@ -1768,6 +1768,10 @@ function App() {
   // ----------------------------------------------------
   // MOTEUR D'ALLOCATIONS ET RÈGLES AUTOMATIQUES (POCKET MONEY)
   // ----------------------------------------------------
+  const rewardsGloballyEnabled = foyer?.malusSettings?.rewards_enabled !== false;
+  const schoolRewardsAllowed = rewardsGloballyEnabled && foyer?.malusSettings?.reward_sources?.school !== false;
+  const taskRewardsAllowed = rewardsGloballyEnabled && foyer?.malusSettings?.reward_sources?.tasks !== false;
+
   const matchGradeCondition = (gradeValue: number, conditionStr: string): boolean => {
     if (!conditionStr) return true;
     const match = conditionStr.match(/^(\s*)([>=<!]+)?\s*([0-9.,]+)/);
@@ -1786,6 +1790,7 @@ function App() {
   };
 
   const triggerSchoolRulesForChild = (studentId: string, grade: LooseValue) => {
+    if (!schoolRewardsAllowed) return;
     const parentAccountId = accounts.find(a => a.type === 'bank')?.id || accounts[0]?.id || null;
     
     setPocketMoney(prev => {
@@ -2081,6 +2086,11 @@ function App() {
   };
 
   const handleGlobalSearchResultOpen = (result: GlobalSearchResult) => {
+    if (result.focus?.type === 'alerts_panel') {
+      setActiveTab('accueil');
+      setAlertsPanelOpen(true);
+      return;
+    }
     if (result.focus?.type === 'agenda_date') {
       setAgendaSelectedDate(result.focus.value);
       setActiveTab('menu');
@@ -2297,6 +2307,12 @@ function App() {
       document.documentElement.classList.add('theme-sepia');
       document.body.classList.add('theme-sepia');
     }
+    const savedTextSize = localStorage.getItem('mf_accessibility_text_size');
+    document.documentElement.classList.remove('text-size-large', 'text-size-extra-large', 'high-contrast', 'reduce-motion');
+    if (savedTextSize === 'large') document.documentElement.classList.add('text-size-large');
+    if (savedTextSize === 'extra-large') document.documentElement.classList.add('text-size-extra-large');
+    if (localStorage.getItem('mf_accessibility_high_contrast') === 'true') document.documentElement.classList.add('high-contrast');
+    if (localStorage.getItem('mf_accessibility_reduce_motion') === 'true') document.documentElement.classList.add('reduce-motion');
   }, []);
 
   // Gestion de la redirection depuis les notifications push (via paramètres URL)
@@ -10816,24 +10832,26 @@ function App() {
 
         // Ajouter la récompense financière correspondante au budget épargne (points)
         // Ex: 10 points = 1.00 €
-        handleAddTransaction({
-          amount: t.rewardPoints / 10,
-          type: 'savings',
-          category: 'Argent de Poche',
-          date: new Date().toISOString().split('T')[0],
-          title: `Récompense (Points) : ${t.title}`,
-          memberName: t.assignedMemberName
-        });
+        if (taskRewardsAllowed) {
+          handleAddTransaction({
+            amount: t.rewardPoints / 10,
+            type: 'savings',
+            category: 'Argent de Poche',
+            date: new Date().toISOString().split('T')[0],
+            title: `Récompense (Points) : ${t.title}`,
+            memberName: t.assignedMemberName
+          });
+        }
         
         // Mettre à jour l'argent de poche de l'enfant
         if (t.assignedMemberId || t.assignedMemberName) {
           setPocketMoney(prev => prev.map(child => {
             if (child.id === t.assignedMemberId || child.name.toLowerCase() === t.assignedMemberName?.toLowerCase()) {
               let updatedBalance = child.balance;
-              let pointsReward = child.points + t.rewardPoints + refundStars;
+              let pointsReward = child.points + (taskRewardsAllowed ? t.rewardPoints : 0) + refundStars;
 
               // Si une récompense financière en cash (rewardAmount) est définie
-              if (t.rewardAmount && t.rewardAmount > 0) {
+              if (taskRewardsAllowed && t.rewardAmount && t.rewardAmount > 0) {
                 updatedBalance += t.rewardAmount;
 
                 // Créer la transaction de débit parent / crédit enfant
@@ -10850,7 +10868,9 @@ function App() {
               }
 
               // Moteur d'allocations: Règle automatique "après mission"
-              const afterMissionRules = (child.rules || []).filter(r => r.type === 'after_mission' && r.active);
+              const afterMissionRules = taskRewardsAllowed
+                ? (child.rules || []).filter(r => r.type === 'after_mission' && r.active)
+                : [];
               afterMissionRules.forEach(rule => {
                 if (rule.amount && rule.amount > 0) {
                   updatedBalance += rule.amount;
@@ -11958,6 +11978,7 @@ function App() {
           setVotes={setVotes}
           onAddEventDirect={handleAddEvent}
           onSendNotification={sendLocalNotification}
+          rewardSettings={appFoyer?.malusSettings}
           onTriggerPaywall={() => setPaywallOpen(true)}
           onBack={() => setActiveModule('')}
         />

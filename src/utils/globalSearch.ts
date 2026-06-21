@@ -5,7 +5,10 @@ import type {
   Dish,
   DocumentFile,
   GroceryItem,
+  MemoryLog,
   Member,
+  NotificationAlert,
+  SavingGoal,
   SchoolTask,
   Transaction,
   Trip
@@ -25,7 +28,7 @@ export type GlobalSearchResult = {
   icon: string;
   target: GlobalSearchTarget;
   focus?: {
-    type: 'agenda_date' | 'chat_group' | 'module_query';
+    type: 'agenda_date' | 'chat_group' | 'module_query' | 'alerts_panel';
     value: string;
   };
   haystack: string;
@@ -43,6 +46,9 @@ export type GlobalSearchContext = {
   dishes: Dish[];
   chatGroups: ChatGroup[];
   chatMessages: ChatMessage[];
+  alerts?: NotificationAlert[];
+  memories?: MemoryLog[];
+  savingGoals?: SavingGoal[];
 };
 
 const normalize = (text: string) =>
@@ -217,6 +223,45 @@ export const buildGlobalSearchIndex = (context: GlobalSearchContext): GlobalSear
       { tab: 'menu', module: 'messagerie' },
       `${message.type} ${message.timestamp}`,
       { type: 'chat_group', value: message.groupId }
+    ));
+  });
+
+  context.alerts?.forEach((alert) => {
+    results.push(makeResult(
+      `alert-${alert.id}`,
+      alert.title,
+      alert.description,
+      'Alertes',
+      '🔔',
+      { tab: 'accueil', module: '' },
+      `${alert.type} ${alert.module || ''} ${alert.senderName || ''}`,
+      { type: 'alerts_panel', value: alert.id }
+    ));
+  });
+
+  context.memories?.forEach((memory) => {
+    results.push(makeResult(
+      `memory-${memory.id}`,
+      memory.title,
+      `${memory.authorName} • ${memory.date}`,
+      'Souvenirs',
+      '📸',
+      { tab: 'menu', module: 'capsule' },
+      `${memory.description} ${memory.theme || ''}`,
+      { type: 'module_query', value: memory.title }
+    ));
+  });
+
+  context.savingGoals?.forEach((goal) => {
+    results.push(makeResult(
+      `saving-goal-${goal.id}`,
+      goal.title,
+      `${Math.round(goal.currentAmount)} / ${Math.round(goal.targetAmount)} €`,
+      'Objectifs',
+      '🎯',
+      { tab: 'budget', module: '' },
+      `${goal.category} ${goal.targetDate}`,
+      { type: 'module_query', value: goal.title }
     ));
   });
 
