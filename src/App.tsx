@@ -949,6 +949,7 @@ function App() {
   const syncSessionIdRef = useRef(0);
   const syncTableSnapshotsRef = useRef<Map<string, Map<string, string>>>(new Map());
   const syncSnapshotFoyerIdRef = useRef<string | null>(null);
+  const foyerDataLoadsRef = useRef<Map<string, Promise<void>>>(new Map());
   const pendingPinActionRef = useRef<(() => void | Promise<void>) | null>(null);
 
   useEffect(() => {
@@ -2651,6 +2652,9 @@ function App() {
 
   // 1. Fetch & Hydrate all tables for active foyer
   const loadFoyerData = async (foyerId: string) => {
+    const pendingLoad = foyerDataLoadsRef.current.get(foyerId);
+    if (pendingLoad) return pendingLoad;
+
     const client = getSupabaseClient();
     if (!client) return;
 
@@ -2665,7 +2669,7 @@ function App() {
     };
 
     // Load everything in parallel to minimize load times
-    return Promise.all([
+    const loadPromise = Promise.all([
       foyerService.getFoyerMembers(foyerId).catch(err => {
         console.error("Error loading members:", err);
         return [];
@@ -3281,6 +3285,14 @@ function App() {
     }).catch((err: unknown) => {
       console.error("Error loading foyer tables background data:", err);
     });
+
+    const trackedLoad = loadPromise.finally(() => {
+      if (foyerDataLoadsRef.current.get(foyerId) === trackedLoad) {
+        foyerDataLoadsRef.current.delete(foyerId);
+      }
+    });
+    foyerDataLoadsRef.current.set(foyerId, trackedLoad);
+    return trackedLoad;
   };
 
   const processRecurringItems = async (
@@ -5160,121 +5172,6 @@ function App() {
     alerts, votes, schoolTasks, chatGroups, chatMessages, demarches,
     justificatifPacks, vehicles, maintenance, trips, pets, pocketMoney, artisans
   ]);
-
-  useEffect(() => {
-    if (!foyer || !isSyncReady) return;
-    const migrationKey = `mf_storage_payload_migration_v1_${foyer.id}`;
-    if (localStorage.getItem(migrationKey) === 'done') return;
-
-    let cancelled = false;
-
-    const migrateLegacyPayloads = async () => {
-      const client = getSupabaseClient();
-      if (!client) return;
-
-      let hadError = false;
-      const uploadDataUrl = async (bucket: string, pathBase: string, value: string, imagePreset: 'classic' | 'document') => {
-        if (value.startsWith('data:image/')) {
-          const { blob, ext } = await compressImageToBlob(value, imagePreset);
-          return uploadBlobToStorage(bucket, `${pathBase}.${ext}`, blob);
-        }
-        const blob = await dataUrlToBlob(value);
-        const ext = extensionFromMimeType(blob.type, 'bin');
-        return uploadBlobToStorage(bucket, `${pathBase}.${ext}`, blob);
-      };
-
-      try {
-        const { data: legacyTransactions, error: txError } = await client
-          .from('transactions')
-          .select('id, receipt_base64, attachment_base64, receipt_url, attachment_url')
-          .eq('foyer_id', foyer.id)
-          .or('receipt_base64.not.is.null,attachment_base64.not.is.null');
-        if (txError) throw txError;
-
-        for (const tx of legacyTransactions || []) {
-          if (cancelled) return;
-          const updates: DbRow = { receipt_base64: null, attachment_base64: null };
-          if (!tx.receipt_url && isRemoteUrl(tx.receipt_base64)) updates.receipt_url = tx.receipt_base64;
-          if (!tx.attachment_url && isRemoteUrl(tx.attachment_base64)) updates.attachment_url = tx.attachment_base64;
-          if (!tx.receipt_url && isDataUrl(tx.receipt_base64)) {
-            updates.receipt_url = await uploadDataUrl('receipts', `${foyer.id}/${tx.id}_receipt`, tx.receipt_base64, 'classic');
-          }
-          if (!tx.attachment_url && isDataUrl(tx.attachment_base64)) {
-            updates.attachment_url = await uploadDataUrl('receipts', `${foyer.id}/${tx.id}_attach`, tx.attachment_base64, 'classic');
-          }
-          const { error } = await client.from('transactions').update(updates).eq('foyer_id', foyer.id).eq('id', tx.id);
-          if (error) throw error;
-        }
-
-        const { data: legacyDocuments, error: docError } = await client
-          .from('documents')
-          .select('id, file_base64, file_url, thumbnail_url')
-          .eq('foyer_id', foyer.id)
-          .not('file_base64', 'is', null);
-        if (docError) throw docError;
-
-        for (const doc of legacyDocuments || []) {
-          if (cancelled) return;
-          const updates: DbRow = { file_base64: null };
-          if (!doc.file_url && isRemoteUrl(doc.file_base64)) updates.file_url = doc.file_base64;
-          if (!doc.file_url && isDataUrl(doc.file_base64)) {
-            updates.file_url = await uploadDataUrl('documents', `${foyer.id}/${doc.id}`, doc.file_base64, 'document');
-            if (!doc.thumbnail_url && doc.file_base64.startsWith('data:image/')) {
-              try {
-                const { blob: thumbBlob } = await compressImageToBlob(doc.file_base64, 'thumbnail');
-                updates.thumbnail_url = await uploadBlobToStorage('documents', `${foyer.id}/thumb_${doc.id}.webp`, thumbBlob);
-              } catch (err) {
-                console.warn('[Storage Migration] document thumbnail skipped:', err);
-              }
-            }
-          }
-          const { error } = await client.from('documents').update(updates).eq('foyer_id', foyer.id).eq('id', doc.id);
-          if (error) throw error;
-        }
-
-        const { data: legacyChatImages, error: chatImageError } = await client
-          .from('chat_messages')
-          .select('id, content')
-          .eq('foyer_id', foyer.id)
-          .like('content', 'data:%');
-        if (chatImageError) throw chatImageError;
-
-        const { data: legacyChatAttachments, error: chatAttachmentError } = await client
-          .from('chat_messages')
-          .select('id, content')
-          .eq('foyer_id', foyer.id)
-          .like('content', '%|data:%');
-        if (chatAttachmentError) throw chatAttachmentError;
-
-        const legacyChats = [...(legacyChatImages || []), ...(legacyChatAttachments || [])]
-          .filter((chat, index, all) => all.findIndex(item => item.id === chat.id) === index);
-
-        for (const chat of legacyChats) {
-          if (cancelled) return;
-          if (typeof chat.content !== 'string') continue;
-          const parts = chat.content.split('|');
-          const dataPartIndex = parts.findIndex((part: string) => part.startsWith('data:'));
-          if (dataPartIndex === -1) continue;
-          const url = await uploadDataUrl('chat-media', `${foyer.id}/${chat.id}`, parts[dataPartIndex], 'classic');
-          parts[dataPartIndex] = url;
-          const { error } = await client.from('chat_messages').update({ content: parts.join('|') }).eq('foyer_id', foyer.id).eq('id', chat.id);
-          if (error) throw error;
-        }
-      } catch (err) {
-        hadError = true;
-        console.warn('[Storage Migration] legacy payload migration incomplete:', err);
-      }
-
-      if (!cancelled && !hadError) {
-        localStorage.setItem(migrationKey, 'done');
-      }
-    };
-
-    migrateLegacyPayloads();
-    return () => {
-      cancelled = true;
-    };
-  }, [foyer, isSyncReady]);
 
   const closeVoiceAssistantAfterDelay = (
     delayMs: number = 2500,
