@@ -185,6 +185,7 @@ const SPECIAL_ROLES = (Object.keys(ROLE_INFO) as Role[]).filter(role => role !==
 const DEFAULT_SPECIAL_ROLES: Role[] = ['investigator', 'protector', 'healer', 'cupid', 'jester', 'elder', 'mayor', 'raven', 'archivist', 'diplomat'];
 const SAVE_KEY = 'mf_village_secret_active_game_v3';
 const RESULTS_KEY = 'mf_village_secret_results_v1';
+const VOICE_PREFERENCE_KEY = `mf_village_secret_voice_${nativeSpeech.platform()}`;
 const ROLE_ART_ORDER: Role[] = ['villager', 'traitor', 'protector', 'investigator', 'healer', 'cupid', 'jester', 'elder', 'mayor', 'raven', 'archivist', 'diplomat'];
 
 const shuffle = <T,>(items: T[]): T[] => {
@@ -356,13 +357,14 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   const [healerTarget, setHealerTarget] = useState<string | null>(null);
   const [dummyTarget, setDummyTarget] = useState<string | null>(null);
   const [investigationsUsed, setInvestigationsUsed] = useState(0);
+  const [investigationHistory, setInvestigationHistory] = useState<Record<string, boolean>>({});
   const [lastProtectedTarget, setLastProtectedTarget] = useState<string | null>(null);
   const [mayorBonusUsed, setMayorBonusUsed] = useState(false);
   const [mayorBonusVoterId, setMayorBonusVoterId] = useState<string | null>(null);
   const [mayorWantsBonus, setMayorWantsBonus] = useState(false);
   const [voteTarget, setVoteTarget] = useState<string | null>(null);
   const [voiceRefresh, setVoiceRefresh] = useState(0);
-  const [voiceURI, setVoiceURI] = useState('');
+  const [voiceURI, setVoiceURI] = useState(() => localStorage.getItem(VOICE_PREFERENCE_KEY) || '');
   const [voicesRefreshedAt, setVoicesRefreshedAt] = useState<number | null>(null);
   const [nativeVoices, setNativeVoices] = useState<NativeSpeechVoice[]>([]);
   const [effectsVolume, setEffectsVolume] = useState(0.7);
@@ -441,10 +443,18 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     void nativeSpeech.getVoices()
       .then(voices => {
         setNativeVoices(voices);
-        if (voiceURI && !voices.some(voice => voice.id === voiceURI)) setVoiceURI('');
+        if (voiceURI && !voices.some(voice => voice.id === voiceURI)) {
+          setVoiceURI('');
+          localStorage.removeItem(VOICE_PREFERENCE_KEY);
+        }
       })
       .catch(() => setNativeVoices([]));
   }, [voiceRefresh, voiceURI]);
+
+  useEffect(() => {
+    if (voiceURI) localStorage.setItem(VOICE_PREFERENCE_KEY, voiceURI);
+    else localStorage.removeItem(VOICE_PREFERENCE_KEY);
+  }, [voiceURI]);
 
   useEffect(() => {
     if (!nativeSpeech.isAvailable()) return;
@@ -519,6 +529,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       traitorVotes,
       healerTarget,
       investigationsUsed,
+      investigationHistory,
       lastProtectedTarget,
       mayorBonusUsed,
       mayorBonusVoterId,
@@ -530,7 +541,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   }, [
     archivistUsed, cupidTargets, dawnMessage, discussionSeconds, eliminationHistory, healerSaveAvailable,
     night, nightHealerSaved, narratorEnabled, oracleTarget, players, protectedTarget, ravenTarget,
-    healerTarget, investigationsUsed, lastProtectedTarget, mayorBonusUsed, mayorBonusVoterId, nightTurnIndex,
+    healerTarget, investigationHistory, investigationsUsed, lastProtectedTarget, mayorBonusUsed, mayorBonusVoterId, nightTurnIndex,
     revealIndex, revealRoles, seconds, shadowTarget, soloWinner, soundEnabled, stage, traitorVotes,
     ambienceVolume, effectsVolume, gameMoments, voiceURI, voteMessage, voterIndex, votes, winner
   ]);
@@ -605,6 +616,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     setTraitorVotes({});
     setHealerTarget(null);
     setInvestigationsUsed(0);
+    setInvestigationHistory({});
     setLastProtectedTarget(null);
     setMayorBonusUsed(false);
     setMayorBonusVoterId(null);
@@ -653,10 +665,10 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       setTraitorVotes(saved.traitorVotes || {});
       setHealerTarget(saved.healerTarget || null);
       setInvestigationsUsed(saved.investigationsUsed || 0);
+      setInvestigationHistory(saved.investigationHistory || {});
       setLastProtectedTarget(saved.lastProtectedTarget || null);
       setMayorBonusUsed(Boolean(saved.mayorBonusUsed));
       setMayorBonusVoterId(saved.mayorBonusVoterId || null);
-      setVoiceURI(saved.voiceURI || '');
       setEffectsVolume(saved.effectsVolume ?? 0.7);
       setAmbienceVolume(saved.ambienceVolume ?? 0.45);
       setGameMoments(saved.gameMoments || []);
@@ -1300,6 +1312,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
 
     if (role === 'traitor') {
       const selectedTarget = traitorVotes[currentNightPlayer.id] || null;
+      const traitorAllies = aliveTraitors.filter(player => player.id !== currentNightPlayer.id);
       const previousCounts = Object.values(traitorVotes).reduce<Record<string, number>>((counts, targetId) => {
         counts[targetId] = (counts[targetId] || 0) + 1;
         return counts;
@@ -1309,6 +1322,14 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
           <Skull className="mx-auto h-10 w-10 text-[#FF4D6D]" />
           <h2 className="mt-3 text-center text-xl font-black text-white">Choix des Traîtres</h2>
           <p className="mt-2 text-center text-xs text-white/50">Vous voyez les choix déjà faits, mais jamais le nom de leurs auteurs.</p>
+          <div className="mt-4 rounded-2xl border border-[#FF4D6D]/20 bg-[#FF4D6D]/8 p-3 text-center">
+            <strong className="block text-[9px] uppercase text-[#FF9BAF]">Votre équipe</strong>
+            <span className="mt-1 block text-xs font-black text-white">
+              {traitorAllies.length > 0
+                ? traitorAllies.map(player => player.name).join(', ')
+                : 'Vous êtes le dernier Traître en jeu'}
+            </span>
+          </div>
           {Object.keys(previousCounts).length > 0 && (
             <div className="mt-4 rounded-2xl border border-[#FF4D6D]/20 bg-[#FF4D6D]/8 p-3">
               <strong className="text-[9px] uppercase text-[#FF9BAF]">Choix déjà faits</strong>
@@ -1336,6 +1357,9 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
 
     if (role === 'investigator' && canInvestigate) {
       const target = players.find(player => player.id === oracleTarget);
+      const previousInvestigations = Object.entries(investigationHistory)
+        .map(([playerId, isTraitor]) => ({ player: players.find(player => player.id === playerId), isTraitor }))
+        .filter((entry): entry is { player: Player; isTraitor: boolean } => Boolean(entry.player));
       return (
         <SecretPanel>
           <Eye className="mx-auto h-10 w-10 text-[#9E94FF]" />
@@ -1343,16 +1367,52 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
           {!oracleResultVisible ? (
             <>
               <p className="mt-2 text-center text-xs text-white/50">{players.length <= 6 ? 'Votre unique enquête de la partie.' : players.length <= 9 ? 'Vous enquêtez une nuit sur deux.' : 'Vous pouvez enquêter chaque nuit.'}</p>
+              {previousInvestigations.length > 0 && (
+                <div className="mt-4 rounded-2xl border border-[#9E94FF]/20 bg-[#9E94FF]/8 p-3 text-left">
+                  <strong className="text-[9px] uppercase text-[#C4BEFF]">Votre carnet d’enquête</strong>
+                  <div className="mt-2 space-y-1.5">
+                    {previousInvestigations.map(({ player, isTraitor }) => (
+                      <div key={player.id} className="flex items-center justify-between gap-3 text-xs">
+                        <span className="font-bold text-white/70">{player.name}</span>
+                        <span className={isTraitor ? 'font-black text-[#FF4D6D]' : 'font-black text-[#00D26A]'}>
+                          {isTraitor ? 'Traître' : 'Innocent'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="mt-5 grid grid-cols-2 gap-2">
-                {alivePlayers.filter(player => player.id !== currentNightPlayer.id).map(player => (
-                  <button key={player.id} type="button" onClick={() => setOracleTarget(player.id)} className={`rounded-2xl border p-3 text-xs font-black ${oracleTarget === player.id ? 'border-[#9E94FF] bg-[#9E94FF]/12 text-white' : 'border-white/8 bg-white/5 text-white/55'}`}>{player.name}</button>
-                ))}
+                {alivePlayers.filter(player => player.id !== currentNightPlayer.id).map(player => {
+                  const alreadyChecked = player.id in investigationHistory;
+                  return (
+                    <button
+                      key={player.id}
+                      type="button"
+                      disabled={alreadyChecked}
+                      onClick={() => setOracleTarget(player.id)}
+                      className={`rounded-2xl border p-3 text-xs font-black ${
+                        alreadyChecked
+                          ? 'border-white/5 bg-black/10 text-white/25'
+                          : oracleTarget === player.id
+                            ? 'border-[#9E94FF] bg-[#9E94FF]/12 text-white'
+                            : 'border-white/8 bg-white/5 text-white/55'
+                      }`}
+                    >
+                      {player.name}
+                      {alreadyChecked && <span className="mt-1 block text-[8px] uppercase">Déjà vérifié</span>}
+                    </button>
+                  );
+                })}
               </div>
               <button type="button" disabled={!oracleTarget} onClick={() => {
                 setOracleResultVisible(true);
                 setInvestigationsUsed(value => value + 1);
                 const checked = players.find(player => player.id === oracleTarget);
-                if (checked) addMoment('investigation', 'Vérification de l’Enquêteur', `${checked.name} ${checked.role === 'traitor' ? 'était un Traître' : 'n’était pas un Traître'}.`);
+                if (checked) {
+                  setInvestigationHistory(previous => ({ ...previous, [checked.id]: checked.role === 'traitor' }));
+                  addMoment('investigation', 'Vérification de l’Enquêteur', `${checked.name} ${checked.role === 'traitor' ? 'était un Traître' : 'n’était pas un Traître'}.`);
+                }
               }} className="mt-4 w-full rounded-2xl bg-[#9E94FF] py-3 text-xs font-black text-[#090D1A] disabled:opacity-35">Savoir si cette personne est un Traître</button>
             </>
           ) : (
@@ -1497,18 +1557,45 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
 
   if (stage === 'night-oracle') {
     const target = players.find(player => player.id === oracleTarget);
+    const previousInvestigations = Object.entries(investigationHistory)
+      .map(([playerId, isTraitor]) => ({ player: players.find(player => player.id === playerId), isTraitor }))
+      .filter((entry): entry is { player: Player; isTraitor: boolean } => Boolean(entry.player));
     return (
       <SecretPanel>
         <Eye className="mx-auto h-10 w-10 text-[#9E94FF]" />
         <h2 className="mt-3 text-center text-xl font-black text-white">Enquête secrète</h2>
         {!oracleResultVisible ? (
           <>
+            {previousInvestigations.length > 0 && (
+              <div className="mt-4 rounded-2xl border border-[#9E94FF]/20 bg-[#9E94FF]/8 p-3">
+                <strong className="text-[9px] uppercase text-[#C4BEFF]">Votre carnet d’enquête</strong>
+                <div className="mt-2 space-y-1.5">
+                  {previousInvestigations.map(({ player, isTraitor }) => (
+                    <div key={player.id} className="flex items-center justify-between text-xs">
+                      <span className="text-white/70">{player.name}</span>
+                      <span className={isTraitor ? 'font-black text-[#FF4D6D]' : 'font-black text-[#00D26A]'}>{isTraitor ? 'Traître' : 'Innocent'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="mt-5 grid grid-cols-2 gap-2">
-              {alivePlayers.filter(player => player.id !== investigator?.id).map(player => (
-                <button key={player.id} type="button" onClick={() => setOracleTarget(player.id)} className={`rounded-2xl border p-3 text-xs font-black ${oracleTarget === player.id ? 'border-[#9E94FF] bg-[#9E94FF]/12 text-white' : 'border-white/8 bg-white/5 text-white/55'}`}>{player.name}</button>
-              ))}
+              {alivePlayers.filter(player => player.id !== investigator?.id).map(player => {
+                const alreadyChecked = player.id in investigationHistory;
+                return (
+                  <button key={player.id} type="button" disabled={alreadyChecked} onClick={() => setOracleTarget(player.id)} className={`rounded-2xl border p-3 text-xs font-black ${alreadyChecked ? 'border-white/5 bg-black/10 text-white/25' : oracleTarget === player.id ? 'border-[#9E94FF] bg-[#9E94FF]/12 text-white' : 'border-white/8 bg-white/5 text-white/55'}`}>
+                    {player.name}
+                    {alreadyChecked && <span className="mt-1 block text-[8px] uppercase">Déjà vérifié</span>}
+                  </button>
+                );
+              })}
             </div>
-            <button type="button" disabled={!oracleTarget} onClick={() => setOracleResultVisible(true)} className="mt-4 w-full rounded-2xl bg-[#9E94FF] py-3 text-xs font-black text-[#090D1A] disabled:opacity-35">Savoir si cette personne est un Traître</button>
+            <button type="button" disabled={!oracleTarget} onClick={() => {
+              setOracleResultVisible(true);
+              setInvestigationsUsed(value => value + 1);
+              const checked = players.find(player => player.id === oracleTarget);
+              if (checked) setInvestigationHistory(previous => ({ ...previous, [checked.id]: checked.role === 'traitor' }));
+            }} className="mt-4 w-full rounded-2xl bg-[#9E94FF] py-3 text-xs font-black text-[#090D1A] disabled:opacity-35">Savoir si cette personne est un Traître</button>
           </>
         ) : (
           <>
