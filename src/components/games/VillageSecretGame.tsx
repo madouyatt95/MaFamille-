@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   BookOpen,
+  Bot,
   Check,
   ChevronDown,
   Crown,
@@ -41,8 +42,17 @@ type Role =
   | 'mayor'
   | 'raven'
   | 'archivist'
-  | 'diplomat';
+  | 'diplomat'
+  | 'watcher'
+  | 'messenger'
+  | 'twin'
+  | 'confessor'
+  | 'silencer'
+  | 'repentant';
 type Alignment = 'traitors' | 'village' | 'solo';
+type BotDifficulty = 'easy' | 'normal' | 'hard';
+type BotSpeed = 'fast' | 'normal' | 'cinematic';
+type BotPersonality = 'prudent' | 'accuser' | 'discreet' | 'unpredictable';
 type Stage =
   | 'setup'
   | 'reveal-pass'
@@ -76,9 +86,14 @@ type Player = {
   name: string;
   role: Role;
   alive: boolean;
+  isBot?: boolean;
+  botPersonality?: BotPersonality;
+  hasRepented?: boolean;
+  repentanceNoticePending?: boolean;
   linkedId?: string;
   elderShield: boolean;
   diplomatShield: boolean;
+  twinId?: string;
 };
 
 type GameMoment = {
@@ -86,6 +101,14 @@ type GameMoment = {
   night: number;
   kind: 'start' | 'night' | 'investigation' | 'protection' | 'healing' | 'link' | 'vote' | 'result';
   title: string;
+  detail: string;
+};
+
+type BotDecision = {
+  id: string;
+  night: number;
+  botName: string;
+  action: string;
   detail: string;
 };
 
@@ -178,15 +201,66 @@ const ROLE_INFO: Record<Role, { name: string; icon: string; description: string;
     description: 'Vous survivez à la première décision du village qui devait vous éliminer.',
     alignment: 'village',
     color: '#7DD3FC'
+  },
+  watcher: {
+    name: 'Veilleur',
+    icon: '🕯️',
+    description: 'Chaque nuit, découvrez si une personne possède une action nocturne.',
+    alignment: 'village',
+    color: '#FDE68A'
+  },
+  messenger: {
+    name: 'Messager',
+    icon: '✉️',
+    description: 'Envoyez chaque nuit un conseil anonyme qui sera révélé au lever du jour.',
+    alignment: 'village',
+    color: '#67E8F9'
+  },
+  twin: {
+    name: 'Jumeau secret',
+    icon: '♊',
+    description: 'Vous connaissez votre Jumeau. Si l’un tombe, l’autre le suit.',
+    alignment: 'village',
+    color: '#F0ABFC'
+  },
+  confessor: {
+    name: 'Confesseur',
+    icon: '🕊️',
+    description: 'Une fois par partie, protégez publiquement une personne du prochain vote.',
+    alignment: 'village',
+    color: '#A7F3D0'
+  },
+  silencer: {
+    name: 'Silencieux',
+    icon: '🤫',
+    description: 'Chaque nuit, empêchez une personne de participer au vote du lendemain.',
+    alignment: 'traitors',
+    color: '#A78BFA'
+  },
+  repentant: {
+    name: 'Traître repenti',
+    icon: '🌗',
+    description: 'Vous commencez avec les Traîtres, puis rejoignez le Village lorsqu’un autre Traître tombe.',
+    alignment: 'traitors',
+    color: '#FB7185'
   }
 };
 
 const SPECIAL_ROLES = (Object.keys(ROLE_INFO) as Role[]).filter(role => role !== 'villager' && role !== 'traitor');
-const DEFAULT_SPECIAL_ROLES: Role[] = ['investigator', 'protector', 'healer', 'cupid', 'jester', 'elder', 'mayor', 'raven', 'archivist', 'diplomat'];
+const DEFAULT_SPECIAL_ROLES: Role[] = ['investigator', 'protector', 'healer', 'cupid', 'jester', 'elder', 'mayor', 'raven', 'archivist', 'diplomat', 'watcher', 'messenger', 'twin', 'confessor', 'silencer', 'repentant'];
 const SAVE_KEY = 'mf_village_secret_active_game_v3';
 const RESULTS_KEY = 'mf_village_secret_results_v1';
 const VOICE_PREFERENCE_KEY = `mf_village_secret_voice_${nativeSpeech.platform()}`;
 const ROLE_ART_ORDER: Role[] = ['villager', 'traitor', 'protector', 'investigator', 'healer', 'cupid', 'jester', 'elder', 'mayor', 'raven', 'archivist', 'diplomat'];
+const BOT_NAMES = ['Camille', 'Nolan', 'Jade', 'Sacha', 'Lina', 'Noé', 'Mila', 'Eden', 'Lou', 'Maël', 'Inès', 'Naël', 'Rose', 'Léo', 'Aya', 'Tom', 'Zoé', 'Adam', 'Nina'];
+const BOT_PERSONALITIES: BotPersonality[] = ['prudent', 'accuser', 'discreet', 'unpredictable'];
+const BOT_PERSONALITY_LABELS: Record<BotPersonality, string> = {
+  prudent: 'Prudent',
+  accuser: 'Accusateur',
+  discreet: 'Discret',
+  unpredictable: 'Imprévisible'
+};
+const BOT_SPEED_DELAYS: Record<BotSpeed, number> = { fast: 180, normal: 600, cinematic: 1050 };
 
 const shuffle = <T,>(items: T[]): T[] => {
   const next = [...items];
@@ -197,14 +271,33 @@ const shuffle = <T,>(items: T[]): T[] => {
   return next;
 };
 
-const buildRoles = (count: number, enabledRoles: Role[]): Role[] => {
+const pickRandom = <T,>(items: T[]): T | undefined => items[Math.floor(Math.random() * items.length)];
+const isTraitorRole = (role: Role) => ROLE_INFO[role].alignment === 'traitors';
+const isActiveTraitor = (player: Pick<Player, 'role' | 'hasRepented'>) => (
+  isTraitorRole(player.role) && !(player.role === 'repentant' && player.hasRepented)
+);
+const hasNightAction = (role: Role) => ['traitor', 'repentant', 'silencer', 'protector', 'investigator', 'healer', 'cupid', 'raven', 'archivist', 'watcher', 'messenger', 'confessor'].includes(role);
+
+const buildRoles = (count: number, enabledRoles: Role[], humanCount = count): Role[] => {
   const traitorCount = count >= 16 ? 4 : count >= 11 ? 3 : count >= 7 ? 2 : 1;
-  const roles: Role[] = [...Array.from({ length: traitorCount }, () => 'traitor' as const)];
-  const minimumVillagers = Math.max(2, Math.floor(count * 0.3));
+  const botRatio = 1 - humanCount / count;
+  const minimumVillagers = Math.max(2, Math.floor(count * (botRatio > 0.6 ? 0.4 : 0.3)));
   const maximumSpecialRoles = Math.max(0, count - traitorCount - minimumVillagers);
-  enabledRoles.slice(0, maximumSpecialRoles).forEach(role => {
-    if (roles.length < count) roles.push(role);
+  const balancedRoles = enabledRoles.filter(role => !(count <= 6 && ['mayor', 'silencer', 'repentant'].includes(role)));
+  const selectedSpecials: Role[] = [];
+  shuffle(balancedRoles).forEach(role => {
+    if (selectedSpecials.length >= maximumSpecialRoles) return;
+    if (role === 'twin') {
+      if (selectedSpecials.length + 2 <= maximumSpecialRoles) selectedSpecials.push('twin', 'twin');
+      return;
+    }
+    selectedSpecials.push(role);
   });
+  const selectedTraitorRoles = selectedSpecials.filter(role => isTraitorRole(role)).length;
+  const roles: Role[] = [
+    ...Array.from({ length: Math.max(1, traitorCount - selectedTraitorRoles) }, () => 'traitor' as const),
+    ...selectedSpecials
+  ];
   while (roles.length < count) roles.push('villager');
   return shuffle(roles);
 };
@@ -310,6 +403,13 @@ const stopAmbience = () => {
 export function VillageSecretGame({ members, onFinished }: VillageSecretGameProps) {
   const initialNames = members.map(member => member.name).filter(Boolean).slice(0, 20);
   const [names, setNames] = useState<string[]>(initialNames);
+  const [botCount, setBotCount] = useState(0);
+  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>('normal');
+  const [botSpeed, setBotSpeed] = useState<BotSpeed>('normal');
+  const [fastForwardBots, setFastForwardBots] = useState(false);
+  const [showBotSettings, setShowBotSettings] = useState(false);
+  const [customBotNames, setCustomBotNames] = useState<string[]>(BOT_NAMES);
+  const [botDecisions, setBotDecisions] = useState<BotDecision[]>([]);
   const [guestName, setGuestName] = useState('');
   const [players, setPlayers] = useState<Player[]>([]);
   const [stage, setStage] = useState<Stage>('setup');
@@ -338,6 +438,14 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   const [showRules, setShowRules] = useState(false);
   const [showSoundSettings, setShowSoundSettings] = useState(false);
   const [ravenTarget, setRavenTarget] = useState<string | null>(null);
+  const [watcherTarget, setWatcherTarget] = useState<string | null>(null);
+  const [watcherResultVisible, setWatcherResultVisible] = useState(false);
+  const [messengerTarget, setMessengerTarget] = useState<string | null>(null);
+  const [messengerTone, setMessengerTone] = useState<'trust' | 'doubt'>('doubt');
+  const [messengerMessage, setMessengerMessage] = useState('');
+  const [confessorTarget, setConfessorTarget] = useState<string | null>(null);
+  const [confessorUsed, setConfessorUsed] = useState(false);
+  const [silencedTarget, setSilencedTarget] = useState<string | null>(null);
   const [archivistUsed, setArchivistUsed] = useState(false);
   const [archivistTarget, setArchivistTarget] = useState<string | null>(null);
   const [archivistResultVisible, setArchivistResultVisible] = useState(false);
@@ -373,7 +481,27 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   const [gameMoments, setGameMoments] = useState<GameMoment[]>([]);
 
   const alivePlayers = useMemo(() => players.filter(player => player.alive), [players]);
-  const aliveTraitors = useMemo(() => alivePlayers.filter(player => player.role === 'traitor'), [alivePlayers]);
+  const aliveTraitors = useMemo(() => alivePlayers.filter(player => isTraitorRole(player.role)), [alivePlayers]);
+  const botStatements = useMemo(() => alivePlayers
+    .filter(player => player.isBot)
+    .slice(0, 4)
+    .map(bot => {
+      const candidates = alivePlayers.filter(player => player.id !== bot.id && (!isActiveTraitor(bot) || !isActiveTraitor(player)));
+      const knownTraitor = bot.role === 'investigator'
+        ? candidates.find(player => investigationHistory[player.id] === true)
+        : undefined;
+      const suspected = knownTraitor || candidates[(night + bot.name.length) % Math.max(1, candidates.length)];
+      const detail = !suspected
+        ? 'Je préfère encore observer.'
+        : bot.botPersonality === 'prudent'
+          ? `Je garde un œil sur ${suspected.name}.`
+          : bot.botPersonality === 'accuser'
+            ? `${suspected.name} me semble le plus suspect pour le moment.`
+            : bot.botPersonality === 'discreet'
+              ? `Je ne suis pas certain, mais ${suspected.name} m’interroge.`
+              : `Mon intuition pointe vers ${suspected.name}.`;
+      return { id: bot.id, name: bot.name, detail };
+    }), [alivePlayers, investigationHistory, night]);
   const investigator = players.find(player => player.role === 'investigator' && player.alive);
   const protector = players.find(player => player.role === 'protector' && player.alive);
   const healer = players.find(player => player.role === 'healer' && player.alive);
@@ -381,10 +509,13 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   const raven = players.find(player => player.role === 'raven' && player.alive);
   const archivist = players.find(player => player.role === 'archivist' && player.alive);
   const currentRevealPlayer = players[revealIndex];
-  const currentVoter = alivePlayers[voterIndex];
+  const eligibleVoters = alivePlayers.filter(player => player.id !== silencedTarget);
+  const currentVoter = eligibleVoters[voterIndex];
   const currentNightPlayer = alivePlayers[nightTurnIndex];
   const familyMemberNames = useMemo(() => new Set(members.map(member => member.name)), [members]);
   const guestNames = names.filter(name => !familyMemberNames.has(name));
+  const totalParticipants = names.length + botCount;
+  const maximumBots = Math.max(0, 20 - names.length);
   const webFrenchVoices = useMemo(() => {
     void voiceRefresh;
     return getFrenchVoices();
@@ -524,6 +655,14 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       eliminationHistory,
       soloWinner,
       ravenTarget,
+      watcherTarget,
+      watcherResultVisible,
+      messengerTarget,
+      messengerTone,
+      messengerMessage,
+      confessorTarget,
+      confessorUsed,
+      silencedTarget,
       archivistUsed,
       nightHealerSaved,
       revealRoles,
@@ -539,19 +678,22 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       voiceURI,
       effectsVolume,
       ambienceVolume,
+      botDifficulty,
+      botSpeed,
+      botDecisions,
       gameMoments
     }));
   }, [
-    archivistUsed, cupidTargets, dawnMessage, discussionSeconds, eliminationHistory, healerSaveAvailable,
+    archivistUsed, confessorTarget, confessorUsed, cupidTargets, dawnMessage, discussionSeconds, eliminationHistory, healerSaveAvailable,
     investigationResult, night, nightHealerSaved, narratorEnabled, oracleResultVisible, oracleTarget, players, protectedTarget, ravenTarget,
-    healerTarget, investigationHistory, investigationsUsed, lastProtectedTarget, mayorBonusUsed, mayorBonusVoterId, nightTurnIndex,
+    healerTarget, investigationHistory, investigationsUsed, lastProtectedTarget, mayorBonusUsed, mayorBonusVoterId, messengerMessage, messengerTarget, messengerTone, nightTurnIndex,
     revealIndex, revealRoles, seconds, shadowTarget, soloWinner, soundEnabled, stage, traitorVotes,
-    ambienceVolume, effectsVolume, gameMoments, voiceURI, voteMessage, voterIndex, votes, winner
+    ambienceVolume, botDecisions, botDifficulty, botSpeed, effectsVolume, gameMoments, silencedTarget, voiceURI, voteMessage, voterIndex, votes, watcherResultVisible, watcherTarget, winner
   ]);
 
   const checkWinner = useCallback((nextPlayers: Player[]) => {
     const alive = nextPlayers.filter(player => player.alive);
-    const traitors = alive.filter(player => player.role === 'traitor').length;
+    const traitors = alive.filter(isActiveTraitor).length;
     const village = alive.length - traitors;
     if (traitors === 0) return 'village' as const;
     if (traitors >= village) return 'traitors' as const;
@@ -566,6 +708,37 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       title,
       detail
     }]);
+  };
+
+  const addBotDecision = (bot: Player, action: string, detail: string) => {
+    setBotDecisions(previous => [...previous, {
+      id: crypto.randomUUID(),
+      night,
+      botName: bot.name,
+      action,
+      detail
+    }]);
+  };
+
+  const selectBotTarget = (bot: Player, candidates: Player[], preferKnownTraitor = false): Player | undefined => {
+    if (candidates.length === 0) return undefined;
+    if (preferKnownTraitor && botDifficulty !== 'easy') {
+      const knownTraitor = candidates.find(player => investigationHistory[player.id] === true);
+      if (knownTraitor) return knownTraitor;
+    }
+    if (bot.botPersonality === 'prudent') {
+      return candidates.find(player => !ravenTarget || player.id !== ravenTarget) || candidates[0];
+    }
+    if (bot.botPersonality === 'accuser') {
+      const previousTargets = Object.values(votes);
+      return candidates
+        .map(player => ({ player, score: previousTargets.filter(id => id === player.id).length + (player.id === ravenTarget ? 1 : 0) }))
+        .sort((left, right) => right.score - left.score)[0]?.player;
+    }
+    if (bot.botPersonality === 'discreet') {
+      return candidates[(bot.name.length + night) % candidates.length];
+    }
+    return pickRandom(candidates);
   };
 
   const recordResult = (resultWinner: string) => {
@@ -594,17 +767,35 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
 
   const startGame = () => {
     const cleanNames = names.map(name => name.trim()).filter(Boolean).slice(0, 20);
-    if (cleanNames.length < 5) return;
-    const roles = buildRoles(cleanNames.length, enabledRoles);
-    setPlayers(shuffle(cleanNames.map((name, index) => ({
+    const requestedBots = Math.min(botCount, 20 - cleanNames.length);
+    const availableBotNames = customBotNames.filter(name => name.trim() && !cleanNames.some(humanName => humanName.toLowerCase() === name.trim().toLowerCase()));
+    const botNames = Array.from({ length: requestedBots }, (_, index) => `${availableBotNames[index] || `Joueur ${index + 1}`} · Ordi`);
+    const participants = [
+      ...cleanNames.map(name => ({ name, isBot: false })),
+      ...botNames.map(name => ({ name, isBot: true }))
+    ];
+    if (cleanNames.length < 1 || participants.length < 5) return;
+    const roles = buildRoles(participants.length, enabledRoles, cleanNames.length);
+    let nextPlayers = shuffle(participants.map((participant, index) => ({
       id: `player-${Date.now()}-${index}`,
-      name,
+      name: participant.name,
       role: roles[index],
       alive: true,
+      isBot: participant.isBot,
+      botPersonality: participant.isBot ? BOT_PERSONALITIES[index % BOT_PERSONALITIES.length] : undefined,
       elderShield: roles[index] === 'elder',
       diplomatShield: roles[index] === 'diplomat'
-    }))));
-    setRevealIndex(0);
+    })));
+    const twins = nextPlayers.filter(player => player.role === 'twin');
+    if (twins.length >= 2) {
+      nextPlayers = nextPlayers.map(player => (
+        player.id === twins[0].id ? { ...player, twinId: twins[1].id } :
+        player.id === twins[1].id ? { ...player, twinId: twins[0].id } :
+        player
+      ));
+    }
+    setPlayers(nextPlayers);
+    setRevealIndex(Math.max(0, nextPlayers.findIndex(player => !player.isBot)));
     setRoleVisible(false);
     setNight(1);
     setWinner(null);
@@ -613,6 +804,13 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     setHealerSaveAvailable(true);
     setCupidTargets([]);
     setRavenTarget(null);
+    setWatcherTarget(null);
+    setWatcherResultVisible(false);
+    setMessengerTarget(null);
+    setMessengerMessage('');
+    setConfessorTarget(null);
+    setConfessorUsed(false);
+    setSilencedTarget(null);
     setArchivistUsed(false);
     setNightHealerSaved(false);
     setNightTurnIndex(0);
@@ -628,7 +826,9 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     setMayorBonusVoterId(null);
     setMayorWantsBonus(false);
     setVoteTarget(null);
-    setGameMoments([{ id: crypto.randomUUID(), night: 0, kind: 'start', title: 'Début de la partie', detail: `${cleanNames.length} personnes entrent dans le Village.` }]);
+    setFastForwardBots(false);
+    setBotDecisions([]);
+    setGameMoments([{ id: crypto.randomUUID(), night: 0, kind: 'start', title: 'Début de la partie', detail: `${participants.length} personnes entrent dans le Village, dont ${botNames.length} gérée${botNames.length > 1 ? 's' : ''} par l’ordinateur.` }]);
     if (soundEnabled) void playEffect('success', effectsVolume);
     setStage('reveal-pass');
     setResumeAvailable(true);
@@ -665,6 +865,14 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       setEliminationHistory(saved.eliminationHistory || []);
       setSoloWinner(saved.soloWinner || null);
       setRavenTarget(saved.ravenTarget || null);
+      setWatcherTarget(saved.watcherTarget || null);
+      setWatcherResultVisible(Boolean(saved.watcherResultVisible));
+      setMessengerTarget(saved.messengerTarget || null);
+      setMessengerTone(saved.messengerTone || 'doubt');
+      setMessengerMessage(saved.messengerMessage || '');
+      setConfessorTarget(saved.confessorTarget || null);
+      setConfessorUsed(Boolean(saved.confessorUsed));
+      setSilencedTarget(saved.silencedTarget || null);
       setArchivistUsed(Boolean(saved.archivistUsed));
       setNightHealerSaved(Boolean(saved.nightHealerSaved));
       setRevealRoles(saved.revealRoles !== false);
@@ -679,6 +887,9 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       setMayorBonusVoterId(saved.mayorBonusVoterId || null);
       setEffectsVolume(saved.effectsVolume ?? 0.7);
       setAmbienceVolume(saved.ambienceVolume ?? 0.45);
+      setBotDifficulty(saved.botDifficulty || 'normal');
+      setBotSpeed(saved.botSpeed || 'normal');
+      setBotDecisions(saved.botDecisions || []);
       setGameMoments(saved.gameMoments || []);
     } catch {
       localStorage.removeItem(SAVE_KEY);
@@ -688,15 +899,16 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
 
   const addGuest = () => {
     const value = guestName.trim();
-    if (!value || names.some(name => name.toLowerCase() === value.toLowerCase()) || names.length >= 20) return;
+    if (!value || names.some(name => name.toLowerCase() === value.toLowerCase()) || names.length + botCount >= 20) return;
     setNames(previous => [...previous, value]);
     setGuestName('');
   };
 
   const continueReveal = () => {
     setRoleVisible(false);
-    if (revealIndex + 1 < players.length) {
-      setRevealIndex(value => value + 1);
+    const nextHumanIndex = players.findIndex((player, index) => index > revealIndex && !player.isBot);
+    if (nextHumanIndex >= 0) {
+      setRevealIndex(nextHumanIndex);
       setStage('reveal-pass');
       return;
     }
@@ -724,6 +936,12 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     setOracleResultVisible(false);
     setInvestigationResult(null);
     setRavenTarget(null);
+    setWatcherTarget(null);
+    setWatcherResultVisible(false);
+    setMessengerTarget(null);
+    setMessengerMessage('');
+    setConfessorTarget(null);
+    setSilencedTarget(null);
     setArchivistTarget(null);
     setArchivistResultVisible(false);
     setNightHealerSaved(false);
@@ -737,7 +955,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
 
   const resolveTraitorTarget = (nightVotes: Record<string, string>): string | null => {
     const orderedVotes = alivePlayers
-      .filter(player => player.role === 'traitor')
+      .filter(player => (player.role === 'traitor' || player.role === 'repentant') && isActiveTraitor(player))
       .map(player => nightVotes[player.id])
       .filter(Boolean);
     if (orderedVotes.length === 0) return null;
@@ -753,7 +971,11 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   const advanceNightTurn = (
     nextTraitorVotes = traitorVotes,
     nextProtectionTarget = protectedTarget,
-    nextHealerTarget = healerTarget
+    nextHealerTarget = healerTarget,
+    nextRavenTarget = ravenTarget,
+    nextMessengerMessage = messengerMessage,
+    nextConfessorTarget = confessorTarget,
+    nextSilencedTarget = silencedTarget
   ) => {
     if (soundEnabled) void playEffect('success', effectsVolume);
     setOracleResultVisible(false);
@@ -762,14 +984,24 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     if (nightTurnIndex + 1 < alivePlayers.length) {
       setNightTurnIndex(value => value + 1);
       setStage('night-player-pass');
-      narrate('Choix enregistré. Passez le téléphone à la personne suivante.');
+      if (!currentNightPlayer?.isBot) {
+        narrate('Choix enregistré. Passez le téléphone à la personne suivante.');
+      }
       return;
     }
     const attackTarget = resolveTraitorTarget(nextTraitorVotes);
     setShadowTarget(attackTarget);
     const attacked = players.find(player => player.id === attackTarget);
     if (attacked) addMoment('night', `Choix des Traîtres`, `${attacked.name} a été choisi pendant la nuit.`);
-    resolveDawn(Boolean(attackTarget && nextHealerTarget === attackTarget), attackTarget, nextProtectionTarget);
+    resolveDawn(
+      Boolean(attackTarget && nextHealerTarget === attackTarget),
+      attackTarget,
+      nextProtectionTarget,
+      nextRavenTarget,
+      nextMessengerMessage,
+      nextConfessorTarget,
+      nextSilencedTarget
+    );
   };
 
   const afterShadow = () => {
@@ -804,7 +1036,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   const revealInvestigation = (playerId: string) => {
     const checked = players.find(player => player.id === playerId);
     if (!checked) return;
-    const result = { playerId: checked.id, isTraitor: checked.role === 'traitor' };
+    const result = { playerId: checked.id, isTraitor: isActiveTraitor(checked) };
     setOracleTarget(checked.id);
     setInvestigationResult(result);
     setOracleResultVisible(true);
@@ -813,6 +1045,118 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     addMoment('investigation', 'Vérification de l’Enquêteur', `${checked.name} ${result.isTraitor ? 'était un Traître' : 'n’était pas un Traître'}.`);
     if (soundEnabled) void playEffect(result.isTraitor ? 'danger' : 'success', effectsVolume);
     navigator.vibrate?.(result.isTraitor ? [90, 60, 120] : 70);
+  };
+
+  const runBotNightTurn = (bot: Player) => {
+    const otherAlive = alivePlayers.filter(player => player.id !== bot.id);
+    if (bot.role === 'traitor' || bot.role === 'repentant') {
+      const target = selectBotTarget(bot, otherAlive.filter(player => !isTraitorRole(player.role)));
+      if (!target) return advanceNightTurn();
+      const nextVotes = { ...traitorVotes, [bot.id]: target.id };
+      setTraitorVotes(nextVotes);
+      addBotDecision(bot, 'Vote nocturne', `a choisi ${target.name}.`);
+      return advanceNightTurn(nextVotes);
+    }
+    if (bot.role === 'investigator') {
+      const canInvestigate = players.length <= 6
+        ? investigationsUsed < 1
+        : players.length <= 9
+          ? night % 2 === 1
+          : true;
+      const target = canInvestigate
+        ? selectBotTarget(bot, otherAlive.filter(player => !(player.id in investigationHistory)))
+        : undefined;
+      if (target) {
+        setInvestigationsUsed(value => value + 1);
+        setInvestigationHistory(previous => ({ ...previous, [target.id]: isActiveTraitor(target) }));
+        addBotDecision(bot, 'Enquête', `a vérifié ${target.name}, qui ${isActiveTraitor(target) ? 'était dans le camp des Traîtres' : 'était innocent'}.`);
+      }
+      return advanceNightTurn();
+    }
+    if (bot.role === 'protector') {
+      const canProtect = players.length >= 7 || night % 2 === 1;
+      const target = canProtect
+        ? selectBotTarget(bot, alivePlayers.filter(player => player.id !== lastProtectedTarget))
+        : undefined;
+      if (target) {
+        setProtectedTarget(target.id);
+        setLastProtectedTarget(target.id);
+        addBotDecision(bot, 'Protection', `a protégé ${target.name}.`);
+        return advanceNightTurn(traitorVotes, target.id);
+      }
+      return advanceNightTurn();
+    }
+    if (bot.role === 'healer' && healerSaveAvailable && Math.random() < (botDifficulty === 'hard' ? 0.25 : 0.12)) {
+      const target = selectBotTarget(bot, alivePlayers);
+      if (target) {
+        setHealerSaveAvailable(false);
+        setHealerTarget(target.id);
+        addBotDecision(bot, 'Remède', `a tenté de sauver ${target.name}.`);
+        return advanceNightTurn(traitorVotes, protectedTarget, target.id);
+      }
+    }
+    if (bot.role === 'cupid' && night === 1 && !players.some(player => player.linkedId)) {
+      const targets = shuffle(alivePlayers).slice(0, 2);
+      if (targets.length === 2) {
+        setPlayers(previous => previous.map(player => (
+          player.id === targets[0].id ? { ...player, linkedId: targets[1].id } :
+          player.id === targets[1].id ? { ...player, linkedId: targets[0].id } :
+          player
+        )));
+        addBotDecision(bot, 'Lien secret', `a lié ${targets[0].name} et ${targets[1].name}.`);
+      }
+      return advanceNightTurn();
+    }
+    if (bot.role === 'raven') {
+      const target = selectBotTarget(bot, otherAlive, botDifficulty === 'hard');
+      if (target) {
+        setRavenTarget(target.id);
+        addBotDecision(bot, 'Marque du Corbeau', `a placé une voix contre ${target.name}.`);
+        return advanceNightTurn(traitorVotes, protectedTarget, healerTarget, target.id);
+      }
+      return advanceNightTurn();
+    }
+    if (bot.role === 'watcher') {
+      const target = selectBotTarget(bot, otherAlive);
+      if (target) addBotDecision(bot, 'Veille', `a observé ${target.name}, qui ${hasNightAction(target.role) ? 'avait une action nocturne' : 'n’avait pas d’action nocturne'}.`);
+      return advanceNightTurn();
+    }
+    if (bot.role === 'messenger') {
+      const target = selectBotTarget(bot, otherAlive, botDifficulty === 'hard');
+      if (target) {
+        const tone = isActiveTraitor(target) ? 'doubt' : 'trust';
+        const message = `Message anonyme : ${tone === 'trust' ? 'faites confiance à' : 'méfiez-vous de'} ${target.name}.`;
+        setMessengerMessage(message);
+        addBotDecision(bot, 'Message', `a conseillé de ${tone === 'trust' ? 'faire confiance à' : 'se méfier de'} ${target.name}.`);
+        return advanceNightTurn(traitorVotes, protectedTarget, healerTarget, ravenTarget, message);
+      }
+      return advanceNightTurn();
+    }
+    if (bot.role === 'confessor' && !confessorUsed) {
+      const target = selectBotTarget(bot, otherAlive.filter(player => !isTraitorRole(player.role)));
+      if (target) {
+        setConfessorTarget(target.id);
+        setConfessorUsed(true);
+        addBotDecision(bot, 'Confession', `a protégé ${target.name} du vote suivant.`);
+        return advanceNightTurn(traitorVotes, protectedTarget, healerTarget, ravenTarget, messengerMessage, target.id);
+      }
+      return advanceNightTurn();
+    }
+    if (bot.role === 'silencer') {
+      const target = selectBotTarget(bot, otherAlive.filter(player => !isTraitorRole(player.role)));
+      if (target) {
+        setSilencedTarget(target.id);
+        addBotDecision(bot, 'Silence', `a retiré le droit de vote de ${target.name}.`);
+        return advanceNightTurn(traitorVotes, protectedTarget, healerTarget, ravenTarget, messengerMessage, confessorTarget, target.id);
+      }
+      return advanceNightTurn();
+    }
+    if (bot.role === 'archivist' && !archivistUsed && eliminationHistory.length > 0) {
+      setArchivistUsed(true);
+      addBotDecision(bot, 'Archives', `a consulté les archives du Village.`);
+      return advanceNightTurn();
+    }
+    return advanceNightTurn();
   };
 
   const afterProtector = () => {
@@ -853,10 +1197,42 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     resolveDawn(nightHealerSaved);
   };
 
+  const resolveLinkedEliminations = (initialId: string) => {
+    const eliminatedIds = new Set<string>([initialId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      players.forEach(player => {
+        if (!eliminatedIds.has(player.id)) return;
+        [player.linkedId, player.twinId].filter(Boolean).forEach(relatedId => {
+          if (!eliminatedIds.has(relatedId!)) {
+            eliminatedIds.add(relatedId!);
+            changed = true;
+          }
+        });
+      });
+    }
+    return eliminatedIds;
+  };
+
+  const applyRepentantConversion = (nextPlayers: Player[], eliminatedIds: Set<string>) => {
+    const traitorFell = players.some(player => eliminatedIds.has(player.id) && isActiveTraitor(player) && player.role !== 'repentant');
+    if (!traitorFell) return nextPlayers;
+    return nextPlayers.map(player => (
+      player.alive && player.role === 'repentant' && !player.hasRepented
+        ? { ...player, hasRepented: true, repentanceNoticePending: true }
+        : player
+    ));
+  };
+
   const resolveDawn = (
     healerSaved = false,
     attackTarget: string | null = shadowTarget,
-    protectionTarget: string | null = protectedTarget
+    protectionTarget: string | null = protectedTarget,
+    markedTarget: string | null = ravenTarget,
+    deliveredMessage = messengerMessage,
+    absolvedTarget: string | null = confessorTarget,
+    mutedTarget: string | null = silencedTarget
   ) => {
     let nextPlayers = players;
     let message = 'Le jour se lève. Cette nuit, personne n’a été éliminé.';
@@ -866,23 +1242,22 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
         nextPlayers = players.map(player => player.id === attackTarget ? { ...player, elderShield: false } : player);
         message = `${victim.name} a mystérieusement résisté à cette attaque nocturne.`;
       } else {
-        const linkedId = victim?.linkedId || (
-          victim && cupidTargets.includes(victim.id)
-            ? cupidTargets.find(playerId => playerId !== victim.id)
-            : undefined
+        const eliminatedIds = resolveLinkedEliminations(attackTarget);
+        nextPlayers = applyRepentantConversion(
+          players.map(player => eliminatedIds.has(player.id) ? { ...player, alive: false } : player),
+          eliminatedIds
         );
-        nextPlayers = players.map(player => (
-          player.id === attackTarget || (linkedId && player.id === linkedId)
-            ? { ...player, alive: false }
-            : player
-        ));
-        const linked = linkedId ? players.find(player => player.id === linkedId) : undefined;
-        const entries = [
-          ...(victim ? [{ night, name: victim.name, role: victim.role, cause: 'Attaque nocturne' }] : []),
-          ...(linked ? [{ night, name: linked.name, role: linked.role, cause: 'Lien de Cupidon' }] : [])
-        ];
+        const linkedVictims = players.filter(player => eliminatedIds.has(player.id) && player.id !== attackTarget);
+        const entries = players
+          .filter(player => eliminatedIds.has(player.id))
+          .map(player => ({
+            night,
+            name: player.name,
+            role: player.role,
+            cause: player.id === attackTarget ? 'Attaque nocturne' : player.twinId && eliminatedIds.has(player.twinId) ? 'Lien des Jumeaux' : 'Lien de Cupidon'
+          }));
         setEliminationHistory(previous => [...previous, ...entries]);
-        message = `Le jour se lève. ${victim?.name || 'Une personne'} a été éliminé${linked ? `, et ${linked.name} l’a suivi à cause du lien secret` : ''}.`;
+        message = `Le jour se lève. ${victim?.name || 'Une personne'} a été éliminé${linkedVictims.length ? `, et ${linkedVictims.map(player => player.name).join(', ')} l’a suivi à cause d’un lien secret` : ''}.`;
       }
       setPlayers(nextPlayers);
     } else if (attackTarget && attackTarget === protectionTarget) {
@@ -890,9 +1265,18 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     } else if (healerSaved) {
       message = 'Un remède mystérieux a empêché l’élimination cette nuit.';
     }
-    if (ravenTarget) {
-      const marked = players.find(player => player.id === ravenTarget);
+    if (markedTarget) {
+      const marked = players.find(player => player.id === markedTarget);
       if (marked) message += ` Le Corbeau place une voix contre ${marked.name} pour le prochain vote.`;
+    }
+    if (deliveredMessage) message += ` ${deliveredMessage}`;
+    if (absolvedTarget) {
+      const absolved = players.find(player => player.id === absolvedTarget);
+      if (absolved) message += ` Le Confesseur protège publiquement ${absolved.name} du prochain vote.`;
+    }
+    if (mutedTarget) {
+      const silenced = players.find(player => player.id === mutedTarget);
+      if (silenced) message += ` ${silenced.name} ne participera pas au vote aujourd’hui.`;
     }
     setDawnMessage(message);
     setStage('dawn');
@@ -925,7 +1309,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     }
     setMayorWantsBonus(false);
     setVoteTarget(null);
-    if (voterIndex + 1 < alivePlayers.length) {
+    if (voterIndex + 1 < eligibleVoters.length) {
       setVoterIndex(value => value + 1);
       setStage('vote-pass');
       return;
@@ -970,26 +1354,53 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       addMoment('vote', `Vote du jour ${night}`, `${eliminated.name} a annulé sa première élimination grâce au Diplomate.`);
       return;
     }
-    const linkedId = eliminated?.linkedId;
-    const nextPlayers = players.map(player => (
-      player.id === leaders[0] || (linkedId && player.id === linkedId)
-        ? { ...player, alive: false }
-        : player
-    ));
+    const eliminatedIds = resolveLinkedEliminations(leaders[0]);
+    const nextPlayers = applyRepentantConversion(
+      players.map(player => eliminatedIds.has(player.id) ? { ...player, alive: false } : player),
+      eliminatedIds
+    );
     setPlayers(nextPlayers);
-    const linked = linkedId ? players.find(player => player.id === linkedId) : undefined;
+    const linkedVictims = players.filter(player => eliminatedIds.has(player.id) && player.id !== leaders[0]);
     setEliminationHistory(previous => [
       ...previous,
-      ...(eliminated ? [{ night, name: eliminated.name, role: eliminated.role, cause: 'Vote du village' }] : []),
-      ...(linked ? [{ night, name: linked.name, role: linked.role, cause: 'Lien de Cupidon' }] : [])
+      ...players
+        .filter(player => eliminatedIds.has(player.id))
+        .map(player => ({
+          night,
+          name: player.name,
+          role: player.role,
+          cause: player.id === leaders[0] ? 'Vote du village' : player.twinId && eliminatedIds.has(player.twinId) ? 'Lien des Jumeaux' : 'Lien de Cupidon'
+        }))
     ]);
-    setVoteMessage(`${eliminated?.name} quitte le Village.${revealRoles && eliminated ? ` Son rôle était ${ROLE_INFO[eliminated.role].name}.` : ''}${linked ? ` ${linked.name} le suit à cause du lien secret.` : ''}`);
+    setVoteMessage(`${eliminated?.name} quitte le Village.${revealRoles && eliminated ? ` Son rôle était ${ROLE_INFO[eliminated.role].name}.` : ''}${linkedVictims.length ? ` ${linkedVictims.map(player => player.name).join(', ')} le suit à cause d’un lien secret.` : ''}`);
     setStage('vote-result');
     if (soundEnabled) playEffect('danger', effectsVolume);
     narrate(`${eliminated?.name} quitte le Village.${revealRoles && eliminated ? ` Son rôle est révélé à l’écran.` : ''}`);
     if (eliminated) addMoment('vote', `Vote du jour ${night}`, `${eliminated.name} a quitté le Village avec ${highest} voix.`);
     const nextWinner = checkWinner(nextPlayers);
     if (nextWinner) window.setTimeout(() => finishWithWinner(nextWinner), 900);
+  };
+
+  const runBotVote = (bot: Player) => {
+    let candidates = alivePlayers.filter(player => player.id !== bot.id && player.id !== confessorTarget);
+    if (isActiveTraitor(bot)) {
+      candidates = candidates.filter(player => !isActiveTraitor(player));
+    }
+    if (bot.role === 'investigator' && botDifficulty !== 'easy') {
+      const knownTraitor = candidates.find(player => investigationHistory[player.id] === true);
+      if (knownTraitor) {
+        addBotDecision(bot, 'Vote du Village', `a voté contre ${knownTraitor.name}.`);
+        submitVote(knownTraitor.id);
+        return;
+      }
+    }
+    const target = selectBotTarget(bot, candidates, botDifficulty === 'hard');
+    if (!target) return;
+    const useMayorBonus = bot.role === 'mayor'
+      && !mayorBonusUsed
+      && (botDifficulty === 'hard' || (botDifficulty === 'normal' && Math.random() < 0.4));
+    addBotDecision(bot, 'Vote du Village', `a voté contre ${target.name}${useMayorBonus ? ' avec la voix du Maire' : ''}.`);
+    submitVote(target.id, useMayorBonus);
   };
 
   const nextNight = () => {
@@ -1103,8 +1514,8 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
 
         <div className="mt-6 space-y-3">
           <div className="flex items-center justify-between">
-            <strong className="text-xs text-white">Joueurs · {names.length}/20</strong>
-            <span className={`text-[10px] font-black ${names.length >= 5 ? 'text-[#00D26A]' : 'text-[#FFB020]'}`}>{names.length >= 5 ? 'Prêt' : '5 minimum'}</span>
+            <strong className="text-xs text-white">Joueurs · {totalParticipants}/20</strong>
+            <span className={`text-[10px] font-black ${names.length >= 1 && totalParticipants >= 5 ? 'text-[#00D26A]' : 'text-[#FFB020]'}`}>{names.length < 1 ? '1 humain minimum' : totalParticipants >= 5 ? 'Prêt' : '5 joueurs minimum'}</span>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {members.slice(0, 20).map(member => {
@@ -1113,7 +1524,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
                 <button
                   key={member.id}
                   type="button"
-                  onClick={() => setNames(previous => selected ? previous.filter(name => name !== member.name) : previous.length < 20 ? [...previous, member.name] : previous)}
+                  onClick={() => setNames(previous => selected ? previous.filter(name => name !== member.name) : previous.length + botCount < 20 ? [...previous, member.name] : previous)}
                   className={`flex min-h-12 items-center gap-2 rounded-2xl border px-3 py-2 text-left ${selected ? 'border-[#00D26A]/35 bg-[#00D26A]/10' : 'border-white/8 bg-white/5'}`}
                 >
                   <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${selected ? 'border-[#00D26A] bg-[#00D26A] text-[#07111F]' : 'border-white/20 text-transparent'}`}>
@@ -1135,7 +1546,79 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
           )}
           <div className="flex gap-2">
             <input value={guestName} onChange={event => setGuestName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') addGuest(); }} placeholder="Ajouter un joueur invité" className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white outline-none" />
-            <button type="button" onClick={addGuest} disabled={!guestName.trim() || names.length >= 20} className="rounded-2xl bg-[#6C5CFF] px-4 text-white disabled:opacity-40" title="Ajouter"><UserPlus className="h-5 w-5" /></button>
+            <button type="button" onClick={addGuest} disabled={!guestName.trim() || totalParticipants >= 20} className="rounded-2xl bg-[#6C5CFF] px-4 text-white disabled:opacity-40" title="Ajouter"><UserPlus className="h-5 w-5" /></button>
+          </div>
+
+          <div className="rounded-2xl border border-[#4F8CFF]/20 bg-[#4F8CFF]/8 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#4F8CFF]/12 text-[#8AB5FF]"><Bot className="h-5 w-5" /></span>
+                <span>
+                  <strong className="block text-xs text-white">Joueurs ordinateur</strong>
+                  <span className="mt-1 block text-[9px] text-white/45">Ils jouent automatiquement. Les rôles s’équilibrent selon le nombre d’humains.</span>
+                </span>
+              </span>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setBotCount(value => Math.max(0, value - 1))} disabled={botCount === 0} className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 text-lg font-black text-white/60 disabled:opacity-25" aria-label="Retirer un joueur ordinateur">−</button>
+                <strong className="min-w-6 text-center text-sm text-white">{botCount}</strong>
+                <button type="button" onClick={() => setBotCount(value => Math.min(maximumBots, value + 1))} disabled={botCount >= maximumBots} className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#4F8CFF] text-lg font-black text-white disabled:opacity-25" aria-label="Ajouter un joueur ordinateur">+</button>
+              </div>
+            </div>
+            {botCount > 0 && (
+              <div className="mt-4 space-y-4 border-t border-white/8 pt-4">
+                <div>
+                  <span className="mb-2 block text-[9px] font-black uppercase text-white/40">Difficulté</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      ['easy', 'Prudent'],
+                      ['normal', 'Normal'],
+                      ['hard', 'Rusé']
+                    ] as const).map(([value, label]) => (
+                      <button key={value} type="button" onClick={() => setBotDifficulty(value)} className={`rounded-xl border py-2 text-[9px] font-black ${botDifficulty === value ? 'border-[#4F8CFF] bg-[#4F8CFF]/15 text-[#8AB5FF]' : 'border-white/8 text-white/40'}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span className="mb-2 block text-[9px] font-black uppercase text-white/40">Vitesse des tours</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      ['fast', 'Rapide'],
+                      ['normal', 'Normale'],
+                      ['cinematic', 'Cinématique']
+                    ] as const).map(([value, label]) => (
+                      <button key={value} type="button" onClick={() => setBotSpeed(value)} className={`rounded-xl border py-2 text-[9px] font-black ${botSpeed === value ? 'border-[#9E94FF] bg-[#9E94FF]/15 text-[#C4BEFF]' : 'border-white/8 text-white/40'}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button type="button" onClick={() => setShowBotSettings(value => !value)} className="flex w-full items-center justify-between rounded-xl border border-white/8 bg-white/4 px-3 py-2.5 text-[9px] font-black text-white/60">
+                  Noms et personnalités
+                  <ChevronDown className={`h-4 w-4 transition-transform ${showBotSettings ? 'rotate-180' : ''}`} />
+                </button>
+                {showBotSettings && (
+                  <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                    {Array.from({ length: botCount }, (_, index) => (
+                      <label key={index} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-xl border border-white/8 bg-black/10 p-2">
+                        <input
+                          value={customBotNames[index] || ''}
+                          onChange={event => setCustomBotNames(previous => {
+                            const next = [...previous];
+                            next[index] = event.target.value.slice(0, 18);
+                            return next;
+                          })}
+                          placeholder={`Ordinateur ${index + 1}`}
+                          className="min-w-0 rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-[10px] font-bold text-white outline-none"
+                        />
+                        <span className="text-[8px] font-black uppercase text-[#8AB5FF]">{BOT_PERSONALITY_LABELS[BOT_PERSONALITIES[index % BOT_PERSONALITIES.length]]}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1251,7 +1734,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
           </div>
         )}
 
-        <button type="button" onClick={startGame} disabled={names.length < 5} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#9E94FF] py-4 text-sm font-black text-[#090D1A] disabled:opacity-35">
+        <button type="button" onClick={startGame} disabled={names.length < 1 || totalParticipants < 5} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#9E94FF] py-4 text-sm font-black text-[#090D1A] disabled:opacity-35">
           <Play className="h-5 w-5" /> Distribuer les rôles
         </button>
       </section>
@@ -1275,9 +1758,14 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
             <span className="mt-4 block text-[10px] font-black uppercase tracking-widest" style={{ color: info.color }}>Votre rôle secret</span>
             <h2 className="mt-1 text-3xl font-black text-white">{info.name}</h2>
             <p className="mx-auto mt-3 max-w-sm text-xs leading-relaxed text-white/60">{info.description}</p>
-            {currentRevealPlayer.role === 'traitor' && (
+            {isTraitorRole(currentRevealPlayer.role) && (
               <p className="mx-auto mt-3 max-w-sm rounded-2xl border border-[#FF4D6D]/20 bg-[#FF4D6D]/8 p-3 text-xs text-[#FF9BAF]">
-                Vos alliés : {players.filter(player => player.role === 'traitor' && player.id !== currentRevealPlayer.id).map(player => player.name).join(', ') || 'vous êtes le seul Traître'}
+                Vos alliés : {players.filter(player => isTraitorRole(player.role) && player.id !== currentRevealPlayer.id).map(player => player.name).join(', ') || 'vous êtes le seul membre du camp des Traîtres'}
+              </p>
+            )}
+            {currentRevealPlayer.role === 'twin' && (
+              <p className="mx-auto mt-3 max-w-sm rounded-2xl border border-[#F0ABFC]/20 bg-[#F0ABFC]/8 p-3 text-xs text-[#F0ABFC]">
+                Votre Jumeau : {players.find(player => player.id === currentRevealPlayer.twinId)?.name || 'introuvable'}
               </p>
             )}
           </div>
@@ -1316,6 +1804,10 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     return <NarratorScene icon={<Moon className="h-10 w-10" />} eyebrow={`Nuit ${night}`} title="Le Village s’endort" detail="Le téléphone passera à tout le monde. Certains choix changeront la partie, les autres serviront seulement à protéger les secrets." action="Commencer la nuit" onAction={startNightActions} narratorEnabled={narratorEnabled} onToggleNarrator={() => setNarratorEnabled(value => !value)} />;
   }
 
+  if (stage === 'night-player-pass' && currentNightPlayer?.isBot) {
+    return <ComputerTurn key={`night-${night}-${nightTurnIndex}-${currentNightPlayer.id}`} name={currentNightPlayer.name} detail={`Action nocturne ${nightTurnIndex + 1}/${alivePlayers.length}`} delay={fastForwardBots ? 40 : BOT_SPEED_DELAYS[botSpeed]} fastForward={fastForwardBots} onFastForward={() => setFastForwardBots(true)} onComplete={() => runBotNightTurn(currentNightPlayer)} />;
+  }
+
   if (stage === 'night-player-pass' && currentNightPlayer) {
     return (
       <SecretPass
@@ -1327,6 +1819,21 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   }
 
   if (stage === 'night-player-action' && currentNightPlayer) {
+    if (currentNightPlayer.isBot) {
+      return <ComputerTurn key={`night-action-${night}-${nightTurnIndex}-${currentNightPlayer.id}`} name={currentNightPlayer.name} detail="Choix nocturne en cours…" delay={fastForwardBots ? 40 : BOT_SPEED_DELAYS[botSpeed]} fastForward={fastForwardBots} onFastForward={() => setFastForwardBots(true)} onComplete={() => runBotNightTurn(currentNightPlayer)} />;
+    }
+    if (currentNightPlayer.repentanceNoticePending) {
+      return (
+        <SecretPanel>
+          <span className="block text-center text-5xl">🌅</span>
+          <h2 className="mt-4 text-center text-xl font-black text-white">Vous avez changé de camp</h2>
+          <p className="mx-auto mt-3 max-w-sm text-center text-xs leading-relaxed text-white/55">Un membre du camp des Traîtres est tombé. Vous gagnez désormais avec le Village, mais continuez à participer à leurs choix pour ne pas être découvert.</p>
+          <button type="button" onClick={() => {
+            setPlayers(previous => previous.map(player => player.id === currentNightPlayer.id ? { ...player, repentanceNoticePending: false } : player));
+          }} className="mt-6 w-full rounded-2xl bg-[#00D26A] py-3 text-xs font-black text-[#07111F]">J’ai compris · continuer</button>
+        </SecretPanel>
+      );
+    }
     const role = currentNightPlayer.role;
     const canInvestigate = players.length <= 6
       ? investigationsUsed < 1
@@ -1335,7 +1842,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
         : true;
     const canProtect = players.length >= 7 || night % 2 === 1;
 
-    if (role === 'traitor') {
+    if (role === 'traitor' || role === 'repentant') {
       const selectedTarget = traitorVotes[currentNightPlayer.id] || null;
       const traitorAllies = aliveTraitors.filter(player => player.id !== currentNightPlayer.id);
       const previousCounts = Object.values(traitorVotes).reduce<Record<string, number>>((counts, targetId) => {
@@ -1369,7 +1876,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
             </div>
           )}
           <div className="mt-5 grid grid-cols-2 gap-2">
-            {alivePlayers.filter(player => player.role !== 'traitor').map(player => (
+            {alivePlayers.filter(player => !isTraitorRole(player.role)).map(player => (
               <button key={player.id} type="button" onClick={() => setTraitorVotes(previous => ({ ...previous, [currentNightPlayer.id]: player.id }))} className={`rounded-2xl border p-3 text-xs font-black ${selectedTarget === player.id ? 'border-[#FF4D6D] bg-[#FF4D6D]/12 text-white' : 'border-white/8 bg-white/5 text-white/55'}`}>
                 {player.name}
               </button>
@@ -1518,6 +2025,68 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       return <SecretChoice icon={<Feather className="h-8 w-8 text-[#8FA3BF]" />} title="Marque du Corbeau" detail="Ajoutez une voix secrète contre une personne au prochain vote." players={alivePlayers.filter(player => player.id !== currentNightPlayer.id)} selectedId={ravenTarget} onSelect={setRavenTarget} onConfirm={() => advanceNightTurn()} />;
     }
 
+    if (role === 'watcher') {
+      const watched = players.find(player => player.id === watcherTarget);
+      return (
+        <SecretPanel>
+          <span className="block text-center text-4xl">🕯️</span>
+          <h2 className="mt-3 text-center text-xl font-black text-white">Veille nocturne</h2>
+          {!watcherResultVisible ? (
+            <>
+              <p className="mt-2 text-center text-xs text-white/50">Choisissez une personne pour savoir si elle possède une action pendant la nuit.</p>
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                {alivePlayers.filter(player => player.id !== currentNightPlayer.id).map(player => (
+                  <button key={player.id} type="button" onClick={() => setWatcherTarget(player.id)} className={`rounded-2xl border p-3 text-xs font-black ${watcherTarget === player.id ? 'border-[#FDE68A] bg-[#FDE68A]/12 text-white' : 'border-white/8 bg-white/5 text-white/55'}`}>{player.name}</button>
+                ))}
+              </div>
+              <button type="button" disabled={!watcherTarget} onClick={() => setWatcherResultVisible(true)} className="mt-4 w-full rounded-2xl bg-[#FDE68A] py-3 text-xs font-black text-[#07111F] disabled:opacity-35">Observer</button>
+            </>
+          ) : (
+            <>
+              <div className="mt-5 rounded-3xl border border-[#FDE68A]/25 bg-[#FDE68A]/10 p-6 text-center">
+                <strong className="text-lg text-white">{watched?.name}</strong>
+                <span className="mt-2 block text-sm font-black text-[#FDE68A]">{watched && hasNightAction(watched.role) ? 'agit pendant la nuit' : 'n’a pas d’action nocturne'}</span>
+              </div>
+              <button type="button" onClick={() => advanceNightTurn()} className="mt-4 w-full rounded-2xl bg-[#6C5CFF] py-3 text-xs font-black text-white">J’ai compris · continuer</button>
+            </>
+          )}
+        </SecretPanel>
+      );
+    }
+
+    if (role === 'messenger') {
+      return (
+        <SecretPanel>
+          <span className="block text-center text-4xl">✉️</span>
+          <h2 className="mt-3 text-center text-xl font-black text-white">Message anonyme</h2>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setMessengerTone('trust')} className={`rounded-xl border py-2 text-[10px] font-black ${messengerTone === 'trust' ? 'border-[#00D26A] text-[#00D26A]' : 'border-white/8 text-white/40'}`}>Faire confiance</button>
+            <button type="button" onClick={() => setMessengerTone('doubt')} className={`rounded-xl border py-2 text-[10px] font-black ${messengerTone === 'doubt' ? 'border-[#FF4D6D] text-[#FF9BAF]' : 'border-white/8 text-white/40'}`}>Se méfier</button>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {alivePlayers.filter(player => player.id !== currentNightPlayer.id).map(player => (
+              <button key={player.id} type="button" onClick={() => setMessengerTarget(player.id)} className={`rounded-2xl border p-3 text-xs font-black ${messengerTarget === player.id ? 'border-[#67E8F9] bg-[#67E8F9]/12 text-white' : 'border-white/8 bg-white/5 text-white/55'}`}>{player.name}</button>
+            ))}
+          </div>
+          <button type="button" disabled={!messengerTarget} onClick={() => {
+            const target = players.find(player => player.id === messengerTarget);
+            if (!target) return;
+            const message = `Message anonyme : ${messengerTone === 'trust' ? 'faites confiance à' : 'méfiez-vous de'} ${target.name}.`;
+            setMessengerMessage(message);
+            advanceNightTurn(traitorVotes, protectedTarget, healerTarget, ravenTarget, message);
+          }} className="mt-4 w-full rounded-2xl bg-[#67E8F9] py-3 text-xs font-black text-[#07111F] disabled:opacity-35">Envoyer anonymement</button>
+        </SecretPanel>
+      );
+    }
+
+    if (role === 'confessor' && !confessorUsed) {
+      return <SecretChoice icon={<span className="text-3xl">🕊️</span>} title="Confession publique" detail="Cette personne ne pourra pas être éliminée par le prochain vote." players={alivePlayers.filter(player => player.id !== currentNightPlayer.id)} selectedId={confessorTarget} onSelect={setConfessorTarget} onConfirm={() => { setConfessorUsed(true); advanceNightTurn(traitorVotes, protectedTarget, healerTarget, ravenTarget, messengerMessage, confessorTarget); }} />;
+    }
+
+    if (role === 'silencer') {
+      return <SecretChoice icon={<span className="text-3xl">🤫</span>} title="Imposer le silence" detail="Cette personne ne participera pas au vote du lendemain." players={alivePlayers.filter(player => player.id !== currentNightPlayer.id && !isTraitorRole(player.role))} selectedId={silencedTarget} onSelect={setSilencedTarget} onConfirm={() => advanceNightTurn(traitorVotes, protectedTarget, healerTarget, ravenTarget, messengerMessage, confessorTarget, silencedTarget)} />;
+    }
+
     if (role === 'archivist' && !archivistUsed && eliminationHistory.length > 0) {
       const selectedEntry = eliminationHistory[Number(archivistTarget)];
       return (
@@ -1567,7 +2136,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   }
 
   if (stage === 'night-shadow') {
-    return <SecretChoice icon={<Skull className="h-8 w-8 text-[#FF4D6D]" />} title="Choix des Traîtres" detail="Choisissez une personne à éliminer cette nuit." players={alivePlayers.filter(player => player.role !== 'traitor')} selectedId={shadowTarget} onSelect={setShadowTarget} onConfirm={afterShadow} />;
+    return <SecretChoice icon={<Skull className="h-8 w-8 text-[#FF4D6D]" />} title="Choix des Traîtres" detail="Choisissez une personne à éliminer cette nuit." players={alivePlayers.filter(player => !isTraitorRole(player.role))} selectedId={shadowTarget} onSelect={setShadowTarget} onConfirm={afterShadow} />;
   }
 
   if (stage === 'night-oracle-pass' && investigator) {
@@ -1714,6 +2283,17 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
         </div>
         <strong className="mt-1 block text-5xl font-black text-white">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</strong>
         <p className="mx-auto mt-3 max-w-md text-xs text-white/55">Partagez vos soupçons sans révéler directement votre rôle. Les Traîtres peuvent mentir.</p>
+        {botStatements.length > 0 && (
+          <div className="mt-5 space-y-2 rounded-2xl border border-[#4F8CFF]/20 bg-[#4F8CFF]/8 p-4 text-left">
+            <strong className="flex items-center gap-2 text-[9px] uppercase text-[#8AB5FF]"><Bot className="h-4 w-4" /> Avis des joueurs ordinateur</strong>
+            {botStatements.map(statement => (
+              <div key={statement.id} className="rounded-xl border border-white/8 bg-white/4 px-3 py-2">
+                <span className="block text-[10px] font-black text-white">{statement.name}</span>
+                <span className="mt-1 block text-[10px] text-white/50">« {statement.detail} »</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="mt-5 grid grid-cols-3 gap-2">
           {([60, 120, 180] as const).map(value => <button key={value} type="button" onClick={() => { setDiscussionSeconds(value); setSeconds(value); }} className={`rounded-xl border py-2 text-[10px] font-black ${discussionSeconds === value ? 'border-[#FFB020] text-[#FFB020]' : 'border-white/8 text-white/40'}`}>{value / 60} min</button>)}
         </div>
@@ -1742,6 +2322,9 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   }
 
   if (stage === 'vote-pass' && currentVoter) {
+    if (currentVoter.isBot) {
+      return <ComputerTurn key={`vote-${night}-${voterIndex}-${currentVoter.id}`} name={currentVoter.name} detail={`Vote ${voterIndex + 1}/${alivePlayers.length}`} delay={fastForwardBots ? 40 : BOT_SPEED_DELAYS[botSpeed]} fastForward={fastForwardBots} onFastForward={() => setFastForwardBots(true)} onComplete={() => runBotVote(currentVoter)} />;
+    }
     return <SecretPass title={`Vote secret de ${currentVoter.name}`} detail="Passez-lui le téléphone sans regarder son choix." onReady={() => setStage('vote')} />;
   }
 
@@ -1754,7 +2337,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
           <h2 className="mt-3 text-center text-xl font-black text-white">Vote de {currentVoter.name}</h2>
           <p className="mt-2 text-center text-xs text-white/50">Le Maire peut ajouter une voix à son choix une seule fois dans la partie.</p>
           <div className="mt-5 grid grid-cols-2 gap-2">
-            {alivePlayers.filter(player => player.id !== currentVoter.id).map(player => (
+            {alivePlayers.filter(player => player.id !== currentVoter.id && player.id !== confessorTarget).map(player => (
               <button key={player.id} type="button" onClick={() => setVoteTarget(player.id)} className={`rounded-2xl border p-3 text-xs font-black ${voteTarget === player.id ? 'border-[#FFB020] bg-[#FFB020]/12 text-white' : 'border-white/8 bg-white/5 text-white/55'}`}>
                 {player.name}
               </button>
@@ -1771,7 +2354,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
         </SecretPanel>
       );
     }
-    return <SecretChoice icon={<Vote className="h-8 w-8 text-[#FFB020]" />} title={`Vote de ${currentVoter.name}`} detail="Qui doit quitter le Village ?" players={alivePlayers.filter(player => player.id !== currentVoter.id)} selectedId={null} onSelect={submitVote} immediate />;
+    return <SecretChoice icon={<Vote className="h-8 w-8 text-[#FFB020]" />} title={`Vote de ${currentVoter.name}`} detail="Qui doit quitter le Village ?" players={alivePlayers.filter(player => player.id !== currentVoter.id && player.id !== confessorTarget)} selectedId={null} onSelect={submitVote} immediate />;
   }
 
   if (stage === 'vote-result') {
@@ -1815,8 +2398,25 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
           </div>
         </div>
       )}
+      {botDecisions.length > 0 && (
+        <div className="mt-5 rounded-2xl border border-[#4F8CFF]/20 bg-[#4F8CFF]/8 p-4 text-left">
+          <strong className="flex items-center gap-2 text-xs text-white"><Bot className="h-4 w-4 text-[#8AB5FF]" /> Décisions des joueurs ordinateur</strong>
+          <p className="mt-1 text-[9px] text-white/40">Ces informations sont restées cachées pendant la partie.</p>
+          <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
+            {botDecisions.map(decision => (
+              <div key={decision.id} className="rounded-xl border border-white/8 bg-white/4 px-3 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <strong className="text-[10px] text-white">{decision.botName} · {decision.action}</strong>
+                  <span className="text-[8px] font-black uppercase text-white/30">Nuit {decision.night}</span>
+                </div>
+                <p className="mt-1 text-[9px] text-white/50">{decision.detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="mt-5 grid grid-cols-2 gap-2">
-        {players.map(player => <div key={player.id} className="overflow-hidden rounded-2xl border border-white/8 bg-white/5"><RolePortrait role={player.role} className="w-full" /><div className="p-3"><strong className="block text-xs text-white">{player.name}</strong><span className="mt-1 block text-[10px]" style={{ color: ROLE_INFO[player.role].color }}>{ROLE_INFO[player.role].name}</span></div></div>)}
+        {players.map(player => <div key={player.id} className="overflow-hidden rounded-2xl border border-white/8 bg-white/5"><RolePortrait role={player.role} className="w-full" /><div className="p-3"><strong className="block text-xs text-white">{player.name}</strong><span className="mt-1 block text-[10px]" style={{ color: ROLE_INFO[player.role].color }}>{ROLE_INFO[player.role].name}</span>{player.isBot && <span className="mt-1 block text-[8px] font-black uppercase text-[#8AB5FF]">{BOT_PERSONALITY_LABELS[player.botPersonality || 'discreet']}</span>}</div></div>)}
       </div>
       {eliminationHistory.length > 0 && (
         <div className="mt-5 rounded-2xl border border-white/8 bg-white/5 p-4 text-left">
@@ -1838,6 +2438,44 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
 
 function SecretPanel({ children }: { children: ReactNode }) {
   return <section className="night-village mx-auto max-w-xl rounded-[28px] border border-[#9E94FF]/20 bg-[#090D1A] p-6 sm:p-8">{children}</section>;
+}
+
+function ComputerTurn({ name, detail, delay, fastForward, onFastForward, onComplete }: {
+  name: string;
+  detail: string;
+  delay: number;
+  fastForward: boolean;
+  onFastForward: () => void;
+  onComplete: () => void;
+}) {
+  const completionRef = useRef(onComplete);
+  useEffect(() => {
+    completionRef.current = onComplete;
+  }, [onComplete]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => completionRef.current(), delay);
+    return () => window.clearTimeout(timer);
+  }, [delay]);
+
+  return (
+    <section className="night-village mx-auto max-w-xl rounded-[28px] border border-[#4F8CFF]/20 bg-[#090D1A] p-7 text-center">
+      <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-[#4F8CFF]/25 bg-[#4F8CFF]/10 text-[#8AB5FF]">
+        <Bot className="h-8 w-8 animate-pulse" />
+      </span>
+      <span className="mt-4 block text-[10px] font-black uppercase tracking-widest text-[#4F8CFF]">Joueur ordinateur</span>
+      <h2 className="mt-1 text-xl font-black text-white">{name}</h2>
+      <p className="mt-3 text-xs text-white/50">{detail}</p>
+      <div className="mx-auto mt-5 h-1.5 w-32 overflow-hidden rounded-full bg-white/8">
+        <span className="block h-full w-2/3 animate-pulse rounded-full bg-[#4F8CFF]" />
+      </div>
+      {!fastForward && (
+        <button type="button" onClick={onFastForward} className="mt-5 rounded-xl border border-[#4F8CFF]/25 bg-[#4F8CFF]/10 px-4 py-2 text-[9px] font-black text-[#8AB5FF]">
+          Passer rapidement tous les tours ordinateur
+        </button>
+      )}
+    </section>
+  );
 }
 
 function SecretPass({ title, detail, onReady }: { title: string; detail: string; onReady: () => void }) {
@@ -1902,6 +2540,21 @@ function NarratorScene({ icon, eyebrow, title, detail, action, onAction, narrato
 
 function RolePortrait({ role, className = '' }: { role: Role; className?: string }) {
   const index = ROLE_ART_ORDER.indexOf(role);
+  if (index < 0) {
+    const info = ROLE_INFO[role];
+    return (
+      <div
+        role="img"
+        aria-label={`Illustration ${info.name}`}
+        className={`role-portrait flex aspect-square items-center justify-center bg-[#111827] ${className}`}
+        style={{
+          backgroundImage: `radial-gradient(circle at 50% 38%, ${info.color}33, transparent 45%), linear-gradient(145deg, #18233A, #090D1A)`
+        }}
+      >
+        <span className="text-5xl drop-shadow-[0_8px_18px_rgba(0,0,0,0.4)] sm:text-6xl">{info.icon}</span>
+      </div>
+    );
+  }
   const column = index % 4;
   const row = Math.floor(index / 4);
   return (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   Users, 
   Plus, 
@@ -86,7 +86,7 @@ export const Membres: React.FC<MembresProps> = ({
 }) => {
   // Invitation réelle & Ajout unifié
   const [isAddingMember, setIsAddingMember] = useState(false);
-  const [addingTab, setAddingTab] = useState<'create' | 'invite'>('create');
+  const [addingTab, setAddingTab] = useState<'create' | 'invite'>('invite');
 
   // Approval states
   const [memberToApprove, setMemberToApprove] = useState<Member | null>(null);
@@ -138,6 +138,29 @@ export const Membres: React.FC<MembresProps> = ({
   const [inviteMessage, setInviteMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [panelOpenSequence, setPanelOpenSequence] = useState(0);
+  const detailsPanelRef = useRef<HTMLDivElement>(null);
+
+  const revealDetailsPanel = () => {
+    setPanelOpenSequence(sequence => sequence + 1);
+  };
+
+  React.useEffect(() => {
+    if (panelOpenSequence === 0) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const panel = detailsPanelRef.current;
+      if (!panel) return;
+
+      if (window.matchMedia('(max-width: 767px)').matches) {
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      panel.focus({ preventScroll: true });
+      navigator.vibrate?.(18);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [panelOpenSequence]);
 
   const blockFreeMemberLimit = () => {
     if (!shouldBlockMemberAdd(isPremium, members.length)) return false;
@@ -148,8 +171,12 @@ export const Membres: React.FC<MembresProps> = ({
   const handleAddMemberClick = () => {
     if (blockFreeMemberLimit()) return;
     setSelectedMember(null);
+    setSelectedRequest(null);
+    setMemberToApprove(null);
     setIsEditing(false);
+    setAddingTab('invite');
     setIsAddingMember(true);
+    revealDetailsPanel();
   };
 
   const handleCreateMemberSubmit = async (e: React.FormEvent) => {
@@ -328,8 +355,11 @@ export const Membres: React.FC<MembresProps> = ({
 
   const openDossier = (member: Member) => {
     setSelectedMember(member);
+    setSelectedRequest(null);
+    setMemberToApprove(null);
     setIsEditing(false);
     setIsAddingMember(false);
+    revealDetailsPanel();
   };
 
   const handleEditClick = (member: Member) => {
@@ -730,10 +760,11 @@ export const Membres: React.FC<MembresProps> = ({
                         setMemberToApprove(null);
                         setIsAddingMember(false);
                         setIsEditing(false);
+                        revealDetailsPanel();
                       }}
-                      className={`w-full glass-panel rounded-2xl p-4 flex items-center justify-between border transition-all text-left ${
+                      className={`w-full glass-panel rounded-2xl p-4 flex items-center justify-between border transition-all duration-300 text-left active:scale-[0.985] ${
                         selectedRequest?.id === req.id 
-                          ? 'border-[#6C5CFF] bg-[#6C5CFF]/5 shadow-[0_0_15px_rgba(108,92,255,0.15)]' 
+                          ? 'border-[#6C5CFF] bg-[#6C5CFF]/10 shadow-[0_10px_30px_rgba(108,92,255,0.18)] scale-[1.01]'
                           : 'border-white/5 bg-white/2 hover:bg-white/5'
                       }`}
                     >
@@ -746,7 +777,7 @@ export const Membres: React.FC<MembresProps> = ({
                           <p className="text-[9px] text-white/40 font-medium">Demandé le {new Date(req.createdAt).toLocaleDateString('fr-FR')}</p>
                         </div>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-white/40" />
+                      <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${selectedRequest?.id === req.id ? 'rotate-90 text-[#9E94FF]' : 'text-white/40'}`} />
                     </button>
                   );
                 })}
@@ -759,9 +790,9 @@ export const Membres: React.FC<MembresProps> = ({
             <button
               key={member.id}
               onClick={() => openDossier(member)}
-              className={`w-full glass-panel rounded-[28px] p-4 flex items-center justify-between border transition-all cursor-pointer text-left hover:bg-white/8 ${
+              className={`w-full glass-panel rounded-[28px] p-4 flex items-center justify-between border transition-all duration-300 cursor-pointer text-left hover:bg-white/8 active:scale-[0.985] ${
                 selectedMember?.id === member.id 
-                  ? 'border-[#6C5CFF] bg-[#6C5CFF]/5 shadow-[0_0_15px_rgba(108,92,255,0.15)]' 
+                  ? 'border-[#6C5CFF] bg-[#6C5CFF]/10 shadow-[0_10px_30px_rgba(108,92,255,0.18)] scale-[1.01]'
                   : 'border-white/8'
               }`}
             >
@@ -772,7 +803,14 @@ export const Membres: React.FC<MembresProps> = ({
                   <p className="text-[11px] text-white/50 mt-0.5">{member.role}</p>
                 </div>
               </div>
-              <ChevronRight className="w-5 h-5 text-white/40" />
+              <div className="flex items-center gap-2">
+                {selectedMember?.id === member.id && (
+                  <span className="rounded-full bg-[#6C5CFF]/15 px-2 py-1 text-[8px] font-black uppercase tracking-wider text-[#B7B0FF]">
+                    Ouvert
+                  </span>
+                )}
+                <ChevronRight className={`w-5 h-5 transition-transform duration-300 ${selectedMember?.id === member.id ? 'rotate-90 text-[#9E94FF]' : 'text-white/40'}`} />
+              </div>
             </button>
           ))}
 
@@ -780,18 +818,22 @@ export const Membres: React.FC<MembresProps> = ({
           {!isChild && (
             <button
               onClick={handleAddMemberClick}
-              className="w-full glass-panel rounded-[28px] p-4 flex items-center justify-between border border-dashed border-white/20 transition-all cursor-pointer text-left hover:bg-white/5 hover:border-[#6C5CFF]/40"
+              className={`w-full glass-panel rounded-[28px] p-4 flex items-center justify-between border border-dashed transition-all duration-300 cursor-pointer text-left active:scale-[0.985] ${
+                isAddingMember
+                  ? 'border-[#6C5CFF] bg-[#6C5CFF]/10 shadow-[0_10px_30px_rgba(108,92,255,0.18)] scale-[1.01]'
+                  : 'border-white/20 hover:bg-white/5 hover:border-[#6C5CFF]/40'
+              }`}
             >
               <div className="flex items-center space-x-4">
                 <div className="w-12 h-12 rounded-full bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 flex items-center justify-center text-[#6C5CFF]">
                   <Plus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Ajouter un membre</h3>
-                  <p className="text-[11px] text-white/50 mt-0.5">Inviter un nouveau membre dans la famille</p>
+                  <h3 className="text-sm font-bold text-white">Inviter une personne</h3>
+                  <p className="text-[11px] text-white/50 mt-0.5">Elle créera son compte et rejoindra votre foyer</p>
                 </div>
               </div>
-              <ChevronRight className="w-5 h-5 text-white/30" />
+              <ChevronRight className={`w-5 h-5 transition-transform duration-300 ${isAddingMember ? 'rotate-90 text-[#9E94FF]' : 'text-white/30'}`} />
             </button>
           )}
 
@@ -824,7 +866,31 @@ export const Membres: React.FC<MembresProps> = ({
         </div>
 
         {/* Member Dossier Details Sheet */}
-        <div className="glass-panel rounded-[28px] border border-white/8 p-6 space-y-6 relative overflow-hidden min-h-[350px]">
+        <div
+          key={panelOpenSequence}
+          ref={detailsPanelRef}
+          tabIndex={-1}
+          aria-live="polite"
+          className={`glass-panel rounded-[28px] border border-white/8 p-6 space-y-6 relative overflow-hidden min-h-[350px] scroll-mt-24 outline-none md:sticky md:top-6 ${
+            panelOpenSequence > 0 ? 'animate-scale-up' : ''
+          }`}
+        >
+          {(selectedMember || selectedRequest || memberToApprove || isAddingMember) && (
+            <div className="md:hidden -mt-2 mb-1 border-b border-white/6 pb-4 text-center">
+              <span className="mx-auto mb-3 block h-1 w-10 rounded-full bg-white/15" />
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#9E94FF]">
+                {selectedMember
+                  ? `Fiche de ${selectedMember.name}`
+                  : selectedRequest
+                    ? `Demande de ${selectedRequest.applicantName}`
+                    : memberToApprove
+                      ? `Accès de ${memberToApprove.name}`
+                      : addingTab === 'invite'
+                        ? 'Nouvelle invitation'
+                        : 'Nouveau profil sans compte'}
+              </p>
+            </div>
+          )}
           {selectedMember ? (
             <>
               {/* Close Button (mobile utility) */}
@@ -1452,18 +1518,22 @@ export const Membres: React.FC<MembresProps> = ({
                           <div className="pt-4 border-t border-white/5 space-y-3">
                             <div className="p-4 rounded-[22px] bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 space-y-2">
                               <p className="text-[10px] text-white/60 leading-normal">
-                                En tant que Chef de famille, vous pouvez configurer de nouveaux profils ou inviter vos proches à rejoindre votre foyer.
+                                Invitez vos proches pour qu’ils disposent de leur propre compte et rejoignent votre foyer.
                               </p>
                               <button
                                 type="button"
                                 onClick={() => {
+                                  setAddingTab('invite');
                                   setIsAddingMember(true);
                                   setSelectedMember(null);
+                                  setSelectedRequest(null);
+                                  setMemberToApprove(null);
                                   setIsEditing(false);
+                                  revealDetailsPanel();
                                 }}
                                 className="w-full py-3 rounded-xl bg-[#6C5CFF] text-white font-extrabold text-[10px] uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer text-center block shadow-md shadow-[#6C5CFF]/15"
                               >
-                                Ajouter un membre à la famille ➕
+                                Inviter une personne
                               </button>
                             </div>
                           </div>
@@ -1820,8 +1890,14 @@ export const Membres: React.FC<MembresProps> = ({
               {/* Header */}
               <div className="flex items-center justify-between border-b border-white/5 pb-3.5">
                 <div>
-                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">Ajouter un Membre</h3>
-                  <p className="text-[10px] text-white/40 mt-0.5">Configurez un nouveau profil ou invitez un proche.</p>
+                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">
+                    {addingTab === 'invite' ? 'Inviter une personne' : 'Profil sans compte'}
+                  </h3>
+                  <p className="text-[10px] text-white/40 mt-0.5">
+                    {addingTab === 'invite'
+                      ? 'Elle recevra une invitation et utilisera son propre compte.'
+                      : 'Solution réservée aux enfants ou aux personnes sans accès personnel.'}
+                  </p>
                 </div>
                 <button 
                   onClick={() => setIsAddingMember(false)}
@@ -1831,37 +1907,21 @@ export const Membres: React.FC<MembresProps> = ({
                 </button>
               </div>
 
-              {/* Tabs Switcher */}
-              <div className="flex p-1 rounded-2xl bg-black/20 border border-white/5">
-                <button
-                  type="button"
-                  onClick={() => setAddingTab('create')}
-                  className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                    addingTab === 'create' 
-                      ? 'bg-[#6C5CFF] text-white shadow-md shadow-[#6C5CFF]/15' 
-                      : 'text-white/40 hover:text-white/60'
-                  }`}
-                >
-                  Créer un Profil 🧒
-                </button>
-                {foyer && (
-                  <button
-                    type="button"
-                    onClick={() => setAddingTab('invite')}
-                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                      addingTab === 'invite' 
-                        ? 'bg-[#6C5CFF] text-white shadow-md shadow-[#6C5CFF]/15' 
-                        : 'text-white/40 hover:text-white/60'
-                    }`}
-                  >
-                    Inviter par Code/Mail ✉️
-                  </button>
-                )}
-              </div>
-
               {addingTab === 'create' ? (
                 /* CREATE LOCAL/IA PROFILE FORM */
                 <form onSubmit={handleCreateMemberSubmit} className="space-y-4">
+                  <div className="rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/8 p-3">
+                    <p className="text-[10px] leading-relaxed text-white/65">
+                      Ce profil n’aura ni identifiant ni accès personnel. Utilisez-le seulement si la personne ne peut pas créer de compte, par exemple un jeune enfant.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setAddingTab('invite')}
+                      className="mt-2 text-[10px] font-bold text-[#9E94FF]"
+                    >
+                      Revenir à l’invitation
+                    </button>
+                  </div>
                   <div className="grid grid-cols-2 gap-3.5">
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Nom complet</label>
@@ -2004,13 +2064,18 @@ export const Membres: React.FC<MembresProps> = ({
                     disabled={submittingAdd}
                     className="w-full py-3.5 rounded-2xl bg-[#6C5CFF] text-white font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-[#6C5CFF]/15 hover:opacity-90 active:scale-98 transition-all cursor-pointer flex items-center justify-center space-x-2"
                   >
-                    <span>{submittingAdd ? 'Création en cours...' : 'Créer la Fiche Membre ✅'}</span>
+                    <span>{submittingAdd ? 'Création en cours...' : 'Créer le profil sans compte'}</span>
                   </button>
                 </form>
               ) : (
                 /* INVITATION METHOD FOR CLOUD FOYER */
                 foyer && (
                   <div className="space-y-4 animate-fade-in">
+                    <div className="rounded-2xl border border-[#00D26A]/20 bg-[#00D26A]/8 p-3">
+                      <p className="text-[10px] leading-relaxed text-white/65">
+                        Recommandé : la personne reçoit une invitation, crée son compte puis rejoint automatiquement votre foyer.
+                      </p>
+                    </div>
                     {/* Share Invitation Code */}
                     <div className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-2">
                       <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block font-sans">1. Partager le Code Unique</span>
@@ -2087,6 +2152,17 @@ export const Membres: React.FC<MembresProps> = ({
                         {inviteLoading ? 'Envoi...' : 'Envoyer l\'invitation ✉️'}
                       </button>
                     </form>
+
+                    <div className="border-t border-white/6 pt-4 text-center">
+                      <p className="text-[9px] text-white/35">La personne ne peut vraiment pas créer de compte ?</p>
+                      <button
+                        type="button"
+                        onClick={() => setAddingTab('create')}
+                        className="mt-2 text-[10px] font-bold text-white/55 underline decoration-white/20 underline-offset-4"
+                      >
+                        Créer exceptionnellement un profil sans compte
+                      </button>
+                    </div>
                   </div>
                 )
               )}
