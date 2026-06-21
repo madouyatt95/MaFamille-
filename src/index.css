@@ -108,25 +108,29 @@ html.text-size-extra-large {
   font-size: 18px;
 }
 
-html.high-contrast {
-  --family-text-secondary: rgba(255, 255, 255, 0.88);
-  --glass-border: rgba(255, 255, 255, 0.2);
+html.text-size-large [class*="text-[8px]"],
+html.text-size-large [class*="text-[9px]"] {
+  font-size: 0.6875rem !important;
 }
 
-html.theme-light.high-contrast {
-  --family-text-secondary: rgba(17, 24, 39, 0.84);
-  --glass-border: rgba(15, 23, 42, 0.25);
+html.text-size-large [class*="text-[10px]"],
+html.text-size-large [class*="text-[11px]"] {
+  font-size: 0.75rem !important;
 }
 
-html.theme-sepia.high-contrast {
-  --family-text-secondary: rgba(58, 41, 31, 0.86);
-  --glass-border: rgba(91, 64, 41, 0.28);
+html.text-size-extra-large [class*="text-[8px]"],
+html.text-size-extra-large [class*="text-[9px]"] {
+  font-size: 0.75rem !important;
 }
 
-html.high-contrast [class*="text-white/3"],
-html.high-contrast [class*="text-white/4"],
-html.high-contrast [class*="text-white/5"] {
-  color: var(--family-text-secondary) !important;
+html.text-size-extra-large [class*="text-[10px]"],
+html.text-size-extra-large [class*="text-[11px]"] {
+  font-size: 0.8125rem !important;
+}
+
+html.text-size-extra-large .text-xs {
+  font-size: 0.875rem !important;
+  line-height: 1.35rem !important;
 }
 
 html.reduce-motion *,
@@ -1148,4 +1152,106 @@ html,
 .theme-sepia .conteur-universe-label .text-white {
   color: #ffffff !important;
   text-shadow: 0 1px 5px rgba(0, 0, 0, 0.8);
+}
+
+/* Late accessibility overrides must win over all theme compatibility rules. */
+html.high-contrast {
+  --family-text-secondary: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(255, 255, 255, 0.2);
+}
+
+html.theme-light.high-contrast {
+  --family-text-secondary: rgba(17, 24, 39, 0.84);
+  --glass-border: rgba(15, 23, 42, 0.25);
+}
+
+html.theme-sepia.high-contrast {
+  --family-text-secondary: rgba(58, 41, 31, 0.86);
+  --glass-border: rgba(91, 64, 41, 0.28);
+}
+
+html.high-contrast [class*="text-white/3"],
+html.high-contrast [class*="text-white/4"],
+html.high-contrast [class*="text-white/5"] {
+  color: var(--family-text-secondary) !important;
+}
+
+/* École enfant: complete light and sepia surfaces instead of a dark/light mix. */
+.theme-light .kid-school {
+  background: #f4f7fc !important;
+  color: #172033 !important;
+}
+
+.theme-sepia .kid-school {
+  background: #f5ecdc !important;
+  color: #493728 !important;
+}
+
+.theme-light .kid-school [class*="bg-[#112240]"],
+.theme-light .kid-school [class*="bg-[#0a192f]"],
+.theme-light .kid-school [class*="bg-[#07111F]"] {
+  background: #ffffff !important;
+  border-color: #d7e0ef !important;
+}
+
+.theme-sepia .kid-school [class*="bg-[#112240]"],
+.theme-sepia .kid-school [class*="bg-[#0a192f]"],
+.theme-sepia .kid-school [class*="bg-[#07111F]"] {
+  background: #fff9ed !important;
+  border-color: #d8c4a7 !important;
+}
+
+.theme-light .kid-school .glass-panel {
+  background: rgba(255, 255, 255, 0.94) !important;
+  border-color: #d7e0ef !important;
+}
+
+.theme-sepia .kid-school .glass-panel {
+  background: rgba(255, 249, 237, 0.95) !important;
+  border-color: #d8c4a7 !important;
+}
+
+.theme-light .kid-school .text-white {
+  color: #172033 !important;
+}
+
+.theme-sepia .kid-school .text-white {
+  color: #493728 !important;
+}
+
+.theme-light .kid-school [class*="text-white/"] {
+  color: #53627a !important;
+}
+
+.theme-sepia .kid-school [class*="text-white/"] {
+  color: #705b48 !important;
+}
+
+.theme-light .kid-school [class*="border-white/"] {
+  border-color: #d7e0ef !important;
+}
+
+.theme-sepia .kid-school [class*="border-white/"] {
+  border-color: #d8c4a7 !important;
+}
+
+.theme-light .kid-school input,
+.theme-light .kid-school select {
+  background: #ffffff !important;
+  color: #172033 !important;
+  border-color: #c7d3e6 !important;
+}
+
+.theme-sepia .kid-school input,
+.theme-sepia .kid-school select {
+  background: #fffaf0 !important;
+  color: #493728 !important;
+  border-color: #ccb797 !important;
+}
+
+.theme-light .kid-school button[class*="bg-[#6C5CFF]"],
+.theme-light .kid-school button[class*="from-[#6C5CFF]"],
+.theme-sepia .kid-school button[class*="bg-[#6C5CFF]"],
+.theme-sepia .kid-school button[class*="from-[#6C5CFF]"] {
+  color: #ffffff !important;
 }

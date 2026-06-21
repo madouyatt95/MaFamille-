@@ -787,7 +787,7 @@ export const KidSchool: React.FC<KidSchoolProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#07111F] text-white flex flex-col font-sans pb-8 select-none">
+    <div className="kid-school min-h-screen bg-[#07111F] text-white flex flex-col font-sans pb-8 select-none">
       
       {/* 1. Header Widget */}
       <header className="p-4 bg-[#0a192f] border-b border-white/5 flex flex-col space-y-3 sticky top-0 z-40 shadow-md">
