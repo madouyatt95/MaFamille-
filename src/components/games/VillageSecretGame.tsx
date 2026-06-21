@@ -21,7 +21,8 @@ import {
   Users,
   Volume2,
   VolumeX,
-  Vote
+  Vote,
+  X
 } from 'lucide-react';
 import type { Member } from '../../types';
 
@@ -171,6 +172,7 @@ const SPECIAL_ROLES = (Object.keys(ROLE_INFO) as Role[]).filter(role => role !==
 const DEFAULT_SPECIAL_ROLES: Role[] = ['investigator', 'protector', 'healer', 'cupid', 'jester', 'elder', 'mayor', 'raven', 'archivist', 'diplomat'];
 const SAVE_KEY = 'mf_village_secret_active_game_v2';
 const RESULTS_KEY = 'mf_village_secret_results_v1';
+const ROLE_ART_ORDER: Role[] = ['villager', 'traitor', 'protector', 'investigator', 'healer', 'cupid', 'jester', 'elder', 'mayor', 'raven', 'archivist', 'diplomat'];
 
 const shuffle = <T,>(items: T[]): T[] => {
   const next = [...items];
@@ -198,30 +200,49 @@ const speakText = (text: string) => {
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = 'fr-FR';
-  utterance.rate = 0.92;
-  utterance.pitch = 0.92;
+  const voices = window.speechSynthesis.getVoices();
+  const frenchVoices = voices.filter(voice => voice.lang.toLowerCase().startsWith('fr'));
+  const preferredNames = ['audrey', 'thomas', 'amelie', 'amélie', 'marie', 'denise', 'google français', 'natural'];
+  utterance.voice = preferredNames
+    .map(name => frenchVoices.find(voice => voice.name.toLowerCase().includes(name)))
+    .find(Boolean) || frenchVoices[0] || null;
+  utterance.rate = 0.86;
+  utterance.pitch = 1.02;
+  utterance.volume = 0.95;
   window.speechSynthesis.speak(utterance);
 };
 
-const playEffect = (effect: 'success' | 'danger' | 'victory') => {
+let sharedAudioContext: AudioContext | null = null;
+
+const getAudioContext = async (): Promise<AudioContext | null> => {
   const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioContextClass) return;
-  const context = new AudioContextClass();
-  const notes = effect === 'victory' ? [392, 523, 659] : effect === 'success' ? [440, 554] : [220, 165];
-  notes.forEach((frequency, index) => {
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.frequency.value = frequency;
-    oscillator.type = 'sine';
-    gain.gain.setValueAtTime(0.0001, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.07, context.currentTime + index * 0.08 + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + index * 0.08 + 0.18);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start(context.currentTime + index * 0.08);
-    oscillator.stop(context.currentTime + index * 0.08 + 0.2);
-  });
-  window.setTimeout(() => void context.close(), 700);
+  if (!AudioContextClass) return null;
+  sharedAudioContext ||= new AudioContextClass();
+  if (sharedAudioContext.state === 'suspended') await sharedAudioContext.resume();
+  return sharedAudioContext;
+};
+
+const playEffect = async (effect: 'success' | 'danger' | 'victory') => {
+  try {
+    const context = await getAudioContext();
+    if (!context) return;
+    const notes = effect === 'victory' ? [392, 523, 659] : effect === 'success' ? [440, 554] : [220, 165];
+    notes.forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.frequency.value = frequency;
+      oscillator.type = effect === 'danger' ? 'triangle' : 'sine';
+      gain.gain.setValueAtTime(0.0001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.14, context.currentTime + index * 0.1 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + index * 0.1 + 0.26);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(context.currentTime + index * 0.1);
+      oscillator.stop(context.currentTime + index * 0.1 + 0.28);
+    });
+  } catch {
+    // Embedded browsers can defer Web Audio until a later user interaction.
+  }
 };
 
 export function VillageSecretGame({ members, onFinished }: VillageSecretGameProps) {
@@ -279,6 +300,8 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   const archivist = players.find(player => player.role === 'archivist' && player.alive);
   const currentRevealPlayer = players[revealIndex];
   const currentVoter = alivePlayers[voterIndex];
+  const familyMemberNames = useMemo(() => new Set(members.map(member => member.name)), [members]);
+  const guestNames = names.filter(name => !familyMemberNames.has(name));
 
   const narrate = useCallback((text: string) => {
     if (narratorEnabled) speakText(text);
@@ -451,7 +474,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     }
     if (cupid) {
       setStage('cupid-pass');
-      narrate(`Tous les rôles sont distribués. Passez le téléphone à ${cupid.name}, Cupidon familial.`);
+      narrate('Tous les rôles sont distribués. Passez discrètement le téléphone à la personne indiquée à l’écran.');
       return;
     }
     setStage('night-intro');
@@ -481,20 +504,20 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     setNightHealerSaved(false);
     if (aliveTraitors.length > 0) {
       setStage('night-shadow-pass');
-      narrate(`Nuit ${night}. Passez discrètement le téléphone à ${aliveTraitors[0].name}, représentant des Traîtres.`);
+      narrate(`Nuit ${night}. Passez discrètement le téléphone à la personne indiquée à l’écran.`);
     }
   };
 
   const afterShadow = () => {
     if (investigator) {
       setStage('night-oracle-pass');
-      narrate(`Les Traîtres se rendorment. Passez le téléphone à ${investigator.name}, l’Enquêteur.`);
+      narrate('Le premier choix est enregistré. Passez discrètement le téléphone à la personne indiquée à l’écran.');
     } else if (protector) {
       setStage('night-guardian-pass');
-      narrate(`Passez maintenant le téléphone à ${protector.name}, le Protecteur.`);
+      narrate('Passez discrètement le téléphone à la personne indiquée à l’écran.');
     } else if (healer && healerSaveAvailable && shadowTarget) {
       setStage('night-healer-pass');
-      narrate(`Passez maintenant le téléphone à ${healer.name}, le Guérisseur.`);
+      narrate('Passez discrètement le téléphone à la personne indiquée à l’écran.');
     } else {
       continueNightSupport(false);
     }
@@ -504,10 +527,10 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     setOracleResultVisible(false);
     if (protector) {
       setStage('night-guardian-pass');
-      narrate(`L’Enquêteur se rendort. Passez le téléphone à ${protector.name}, le Protecteur.`);
+      narrate('Le choix est enregistré. Passez discrètement le téléphone à la personne indiquée à l’écran.');
     } else if (healer && healerSaveAvailable && shadowTarget) {
       setStage('night-healer-pass');
-      narrate(`Passez maintenant le téléphone à ${healer.name}, le Guérisseur.`);
+      narrate('Passez discrètement le téléphone à la personne indiquée à l’écran.');
     } else {
       continueNightSupport(false);
     }
@@ -516,7 +539,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   const afterProtector = () => {
     if (healer && healerSaveAvailable && shadowTarget && shadowTarget !== protectedTarget) {
       setStage('night-healer-pass');
-      narrate(`Le Protecteur se rendort. Passez le téléphone à ${healer.name}, le Guérisseur.`);
+      narrate('Le choix est enregistré. Passez discrètement le téléphone à la personne indiquée à l’écran.');
       return;
     }
     continueNightSupport(false);
@@ -526,12 +549,12 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     setNightHealerSaved(healerSaved);
     if (raven) {
       setStage('night-raven-pass');
-      narrate(`Passez maintenant le téléphone à ${raven.name}, le Corbeau.`);
+      narrate('Passez discrètement le téléphone à la personne indiquée à l’écran.');
       return;
     }
     if (archivist && !archivistUsed && eliminationHistory.length > 0) {
       setStage('night-archivist-pass');
-      narrate(`Passez maintenant le téléphone à ${archivist.name}, l’Archiviste.`);
+      narrate('Passez discrètement le téléphone à la personne indiquée à l’écran.');
       return;
     }
     resolveDawn(healerSaved);
@@ -540,7 +563,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   const afterRaven = () => {
     if (archivist && !archivistUsed && eliminationHistory.length > 0) {
       setStage('night-archivist-pass');
-      narrate(`Le Corbeau se rendort. Passez le téléphone à ${archivist.name}, l’Archiviste.`);
+      narrate('Le choix est enregistré. Passez discrètement le téléphone à la personne indiquée à l’écran.');
       return;
     }
     resolveDawn(nightHealerSaved);
@@ -558,7 +581,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       const victim = players.find(player => player.id === shadowTarget);
       if (victim?.role === 'elder' && victim.elderShield) {
         nextPlayers = players.map(player => player.id === shadowTarget ? { ...player, elderShield: false } : player);
-        message = `${victim.name}, l’Ancien du village, a résisté à sa première attaque nocturne.`;
+        message = `${victim.name} a mystérieusement résisté à cette attaque nocturne.`;
       } else {
         const linkedId = victim?.linkedId;
         nextPlayers = players.map(player => (
@@ -658,7 +681,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     setVoteMessage(`${eliminated?.name} quitte le Village.${revealRoles && eliminated ? ` Son rôle était ${ROLE_INFO[eliminated.role].name}.` : ''}${linked ? ` ${linked.name} le suit à cause du lien secret.` : ''}`);
     setStage('vote-result');
     if (soundEnabled) playEffect('danger');
-    narrate(`${eliminated?.name} quitte le Village. Son rôle était ${eliminated ? ROLE_INFO[eliminated.role].name : 'inconnu'}.`);
+    narrate(`${eliminated?.name} quitte le Village.${revealRoles && eliminated ? ` Son rôle est révélé à l’écran.` : ''}`);
     const nextWinner = checkWinner(nextPlayers);
     if (nextWinner) window.setTimeout(() => finishWithWinner(nextWinner), 900);
   };
@@ -743,7 +766,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
                 const info = ROLE_INFO[role];
                 return (
                   <button key={role} type="button" onClick={() => setEnabledRoles(previous => active ? previous.filter(item => item !== role) : [...previous, role])} className={`min-h-24 rounded-2xl border p-3 text-left ${active ? 'border-[#9E94FF]/40 bg-[#9E94FF]/10' : 'border-white/8 bg-black/10 opacity-55'}`}>
-                    <span className="text-xl">{info.icon}</span>
+                    <RolePortrait role={role} className="h-20 w-full rounded-xl" />
                     <strong className="mt-2 block text-[10px] text-white">{info.name}</strong>
                     <span className="mt-1 block text-[9px] leading-relaxed text-white/45">{info.description}</span>
                   </button>
@@ -765,7 +788,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
         <div className="mt-5 grid grid-cols-4 gap-2">
           {(['traitor', 'investigator', 'protector', 'mayor'] as Role[]).map(role => (
             <div key={role} className="rounded-2xl border border-white/8 bg-white/5 p-3 text-center">
-              <span className="text-2xl">{ROLE_INFO[role].icon}</span>
+              <RolePortrait role={role} className="mx-auto h-20 w-full rounded-xl" />
               <strong className="mt-2 block text-[9px] text-white">{ROLE_INFO[role].name}</strong>
             </div>
           ))}
@@ -776,13 +799,33 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
             <strong className="text-xs text-white">Joueurs · {names.length}/20</strong>
             <span className={`text-[10px] font-black ${names.length >= 5 ? 'text-[#00D26A]' : 'text-[#FFB020]'}`}>{names.length >= 5 ? 'Prêt' : '5 minimum'}</span>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {names.map((name, index) => (
-              <button key={`${name}-${index}`} type="button" onClick={() => setNames(previous => previous.filter((_, itemIndex) => itemIndex !== index))} className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-black text-white/70">
-                {name} <span className="ml-1 text-[#FF4D6D]">×</span>
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {members.slice(0, 20).map(member => {
+              const selected = names.includes(member.name);
+              return (
+                <button
+                  key={member.id}
+                  type="button"
+                  onClick={() => setNames(previous => selected ? previous.filter(name => name !== member.name) : previous.length < 20 ? [...previous, member.name] : previous)}
+                  className={`flex min-h-12 items-center gap-2 rounded-2xl border px-3 py-2 text-left ${selected ? 'border-[#00D26A]/35 bg-[#00D26A]/10' : 'border-white/8 bg-white/5'}`}
+                >
+                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${selected ? 'border-[#00D26A] bg-[#00D26A] text-[#07111F]' : 'border-white/20 text-transparent'}`}>
+                    <Check className="h-3.5 w-3.5" />
+                  </span>
+                  <span className={`truncate text-[10px] font-black ${selected ? 'text-white' : 'text-white/45'}`}>{member.name}</span>
+                </button>
+              );
+            })}
           </div>
+          {guestNames.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {guestNames.map(name => (
+                <button key={name} type="button" onClick={() => setNames(previous => previous.filter(item => item !== name))} className="rounded-full border border-[#9E94FF]/20 bg-[#9E94FF]/10 px-3 py-2 text-[10px] font-black text-white/70">
+                  {name} <X className="ml-1 inline h-3 w-3 text-[#FF9BAF]" />
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2">
             <input value={guestName} onChange={event => setGuestName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') addGuest(); }} placeholder="Ajouter un joueur invité" className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white outline-none" />
             <button type="button" onClick={addGuest} disabled={!guestName.trim() || names.length >= 20} className="rounded-2xl bg-[#6C5CFF] px-4 text-white disabled:opacity-40" title="Ajouter"><UserPlus className="h-5 w-5" /></button>
@@ -792,11 +835,22 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
           <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 p-3">
             <span className="flex items-center gap-2 text-xs font-bold text-white/70">{narratorEnabled ? <Volume2 className="h-4 w-4 text-[#00D26A]" /> : <VolumeX className="h-4 w-4" />} Narrateur</span>
-            <button type="button" role="switch" aria-checked={narratorEnabled} onClick={() => setNarratorEnabled(value => !value)} className={`relative h-7 w-12 rounded-full ${narratorEnabled ? 'bg-[#00D26A]' : 'bg-white/15'}`}><span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white transition-transform ${narratorEnabled ? 'translate-x-5' : ''}`} /></button>
+            <button type="button" role="switch" aria-checked={narratorEnabled} onClick={() => setNarratorEnabled(value => {
+              const next = !value;
+              if (next) speakText('Le maître du jeu est prêt.');
+              return next;
+            })} className={`relative h-7 w-12 rounded-full ${narratorEnabled ? 'bg-[#00D26A]' : 'bg-white/15'}`}><span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white transition-transform ${narratorEnabled ? 'translate-x-5' : ''}`} /></button>
           </div>
           <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 p-3">
-            <span className="flex items-center gap-2 text-xs font-bold text-white/70"><Music2 className={`h-4 w-4 ${soundEnabled ? 'text-[#FFB020]' : 'text-white/35'}`} /> Effets sonores</span>
-            <button type="button" role="switch" aria-checked={soundEnabled} onClick={() => setSoundEnabled(value => !value)} className={`relative h-7 w-12 rounded-full ${soundEnabled ? 'bg-[#FFB020]' : 'bg-white/15'}`}><span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : ''}`} /></button>
+            <span className="flex items-center gap-2 text-xs font-bold text-white/70">
+              <Music2 className={`h-4 w-4 ${soundEnabled ? 'text-[#FFB020]' : 'text-white/35'}`} />
+              <span>Effets sonores<button type="button" onClick={() => void playEffect('success')} className="ml-2 text-[9px] font-black text-[#FFB020] underline">Tester</button></span>
+            </span>
+            <button type="button" role="switch" aria-checked={soundEnabled} onClick={() => setSoundEnabled(value => {
+              const next = !value;
+              if (next) void playEffect('success');
+              return next;
+            })} className={`relative h-7 w-12 rounded-full ${soundEnabled ? 'bg-[#FFB020]' : 'bg-white/15'}`}><span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : ''}`} /></button>
           </div>
         </div>
 
@@ -842,7 +896,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
         </button>
         {roleVisible ? (
           <div className="mt-4 text-center">
-            <span className="text-5xl">{info.icon}</span>
+            <RolePortrait role={currentRevealPlayer.role} className="mx-auto h-64 w-full max-w-sm rounded-3xl" />
             <span className="mt-4 block text-[10px] font-black uppercase tracking-widest" style={{ color: info.color }}>Votre rôle secret</span>
             <h2 className="mt-1 text-3xl font-black text-white">{info.name}</h2>
             <p className="mx-auto mt-3 max-w-sm text-xs leading-relaxed text-white/60">{info.description}</p>
@@ -859,7 +913,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   }
 
   if (stage === 'cupid-pass' && cupid) {
-    return <SecretPass title={`Téléphone pour ${cupid.name}`} detail="Cupidon familial va créer un lien secret entre deux joueurs." onReady={() => setStage('cupid-choice')} />;
+    return <SecretPass title={`Passez le téléphone à ${cupid.name}`} detail="Quand cette personne est seule, elle peut révéler son action secrète." onReady={() => setStage('cupid-choice')} />;
   }
 
   if (stage === 'cupid-choice') {
@@ -888,7 +942,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   }
 
   if (stage === 'night-shadow-pass') {
-    return <SecretPass title={`Téléphone pour ${aliveTraitors[0]?.name}`} detail="Les Traîtres de la nuit ouvrent les yeux et choisissent ensemble une cible." onReady={() => setStage('night-shadow')} />;
+    return <SecretPass title={`Passez le téléphone à ${aliveTraitors[0]?.name}`} detail="Quand cette personne est seule, elle peut révéler son action secrète." onReady={() => setStage('night-shadow')} />;
   }
 
   if (stage === 'night-shadow') {
@@ -896,7 +950,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   }
 
   if (stage === 'night-oracle-pass' && investigator) {
-    return <SecretPass title={`Téléphone pour ${investigator.name}`} detail="L’Enquêteur va vérifier une personne en secret." onReady={() => setStage('night-oracle')} />;
+    return <SecretPass title={`Passez le téléphone à ${investigator.name}`} detail="Quand cette personne est seule, elle peut révéler son action secrète." onReady={() => setStage('night-oracle')} />;
   }
 
   if (stage === 'night-oracle') {
@@ -928,7 +982,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   }
 
   if (stage === 'night-guardian-pass' && protector) {
-    return <SecretPass title={`Téléphone pour ${protector.name}`} detail="Le Protecteur choisit une personne à protéger." onReady={() => setStage('night-guardian')} />;
+    return <SecretPass title={`Passez le téléphone à ${protector.name}`} detail="Quand cette personne est seule, elle peut révéler son action secrète." onReady={() => setStage('night-guardian')} />;
   }
 
   if (stage === 'night-guardian') {
@@ -936,7 +990,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   }
 
   if (stage === 'night-healer-pass' && healer) {
-    return <SecretPass title={`Téléphone pour ${healer.name}`} detail="Le Guérisseur peut utiliser son unique remède pour sauver la cible." onReady={() => setStage('night-healer')} />;
+    return <SecretPass title={`Passez le téléphone à ${healer.name}`} detail="Quand cette personne est seule, elle peut révéler son action secrète." onReady={() => setStage('night-healer')} />;
   }
 
   if (stage === 'night-healer') {
@@ -955,7 +1009,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   }
 
   if (stage === 'night-raven-pass' && raven) {
-    return <SecretPass title={`Téléphone pour ${raven.name}`} detail="Le Corbeau va placer une voix secrète contre une personne pour le prochain vote." onReady={() => setStage('night-raven')} />;
+    return <SecretPass title={`Passez le téléphone à ${raven.name}`} detail="Quand cette personne est seule, elle peut révéler son action secrète." onReady={() => setStage('night-raven')} />;
   }
 
   if (stage === 'night-raven') {
@@ -963,7 +1017,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   }
 
   if (stage === 'night-archivist-pass' && archivist) {
-    return <SecretPass title={`Téléphone pour ${archivist.name}`} detail="L’Archiviste peut consulter une ancienne fiche, une seule fois dans la partie." onReady={() => setStage('night-archivist')} />;
+    return <SecretPass title={`Passez le téléphone à ${archivist.name}`} detail="Quand cette personne est seule, elle peut révéler son action secrète." onReady={() => setStage('night-archivist')} />;
   }
 
   if (stage === 'night-archivist') {
@@ -1054,7 +1108,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       <h2 className="mt-1 text-2xl font-black text-white">{soloWinner ? `Victoire du Farceur ${soloWinner}` : winner === 'village' ? 'Victoire du Village' : 'Victoire des Traîtres'}</h2>
       <p className="mt-2 text-xs text-white/50">{night} nuit{night > 1 ? 's' : ''} jouée{night > 1 ? 's' : ''}</p>
       <div className="mt-5 grid grid-cols-2 gap-2">
-        {players.map(player => <div key={player.id} className="rounded-2xl border border-white/8 bg-white/5 p-3"><strong className="block text-xs text-white">{player.name}</strong><span className="mt-1 block text-[10px]" style={{ color: ROLE_INFO[player.role].color }}>{ROLE_INFO[player.role].icon} {ROLE_INFO[player.role].name}</span></div>)}
+        {players.map(player => <div key={player.id} className="overflow-hidden rounded-2xl border border-white/8 bg-white/5"><RolePortrait role={player.role} className="h-24 w-full" /><div className="p-3"><strong className="block text-xs text-white">{player.name}</strong><span className="mt-1 block text-[10px]" style={{ color: ROLE_INFO[player.role].color }}>{ROLE_INFO[player.role].name}</span></div></div>)}
       </div>
       {eliminationHistory.length > 0 && (
         <div className="mt-5 rounded-2xl border border-white/8 bg-white/5 p-4 text-left">
@@ -1135,5 +1189,23 @@ function NarratorScene({ icon, eyebrow, title, detail, action, onAction, narrato
       <button type="button" onClick={onToggleNarrator} className="mx-auto mt-4 flex items-center gap-2 rounded-full border border-white/8 px-3 py-2 text-[10px] font-black text-white/50">{narratorEnabled ? <Volume2 className="h-4 w-4 text-[#00D26A]" /> : <VolumeX className="h-4 w-4" />} {narratorEnabled ? 'Narrateur actif' : 'Mode silencieux'}</button>
       <button type="button" onClick={onAction} className="mt-6 w-full rounded-2xl bg-[#9E94FF] py-4 text-xs font-black text-[#090D1A]">{action}</button>
     </section>
+  );
+}
+
+function RolePortrait({ role, className = '' }: { role: Role; className?: string }) {
+  const index = ROLE_ART_ORDER.indexOf(role);
+  const column = index % 4;
+  const row = Math.floor(index / 4);
+  return (
+    <div
+      role="img"
+      aria-label={`Illustration ${ROLE_INFO[role].name}`}
+      className={`role-portrait bg-cover bg-no-repeat ${className}`}
+      style={{
+        backgroundImage: "url('/game-assets/village-secret-roles.webp')",
+        backgroundSize: '400% 300%',
+        backgroundPosition: `${column * (100 / 3)}% ${row * 50}%`
+      }}
+    />
   );
 }

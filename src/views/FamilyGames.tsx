@@ -22,7 +22,8 @@ import {
   Star,
   Trophy,
   Users,
-  Vote
+  Vote,
+  X
 } from 'lucide-react';
 import type { FamilyEvent, FamilyVote, MalusSettings, Member, MemoryLog, PocketMoneyChild } from '../types';
 import { getSupabaseClient } from '../utils/supabase';
@@ -250,6 +251,7 @@ export function FamilyGames({
   const [activeRoom, setActiveRoom] = useState<FamilyGameRoom | null>(null);
   const [challengeMode, setChallengeMode] = useState<ChallengeMode | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [showVillageCloseConfirm, setShowVillageCloseConfirm] = useState(false);
   const [lastRecap, setLastRecap] = useState<FamilyChallengeRecap | null>(null);
   const [memoryRound, setMemoryRound] = useState(1);
   const [memoryPairCount, setMemoryPairCount] = useState<6 | 8 | 12>(6);
@@ -1958,9 +1960,33 @@ export function FamilyGames({
         {activeGame === 'village-secret' && (
           <>
             {gameHeader('Village Secret', 'Rôles cachés, nuit, débat et vote guidés automatiquement.', Moon)}
+            <button
+              type="button"
+              onClick={() => setShowVillageCloseConfirm(true)}
+              className="ml-auto flex items-center gap-2 rounded-2xl border border-[#FF4D6D]/25 bg-[#FF4D6D]/8 px-4 py-2.5 text-[10px] font-black text-[#FF9BAF]"
+            >
+              <X className="h-4 w-4" /> Fermer complètement la partie
+            </button>
             <Suspense fallback={<div className="rounded-[28px] border border-white/8 bg-white/5 p-8 text-center text-xs font-bold text-white/55">Préparation du village...</div>}>
               <VillageSecretGame members={members} />
             </Suspense>
+            {showVillageCloseConfirm && (
+              <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 p-4 sm:items-center">
+                <div className="w-full max-w-sm rounded-[24px] border border-white/10 bg-[#111827] p-5 shadow-2xl">
+                  <h2 className="text-lg font-black text-white">Fermer cette partie ?</h2>
+                  <p className="mt-2 text-xs leading-relaxed text-white/55">La partie et sa sauvegarde locale seront supprimées. Cette action ne peut pas être annulée.</p>
+                  <div className="mt-5 grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => setShowVillageCloseConfirm(false)} className="rounded-2xl border border-white/10 py-3 text-xs font-black text-white/60">Continuer à jouer</button>
+                    <button type="button" onClick={() => {
+                      localStorage.removeItem('mf_village_secret_active_game_v2');
+                      window.speechSynthesis?.cancel();
+                      setShowVillageCloseConfirm(false);
+                      setActiveGame(null);
+                    }} className="rounded-2xl bg-[#FF4D6D] py-3 text-xs font-black text-white">Fermer</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
