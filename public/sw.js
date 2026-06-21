@@ -75,7 +75,7 @@ messaging.onBackgroundMessage((payload) => {
 });
 
 // PARTIE CACHING PWA
-const CACHE_NAME = 'myfamily-plus-cache-v3';
+const CACHE_NAME = 'myfamily-plus-cache-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -137,7 +137,7 @@ self.addEventListener('fetch', (event) => {
 
   if (isNavigation || isAppShellAsset || isManifest) {
     event.respondWith(
-      fetch(request).then((response) => {
+      fetch(request, { cache: 'no-store' }).then((response) => {
         if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
