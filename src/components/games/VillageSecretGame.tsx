@@ -482,6 +482,8 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   const [gameMoments, setGameMoments] = useState<GameMoment[]>([]);
 
   const alivePlayers = useMemo(() => players.filter(player => player.alive), [players]);
+  const activeTraitorCount = useMemo(() => alivePlayers.filter(isActiveTraitor).length, [alivePlayers]);
+  const otherSurvivorCount = alivePlayers.length - activeTraitorCount;
   const aliveTraitors = useMemo(() => alivePlayers.filter(player => isTraitorRole(player.role)), [alivePlayers]);
   const botStatements = useMemo(() => alivePlayers
     .filter(player => player.isBot)
@@ -756,10 +758,16 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     setStage('finished');
     navigator.vibrate?.([120, 80, 180]);
     if (soundEnabled) playEffect('victory', effectsVolume);
-    addMoment('result', 'Fin de la partie', nextWinner === 'village' ? 'Le Village a démasqué tous les Traîtres.' : 'Les Traîtres ont pris le contrôle du Village.');
+    addMoment(
+      'result',
+      'Fin de la partie',
+      nextWinner === 'village'
+        ? 'Le Village a éliminé tous les Traîtres encore actifs.'
+        : 'Les Traîtres sont désormais aussi nombreux que les autres survivants.'
+    );
     narrate(nextWinner === 'village'
       ? 'Les derniers Traîtres sont démasqués. Le Village remporte la partie.'
-      : 'Les Traîtres de la nuit contrôlent désormais le Village.');
+      : 'Les Traîtres sont désormais aussi nombreux que les autres survivants. Ils remportent la partie.');
     localStorage.removeItem(SAVE_KEY);
     setResumeAvailable(false);
     recordResult(nextWinner === 'village' ? 'Village' : 'Traîtres');
@@ -1462,6 +1470,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
               <li><strong className="text-white">2. Nuit :</strong> le téléphone passe à tout le monde. Certains choix ont un effet, les autres servent seulement à garder le secret.</li>
               <li><strong className="text-white">3. Jour :</strong> la victime est annoncée, puis la famille débat pendant le temps choisi.</li>
               <li><strong className="text-white">4. Vote :</strong> chaque joueur vote seul. Le Village gagne en éliminant tous les Traîtres.</li>
+              <li><strong className="text-white">5. Victoire des Traîtres :</strong> elle est immédiate dès qu’ils sont aussi nombreux que tous les autres survivants réunis. Les pouvoirs de vote ne prolongent pas la partie après cette égalité.</li>
             </ol>
           </div>
         )}
@@ -2368,6 +2377,20 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       <span className="mt-4 block text-[10px] font-black uppercase tracking-widest text-[#FFB020]">Partie terminée</span>
       <h2 className="mt-1 text-2xl font-black text-white">{soloWinner ? `Victoire du Farceur ${soloWinner}` : winner === 'village' ? 'Victoire du Village' : 'Victoire des Traîtres'}</h2>
       <p className="mt-2 text-xs text-white/50">{night} nuit{night > 1 ? 's' : ''} jouée{night > 1 ? 's' : ''}</p>
+      {!soloWinner && (
+        <div className="mt-4 rounded-2xl border border-white/8 bg-white/5 p-3">
+          <p className="text-xs font-black text-white">
+            {activeTraitorCount} Traître{activeTraitorCount !== 1 ? 's' : ''} actif{activeTraitorCount !== 1 ? 's' : ''}
+            {' · '}
+            {otherSurvivorCount} autre{otherSurvivorCount !== 1 ? 's' : ''} survivant{otherSurvivorCount !== 1 ? 's' : ''}
+          </p>
+          <p className="mt-1 text-[9px] leading-relaxed text-white/45">
+            {winner === 'village'
+              ? 'Aucun Traître actif ne reste dans le Village.'
+              : 'La parité est atteinte : les Traîtres remportent immédiatement la partie.'}
+          </p>
+        </div>
+      )}
       {gameMoments.length > 0 && (
         <div className="mt-6 rounded-3xl border border-white/8 bg-white/5 p-4 text-left">
           <div className="flex items-center gap-2">
@@ -2417,7 +2440,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
         </div>
       )}
       <div className="mt-5 grid grid-cols-2 gap-2">
-        {players.map(player => <div key={player.id} className="overflow-hidden rounded-2xl border border-white/8 bg-white/5"><RolePortrait role={player.role} className="w-full" /><div className="p-3"><strong className="block text-xs text-white">{player.name}</strong><span className="mt-1 block text-[10px]" style={{ color: ROLE_INFO[player.role].color }}>{ROLE_INFO[player.role].name}</span>{player.isBot && <span className="mt-1 block text-[8px] font-black uppercase text-[#8AB5FF]">{BOT_PERSONALITY_LABELS[player.botPersonality || 'discreet']}</span>}</div></div>)}
+        {players.map(player => <div key={player.id} className="overflow-hidden rounded-2xl border border-white/8 bg-white/5"><RolePortrait role={player.role} className="w-full" /><div className="p-3"><strong className="block text-xs text-white">{player.name}</strong><span className="mt-1 block text-[10px]" style={{ color: ROLE_INFO[player.role].color }}>{ROLE_INFO[player.role].name}</span>{player.role === 'repentant' && player.hasRepented && <span className="mt-1 block text-[8px] font-black uppercase text-[#00D26A]">A rejoint le Village</span>}{player.isBot && <span className="mt-1 block text-[8px] font-black uppercase text-[#8AB5FF]">{BOT_PERSONALITY_LABELS[player.botPersonality || 'discreet']}</span>}</div></div>)}
       </div>
       {eliminationHistory.length > 0 && (
         <div className="mt-5 rounded-2xl border border-white/8 bg-white/5 p-4 text-left">
