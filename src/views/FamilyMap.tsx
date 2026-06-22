@@ -45,6 +45,7 @@ const DEFAULT_MAP_CENTER: [number, number] = [46.603354, 1.888334];
 const createFavoriteId = (type: FavoritePlace['type']) => `fav-${Date.now()}-${type}`;
 const MAX_SEARCH_RESULTS = 8;
 const NEARBY_RADIUS_METERS = 5000;
+const NEARBY_FETCH_LIMIT = 60;
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter'
@@ -58,6 +59,7 @@ const getMemberCoords = (member?: Member | null): [number, number] | null => {
   const lat = Number(member.latitude);
   const lng = Number(member.longitude);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (Math.abs(lat) < 0.0001 && Math.abs(lng) < 0.0001) return null;
   return [lat, lng];
 };
 
@@ -116,9 +118,17 @@ const FitNearbyBounds: React.FC<{
 }> = ({ points, origin }) => {
   const map = useMap();
   useEffect(() => {
-    if (points.length === 0) return;
-    const bounds = L.latLngBounds(origin ? [origin, ...points] : points);
-    map.fitBounds(bounds, { padding: [44, 44], maxZoom: 15, animate: true });
+    const validPoints = points.filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
+    const validOrigin = origin && Number.isFinite(origin[0]) && Number.isFinite(origin[1]) ? origin : null;
+    if (validPoints.length === 0) return;
+    try {
+      const bounds = L.latLngBounds(validOrigin ? [validOrigin, ...validPoints] : validPoints);
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [44, 44], maxZoom: 15, animate: true });
+      }
+    } catch (error) {
+      console.error('Unable to fit nearby bounds:', error);
+    }
   }, [map, origin, points]);
   return null;
 };
@@ -280,7 +290,30 @@ const buildNearbyQuery = (category: NearbyCategory, origin: [number, number]) =>
   const definition = nearbyCategories.find(item => item.key === category);
   if (!definition) return '';
   const [lat, lng] = origin;
-  return `[out:json][timeout:15];nwr${definition.filter}(around:${NEARBY_RADIUS_METERS},${lat},${lng});out center tags;`;
+  return `[out:json][timeout:12];nwr${definition.filter}(around:${NEARBY_RADIUS_METERS},${lat},${lng});out center ${NEARBY_FETCH_LIMIT};`;
+};
+
+const buildNearbyFallbackUrl = (category: NearbyCategory, origin: [number, number]) => {
+  const definition = nearbyCategories.find(item => item.key === category);
+  const [lat, lng] = origin;
+  const queryByCategory: Record<NearbyCategory, string> = {
+    school: 'école',
+    doctor: 'médecin',
+    pharmacy: 'pharmacie',
+    shopping: 'supermarché',
+    station: 'gare',
+    park: 'parc'
+  };
+  const params = new URLSearchParams({
+    format: 'jsonv2',
+    q: queryByCategory[category] || definition?.label || 'lieu',
+    limit: String(MAX_SEARCH_RESULTS),
+    addressdetails: '1',
+    'accept-language': 'fr',
+    viewbox: `${lng - 0.08},${lat + 0.08},${lng + 0.08},${lat - 0.08}`,
+    bounded: '1'
+  });
+  return `https://nominatim.openstreetmap.org/search?${params.toString()}`;
 };
 
 const fetchNearbyElements = async (query: string): Promise<OverpassElement[]> => {
@@ -308,6 +341,30 @@ const fetchNearbyElements = async (query: string): Promise<OverpassElement[]> =>
     }
   }
   throw lastError || new Error('overpass_unavailable');
+};
+
+const fetchNearbyFallbackResults = async (
+  category: NearbyCategory,
+  origin: [number, number]
+): Promise<MapSearchResult[]> => {
+  const response = await fetch(buildNearbyFallbackUrl(category, origin));
+  if (!response.ok) throw new Error('nearby_fallback_failed');
+  const data = await response.json() as MapSearchResult[];
+  const results: MapSearchResult[] = [];
+  data.forEach(result => {
+      const lat = Number(result.lat);
+      const lon = Number(result.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      results.push({
+        ...result,
+        distanceKm: getHaversineDistance(origin[0], origin[1], lat, lon),
+        nearbyCategory: category
+      });
+    });
+
+  return results
+    .filter(result => typeof result.distanceKm === 'number' && result.distanceKm <= NEARBY_RADIUS_METERS / 1000)
+    .sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
 };
 
 const nearbyMarkerEmoji: Record<NearbyCategory, string> = {
@@ -566,7 +623,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
   const searchNearbyPlaces = async (category: NearbyCategory) => {
     const definition = nearbyCategories.find(item => item.key === category);
-    if (!routeOrigin || !definition) {
+    const validOrigin = routeOrigin && Number.isFinite(routeOrigin[0]) && Number.isFinite(routeOrigin[1])
+      ? routeOrigin
+      : null;
+    if (!validOrigin || !definition) {
       setActiveNearbyCategory(null);
       setSearchResults([]);
       setSearchError("Activez votre position pour afficher les lieux réellement proches de vous.");
@@ -580,11 +640,12 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     setSearching(true);
     setSearchError(null);
     try {
-      const query = buildNearbyQuery(category, routeOrigin);
+      const query = buildNearbyQuery(category, validOrigin);
       const elements = await fetchNearbyElements(query);
       const results = elements
-        .map(element => overpassElementToSearchResult(element, category, routeOrigin))
+        .map(element => overpassElementToSearchResult(element, category, validOrigin))
         .filter((result): result is MapSearchResult => Boolean(result))
+        .filter(result => typeof result.distanceKm === 'number' && result.distanceKm <= NEARBY_RADIUS_METERS / 1000)
         .sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
       const compacted = compactSearchResults(results);
       setSearchResults(compacted);
@@ -598,8 +659,23 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       }
     } catch (err) {
       console.error('Nearby places search error:', err);
-      setActiveNearbyCategory(null);
-      setSearchError("Les lieux proches sont momentanément indisponibles. Réessayez dans quelques instants.");
+      try {
+        const fallbackResults = compactSearchResults(await fetchNearbyFallbackResults(category, validOrigin));
+        setSearchResults(fallbackResults);
+        if (fallbackResults.length === 0) {
+          setActiveNearbyCategory(null);
+          setSearchError(`Aucun ${definition.label.toLowerCase()} trouvé dans un rayon de 5 km.`);
+          return;
+        }
+        setMapNotice({
+          type: 'info',
+          message: `${fallbackResults.length} résultat${fallbackResults.length > 1 ? 's' : ''} affiché${fallbackResults.length > 1 ? 's' : ''}. Source de secours utilisée.`
+        });
+      } catch (fallbackError) {
+        console.error('Nearby fallback search error:', fallbackError);
+        setActiveNearbyCategory(null);
+        setSearchError("Les lieux proches sont momentanément indisponibles. Réessayez dans quelques instants.");
+      }
     } finally {
       setSearching(false);
     }
@@ -959,6 +1035,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const handleSelectSearchResult = (result: MapSearchResult) => {
     const lat = parseFloat(result.lat);
     const lon = parseFloat(result.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      setMapNotice({ type: 'warning', message: "Ce lieu n'a pas de coordonnées exploitables." });
+      return;
+    }
     const formatted = formatSearchResult(result);
     setMapCenter([lat, lon]);
     setSearchMarker({
