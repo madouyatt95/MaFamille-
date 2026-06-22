@@ -73,6 +73,29 @@ type TournamentState = {
   playerNames: [string, string];
   scores: [number, number];
 };
+type GameResumeSnapshot = {
+  activeGame: GameId;
+  updatedAt?: string;
+  memory?: {
+    started?: boolean;
+    pairCount?: 6 | 8 | 12;
+    mode?: MemoryMode;
+    source?: MemorySource;
+    round?: number;
+    playerIds?: string[];
+    scores?: number[];
+    currentPlayer?: number;
+    matchedPairs?: string[];
+    moves?: number;
+  };
+  connect4?: {
+    board?: ConnectCell[][];
+    currentPlayer?: 1 | 2;
+    winner?: ConnectCell;
+    draw?: boolean;
+    vsBot?: boolean;
+  };
+};
 const BOT_DIFFICULTIES: Array<[BotDifficulty, string]> = [
   ['easy', 'Facile'],
   ['normal', 'Normal'],
@@ -84,6 +107,14 @@ const GAME_LABELS: Record<FamilyGameType, string> = {
   battleship: 'Bataille navale',
   'family-challenge': 'Défi famille',
   'mime-challenge': 'Mimes et défis'
+};
+const GAME_COVER_POSITIONS: Record<GameId, string> = {
+  memory: '0% 0%',
+  connect4: '50% 0%',
+  battleship: '100% 0%',
+  'family-challenge': '0% 100%',
+  'mime-challenge': '50% 100%',
+  'village-secret': '100% 100%'
 };
 
 const VillageSecretGame = lazy(async () => {
@@ -242,6 +273,18 @@ export function FamilyGames({
 }: FamilyGamesProps) {
   const [activeGame, setActiveGame] = useState<GameId | null>(null);
   const [gameFilter, setGameFilter] = useState<GameFilter>('all');
+  const [showProgression, setShowProgression] = useState(false);
+  const [resumeSnapshot, setResumeSnapshot] = useState<GameResumeSnapshot | null>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`mf_games_resume_${foyerId}`) || 'null');
+    } catch {
+      return null;
+    }
+  });
+  const [lastGameId, setLastGameId] = useState<GameId | null>(() => {
+    const saved = localStorage.getItem(`mf_games_last_${foyerId}`);
+    return saved as GameId | null;
+  });
   const [playerIds, setPlayerIds] = useState<[string, string]>(() => {
     const first = members.find(member => member.id === activeMemberId)?.id || members[0]?.id || 'player-1';
     const second = members.find(member => member.id !== first)?.id || 'player-2';
@@ -506,42 +549,16 @@ export function FamilyGames({
 
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(`mf_games_resume_${foyerId}`) || 'null');
-      if (saved?.activeGame) {
-        queueMicrotask(() => {
-          setActiveGame(saved.activeGame);
-          if (saved.memory) {
-            setMemoryStarted(Boolean(saved.memory.started));
-            setMemoryPairCount(saved.memory.pairCount || 6);
-            setMemoryMode(saved.memory.mode || 'individual');
-            setMemorySource(saved.memory.source || 'family');
-            setMemoryRound(saved.memory.round || 1);
-            setMemoryPlayerIds(saved.memory.playerIds || []);
-            setMemoryScores(saved.memory.scores || []);
-            setMemoryCurrentPlayer(saved.memory.currentPlayer || 0);
-            setMatchedPairs(saved.memory.matchedPairs || []);
-            setMemoryMoves(saved.memory.moves || 0);
-          }
-          if (saved.connect4) {
-            setBoard(saved.connect4.board || emptyBoard());
-            setCurrentPlayer(saved.connect4.currentPlayer || 1);
-            setConnectWinner(saved.connect4.winner || 0);
-            setConnectDraw(Boolean(saved.connect4.draw));
-            setConnectVsBot(Boolean(saved.connect4.vsBot));
-          }
-        });
-      }
+      const saved = JSON.parse(localStorage.getItem(`mf_games_resume_${foyerId}`) || 'null') as GameResumeSnapshot | null;
+      queueMicrotask(() => setResumeSnapshot(saved?.activeGame ? saved : null));
     } catch {
       // A corrupted local resume must never block the games hub.
     }
   }, [foyerId]);
 
   useEffect(() => {
-    if (!activeGame) {
-      localStorage.removeItem(`mf_games_resume_${foyerId}`);
-      return;
-    }
-    localStorage.setItem(`mf_games_resume_${foyerId}`, JSON.stringify({
+    if (!activeGame) return;
+    const snapshot: GameResumeSnapshot = {
       activeGame,
       updatedAt: new Date().toISOString(),
       memory: {
@@ -557,8 +574,58 @@ export function FamilyGames({
         moves: memoryMoves
       },
       connect4: { board, currentPlayer, winner: connectWinner, draw: connectDraw, vsBot: connectVsBot }
-    }));
+    };
+    localStorage.setItem(`mf_games_resume_${foyerId}`, JSON.stringify(snapshot));
   }, [activeGame, board, connectDraw, connectVsBot, connectWinner, currentPlayer, foyerId, matchedPairs, memoryCurrentPlayer, memoryMode, memoryMoves, memoryPairCount, memoryPlayerIds, memoryRound, memoryScores, memorySource, memoryStarted]);
+
+  const openGame = useCallback((gameId: GameId) => {
+    if (gameId === 'village-secret' && !isPremium) {
+      onTriggerPaywall?.();
+      return;
+    }
+    localStorage.setItem(`mf_games_last_${foyerId}`, gameId);
+    setLastGameId(gameId);
+    setActiveGame(gameId);
+  }, [foyerId, isPremium, onTriggerPaywall]);
+
+  const resumeSavedGame = useCallback(() => {
+    const saved = resumeSnapshot;
+    if (!saved?.activeGame) return;
+    if (saved.activeGame === 'village-secret' && !isPremium) {
+      onTriggerPaywall?.();
+      return;
+    }
+    if (saved.memory) {
+      setMemoryStarted(Boolean(saved.memory.started));
+      setMemoryPairCount(saved.memory.pairCount || 6);
+      setMemoryMode(saved.memory.mode || 'individual');
+      setMemorySource(saved.memory.source || 'family');
+      setMemoryRound(saved.memory.round || 1);
+      setMemoryPlayerIds(saved.memory.playerIds || []);
+      setMemoryScores(saved.memory.scores || []);
+      setMemoryCurrentPlayer(saved.memory.currentPlayer || 0);
+      setMatchedPairs(saved.memory.matchedPairs || []);
+      setMemoryMoves(saved.memory.moves || 0);
+    }
+    if (saved.connect4) {
+      setBoard(saved.connect4.board || emptyBoard());
+      setCurrentPlayer(saved.connect4.currentPlayer || 1);
+      setConnectWinner(saved.connect4.winner || 0);
+      setConnectDraw(Boolean(saved.connect4.draw));
+      setConnectVsBot(Boolean(saved.connect4.vsBot));
+    }
+    openGame(saved.activeGame);
+  }, [isPremium, onTriggerPaywall, openGame, resumeSnapshot]);
+
+  const returnToGamesHub = useCallback(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(`mf_games_resume_${foyerId}`) || 'null') as GameResumeSnapshot | null;
+      setResumeSnapshot(saved?.activeGame ? saved : null);
+    } catch {
+      setResumeSnapshot(null);
+    }
+    setActiveGame(null);
+  }, [foyerId]);
 
   const saveResult = useCallback(async (
     gameType: FamilyGameType,
@@ -987,6 +1054,7 @@ export function FamilyGames({
       description: 'Retrouvez les paires avec les visages et les souvenirs de votre foyer.',
       icon: Grid3X3,
       accent: '#FFB020',
+      coverPosition: GAME_COVER_POSITIONS.memory,
       meta: '1 à 6 joueurs · 5 min',
       tags: ['free', 'quick', 'kids', 'team']
     },
@@ -996,6 +1064,7 @@ export function FamilyGames({
       description: 'Un duel rapide, tactile et parfait pour départager deux membres.',
       icon: Circle,
       accent: '#4F8CFF',
+      coverPosition: GAME_COVER_POSITIONS.connect4,
       meta: '1 à 2 joueurs · 8 min',
       tags: ['free', 'quick', 'kids']
     },
@@ -1005,6 +1074,7 @@ export function FamilyGames({
       description: 'Cachez votre flotte, visez juste et défiez un proche ou une autre famille.',
       icon: Ship,
       accent: '#00A8E8',
+      coverPosition: GAME_COVER_POSITIONS.battleship,
       meta: '1 à 2 joueurs · 15 min',
       tags: ['free', 'team', 'kids']
     },
@@ -1014,6 +1084,7 @@ export function FamilyGames({
       description: 'Devinez les réponses les plus populaires et faites gagner votre équipe.',
       icon: Users,
       accent: '#FF4D6D',
+      coverPosition: GAME_COVER_POSITIONS['family-challenge'],
       meta: `2 équipes · ${challengeQuestionCount} questions`,
       tags: ['premium', 'team']
     },
@@ -1023,21 +1094,26 @@ export function FamilyGames({
       description: 'Mimez un maximum de cartes avant la fin du chronomètre.',
       icon: Mic2,
       accent: '#9E94FF',
+      coverPosition: GAME_COVER_POSITIONS['mime-challenge'],
       meta: isPremium ? '2 équipes · 6 paquets' : '2 équipes · 8 cartes',
       tags: ['free', 'quick', 'team', 'kids']
     },
     {
       id: 'village-secret' as const,
       title: 'Village Secret',
-      description: 'Douze personnages secrets, étapes expliquées, votes cachés et maître du jeu automatique.',
+      description: 'Rôles secrets, alliances, débats et votes guidés par un maître du jeu automatique.',
       icon: Moon,
       accent: '#C4BEFF',
+      coverPosition: GAME_COVER_POSITIONS['village-secret'],
       meta: '5 à 20 joueurs · 25 min',
       tags: ['premium', 'team'],
       premiumOnly: true
     }
   ];
-  const visibleGameCards = gameCards.filter(game => gameFilter === 'all' || game.tags.includes(gameFilter));
+  const featuredGame = gameCards.find(game => game.id === 'village-secret')!;
+  const visibleGameCards = gameCards.filter(game => game.id !== 'village-secret' && (gameFilter === 'all' || game.tags.includes(gameFilter)));
+  const lastGame = gameCards.find(game => game.id === lastGameId);
+  const LastGameIcon = lastGame?.icon || Gamepad2;
 
   const gameHeader = (title: string, subtitle: string, icon: typeof Gamepad2) => {
     const Icon = icon;
@@ -1046,7 +1122,7 @@ export function FamilyGames({
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
-            onClick={() => setActiveGame(null)}
+            onClick={returnToGamesHub}
             className="shrink-0 p-3 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors"
             aria-label="Retour aux jeux"
           >
@@ -1068,8 +1144,8 @@ export function FamilyGames({
     <div className="family-games min-h-screen pb-32 pt-[calc(1.5rem+env(safe-area-inset-top,0px))] px-4 md:px-8 premium-glow-purple">
       <div className="max-w-5xl mx-auto space-y-6">
         {!activeGame && (
-          <>
-            <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-6">
+            <div className="order-1 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -1084,51 +1160,153 @@ export function FamilyGames({
                     <h1 className="text-2xl sm:text-3xl font-black text-white">Jeux en famille</h1>
                     <Gamepad2 className="w-7 h-7 text-[#FFB020]" />
                   </div>
-                  <p className="text-xs sm:text-sm text-white/50 font-semibold mt-1">Des parties courtes pour jouer ensemble, sur le même écran.</p>
+                  <p className="text-xs sm:text-sm text-white/50 font-semibold mt-1">Choisissez, lancez et jouez ensemble.</p>
                 </div>
               </div>
             </div>
 
-            <section className="family-games-hero relative overflow-hidden rounded-[28px] border p-5 sm:p-7">
-              <div className="absolute right-[-30px] top-[-40px] w-40 h-40 rounded-full bg-[#6C5CFF]/15 blur-3xl pointer-events-none" />
-              <div className="relative grid gap-5 md:grid-cols-[1.3fr_0.7fr] md:items-center">
-                <div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#FFB020]/25 bg-[#FFB020]/10 px-3 py-1 text-[9px] font-black uppercase text-[#FFB020]">
-                    <Sparkles className="w-3 h-3" /> Salle de jeux
+            <div className="order-2 grid gap-3 sm:grid-cols-2">
+              {resumeSnapshot?.activeGame && (
+                <button type="button" onClick={resumeSavedGame} className="flex min-h-20 items-center justify-between gap-3 rounded-[22px] border border-[#00D26A]/25 bg-[#00D26A]/10 p-4 text-left transition-transform active:scale-[0.98]">
+                  <span className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#00D26A]/15 text-[#00D26A]"><RotateCcw className="h-5 w-5" /></span>
+                    <span>
+                      <strong className="block text-sm text-white">Reprendre la partie</strong>
+                      <span className="mt-1 block text-[10px] text-white/50">{gameCards.find(game => game.id === resumeSnapshot.activeGame)?.title || 'Partie en cours'}</span>
+                    </span>
                   </span>
-                  <h2 className="mt-4 text-xl sm:text-2xl font-black text-white">La prochaine soirée commence ici.</h2>
-                  <p className="mt-2 max-w-xl text-xs sm:text-sm leading-relaxed text-white/55">
-                    Choisissez un jeu, posez le téléphone au centre et passez-le au joueur suivant. Aucun compte supplémentaire n’est nécessaire.
-                  </p>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {players.concat(members.filter(member => !players.some(player => player.id === member.id)).slice(0, 1)).map(member => (
-                    <div key={member.id} className="family-games-member aspect-square rounded-2xl border p-2 flex flex-col items-center justify-center text-center">
-                      {member.photoUrl ? (
-                        <img src={member.photoUrl} alt={member.name} className="w-10 h-10 rounded-full object-cover border-2 border-white/15" />
-                      ) : (
-                        <span className="w-10 h-10 rounded-full bg-[#6C5CFF]/20 text-[#9E94FF] flex items-center justify-center text-xs font-black">{getInitials(member.name)}</span>
-                      )}
-                      <span className="mt-2 text-[9px] font-bold text-white/70 truncate w-full">{member.name}</span>
-                    </div>
-                  ))}
+                  <ChevronRight className="h-5 w-5 text-[#00D26A]" />
+                </button>
+              )}
+              {lastGame && (
+                <button type="button" onClick={() => openGame(lastGame.id)} className="flex min-h-20 items-center justify-between gap-3 rounded-[22px] border border-white/8 bg-white/5 p-4 text-left transition-transform active:scale-[0.98]">
+                  <span className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/8 bg-white/5" style={{ color: lastGame.accent }}><LastGameIcon className="h-5 w-5" /></span>
+                    <span>
+                      <strong className="block text-sm text-white">Dernier jeu joué</strong>
+                      <span className="mt-1 block text-[10px] text-white/50">{lastGame.title}</span>
+                    </span>
+                  </span>
+                  <ChevronRight className="h-5 w-5 text-white/35" />
+                </button>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => openGame('village-secret')}
+              className="family-games-featured order-3 relative min-h-[280px] overflow-hidden rounded-[28px] border text-left shadow-2xl transition-transform active:scale-[0.99] sm:min-h-[330px]"
+            >
+              <span
+                className="absolute inset-0 bg-cover bg-no-repeat"
+                style={{
+                  backgroundImage: "url('/game-assets/family-games-covers.webp')",
+                  backgroundSize: '300% 200%',
+                  backgroundPosition: featuredGame.coverPosition
+                }}
+              />
+              <span className="absolute inset-0 bg-gradient-to-t from-[#080B16] via-[#080B16]/55 to-transparent" />
+              <span className="absolute inset-x-0 bottom-0 p-5 sm:p-7">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#C4BEFF]/30 bg-[#11152B]/80 px-3 py-1 text-[9px] font-black uppercase text-[#D8D4FF] backdrop-blur-md">
+                  <Sparkles className="h-3 w-3" /> Jeu vedette
+                </span>
+                <span className="mt-3 flex items-end justify-between gap-4">
+                  <span>
+                    <strong className="block text-2xl font-black text-white sm:text-3xl">Village Secret</strong>
+                    <span className="mt-2 block max-w-xl text-xs leading-relaxed text-white/70 sm:text-sm">{featuredGame.description}</span>
+                    <span className="mt-3 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-white/10 px-3 py-1 text-[9px] font-black text-white/75">5 à 20 joueurs</span>
+                      <span className="rounded-full bg-white/10 px-3 py-1 text-[9px] font-black text-white/75">Narrateur automatique</span>
+                      <span className="rounded-full bg-[#FFB020]/15 px-3 py-1 text-[9px] font-black text-[#FFCB6B]">Premium</span>
+                    </span>
+                  </span>
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#C4BEFF] text-[#090D1A]"><ChevronRight className="h-6 w-6" /></span>
+                </span>
+              </span>
+            </button>
+
+            <div className="order-3 flex gap-2 overflow-x-auto pb-1">
+              {([
+                ['all', 'Tous'],
+                ['free', 'Gratuits'],
+                ['premium', 'Premium'],
+                ['quick', 'Rapides'],
+                ['team', 'Équipes'],
+                ['kids', 'Enfants']
+              ] as Array<[GameFilter, string]>).map(([value, label]) => (
+                <button key={value} type="button" onClick={() => setGameFilter(value)} className={`shrink-0 rounded-full border px-3 py-2 text-[10px] font-black ${gameFilter === value ? 'border-[#6C5CFF] bg-[#6C5CFF] text-white' : 'border-white/8 bg-white/5 text-white/55'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="order-3 grid grid-cols-2 gap-3 lg:grid-cols-3">
+              {visibleGameCards.map(game => {
+                const Icon = game.icon;
+                return (
+                  <button
+                    key={game.id}
+                    type="button"
+                    onClick={() => openGame(game.id)}
+                    className="family-game-cover-card group relative min-h-[210px] overflow-hidden rounded-[24px] border border-white/8 text-left shadow-lg transition-all hover:-translate-y-1 active:scale-[0.98]"
+                  >
+                    <span
+                      className="absolute inset-0 bg-cover bg-no-repeat transition-transform duration-500 group-hover:scale-105"
+                      style={{
+                        backgroundImage: "url('/game-assets/family-games-covers.webp')",
+                        backgroundSize: '300% 200%',
+                        backgroundPosition: game.coverPosition
+                      }}
+                    />
+                    <span className="absolute inset-0 bg-gradient-to-t from-[#090D1A] via-[#090D1A]/55 to-transparent" />
+                    <span className="absolute inset-x-0 bottom-0 p-4">
+                      <span className="mb-2 flex items-center justify-between gap-2">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-black/35 backdrop-blur-md" style={{ color: game.accent }}><Icon className="h-4.5 w-4.5" /></span>
+                        <span className="text-right text-[8px] font-black uppercase text-white/60">{game.meta}</span>
+                      </span>
+                      <strong className="block text-base font-black text-white">{game.title}</strong>
+                      <span className="mt-1 line-clamp-2 block text-[10px] leading-relaxed text-white/60">{game.description}</span>
+                      {game.id === 'family-challenge' && !isPremium && <span className="mt-2 inline-flex rounded-full bg-[#FFB020]/18 px-2 py-1 text-[8px] font-black text-[#FFCB6B]">12 questions gratuites</span>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button type="button" onClick={() => setShowProgression(value => !value)} className="order-4 flex w-full items-center justify-between rounded-[22px] border border-white/8 bg-white/5 p-4 text-left">
+              <span className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FFB020]/12 text-[#FFB020]"><Trophy className="h-5 w-5" /></span>
+                <span>
+                  <strong className="block text-sm text-white">Progression et organisation</strong>
+                  <span className="mt-1 block text-[10px] text-white/45">Tournoi, équipes, récompenses, soirée jeux et statistiques.</span>
+                </span>
+              </span>
+              <ChevronRight className={`h-5 w-5 text-white/40 transition-transform ${showProgression ? 'rotate-90' : ''}`} />
+            </button>
+
+            {showProgression && (
+              <div className="order-5 rounded-[24px] border border-[#6C5CFF]/20 bg-[#6C5CFF]/8 p-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <span><strong className="block text-xs text-white">Parties privées</strong><span className="mt-1 block text-[9px] text-white/45">Défiez une famille connue avec un code.</span></span>
+                  <span><strong className="block text-xs text-white">Packs complets</strong><span className="mt-1 block text-[9px] text-white/45">Questions, mimes et personnages supplémentaires.</span></span>
+                  <span><strong className="block text-xs text-white">Progression Premium</strong><span className="mt-1 block text-[9px] text-white/45">Historique, trophées, records et statistiques.</span></span>
                 </div>
               </div>
-            </section>
+            )}
 
-            <button type="button" onClick={() => {
+            {showProgression && <button type="button" onClick={() => {
               setMemoryPairCount(8);
               setMemoryStarted(false);
-              setActiveGame('memory');
-            }} className={`w-full rounded-[22px] border p-4 text-left flex items-center justify-between gap-3 ${dailyChallengeComplete ? 'border-[#00D26A]/30 bg-[#00D26A]/12' : 'border-[#00D26A]/20 bg-[#00D26A]/8'}`}>
+              openGame('memory');
+            }} className={`order-5 w-full rounded-[22px] border p-4 text-left flex items-center justify-between gap-3 ${dailyChallengeComplete ? 'border-[#00D26A]/30 bg-[#00D26A]/12' : 'border-[#00D26A]/20 bg-[#00D26A]/8'}`}>
               <span>
                 <strong className="block text-sm text-white">Défi du jour</strong>
                 <span className="mt-1 block text-[10px] text-white/50">{dailyChallengeComplete ? 'Défi réussi aujourd’hui. Revenez demain pour un nouveau défi.' : 'Terminez un Memory de 8 paires en moins de 20 coups.'}</span>
               </span>
               <span className="rounded-full bg-[#00D26A]/15 px-3 py-1 text-[10px] font-black text-[#00D26A]">{dailyChallengeComplete ? 'Réussi' : '+1 trophée'}</span>
-            </button>
+            </button>}
 
-            <section className="glass-panel rounded-[24px] border border-[#FFB020]/20 p-5 space-y-4">
+            {showProgression && <section className="order-5 glass-panel rounded-[24px] border border-[#FFB020]/20 p-5 space-y-4">
               <button type="button" onClick={() => setShowTournamentSetup(value => !value)} className="flex w-full items-center justify-between gap-3 text-left">
                 <span>
                   <strong className="flex items-center gap-2 text-sm text-white"><Trophy className="h-5 w-5 text-[#FFB020]" /> Tournoi familial</strong>
@@ -1169,68 +1347,9 @@ export function FamilyGames({
                   <button type="button" disabled={tournamentGames.length < 2} onClick={startTournament} className="w-full rounded-2xl bg-[#FFB020] py-3 text-xs font-black text-[#07111F] disabled:opacity-40">Commencer le tournoi</button>
                 </div>
               )}
-            </section>
+            </section>}
 
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {([
-                ['all', 'Tous'],
-                ['free', 'Gratuits'],
-                ['premium', 'Premium'],
-                ['quick', 'Rapides'],
-                ['team', 'Équipes'],
-                ['kids', 'Enfants']
-              ] as Array<[GameFilter, string]>).map(([value, label]) => (
-                <button key={value} type="button" onClick={() => setGameFilter(value)} className={`shrink-0 rounded-full border px-3 py-2 text-[10px] font-black ${gameFilter === value ? 'border-[#6C5CFF] bg-[#6C5CFF] text-white' : 'border-white/8 bg-white/5 text-white/55'}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {visibleGameCards.map(game => {
-                const Icon = game.icon;
-                return (
-                  <button
-                    key={game.id}
-                    type="button"
-                    onClick={() => {
-                      if ('premiumOnly' in game && game.premiumOnly && !isPremium) {
-                        onTriggerPaywall?.();
-                        return;
-                      }
-                      setActiveGame(game.id);
-                    }}
-                    className="glass-panel min-h-[220px] rounded-[28px] border border-white/8 p-5 text-left flex flex-col justify-between hover:bg-white/8 hover:-translate-y-1 transition-all"
-                  >
-                    <div className="flex items-start justify-between">
-                      <span className="w-12 h-12 rounded-2xl flex items-center justify-center border border-white/10" style={{ backgroundColor: `${game.accent}18`, color: game.accent }}>
-                        <Icon className="w-6 h-6" />
-                      </span>
-                      <span className="text-[9px] font-black uppercase tracking-wider text-white/40">{game.meta}</span>
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-black text-white">{game.title}</h3>
-                      <p className="mt-2 text-xs leading-relaxed text-white/50">{game.description}</p>
-                      <span className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-black" style={{ color: game.accent }}>
-                        Jouer <ChevronRight className="w-4 h-4" />
-                      </span>
-                      {game.id === 'family-challenge' && !isPremium && (
-                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-[#FFB020]/12 px-2 py-1 text-[8px] font-black uppercase text-[#FFB020]">
-                          12 questions gratuites
-                        </span>
-                      )}
-                      {game.id === 'village-secret' && !isPremium && (
-                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-[#FFB020]/12 px-2 py-1 text-[8px] font-black uppercase text-[#FFB020]">
-                          <Lock className="h-3 w-3" /> Premium
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <section className="glass-panel rounded-[24px] border border-white/8 p-5 space-y-4">
+            {showProgression && <section className="order-5 glass-panel rounded-[24px] border border-white/8 p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-black text-white">Joueurs de la prochaine partie</h3>
@@ -1323,10 +1442,10 @@ export function FamilyGames({
                   Personnaliser les équipes avec Premium
                 </button>
               )}
-            </section>
+            </section>}
 
-            {(onAddEventDirect || setVotes || pendingRewards.length > 0) && (
-              <section className="glass-panel rounded-[24px] border border-white/8 p-5 space-y-4">
+            {showProgression && (onAddEventDirect || setVotes || pendingRewards.length > 0) && (
+              <section className="order-5 glass-panel rounded-[24px] border border-white/8 p-5 space-y-4">
                 <div>
                   <h3 className="text-sm font-black text-white">Liens avec la famille</h3>
                   <p className="text-[10px] text-white/45">Préparez la prochaine partie et gardez les récompenses sous contrôle.</p>
@@ -1394,8 +1513,8 @@ export function FamilyGames({
               </section>
             )}
 
-            {isPremium && results.length > 0 && (
-              <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {showProgression && isPremium && results.length > 0 && (
+              <section className="order-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
                   ['Parties', gameStats.total],
                   ['Défis', gameStats.challengeGames],
@@ -1410,8 +1529,8 @@ export function FamilyGames({
               </section>
             )}
 
-            {isPremium && (
-              <section className="glass-panel rounded-[24px] border border-white/8 p-5">
+            {showProgression && isPremium && (
+              <section className="order-5 glass-panel rounded-[24px] border border-white/8 p-5">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-black text-white">Trophées familiaux</h3>
@@ -1434,10 +1553,10 @@ export function FamilyGames({
               </section>
             )}
 
-            {isPremium && <button
+            {showProgression && isPremium && <button
               type="button"
               onClick={() => setShowHistory(value => !value)}
-              className="w-full rounded-[22px] border border-white/8 bg-white/5 p-4 flex items-center justify-between text-left"
+              className="order-5 w-full rounded-[22px] border border-white/8 bg-white/5 p-4 flex items-center justify-between text-left"
             >
               <span className="flex items-center gap-3">
                 <History className="w-5 h-5 text-[#4F8CFF]" />
@@ -1449,8 +1568,8 @@ export function FamilyGames({
               <ChevronRight className={`w-5 h-5 text-white/40 transition-transform ${showHistory ? 'rotate-90' : ''}`} />
             </button>}
 
-            {isPremium && showHistory && (
-              <div className="space-y-2">
+            {showProgression && isPremium && showHistory && (
+              <div className="order-5 space-y-2">
                 {results.length === 0 ? (
                   <p className="rounded-2xl border border-white/8 bg-white/5 p-4 text-center text-xs text-white/45">Les prochaines parties terminées apparaîtront ici.</p>
                 ) : results.slice(0, 8).map(result => (
@@ -1465,11 +1584,11 @@ export function FamilyGames({
               </div>
             )}
 
-            {!isPremium && (
+            {showProgression && !isPremium && (
               <button
                 type="button"
                 onClick={onTriggerPaywall}
-                className="w-full rounded-[24px] border border-[#FFB020]/20 bg-[#FFB020]/8 p-4 flex items-center justify-between gap-4 text-left hover:bg-[#FFB020]/12 transition-colors"
+                className="order-5 w-full rounded-[24px] border border-[#FFB020]/20 bg-[#FFB020]/8 p-4 flex items-center justify-between gap-4 text-left hover:bg-[#FFB020]/12 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <span className="p-2.5 rounded-2xl bg-[#FFB020]/15 text-[#FFB020]"><Lock className="w-5 h-5" /></span>
@@ -1481,7 +1600,7 @@ export function FamilyGames({
                 <ChevronRight className="w-5 h-5 shrink-0 text-[#FFB020]" />
               </button>
             )}
-          </>
+          </div>
         )}
 
         {activeGame === 'memory' && (
@@ -1979,8 +2098,10 @@ export function FamilyGames({
                     <button type="button" onClick={() => setShowVillageCloseConfirm(false)} className="rounded-2xl border border-white/10 py-3 text-xs font-black text-white/60">Continuer à jouer</button>
                     <button type="button" onClick={() => {
                       localStorage.removeItem('mf_village_secret_active_game_v3');
+                      localStorage.removeItem(`mf_games_resume_${foyerId}`);
                       window.speechSynthesis?.cancel();
                       setShowVillageCloseConfirm(false);
+                      setResumeSnapshot(null);
                       setActiveGame(null);
                     }} className="rounded-2xl bg-[#FF4D6D] py-3 text-xs font-black text-white">Fermer</button>
                   </div>

@@ -744,6 +744,36 @@ html,
   border-color: var(--games-member-border);
 }
 
+.family-games-featured,
+.family-game-cover-card {
+  background: #090D1A;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.family-games-featured .text-white,
+.family-game-cover-card .text-white,
+.theme-light .family-games-featured .text-white,
+.theme-light .family-game-cover-card .text-white,
+.theme-sepia .family-games-featured .text-white,
+.theme-sepia .family-game-cover-card .text-white {
+  color: #ffffff !important;
+}
+
+.family-games-featured [class^="text-white/"],
+.family-games-featured [class*=" text-white/"],
+.family-game-cover-card [class^="text-white/"],
+.family-game-cover-card [class*=" text-white/"],
+.theme-light .family-games-featured [class^="text-white/"],
+.theme-light .family-games-featured [class*=" text-white/"],
+.theme-light .family-game-cover-card [class^="text-white/"],
+.theme-light .family-game-cover-card [class*=" text-white/"],
+.theme-sepia .family-games-featured [class^="text-white/"],
+.theme-sepia .family-games-featured [class*=" text-white/"],
+.theme-sepia .family-game-cover-card [class^="text-white/"],
+.theme-sepia .family-game-cover-card [class*=" text-white/"] {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
 .family-games-challenge {
   background: var(--games-challenge-bg);
   border-color: var(--games-challenge-border);
