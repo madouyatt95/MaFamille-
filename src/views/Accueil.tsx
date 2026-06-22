@@ -167,6 +167,7 @@ export const Accueil: React.FC<AccueilProps> = ({
     treatments: [],
     emergencyContact: { name: '', phone: '', relation: '' }
   };
+  const greetingName = activeMember.name.trim().split(/\s+/)[0] || 'vous';
   const isChild = activeMember ? ['child', 'guest', 'Enfant', 'Invité'].includes(activeMember.role) : false;
 
   const persistFamilyMemos = (next: FamilyMemo[]) => {
@@ -777,7 +778,7 @@ export const Accueil: React.FC<AccueilProps> = ({
           <div className="min-w-0">
             <h1 className="truncate text-xl font-extrabold text-white tracking-tight">
               {activeMember 
-                ? `Bonjour ${activeMember.name} ! ${['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMember.role) ? '👑' : '👋'}`
+                ? `Bonjour ${greetingName} ! ${['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMember.role) ? '👑' : '👋'}`
                 : 'Bonjour ! 👋'}
             </h1>
             <div className="flex items-center space-x-2 mt-1">
