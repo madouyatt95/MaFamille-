@@ -112,7 +112,13 @@ const formatLocationFreshness = (timestamp?: string) => {
 const CenterMap: React.FC<{ center: [number, number] }> = ({ center }) => {
   const map = useMap();
   useEffect(() => {
-    map.flyTo(center, 14, { duration: 1.5 });
+    if (!isValidMapCoords(center[0], center[1])) return;
+    try {
+      map.stop();
+      map.setView(center, Math.max(map.getZoom(), 14), { animate: false });
+    } catch (error) {
+      console.error('Unable to center family map:', error);
+    }
   }, [center, map]);
   return null;
 };
@@ -129,7 +135,8 @@ const FitNearbyBounds: React.FC<{
     try {
       const bounds = L.latLngBounds(validOrigin ? [validOrigin, ...validPoints] : validPoints);
       if (bounds.isValid()) {
-        map.fitBounds(bounds, { padding: [44, 44], maxZoom: 15, animate: true });
+        map.stop();
+        map.fitBounds(bounds, { padding: [52, 52], maxZoom: 15, animate: false });
       }
     } catch (error) {
       console.error('Unable to fit nearby bounds:', error);
@@ -146,6 +153,43 @@ const MapClickHandler: React.FC<{ onClick: (coords: [number, number]) => void }>
   });
   return null;
 };
+
+class FamilyMapErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { crashed: boolean; retryKey: number }
+> {
+  state = { crashed: false, retryKey: 0 };
+
+  static getDerivedStateFromError() {
+    return { crashed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error('Family map rendering failed:', error);
+  }
+
+  render() {
+    if (this.state.crashed) {
+      return (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#07111F] p-6 text-center">
+          <div className="max-w-xs">
+            <AlertCircle className="mx-auto h-7 w-7 text-[#FFB020]" />
+            <p className="mt-3 text-sm font-black text-white">La carte a rencontré un problème</p>
+            <p className="mt-1 text-xs font-medium text-white/55">Vos lieux et votre position restent enregistrés.</p>
+            <button
+              type="button"
+              onClick={() => this.setState(state => ({ crashed: false, retryKey: state.retryKey + 1 }))}
+              className="mt-4 min-h-11 rounded-xl bg-[#6C5CFF] px-5 text-xs font-black text-white"
+            >
+              Recharger la carte
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return <React.Fragment key={this.state.retryKey}>{this.props.children}</React.Fragment>;
+  }
+}
 
 export interface FavoritePlace {
   id: string;
@@ -1092,6 +1136,31 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     setMapNotice({ type: 'info', message: "Lieu sélectionné. Définissez-le comme Maison, École, Travail ou lancez un itinéraire." });
   };
 
+  const focusSearchResult = (result: MapSearchResult) => {
+    const lat = Number(result.lat);
+    const lon = Number(result.lon);
+    if (!isValidMapCoords(lat, lon)) {
+      setMapNotice({ type: 'warning', message: "Ce lieu n'a pas de coordonnées exploitables." });
+      return;
+    }
+    const formatted = formatSearchResult(result);
+    setMapCenter([lat, lon]);
+    setSearchMarker({
+      name: formatted.subtitle ? `${formatted.title}, ${formatted.subtitle}` : formatted.title,
+      coords: [lat, lon]
+    });
+    setMapNotice({ type: 'info', message: `${formatted.title} est maintenant centré sur la carte.` });
+  };
+
+  const routeToSearchResult = (result: MapSearchResult) => {
+    const lat = Number(result.lat);
+    const lon = Number(result.lon);
+    if (!isValidMapCoords(lat, lon)) return;
+    const formatted = formatSearchResult(result);
+    clearMapSearch();
+    startRouteTo(formatted.title, [lat, lon]);
+  };
+
   const startRouteTo = (name: string, coords: [number, number]) => {
     setMapCenter(coords);
     if (!routeOrigin) {
@@ -1349,22 +1418,46 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
               const formatted = formatSearchResult(res);
               const isNearby = Boolean(res.nearbyCategory);
               return (
-                <button
+                <div
                   key={idx}
-                  onClick={() => handleSelectSearchResult(res)}
-                  className="family-map-result-item w-full text-left p-2.5 rounded-xl text-white hover:bg-white/5 transition block font-medium"
+                  className="family-map-result-item w-full rounded-xl p-2.5 text-left text-white transition font-medium"
                 >
-                  <span className="text-[11px] font-extrabold text-white flex items-center gap-1.5">
-                    <span>{isNearby ? '•' : '📍'}</span>
+                  <div className="flex items-start gap-2">
+                    <span
+                      className="mt-0.5 h-3 w-3 shrink-0 rounded-full border-2 border-white"
+                      style={{ backgroundColor: isNearby ? nearbyMarkerColors[res.nearbyCategory as NearbyCategory] : '#6C5CFF' }}
+                    />
+                    <div className="min-w-0 flex-1">
+                    <span className="text-[12px] font-extrabold text-white flex items-center gap-1.5">
                     <span className="truncate">{formatted.title}</span>
                     {typeof res.distanceKm === 'number' && (
                       <span className="family-map-distance ml-auto shrink-0 rounded-lg bg-[#00D26A]/10 px-2 py-1 text-[10px] text-[#00D26A]">
                         {res.distanceKm < 1 ? `${Math.round(res.distanceKm * 1000)} m` : `${res.distanceKm.toFixed(1)} km`}
                       </span>
                     )}
-                  </span>
-                  <span className="family-map-muted text-[10px] text-white/50 block truncate mt-1">{formatted.subtitle}</span>
-                </button>
+                    </span>
+                    <span className="family-map-muted text-[10px] text-white/50 block truncate mt-1">{formatted.subtitle}</span>
+                    </div>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => focusSearchResult(res)}
+                      className="family-map-secondary-action min-h-9 rounded-lg border border-white/10 bg-white/5 px-2 text-[10px] font-black text-white flex items-center justify-center gap-1.5"
+                    >
+                      <MapPin className="h-3.5 w-3.5" />
+                      Voir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => routeToSearchResult(res)}
+                      className="min-h-9 rounded-lg bg-[#00D26A] px-2 text-[10px] font-black text-[#07111F] flex items-center justify-center gap-1.5"
+                    >
+                      <Navigation className="h-3.5 w-3.5" />
+                      Y aller
+                    </button>
+                  </div>
+                </div>
               );
             })}
             </div>
@@ -1455,6 +1548,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       {/* MAP RENDER CONTAINER */}
       <div className="flex-1 w-full relative z-10 rounded-t-[32px] overflow-hidden border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] flex flex-col justify-end">
         <div className="absolute inset-0 z-0">
+          <FamilyMapErrorBoundary>
           <MapContainer 
             center={mapCenter} 
             zoom={14} 
@@ -1469,7 +1563,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
               }
             />
             
-            <CenterMap center={mapCenter} />
+            {nearbyResultCoords.length === 0 && <CenterMap center={mapCenter} />}
             <FitNearbyBounds points={nearbyResultCoords} origin={routeOrigin} />
 
             <MapClickHandler onClick={(coords) => {
@@ -1789,6 +1883,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
               );
             })}
           </MapContainer>
+          </FamilyMapErrorBoundary>
         </div>
 
         {/* Route Details Overlay Banner */}

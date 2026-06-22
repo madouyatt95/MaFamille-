@@ -1797,6 +1797,18 @@ html.high-contrast [class*="text-white/5"] {
   background: rgba(5, 150, 105, 0.12) !important;
 }
 
+.theme-light .family-map .family-map-secondary-action {
+  color: #111827 !important;
+  background: rgba(15, 23, 42, 0.06) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+.theme-sepia .family-map .family-map-secondary-action {
+  color: #3a291f !important;
+  background: rgba(91, 64, 41, 0.08) !important;
+  border-color: rgba(91, 64, 41, 0.16) !important;
+}
+
 @media (max-width: 380px) {
   .night-village {
     padding: 1rem !important;
