@@ -1,31 +1,24 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { 
-  Sparkles, 
-  X, 
-  Crown, 
-  Mic, 
-  BookOpen, 
-  FolderLock, 
-  RefreshCw, 
-  Users,
-  Download,
-  Plane,
-  HeartHandshake,
-  Check,
-  LockKeyhole,
-  Smartphone,
-  CreditCard,
-  ShieldCheck
-} from 'lucide-react';
-import { PREMIUM_FEATURES } from '../utils/premiumFeatures';
 import {
-  getPremiumPlanLabel,
-  PREMIUM_BILLING_PROVIDER,
+  BrainCircuit,
+  Check,
+  ChevronRight,
+  CreditCard,
+  Crown,
+  Download,
+  Gamepad2,
+  LockKeyhole,
+  Mic,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+  Users,
+  X
+} from 'lucide-react';
+import {
   PREMIUM_MONTHLY_EQUIVALENT,
-  PREMIUM_PLATFORM_LABEL,
   PREMIUM_PRICING,
-  PREMIUM_REAL_PROVIDER_LABEL,
   PREMIUM_YEARLY_SAVE
 } from '../utils/premiumPricing';
 
@@ -45,7 +38,59 @@ interface PaywallProps {
   }) => void;
 }
 
-export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onStartStripeCheckout, onUnlockPremium }) => {
+const PREMIUM_HIGHLIGHTS = [
+  {
+    title: 'Toute la famille réunie',
+    description: 'Membres illimités, rôles, documents et organisation partagée.',
+    icon: Users,
+    tone: 'violet'
+  },
+  {
+    title: 'Assistant vraiment intelligent',
+    description: 'Micro principal et 10 requêtes IA réelles par foyer et par jour.',
+    icon: BrainCircuit,
+    tone: 'blue'
+  },
+  {
+    title: 'Jeux familiaux complets',
+    description: 'Bibliothèques intégrales, parties privées, progression et statistiques.',
+    icon: Gamepad2,
+    tone: 'pink'
+  },
+  {
+    title: 'Souvenirs et histoires enrichis',
+    description: 'Contes personnalisés, narration, capsules et Gazette BD familiale.',
+    icon: Sparkles,
+    tone: 'gold'
+  },
+  {
+    title: 'Cuisine, voyages et quotidien',
+    description: 'Éco-Chef, listes intelligentes, valises et conseils personnalisés.',
+    icon: Mic,
+    tone: 'green'
+  },
+  {
+    title: 'Exports et démarches avancées',
+    description: 'PDF, Excel, historiques et suivi administratif du foyer.',
+    icon: Download,
+    tone: 'cyan'
+  }
+] as const;
+
+const COMPARISON_ROWS = [
+  ['Membres du foyer', '3', 'Illimités'],
+  ['Jeux en famille', 'Découverte', 'Complets + privés'],
+  ['Assistant IA', 'Local', '10 appels réels / jour'],
+  ['Exports et historique', 'Essentiels', 'PDF, Excel et statistiques']
+] as const;
+
+export const Paywall: React.FC<PaywallProps> = ({
+  isOpen,
+  onClose,
+  foyerId,
+  onStartStripeCheckout,
+  onUnlockPremium
+}) => {
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [simulating, setSimulating] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -56,17 +101,30 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
   const priceYearly = PREMIUM_PRICING[platform].yearly;
   const priceMonthlyEquivalent = PREMIUM_MONTHLY_EQUIVALENT[platform];
   const priceYearlySave = PREMIUM_YEARLY_SAVE[platform];
-  const platformLabel = PREMIUM_PLATFORM_LABEL[platform];
-  const billingProvider = PREMIUM_BILLING_PROVIDER[platform];
-  const realProviderLabel = PREMIUM_REAL_PROVIDER_LABEL[platform];
   const selectedPrice = selectedPlan === 'monthly' ? priceMonthly : priceYearly;
-  const selectedPlanLabel = getPremiumPlanLabel(platform, selectedPlan);
+  const selectedPeriod = selectedPlan === 'monthly' ? 'par mois' : 'par an';
   const canUseStripe = isWeb && !!foyerId && !!onStartStripeCheckout;
-  const trialLabel = 'Essai 7 jours inclus';
+  const testModeEnabled = import.meta.env.DEV && import.meta.env.VITE_ENABLE_PREMIUM_TEST_MODE === 'true';
+  const canPurchase = canUseStripe || testModeEnabled;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !checkoutLoading && !simulating) onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [checkoutLoading, isOpen, onClose, simulating]);
 
   if (!isOpen) return null;
 
   const handlePurchaseSimulate = () => {
+    if (!testModeEnabled) return;
     setSimulating(true);
     setTimeout(() => {
       setSimulating(false);
@@ -78,300 +136,195 @@ export const Paywall: React.FC<PaywallProps> = ({ isOpen, onClose, foyerId, onSt
         status: 'trialing',
         expiresAt: expiresAt.toISOString()
       });
-      alert(`Essai Plus activé 7 jours pour l’offre ${selectedPlanLabel}. Aucun paiement réel n’a été lancé.`);
       onClose();
-    }, 1800);
+    }, 900);
   };
 
   const handleRealPurchase = async () => {
-    if (!canUseStripe || !onStartStripeCheckout) {
-      alert("Le paiement réel n'est pas encore disponible sur cette plateforme.");
-      return;
-    }
-
+    if (!canUseStripe || !onStartStripeCheckout) return;
     try {
       setCheckoutLoading(true);
       await onStartStripeCheckout({ plan: selectedPlan });
-    } catch (err) {
-      console.error("[Paywall] Stripe checkout failed:", err);
-      alert(err instanceof Error ? err.message : "Impossible de démarrer le paiement Stripe.");
+    } catch (error) {
+      console.error('[Paywall] Stripe checkout failed:', error);
+      alert(error instanceof Error ? error.message : 'Impossible de démarrer le paiement Stripe.');
     } finally {
       setCheckoutLoading(false);
     }
   };
 
-  const mainBenefits = [
-    {
-      label: 'Offre gratuite',
-      value: '3 membres, documents et organisation du quotidien',
-      icon: Users
-    },
-    {
-      label: 'Essai Plus',
-      value: '7 jours pour tester IA réelle, exports, démarches et modules avancés',
-      icon: LockKeyhole
-    },
-    {
-      label: 'Quota IA',
-      value: '10 requêtes réelles par foyer et par jour, puis repli simulé',
-      icon: Sparkles
-    }
-  ];
-
-  const premiumFeatures = [
-    { 
-      title: PREMIUM_FEATURES.real_ai.title,
-      desc: PREMIUM_FEATURES.real_ai.description,
-      icon: Sparkles, 
-      color: "text-[#6C5CFF] bg-[#6C5CFF]/10" 
-    },
-    { 
-      title: PREMIUM_FEATURES.exports.title,
-      desc: PREMIUM_FEATURES.exports.description,
-      icon: Download,
-      color: "text-[#00D26A] bg-[#00D26A]/10"
-    },
-    {
-      title: PREMIUM_FEATURES.demarches.title,
-      desc: PREMIUM_FEATURES.demarches.description,
-      icon: FolderLock,
-      color: "text-[#4F8CFF] bg-[#4F8CFF]/10"
-    },
-    {
-      title: PREMIUM_FEATURES.members_over_3.title,
-      desc: PREMIUM_FEATURES.members_over_3.description,
-      icon: Users,
-      color: "text-[#FF4D6D] bg-[#FF4D6D]/10"
-    },
-    {
-      title: PREMIUM_FEATURES.voice_control.title,
-      desc: PREMIUM_FEATURES.voice_control.description,
-      icon: Mic,
-      color: "text-[#7DB2FF] bg-[#4F8CFF]/10"
-    },
-    {
-      title: PREMIUM_FEATURES.eco_chef_ai.title,
-      desc: PREMIUM_FEATURES.eco_chef_ai.description,
-      icon: Sparkles,
-      color: "text-[#6C5CFF] bg-[#6C5CFF]/10"
-    },
-    {
-      title: PREMIUM_FEATURES.voyage_ai.title,
-      desc: PREMIUM_FEATURES.voyage_ai.description,
-      icon: Plane,
-      color: "text-[#FF4D6D] bg-[#FF4D6D]/10"
-    },
-    {
-      title: PREMIUM_FEATURES.capsule_gazette_bd_ai.title,
-      desc: PREMIUM_FEATURES.capsule_gazette_bd_ai.description,
-      icon: BookOpen, 
-      color: "text-[#FFB020] bg-[#FFB020]/10" 
-    },
-    { 
-      title: PREMIUM_FEATURES.bedtime_stories_ai.title,
-      desc: PREMIUM_FEATURES.bedtime_stories_ai.description,
-      icon: Mic, 
-      color: "text-[#00D26A] bg-[#00D26A]/10" 
-    },
-    { 
-      title: PREMIUM_FEATURES.peacemaker_ai.title,
-      desc: PREMIUM_FEATURES.peacemaker_ai.description,
-      icon: HeartHandshake,
-      color: "text-[#00D26A] bg-[#00D26A]/10"
-    }
-  ];
+  const handlePrimaryAction = testModeEnabled && !canUseStripe
+    ? handlePurchaseSimulate
+    : handleRealPurchase;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-2xl glass-panel border border-[#6C5CFF]/30 rounded-[28px] overflow-hidden bg-[#07111F] shadow-[0_25px_70px_-20px_rgba(108,92,255,0.42)] max-h-[92vh] flex flex-col">
-        <button 
+    <div className="premium-paywall fixed inset-0 z-[100] flex items-end justify-center bg-[#020712]/82 backdrop-blur-md sm:items-center sm:p-5 animate-fade-in">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="premium-paywall-title"
+        className="premium-paywall__surface relative flex max-h-[96dvh] w-full max-w-[760px] flex-col overflow-hidden border border-white/10 bg-[#091424] shadow-[0_28px_90px_rgba(0,0,0,0.48)] sm:max-h-[92vh] sm:rounded-[28px]"
+      >
+        <button
+          type="button"
           onClick={onClose}
-          aria-label="Fermer l'offre Plus"
-          className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/8 border border-white/10 text-white/60 hover:text-white transition-colors cursor-pointer"
+          aria-label="Fermer l'offre Premium"
+          title="Fermer"
+          className="premium-paywall__close absolute right-4 top-[calc(1rem+env(safe-area-inset-top,0px))] z-20 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/25 text-white/70 transition hover:text-white"
         >
-          <X className="w-4 h-4" />
+          <X className="h-5 w-5" />
         </button>
 
-        <div className="shrink-0 p-5 sm:p-6 border-b border-white/8 bg-gradient-to-br from-[#101B35] via-[#0D1428] to-[#07111F]">
-          <div className="flex items-start gap-4 pr-10">
-            <div className="shrink-0 p-3 rounded-2xl bg-[#6C5CFF]/14 border border-[#6C5CFF]/30 text-[#8E82FF] shadow-[0_0_22px_rgba(108,92,255,0.22)]">
-              <Crown className="w-7 h-7" />
-            </div>
-            <div className="min-w-0 space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-2xl font-extrabold text-white tracking-tight">MyFamily+ Premium</h2>
-                <span className="px-2.5 py-1 rounded-full bg-[#00D26A]/12 border border-[#00D26A]/20 text-[9px] text-[#00D26A] font-black uppercase tracking-wider">
-                  {isWeb ? 'Essai gratuit Stripe' : 'Essai test'}
-                </span>
-              </div>
-              <p className="text-sm text-white/58 leading-relaxed max-w-xl">
-                {isWeb
-                  ? "Essayez Plus gratuitement pendant 7 jours, puis gardez une seule offre familiale pour débloquer les limites, les exports et les modules IA avancés. Paiement sécurisé par Stripe pour la PWA."
-                  : "Essayez Plus en mode test pendant 7 jours. Le paiement iOS réel passera ensuite par l'App Store."}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#00D26A]/12 border border-[#00D26A]/20 text-[10px] text-[#00D26A] font-black uppercase tracking-wider">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  {trialLabel}
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/7 border border-white/10 text-[10px] text-white/68 font-black uppercase tracking-wider">
-                  <Smartphone className="w-3.5 h-3.5" />
-                  {platformLabel}
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/7 border border-white/10 text-[10px] text-white/68 font-black uppercase tracking-wider">
-                  <CreditCard className="w-3.5 h-3.5" />
-                  Paiement : {realProviderLabel}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto no-scrollbar">
-          <div className="p-5 sm:p-6 space-y-5">
-            <div className="grid gap-3 sm:grid-cols-3">
-              {mainBenefits.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <div key={item.label} className="rounded-2xl bg-white/[0.045] border border-white/8 p-4 min-h-[118px]">
-                    <Icon className="w-5 h-5 text-[#8E82FF] mb-3" />
-                    <p className="text-[10px] text-white/38 font-black uppercase tracking-wider">{item.label}</p>
-                    <p className="text-xs text-white/76 font-bold leading-relaxed mt-1.5">{item.value}</p>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="rounded-2xl bg-white/[0.035] border border-white/8 p-4">
-              <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="premium-paywall__scroll flex-1 overflow-y-auto overscroll-contain">
+          <header className="premium-paywall__hero border-b border-white/8 px-5 pb-6 pt-[calc(1.5rem+env(safe-area-inset-top,0px))] sm:px-8 sm:pb-7 sm:pt-7">
+            <div className="max-w-[620px] pr-12">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="premium-paywall__brand flex h-11 w-11 items-center justify-center rounded-2xl border border-[#FFCB6B]/30 bg-[#FFB020]/12 text-[#FFCB6B]">
+                  <Crown className="h-6 w-6" />
+                </div>
                 <div>
-                  <p className="text-[10px] text-white/38 font-black uppercase tracking-wider">Choisir l'offre</p>
-                  <p className="text-sm text-white font-extrabold mt-1">{selectedPlanLabel}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg text-white font-black">{selectedPrice}</p>
-                  <p className="text-[10px] text-white/42 font-semibold">Mode {billingProvider}</p>
+                  <p className="text-[10px] font-black uppercase text-[#FFCB6B]">MyFamily+ Premium</p>
+                  <p className="mt-0.5 text-[11px] font-bold text-white/45">Une seule offre pour tout le foyer</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setSelectedPlan('monthly')}
-                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
-                    selectedPlan === 'monthly'
-                      ? 'bg-[#6C5CFF]/18 border-[#8E82FF] shadow-[0_0_18px_rgba(108,92,255,0.18)]'
-                      : 'bg-white/[0.035] border-white/8 hover:bg-white/[0.06]'
-                  }`}
-                >
-                  <span className="text-[9px] font-black text-white/42 uppercase tracking-widest block">Mensuel</span>
-                  <span className="text-base font-black text-white block mt-1">{priceMonthly}</span>
-                  <span className="text-[10px] text-[#7DB2FF] font-bold block mt-1">
-                    7 jours gratuits, puis sans engagement
-                  </span>
-                </button>
+              <h2 id="premium-paywall-title" className="text-[28px] font-black leading-[1.1] text-white sm:text-[34px]">
+                Toute votre famille,<br className="hidden sm:block" /> sans les limites.
+              </h2>
+              <p className="mt-3 max-w-xl text-sm font-medium leading-relaxed text-white/58">
+                Débloquez les outils intelligents, les jeux complets et toute l’organisation avancée du foyer pendant 7 jours.
+              </p>
 
-                <button
-                  onClick={() => setSelectedPlan('yearly')}
-                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden ${
-                    selectedPlan === 'yearly'
-                      ? 'bg-[#6C5CFF]/18 border-[#8E82FF] shadow-[0_0_18px_rgba(108,92,255,0.18)]'
-                      : 'bg-white/[0.035] border-white/8 hover:bg-white/[0.06]'
-                  }`}
-                >
-                  <div className="absolute top-0 right-0 bg-gradient-to-l from-[#FF4D6D] to-[#6C5CFF] text-white text-[8px] font-black px-2.5 py-0.5 rounded-bl-lg uppercase tracking-wider">
-                    {priceYearlySave}
-                  </div>
-                  <span className="text-[9px] font-black text-white/42 uppercase tracking-widest block">Annuel</span>
-                  <span className="text-base font-black text-white block mt-1">{priceYearly}</span>
-                  <span className="text-[10px] text-[#00D26A] font-bold block mt-1">
-                    7 jours gratuits, puis {priceMonthlyEquivalent} / mois
-                  </span>
-                </button>
+              <div className="premium-paywall__trial mt-5 grid grid-cols-3 overflow-hidden rounded-2xl border border-white/10 bg-black/18">
+                <div className="p-3 sm:p-4">
+                  <span className="block text-[9px] font-black uppercase text-white/38">Aujourd’hui</span>
+                  <strong className="mt-1 block text-sm text-white">0 €</strong>
+                </div>
+                <div className="border-x border-white/8 p-3 sm:p-4">
+                  <span className="block text-[9px] font-black uppercase text-white/38">Pendant 7 jours</span>
+                  <strong className="mt-1 block text-sm text-white">Tout Premium</strong>
+                </div>
+                <div className="p-3 sm:p-4">
+                  <span className="block text-[9px] font-black uppercase text-white/38">Ensuite</span>
+                  <strong className="mt-1 block text-sm text-white">{selectedPrice}</strong>
+                </div>
               </div>
             </div>
+          </header>
 
-            <div>
-              <div className="flex items-center justify-between gap-3 mb-3">
-                <p className="text-[10px] text-white/38 font-black uppercase tracking-wider">Inclus dans l'offre</p>
-                <span className="inline-flex items-center gap-1.5 text-[10px] text-white/48 font-bold">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#00D26A]" />
-                  Lié au foyer
+          <div className="space-y-7 px-5 py-6 sm:px-8 sm:py-7">
+            <section aria-labelledby="premium-plan-title">
+              <div className="mb-3 flex items-end justify-between gap-4">
+                <div>
+                  <p className="premium-paywall__eyebrow">Votre formule</p>
+                  <h3 id="premium-plan-title" className="mt-1 text-base font-black text-white">Choisissez votre rythme</h3>
+                </div>
+                <span className="hidden items-center gap-1.5 text-[10px] font-bold text-white/45 sm:inline-flex">
+                  <ShieldCheck className="h-4 w-4 text-[#00D26A]" /> Paiement sécurisé
                 </span>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {premiumFeatures.map((feat) => {
-                  const Icon = feat.icon;
-                  return (
-                    <div key={feat.title} className="flex items-start gap-3 p-3 rounded-2xl bg-white/[0.035] border border-white/8">
-                      <div className={`p-2 rounded-xl shrink-0 ${feat.color} border border-white/5`}>
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="text-xs font-bold text-white leading-snug">{feat.title}</h4>
-                        <p className="text-[10.5px] text-white/50 mt-0.5 leading-normal font-sans font-medium">{feat.desc}</p>
-                      </div>
-                    </div>
-                  );
-                })}
+
+              <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Période d'abonnement">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={selectedPlan === 'monthly'}
+                  onClick={() => setSelectedPlan('monthly')}
+                  className={`premium-paywall__plan relative min-h-[118px] rounded-2xl border p-4 text-left transition ${selectedPlan === 'monthly' ? 'is-selected' : ''}`}
+                >
+                  <span className="block text-[10px] font-black uppercase text-white/42">Mensuel</span>
+                  <strong className="mt-2 block text-xl font-black text-white">{priceMonthly}</strong>
+                  <span className="mt-1 block text-[11px] font-semibold text-white/48">par mois · sans engagement</span>
+                  <span className="premium-paywall__radio-dot absolute right-4 top-4 h-4 w-4 rounded-full border border-white/20" />
+                </button>
+
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={selectedPlan === 'yearly'}
+                  onClick={() => setSelectedPlan('yearly')}
+                  className={`premium-paywall__plan relative min-h-[118px] rounded-2xl border p-4 text-left transition ${selectedPlan === 'yearly' ? 'is-selected' : ''}`}
+                >
+                  <span className="absolute right-3 top-3 rounded-full bg-[#00D26A]/14 px-2 py-1 text-[9px] font-black text-[#00D26A]">
+                    Économisez {priceYearlySave.replace('-', '')}
+                  </span>
+                  <span className="block text-[10px] font-black uppercase text-white/42">Annuel</span>
+                  <strong className="mt-2 block text-xl font-black text-white">{priceYearly}</strong>
+                  <span className="mt-1 block text-[11px] font-semibold text-[#68E6A0]">soit {priceMonthlyEquivalent} / mois</span>
+                  <span className="premium-paywall__radio-dot absolute bottom-4 right-4 h-4 w-4 rounded-full border border-white/20" />
+                </button>
               </div>
-            </div>
+            </section>
+
+            <section aria-labelledby="premium-benefits-title">
+              <p className="premium-paywall__eyebrow">Ce que Premium change</p>
+              <h3 id="premium-benefits-title" className="mt-1 text-base font-black text-white">Plus utile chaque jour, plus vivant ensemble</h3>
+              <div className="mt-4 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+                {PREMIUM_HIGHLIGHTS.map(({ title, description, icon: Icon, tone }) => (
+                  <div key={title} className="premium-paywall__feature flex gap-3 border-b border-white/7 py-4" data-tone={tone}>
+                    <div className="premium-paywall__feature-icon mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
+                      <Icon className="h-[18px] w-[18px]" />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-[13px] font-black text-white">{title}</h4>
+                      <p className="mt-1 text-[11px] font-medium leading-relaxed text-white/48">{description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section aria-labelledby="premium-comparison-title">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 id="premium-comparison-title" className="text-sm font-black text-white">Gratuit ou Premium</h3>
+                <span className="inline-flex items-center gap-1 text-[10px] font-black text-[#FFCB6B]"><Crown className="h-3.5 w-3.5" /> Pour tout le foyer</span>
+              </div>
+              <div className="premium-paywall__comparison overflow-hidden rounded-2xl border border-white/9">
+                <div className="grid grid-cols-[1.25fr_.7fr_1fr] border-b border-white/8 bg-white/[0.035] px-3 py-2.5 text-[9px] font-black uppercase text-white/38 sm:px-4">
+                  <span>Fonctionnalité</span><span>Gratuit</span><span className="text-[#FFCB6B]">Premium</span>
+                </div>
+                {COMPARISON_ROWS.map(([label, free, premium]) => (
+                  <div key={label} className="grid grid-cols-[1.25fr_.7fr_1fr] items-center border-b border-white/6 px-3 py-3 text-[10px] last:border-0 sm:px-4 sm:text-[11px]">
+                    <span className="font-bold text-white/70">{label}</span>
+                    <span className="text-white/38">{free}</span>
+                    <span className="flex items-center gap-1.5 font-black text-white"><Check className="h-3.5 w-3.5 shrink-0 text-[#00D26A]" />{premium}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
           </div>
         </div>
 
-        <div className="p-4 sm:p-5 bg-black/45 border-t border-white/8 shrink-0 space-y-3">
-          {isWeb ? (
-            <button
-              onClick={handleRealPurchase}
-              disabled={checkoutLoading || !canUseStripe}
-              className="w-full py-4 rounded-[20px] bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:scale-[1.005] transition-all shadow-[0_8px_24px_rgba(108,92,255,0.28)] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {checkoutLoading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Ouverture du paiement...</span>
-                </>
-              ) : (
-                <>
-                  <CreditCard className="w-4 h-4" />
-                  <span>Commencer l'essai gratuit · puis {selectedPrice}</span>
-                </>
-              )}
-            </button>
-          ) : (
-            <button
-              onClick={handlePurchaseSimulate}
-              disabled={simulating}
-              className="w-full py-4 rounded-[20px] bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white font-extrabold text-xs tracking-wider uppercase cursor-pointer hover:scale-[1.005] transition-all shadow-[0_8px_24px_rgba(108,92,255,0.28)] flex items-center justify-center gap-2 disabled:opacity-70"
-            >
-              {simulating ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Activation du mode test...</span>
-                </>
-              ) : (
-                <>
-                  <Check className="w-4 h-4" />
-                  <span>Activer l'essai test 7 jours</span>
-                </>
-              )}
-            </button>
-          )}
-          {isWeb && (
-            <button
-              onClick={handlePurchaseSimulate}
-              disabled={simulating || checkoutLoading}
-              className="w-full py-3 rounded-[18px] bg-white/[0.055] border border-white/10 text-white/58 font-extrabold text-[10px] tracking-wider uppercase cursor-pointer hover:bg-white/[0.08] transition-all disabled:opacity-50"
-            >
-              {simulating ? "Activation du test..." : "Activer un essai test 7 jours"}
-            </button>
-          )}
-          <p className="text-[10px] text-white/34 text-center font-sans leading-relaxed">
-            {isWeb
-              ? "Stripe démarre avec 7 jours d'essai gratuit. Le premier paiement aura lieu après la période d'essai si l'abonnement reste actif."
-              : "Aucun prélèvement iOS pour le moment. Cet essai test expire automatiquement après 7 jours."}
-          </p>
-        </div>
-      </div>
+        <footer className="premium-paywall__footer shrink-0 border-t border-white/9 bg-[#07111F]/96 px-5 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] pt-4 sm:px-8 sm:pb-5">
+          <button
+            type="button"
+            onClick={handlePrimaryAction}
+            disabled={!canPurchase || checkoutLoading || simulating}
+            className="premium-paywall__cta flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#6C5CFF] px-4 text-sm font-black text-white shadow-[0_12px_30px_rgba(108,92,255,0.3)] transition hover:bg-[#5B4EFA] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            {checkoutLoading || simulating ? (
+              <><RefreshCw className="h-4 w-4 animate-spin" /> Préparation de votre essai...</>
+            ) : canPurchase ? (
+              <>Essayer Premium gratuitement <ChevronRight className="h-4 w-4" /></>
+            ) : (
+              <><LockKeyhole className="h-4 w-4" /> Disponible bientôt sur l’App Store</>
+            )}
+          </button>
+
+          <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-[9px] font-semibold text-white/38">
+            <span>7 jours gratuits</span>
+            <span aria-hidden="true">•</span>
+            <span>Puis {selectedPrice} {selectedPeriod}</span>
+            <span aria-hidden="true">•</span>
+            <span>Annulable à tout moment</span>
+            {isWeb && <><span aria-hidden="true">•</span><span className="inline-flex items-center gap-1"><CreditCard className="h-3 w-3" /> Codes promotionnels acceptés</span></>}
+          </div>
+          <div className="mt-2 flex justify-center gap-4 text-[9px] font-bold text-white/35">
+            <a href="/legal/terms.html" target="_blank" rel="noreferrer" className="hover:text-white/60">Conditions</a>
+            <a href="/legal/privacy.html" target="_blank" rel="noreferrer" className="hover:text-white/60">Confidentialité</a>
+          </div>
+        </footer>
+      </section>
     </div>
   );
 };

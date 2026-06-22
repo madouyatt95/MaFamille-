@@ -707,6 +707,170 @@ html,
   box-shadow: 0 24px 60px rgba(89, 63, 38, 0.22) !important;
 }
 
+/* Premium paywall owns its contrast in every app theme. */
+.premium-paywall {
+  --paywall-surface: #091424;
+  --paywall-hero: #0e1b2e;
+  --paywall-footer: #07111f;
+  --paywall-soft: rgba(255, 255, 255, 0.045);
+  --paywall-soft-strong: rgba(255, 255, 255, 0.075);
+  --paywall-border: rgba(255, 255, 255, 0.1);
+  --paywall-text: #f8fbff;
+  --paywall-muted: #9aa8bc;
+}
+
+.premium-paywall__surface {
+  background: var(--paywall-surface) !important;
+  border-color: var(--paywall-border) !important;
+  color: var(--paywall-text);
+}
+
+.premium-paywall__hero {
+  background: var(--paywall-hero);
+}
+
+.premium-paywall__footer {
+  background: var(--paywall-footer) !important;
+}
+
+.premium-paywall__eyebrow {
+  color: var(--paywall-muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.premium-paywall__plan {
+  background: var(--paywall-soft);
+  border-color: var(--paywall-border);
+}
+
+.premium-paywall__plan:hover {
+  background: var(--paywall-soft-strong);
+}
+
+.premium-paywall__plan.is-selected {
+  background: rgba(108, 92, 255, 0.14);
+  border-color: #8e82ff;
+  box-shadow: inset 0 0 0 1px rgba(142, 130, 255, 0.18), 0 10px 28px rgba(32, 25, 91, 0.16);
+}
+
+.premium-paywall__plan.is-selected .premium-paywall__radio-dot {
+  border: 4px solid #6c5cff;
+  background: #ffffff;
+}
+
+.premium-paywall__feature-icon {
+  background: rgba(108, 92, 255, 0.12);
+  color: #9e94ff;
+}
+
+.premium-paywall__feature[data-tone="blue"] .premium-paywall__feature-icon,
+.premium-paywall__feature[data-tone="cyan"] .premium-paywall__feature-icon {
+  background: rgba(79, 140, 255, 0.12);
+  color: #7db2ff;
+}
+
+.premium-paywall__feature[data-tone="pink"] .premium-paywall__feature-icon {
+  background: rgba(255, 77, 109, 0.12);
+  color: #ff7891;
+}
+
+.premium-paywall__feature[data-tone="gold"] .premium-paywall__feature-icon {
+  background: rgba(255, 176, 32, 0.12);
+  color: #ffcb6b;
+}
+
+.premium-paywall__feature[data-tone="green"] .premium-paywall__feature-icon {
+  background: rgba(0, 210, 106, 0.12);
+  color: #68e6a0;
+}
+
+.theme-light .premium-paywall {
+  --paywall-surface: #ffffff;
+  --paywall-hero: #f3f6fc;
+  --paywall-footer: #f8faff;
+  --paywall-soft: #f6f8fc;
+  --paywall-soft-strong: #eef2f8;
+  --paywall-border: #dce3ee;
+  --paywall-text: #182235;
+  --paywall-muted: #657086;
+}
+
+.theme-sepia .premium-paywall {
+  --paywall-surface: #fffaf0;
+  --paywall-hero: #f7eedf;
+  --paywall-footer: #fbf3e5;
+  --paywall-soft: #f8efe0;
+  --paywall-soft-strong: #f2e5d2;
+  --paywall-border: #ddc9aa;
+  --paywall-text: #493728;
+  --paywall-muted: #7f6a56;
+}
+
+.theme-light .premium-paywall__surface .text-white,
+.theme-light .premium-paywall__surface [class^="text-white/"],
+.theme-light .premium-paywall__surface [class*=" text-white/"],
+.theme-sepia .premium-paywall__surface .text-white,
+.theme-sepia .premium-paywall__surface [class^="text-white/"],
+.theme-sepia .premium-paywall__surface [class*=" text-white/"] {
+  color: var(--paywall-text) !important;
+}
+
+.theme-light .premium-paywall__surface [class*="border-white/"],
+.theme-sepia .premium-paywall__surface [class*="border-white/"] {
+  border-color: var(--paywall-border) !important;
+}
+
+.theme-light .premium-paywall__trial,
+.theme-light .premium-paywall__comparison,
+.theme-sepia .premium-paywall__trial,
+.theme-sepia .premium-paywall__comparison {
+  background: var(--paywall-soft) !important;
+}
+
+.theme-light .premium-paywall__close,
+.theme-sepia .premium-paywall__close {
+  background: var(--paywall-surface) !important;
+  border-color: var(--paywall-border) !important;
+  color: var(--paywall-muted) !important;
+  box-shadow: 0 6px 18px rgba(38, 51, 77, 0.12);
+}
+
+.theme-light .premium-paywall__brand,
+.theme-sepia .premium-paywall__brand {
+  background: rgba(255, 176, 32, 0.12) !important;
+}
+
+.theme-light .premium-paywall__plan.is-selected,
+.theme-sepia .premium-paywall__plan.is-selected {
+  background: rgba(108, 92, 255, 0.1) !important;
+}
+
+.theme-light .premium-paywall__cta,
+.theme-sepia .premium-paywall__cta,
+.theme-light .premium-paywall__cta *,
+.theme-sepia .premium-paywall__cta * {
+  color: #ffffff !important;
+}
+
+@media (max-width: 639px) {
+  .premium-paywall__surface {
+    border-bottom: 0;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 24px 24px 0 0;
+  }
+
+  .premium-paywall__scroll {
+    scrollbar-width: none;
+  }
+
+  .premium-paywall__scroll::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 .theme-light .premium-glow-purple {
   background:
     radial-gradient(circle at top right, rgba(91, 78, 250, 0.10), transparent 30rem),
