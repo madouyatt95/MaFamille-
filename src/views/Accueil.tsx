@@ -766,16 +766,16 @@ export const Accueil: React.FC<AccueilProps> = ({
     <div className="pb-32 pt-6 px-4 md:px-8 space-y-6 max-w-7xl mx-auto premium-glow-purple">
       
       {/* 1. Header Section */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-1 items-center space-x-3">
           <button 
             onClick={onMenuClick}
-            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white transition-all cursor-pointer"
+            className="shrink-0 p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white transition-all cursor-pointer"
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div>
-            <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-1.5">
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-extrabold text-white tracking-tight">
               {activeMember 
                 ? `Bonjour ${activeMember.name} ! ${['Chef de famille', 'Gestionnaire', 'admin', 'parent', 'Parent'].includes(activeMember.role) ? '👑' : '👋'}`
                 : 'Bonjour ! 👋'}
@@ -789,10 +789,10 @@ export const Accueil: React.FC<AccueilProps> = ({
           </div>
         </div>
         
-        <div className="flex items-center space-x-2">
+        <div className="flex shrink-0 items-center space-x-2">
           <button
             onClick={() => setGlobalSearchOpen(true)}
-            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white relative transition-all cursor-pointer"
+            className="shrink-0 p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white relative transition-all cursor-pointer"
             title="Recherche globale"
           >
             <Search className="w-5 h-5" />
@@ -804,7 +804,7 @@ export const Accueil: React.FC<AccueilProps> = ({
               setActiveTab('menu');
               setActiveModule('messagerie');
             }}
-            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white relative transition-all cursor-pointer"
+            className="shrink-0 p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white relative transition-all cursor-pointer"
             title="Messagerie"
           >
             <MessageCircle className="w-5 h-5" />
@@ -815,7 +815,7 @@ export const Accueil: React.FC<AccueilProps> = ({
 
           <button 
             onClick={onAlertsClick}
-            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white relative transition-all cursor-pointer"
+            className="shrink-0 p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white relative transition-all cursor-pointer"
             title="Notifications"
           >
             <Bell className="w-5 h-5" />
@@ -826,7 +826,7 @@ export const Accueil: React.FC<AccueilProps> = ({
           
           <button 
             onClick={onProfileSwitcherOpen || onAvatarClick}
-            className="relative cursor-pointer transition-all hover:scale-105 active:scale-95 border border-white/10 rounded-full p-0.5"
+            className="relative h-11 w-11 shrink-0 cursor-pointer rounded-full border border-white/10 p-0.5 transition-all hover:scale-105 active:scale-95"
             title="Changer de profil"
           >
             <MemberAvatar name={activeMember.name} photoUrl={activeMember.photoUrl} className="w-10 h-10 rounded-full border border-white/10" />
