@@ -77,6 +77,7 @@ export function BattleshipGame({
   const [privateFleetPlaced, setPrivateFleetPlaced] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const reportedPrivateWinner = useRef<number | null>(null);
+  const celebratedWinner = useRef<number | null>(null);
   const privateRoom = room?.gameType === 'battleship' ? room : null;
   const localPrivateIndex: 0 | 1 = privateRoom?.guestUserId && privateRoom.guestUserId === currentUserId ? 1 : 0;
   const privateShots: [Shot[], Shot[]] = [
@@ -88,6 +89,17 @@ export function BattleshipGame({
   const privateWinner = privateRoom?.state.winner === 0 || privateRoom?.state.winner === 1
     ? privateRoom.state.winner
     : null;
+
+  useEffect(() => {
+    const resolvedWinner = mode === 'private' ? privateWinner : winner;
+    if (resolvedWinner === null) {
+      celebratedWinner.current = null;
+      return;
+    }
+    if (celebratedWinner.current === resolvedWinner) return;
+    celebratedWinner.current = resolvedWinner;
+    navigator.vibrate?.([90, 45, 120, 45, 180]);
+  }, [mode, privateWinner, winner]);
   const ownFleet = fleets[mode === 'private' ? localPrivateIndex : currentPlayer];
   const ownFleetSet = useMemo(() => fleetCells(ownFleet), [ownFleet]);
   const rematchRequested = localPrivateIndex === 0

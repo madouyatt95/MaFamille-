@@ -73,6 +73,7 @@ export function MimeChallengeGame({ teamNames, isPremium, onTriggerPaywall, onFi
     }
   });
   const completedRef = useRef(false);
+  const celebratedRef = useRef(false);
   const cards = useMemo(
     () => isPremium ? [...MIME_PACKS[pack], ...customCards] : FREE_MIME_CARDS,
     [customCards, isPremium, pack]
@@ -103,6 +104,16 @@ export function MimeChallengeGame({ teamNames, isPremium, onTriggerPaywall, onFi
   useEffect(() => {
     if (running && seconds === 0) queueMicrotask(finishTurn);
   }, [finishTurn, running, seconds]);
+
+  useEffect(() => {
+    if (!finished) {
+      celebratedRef.current = false;
+      return;
+    }
+    if (celebratedRef.current) return;
+    celebratedRef.current = true;
+    navigator.vibrate?.([90, 45, 120, 45, 180]);
+  }, [finished]);
 
   const nextCard = (found: boolean) => {
     if (found) setRoundScore(value => value + 1);

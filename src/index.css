@@ -813,7 +813,32 @@ html,
 }
 
 .game-victory {
+  position: relative;
+  overflow: hidden;
   animation: game-victory-pop 520ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--family-shadow) 55%, transparent);
+}
+
+.game-victory::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, #FFB020, #00D26A, #6C5CFF, #FF4D6D);
+}
+
+.family-games button,
+.family-games [role="button"],
+.family-games select {
+  min-height: 44px;
+}
+
+.family-games button:focus-visible,
+.family-games [role="button"]:focus-visible,
+.family-games select:focus-visible,
+.family-games input:focus-visible {
+  outline: 3px solid color-mix(in srgb, #9E94FF 82%, white);
+  outline-offset: 3px;
 }
 
 @keyframes memory-card-flip {
@@ -848,8 +873,10 @@ html,
   .memory-game-card,
   .connect-piece,
   .mime-reveal-card,
-  .game-victory {
+  .game-victory,
+  .family-game-cover-card > span:first-child {
     animation: none !important;
+    transition: none !important;
   }
 }
 

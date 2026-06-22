@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Brain,
   Bot,
+  ChartNoAxesColumnIncreasing,
   CalendarDays,
   Check,
   ChevronRight,
@@ -11,6 +12,7 @@ import {
   Gift,
   Grid3X3,
   History,
+  Heart,
   Lock,
   LogOut,
   Mic2,
@@ -18,6 +20,7 @@ import {
   Radio,
   RotateCcw,
   Ship,
+  Play,
   Sparkles,
   Star,
   Trophy,
@@ -52,6 +55,7 @@ type MemoryCard = {
 };
 type ConnectCell = 0 | 1 | 2;
 type GameFilter = 'all' | 'free' | 'premium' | 'quick' | 'team' | 'kids';
+type HubView = 'library' | 'progress';
 type MemoryMode = 'individual' | 'teams';
 type MemorySource = 'family' | 'memories';
 type BotDifficulty = 'easy' | 'normal' | 'hard';
@@ -273,7 +277,16 @@ export function FamilyGames({
 }: FamilyGamesProps) {
   const [activeGame, setActiveGame] = useState<GameId | null>(null);
   const [gameFilter, setGameFilter] = useState<GameFilter>('all');
-  const [showProgression, setShowProgression] = useState(false);
+  const [hubView, setHubView] = useState<HubView>('library');
+  const [previewGameId, setPreviewGameId] = useState<GameId | null>(null);
+  const [favoriteGameIds, setFavoriteGameIds] = useState<GameId[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(`mf_games_favorites_${foyerId}`) || '[]');
+      return Array.isArray(saved) ? saved.slice(0, 3) : [];
+    } catch {
+      return [];
+    }
+  });
   const [resumeSnapshot, setResumeSnapshot] = useState<GameResumeSnapshot | null>(() => {
     try {
       return JSON.parse(localStorage.getItem(`mf_games_resume_${foyerId}`) || 'null');
@@ -514,6 +527,20 @@ export function FamilyGames({
   }, [foyerId, tournament]);
 
   useEffect(() => {
+    localStorage.setItem(`mf_games_favorites_${foyerId}`, JSON.stringify(favoriteGameIds));
+  }, [favoriteGameIds, foyerId]);
+
+  useEffect(() => {
+    const preload = () => void import('../components/games/VillageSecretGame');
+    if ('requestIdleCallback' in window) {
+      const idleId = window.requestIdleCallback(preload, { timeout: 2500 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+    const timer = globalThis.setTimeout(preload, 1800);
+    return () => globalThis.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     void familyGameService.getCurrentUserId().then(setCurrentUserId);
     void familyGameService.fetchResults(foyerId).then(setResults);
     if (isPremium) {
@@ -558,6 +585,10 @@ export function FamilyGames({
 
   useEffect(() => {
     if (!activeGame) return;
+    const villageHasProgress = activeGame === 'village-secret' && Boolean(localStorage.getItem('mf_village_secret_active_game_v3'));
+    const memoryHasProgress = activeGame === 'memory' && memoryStarted && (memoryMoves > 0 || matchedPairs.length > 0);
+    const connectHasProgress = activeGame === 'connect4' && board.some(row => row.some(cell => cell !== 0));
+    if (!villageHasProgress && !memoryHasProgress && !connectHasProgress) return;
     const snapshot: GameResumeSnapshot = {
       activeGame,
       updatedAt: new Date().toISOString(),
@@ -587,6 +618,18 @@ export function FamilyGames({
     setLastGameId(gameId);
     setActiveGame(gameId);
   }, [foyerId, isPremium, onTriggerPaywall]);
+
+  const previewGame = useCallback((gameId: GameId) => {
+    setPreviewGameId(gameId);
+  }, []);
+
+  const toggleFavorite = useCallback((gameId: GameId) => {
+    setFavoriteGameIds(previous => (
+      previous.includes(gameId)
+        ? previous.filter(id => id !== gameId)
+        : [...previous, gameId].slice(-3)
+    ));
+  }, []);
 
   const resumeSavedGame = useCallback(() => {
     const saved = resumeSnapshot;
@@ -1047,6 +1090,16 @@ export function FamilyGames({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeGame, board, botDifficulty, connectDraw, connectVsBot, connectWinner, currentPlayer]);
 
+  useEffect(() => {
+    if (matchedPairs.length === memoryPairCount && memoryStarted) {
+      navigator.vibrate?.([90, 45, 120, 45, 180]);
+    }
+  }, [matchedPairs.length, memoryPairCount, memoryStarted]);
+
+  useEffect(() => {
+    if (connectWinner || connectDraw) navigator.vibrate?.(connectWinner ? [90, 45, 150] : [60, 40, 60]);
+  }, [connectDraw, connectWinner]);
+
   const gameCards = [
     {
       id: 'memory' as const,
@@ -1056,7 +1109,9 @@ export function FamilyGames({
       accent: '#FFB020',
       coverPosition: GAME_COVER_POSITIONS.memory,
       meta: '1 à 6 joueurs · 5 min',
-      tags: ['free', 'quick', 'kids', 'team']
+      tags: ['free', 'quick', 'kids', 'team'],
+      modes: ['Solo ou famille', 'Deux équipes', '6, 8 ou 12 paires'],
+      premiumBenefits: ['Photos des souvenirs', 'Statistiques familiales', 'Récompenses et progression']
     },
     {
       id: 'connect4' as const,
@@ -1066,7 +1121,9 @@ export function FamilyGames({
       accent: '#4F8CFF',
       coverPosition: GAME_COVER_POSITIONS.connect4,
       meta: '1 à 2 joueurs · 8 min',
-      tags: ['free', 'quick', 'kids']
+      tags: ['free', 'quick', 'kids'],
+      modes: ['Même écran', 'Ordinateur', 'Duel privé Premium'],
+      premiumBenefits: ['Duels privés', 'Historique des manches', 'Personnalisation des équipes']
     },
     {
       id: 'battleship' as const,
@@ -1076,7 +1133,9 @@ export function FamilyGames({
       accent: '#00A8E8',
       coverPosition: GAME_COVER_POSITIONS.battleship,
       meta: '1 à 2 joueurs · 15 min',
-      tags: ['free', 'team', 'kids']
+      tags: ['free', 'team', 'kids'],
+      modes: ['Même écran', 'Ordinateur', 'Duel privé'],
+      premiumBenefits: ['Parties privées', 'Revanche dans le salon', 'Statistiques tactiques']
     },
     {
       id: 'family-challenge' as const,
@@ -1086,7 +1145,9 @@ export function FamilyGames({
       accent: '#FF4D6D',
       coverPosition: GAME_COVER_POSITIONS['family-challenge'],
       meta: `2 équipes · ${challengeQuestionCount} questions`,
-      tags: ['premium', 'team']
+      tags: ['premium', 'team'],
+      modes: ['Deux équipes', 'Même foyer', 'Défi inter-familles'],
+      premiumBenefits: ['Bibliothèque complète', 'Packs par âge', 'Défis privés et statistiques']
     },
     {
       id: 'mime-challenge' as const,
@@ -1096,7 +1157,9 @@ export function FamilyGames({
       accent: '#9E94FF',
       coverPosition: GAME_COVER_POSITIONS['mime-challenge'],
       meta: isPremium ? '2 équipes · 6 paquets' : '2 équipes · 8 cartes',
-      tags: ['free', 'quick', 'team', 'kids']
+      tags: ['free', 'quick', 'team', 'kids'],
+      modes: ['Deux équipes', 'Manches chronométrées', 'Mimes personnalisés'],
+      premiumBenefits: ['Six paquets complets', 'Cartes personnalisées', 'Historique des scores']
     },
     {
       id: 'village-secret' as const,
@@ -1107,6 +1170,8 @@ export function FamilyGames({
       coverPosition: GAME_COVER_POSITIONS['village-secret'],
       meta: '5 à 20 joueurs · 25 min',
       tags: ['premium', 'team'],
+      modes: ['Un seul téléphone', 'Joueurs ordinateur', 'Maître du jeu automatique'],
+      premiumBenefits: ['Tous les personnages', 'Narration et voix', 'Historique détaillé de la partie'],
       premiumOnly: true
     }
   ];
@@ -1114,6 +1179,34 @@ export function FamilyGames({
   const visibleGameCards = gameCards.filter(game => game.id !== 'village-secret' && (gameFilter === 'all' || game.tags.includes(gameFilter)));
   const lastGame = gameCards.find(game => game.id === lastGameId);
   const LastGameIcon = lastGame?.icon || Gamepad2;
+  const hasMeaningfulResume = Boolean(
+    resumeSnapshot?.activeGame === 'village-secret'
+      ? localStorage.getItem('mf_village_secret_active_game_v3')
+      : resumeSnapshot?.activeGame === 'memory'
+        ? resumeSnapshot.memory?.started
+          && (resumeSnapshot.memory?.matchedPairs?.length || 0) < (resumeSnapshot.memory?.pairCount || 6)
+          && ((resumeSnapshot.memory?.moves || 0) > 0 || (resumeSnapshot.memory?.matchedPairs?.length || 0) > 0)
+        : resumeSnapshot?.activeGame === 'connect4'
+          ? !resumeSnapshot.connect4?.winner
+            && !resumeSnapshot.connect4?.draw
+            && resumeSnapshot.connect4?.board?.some(row => row.some(cell => cell !== 0))
+          : false
+  );
+  const resumeLabel = resumeSnapshot?.activeGame === 'memory'
+    ? `${resumeSnapshot.memory?.matchedPairs?.length || 0}/${resumeSnapshot.memory?.pairCount || 6} paires · ${resumeSnapshot.memory?.moves || 0} coups`
+    : resumeSnapshot?.activeGame === 'connect4'
+      ? `Tour du joueur ${resumeSnapshot.connect4?.currentPlayer || 1}`
+      : resumeSnapshot?.activeGame === 'village-secret'
+        ? 'Partie secrète en cours'
+        : '';
+  const previewedGame = gameCards.find(game => game.id === previewGameId);
+  const favoriteGames = favoriteGameIds.map(id => gameCards.find(game => game.id === id)).filter((game): game is NonNullable<typeof game> => Boolean(game));
+  const suggestedGameIds: GameId[] = members.length >= 5
+    ? ['village-secret', 'family-challenge', 'mime-challenge']
+    : members.length >= 3
+      ? ['memory', 'mime-challenge', 'family-challenge']
+      : ['connect4', 'battleship', 'memory'];
+  const suggestedGames = suggestedGameIds.map(id => gameCards.find(game => game.id === id)).filter((game): game is NonNullable<typeof game> => Boolean(game));
 
   const gameHeader = (title: string, subtitle: string, icon: typeof Gamepad2) => {
     const Icon = icon;
@@ -1165,21 +1258,30 @@ export function FamilyGames({
               </div>
             </div>
 
-            <div className="order-2 grid gap-3 sm:grid-cols-2">
-              {resumeSnapshot?.activeGame && (
+            <div className="order-2 grid grid-cols-2 rounded-2xl border border-white/8 bg-white/5 p-1" role="tablist" aria-label="Vues du module jeux">
+              <button type="button" role="tab" aria-selected={hubView === 'library'} onClick={() => setHubView('library')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-black ${hubView === 'library' ? 'bg-[#6C5CFF] text-white shadow-lg' : 'text-white/50'}`}>
+                <Gamepad2 className="h-4 w-4" /> Ludothèque
+              </button>
+              <button type="button" role="tab" aria-selected={hubView === 'progress'} onClick={() => setHubView('progress')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-black ${hubView === 'progress' ? 'bg-[#FFB020] text-[#07111F] shadow-lg' : 'text-white/50'}`}>
+                <ChartNoAxesColumnIncreasing className="h-4 w-4" /> Progression
+              </button>
+            </div>
+
+            {hubView === 'library' && <div className="order-2 grid gap-3 sm:grid-cols-2">
+              {hasMeaningfulResume && resumeSnapshot?.activeGame && (
                 <button type="button" onClick={resumeSavedGame} className="flex min-h-20 items-center justify-between gap-3 rounded-[22px] border border-[#00D26A]/25 bg-[#00D26A]/10 p-4 text-left transition-transform active:scale-[0.98]">
                   <span className="flex items-center gap-3">
                     <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#00D26A]/15 text-[#00D26A]"><RotateCcw className="h-5 w-5" /></span>
                     <span>
                       <strong className="block text-sm text-white">Reprendre la partie</strong>
-                      <span className="mt-1 block text-[10px] text-white/50">{gameCards.find(game => game.id === resumeSnapshot.activeGame)?.title || 'Partie en cours'}</span>
+                      <span className="mt-1 block text-[10px] text-white/50">{gameCards.find(game => game.id === resumeSnapshot.activeGame)?.title || 'Partie en cours'} · {resumeLabel}</span>
                     </span>
                   </span>
                   <ChevronRight className="h-5 w-5 text-[#00D26A]" />
                 </button>
               )}
-              {lastGame && (
-                <button type="button" onClick={() => openGame(lastGame.id)} className="flex min-h-20 items-center justify-between gap-3 rounded-[22px] border border-white/8 bg-white/5 p-4 text-left transition-transform active:scale-[0.98]">
+              {lastGame && (!hasMeaningfulResume || lastGame.id !== resumeSnapshot?.activeGame) && (
+                <button type="button" onClick={() => previewGame(lastGame.id)} className="flex min-h-20 items-center justify-between gap-3 rounded-[22px] border border-white/8 bg-white/5 p-4 text-left transition-transform active:scale-[0.98]">
                   <span className="flex items-center gap-3">
                     <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/8 bg-white/5" style={{ color: lastGame.accent }}><LastGameIcon className="h-5 w-5" /></span>
                     <span>
@@ -1190,11 +1292,12 @@ export function FamilyGames({
                   <ChevronRight className="h-5 w-5 text-white/35" />
                 </button>
               )}
-            </div>
+            </div>}
 
-            <button
+            {hubView === 'library' && <button
               type="button"
-              onClick={() => openGame('village-secret')}
+              onClick={() => previewGame('village-secret')}
+              aria-label="Découvrir Village Secret, jeu Premium pour 5 à 20 joueurs"
               className="family-games-featured order-3 relative min-h-[280px] overflow-hidden rounded-[28px] border text-left shadow-2xl transition-transform active:scale-[0.99] sm:min-h-[330px]"
             >
               <span
@@ -1223,9 +1326,37 @@ export function FamilyGames({
                   <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#C4BEFF] text-[#090D1A]"><ChevronRight className="h-6 w-6" /></span>
                 </span>
               </span>
-            </button>
+            </button>}
 
-            <div className="order-3 flex gap-2 overflow-x-auto pb-1">
+            {hubView === 'library' && favoriteGames.length > 0 && (
+              <div className="order-3">
+                <span className="mb-2 block text-[9px] font-black uppercase tracking-wider text-white/40">Favoris</span>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {favoriteGames.map(game => (
+                    <button key={game.id} type="button" onClick={() => previewGame(game.id)} className="shrink-0 rounded-2xl border border-[#FF4D6D]/20 bg-[#FF4D6D]/8 px-4 py-3 text-left">
+                      <strong className="block text-xs text-white">{game.title}</strong>
+                      <span className="mt-1 block text-[9px] text-white/45">{game.meta}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {hubView === 'library' && (
+              <section className="order-3 rounded-[22px] border border-[#00D26A]/18 bg-[#00D26A]/7 p-4">
+                <span className="text-[9px] font-black uppercase tracking-wider text-[#00D26A]">Recommandés pour {members.length || 1} joueur{members.length > 1 ? 's' : ''}</span>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {suggestedGames.map(game => (
+                    <button key={game.id} type="button" onClick={() => previewGame(game.id)} className="min-w-0 rounded-xl border border-white/8 bg-white/5 p-2 text-left">
+                      <strong className="block truncate text-[10px] text-white">{game.title}</strong>
+                      <span className="mt-1 block truncate text-[8px] text-white/40">{game.meta}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {hubView === 'library' && <div className="order-3 flex gap-2 overflow-x-auto pb-1">
               {([
                 ['all', 'Tous'],
                 ['free', 'Gratuits'],
@@ -1238,16 +1369,17 @@ export function FamilyGames({
                   {label}
                 </button>
               ))}
-            </div>
+            </div>}
 
-            <div className="order-3 grid grid-cols-2 gap-3 lg:grid-cols-3">
+            {hubView === 'library' && <div className="order-3 grid grid-cols-2 gap-3 lg:grid-cols-3">
               {visibleGameCards.map(game => {
                 const Icon = game.icon;
                 return (
                   <button
                     key={game.id}
                     type="button"
-                    onClick={() => openGame(game.id)}
+                    onClick={() => previewGame(game.id)}
+                    aria-label={`Découvrir ${game.title}, ${game.meta}`}
                     className="family-game-cover-card group relative min-h-[210px] overflow-hidden rounded-[24px] border border-white/8 text-left shadow-lg transition-all hover:-translate-y-1 active:scale-[0.98]"
                   >
                     <span
@@ -1268,23 +1400,15 @@ export function FamilyGames({
                       <span className="mt-1 line-clamp-2 block text-[10px] leading-relaxed text-white/60">{game.description}</span>
                       {game.id === 'family-challenge' && !isPremium && <span className="mt-2 inline-flex rounded-full bg-[#FFB020]/18 px-2 py-1 text-[8px] font-black text-[#FFCB6B]">12 questions gratuites</span>}
                     </span>
+                    <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white backdrop-blur-md" aria-hidden="true">
+                      <Heart className={`h-4 w-4 ${favoriteGameIds.includes(game.id) ? 'fill-[#FF4D6D] text-[#FF4D6D]' : ''}`} />
+                    </span>
                   </button>
                 );
               })}
-            </div>
+            </div>}
 
-            <button type="button" onClick={() => setShowProgression(value => !value)} className="order-4 flex w-full items-center justify-between rounded-[22px] border border-white/8 bg-white/5 p-4 text-left">
-              <span className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FFB020]/12 text-[#FFB020]"><Trophy className="h-5 w-5" /></span>
-                <span>
-                  <strong className="block text-sm text-white">Progression et organisation</strong>
-                  <span className="mt-1 block text-[10px] text-white/45">Tournoi, équipes, récompenses, soirée jeux et statistiques.</span>
-                </span>
-              </span>
-              <ChevronRight className={`h-5 w-5 text-white/40 transition-transform ${showProgression ? 'rotate-90' : ''}`} />
-            </button>
-
-            {showProgression && (
+            {hubView === 'progress' && (
               <div className="order-5 rounded-[24px] border border-[#6C5CFF]/20 bg-[#6C5CFF]/8 p-4">
                 <div className="grid gap-3 sm:grid-cols-3">
                   <span><strong className="block text-xs text-white">Parties privées</strong><span className="mt-1 block text-[9px] text-white/45">Défiez une famille connue avec un code.</span></span>
@@ -1294,7 +1418,7 @@ export function FamilyGames({
               </div>
             )}
 
-            {showProgression && <button type="button" onClick={() => {
+            {hubView === 'progress' && <button type="button" onClick={() => {
               setMemoryPairCount(8);
               setMemoryStarted(false);
               openGame('memory');
@@ -1306,7 +1430,7 @@ export function FamilyGames({
               <span className="rounded-full bg-[#00D26A]/15 px-3 py-1 text-[10px] font-black text-[#00D26A]">{dailyChallengeComplete ? 'Réussi' : '+1 trophée'}</span>
             </button>}
 
-            {showProgression && <section className="order-5 glass-panel rounded-[24px] border border-[#FFB020]/20 p-5 space-y-4">
+            {hubView === 'progress' && <section className="order-5 glass-panel rounded-[24px] border border-[#FFB020]/20 p-5 space-y-4">
               <button type="button" onClick={() => setShowTournamentSetup(value => !value)} className="flex w-full items-center justify-between gap-3 text-left">
                 <span>
                   <strong className="flex items-center gap-2 text-sm text-white"><Trophy className="h-5 w-5 text-[#FFB020]" /> Tournoi familial</strong>
@@ -1349,7 +1473,7 @@ export function FamilyGames({
               )}
             </section>}
 
-            {showProgression && <section className="order-5 glass-panel rounded-[24px] border border-white/8 p-5 space-y-4">
+            {hubView === 'progress' && <section className="order-5 glass-panel rounded-[24px] border border-white/8 p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-black text-white">Joueurs de la prochaine partie</h3>
@@ -1444,7 +1568,7 @@ export function FamilyGames({
               )}
             </section>}
 
-            {showProgression && (onAddEventDirect || setVotes || pendingRewards.length > 0) && (
+            {hubView === 'progress' && (onAddEventDirect || setVotes || pendingRewards.length > 0) && (
               <section className="order-5 glass-panel rounded-[24px] border border-white/8 p-5 space-y-4">
                 <div>
                   <h3 className="text-sm font-black text-white">Liens avec la famille</h3>
@@ -1513,7 +1637,7 @@ export function FamilyGames({
               </section>
             )}
 
-            {showProgression && isPremium && results.length > 0 && (
+            {hubView === 'progress' && isPremium && results.length > 0 && (
               <section className="order-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
                   ['Parties', gameStats.total],
@@ -1529,7 +1653,7 @@ export function FamilyGames({
               </section>
             )}
 
-            {showProgression && isPremium && (
+            {hubView === 'progress' && isPremium && (
               <section className="order-5 glass-panel rounded-[24px] border border-white/8 p-5">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1553,7 +1677,7 @@ export function FamilyGames({
               </section>
             )}
 
-            {showProgression && isPremium && <button
+            {hubView === 'progress' && isPremium && <button
               type="button"
               onClick={() => setShowHistory(value => !value)}
               className="order-5 w-full rounded-[22px] border border-white/8 bg-white/5 p-4 flex items-center justify-between text-left"
@@ -1568,7 +1692,7 @@ export function FamilyGames({
               <ChevronRight className={`w-5 h-5 text-white/40 transition-transform ${showHistory ? 'rotate-90' : ''}`} />
             </button>}
 
-            {showProgression && isPremium && showHistory && (
+            {hubView === 'progress' && isPremium && showHistory && (
               <div className="order-5 space-y-2">
                 {results.length === 0 ? (
                   <p className="rounded-2xl border border-white/8 bg-white/5 p-4 text-center text-xs text-white/45">Les prochaines parties terminées apparaîtront ici.</p>
@@ -1584,7 +1708,7 @@ export function FamilyGames({
               </div>
             )}
 
-            {showProgression && !isPremium && (
+            {hubView === 'progress' && !isPremium && (
               <button
                 type="button"
                 onClick={onTriggerPaywall}
@@ -1600,6 +1724,47 @@ export function FamilyGames({
                 <ChevronRight className="w-5 h-5 shrink-0 text-[#FFB020]" />
               </button>
             )}
+          </div>
+        )}
+
+        {!activeGame && previewedGame && (
+          <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center" onClick={() => setPreviewGameId(null)}>
+            <section role="dialog" aria-modal="true" aria-labelledby="game-preview-title" className="app-dialog-surface max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-[26px] border border-white/10 bg-[#111827] shadow-2xl" onClick={event => event.stopPropagation()}>
+              <div className="family-game-cover-card relative h-52 overflow-hidden rounded-t-[25px]">
+                <span className="absolute inset-0 bg-cover bg-no-repeat" style={{ backgroundImage: "url('/game-assets/family-games-covers.webp')", backgroundSize: '300% 200%', backgroundPosition: previewedGame.coverPosition }} />
+                <span className="absolute inset-0 bg-gradient-to-t from-[#111827] via-transparent to-black/25" />
+                <button type="button" onClick={() => setPreviewGameId(null)} className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur-md" aria-label="Fermer la présentation"><X className="h-5 w-5" /></button>
+                <button type="button" onClick={() => toggleFavorite(previewedGame.id)} className="absolute left-3 top-3 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur-md" aria-label={favoriteGameIds.includes(previewedGame.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}>
+                  <Heart className={`h-5 w-5 ${favoriteGameIds.includes(previewedGame.id) ? 'fill-[#FF4D6D] text-[#FF4D6D]' : ''}`} />
+                </button>
+              </div>
+              <div className="p-5 sm:p-6">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: previewedGame.accent }}>{previewedGame.meta}</span>
+                    <h2 id="game-preview-title" className="mt-1 text-2xl font-black text-white">{previewedGame.title}</h2>
+                  </div>
+                  {'premiumOnly' in previewedGame && previewedGame.premiumOnly && <span className="rounded-full bg-[#FFB020]/15 px-3 py-1 text-[9px] font-black text-[#FFCB6B]">Premium</span>}
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-white/60">{previewedGame.description}</p>
+                <div className="mt-5">
+                  <strong className="text-[10px] uppercase tracking-wider text-white/40">Comment jouer</strong>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                    {previewedGame.modes.map(mode => <span key={mode} className="rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-[10px] font-bold text-white/65">{mode}</span>)}
+                  </div>
+                </div>
+                <div className="mt-5 rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/8 p-4">
+                  <strong className="flex items-center gap-2 text-xs text-white"><Sparkles className="h-4 w-4 text-[#FFB020]" /> Avec Premium</strong>
+                  <ul className="mt-2 space-y-1.5 text-[10px] text-white/55">
+                    {previewedGame.premiumBenefits.map(benefit => <li key={benefit} className="flex gap-2"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#00D26A]" /> {benefit}</li>)}
+                  </ul>
+                </div>
+                <button type="button" onClick={() => { setPreviewGameId(null); openGame(previewedGame.id); }} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#6C5CFF] py-4 text-sm font-black text-white">
+                  {'premiumOnly' in previewedGame && previewedGame.premiumOnly && !isPremium ? <Lock className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
+                  {'premiumOnly' in previewedGame && previewedGame.premiumOnly && !isPremium ? 'Découvrir Premium' : 'Commencer'}
+                </button>
+              </div>
+            </section>
           </div>
         )}
 
