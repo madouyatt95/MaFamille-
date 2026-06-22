@@ -45,6 +45,10 @@ const DEFAULT_MAP_CENTER: [number, number] = [46.603354, 1.888334];
 const createFavoriteId = (type: FavoritePlace['type']) => `fav-${Date.now()}-${type}`;
 const MAX_SEARCH_RESULTS = 8;
 const NEARBY_RADIUS_METERS = 5000;
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter'
+];
 
 const getMemberCoords = (member?: Member | null): [number, number] | null => {
   if (!member || member.latitude === undefined || member.latitude === null || member.longitude === undefined || member.longitude === null) {
@@ -103,6 +107,19 @@ const CenterMap: React.FC<{ center: [number, number] }> = ({ center }) => {
   useEffect(() => {
     map.flyTo(center, 14, { duration: 1.5 });
   }, [center, map]);
+  return null;
+};
+
+const FitNearbyBounds: React.FC<{
+  points: [number, number][];
+  origin: [number, number] | null;
+}> = ({ points, origin }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (points.length === 0) return;
+    const bounds = L.latLngBounds(origin ? [origin, ...points] : points);
+    map.fitBounds(bounds, { padding: [44, 44], maxZoom: 15, animate: true });
+  }, [map, origin, points]);
   return null;
 };
 
@@ -266,6 +283,50 @@ const buildNearbyQuery = (category: NearbyCategory, origin: [number, number]) =>
   return `[out:json][timeout:15];nwr${definition.filter}(around:${NEARBY_RADIUS_METERS},${lat},${lng});out center tags;`;
 };
 
+const fetchNearbyElements = async (query: string): Promise<OverpassElement[]> => {
+  let lastError: unknown = null;
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 9000);
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body: new URLSearchParams({ data: query }).toString(),
+        signal: controller.signal
+      });
+      if (!response.ok) throw new Error(`overpass_${response.status}`);
+      const payload = await response.json() as { elements?: OverpassElement[] };
+      return payload.elements || [];
+    } catch (error) {
+      lastError = error;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+  throw lastError || new Error('overpass_unavailable');
+};
+
+const nearbyMarkerEmoji: Record<NearbyCategory, string> = {
+  school: '🏫',
+  doctor: '🩺',
+  pharmacy: '✚',
+  shopping: '🛒',
+  station: '🚉',
+  park: '🌳'
+};
+
+const createNearbyMarkerIcon = (category: NearbyCategory) => L.divIcon({
+  className: 'nearby-place-marker',
+  html: `<div class="nearby-place-marker__pin"><span>${nearbyMarkerEmoji[category]}</span></div>`,
+  iconSize: [38, 44],
+  iconAnchor: [19, 42],
+  popupAnchor: [0, -38]
+});
+
 const overpassElementToSearchResult = (
   element: OverpassElement,
   category: NearbyCategory,
@@ -388,6 +449,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const [searchResults, setSearchResults] = useState<MapSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [activeNearbyCategory, setActiveNearbyCategory] = useState<NearbyCategory | null>(null);
   
   // Real OSRM route tracing states
   const [routeTarget, setRouteTarget] = useState<{
@@ -446,6 +508,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
   const searchPlaces = async (query: string, showEmptyMessage = true) => {
     if (!query.trim()) return;
+    setActiveNearbyCategory(null);
     setSearching(true);
     setSearchError(null);
     try {
@@ -474,15 +537,24 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const [sheetState, setSheetState] = useState<'collapsed' | 'half'>('collapsed');
 
   const me = members.find(m => m.id === activeMemberId);
-  const activeMemberLatitude = Number(me?.latitude);
-  const activeMemberLongitude = Number(me?.longitude);
+  const activeMemberLatitudeKey = me?.latitude === undefined || me?.latitude === null ? '' : String(me.latitude);
+  const activeMemberLongitudeKey = me?.longitude === undefined || me?.longitude === null ? '' : String(me.longitude);
   const activeMemberName = String(me?.name || '');
   const activeMemberStoredLocation = useMemo<[number, number] | null>(() => {
-    return Number.isFinite(activeMemberLatitude) && Number.isFinite(activeMemberLongitude)
-      ? [activeMemberLatitude, activeMemberLongitude]
+    if (!activeMemberLatitudeKey || !activeMemberLongitudeKey) return null;
+    const latitude = Number(activeMemberLatitudeKey);
+    const longitude = Number(activeMemberLongitudeKey);
+    return Number.isFinite(latitude) && Number.isFinite(longitude)
+      ? [latitude, longitude]
       : null;
-  }, [activeMemberLatitude, activeMemberLongitude]);
+  }, [activeMemberLatitudeKey, activeMemberLongitudeKey]);
   const routeOrigin = isSharing ? (userLocation || activeMemberStoredLocation) : null;
+  const nearbyResultCoords = useMemo<[number, number][]>(() => {
+    return searchResults
+      .filter(result => Boolean(result.nearbyCategory))
+      .map(result => [Number(result.lat), Number(result.lon)] as [number, number])
+      .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
+  }, [searchResults]);
 
   useEffect(() => {
     isSharingRef.current = isSharing;
@@ -495,20 +567,22 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const searchNearbyPlaces = async (category: NearbyCategory) => {
     const definition = nearbyCategories.find(item => item.key === category);
     if (!routeOrigin || !definition) {
+      setActiveNearbyCategory(null);
       setSearchResults([]);
       setSearchError("Activez votre position pour afficher les lieux réellement proches de vous.");
       setMapNotice({ type: 'warning', message: "La recherche de proximité nécessite votre position actuelle." });
       return;
     }
 
+    setActiveNearbyCategory(category);
+    setSearchResults([]);
+    setSearchMarker(null);
     setSearching(true);
     setSearchError(null);
     try {
       const query = buildNearbyQuery(category, routeOrigin);
-      const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
-      if (!response.ok) throw new Error('nearby_search_failed');
-      const data = await response.json() as { elements?: OverpassElement[] };
-      const results = (data.elements || [])
+      const elements = await fetchNearbyElements(query);
+      const results = elements
         .map(element => overpassElementToSearchResult(element, category, routeOrigin))
         .filter((result): result is MapSearchResult => Boolean(result))
         .sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
@@ -516,9 +590,15 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       setSearchResults(compacted);
       if (compacted.length === 0) {
         setSearchError(`Aucun ${definition.label.toLowerCase()} trouvé dans un rayon de 5 km.`);
+      } else {
+        setMapNotice({
+          type: 'success',
+          message: `${compacted.length} ${definition.label.toLowerCase()}${compacted.length > 1 ? 's' : ''} affiché${compacted.length > 1 ? 's' : ''} à moins de 5 km.`
+        });
       }
     } catch (err) {
       console.error('Nearby places search error:', err);
+      setActiveNearbyCategory(null);
       setSearchError("Les lieux proches sont momentanément indisponibles. Réessayez dans quelques instants.");
     } finally {
       setSearching(false);
@@ -1060,7 +1140,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setActiveNearbyCategory(null);
+            }}
             placeholder="Adresse, école, médecin, commerce..."
             className="flex-1 bg-transparent text-xs text-white placeholder-white/40 focus:outline-none"
           />
@@ -1079,11 +1162,15 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
               key={key}
               type="button"
               onClick={() => searchNearbyPlaces(key)}
+              disabled={searching}
+              aria-pressed={activeNearbyCategory === key}
               className={`shrink-0 min-h-9 px-3 py-2 rounded-xl border text-[10px] font-extrabold backdrop-blur-xl active:scale-95 flex items-center gap-1.5 ${
-                routeOrigin
+                activeNearbyCategory === key
+                  ? 'bg-[#6C5CFF] border-[#8E82FF] text-white shadow-lg shadow-[#6C5CFF]/25'
+                  : routeOrigin
                   ? 'bg-[#0F1E36]/90 border-white/10 text-white/75'
                   : 'bg-[#0F1E36]/65 border-white/5 text-white/35'
-              }`}
+              } disabled:opacity-55`}
               title={routeOrigin ? `${label} à moins de 5 km` : 'Activez votre position pour rechercher à proximité'}
             >
               <Icon className="h-3 w-3" />
@@ -1254,6 +1341,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
             />
             
             <CenterMap center={mapCenter} />
+            <FitNearbyBounds points={nearbyResultCoords} origin={routeOrigin} />
 
             <MapClickHandler onClick={(coords) => {
               setSearchMarker({
@@ -1325,6 +1413,49 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                 />
               </>
             )}
+
+            {searchResults.filter(result => result.nearbyCategory).map((result) => {
+              const lat = Number(result.lat);
+              const lon = Number(result.lon);
+              const category = result.nearbyCategory as NearbyCategory;
+              const formatted = formatSearchResult(result);
+              if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+              return (
+                <Marker
+                  key={`nearby-${category}-${result.lat}-${result.lon}`}
+                  position={[lat, lon]}
+                  icon={createNearbyMarkerIcon(category)}
+                >
+                  <Popup closeButton={false}>
+                    <div className="min-w-[180px] p-1 text-left text-white">
+                      <span className="block text-xs font-black text-white">{formatted.title}</span>
+                      <span className="mt-1 block text-[9px] leading-normal text-white/55">{formatted.subtitle}</span>
+                      {typeof result.distanceKm === 'number' && (
+                        <span className="mt-2 inline-flex rounded-lg bg-[#00D26A]/12 px-2 py-1 text-[9px] font-black text-[#00D26A]">
+                          {result.distanceKm < 1 ? `${Math.round(result.distanceKm * 1000)} m` : `${result.distanceKm.toFixed(1)} km`} de vous
+                        </span>
+                      )}
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleSelectSearchResult(result)}
+                          className="min-h-9 rounded-lg border border-white/10 bg-white/5 px-2 text-[9px] font-black text-white"
+                        >
+                          Détails
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => startRouteTo(formatted.title, [lat, lon])}
+                          className="min-h-9 rounded-lg bg-[#6C5CFF] px-2 text-[9px] font-black text-white"
+                        >
+                          Itinéraire
+                        </button>
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
 
             {/* Search Marker placed temporarily on the map */}
             {searchMarker && (
