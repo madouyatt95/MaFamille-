@@ -1733,7 +1733,8 @@ html.high-contrast [class*="text-white/5"] {
 }
 
 .theme-light .family-map .family-map-panel,
-.theme-light .family-map .family-map-results {
+.theme-light .family-map .family-map-results,
+.theme-light .family-map .family-map-modal {
   background: rgba(255, 255, 255, 0.95) !important;
   border-color: rgba(15, 23, 42, 0.12) !important;
   box-shadow: 0 18px 34px rgba(15, 23, 42, 0.14) !important;
@@ -1741,7 +1742,8 @@ html.high-contrast [class*="text-white/5"] {
 }
 
 .theme-sepia .family-map .family-map-panel,
-.theme-sepia .family-map .family-map-results {
+.theme-sepia .family-map .family-map-results,
+.theme-sepia .family-map .family-map-modal {
   background: rgba(255, 249, 236, 0.96) !important;
   border-color: rgba(91, 64, 41, 0.16) !important;
   box-shadow: 0 18px 34px rgba(91, 64, 41, 0.15) !important;
@@ -1807,6 +1809,14 @@ html.high-contrast [class*="text-white/5"] {
   color: #3a291f !important;
   background: rgba(91, 64, 41, 0.08) !important;
   border-color: rgba(91, 64, 41, 0.16) !important;
+}
+
+.theme-light .family-map .family-map-modal-title {
+  color: #111827 !important;
+}
+
+.theme-sepia .family-map .family-map-modal-title {
+  color: #3a291f !important;
 }
 
 @media (max-width: 380px) {

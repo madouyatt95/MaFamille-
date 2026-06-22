@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Circle, CircleMarker, MapContainer, TileLayer, Marker, Popup, useMap, Polyline, useMapEvents } from 'react-leaflet';
+import { CircleMarker, MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { 
@@ -145,15 +145,6 @@ const FitNearbyBounds: React.FC<{
   return null;
 };
 
-const MapClickHandler: React.FC<{ onClick: (coords: [number, number]) => void }> = ({ onClick }) => {
-  useMapEvents({
-    click(e) {
-      onClick([e.latlng.lat, e.latlng.lng]);
-    }
-  });
-  return null;
-};
-
 class FamilyMapErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { crashed: boolean; retryKey: number }
@@ -205,14 +196,6 @@ interface LocationHistoryEntry {
   coords: [number, number];
   status: string;
   timestamp: string;
-}
-
-interface SafetyZone {
-  favoriteId: string;
-  name: string;
-  type: FavoritePlace['type'];
-  coords: [number, number];
-  radiusKm: number;
 }
 
 interface MapSearchResult {
@@ -287,34 +270,6 @@ const getFavoriteIcon = (type: 'home' | 'work' | 'school' | 'other') => {
     case 'school': return GraduationCap;
     default: return Map;
   }
-};
-
-const getZoneLabel = (type: FavoritePlace['type']) => {
-  switch (type) {
-    case 'home': return 'Maison';
-    case 'work': return 'Travail';
-    case 'school': return 'École';
-    default: return 'Lieu';
-  }
-};
-
-const getMemberZoneStatus = (member: { pos: [number, number] | null }, zones: SafetyZone[]) => {
-  if (!member.pos || zones.length === 0) return null;
-  const nearest = zones
-    .map(zone => ({
-      zone,
-      distance: getHaversineDistance(member.pos![0], member.pos![1], zone.coords[0], zone.coords[1])
-    }))
-    .sort((a, b) => a.distance - b.distance)[0];
-
-  if (!nearest) return null;
-  const inside = nearest.distance <= nearest.zone.radiusKm;
-  return {
-    inside,
-    label: `${inside ? 'Dans la zone' : 'À proximité'} ${getZoneLabel(nearest.zone.type)}`,
-    distanceKm: nearest.distance,
-    zone: nearest.zone
-  };
 };
 
 const buildSearchUrl = (query: string, origin: [number, number] | null) => {
@@ -529,10 +484,10 @@ const favoriteTypeLabels: Record<FavoritePlace['type'], string> = {
 };
 
 const getFavoriteTypeDescription = (type: FavoritePlace['type']) => {
-  if (type === 'home') return 'sert de point de retour et de zone familiale';
-  if (type === 'school') return 'sert au suivi école et aux trajets enfants';
-  if (type === 'work') return 'sert aux trajets domicile-travail';
-  return 'sert de raccourci familial';
+  if (type === 'home') return 'votre maison';
+  if (type === 'school') return 'un établissement scolaire';
+  if (type === 'work') return 'un lieu de travail';
+  return 'un lieu utile';
 };
 
 export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, onUpdateMemberProfile }) => {
@@ -613,6 +568,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const [addingFavoriteName, setAddingFavoriteName] = useState('');
   const [addingFavoriteDetail, setAddingFavoriteDetail] = useState('');
   const [addingFavoriteType, setAddingFavoriteType] = useState<'home' | 'work' | 'school' | 'other'>('other');
+  const [favoriteEditorOpen, setFavoriteEditorOpen] = useState(false);
 
   // Search Marker placed temporarily on the map
   const [searchMarker, setSearchMarker] = useState<{ name: string; coords: [number, number] } | null>(null);
@@ -753,18 +709,6 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       if (requestId === nearbySearchRequestRef.current) setSearching(false);
     }
   };
-  const safetyZones = useMemo<SafetyZone[]>(() => {
-    return favorites
-      .filter(fav => ['home', 'work', 'school'].includes(fav.type))
-      .map(fav => ({
-        favoriteId: fav.id,
-        name: fav.name,
-        type: fav.type,
-        coords: fav.coords,
-        radiusKm: fav.type === 'home' ? 0.18 : 0.12
-      }));
-  }, [favorites]);
-
   useEffect(() => {
     const otherMemberLocation = members
       .filter(member => member.id !== activeMemberId)
@@ -1208,6 +1152,34 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     });
   };
 
+  const openFavoriteEditor = (
+    coords: [number, number],
+    name: string,
+    detail: string = '',
+    type: FavoritePlace['type'] = 'other'
+  ) => {
+    setAddingFavoriteCoords(coords);
+    setAddingFavoriteName(name);
+    setAddingFavoriteDetail(detail);
+    setAddingFavoriteType(type);
+    setFavoriteEditorOpen(true);
+  };
+
+  const saveFavoriteFromEditor = () => {
+    if (!addingFavoriteCoords || !addingFavoriteName.trim()) {
+      setMapNotice({ type: 'warning', message: "Ajoutez un nom pour enregistrer ce lieu." });
+      return;
+    }
+    saveFavoriteAt(
+      addingFavoriteCoords,
+      addingFavoriteType,
+      addingFavoriteName.trim(),
+      addingFavoriteDetail.trim()
+    );
+    setFavoriteEditorOpen(false);
+    setAddingFavoriteCoords(null);
+  };
+
   // Mapped members with real coordinates only. Unknown locations stay explicit in the list.
   const mappedMembers = members.map((m) => {
     const isMe = m.id === activeMemberId;
@@ -1231,8 +1203,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       distance,
       eta,
       hasLocation,
-      isHiddenOnMap: hiddenMemberIds.includes(m.id),
-      zoneStatus: getMemberZoneStatus({ pos }, safetyZones)
+      isHiddenOnMap: hiddenMemberIds.includes(m.id)
     };
   });
 
@@ -1253,7 +1224,6 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
   const visibleLocatedMembers = mappedMembers.filter(m => m.pos && !m.isHiddenOnMap).length;
   const membersWithoutLocation = mappedMembers.filter(m => !m.pos).length;
-  const activeSafetyZones = safetyZones.length;
   const locationFreshness = formatLocationFreshness(me?.lastLocatedAt);
 
   const statuses = [
@@ -1319,6 +1289,80 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                 Envoyer l'alerte
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {favoriteEditorOpen && addingFavoriteCoords && (
+        <div className="absolute inset-0 z-[2100] flex items-end justify-center bg-[#020712]/70 px-4 pb-5 pt-16 backdrop-blur-sm sm:items-center">
+          <div className="family-map-modal w-full max-w-sm rounded-3xl border border-white/10 bg-[#0F1E36] p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="family-map-modal-title text-base font-black text-white">Enregistrer ce lieu</p>
+                <p className="family-map-muted mt-1 text-xs font-medium text-white/55">Il apparaîtra ensuite dans vos lieux enregistrés.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setFavoriteEditorOpen(false);
+                  setAddingFavoriteCoords(null);
+                }}
+                className="family-map-secondary-action flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/65"
+                title="Fermer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <label className="family-map-muted mt-5 block text-[10px] font-black uppercase text-white/45">Type de lieu</label>
+            <div className="mt-2 grid grid-cols-4 gap-1.5">
+              {[
+                { type: 'home' as const, label: 'Maison', icon: HomeIcon },
+                { type: 'school' as const, label: 'École', icon: GraduationCap },
+                { type: 'work' as const, label: 'Travail', icon: Briefcase },
+                { type: 'other' as const, label: 'Autre', icon: MapPin }
+              ].map(({ type, label, icon: TypeIcon }) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setAddingFavoriteType(type)}
+                  className={`min-h-14 rounded-xl border px-1 py-2 text-[9px] font-black flex flex-col items-center justify-center gap-1 ${
+                    addingFavoriteType === type
+                      ? 'border-[#6C5CFF] bg-[#6C5CFF] text-white'
+                      : 'family-map-secondary-action border-white/10 bg-white/5 text-white/65'
+                  }`}
+                >
+                  <TypeIcon className="h-4 w-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <label className="family-map-muted mt-4 block text-[10px] font-black uppercase text-white/45">Nom</label>
+            <input
+              type="text"
+              value={addingFavoriteName}
+              onChange={(event) => setAddingFavoriteName(event.target.value)}
+              className="family-map-input mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#07111F] px-3 text-sm font-bold text-white outline-none"
+              placeholder="Ex. Maison, école des enfants..."
+            />
+
+            <label className="family-map-muted mt-4 block text-[10px] font-black uppercase text-white/45">Précision facultative</label>
+            <input
+              type="text"
+              value={addingFavoriteDetail}
+              onChange={(event) => setAddingFavoriteDetail(event.target.value)}
+              className="family-map-input mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#07111F] px-3 text-sm font-medium text-white outline-none"
+              placeholder="Adresse ou indication"
+            />
+
+            <button
+              type="button"
+              onClick={saveFavoriteFromEditor}
+              className="mt-5 min-h-12 w-full rounded-xl bg-[#6C5CFF] text-sm font-black text-white"
+            >
+              Enregistrer le lieu
+            </button>
           </div>
         </div>
       )}
@@ -1439,7 +1483,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                     <span className="family-map-muted text-[10px] text-white/50 block truncate mt-1">{formatted.subtitle}</span>
                     </div>
                   </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="mt-2 grid grid-cols-3 gap-1.5">
                     <button
                       type="button"
                       onClick={() => focusSearchResult(res)}
@@ -1447,6 +1491,19 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                     >
                       <MapPin className="h-3.5 w-3.5" />
                       Voir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const lat = Number(res.lat);
+                        const lon = Number(res.lon);
+                        if (!isValidMapCoords(lat, lon)) return;
+                        openFavoriteEditor([lat, lon], formatted.title, formatted.subtitle);
+                      }}
+                      className="family-map-secondary-action min-h-9 rounded-lg border border-white/10 bg-white/5 px-1 text-[9px] font-black text-white flex items-center justify-center gap-1"
+                    >
+                      <HomeIcon className="h-3.5 w-3.5" />
+                      Enregistrer
                     </button>
                     <button
                       type="button"
@@ -1566,31 +1623,6 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
             {nearbyResultCoords.length === 0 && <CenterMap center={mapCenter} />}
             <FitNearbyBounds points={nearbyResultCoords} origin={routeOrigin} />
 
-            <MapClickHandler onClick={(coords) => {
-              setSearchMarker({
-                name: "Point d'intérêt sélectionné 📍",
-                coords
-              });
-              setMapCenter(coords);
-              setSheetState('half');
-              setMapNotice({ type: 'info', message: "Point sélectionné. Vous pouvez l'enregistrer comme lieu familial ou lancer un itinéraire." });
-            }} />
-
-            {safetyZones.map((zone) => (
-              <Circle
-                key={zone.favoriteId}
-                center={zone.coords}
-                radius={zone.radiusKm * 1000}
-                pathOptions={{
-                  color: zone.type === 'home' ? '#00D26A' : zone.type === 'school' ? '#FFB020' : '#6C5CFF',
-                  fillColor: zone.type === 'home' ? '#00D26A' : zone.type === 'school' ? '#FFB020' : '#6C5CFF',
-                  fillOpacity: 0.08,
-                  opacity: 0.35,
-                  weight: 2
-                }}
-              />
-            ))}
-
             {/* Render dynamic route tracing from OSRM road points if active */}
             {routeTarget && routePoints.length > 0 && (
               <>
@@ -1683,156 +1715,26 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
             {/* Search Marker placed temporarily on the map */}
             {searchMarker && (
-              <Marker 
-                position={searchMarker.coords}
-                icon={L.divIcon({
-                  className: 'search-marker',
-                  html: `
-                    <div style="width: 36px; height: 36px; background: rgba(108, 92, 255, 0.2); border: 2px solid #6C5CFF; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.4); animation: pulse 2s infinite;">
-                      <span style="font-size: 16px;">🔍</span>
-                    </div>
-                  `,
-                  iconSize: [36, 36],
-                  iconAnchor: [18, 18]
-                })}
-              >
-                <Popup closeButton={false}>
-                  {addingFavoriteCoords ? (
-                    <div className="text-left min-w-[170px] p-2 space-y-2 text-white">
-                      <span className="text-[10px] font-extrabold text-[#FFB020] uppercase tracking-wider block">Ajouter un lieu familial</span>
-                      
-                      <div className="space-y-1.5">
-                        <div>
-                          <label className="text-[8px] font-extrabold text-white/50 block mb-0.5">NOM</label>
-                          <input 
-                            type="text"
-                            value={addingFavoriteName}
-                            onChange={(e) => setAddingFavoriteName(e.target.value)}
-                            className="w-full bg-[#07111F] border border-white/20 rounded px-2 py-0.5 text-[10px] text-white focus:outline-none focus:border-[#FFB020]"
-                            placeholder="Ex: Piscine"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-[8px] font-extrabold text-white/50 block mb-0.5">CATÉGORIE</label>
-                          <select
-                            value={addingFavoriteType}
-                            onChange={(e) => setAddingFavoriteType(e.target.value as FavoritePlace['type'])}
-                            className="w-full bg-[#07111F] border border-white/20 rounded px-1.5 py-0.5 text-[10px] text-white focus:outline-none"
-                          >
-                            <option value="home">Maison 🏠</option>
-                            <option value="work">Travail 💼</option>
-                            <option value="school">École 🏫</option>
-                            <option value="other">Autre 📍</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="text-[8px] font-extrabold text-white/50 block mb-0.5">DESCRIPTION</label>
-                          <input 
-                            type="text"
-                            value={addingFavoriteDetail}
-                            onChange={(e) => setAddingFavoriteDetail(e.target.value)}
-                            className="w-full bg-[#07111F] border border-white/20 rounded px-2 py-0.5 text-[10px] text-white focus:outline-none focus:border-[#FFB020]"
-                            placeholder="Ex: Entraînement"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex gap-1.5 pt-1.5 border-t border-white/10">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!addingFavoriteName.trim()) {
-                              setMapNotice({ type: 'warning', message: "Ajoutez un nom pour enregistrer ce lieu." });
-                              return;
-                            }
-                            const newFav: FavoritePlace = {
-                              id: `fav-${Date.now()}`,
-                              name: addingFavoriteName.trim(),
-                              type: addingFavoriteType,
-                              detail: addingFavoriteDetail.trim() || "Lieu favori",
-                              coords: addingFavoriteCoords
-                            };
-                            setFavorites(prev => [...prev, newFav]);
-                            setAddingFavoriteCoords(null);
-                            setSearchMarker(null);
-                            setMapNotice({ type: 'success', message: `${newFav.name} ajouté aux lieux familiaux.` });
-                          }}
-                          className="flex-1 py-1 rounded bg-[#FFB020] text-black text-[9px] font-extrabold hover:opacity-90 transition cursor-pointer shadow-md text-center"
-                        >
-                          Enregistrer
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAddingFavoriteCoords(null);
-                          }}
-                          className="flex-1 py-1 rounded bg-white/5 hover:bg-white/10 text-white text-[9px] font-bold transition cursor-pointer text-center"
-                        >
-                          Annuler
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center min-w-[140px] p-1 space-y-2">
-                      <span className="font-extrabold text-xs text-white block truncate max-w-[150px]">{searchMarker.name}</span>
-                      <span className="text-[9px] text-white/45 block">Définir ce point comme lieu familial</span>
-                      <div className="flex flex-col space-y-1">
-                        <div className="grid grid-cols-3 gap-1">
-                          {[
-                            { label: 'Maison', type: 'home' as const },
-                            { label: 'École', type: 'school' as const },
-                            { label: 'Travail', type: 'work' as const }
-                          ].map((item) => (
-                            <button
-                              key={item.type}
-                              onClick={() => {
-                                saveFavoriteAt(searchMarker.coords, item.type, item.label, searchMarker.name.split(',').slice(0, 2).join(', '));
-                                setSearchMarker(null);
-                              }}
-                              className="py-1.5 rounded bg-[#6C5CFF]/20 hover:bg-[#6C5CFF]/30 text-[#C9C3FF] text-[8px] font-black transition cursor-pointer"
-                            >
-                              {item.label}
-                            </button>
-                          ))}
-                        </div>
-                        <button
-                          onClick={() => {
-                            startRouteTo(searchMarker.name, searchMarker.coords);
-                          }}
-                          className="w-full py-2 rounded bg-[#00D26A] hover:bg-[#00B85C] text-[#07111F] text-[10px] font-black transition cursor-pointer flex items-center justify-center gap-1.5"
-                        >
-                          <Route className="h-3.5 w-3.5" />
-                          Itinéraire
-                        </button>
-                        <button
-                          onClick={() => {
-                            setAddingFavoriteCoords(searchMarker.coords);
-                            setAddingFavoriteName(searchMarker.name.split(',')[0]);
-                            setAddingFavoriteDetail(searchMarker.name.split(',').slice(1, 3).join(',').trim() || "Point d'intérêt");
-                            setAddingFavoriteType('other');
-                          }}
-                          className="w-full py-1.5 rounded bg-[#FFB020] hover:bg-[#E0981B] text-black text-[9px] font-bold transition cursor-pointer"
-                        >
-                          Ajouter un favori
-                        </button>
-                        <button
-                          onClick={() => setSearchMarker(null)}
-                          className="w-full py-1.5 rounded bg-white/5 hover:bg-white/10 text-white/70 text-[9px] font-bold transition cursor-pointer"
-                        >
-                          Fermer
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </Popup>
-              </Marker>
+              <CircleMarker
+                center={searchMarker.coords}
+                radius={11}
+                pathOptions={{ color: '#FFFFFF', fillColor: '#6C5CFF', fillOpacity: 1, weight: 3 }}
+              />
             )}
 
             {/* Mapped Family Members Markers */}
             {mappedMembers.filter((m) => m.pos && !m.isHiddenOnMap).map((m) => (
-              <Marker key={m.id} position={m.pos as [number, number]} icon={createCustomIcon(m as Member, m.isMe)}>
+              <Marker
+                key={m.id}
+                position={m.pos as [number, number]}
+                icon={createCustomIcon(m as Member, m.isMe)}
+                bubblingMouseEvents={false}
+                eventHandlers={{
+                  click: () => {
+                    if (m.isMe) setSheetState('half');
+                  }
+                }}
+              >
                 <Popup closeButton={false}>
                   <div className="text-center min-w-[120px]">
                     <div className="flex items-center justify-center space-x-1.5 mb-1">
@@ -1862,6 +1764,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                 <Marker 
                   key={fav.id} 
                   position={fav.coords} 
+                  bubblingMouseEvents={false}
                   icon={L.divIcon({
                     className: 'fav-marker',
                     html: `
@@ -1993,6 +1896,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
               </div>
             )}
 
+            {sheetState === 'half' && <>
             {!isSharing && (
               <div className="p-3 rounded-2xl bg-white/5 border border-white/8 flex items-start space-x-2.5">
                 <LockKeyhole className="w-4 h-4 text-[#FFB020] shrink-0 mt-0.5" />
@@ -2017,7 +1921,9 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
               </div>
             )}
 
-            <div className="grid grid-cols-5 gap-1.5 pt-2 border-t border-white/5">
+            <div>
+            <p className="mb-2 text-[9px] font-black uppercase text-white/35">Mon statut</p>
+            <div className="grid grid-cols-5 gap-1.5">
               {statuses.map((s) => {
                 const isActive = selectedStatus === s.value;
                 const isUrgent = s.value === '🚨 Urgence';
@@ -2043,6 +1949,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                 );
               })}
             </div>
+            </div>
+            </>}
 
             {/* EXPANDED CONTENT: Favorites addresses & Family Members Cards */}
             {sheetState === 'half' && (
@@ -2053,8 +1961,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                     <p className="text-[10px] font-bold text-white/50">Visibles</p>
                   </div>
                   <div className="rounded-2xl border border-[#6C5CFF]/15 bg-[#6C5CFF]/8 p-2 text-center">
-                    <p className="text-sm font-black text-[#9E94FF]">{activeSafetyZones}</p>
-                    <p className="text-[10px] font-bold text-white/50">Zones</p>
+                    <p className="text-sm font-black text-[#9E94FF]">{favorites.length}</p>
+                    <p className="text-[10px] font-bold text-white/50">Lieux</p>
                   </div>
                   <div className="rounded-2xl border border-[#FFB020]/15 bg-[#FFB020]/8 p-2 text-center">
                     <p className="text-sm font-black text-[#FFB020]">{membersWithoutLocation}</p>
@@ -2065,7 +1973,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                 {/* 1. Address Favorites Panel */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between px-1">
-                  <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest block">Lieux favoris</span>
+                  <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest block">Lieux enregistrés</span>
                     <button
                       onClick={() => {
                         setIsEditingFavorites(prev => !prev);
@@ -2078,56 +1986,15 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                   </div>
 
                   {routeOrigin && (
-                    <div className="rounded-2xl border border-white/8 bg-white/5 p-2 space-y-2">
-                      <p className="text-[9px] text-white/45 font-semibold leading-normal">
-                        Vous pouvez enregistrer votre position actuelle comme lieu de référence, ou rechercher une adresse plus précise en haut.
-                      </p>
-                      <div className="grid grid-cols-3 gap-1.5">
-                      {[
-                        { label: 'Maison', type: 'home' as const, detail: 'Position du foyer' },
-                        { label: 'Travail', type: 'work' as const, detail: 'Lieu de travail' },
-                        { label: 'École', type: 'school' as const, detail: 'Établissement scolaire' }
-                      ].map((item) => (
-                        <button
-                          key={item.type}
-                          type="button"
-                          onClick={() => saveFavoriteAt(routeOrigin, item.type, item.label, item.detail)}
-                          className="py-2 rounded-xl bg-white/5 border border-white/8 text-[9px] text-white/65 font-extrabold active:scale-95"
-                        >
-                          Définir {item.label}
-                        </button>
-                      ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {safetyZones.length > 0 && (
-                    <div className="grid grid-cols-1 gap-1.5">
-                      <p className="text-[8px] text-white/35 font-semibold px-1">
-                        Les zones sont créées automatiquement autour de Maison, École et Travail.
-                      </p>
-                      {safetyZones.map((zone) => {
-                        const membersInside = mappedMembers.filter(m => m.zoneStatus?.zone.favoriteId === zone.favoriteId && m.zoneStatus.inside);
-                        return (
-                          <button
-                            key={zone.favoriteId}
-                            type="button"
-                            onClick={() => setMapCenter(zone.coords)}
-                            className="p-2.5 rounded-2xl bg-[#00D26A]/8 border border-[#00D26A]/15 flex items-center justify-between text-left active:scale-98"
-                          >
-                            <div className="flex items-center space-x-2 min-w-0">
-                              <ShieldCheck className="w-4 h-4 text-[#00D26A] shrink-0" />
-                              <div className="min-w-0">
-                                <p className="text-[10px] font-extrabold text-white truncate">Zone {getZoneLabel(zone.type)} · {zone.name}</p>
-                                <p className="text-[8px] text-white/45 font-semibold">{Math.round(zone.radiusKm * 1000)} m autour du lieu</p>
-                              </div>
-                            </div>
-                            <span className="text-[9px] font-black text-[#00D26A] bg-[#00D26A]/10 px-2 py-1 rounded-xl">
-                              {membersInside.length}
-                            </span>
-                          </button>
-                        );
-                      })}
+                    <div className="rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/8 p-3">
+                      <button
+                        type="button"
+                        onClick={() => openFavoriteEditor(routeOrigin, 'Ma position actuelle', '', 'home')}
+                        className="w-full min-h-11 rounded-xl bg-[#6C5CFF] px-3 text-xs font-black text-white flex items-center justify-center gap-2"
+                      >
+                        <MapPin className="h-4 w-4" />
+                        Enregistrer ma position actuelle
+                      </button>
                     </div>
                   )}
 
@@ -2446,17 +2313,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                             </div>
                           </div>
 
-                          {(m.zoneStatus || etaTargets.length > 0 || m.isHiddenOnMap) && (
+                          {(etaTargets.length > 0 || m.isHiddenOnMap) && (
                             <div className="flex flex-wrap gap-1.5 pl-10">
-                              {m.zoneStatus && (
-                                <span className={`text-[8px] font-black px-2 py-1 rounded-lg border ${
-                                  m.zoneStatus.inside
-                                    ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]'
-                                    : 'bg-white/5 border-white/8 text-white/45'
-                                }`}>
-                                  {m.zoneStatus.label}
-                                </span>
-                              )}
                               {etaTargets.map(target => (
                                 <span key={`${m.id}-${target.label}`} className="text-[8px] font-black px-2 py-1 rounded-lg bg-white/5 border border-white/8 text-white/45 flex items-center gap-1">
                                   <Clock className="w-3 h-3" />
