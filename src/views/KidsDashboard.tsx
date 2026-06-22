@@ -9,7 +9,8 @@ import {
   Vote, 
   Hourglass, 
   ShieldAlert, 
-  Activity 
+  Activity,
+  Gamepad2
 } from 'lucide-react';
 import type { Member, ChoreTask, FamilyEvent, Trip, SchoolTask, Dish, DocumentFile, Transaction, SavingGoal, NotificationAlert, PocketMoneyChild, FamilyVote, MemoryLog, Foyer } from '../types';
 import { parseChoreTitle, serializeChoreTitle } from '../types';
@@ -536,6 +537,30 @@ export const KidsDashboard: React.FC<KidsDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={() => {
+          setActiveTab('menu');
+          setActiveModule('games');
+        }}
+        className="mb-6 flex w-full items-center justify-between gap-4 overflow-hidden rounded-[30px] border border-[#6C5CFF]/35 bg-gradient-to-r from-[#6C5CFF]/25 via-[#112240] to-[#FF4D6D]/20 p-5 text-left shadow-xl transition-transform active:scale-[0.98]"
+      >
+        <span className="flex min-w-0 items-center gap-4">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#6C5CFF] text-white shadow-lg shadow-[#6C5CFF]/25">
+            <Gamepad2 className="h-7 w-7" />
+          </span>
+          <span className="min-w-0">
+            <strong className="block text-base font-black text-white">Jeux en famille</strong>
+            <span className="mt-1 block text-[10px] font-bold leading-relaxed text-white/55">
+              Memory, Puissance 4, Mimes et aventures à plusieurs.
+            </span>
+          </span>
+        </span>
+        <span className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-[9px] font-black uppercase text-[#C4BEFF]">
+          Jouer
+        </span>
+      </button>
 
       {/* Main Widgets Section */}
       <div className="space-y-6">

@@ -1523,52 +1523,60 @@ export function FamilyGames({
                   )}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3 border-t border-white/8 pt-4">
-                {[0, 1].map(index => (
-                  <label key={index} className="flex items-center gap-2 rounded-2xl border border-white/8 bg-white/5 p-2">
-                    <input disabled={!isPremium} type="color" value={teamSettings.colors[index]} onChange={event => setTeamSettings(previous => ({ ...previous, colors: index === 0 ? [event.target.value, previous.colors[1]] : [previous.colors[0], event.target.value] }))} className="h-9 w-9 rounded-lg border-0 p-0 disabled:opacity-50" title={`Couleur équipe ${index + 1}`} />
-                    <input disabled={!isPremium} value={teamSettings.names[index]} maxLength={24} onChange={event => setTeamSettings(previous => ({ ...previous, names: index === 0 ? [event.target.value, previous.names[1]] : [previous.names[0], event.target.value] }))} className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none disabled:opacity-60" />
-                  </label>
-                ))}
-              </div>
-              <div className="space-y-3">
-                <span className="block text-[9px] font-black uppercase text-white/40">Composition des équipes</span>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {[0, 1].map(teamIndex => (
-                    <div key={teamIndex} className="rounded-2xl border border-white/8 bg-white/5 p-3">
-                      <strong className="block truncate text-xs text-white">{teamSettings.names[teamIndex]}</strong>
-                      <span className="mt-1 block text-[9px] text-white/40">
-                        {challengeTeamMemberIds[teamIndex].length > 0
-                          ? `Capitaine : ${members.find(member => member.id === challengeTeamMemberIds[teamIndex][0])?.name || 'À choisir'}`
-                          : 'Ajoutez au moins un membre'}
-                      </span>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {members.map(member => {
-                          const selected = challengeTeamMemberIds[teamIndex].includes(member.id);
-                          return (
-                            <button
-                              key={member.id}
-                              type="button"
-                              onClick={() => assignChallengeMember(member.id, teamIndex as 0 | 1)}
-                              className={`rounded-full border px-3 py-1.5 text-[9px] font-black ${selected ? 'border-[#00D26A]/35 bg-[#00D26A]/12 text-[#00D26A]' : 'border-white/8 text-white/45'}`}
-                            >
-                              {member.name}
-                            </button>
-                          );
-                        })}
-                      </div>
+              {isAdult ? (
+                <>
+                  <div className="grid grid-cols-2 gap-3 border-t border-white/8 pt-4">
+                    {[0, 1].map(index => (
+                      <label key={index} className="flex items-center gap-2 rounded-2xl border border-white/8 bg-white/5 p-2">
+                        <input disabled={!isPremium} type="color" value={teamSettings.colors[index]} onChange={event => setTeamSettings(previous => ({ ...previous, colors: index === 0 ? [event.target.value, previous.colors[1]] : [previous.colors[0], event.target.value] }))} className="h-9 w-9 rounded-lg border-0 p-0 disabled:opacity-50" title={`Couleur équipe ${index + 1}`} />
+                        <input disabled={!isPremium} value={teamSettings.names[index]} maxLength={24} onChange={event => setTeamSettings(previous => ({ ...previous, names: index === 0 ? [event.target.value, previous.names[1]] : [previous.names[0], event.target.value] }))} className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none disabled:opacity-60" />
+                      </label>
+                    ))}
+                  </div>
+                  <div className="space-y-3">
+                    <span className="block text-[9px] font-black uppercase text-white/40">Composition des équipes</span>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {[0, 1].map(teamIndex => (
+                        <div key={teamIndex} className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                          <strong className="block truncate text-xs text-white">{teamSettings.names[teamIndex]}</strong>
+                          <span className="mt-1 block text-[9px] text-white/40">
+                            {challengeTeamMemberIds[teamIndex].length > 0
+                              ? `Capitaine : ${members.find(member => member.id === challengeTeamMemberIds[teamIndex][0])?.name || 'À choisir'}`
+                              : 'Ajoutez au moins un membre'}
+                          </span>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {members.map(member => {
+                              const selected = challengeTeamMemberIds[teamIndex].includes(member.id);
+                              return (
+                                <button
+                                  key={member.id}
+                                  type="button"
+                                  onClick={() => assignChallengeMember(member.id, teamIndex as 0 | 1)}
+                                  className={`rounded-full border px-3 py-1.5 text-[9px] font-black ${selected ? 'border-[#00D26A]/35 bg-[#00D26A]/12 text-[#00D26A]' : 'border-white/8 text-white/45'}`}
+                                >
+                                  {member.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-              {!isPremium && (
+                  </div>
+                </>
+              ) : (
+                <p className="rounded-2xl border border-white/8 bg-white/5 p-3 text-[10px] font-bold text-white/45">
+                  Un parent peut personnaliser les équipes et gérer les récompenses.
+                </p>
+              )}
+              {!isPremium && isAdult && (
                 <button type="button" onClick={onTriggerPaywall} className="w-full rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/8 py-3 text-[10px] font-black text-[#FFB020]">
                   Personnaliser les équipes avec Premium
                 </button>
               )}
             </section>}
 
-            {hubView === 'progress' && (onAddEventDirect || setVotes || pendingRewards.length > 0) && (
+            {hubView === 'progress' && isAdult && (onAddEventDirect || setVotes || pendingRewards.length > 0) && (
               <section className="order-5 glass-panel rounded-[24px] border border-white/8 p-5 space-y-4">
                 <div>
                   <h3 className="text-sm font-black text-white">Liens avec la famille</h3>

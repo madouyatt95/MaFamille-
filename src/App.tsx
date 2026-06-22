@@ -11965,6 +11965,12 @@ function App() {
     }
 
     if (activeTab === 'menu' && activeModule === 'games') {
+      const activeRole = (appActiveMemberObj?.role || '').toLowerCase();
+      const activeAge = parseInt(appActiveMemberObj?.age || '0');
+      const isYoungProfile = activeRole.includes('enfant')
+        || activeRole.includes('child')
+        || activeRole.includes('adolescent')
+        || (activeAge > 0 && activeAge < 18);
       return (
         <FamilyGames
           members={appMembers}
@@ -11980,7 +11986,10 @@ function App() {
           onSendNotification={sendLocalNotification}
           rewardSettings={appFoyer?.malusSettings}
           onTriggerPaywall={() => setPaywallOpen(true)}
-          onBack={() => setActiveModule('')}
+          onBack={() => {
+            setActiveModule('');
+            if (isYoungProfile) setActiveTab('accueil');
+          }}
         />
       );
     }

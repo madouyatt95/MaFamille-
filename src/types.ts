@@ -731,7 +731,7 @@ export function getDefaultPermissions(role: string): Record<FamilyModule, Module
       const allowedToSee = [
         'accueil', 'timeline', 'agenda', 'courses', 'voyages', 'ecole', 'taches',
         'conseil_famille', 'messagerie', 'capsule_temporelle', 'repertoire_important',
-        'peacemaker', 'carte_familiale', 'menu_semaine', 'notifications', 'etablissement'
+        'peacemaker', 'carte_familiale', 'menu_semaine', 'jeux_famille', 'notifications', 'etablissement'
       ].includes(m);
       
       perms[m] = {
@@ -746,7 +746,7 @@ export function getDefaultPermissions(role: string): Record<FamilyModule, Module
     } else if (role === 'enfant' || role === 'child') {
       const allowedToSee = [
         'accueil', 'agenda', 'courses', 'voyages', 'ecole', 'taches', 'conseil_famille',
-        'histoires_soir', 'capsule_temporelle', 'peacemaker', 'menu_semaine'
+        'histoires_soir', 'capsule_temporelle', 'peacemaker', 'menu_semaine', 'jeux_famille'
       ].includes(m);
       
       perms[m] = {

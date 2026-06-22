@@ -5,7 +5,7 @@ import {
   Clock, Trophy, 
   Sparkles, 
   PlusCircle, ArrowLeft, ArrowRight, 
-  Coins, Bell, Camera
+  Coins, Bell, Camera, Gamepad2
 } from 'lucide-react';
 import type { Member, ChoreTask, FamilyEvent, SchoolTask, SavingGoal, Transaction, NotificationAlert, FamilyVote, Foyer, DocumentFile, Trip, MemoryLog, Dish, ChatGroup, ChatMessage, FamilyModule } from '../types';
 import { parseChoreTitle, serializeChoreTitle, getDefaultPermissions } from '../types';
@@ -1399,6 +1399,23 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
               </div>
             </div>
 
+            <button
+              type="button"
+              onClick={() => { setActiveTab('menu'); setActiveModule('games'); }}
+              className="md:col-span-2 flex items-center justify-between gap-4 rounded-[32px] border border-[#6C5CFF]/30 bg-gradient-to-r from-[#6C5CFF]/20 via-[#112240] to-[#FF4D6D]/15 p-5 text-left shadow-lg transition-transform active:scale-[0.99]"
+            >
+              <span className="flex min-w-0 items-center gap-4">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#6C5CFF] text-white">
+                  <Gamepad2 className="h-6 w-6" />
+                </span>
+                <span className="min-w-0">
+                  <strong className="block text-sm font-black text-white">Jeux en famille</strong>
+                  <span className="mt-1 block text-[10px] font-bold text-white/50">Parties rapides, tournois et défis privés.</span>
+                </span>
+              </span>
+              <ArrowRight className="h-5 w-5 shrink-0 text-[#C4BEFF]" />
+            </button>
+
           </div>
 
           {/* Active Family Council Vote Widget */}
@@ -2305,6 +2322,20 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
             <div className="space-y-3">
               <span className="text-[9px] font-black text-white/45 uppercase tracking-widest block font-sans">👨‍👩‍👧‍👦 Vie de Famille</span>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                {isModuleAllowed('jeux_famille') && (
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTab('menu'); setActiveModule('games'); }}
+                    className="bg-[#112240]/65 border border-white/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center space-y-2 hover:bg-[#112240]/90 hover:border-[#6C5CFF]/40 active:scale-95 transition-all aspect-square cursor-pointer w-full"
+                  >
+                    <Gamepad2 className="h-7 w-7 text-[#C4BEFF]" />
+                    <div>
+                      <h4 className="text-[10px] font-black text-white leading-tight">Jeux en famille</h4>
+                      <p className="mt-0.5 text-[8px] font-bold leading-none text-[#FFB020]">Jouer ensemble</p>
+                    </div>
+                  </button>
+                )}
+
                 {isModuleAllowed('menu_semaine') && (
                   <button 
                     onClick={() => { setActiveTab('menu'); setActiveModule('menus'); }}
