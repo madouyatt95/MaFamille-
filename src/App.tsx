@@ -2566,6 +2566,10 @@ function App() {
       },
       schoolOrEmployer: fm.schoolOrEmployer || '',
       photoUrl: isGeneratedAvatar(fm.photoUrl) ? '' : (fm.photoUrl || ''),
+      latitude: fm.latitude,
+      longitude: fm.longitude,
+      locationStatus: fm.locationStatus,
+      lastLocatedAt: fm.lastLocatedAt,
       hasExemption: fm.hasExemption || false,
       approved: fm.approved !== false,
       medicalHistory: [],
@@ -4413,24 +4417,86 @@ function App() {
       }
     });
 
-    const subMembers = foyerService.subscribeToChanges('foyer_members', foyer.id, () => {
-      foyerService.getFoyerMembers(foyer.id).then(membersList => {
-        const mapped = (membersList || []).map(mapFoyerMemberToMember);
-        setMembers(prev => {
-          const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
-          const sortedNew = [...mapped].sort((a, b) => a.id.localeCompare(b.id));
-          if (JSON.stringify(sortedPrev) === JSON.stringify(sortedNew)) return prev;
-          return mapped;
-        });
+    const subMembers = foyerService.subscribeToChanges('foyer_members', foyer.id, (payload: LooseValue) => {
+      if (!payload) return;
+      const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+      const memberId = String(row?.id || '');
+      if (!memberId) return;
 
-        // Instant Realtime Role and Exemption synchronization for the connected user
-        if (myMemberProfile) {
-          const updatedSelf = membersList.find(m => m.id === myMemberProfile.id);
-          if (updatedSelf) {
-            setMyMemberProfile(updatedSelf);
-          }
-        }
-      });
+      if (payload.eventType === 'DELETE') {
+        setMembers(previous => previous.filter(member => member.id !== memberId));
+        return;
+      }
+
+      const safePhotoUrl = typeof row.photo_url === 'string' && !row.photo_url.startsWith('data:')
+        ? row.photo_url
+        : undefined;
+      setMembers(previous => previous.map(member => {
+        if (member.id !== memberId) return member;
+        return mapFoyerMemberToMember({
+          id: memberId,
+          foyerId: row.foyer_id || foyer.id,
+          userId: row.user_id || null,
+          displayName: row.display_name || member.name,
+          role: row.role || 'guest',
+          photoUrl: safePhotoUrl ?? member.photoUrl,
+          age: row.age || member.age,
+          birthDate: row.birth_date || '',
+          bloodGroup: row.blood_group || member.bloodGroup,
+          allergies: row.allergies || [],
+          treatments: row.treatments || [],
+          emergencyContactName: row.emergency_contact_name || '',
+          emergencyContactPhone: row.emergency_contact_phone || '',
+          emergencyContactRelation: row.emergency_contact_relation || '',
+          schoolOrEmployer: row.school_or_employer || '',
+          joinedAt: row.joined_at || '',
+          latitude: row.latitude,
+          longitude: row.longitude,
+          locationStatus: row.location_status,
+          lastLocatedAt: row.last_located_at,
+          hasExemption: !!row.has_exemption,
+          approved: row.approved !== false,
+          notificationPrefs: row.notification_prefs || undefined
+        });
+      }));
+
+      setMyMemberProfile(previous => previous?.id === memberId ? {
+        ...previous,
+        displayName: row.display_name || previous.displayName,
+        role: row.role || previous.role,
+        photoUrl: safePhotoUrl ?? previous.photoUrl,
+        age: row.age || previous.age,
+        birthDate: row.birth_date || previous.birthDate,
+        bloodGroup: row.blood_group || previous.bloodGroup,
+        allergies: row.allergies || previous.allergies,
+        treatments: row.treatments || previous.treatments,
+        schoolOrEmployer: row.school_or_employer || previous.schoolOrEmployer,
+        hasExemption: !!row.has_exemption,
+        latitude: row.latitude,
+        longitude: row.longitude,
+        locationStatus: row.location_status,
+        lastLocatedAt: row.last_located_at,
+        approved: row.approved !== false
+      } : previous);
+    });
+
+    const subMemberLocations = foyerService.subscribeToChanges('family_member_locations', foyer.id, (payload: LooseValue) => {
+      if (!payload || payload.eventType === 'DELETE') return;
+      const row = payload.new;
+      const memberId = String(row?.member_id || '');
+      if (!memberId) return;
+      const locationUpdate = {
+        latitude: row.latitude,
+        longitude: row.longitude,
+        locationStatus: row.location_status,
+        lastLocatedAt: row.located_at
+      };
+      setMembers(previous => previous.map(member => member.id === memberId
+        ? { ...member, ...locationUpdate }
+        : member));
+      setMyMemberProfile(previous => previous?.id === memberId
+        ? { ...previous, ...locationUpdate }
+        : previous);
     });
 
     const subVehicles = foyerService.subscribeToChanges('vehicles', foyer.id, (payload: LooseValue) => {
@@ -4768,6 +4834,7 @@ function App() {
       if (subMessages) subMessages.unsubscribe();
       if (subMemories) subMemories.unsubscribe();
       if (subMembers) subMembers.unsubscribe();
+      if (subMemberLocations) subMemberLocations.unsubscribe();
       if (subVehicles) subVehicles.unsubscribe();
       if (subMaintenance) subMaintenance.unsubscribe();
       if (subTrips) subTrips.unsubscribe();
@@ -10655,6 +10722,10 @@ function App() {
         if (finalUpdates.schoolOrEmployer !== undefined) convertedUpdates.schoolOrEmployer = finalUpdates.schoolOrEmployer;
         if (finalUpdates.hasExemption !== undefined) convertedUpdates.hasExemption = finalUpdates.hasExemption;
         if (finalUpdates.userId !== undefined) convertedUpdates.userId = finalUpdates.userId;
+        if (finalUpdates.latitude !== undefined) convertedUpdates.latitude = finalUpdates.latitude;
+        if (finalUpdates.longitude !== undefined) convertedUpdates.longitude = finalUpdates.longitude;
+        if (finalUpdates.locationStatus !== undefined) convertedUpdates.locationStatus = finalUpdates.locationStatus;
+        if (finalUpdates.lastLocatedAt !== undefined) convertedUpdates.lastLocatedAt = finalUpdates.lastLocatedAt;
         
         return { ...m, ...convertedUpdates };
       }
@@ -10668,7 +10739,14 @@ function App() {
 
     if (foyer) {
       try {
-        await foyerService.updateMemberProfile(memberId, finalUpdates);
+        const locationKeys = new Set(['latitude', 'longitude', 'locationStatus', 'lastLocatedAt']);
+        const updateKeys = Object.keys(finalUpdates);
+        const isLocationOnly = updateKeys.length > 0 && updateKeys.every(key => locationKeys.has(key));
+        if (isLocationOnly) {
+          await foyerService.updateMemberLocation(foyer.id, memberId, finalUpdates);
+        } else {
+          await foyerService.updateMemberProfile(memberId, finalUpdates);
+        }
       } catch (e) {
         console.error("Erreur lors de la mise à jour du profil membre :", e);
       }

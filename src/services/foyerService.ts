@@ -19,8 +19,13 @@ type RealtimePayload = JsonRecord;
 type CreateFoyerResponse = { foyer_id: string; invite_code: string; name: string };
 type JoinFoyerResponse = { foyer_id: string; foyer_name: string; role: 'parent' | 'child' | 'guest' };
 
-const FOYER_MEMBER_COLUMNS = 'id, foyer_id, user_id, display_name, role, photo_url, age, birth_date, blood_group, allergies, treatments, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, school_or_employer, has_exemption, joined_at, latitude, longitude, location_status, last_located_at, approved, notification_prefs';
+// Avatars are fetched separately so legacy Base64 values never leave Postgres.
+const FOYER_MEMBER_COLUMNS = 'id, foyer_id, user_id, display_name, role, age, birth_date, blood_group, allergies, treatments, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, school_or_employer, has_exemption, joined_at, latitude, longitude, location_status, last_located_at, approved, notification_prefs';
 const FOYER_MEMBERSHIP_COLUMNS = `${FOYER_MEMBER_COLUMNS}, foyers(id, name, invite_code, invite_link, created_by, created_at, is_premium, max_members, premium_source, premium_plan, premium_status, premium_expires_at, stripe_customer_id, stripe_subscription_id, app_store_original_transaction_id, malus_settings)`;
+
+const isSafeAvatarUrl = (value: unknown): value is string => (
+  typeof value === 'string' && value.length > 0 && !value.startsWith('data:')
+);
 
 type FoyerDbRow = {
   id: string;
@@ -343,15 +348,43 @@ export const foyerService = {
     const supabase = getSupabaseClient();
     if (!supabase) return [];
 
-    const { data, error } = await supabase
-      .from('foyer_members')
-      .select(FOYER_MEMBER_COLUMNS)
-      .eq('foyer_id', foyerId);
+    const [membersResult, avatarsResult, locationsResult] = await Promise.all([
+      supabase
+        .from('foyer_members')
+        .select(FOYER_MEMBER_COLUMNS)
+        .eq('foyer_id', foyerId),
+      supabase
+        .from('foyer_members')
+        .select('id, photo_url')
+        .eq('foyer_id', foyerId)
+        .not('photo_url', 'is', null)
+        .not('photo_url', 'like', 'data:%')
+        .limit(50),
+      supabase
+        .from('family_member_locations')
+        .select('member_id, latitude, longitude, location_status, located_at')
+        .eq('foyer_id', foyerId)
+        .limit(50)
+    ]);
+
+    const { data, error } = membersResult;
 
     if (error) {
       console.error("Erreur lors de la récupération des membres :", error);
       return [];
     }
+
+    if (avatarsResult.error) {
+      console.warn("Chargement des avatars ignoré :", avatarsResult.error.message);
+    }
+    const avatarByMemberId = new Map(
+      (avatarsResult.data || [])
+        .filter(row => isSafeAvatarUrl(row.photo_url))
+        .map(row => [row.id, row.photo_url])
+    );
+    const locationByMemberId = new Map(
+      (locationsResult.data || []).map(row => [row.member_id, row])
+    );
 
     return (data || []).map(m => ({
       id: m.id,
@@ -359,7 +392,7 @@ export const foyerService = {
       userId: m.user_id,
       displayName: m.display_name,
       role: m.role,
-      photoUrl: m.photo_url,
+      photoUrl: avatarByMemberId.get(m.id),
       age: m.age,
       birthDate: m.birth_date,
       bloodGroup: m.blood_group,
@@ -371,10 +404,10 @@ export const foyerService = {
       schoolOrEmployer: m.school_or_employer,
       hasExemption: !!m.has_exemption,
       joinedAt: m.joined_at,
-      latitude: m.latitude,
-      longitude: m.longitude,
-      locationStatus: m.location_status,
-      lastLocatedAt: m.last_located_at,
+      latitude: locationByMemberId.get(m.id)?.latitude ?? m.latitude,
+      longitude: locationByMemberId.get(m.id)?.longitude ?? m.longitude,
+      locationStatus: locationByMemberId.get(m.id)?.location_status ?? m.location_status,
+      lastLocatedAt: locationByMemberId.get(m.id)?.located_at ?? m.last_located_at,
       approved: m.approved !== false,
       notificationPrefs: m.notification_prefs || undefined
     }));
@@ -640,6 +673,29 @@ export const foyerService = {
       console.error('[MyFamily+ DB] updateMemberProfile failed permanently:', message);
       // Ne pas planter l'application pour l'utilisateur, le localStorage a déjà été mis à jour
     }
+  },
+
+  async updateMemberLocation(
+    foyerId: string,
+    memberId: string,
+    updates: Pick<FoyerMemberProfileUpdate, 'latitude' | 'longitude' | 'locationStatus' | 'lastLocatedAt'>
+  ): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Supabase n'est pas configuré");
+
+    const { error } = await supabase
+      .from('family_member_locations')
+      .upsert({
+        foyer_id: foyerId,
+        member_id: memberId,
+        latitude: updates.latitude ?? null,
+        longitude: updates.longitude ?? null,
+        location_status: updates.locationStatus || null,
+        located_at: updates.lastLocatedAt || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'member_id' });
+
+    if (error) throw error;
   },
 
   // ============================================

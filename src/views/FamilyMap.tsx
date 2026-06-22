@@ -44,8 +44,8 @@ const createFavoriteId = (type: FavoritePlace['type']) => `fav-${Date.now()}-${t
 const MAX_SEARCH_RESULTS = 8;
 const NEARBY_RADIUS_METERS = 5000;
 const NEARBY_FETCH_LIMIT = 60;
-const LOCATION_PUBLISH_INTERVAL_MS = 15 * 60 * 1000;
-const LOCATION_PUBLISH_DISTANCE_KM = 0.1;
+const LOCATION_PUBLISH_INTERVAL_MS = 60 * 60 * 1000;
+const LOCATION_PUBLISH_DISTANCE_KM = 0.5;
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter'

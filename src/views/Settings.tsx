@@ -456,10 +456,10 @@ export const Settings: React.FC<SettingsProps> = ({
           displayName: profileName.trim(),
           photoUrl: profilePhoto
         };
-        await foyerService.updateMemberProfile(targetMemberId, updates);
-        
         if (onUpdateMemberProfile) {
-          onUpdateMemberProfile(targetMemberId, updates);
+          await onUpdateMemberProfile(targetMemberId, updates);
+        } else {
+          await foyerService.updateMemberProfile(targetMemberId, updates);
         }
 
         // Optimistic local update — immediately reflect in UI
@@ -471,7 +471,6 @@ export const Settings: React.FC<SettingsProps> = ({
           } : m));
         }
         setProfileMsg({ text: 'Profil cloud mis à jour avec succès ! ✨', type: 'success' });
-        if (onRefreshFoyer) await onRefreshFoyer();
       } else if (members && setMembers) {
         // Mode Local (Demo)
         setMembers(prev => prev.map(m => m.id === targetMemberId ? {
