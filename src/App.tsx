@@ -5,7 +5,7 @@ import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import type { User } from '@supabase/supabase-js';
 import { getConfiguredSupabaseAnonKey, getConfiguredSupabaseUrl } from './config/supabaseConfig';
-import { getGroceryItemEmoji, formatGroceryQty } from './utils/groceryDisplay';
+import { getGroceryItemEmoji } from './utils/groceryDisplay';
 
 
 import { parseChoreTitle, serializeChoreTitle, parsePocketMoneyTitle, serializePocketMoneyTitle } from './types';
@@ -237,6 +237,14 @@ const QuickActionsSheet = lazy(() => import('./components/QuickActionsSheet').th
 const Paywall = lazy(() => import('./components/Paywall').then(module => ({ default: module.Paywall })));
 const PasswordRecoveryView = lazy(() => import('./components/PasswordRecoveryView').then(module => ({ default: module.PasswordRecoveryView })));
 const CommuneHub = lazy(() => import('./components/modules/CommuneHub').then(module => ({ default: module.CommuneHub })));
+const GroceryRemainingPopup = lazy(() => import('./components/voice/GroceryRemainingPopup').then(module => ({ default: module.GroceryRemainingPopup })));
+const PendingGroceryPanel = lazy(() => import('./components/voice/PendingGroceryPanel').then(module => ({ default: module.PendingGroceryPanel })));
+const CoffreFortAvance = lazy(() => import('./components/modules/CoffreFortAvance').then(module => ({ default: module.CoffreFortAvance })));
+const Messagerie = lazy(() => import('./components/modules/Messagerie').then(module => ({ default: module.Messagerie })));
+const VehiclesModule = lazy(() => import('./components/modules/VehiclesModule').then(module => ({ default: module.VehiclesModule })));
+const PetsModule = lazy(() => import('./components/modules/PetsModule').then(module => ({ default: module.PetsModule })));
+const ContactsImportants = lazy(() => import('./components/modules/ContactsImportants').then(module => ({ default: module.ContactsImportants })));
+const MaVieSimulator = lazy(() => import('./components/modules/MaVieSimulator').then(module => ({ default: module.MaVieSimulator })));
 
 const AppLoadingFallback = () => (
   <div className="min-h-screen bg-[#07111F] text-white flex items-center justify-center px-4 font-sans">
@@ -13040,6 +13048,60 @@ function App() {
         );
       }
 
+      const activeRole = (appActiveMemberObj?.role || '').toLowerCase();
+      const canManageFamily = activeRole.includes('chef') || activeRole.includes('gestionnaire') || activeRole.includes('parent') || activeRole.includes('admin');
+      const standaloneModule = (content: LooseValue) => (
+        <div className="mx-auto min-h-screen max-w-4xl px-4 pb-32 pt-6 text-white">
+          <button onClick={() => setActiveModule('')} className="mb-5 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-white/60 transition hover:text-white">← Retour aux espaces</button>
+          {content}
+        </div>
+      );
+
+      if (activeModule === 'carte') return standaloneModule(<FamilyMap members={appMembers} activeMemberId={appActiveMemberId} onUpdateMemberProfile={handleUpdateMemberProfile} />);
+      if (activeModule === 'documents' || activeModule === 'demarches') return standaloneModule(<CoffreFortAvance
+        key={activeModule}
+        documents={appDocuments}
+        setDocuments={setDocuments}
+        members={appMembers}
+        demarches={appDemarches}
+        setDemarches={setDemarches}
+        packs={justificatifPacks}
+        setPacks={setJustificatifPacks}
+        onAddEvent={(title, dateTime) => {
+          if (!isPremium) {
+            const currentMonth = new Date().toISOString().substring(0, 7);
+            const monthlyEventsCount = events.filter(event => event.dateTime.startsWith(currentMonth)).length;
+            if (monthlyEventsCount >= 10) {
+              setPaywallOpen(true);
+              return;
+            }
+          }
+          const newEvent: FamilyEvent = {
+            id: `evt-dem-${Date.now()}`,
+            title: `📋 ${title}`,
+            type: 'other',
+            dateTime,
+            time: '09:00',
+            done: false
+          };
+          setEvents(previousEvents => [newEvent, ...previousEvents]);
+        }}
+        isPremium={isPremium}
+        onTriggerPaywall={() => setPaywallOpen(true)}
+        onAddTransaction={handleAddTransaction}
+        defaultTab={activeModule === 'demarches' ? 'demarches' : 'docs'}
+        foyerId={appFoyer?.id}
+      />);
+      if (activeModule === 'messagerie') return standaloneModule(<Messagerie members={appMembers} activeMemberId={appActiveMemberId} groups={chatGroups} setGroups={setChatGroups} messages={chatMessages} setMessages={setChatMessages} initialGroupId={initialChatGroupId} isPremium={isPremium} onTriggerPaywall={() => setPaywallOpen(true)} />);
+      if (activeModule === 'vehicules') return standaloneModule(<VehiclesModule vehicles={appVehicles} setVehicles={setVehicles} accounts={accounts} transactions={appTransactions} isParent={canManageFamily} onAddTransaction={handleAddTransaction} onAddEventDirect={handleAddEvent} />);
+      if (activeModule === 'animaux') return standaloneModule(<PetsModule pets={appPets} setPets={setPets} documents={appDocuments} accounts={accounts} isParent={canManageFamily} onAddTransaction={handleAddTransaction} onAddEventDirect={handleAddEvent} />);
+      if (activeModule === 'capsule') return standaloneModule(<CapsuleTemporelle memories={memories} setMemories={setMemories} activeMemberId={appActiveMemberId} isPremium={isPremium} onTriggerPaywall={() => setPaywallOpen(true)} members={appMembers} />);
+      if (activeModule === 'conseil') return standaloneModule(<ConseilFamille votes={appVotes} setVotes={setVotes} activeMemberId={appActiveMemberId} members={appMembers} />);
+      if (activeModule === 'peacemaker') return standaloneModule(<PeaceMaker isPremium={isPremium} onTriggerPaywall={() => setPaywallOpen(true)} />);
+      if (activeModule === 'mavie') return standaloneModule(<MaVieSimulator />);
+      if (activeModule === 'conteur') return standaloneModule(<ConteurIA onBack={() => setActiveModule('')} members={appMembers} isPremium={isPremium} onTriggerPaywall={() => setPaywallOpen(true)} />);
+      if (activeModule === 'contacts') return standaloneModule(<ContactsImportants canManage={canManageFamily} />);
+
       if (!activeModule) {
         return (
           <MenuHubLanding
@@ -14085,174 +14147,20 @@ function App() {
               </div>
             )}
 
-            {pendingGroceryItems && pendingGroceryItems.length > 0 && !isEditingPendingGrocery && (
-              <div className="bg-white/5 border border-white/10 rounded-[20px] p-4 text-xs font-semibold text-white text-left space-y-4 animate-fade-in">
-                <div className="text-white/60 font-bold border-b border-white/5 pb-2">
-                  🛒 Ajouté à la liste de courses :
-                </div>
-                <div className="space-y-3 max-h-40 overflow-y-auto pr-1">
-                  {pendingGroceryItems.map((item, idx) => {
-                    const emoji = getGroceryItemEmoji(item.name);
-                    
-                    return (
-                      <div key={idx} className="flex flex-col space-y-1 bg-white/5 p-2.5 rounded-xl border border-white/5">
-                        <div className="text-white text-sm font-extrabold flex items-center gap-1.5">
-                          <span>{emoji}</span>
-                          <span>{item.name}</span>
-                        </div>
-                        <div className="text-white/60 text-[10px] flex justify-between">
-                          <span>Catégorie : {item.category}</span>
-                          <span>Quantité : {item.quantity}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <button
-                    onClick={() => {
-                      if (!pendingGroceryItems) return;
-                      pendingGroceryItems.forEach(item => {
-                        handleAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
-                      });
-                      setVoiceFeedback(`🛒 Action : Articles ajoutés avec succès !`);
-                      
-                      const toastMsg = pendingGroceryItems.length === 1 
-                        ? `${pendingGroceryItems[0].name} ajouté à la liste` 
-                        : `${pendingGroceryItems.map(item => item.name).join(', ')} ajoutés à la liste`;
-
-                      setPendingGroceryItems(null);
-                      closeVoiceAssistantAfterDelay(1500, 'inactif', {
-                        tab: 'menu',
-                        module: 'courses',
-                        toastMessage: toastMsg
-                      });
-                    }}
-                    className="flex-1 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:brightness-110 active:scale-95 text-black font-extrabold uppercase text-[10px] tracking-wider transition-all cursor-pointer text-center animate-pulse"
-                  >
-                    Valider
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsEditingPendingGrocery(true);
-                    }}
-                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 active:scale-95 text-white font-extrabold uppercase text-[10px] tracking-wider transition-all cursor-pointer text-center"
-                  >
-                    Modifier
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {pendingGroceryItems && pendingGroceryItems.length > 0 && isEditingPendingGrocery && (
-              <div className="bg-white/5 border border-white/10 rounded-[20px] p-4 text-xs text-white text-left space-y-4 animate-fade-in">
-                <div className="text-white/60 font-bold border-b border-white/5 pb-2">
-                  ✏️ Modifier les articles :
-                </div>
-                <div className="space-y-4 max-h-52 overflow-y-auto pr-1">
-                  {pendingGroceryItems.map((item, idx) => (
-                    <div key={idx} className="space-y-2 bg-white/5 p-3 rounded-xl border border-white/5">
-                      <div>
-                        <label className="text-[10px] text-white/40 uppercase font-black tracking-wider block mb-1">Nom du produit</label>
-                        <input
-                          type="text"
-                          value={item.name}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setPendingGroceryItems(prev => {
-                              if (!prev) return null;
-                              const updated = [...prev];
-                              updated[idx] = { ...updated[idx], name: val };
-                              return updated;
-                            });
-                          }}
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] text-white/40 uppercase font-black tracking-wider block mb-1">Catégorie</label>
-                          <select
-                            value={item.category}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setPendingGroceryItems(prev => {
-                                if (!prev) return null;
-                                const updated = [...prev];
-                                updated[idx] = { ...updated[idx], category: val };
-                                return updated;
-                              });
-                            }}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
-                          >
-                            <option value="Fruits & Légumes" className="bg-[#07111F]">Fruits & Légumes</option>
-                            <option value="Produits Frais" className="bg-[#07111F]">Produits Frais</option>
-                            <option value="Boulangerie" className="bg-[#07111F]">Boulangerie</option>
-                            <option value="Boucherie" className="bg-[#07111F]">Boucherie</option>
-                            <option value="Épicerie" className="bg-[#07111F]">Épicerie</option>
-                            <option value="Boissons" className="bg-[#07111F]">Boissons</option>
-                            <option value="Surgelés" className="bg-[#07111F]">Surgelés</option>
-                            <option value="Hygiène" className="bg-[#07111F]">Hygiène</option>
-                            <option value="Maison" className="bg-[#07111F]">Maison</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-white/40 uppercase font-black tracking-wider block mb-1">Quantité</label>
-                          <input
-                            type="text"
-                            value={item.quantity}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setPendingGroceryItems(prev => {
-                                if (!prev) return null;
-                                const updated = [...prev];
-                                updated[idx] = { ...updated[idx], quantity: val };
-                                return updated;
-                              });
-                            }}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      if (!pendingGroceryItems) return;
-                      pendingGroceryItems.forEach(item => {
-                        handleAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
-                      });
-                      setVoiceFeedback(`🛒 Action : Articles ajoutés après modification !`);
-                      
-                      const toastMsg = pendingGroceryItems.length === 1 
-                        ? `${pendingGroceryItems[0].name} ajouté à la liste` 
-                        : `${pendingGroceryItems.map(item => item.name).join(', ')} ajoutés à la liste`;
-
-                      setPendingGroceryItems(null);
-                      setIsEditingPendingGrocery(false);
-                      closeVoiceAssistantAfterDelay(1500, 'inactif', {
-                        tab: 'menu',
-                        module: 'courses',
-                        toastMessage: toastMsg
-                      });
-                    }}
-                    className="flex-1 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:brightness-110 active:scale-95 text-black font-extrabold uppercase text-[10px] tracking-wider transition-all cursor-pointer text-center"
-                  >
-                    Enregistrer & Valider
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsEditingPendingGrocery(false);
-                    }}
-                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 active:scale-95 text-white font-extrabold uppercase text-[10px] tracking-wider transition-all cursor-pointer text-center"
-                  >
-                    Retour
-                  </button>
-                </div>
-              </div>
-            )}
+            {pendingGroceryItems && pendingGroceryItems.length > 0 && <Suspense fallback={null}><PendingGroceryPanel
+              items={pendingGroceryItems}
+              editing={isEditingPendingGrocery}
+              onItemsChange={setPendingGroceryItems}
+              onEditingChange={setIsEditingPendingGrocery}
+              onValidate={(items, edited) => {
+                items.forEach(item => handleAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite));
+                setVoiceFeedback(edited ? '🛒 Action : Articles ajoutés après modification !' : '🛒 Action : Articles ajoutés avec succès !');
+                const toastMessage = items.length === 1 ? `${items[0].name} ajouté à la liste` : `${items.map(item => item.name).join(', ')} ajoutés à la liste`;
+                setPendingGroceryItems(null);
+                setIsEditingPendingGrocery(false);
+                closeVoiceAssistantAfterDelay(1500, 'inactif', { tab: 'menu', module: 'courses', toastMessage });
+              }}
+            /></Suspense>}
 
             {voiceAmbiguousTravel && ambiguousTravelChoices.length > 0 && (
               <div className="space-y-2 pt-2 animate-fade-in border-t border-white/5">
@@ -14568,85 +14476,15 @@ function App() {
         </div>
       )}
 
-      {showGroceryPopup && (
-        <div 
-          onClick={() => {
-            setShowGroceryPopup(false);
-            setActiveTab('menu');
-            setActiveModule('courses');
-            setExternalGroceryFilter('pending');
-          }}
-          className="fixed inset-0 bg-[#07111F]/90 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-fade-in"
-        >
-          <div 
-            onClick={(e) => e.stopPropagation()}
-            className="glass-panel border border-white/15 rounded-[40px] p-6 sm:p-8 max-w-md w-full relative shadow-[0_20px_50px_rgba(255,77,109,0.25)] flex flex-col max-h-[85vh]"
-          >
-            {/* Close button X */}
-            <button
-              onClick={() => {
-                setShowGroceryPopup(false);
-                setActiveTab('menu');
-                setActiveModule('courses');
-                setExternalGroceryFilter('pending');
-              }}
-              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-white/60 hover:text-white text-xs font-bold flex items-center justify-center border border-white/10 cursor-pointer"
-            >
-              ✕
-            </button>
-
-            {/* Header */}
-            <div className="text-center space-y-2 pb-4 border-b border-white/5">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF4D6D] bg-[#FF4D6D]/10 px-3 py-1 rounded-full">
-                Courses
-              </span>
-              <h2 className="text-xl font-extrabold text-white">Articles restants</h2>
-              <p className="text-xs text-white/50 font-bold uppercase tracking-wider">
-                {groceries.filter(g => !g.checked).length} articles à acheter
-              </p>
-            </div>
-
-            {/* List */}
-            <div className="flex-1 overflow-y-auto py-4 space-y-2 pr-1 no-scrollbar min-h-[150px]">
-              {groceries.filter(g => !g.checked).length === 0 ? (
-                <div className="text-center py-8 text-white/40 text-xs italic">
-                  🛒 Aucun article restant à acheter !
-                </div>
-              ) : (
-                groceries.filter(g => !g.checked).map(g => (
-                  <div 
-                    key={g.id}
-                    className="flex justify-between items-center bg-white/5 border border-white/5 px-4 py-3 rounded-2xl transition hover:bg-white/8 hover:border-white/10"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <span className="text-xl">{getGroceryItemEmoji(g.name)}</span>
-                      <span className="text-xs font-bold text-white">{g.name}</span>
-                    </div>
-                    <span className="text-[10px] font-extrabold text-white/40 bg-white/5 border border-white/8 px-2.5 py-1 rounded-lg">
-                      {formatGroceryQty(g.quantity)}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="pt-4 border-t border-white/5">
-              <button
-                onClick={() => {
-                  setShowGroceryPopup(false);
-                  setActiveTab('menu');
-                  setActiveModule('courses');
-                  setExternalGroceryFilter('pending');
-                }}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#FF4D6D] to-[#FFB020] text-white text-xs font-bold tracking-wider uppercase shadow-lg active:scale-98 transition-all cursor-pointer"
-              >
-                Ouvrir la Liste
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {showGroceryPopup && <Suspense fallback={null}><GroceryRemainingPopup
+        groceries={groceries}
+        onOpenList={() => {
+          setShowGroceryPopup(false);
+          setActiveTab('menu');
+          setActiveModule('courses');
+          setExternalGroceryFilter('pending');
+        }}
+      /></Suspense>}
 
       {/* Floating Profile Switcher for Kids Mode Escape */}
       {isKidMode && activeMemberObj && (

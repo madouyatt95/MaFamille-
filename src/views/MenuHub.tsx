@@ -1,16 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-useless-assignment -- legacy Supabase and module payloads still use broad shapes; tracked in docs/lint_cleanup_remaining.md; legacy branching keeps intermediate variables for clarity */
 import React, { lazy, Suspense, useState, useEffect, useRef, useMemo } from 'react';
-import { detectGroceryCategory, parseSmartNaturalSentence, getGroceryItemEmoji, formatGroceryQty, POPULAR_GROCERIES } from '../utils/groceryParser';
+import { getGroceryItemEmoji, formatGroceryQty } from '../utils/groceryDisplay';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
-import { PREMIUM_MODULE_FEATURES } from '../utils/premiumFeatures';
 import { compressImageToBlob, dataUrlToBlob, extensionFromMimeType, isDataUrl, uploadBlobToStorage } from '../utils/imageCompressor';
 import { 
-  FolderLock, 
   HeartPulse, 
   ShoppingCart, 
-  Brush, 
-  GraduationCap, 
   ShieldCheck, 
   ArrowLeft,
   AlertCircle,
@@ -18,24 +14,15 @@ import {
   Check,
   Plus,
   Calendar,
-  Layers,
-  Car,
   Home as HomeIcon,
   Plane,
-  Dog,
   Coins,
   Sparkles,
-  Camera,
-  Users,
-  HeartHandshake,
   Lock,
   UtensilsCrossed,
   Mic,
   Trash2,
   Edit3,
-  Map as MapIcon,
-  BookOpen,
-  Wrench,
   Save,
   X,
   Phone,
@@ -46,8 +33,7 @@ import {
   Archive,
   RotateCcw,
   Filter,
-  AlertTriangle,
-  Gamepad2
+  AlertTriangle
 } from 'lucide-react';
 import type { 
   DocumentFile, 
@@ -90,7 +76,6 @@ const PeaceMaker = lazy(() => import('../components/modules/PeaceMaker').then(mo
 const MaVieSimulator = lazy(() => import('../components/modules/MaVieSimulator').then(module => ({ default: module.MaVieSimulator })));
 const CoffreFortAvance = lazy(() => import('../components/modules/CoffreFortAvance').then(module => ({ default: module.CoffreFortAvance })));
 const Messagerie = lazy(() => import('../components/modules/Messagerie').then(module => ({ default: module.Messagerie })));
-const WidgetMeteo = lazy(() => import('../components/modules/WidgetMeteo').then(module => ({ default: module.WidgetMeteo })));
 const FamilyMap = lazy(() => import('./FamilyMap').then(module => ({ default: module.FamilyMap })));
 const ConteurIA = lazy(() => import('../components/modules/ConteurIA').then(module => ({ default: module.ConteurIA })));
 const ContactsImportants = lazy(() => import('../components/modules/ContactsImportants').then(module => ({ default: module.ContactsImportants })));
@@ -504,6 +489,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
     }
   }, [externalGroceryFilter]);
   const [showGrocerySuggestions, setShowGrocerySuggestions] = useState(false);
+  const [popularGroceries, setPopularGroceries] = useState<string[]>([]);
   const [grocerySort, setGrocerySort] = useState<'custom' | 'alphabetical' | 'parcours'>('custom');
   
   // Archiving states
@@ -549,7 +535,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   // Suggestions d'articles de courses intelligentes
   const grocerySuggestions = React.useMemo(() => {
     if (!newGroceryName.trim()) return [];
-    const popularGroceries = POPULAR_GROCERIES;
     const existingNames = groceries ? groceries.map(g => g.name) : [];
     const allCandidates = Array.from(new Set([...existingNames, ...popularGroceries]));
     const query = newGroceryName.toLowerCase().trim();
@@ -559,7 +544,12 @@ export const MenuHub: React.FC<MenuHubProps> = ({
         return itemLower.includes(query) && itemLower !== query;
       })
       .slice(0, 5);
-  }, [newGroceryName, groceries]);
+  }, [newGroceryName, groceries, popularGroceries]);
+
+  useEffect(() => {
+    if (activeModule !== 'courses' && activeModule !== 'menus') return;
+    void import('../utils/groceryParser').then(module => setPopularGroceries(module.POPULAR_GROCERIES));
+  }, [activeModule]);
 
   // Form states for meals
   const [mealDay, setMealDay] = useState('Lun');
@@ -1117,42 +1107,8 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [adjustmentAccountId, setAdjustmentAccountId] = useState('');
   const [isAdjusting, setIsAdjusting] = useState(false);
 
-  // Dynamically calculate pending vaccines for the active member only
-  const pendingVaccines = (vaccines || []).filter((v) => v.memberId === activeMemberId && v.status === 'À faire').length;
-
   const activeMember = members.find(m => m.id === activeMemberId);
   const groceryDerogation = activeMember ? !!activeMember.hasExemption : false;
-
-  const modules = useMemo(() => [
-    { id: 'conseil', title: 'Conseil de Famille', desc: 'Sondages actifs & Charte de vie', badge: 'Coopération', icon: Users, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
-    { id: 'conteur', title: 'Histoires du Soir', desc: 'Contes IA personnalisés interactifs', badge: 'Plus', icon: BookOpen, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
-    { id: 'taches', title: 'Tâches', desc: 'Répartition des tâches et suivi', badge: `${tasks.filter(t => !t.done).length} en cours`, icon: Brush, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
-    { id: 'argent', title: 'Argent de poche & confiance', desc: 'Missions, récompenses et suivi familial', badge: 'Confiance', icon: Coins, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
-    { id: 'games', title: 'Jeux en famille', desc: 'Memory, Puissance 4 et défis à plusieurs', badge: 'Nouveau', icon: Gamepad2, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
-    { id: 'ecole', title: 'École & Devoirs', desc: 'Tuteur IA, devoirs & quizzes', badge: `${schoolTasks.filter(t => !t.done).length} devoirs`, icon: GraduationCap, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
-    { id: 'logement', title: 'Logement', desc: 'Maintenance et garanties', badge: 'Équipements', icon: HomeIcon, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
-    { id: 'agenda', title: 'Agenda Familial', desc: 'Calendrier partagé de la maison', badge: 'Calendrier', icon: Calendar, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' },
-    { id: 'courses', title: 'Courses & Éco-Chef', desc: 'Liste de courses & Éco-Chef Anti-Gaspi', badge: `${groceries.filter(g => !g.checked).length} articles`, icon: ShoppingCart, color: 'text-[#FFB020] bg-[#FFB020]/10 hover:border-[#FFB020]/30' },
-    { id: 'sante', title: 'Santé', desc: 'Carnet médical et rendez-vous', badge: pendingVaccines > 0 ? `${pendingVaccines} vaccin${pendingVaccines > 1 ? 's' : ''}` : 'À jour', icon: HeartPulse, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
-    { id: 'voyages', title: 'Voyages & Valise IA', desc: 'Activités & Valise IA personnalisée', badge: 'Préparation', icon: Plane, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
-    { id: 'documents', title: 'Documents', desc: 'Coffre-fort sécurisé pour vos documents', badge: `${documents.length} fichiers`, icon: FolderLock, color: 'text-[#4F8CFF] bg-[#4F8CFF]/10 hover:border-[#4F8CFF]/30' },
-    { id: 'vehicules', title: 'Véhicules', desc: 'Assurances et entretiens', badge: 'Garage', icon: Car, color: 'text-[#4F8CFF] bg-[#4F8CFF]/10 hover:border-[#4F8CFF]/30' },
-    { id: 'animaux', title: 'Animaux', desc: 'Vaccins et vétérinaire', badge: 'Compagnons', icon: Dog, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
-    { id: 'capsule', title: 'Capsule Temporelle', desc: 'Album de souvenirs & Gazette', badge: 'Souvenirs', icon: Camera, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/30' },
-    { id: 'contacts', title: 'Répertoire Important', desc: 'Numéros utiles & urgences directes', badge: 'Urgent', icon: Phone, color: 'text-red-500 bg-red-500/10 hover:border-red-500/30' },
-    { id: 'peacemaker', title: 'Médiateur familial IA', desc: 'Aide à résoudre les petits conflits', badge: 'Médiation', icon: HeartHandshake, color: 'text-[#00D26A] bg-[#00D26A]/10 hover:border-[#00D26A]/30' },
-    { id: 'settings', title: 'Réglages', desc: 'Configuration de l\'application', badge: 'Système', icon: Wrench, color: 'text-white/50 bg-white/5 hover:border-white/20' },
-    { id: 'carte', title: 'Carte Familiale', desc: 'Localisation sécurisée en temps réel', badge: 'En direct', icon: MapIcon, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/30' }
-  ], [documents.length, groceries, pendingVaccines, schoolTasks, tasks]);
-
-  const visibleModules = useMemo(() => {
-    return modules.filter(mod => {
-      const familyModKey = modIdToFamilyModule[mod.id];
-      if (!familyModKey) return true;
-      const perm = activePermissions[familyModKey];
-      return perm ? perm.voir : true;
-    });
-  }, [modules, activePermissions]);
 
   const handleGrocerySubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1208,10 +1164,11 @@ export const MenuHub: React.FC<MenuHubProps> = ({
         setIsListening(true);
       };
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = async (event: any) => {
         const transcript = event.results[0][0].transcript.trim();
         
         const activeMemberName = members.find(m => m.id === activeMemberId)?.name || 'Foyer';
+        const { parseSmartNaturalSentence } = await import('../utils/groceryParser');
         const parsedItems = parseSmartNaturalSentence(transcript, activeMemberName);
         parsedItems.forEach(item => {
           onAddGroceryItem(item.name, item.category, item.quantity, item.meal, item.addedBy, !!item.isFavorite);
@@ -1629,85 +1586,6 @@ export const MenuHub: React.FC<MenuHubProps> = ({
             
           </form>
         </div>
-      )}
-
-      {/* Main Grid dashboard (Screen 4 Layout) */}
-      {!activeModule && (
-        <>
-          <WidgetMeteo />
-          
-          {/* Dashboard Head */}
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center space-x-3">
-              <div className="p-3 rounded-2xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF]">
-                <Layers className="w-6 h-6" />
-              </div>
-              <div>
-                <h1 className="text-xl font-extrabold text-white tracking-tight">Espaces famille</h1>
-                <p className="text-xs text-white/50 font-medium font-sans">{visibleModules.length} module{visibleModules.length > 1 ? 's' : ''} disponible{visibleModules.length > 1 ? 's' : ''}</p>
-              </div>
-            </div>
-
-            {/* Elegant Static Premium Badge (No bypass buttons) */}
-            {isPremium && (
-              <div className="text-right">
-                <span className="px-3.5 py-1.8 rounded-full bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] text-white text-[9.5px] font-black uppercase tracking-wider shadow-md shadow-[#6C5CFF]/15 animate-fade-in">
-                  ✨ PLUS
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Single Unified Modules Grid (17 modules) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {visibleModules.map((mod: any) => {
-              const Icon = mod.icon;
-              return (
-                <button
-                  key={mod.id}
-                  onClick={() => {
-                    const premiumFeature = PREMIUM_MODULE_FEATURES[mod.id];
-                    if (premiumFeature && !isPremium) {
-                      onTriggerPaywall?.();
-                      return;
-                    }
-                    setActiveModule(mod.id);
-                  }}
-                  className="glass-panel rounded-[28px] p-5 text-left border border-white/6 flex flex-col justify-between h-[150px] cursor-pointer transition-all hover:bg-white/8 hover:translate-y-[-2px] group"
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <div className={`p-3 rounded-[18px] ${mod.color} border border-white/5 group-hover:scale-105 transition-transform`}>
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    {mod.badge && (
-                      <span className="text-[9px] font-black text-[#6C5CFF] uppercase tracking-widest bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 px-2.5 py-1 rounded-[10px]">
-                        {mod.badge}
-                      </span>
-                    )}
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <h3 className="text-xs sm:text-sm font-bold text-white tracking-wide">{mod.title}</h3>
-                    <p className="text-[11px] text-white/50 leading-relaxed font-sans font-medium line-clamp-2">{mod.desc}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Security Shield Banner (Screen 4 pixel replica) */}
-          <div className="rounded-[28px] border border-[#6C5CFF]/20 bg-gradient-to-r from-[#1C2C4E]/40 to-[#0F1E3D]/50 p-5 flex items-center space-x-4 shadow-sm">
-            <div className="p-3.5 rounded-full bg-[#6C5CFF]/10 text-[#6C5CFF] border border-[#6C5CFF]/20">
-              <ShieldCheck className="w-6 h-6 animate-pulse-slow" />
-            </div>
-            <div>
-              <h4 className="text-xs sm:text-sm font-extrabold text-white">Vos données sont 100% sécurisées</h4>
-              <p className="text-[10px] sm:text-xs text-white/50 font-medium mt-1 leading-normal font-sans">
-                Chiffrement de bout en bout • Sauvegarde cloud • Confidentialité garantie
-              </p>
-            </div>
-          </div>
-        </>
       )}
 
       {/* Family games */}
@@ -3148,11 +3026,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                           onChange={(e) => {
                             const val = e.target.value;
                             setNewGroceryName(val);
-                            // Realtime category auto-detection on type!
-                            const detected = detectGroceryCategory(val);
-                            if (detected) {
-                              setNewGroceryCat(detected);
-                            }
+                            void import('../utils/groceryParser').then(({ detectGroceryCategory }) => {
+                              const detected = detectGroceryCategory(val);
+                              if (detected) setNewGroceryCat(detected);
+                            });
                           }}
                           className="w-full bg-white/5 border border-white/8 rounded-xl pl-4 pr-10 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FFB020]"
                         />
@@ -3177,10 +3054,10 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                                 onMouseDown={() => {
                                   // Use onMouseDown to trigger click BEFORE onBlur closes it
                                   setNewGroceryName(suggestion);
-                                  const detected = detectGroceryCategory(suggestion);
-                                  if (detected) {
-                                    setNewGroceryCat(detected);
-                                  }
+                                  void import('../utils/groceryParser').then(({ detectGroceryCategory }) => {
+                                    const detected = detectGroceryCategory(suggestion);
+                                    if (detected) setNewGroceryCat(detected);
+                                  });
                                   setShowGrocerySuggestions(false);
                                 }}
                                 className="w-full text-left px-4 py-3 text-xs text-white/80 hover:text-white hover:bg-white/5 active:bg-white/10 transition-all font-medium flex items-center space-x-2"
