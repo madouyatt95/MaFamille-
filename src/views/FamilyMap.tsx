@@ -506,6 +506,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const addressSearchRequestRef = useRef(0);
   const isSharingRef = useRef(isSharing);
   const selectedStatusRef = useRef(selectedStatus);
+  const onUpdateMemberProfileRef = useRef(onUpdateMemberProfile);
   
   // Layer style: 'dark' | 'satellite'
   const [mapLayer, setMapLayer] = useState<'dark' | 'satellite'>('dark');
@@ -645,6 +646,10 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     selectedStatusRef.current = selectedStatus;
   }, [selectedStatus]);
 
+  useEffect(() => {
+    onUpdateMemberProfileRef.current = onUpdateMemberProfile;
+  }, [onUpdateMemberProfile]);
+
   const searchNearbyPlaces = async (category: NearbyCategory) => {
     const requestId = ++nearbySearchRequestRef.current;
     ++addressSearchRequestRef.current;
@@ -778,8 +783,9 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
           setMapCenter([lat, lng]);
           setLoadingLoc(false);
 
-          if (onUpdateMemberProfile) {
-            onUpdateMemberProfile(activeMemberId, {
+          const updateMemberProfile = onUpdateMemberProfileRef.current;
+          if (updateMemberProfile) {
+            updateMemberProfile(activeMemberId, {
               latitude: lat,
               longitude: lng,
               locationStatus: currentStatus,
@@ -809,7 +815,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         setLoadingLoc(false);
       });
     }
-  }, [activeMemberId, activeMemberStoredLocation, addLocationHistoryEntry, isSharing, onUpdateMemberProfile]);
+  }, [activeMemberId, activeMemberStoredLocation, addLocationHistoryEntry, isSharing]);
 
   const updateLocationSharing = async (nextVal: boolean) => {
     ++geolocationRequestRef.current;
@@ -881,12 +887,13 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       setEmergencyConfirmOpen(true);
       return;
     }
+    if (status === selectedStatus) return;
     setSelectedStatus(status);
     const coords = routeOrigin;
     try {
-      if (onUpdateMemberProfile) {
-        await onUpdateMemberProfile(activeMemberId, {
-          ...(coords ? { latitude: coords[0], longitude: coords[1] } : {}),
+      const updateMemberProfile = onUpdateMemberProfileRef.current;
+      if (updateMemberProfile) {
+        await updateMemberProfile(activeMemberId, {
           locationStatus: status,
           lastLocatedAt: new Date().toISOString()
         });
