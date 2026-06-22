@@ -1,23 +1,79 @@
 <!doctype html>
 <html lang="fr">
-  <body style="margin:0;background:#07111f;font-family:Arial,sans-serif;color:#ffffff;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#07111f;padding:32px 16px;">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Confirmez votre adresse e-mail</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f3f6fb;font-family:Arial,Helvetica,sans-serif;color:#14213d;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+      Un dernier clic pour ouvrir votre espace familial MyFamily+.
+    </div>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f3f6fb;">
       <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#111a2d;border:1px solid #29324a;border-radius:20px;padding:32px;">
+        <td align="center" style="padding:28px 14px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:580px;">
             <tr>
-              <td>
-                <p style="margin:0 0 8px;color:#9e94ff;font-size:13px;font-weight:700;text-transform:uppercase;">MyFamily+</p>
-                <h1 style="margin:0 0 16px;font-size:25px;line-height:1.25;">Confirmez votre adresse e-mail</h1>
-                <p style="margin:0 0 24px;color:#cbd5e1;font-size:16px;line-height:1.6;">
-                  Votre compte est presque prêt. Confirmez votre adresse pour créer votre famille ou rejoindre un foyer existant.
-                </p>
-                <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 20px;background:#6c5cff;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;">
-                  Confirmer mon adresse
-                </a>
-                <p style="margin:24px 0 0;color:#94a3b8;font-size:13px;line-height:1.5;">
-                  Si vous n’avez pas demandé la création de ce compte, ignorez simplement cet e-mail.
-                </p>
+              <td align="center" style="padding:0 0 18px;">
+                <div style="display:inline-block;padding:11px 17px;border-radius:16px;background:#6c5cff;color:#ffffff;font-size:20px;font-weight:800;letter-spacing:0;">
+                  MyFamily+
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="overflow:hidden;border:1px solid #e1e7f0;border-radius:24px;background:#ffffff;box-shadow:0 14px 38px rgba(20,33,61,.10);">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td style="height:7px;background:#6c5cff;font-size:0;line-height:0;">&nbsp;</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:38px 34px 34px;">
+                      <p style="margin:0 0 10px;color:#6c5cff;font-size:12px;font-weight:800;text-transform:uppercase;">
+                        Bienvenue dans la famille
+                      </p>
+                      <h1 style="margin:0 0 18px;color:#111827;font-size:28px;line-height:1.25;font-weight:800;">
+                        Confirmez votre adresse e-mail
+                      </h1>
+                      <p style="margin:0 0 26px;color:#526079;font-size:16px;line-height:1.65;">
+                        Votre compte MyFamily+ est presque prêt. Confirmez votre adresse pour créer votre foyer ou rejoindre la famille qui vous a invité.
+                      </p>
+
+                      <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 26px;">
+                        <tr>
+                          <td align="center" style="border-radius:14px;background:#6c5cff;">
+                            <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:15px 24px;color:#ffffff;text-decoration:none;font-size:16px;font-weight:800;">
+                              Confirmer mon adresse
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px;border-radius:14px;background:#f6f4ff;">
+                        <tr>
+                          <td style="padding:16px 18px;color:#51479a;font-size:13px;line-height:1.55;">
+                            <strong>Le bouton ne fonctionne pas ?</strong><br>
+                            Copiez ce lien dans votre navigateur :<br>
+                            <a href="{{ .ConfirmationURL }}" style="color:#6c5cff;text-decoration:underline;word-break:break-all;">{{ .ConfirmationURL }}</a>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <p style="margin:0;color:#7a869d;font-size:13px;line-height:1.55;">
+                        Si vous n’avez pas demandé la création de ce compte, vous pouvez ignorer cet e-mail. Aucune action ne sera effectuée.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td align="center" style="padding:20px 20px 0;color:#8b96aa;font-size:12px;line-height:1.5;">
+                MyFamily+ · Votre espace familial privé et sécurisé<br>
+                Cet e-mail a été envoyé automatiquement, merci de ne pas y répondre.
               </td>
             </tr>
           </table>

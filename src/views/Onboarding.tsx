@@ -16,7 +16,9 @@ import {
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
 
-const AUTH_REDIRECT_URL = 'https://ma-famille-nu.vercel.app';
+const AUTH_REDIRECT_URL = (
+  import.meta.env.VITE_SITE_URL || 'https://ma-famille-nu.vercel.app'
+).replace(/\/+$/, '');
 
 const getAuthErrorMessage = (error: unknown): string => {
   const message = error instanceof Error ? error.message.toLowerCase() : '';
