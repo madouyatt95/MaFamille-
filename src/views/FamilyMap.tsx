@@ -506,6 +506,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const [emergencySharing, setEmergencySharing] = useState(false);
   const geolocationRequestRef = useRef(0);
   const nearbySearchRequestRef = useRef(0);
+  const addressSearchRequestRef = useRef(0);
   const isSharingRef = useRef(isSharing);
   const selectedStatusRef = useRef(selectedStatus);
   
@@ -576,6 +577,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
   const searchPlaces = async (query: string, showEmptyMessage = true) => {
     if (!query.trim()) return;
+    const requestId = ++addressSearchRequestRef.current;
+    ++nearbySearchRequestRef.current;
     setActiveNearbyCategory(null);
     setSearching(true);
     setSearchError(null);
@@ -583,16 +586,18 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       const response = await fetch(buildSearchUrl(normalizeMapSearchQuery(query), routeOrigin));
       if (!response.ok) throw new Error('search_failed');
       const data = await response.json() as MapSearchResult[];
+      if (requestId !== addressSearchRequestRef.current) return;
       const compacted = compactSearchResults(data);
       setSearchResults(compacted);
       if (showEmptyMessage && compacted.length === 0) {
         setSearchError("Aucun lieu trouvé. Essayez avec une ville ou une adresse plus précise.");
       }
     } catch (err) {
+      if (requestId !== addressSearchRequestRef.current) return;
       console.error("Nominatim search error:", err);
       setSearchError("La recherche d'adresse est momentanément indisponible.");
     } finally {
-      setSearching(false);
+      if (requestId === addressSearchRequestRef.current) setSearching(false);
     }
   };
 
@@ -634,6 +639,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
   const searchNearbyPlaces = async (category: NearbyCategory) => {
     const requestId = ++nearbySearchRequestRef.current;
+    ++addressSearchRequestRef.current;
     const definition = nearbyCategories.find(item => item.key === category);
     const validOrigin = routeOrigin && isValidMapCoords(routeOrigin[0], routeOrigin[1])
       ? routeOrigin
@@ -967,28 +973,40 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
   // Real-time Nominatim Address Suggestions Autocomplete with Debounce
   useEffect(() => {
+    const requestId = ++addressSearchRequestRef.current;
+    if (activeNearbyCategory) return;
+
     if (searchQuery.trim().length < 3) {
       queueMicrotask(() => {
+        if (requestId !== addressSearchRequestRef.current) return;
         setSearchResults([]);
         setSearchError(null);
       });
       return;
     }
+    const controller = new AbortController();
     const delayDebounce = setTimeout(async () => {
       try {
-        const response = await fetch(buildSearchUrl(normalizeMapSearchQuery(searchQuery), routeOrigin));
+        const response = await fetch(buildSearchUrl(normalizeMapSearchQuery(searchQuery), routeOrigin), {
+          signal: controller.signal
+        });
         if (!response.ok) throw new Error('search_failed');
         const data = await response.json() as MapSearchResult[];
+        if (requestId !== addressSearchRequestRef.current) return;
         setSearchResults(compactSearchResults(data));
         setSearchError(null);
       } catch (err) {
+        if (controller.signal.aborted || requestId !== addressSearchRequestRef.current) return;
         console.error("Nominatim autocompletion error:", err);
         setSearchError("La recherche d'adresse est momentanément indisponible.");
       }
     }, 400);
 
-    return () => clearTimeout(delayDebounce);
-  }, [routeOrigin, searchQuery]);
+    return () => {
+      clearTimeout(delayDebounce);
+      controller.abort();
+    };
+  }, [activeNearbyCategory, routeOrigin, searchQuery]);
 
   // Real OSRM Routing calculation
   useEffect(() => {
