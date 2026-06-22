@@ -750,6 +750,29 @@ html,
   border-color: rgba(255, 255, 255, 0.12);
 }
 
+.family-games-featured {
+  min-height: 280px !important;
+}
+
+.family-game-cover-card {
+  min-height: 210px !important;
+}
+
+.family-game-preview-cover {
+  height: clamp(220px, 58vw, 300px);
+  min-height: 220px !important;
+}
+
+@media (min-width: 640px) {
+  .family-games-featured {
+    min-height: 330px !important;
+  }
+
+  .family-game-cover-card {
+    min-height: 230px !important;
+  }
+}
+
 .family-games-featured .text-white,
 .family-game-cover-card .text-white,
 .theme-light .family-games-featured .text-white,

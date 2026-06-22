@@ -1304,7 +1304,7 @@ export function FamilyGames({
                 className="absolute inset-0 bg-cover bg-no-repeat"
                 style={{
                   backgroundImage: "url('/game-assets/family-games-covers.webp')",
-                  backgroundSize: '300% 200%',
+                  backgroundSize: '300% auto',
                   backgroundPosition: featuredGame.coverPosition
                 }}
               />
@@ -1386,7 +1386,7 @@ export function FamilyGames({
                       className="absolute inset-0 bg-cover bg-no-repeat transition-transform duration-500 group-hover:scale-105"
                       style={{
                         backgroundImage: "url('/game-assets/family-games-covers.webp')",
-                        backgroundSize: '300% 200%',
+                        backgroundSize: '300% auto',
                         backgroundPosition: game.coverPosition
                       }}
                     />
@@ -1738,8 +1738,8 @@ export function FamilyGames({
         {!activeGame && previewedGame && (
           <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center" onClick={() => setPreviewGameId(null)}>
             <section role="dialog" aria-modal="true" aria-labelledby="game-preview-title" className="app-dialog-surface max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-[26px] border border-white/10 bg-[#111827] shadow-2xl" onClick={event => event.stopPropagation()}>
-              <div className="family-game-cover-card relative h-52 overflow-hidden rounded-t-[25px]">
-                <span className="absolute inset-0 bg-cover bg-no-repeat" style={{ backgroundImage: "url('/game-assets/family-games-covers.webp')", backgroundSize: '300% 200%', backgroundPosition: previewedGame.coverPosition }} />
+              <div className="family-game-cover-card family-game-preview-cover relative overflow-hidden rounded-t-[25px]">
+                <span className="absolute inset-0 bg-no-repeat" style={{ backgroundImage: "url('/game-assets/family-games-covers.webp')", backgroundSize: '300% auto', backgroundPosition: previewedGame.coverPosition }} />
                 <span className="absolute inset-0 bg-gradient-to-t from-[#111827] via-transparent to-black/25" />
                 <button type="button" onClick={() => setPreviewGameId(null)} className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur-md" aria-label="Fermer la présentation"><X className="h-5 w-5" /></button>
                 <button type="button" onClick={() => toggleFavorite(previewedGame.id)} className="absolute left-3 top-3 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur-md" aria-label={favoriteGameIds.includes(previewedGame.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}>
