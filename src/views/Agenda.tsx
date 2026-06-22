@@ -38,7 +38,7 @@ interface AgendaProps {
   currentCalendarCountry: string;
   setCurrentCalendarCountry: (country: string) => void;
   onCalendarImportComplete?: (sourceName: string, importedEvents: ExternalEvent[]) => void;
-  onCalendarSourceDeleted?: (sourceName: string) => void;
+  onCalendarSourceDeleted?: (source: CalendarSource) => void;
 }
 
 export interface CalendarSource {
@@ -54,6 +54,13 @@ const normalizeSearchText = (value: string) => value
   .toLowerCase()
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '');
+
+const createCalendarSourceId = (prefix: string) => {
+  const randomId = typeof globalThis.crypto?.randomUUID === 'function'
+    ? globalThis.crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}-${randomId}`;
+};
 
 export const Agenda: React.FC<AgendaProps> = ({
   events,
@@ -107,6 +114,12 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [newSourceColor, setNewSourceColor] = useState('#6C5CFF');
   const [newSourceMember, setNewSourceMember] = useState('none');
   const icsFileInputRef = useRef<HTMLInputElement>(null);
+  const calendarSourcesRef = useRef(calendarSources);
+  const deletedSourceIdsRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    calendarSourcesRef.current = calendarSources;
+  }, [calendarSources]);
 
   // Invitation card states
   const [activeInvitationEvent, setActiveInvitationEvent] = useState<FamilyEvent | null>(null);
@@ -306,29 +319,45 @@ export const Agenda: React.FC<AgendaProps> = ({
     for (const source of calendarSources) {
       if (!source.isActive) continue;
       if (source.url.startsWith('local-file:')) {
-        const currentFileEvents = externalEvents.filter(ee => ee.sourceName === source.name);
+        const currentFileEvents = externalEvents
+          .filter(ee => (ee.sourceId ? ee.sourceId === source.id : ee.sourceName === source.name))
+          .map(event => ({ ...event, sourceId: source.id }));
         allEvents = [...allEvents, ...currentFileEvents];
         continue;
       }
       try {
         // Vrai fetch CORS
         const fetched = await fetchExternalCalendar(source.url, source.name, source.color, source.memberId);
-        allEvents = [...allEvents, ...fetched];
+        allEvents = [...allEvents, ...fetched.map(event => ({ ...event, sourceId: source.id }))];
       } catch (err) {
         console.error(`Erreur synchro source ${source.name}:`, err);
-        const fallback = externalEvents.filter(ee => ee.sourceName === source.name);
+        const fallback = externalEvents
+          .filter(ee => (ee.sourceId ? ee.sourceId === source.id : ee.sourceName === source.name))
+          .map(event => ({ ...event, sourceId: source.id }));
         allEvents = [...allEvents, ...fallback];
       }
     }
     
+    const currentActiveSources = new Set(
+      calendarSourcesRef.current.filter(source => source.isActive).map(source => source.id)
+    );
     const uniqueEventsMap = new Map<string, ExternalEvent>();
-    allEvents.forEach(e => uniqueEventsMap.set(e.id, e));
-    
-    setTimeout(() => {
-      setExternalEvents(Array.from(uniqueEventsMap.values()));
-      setSyncing(false);
-      alert('📅 Tous vos calendriers externes et emplois du temps scolaires ont été synchronisés !');
-    }, 1200);
+    allEvents
+      .filter(event => event.sourceId && currentActiveSources.has(event.sourceId))
+      .forEach(event => uniqueEventsMap.set(event.id, event));
+
+    setExternalEvents(previous => {
+      const currentSources = new Map(calendarSourcesRef.current.map(source => [source.id, source]));
+      const retainedInactiveEvents = previous.filter(event => {
+        const source = event.sourceId
+          ? currentSources.get(event.sourceId)
+          : calendarSourcesRef.current.find(candidate => candidate.name === event.sourceName);
+        return source && !source.isActive;
+      });
+      return [...retainedInactiveEvents, ...Array.from(uniqueEventsMap.values())];
+    });
+    setSyncing(false);
+    alert('📅 Tous vos calendriers externes et emplois du temps scolaires ont été synchronisés !');
   };
 
   // Synchronisation d'une seule source iCal spécifique
@@ -340,9 +369,16 @@ export const Agenda: React.FC<AgendaProps> = ({
     setSyncing(true);
     try {
       const fetched = await fetchExternalCalendar(source.url, source.name, source.color, source.memberId);
+      const sourceStillActive = calendarSourcesRef.current.some(
+        current => current.id === source.id && current.isActive
+      );
+      if (!sourceStillActive || deletedSourceIdsRef.current.has(source.id)) return;
+
       setExternalEvents(prev => {
-        const filtered = prev.filter(ee => ee.sourceName !== source.name);
-        return [...filtered, ...fetched];
+        const filtered = prev.filter(ee =>
+          ee.sourceId ? ee.sourceId !== source.id : ee.sourceName !== source.name
+        );
+        return [...filtered, ...fetched.map(event => ({ ...event, sourceId: source.id }))];
       });
       alert(`✅ Source "${source.name}" synchronisée avec succès !`);
     } catch (err: any) {
@@ -367,15 +403,18 @@ export const Agenda: React.FC<AgendaProps> = ({
     }
     
     const newSource: CalendarSource = {
-      id: `src-${Date.now()}`,
+      id: createCalendarSourceId('src'),
       name: newSourceName.trim(),
       url: normalizedUrl,
       color: newSourceColor,
       memberId: newSourceMember === 'none' ? undefined : newSourceMember,
       isActive: true
     };
-    
-    setCalendarSources(prev => [...prev, newSource]);
+
+    deletedSourceIdsRef.current.delete(newSource.id);
+    const nextSources = [...calendarSourcesRef.current, newSource];
+    calendarSourcesRef.current = nextSources;
+    setCalendarSources(nextSources);
     
     setNewSourceName('');
     setNewSourceUrl('');
@@ -407,7 +446,7 @@ export const Agenda: React.FC<AgendaProps> = ({
       }
 
       const newSource: CalendarSource = {
-        id: `src-file-${Date.now()}`,
+        id: createCalendarSourceId('src-file'),
         name: sourceName,
         url: `local-file:${file.name}`,
         color: newSourceColor,
@@ -415,10 +454,18 @@ export const Agenda: React.FC<AgendaProps> = ({
         isActive: true
       };
 
-      setCalendarSources(prev => [...prev.filter(source => source.name !== sourceName), newSource]);
+      const replacedSources = calendarSourcesRef.current.filter(source => source.name === sourceName);
+      replacedSources.forEach(source => {
+        deletedSourceIdsRef.current.add(source.id);
+        onCalendarSourceDeleted?.(source);
+      });
+      const nextSources = [...calendarSourcesRef.current.filter(source => source.name !== sourceName), newSource];
+      calendarSourcesRef.current = nextSources;
+      deletedSourceIdsRef.current.delete(newSource.id);
+      setCalendarSources(nextSources);
       setExternalEvents(prev => {
         const withoutPrevious = prev.filter(event => event.sourceName !== sourceName);
-        return [...withoutPrevious, ...importedEvents];
+        return [...withoutPrevious, ...importedEvents.map(event => ({ ...event, sourceId: newSource.id }))];
       });
       onCalendarImportComplete?.(sourceName, importedEvents);
       setNewSourceName('');
@@ -437,17 +484,36 @@ export const Agenda: React.FC<AgendaProps> = ({
   };
 
   // Suppression d'une source iCal
-  const handleDeleteSource = (id: string, name: string) => {
-    if (window.confirm(`Supprimer la source "${name}" ? Ses événements importés seront retirés.`)) {
-      setCalendarSources(prev => prev.filter(s => s.id !== id));
-      setExternalEvents(prev => prev.filter(ee => ee.sourceName !== name));
-      onCalendarSourceDeleted?.(name);
+  const handleDeleteSource = (source: CalendarSource) => {
+    if (window.confirm(`Supprimer la source "${source.name}" ? Ses événements importés et ses rappels seront retirés.`)) {
+      deletedSourceIdsRef.current.add(source.id);
+      const nextSources = calendarSourcesRef.current.filter(current => current.id !== source.id);
+      calendarSourcesRef.current = nextSources;
+      setCalendarSources(nextSources);
+      setExternalEvents(prev => prev.filter(event =>
+        event.sourceId ? event.sourceId !== source.id : event.sourceName !== source.name
+      ));
+      onCalendarSourceDeleted?.(source);
     }
   };
 
   // Activer/Désactiver une source iCal
   const handleToggleSource = (id: string) => {
-    setCalendarSources(prev => prev.map(s => s.id === id ? { ...s, isActive: !s.isActive } : s));
+    const previousSource = calendarSourcesRef.current.find(source => source.id === id);
+    if (!previousSource) return;
+
+    const nextIsActive = !previousSource.isActive;
+    const nextSources = calendarSourcesRef.current.map(source =>
+      source.id === id ? { ...source, isActive: nextIsActive } : source
+    );
+    calendarSourcesRef.current = nextSources;
+    setCalendarSources(nextSources);
+
+    if (!nextIsActive) {
+      onCalendarSourceDeleted?.(previousSource);
+    } else if (!previousSource.url.startsWith('local-file:')) {
+      void syncSingleSource({ ...previousSource, isActive: true });
+    }
   };
 
   const getPivotHeaderLabel = () => {
@@ -1772,9 +1838,9 @@ export const Agenda: React.FC<AgendaProps> = ({
                           <button
                             type="button"
                             onClick={() => syncSingleSource(source)}
-                            disabled={syncing}
+                            disabled={syncing || !source.isActive}
                             className="p-2 rounded-lg bg-white/3 border border-white/5 text-white/50 hover:text-[#6C5CFF] hover:bg-[#6C5CFF]/10 hover:border-[#6C5CFF]/20 transition-all cursor-pointer active:scale-90 disabled:opacity-40"
-                            title="Synchroniser cette source"
+                            title={source.isActive ? 'Synchroniser cette source' : 'Réactivez la source avant de la synchroniser'}
                           >
                             <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
                           </button>
@@ -1791,7 +1857,7 @@ export const Agenda: React.FC<AgendaProps> = ({
 
                           {/* Delete source */}
                           <button
-                            onClick={() => handleDeleteSource(source.id, source.name)}
+                            onClick={() => handleDeleteSource(source)}
                             className="p-2 rounded-lg bg-white/3 border border-white/5 text-white/50 hover:text-[#FF4D6D] hover:bg-[#FF4D6D]/10 hover:border-[#FF4D6D]/20 transition-all cursor-pointer active:scale-90"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

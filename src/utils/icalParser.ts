@@ -12,6 +12,7 @@ export interface ExternalEvent {
   endTime?: string;
   description?: string;
   location?: string;
+  sourceId?: string;
   sourceName: string;
   sourceColor: string;
   memberId?: string; // Si associé à un enfant pour l'école

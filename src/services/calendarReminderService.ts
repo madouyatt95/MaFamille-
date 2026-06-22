@@ -46,7 +46,10 @@ export const syncExternalCalendarEventsForReminders = async ({
   if (!supabase) return;
 
   const { min, max } = getSyncWindow();
-  const sourceByName = new Map(calendarSources.map(source => [source.name, source]));
+  const activeSources = calendarSources.filter(source => source.isActive);
+  const sourceById = new Map(activeSources.map(source => [source.id, source]));
+  const sourceByName = new Map(activeSources.map(source => [source.name, source]));
+
   const rows = externalEvents
     .map(event => {
       const startAt = toDateTime(event.startDate, event.startTime);
@@ -55,7 +58,9 @@ export const syncExternalCalendarEventsForReminders = async ({
       const startDate = new Date(startAt);
       if (startDate < min || startDate > max) return null;
 
-      const source = sourceByName.get(event.sourceName);
+      const source = (event.sourceId ? sourceById.get(event.sourceId) : undefined)
+        || sourceByName.get(event.sourceName);
+      if (!source) return null;
       return {
         foyer_id: foyer.id,
         external_id: event.id,
@@ -95,20 +100,36 @@ export const syncExternalCalendarEventsForReminders = async ({
 
 export const deleteExternalCalendarSourceForReminders = async (
   foyer: Foyer | null,
-  sourceName: string
-): Promise<void> => {
-  if (!foyer?.id || !sourceName.trim()) return;
+  source: Pick<CalendarSource, 'id' | 'name'>
+): Promise<boolean> => {
+  if (!foyer?.id || !source.name.trim()) return false;
 
   const supabase = getSupabaseClient();
-  if (!supabase) return;
+  if (!supabase) return false;
 
-  const { error } = await supabase
+  const { error: sourceIdError } = await supabase
     .from('external_calendar_events')
     .delete()
     .eq('foyer_id', foyer.id)
-    .eq('source_name', sourceName);
+    .eq('source_id', source.id);
 
-  if (error) {
-    console.warn('[Agenda] Suppression serveur de la source ICS ignorée :', error.message);
+  if (sourceIdError) {
+    console.warn('[Agenda] Suppression serveur de la source ICS ignorée :', sourceIdError.message);
+    return false;
   }
+
+  // Older rows may predate source_id. Limit the fallback to legacy rows so
+  // two calendars sharing the same display name cannot delete each other.
+  const { error: legacyError } = await supabase
+    .from('external_calendar_events')
+    .delete()
+    .eq('foyer_id', foyer.id)
+    .eq('source_name', source.name)
+    .is('source_id', null);
+
+  if (legacyError) {
+    console.warn('[Agenda] Nettoyage des anciens rappels ICS ignoré :', legacyError.message);
+    return false;
+  }
+  return true;
 };

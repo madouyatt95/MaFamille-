@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/immutability, react-hooks/purity, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect, react-hooks/preserve-manual-memoization -- App.tsx is still a legacy monolith. These rules are tracked in docs/lint_cleanup_remaining.md for a dedicated refactor. */
-import { lazy, Suspense, useState, useEffect, useRef, useMemo } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
@@ -405,6 +405,17 @@ function App() {
     if (saved) return JSON.parse(saved);
     return [];
   });
+  const activeExternalEvents = useMemo(() => {
+    const activeSourceIds = new Set(
+      calendarSources.filter(source => source.isActive).map(source => source.id)
+    );
+    const activeSourceNames = new Set(
+      calendarSources.filter(source => source.isActive).map(source => source.name)
+    );
+    return externalEvents.filter(event =>
+      event.sourceId ? activeSourceIds.has(event.sourceId) : activeSourceNames.has(event.sourceName)
+    );
+  }, [calendarSources, externalEvents]);
 
   useEffect(() => {
     localStorage.setItem('mf_external_calendar_sources', JSON.stringify(calendarSources));
@@ -413,6 +424,15 @@ function App() {
   useEffect(() => {
     localStorage.setItem('mf_external_calendar_events', JSON.stringify(externalEvents));
   }, [externalEvents]);
+
+  const calendarReminderQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const enqueueCalendarReminderTask = useCallback((task: () => Promise<void>) => {
+    const queued = calendarReminderQueueRef.current
+      .catch(() => undefined)
+      .then(task);
+    calendarReminderQueueRef.current = queued;
+    return queued;
+  }, []);
 
   const [currentCalendarCountry, setCurrentCalendarCountry] = useState<string>(() => {
     return localStorage.getItem('mf_calendar_country') || 'France';
@@ -1461,14 +1481,44 @@ function App() {
     voiceActionStatusRef.current = 'waiting';
   }, [foyer?.id, activeMemberId]);
 
-  useEffect(() => {
-    syncExternalCalendarEventsForReminders({
-      foyer,
-      activeMemberId,
-      calendarSources,
-      externalEvents
+  const queueCalendarSourceDeletion = useCallback((source: Pick<CalendarSource, 'id' | 'name'>) => {
+    if (!foyer?.id) return;
+    const storageKey = `mf_pending_calendar_deletions_${foyer.id}`;
+    const pending = safeGetLocalStorage<Array<Pick<CalendarSource, 'id' | 'name'>>>(storageKey, []);
+    if (!pending.some(item => item.id === source.id)) {
+      safeSetLocalStorage(storageKey, JSON.stringify([...pending, source]));
+    }
+
+    void enqueueCalendarReminderTask(async () => {
+      const deleted = await deleteExternalCalendarSourceForReminders(foyer, source);
+      if (!deleted) return;
+      const remaining = safeGetLocalStorage<Array<Pick<CalendarSource, 'id' | 'name'>>>(storageKey, [])
+        .filter(item => item.id !== source.id);
+      if (remaining.length > 0) safeSetLocalStorage(storageKey, JSON.stringify(remaining));
+      else safeRemoveLocalStorage(storageKey);
     });
-  }, [foyer, activeMemberId, calendarSources, externalEvents]);
+  }, [enqueueCalendarReminderTask, foyer]);
+
+  useEffect(() => {
+    if (!foyer?.id) return;
+    const pending = safeGetLocalStorage<Array<Pick<CalendarSource, 'id' | 'name'>>>(
+      `mf_pending_calendar_deletions_${foyer.id}`,
+      []
+    );
+    pending.forEach(queueCalendarSourceDeletion);
+  }, [foyer?.id, queueCalendarSourceDeletion]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      void enqueueCalendarReminderTask(() => syncExternalCalendarEventsForReminders({
+        foyer,
+        activeMemberId,
+        calendarSources,
+        externalEvents
+      }));
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [foyer, activeMemberId, calendarSources, externalEvents, enqueueCalendarReminderTask]);
 
   const [myMemberProfile, setMyMemberProfile] = useState<FoyerMember | null>(() => {
     return safeGetLocalStorage<FoyerMember | null>('mf_cached_member_profile', null);
@@ -1513,7 +1563,7 @@ function App() {
       maintenance,
       abonnements,
       pets,
-      externalEvents,
+      externalEvents: activeExternalEvents,
       country: currentCalendarCountry,
       foyerId: foyer?.id,
       transactions
@@ -1530,7 +1580,7 @@ function App() {
     maintenance,
     abonnements,
     pets,
-    externalEvents,
+    activeExternalEvents,
     currentCalendarCountry,
     foyer?.id,
     transactions
@@ -12756,8 +12806,8 @@ function App() {
                 'success'
               );
             }}
-            onCalendarSourceDeleted={(sourceName) => {
-              deleteExternalCalendarSourceForReminders(foyer, sourceName);
+            onCalendarSourceDeleted={(source) => {
+              queueCalendarSourceDeletion(source);
             }}
             onBack={() => setActiveModule('')}
           />
