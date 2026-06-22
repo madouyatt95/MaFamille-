@@ -5,8 +5,7 @@ import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import type { User } from '@supabase/supabase-js';
 import { getConfiguredSupabaseAnonKey, getConfiguredSupabaseUrl } from './config/supabaseConfig';
-import { parseSmartNaturalSentence, detectGroceryCategory, getGroceryItemEmoji, parseGroceryAction, formatGroceryQty } from './utils/groceryParser';
-import { DICTIONARIES } from './utils/dictionaries';
+import { getGroceryItemEmoji, formatGroceryQty } from './utils/groceryDisplay';
 
 
 import { parseChoreTitle, serializeChoreTitle, parsePocketMoneyTitle, serializePocketMoneyTitle } from './types';
@@ -194,25 +193,20 @@ const formatRelativeTime = (dateInput: string | Date | undefined, fallback: stri
 // Component imports
 import { BottomNav } from './components/BottomNav';
 import { Sidebar } from './components/Sidebar';
-import { QuickActionsSheet } from './components/QuickActionsSheet';
 import { MemberAvatar } from './components/MemberAvatar';
 import { isGeneratedAvatar } from './utils/avatar';
 
 import { DEFAULT_CATEGORIES } from './data/budgetCategories';
-import { Paywall } from './components/Paywall';
 import { billingService } from './services/billingService';
 import { accountService } from './services/accountService';
-import { PasswordRecoveryView } from './components/PasswordRecoveryView';
 import { foyerService } from './services/foyerService';
 import { spaceService, type Space } from './services/spaceService';
 import { deleteExternalCalendarSourceForReminders, loadExternalCalendarStateFromCloud, syncExternalCalendarEventsForReminders } from './services/calendarReminderService';
-import { CommuneHub } from './components/modules/CommuneHub';
 import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction, serializeEventDescription, deserializeEventDescription, logQueryVolume, getCleanDescription } from './utils/supabase';
 import type { Foyer, FoyerMember } from './types';
 import { compressImageToBlob, dataUrlToBlob, extensionFromMimeType, isDataUrl, isRemoteUrl, uploadBlobToStorage } from './utils/imageCompressor';
 
 import { getUnifiedEvents } from './utils/agendaHelper';
-import { buildFamilyAssistantResponse, detectFamilyAssistantIntent } from './utils/familyAssistant';
 import { buildSmartFamilyAlerts, defaultSmartFamilyPreferences, type SmartFamilyPreferences } from './utils/smartFamily';
 import type { GlobalSearchResult } from './utils/globalSearch';
 import type { ExternalEvent } from './utils/icalParser';
@@ -238,6 +232,11 @@ const CapsuleTemporelle = lazy(() => import('./components/modules/CapsuleTempore
 const ConseilFamille = lazy(() => import('./components/modules/ConseilFamille').then(module => ({ default: module.ConseilFamille })));
 const FamilyGames = lazy(() => import('./views/FamilyGames').then(module => ({ default: module.FamilyGames })));
 const Onboarding = lazy(() => import('./views/Onboarding').then(module => ({ default: module.Onboarding })));
+const MenuHubLanding = lazy(() => import('./views/MenuHubLanding').then(module => ({ default: module.MenuHubLanding })));
+const QuickActionsSheet = lazy(() => import('./components/QuickActionsSheet').then(module => ({ default: module.QuickActionsSheet })));
+const Paywall = lazy(() => import('./components/Paywall').then(module => ({ default: module.Paywall })));
+const PasswordRecoveryView = lazy(() => import('./components/PasswordRecoveryView').then(module => ({ default: module.PasswordRecoveryView })));
+const CommuneHub = lazy(() => import('./components/modules/CommuneHub').then(module => ({ default: module.CommuneHub })));
 
 const AppLoadingFallback = () => (
   <div className="min-h-screen bg-[#07111F] text-white flex items-center justify-center px-4 font-sans">
@@ -7636,6 +7635,10 @@ function App() {
 
   const parseVoiceCommand = async (rawInputText: string) => {
     try {
+      const [{ parseSmartNaturalSentence, detectGroceryCategory, parseGroceryAction }, { DICTIONARIES }] = await Promise.all([
+        import('./utils/groceryParser'),
+        import('./utils/dictionaries')
+      ]);
       // Normalisation des synonymes
       const normalizeTextForSynonym = (txt: string): string => {
         return txt
@@ -9450,6 +9453,7 @@ function App() {
         }
       }
 
+      const { buildFamilyAssistantResponse, detectFamilyAssistantIntent } = await import('./utils/familyAssistant');
       const familyAssistantIntent = detectFamilyAssistantIntent(text);
       if (familyAssistantIntent) {
         const assistantResult = buildFamilyAssistantResponse(familyAssistantIntent, {
@@ -13036,6 +13040,24 @@ function App() {
         );
       }
 
+      if (!activeModule) {
+        return (
+          <MenuHubLanding
+            members={appMembers}
+            activeMemberId={appActiveMemberId}
+            memberPermissions={memberPermissions}
+            taskCount={appTasks.filter(task => !task.done).length}
+            schoolTaskCount={schoolTasks.filter(task => !task.done).length}
+            groceryCount={appGroceries.filter(item => !item.checked).length}
+            documentCount={appDocuments.length}
+            pendingVaccines={appVaccines.filter(vaccine => vaccine.memberId === appActiveMemberId && vaccine.status === 'À faire').length}
+            isPremium={isPremium}
+            onOpenModule={setActiveModule}
+            onTriggerPaywall={() => setPaywallOpen(true)}
+          />
+        );
+      }
+
       return (
         <MenuHub 
           foyer={appFoyer}
@@ -13774,7 +13796,7 @@ function App() {
       )}
 
       {/* Floating Bottom sheet dialog form (Quick Actions Sheet) */}
-      <QuickActionsSheet 
+      {quickActionsOpen && <Suspense fallback={null}><QuickActionsSheet
         isOpen={quickActionsOpen}
         onClose={() => setQuickActionsOpen(false)}
         members={appMembers}
@@ -13794,7 +13816,7 @@ function App() {
         isPremium={isPremium}
         onTriggerPaywall={() => setPaywallOpen(true)}
 
-      />
+      /></Suspense>}
 
       {/* Shared bottom iOS premium nav bar with quick actions central (+) trigger */}
       <BottomNav 
@@ -13811,7 +13833,7 @@ function App() {
         isPremium={isPremium}
       />
 
-      <Paywall 
+      {paywallOpen && <Suspense fallback={null}><Paywall
         isOpen={paywallOpen}
         onClose={() => setPaywallOpen(false)}
         foyerId={foyer?.id || null}
@@ -13846,7 +13868,7 @@ function App() {
             }
           }
         }}
-      />
+      /></Suspense>}
 
 
 
