@@ -79,6 +79,7 @@ type Stage =
   | 'vote-pass'
   | 'vote'
   | 'vote-result'
+  | 'victory-reveal'
   | 'finished';
 
 type Player = {
@@ -427,6 +428,9 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   const [voterIndex, setVoterIndex] = useState(0);
   const [votes, setVotes] = useState<Record<string, string>>({});
   const [voteMessage, setVoteMessage] = useState('');
+  const [runoffCandidateIds, setRunoffCandidateIds] = useState<string[]>([]);
+  const [runoffRound, setRunoffRound] = useState(0);
+  const [botSuspicion, setBotSuspicion] = useState<Record<string, number>>({});
   const [winner, setWinner] = useState<'village' | 'traitors' | null>(null);
   const [narratorEnabled, setNarratorEnabled] = useState(true);
   const [roleVisible, setRoleVisible] = useState(false);
@@ -493,7 +497,12 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       const knownTraitor = bot.role === 'investigator'
         ? candidates.find(player => investigationHistory[player.id] === true)
         : undefined;
-      const suspected = knownTraitor || candidates[(night + bot.name.length) % Math.max(1, candidates.length)];
+      const rememberedSuspect = [...candidates].sort((left, right) => (
+        (botSuspicion[right.id] || 0) - (botSuspicion[left.id] || 0)
+      ))[0];
+      const suspected = knownTraitor
+        || ((botSuspicion[rememberedSuspect?.id] || 0) > 0 ? rememberedSuspect : undefined)
+        || candidates[(night + bot.name.length) % Math.max(1, candidates.length)];
       const detail = !suspected
         ? 'Je préfère encore observer.'
         : bot.botPersonality === 'prudent'
@@ -504,7 +513,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
               ? `Je ne suis pas certain, mais ${suspected.name} m’interroge.`
               : `Mon intuition pointe vers ${suspected.name}.`;
       return { id: bot.id, name: bot.name, detail };
-    }), [alivePlayers, investigationHistory, night]);
+    }), [alivePlayers, botSuspicion, investigationHistory, night]);
   const investigator = players.find(player => player.role === 'investigator' && player.alive);
   const protector = players.find(player => player.role === 'protector' && player.alive);
   const healer = players.find(player => player.role === 'healer' && player.alive);
@@ -515,6 +524,11 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   const eligibleVoters = alivePlayers.filter(player => player.id !== silencedTarget);
   const currentVoter = eligibleVoters[voterIndex];
   const currentNightPlayer = alivePlayers[nightTurnIndex];
+  const voteCandidates = alivePlayers.filter(player => (
+    player.id !== currentVoter?.id
+    && player.id !== confessorTarget
+    && (runoffCandidateIds.length === 0 || runoffCandidateIds.includes(player.id))
+  ));
   const familyMemberNames = useMemo(() => new Set(members.map(member => member.name)), [members]);
   const guestNames = names.filter(name => !familyMemberNames.has(name));
   const totalParticipants = names.length + botCount;
@@ -628,13 +642,15 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       queueMicrotask(() => {
         setVoterIndex(0);
         setVotes({});
+        setRunoffCandidateIds([]);
+        setRunoffRound(0);
         setStage('vote-pass');
       });
     }
   }, [narrate, seconds, stage]);
 
   useEffect(() => {
-    if (stage === 'setup' || stage === 'finished' || players.length === 0) return;
+    if (stage === 'setup' || stage === 'victory-reveal' || stage === 'finished' || players.length === 0) return;
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       players,
       stage: stage === 'reveal-role' ? 'reveal-pass' : stage,
@@ -651,6 +667,9 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       voterIndex,
       votes,
       voteMessage,
+      runoffCandidateIds,
+      runoffRound,
+      botSuspicion,
       winner,
       narratorEnabled,
       cupidTargets,
@@ -690,8 +709,9 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     archivistUsed, confessorTarget, confessorUsed, cupidTargets, dawnMessage, discussionSeconds, eliminationHistory, healerSaveAvailable,
     investigationResult, night, nightHealerSaved, narratorEnabled, oracleResultVisible, oracleTarget, players, protectedTarget, ravenTarget,
     healerTarget, investigationHistory, investigationsUsed, lastProtectedTarget, mayorBonusUsed, mayorBonusVoterId, messengerMessage, messengerTarget, messengerTone, nightTurnIndex,
-    revealIndex, revealRoles, seconds, shadowTarget, soloWinner, soundEnabled, stage, traitorVotes,
-    ambienceVolume, botDecisions, botDifficulty, botSpeed, effectsVolume, gameMoments, silencedTarget, voiceURI, voteMessage, voterIndex, votes, watcherResultVisible, watcherTarget, winner
+    revealIndex, revealRoles, runoffCandidateIds, runoffRound, seconds, shadowTarget, soloWinner, soundEnabled, stage, traitorVotes,
+    ambienceVolume, botDecisions, botDifficulty, botSpeed, botSuspicion, effectsVolume, gameMoments, silencedTarget, voiceURI, voteMessage, voterIndex, votes,
+    watcherResultVisible, watcherTarget, winner
   ]);
 
   const checkWinner = useCallback((nextPlayers: Player[]) => {
@@ -755,7 +775,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
 
   const finishWithWinner = (nextWinner: 'village' | 'traitors') => {
     setWinner(nextWinner);
-    setStage('finished');
+    setStage('victory-reveal');
     navigator.vibrate?.([120, 80, 180]);
     if (soundEnabled) playEffect('victory', effectsVolume);
     addMoment(
@@ -835,6 +855,9 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     setMayorBonusVoterId(null);
     setMayorWantsBonus(false);
     setVoteTarget(null);
+    setRunoffCandidateIds([]);
+    setRunoffRound(0);
+    setBotSuspicion({});
     setFastForwardBots(false);
     setBotDecisions([]);
     setGameMoments([{ id: crypto.randomUUID(), night: 0, kind: 'start', title: 'Début de la partie', detail: `${participants.length} personnes entrent dans le Village, dont ${botNames.length} gérée${botNames.length > 1 ? 's' : ''} par l’ordinateur.` }]);
@@ -867,6 +890,9 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       setVoterIndex(saved.voterIndex || 0);
       setVotes(saved.votes || {});
       setVoteMessage(saved.voteMessage || '');
+      setRunoffCandidateIds(saved.runoffCandidateIds || []);
+      setRunoffRound(saved.runoffRound || 0);
+      setBotSuspicion(saved.botSuspicion || {});
       setWinner(saved.winner || null);
       setNarratorEnabled(saved.narratorEnabled !== false);
       setCupidTargets(saved.cupidTargets || []);
@@ -1306,6 +1332,27 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     narrate(`Le débat commence. Vous avez ${discussionSeconds / 60} minute${discussionSeconds > 60 ? 's' : ''} pour identifier un Traître.`);
   };
 
+  const rememberResolvedVote = (resolvedVotes: Record<string, string>, eliminated: Player) => {
+    const eliminatedWasTraitor = isActiveTraitor(eliminated);
+    setBotSuspicion(previous => {
+      const next = { ...previous };
+      Object.entries(resolvedVotes).forEach(([voterId, targetId]) => {
+        if (targetId !== eliminated.id) return;
+        next[voterId] = Math.max(-6, Math.min(8, (next[voterId] || 0) + (eliminatedWasTraitor ? -2 : 2)));
+      });
+      return next;
+    });
+  };
+
+  const beginRunoffVote = () => {
+    setVotes({});
+    setVoterIndex(0);
+    setVoteTarget(null);
+    setMayorWantsBonus(false);
+    setStage('vote-pass');
+    narrate('Un second vote commence uniquement entre les personnes arrivées à égalité.');
+  };
+
   const submitVote = (targetId: string, useMayorBonus = false) => {
     if (!currentVoter) return;
     if (soundEnabled) void playEffect('success', effectsVolume);
@@ -1323,28 +1370,43 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       setStage('vote-pass');
       return;
     }
+    const initialCounts = ravenTarget && (runoffCandidateIds.length === 0 || runoffCandidateIds.includes(ravenTarget))
+      ? { [ravenTarget]: 1 }
+      : {};
     const counts = Object.entries(nextVotes).reduce<Record<string, number>>((accumulator, [voterId, targetId]) => {
       const voter = players.find(player => player.id === voterId);
       const mayorAddsVoice = voter?.role === 'mayor'
         && (players.length >= 7 || voterId === nextMayorBonusVoterId);
       accumulator[targetId] = (accumulator[targetId] || 0) + (mayorAddsVoice ? 2 : 1);
       return accumulator;
-    }, ravenTarget ? { [ravenTarget]: 1 } : {});
+    }, initialCounts);
     const highest = Math.max(...Object.values(counts));
     const leaders = Object.entries(counts).filter(([, count]) => count === highest).map(([id]) => id);
     if (leaders.length !== 1) {
-      setVoteMessage('Le vote se termine sur une égalité. Personne ne quitte le Village.');
+      if (runoffRound === 0) {
+        setRunoffCandidateIds(leaders);
+        setRunoffRound(1);
+        setVoteMessage(`Égalité entre ${leaders.map(id => players.find(player => player.id === id)?.name).filter(Boolean).join(' et ')}. Un second vote va les départager.`);
+        setStage('vote-result');
+        if (soundEnabled) playEffect('danger', effectsVolume);
+        narrate('Le premier vote se termine sur une égalité. Un second vote va départager les personnes concernées.');
+        addMoment('vote', `Vote du jour ${night}`, 'Une égalité déclenche un second vote ciblé.');
+        return;
+      }
+      setRunoffCandidateIds([]);
+      setRunoffRound(0);
+      setVoteMessage('Le second vote se termine encore sur une égalité. Personne ne quitte le Village.');
       setStage('vote-result');
       if (soundEnabled) playEffect('danger', effectsVolume);
-      narrate('Égalité parfaite. Personne ne quitte le Village.');
-      addMoment('vote', `Vote du jour ${night}`, 'Le vote s’est terminé sur une égalité.');
+      narrate('La seconde égalité est confirmée. Personne ne quitte le Village.');
+      addMoment('vote', `Vote du jour ${night}`, 'Le second vote s’est terminé sur une égalité. Personne n’a été éliminé.');
       return;
     }
     const eliminated = players.find(player => player.id === leaders[0]);
     if (eliminated?.role === 'jester') {
       setSoloWinner(eliminated.name);
       setVoteMessage(`${eliminated.name} était le Farceur et voulait précisément être éliminé par le vote. Victoire du Farceur !`);
-      setStage('finished');
+      setStage('victory-reveal');
       localStorage.removeItem(SAVE_KEY);
       setResumeAvailable(false);
       recordResult(`Farceur · ${eliminated.name}`);
@@ -1364,6 +1426,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
       return;
     }
     const eliminatedIds = resolveLinkedEliminations(leaders[0]);
+    if (eliminated) rememberResolvedVote(nextVotes, eliminated);
     const nextPlayers = applyRepentantConversion(
       players.map(player => eliminatedIds.has(player.id) ? { ...player, alive: false } : player),
       eliminatedIds
@@ -1382,6 +1445,8 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
         }))
     ]);
     setVoteMessage(`${eliminated?.name} quitte le Village.${revealRoles && eliminated ? ` Son rôle était ${ROLE_INFO[eliminated.role].name}.` : ''}${linkedVictims.length ? ` ${linkedVictims.map(player => player.name).join(', ')} le suit à cause d’un lien secret.` : ''}`);
+    setRunoffCandidateIds([]);
+    setRunoffRound(0);
     setStage('vote-result');
     if (soundEnabled) playEffect('danger', effectsVolume);
     narrate(`${eliminated?.name} quitte le Village.${revealRoles && eliminated ? ` Son rôle est révélé à l’écran.` : ''}`);
@@ -1391,7 +1456,11 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
   };
 
   const runBotVote = (bot: Player) => {
-    let candidates = alivePlayers.filter(player => player.id !== bot.id && player.id !== confessorTarget);
+    let candidates = alivePlayers.filter(player => (
+      player.id !== bot.id
+      && player.id !== confessorTarget
+      && (runoffCandidateIds.length === 0 || runoffCandidateIds.includes(player.id))
+    ));
     if (isActiveTraitor(bot)) {
       candidates = candidates.filter(player => !isActiveTraitor(player));
     }
@@ -1403,7 +1472,21 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
         return;
       }
     }
-    const target = selectBotTarget(bot, candidates, botDifficulty === 'hard');
+    const rememberedCandidates = candidates
+      .map(player => ({
+        player,
+        suspicion: botSuspicion[player.id] || 0,
+        repeatedChoice: Object.values(votes).filter(targetId => targetId === player.id).length
+      }))
+      .sort((left, right) => {
+        if (isActiveTraitor(bot)) return left.suspicion - right.suspicion;
+        return (right.suspicion + right.repeatedChoice) - (left.suspicion + left.repeatedChoice);
+      });
+    const shouldUseMemory = botDifficulty === 'hard'
+      || (botDifficulty === 'normal' && rememberedCandidates.some(candidate => candidate.suspicion !== 0));
+    const target = shouldUseMemory
+      ? rememberedCandidates[0]?.player
+      : selectBotTarget(bot, candidates);
     if (!target) return;
     const useMayorBonus = bot.role === 'mayor'
       && !mayorBonusUsed
@@ -1414,6 +1497,8 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
 
   const nextNight = () => {
     if (soundEnabled) void playEffect('danger', effectsVolume);
+    setRunoffCandidateIds([]);
+    setRunoffRound(0);
     setNight(value => value + 1);
     setStage('night-intro');
     narrate('La nuit revient sur le Village. Tout le monde ferme les yeux.');
@@ -1425,7 +1510,11 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
     setStage('setup');
     setRevealIndex(0);
     setVotes({});
+    setRunoffCandidateIds([]);
+    setRunoffRound(0);
+    setBotSuspicion({});
     setWinner(null);
+    setSoloWinner(null);
     setRoleVisible(false);
     localStorage.removeItem(SAVE_KEY);
     setResumeAvailable(false);
@@ -1471,7 +1560,15 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
               <li><strong className="text-white">3. Jour :</strong> la victime est annoncée, puis la famille débat pendant le temps choisi.</li>
               <li><strong className="text-white">4. Vote :</strong> chaque joueur vote seul. Le Village gagne en éliminant tous les Traîtres.</li>
               <li><strong className="text-white">5. Victoire des Traîtres :</strong> elle est immédiate dès qu’ils sont aussi nombreux que tous les autres survivants réunis. Les pouvoirs de vote ne prolongent pas la partie après cette égalité.</li>
+              <li><strong className="text-white">6. Égalité :</strong> un second vote départage uniquement les personnes arrivées en tête. Si elles restent à égalité, personne n’est éliminé.</li>
             </ol>
+            <div className="mt-4 space-y-2 border-t border-white/8 pt-4">
+              <strong className="block text-[10px] uppercase tracking-wider text-[#9E94FF]">Interactions importantes</strong>
+              <p className="text-[10px] leading-relaxed text-white/50"><strong className="text-white/75">Protections :</strong> le Protecteur, le Guérisseur, l’Ancien et le Diplomate empêchent chacun une élimination selon leur propre règle. Une protection consommée n’élimine personne à la place.</p>
+              <p className="text-[10px] leading-relaxed text-white/50"><strong className="text-white/75">Liens secrets :</strong> les personnes liées par Cupidon ou les Jumeaux suivent immédiatement l’autre si elle est éliminée. La victoire est calculée après toutes ces éliminations.</p>
+              <p className="text-[10px] leading-relaxed text-white/50"><strong className="text-white/75">Traître repenti :</strong> après la chute d’un autre Traître, il rejoint secrètement le Village. Il continue à voir les choix des Traîtres, mais son vote nocturne ne compte plus.</p>
+              <p className="text-[10px] leading-relaxed text-white/50"><strong className="text-white/75">Vote :</strong> le Corbeau ajoute une voix, le Confesseur retire une cible du vote et le Silencieux retire un votant. Le Maire peut peser davantage selon la taille de la partie.</p>
+            </div>
           </div>
         )}
 
@@ -2310,6 +2407,8 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
         <button type="button" onClick={() => {
           setVoterIndex(0);
           setVotes({});
+          setRunoffCandidateIds([]);
+          setRunoffRound(0);
           setVoteTarget(null);
           setMayorWantsBonus(false);
           setStage('vote-pass');
@@ -2347,7 +2446,7 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
           <h2 className="mt-3 text-center text-xl font-black text-white">Vote de {currentVoter.name}</h2>
           <p className="mt-2 text-center text-xs text-white/50">Le Maire peut ajouter une voix à son choix une seule fois dans la partie.</p>
           <div className="mt-5 grid grid-cols-2 gap-2">
-            {alivePlayers.filter(player => player.id !== currentVoter.id && player.id !== confessorTarget).map(player => (
+            {voteCandidates.map(player => (
               <button key={player.id} type="button" onClick={() => setVoteTarget(player.id)} className={`rounded-2xl border p-3 text-xs font-black ${voteTarget === player.id ? 'border-[#FFB020] bg-[#FFB020]/12 text-white' : 'border-white/8 bg-white/5 text-white/55'}`}>
                 {player.name}
               </button>
@@ -2364,11 +2463,36 @@ export function VillageSecretGame({ members, onFinished }: VillageSecretGameProp
         </SecretPanel>
       );
     }
-    return <SecretChoice icon={<Vote className="h-8 w-8 text-[#FFB020]" />} title={`Vote de ${currentVoter.name}`} detail="Qui doit quitter le Village ?" players={alivePlayers.filter(player => player.id !== currentVoter.id && player.id !== confessorTarget)} selectedId={null} onSelect={submitVote} immediate />;
+    return <SecretChoice icon={<Vote className="h-8 w-8 text-[#FFB020]" />} title={`Vote de ${currentVoter.name}`} detail={runoffRound > 0 ? 'Second vote : choisissez uniquement entre les personnes à égalité.' : 'Qui doit quitter le Village ?'} players={voteCandidates} selectedId={null} onSelect={submitVote} immediate />;
   }
 
   if (stage === 'vote-result') {
-    return <NarratorScene icon={<Vote className="h-10 w-10" />} eyebrow="Résultat du vote" title="La décision est prise" detail={voteMessage} action="Passer à la nuit suivante" onAction={nextNight} narratorEnabled={narratorEnabled} onToggleNarrator={() => setNarratorEnabled(value => !value)} />;
+    return <NarratorScene icon={<Vote className="h-10 w-10" />} eyebrow="Résultat du vote" title={runoffRound > 0 ? 'Égalité au Village' : 'La décision est prise'} detail={voteMessage} action={runoffRound > 0 ? 'Lancer le second vote' : 'Passer à la nuit suivante'} onAction={runoffRound > 0 ? beginRunoffVote : nextNight} narratorEnabled={narratorEnabled} onToggleNarrator={() => setNarratorEnabled(value => !value)} />;
+  }
+
+  if (stage === 'victory-reveal') {
+    const victoryTitle = soloWinner
+      ? `${soloWinner} remporte la partie`
+      : winner === 'village'
+        ? 'Le Village est sauvé'
+        : 'Les Traîtres prennent le contrôle';
+    const victoryDetail = soloWinner
+      ? 'Le Farceur a réussi à convaincre le Village de l’éliminer.'
+      : winner === 'village'
+        ? 'Tous les Traîtres encore actifs ont été éliminés.'
+        : `${activeTraitorCount} Traître${activeTraitorCount !== 1 ? 's' : ''} face à ${otherSurvivorCount} autre${otherSurvivorCount !== 1 ? 's' : ''} survivant${otherSurvivorCount !== 1 ? 's' : ''} : la parité est atteinte.`;
+    return (
+      <NarratorScene
+        icon={<Sparkles className="h-10 w-10 text-[#FFB020]" />}
+        eyebrow="Fin de la partie"
+        title={victoryTitle}
+        detail={victoryDetail}
+        action="Révéler tous les rôles"
+        onAction={() => setStage('finished')}
+        narratorEnabled={narratorEnabled}
+        onToggleNarrator={() => setNarratorEnabled(value => !value)}
+      />
+    );
   }
 
   return (
