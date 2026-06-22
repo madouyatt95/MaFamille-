@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Circle, MapContainer, TileLayer, Marker, Popup, useMap, Polyline, useMapEvents } from 'react-leaflet';
+import { Circle, CircleMarker, MapContainer, TileLayer, Marker, Popup, useMap, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { 
@@ -51,6 +51,14 @@ const OVERPASS_ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter'
 ];
 
+const isValidMapCoords = (lat: number, lng: number) => (
+  Number.isFinite(lat) &&
+  Number.isFinite(lng) &&
+  Math.abs(lat) <= 90 &&
+  Math.abs(lng) <= 180 &&
+  !(Math.abs(lat) < 0.0001 && Math.abs(lng) < 0.0001)
+);
+
 const getMemberCoords = (member?: Member | null): [number, number] | null => {
   if (!member || member.latitude === undefined || member.latitude === null || member.longitude === undefined || member.longitude === null) {
     return null;
@@ -58,8 +66,7 @@ const getMemberCoords = (member?: Member | null): [number, number] | null => {
 
   const lat = Number(member.latitude);
   const lng = Number(member.longitude);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  if (Math.abs(lat) < 0.0001 && Math.abs(lng) < 0.0001) return null;
+  if (!isValidMapCoords(lat, lng)) return null;
   return [lat, lng];
 };
 
@@ -118,8 +125,8 @@ const FitNearbyBounds: React.FC<{
 }> = ({ points, origin }) => {
   const map = useMap();
   useEffect(() => {
-    const validPoints = points.filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
-    const validOrigin = origin && Number.isFinite(origin[0]) && Number.isFinite(origin[1]) ? origin : null;
+    const validPoints = points.filter(([lat, lon]) => isValidMapCoords(lat, lon));
+    const validOrigin = origin && isValidMapCoords(origin[0], origin[1]) ? origin : null;
     if (validPoints.length === 0) return;
     try {
       const bounds = L.latLngBounds(validOrigin ? [validOrigin, ...validPoints] : validPoints);
@@ -354,7 +361,7 @@ const fetchNearbyFallbackResults = async (
   data.forEach(result => {
       const lat = Number(result.lat);
       const lon = Number(result.lon);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      if (!isValidMapCoords(lat, lon)) return;
       results.push({
         ...result,
         distanceKm: getHaversineDistance(origin[0], origin[1], lat, lon),
@@ -367,21 +374,21 @@ const fetchNearbyFallbackResults = async (
     .sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
 };
 
-const nearbyMarkerEmoji: Record<NearbyCategory, string> = {
-  school: '🏫',
-  doctor: '🩺',
-  pharmacy: '✚',
-  shopping: '🛒',
-  station: '🚉',
-  park: '🌳'
+const nearbyMarkerColors: Record<NearbyCategory, string> = {
+  school: '#6C5CFF',
+  doctor: '#00A6FF',
+  pharmacy: '#00D26A',
+  shopping: '#FFB020',
+  station: '#FF4D6D',
+  park: '#2FD27E'
 };
 
-const createNearbyMarkerIcon = (category: NearbyCategory) => L.divIcon({
-  className: 'nearby-place-marker',
-  html: `<div class="nearby-place-marker__pin"><span>${nearbyMarkerEmoji[category]}</span></div>`,
-  iconSize: [38, 44],
-  iconAnchor: [19, 42],
-  popupAnchor: [0, -38]
+const getNearbyMarkerStyle = (category: NearbyCategory): L.PathOptions => ({
+  color: '#FFFFFF',
+  fillColor: nearbyMarkerColors[category],
+  fillOpacity: 0.9,
+  opacity: 0.95,
+  weight: 2
 });
 
 const overpassElementToSearchResult = (
@@ -391,7 +398,7 @@ const overpassElementToSearchResult = (
 ): MapSearchResult | null => {
   const lat = element.lat ?? element.center?.lat;
   const lon = element.lon ?? element.center?.lon;
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (!isValidMapCoords(Number(lat), Number(lon))) return null;
 
   const tags = element.tags || {};
   const name = tags.name || tags.brand || nearbyCategories.find(item => item.key === category)?.label || 'Lieu';
@@ -462,7 +469,10 @@ const normalizeMapSearchQuery = (query: string) => {
 const compactSearchResults = (results: MapSearchResult[]) => {
   const seen = new Set<string>();
   return results.filter((result) => {
-    const key = `${Number(result.lat).toFixed(5)}:${Number(result.lon).toFixed(5)}:${formatSearchResult(result).title.toLowerCase()}`;
+    const lat = Number(result.lat);
+    const lon = Number(result.lon);
+    if (!isValidMapCoords(lat, lon)) return false;
+    const key = `${lat.toFixed(5)}:${lon.toFixed(5)}:${formatSearchResult(result).title.toLowerCase()}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -495,6 +505,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const [emergencyConfirmOpen, setEmergencyConfirmOpen] = useState(false);
   const [emergencySharing, setEmergencySharing] = useState(false);
   const geolocationRequestRef = useRef(0);
+  const nearbySearchRequestRef = useRef(0);
   const isSharingRef = useRef(isSharing);
   const selectedStatusRef = useRef(selectedStatus);
   
@@ -601,7 +612,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     if (!activeMemberLatitudeKey || !activeMemberLongitudeKey) return null;
     const latitude = Number(activeMemberLatitudeKey);
     const longitude = Number(activeMemberLongitudeKey);
-    return Number.isFinite(latitude) && Number.isFinite(longitude)
+    return isValidMapCoords(latitude, longitude)
       ? [latitude, longitude]
       : null;
   }, [activeMemberLatitudeKey, activeMemberLongitudeKey]);
@@ -610,7 +621,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     return searchResults
       .filter(result => Boolean(result.nearbyCategory))
       .map(result => [Number(result.lat), Number(result.lon)] as [number, number])
-      .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
+      .filter(([lat, lon]) => isValidMapCoords(lat, lon));
   }, [searchResults]);
 
   useEffect(() => {
@@ -622,8 +633,9 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   }, [selectedStatus]);
 
   const searchNearbyPlaces = async (category: NearbyCategory) => {
+    const requestId = ++nearbySearchRequestRef.current;
     const definition = nearbyCategories.find(item => item.key === category);
-    const validOrigin = routeOrigin && Number.isFinite(routeOrigin[0]) && Number.isFinite(routeOrigin[1])
+    const validOrigin = routeOrigin && isValidMapCoords(routeOrigin[0], routeOrigin[1])
       ? routeOrigin
       : null;
     if (!validOrigin || !definition) {
@@ -648,6 +660,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         .filter(result => typeof result.distanceKm === 'number' && result.distanceKm <= NEARBY_RADIUS_METERS / 1000)
         .sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
       const compacted = compactSearchResults(results);
+      if (requestId !== nearbySearchRequestRef.current) return;
       setSearchResults(compacted);
       if (compacted.length === 0) {
         setSearchError(`Aucun ${definition.label.toLowerCase()} trouvé dans un rayon de 5 km.`);
@@ -661,6 +674,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       console.error('Nearby places search error:', err);
       try {
         const fallbackResults = compactSearchResults(await fetchNearbyFallbackResults(category, validOrigin));
+        if (requestId !== nearbySearchRequestRef.current) return;
         setSearchResults(fallbackResults);
         if (fallbackResults.length === 0) {
           setActiveNearbyCategory(null);
@@ -672,12 +686,13 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
           message: `${fallbackResults.length} résultat${fallbackResults.length > 1 ? 's' : ''} affiché${fallbackResults.length > 1 ? 's' : ''}. Source de secours utilisée.`
         });
       } catch (fallbackError) {
+        if (requestId !== nearbySearchRequestRef.current) return;
         console.error('Nearby fallback search error:', fallbackError);
         setActiveNearbyCategory(null);
         setSearchError("Les lieux proches sont momentanément indisponibles. Réessayez dans quelques instants.");
       }
     } finally {
-      setSearching(false);
+      if (requestId === nearbySearchRequestRef.current) setSearching(false);
     }
   };
   const safetyZones = useMemo<SafetyZone[]>(() => {
@@ -1035,7 +1050,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const handleSelectSearchResult = (result: MapSearchResult) => {
     const lat = parseFloat(result.lat);
     const lon = parseFloat(result.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    if (!isValidMapCoords(lat, lon)) {
       setMapNotice({ type: 'warning', message: "Ce lieu n'a pas de coordonnées exploitables." });
       return;
     }
@@ -1159,7 +1174,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const satLayer = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] bg-[#07111F] text-white overflow-hidden relative">
+    <div className="family-map flex flex-col h-[calc(100vh-80px)] bg-[#07111F] text-white overflow-hidden relative">
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes pulse {
           0% { transform: scale(1); opacity: 0.8; }
@@ -1215,8 +1230,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
       {/* Floating real search bar */}
       <div className="absolute top-4 left-4 right-4 z-[999] max-w-sm mx-auto">
-        <form onSubmit={handleAddressSearch} className="flex items-center space-x-2 bg-[#0F1E36]/90 backdrop-blur-xl border border-white/10 p-2 rounded-2xl shadow-2xl">
-          <Search className="w-4 h-4 text-white/50 ml-1" />
+        <form onSubmit={handleAddressSearch} className="family-map-panel flex items-center space-x-2 bg-[#0F1E36]/90 backdrop-blur-xl border border-white/10 p-2 rounded-2xl shadow-2xl">
+          <Search className="family-map-muted w-4 h-4 text-white/50 ml-1" />
           <input
             type="text"
             value={searchQuery}
@@ -1225,7 +1240,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
               setActiveNearbyCategory(null);
             }}
             placeholder="Adresse, école, médecin, commerce..."
-            className="flex-1 bg-transparent text-xs text-white placeholder-white/40 focus:outline-none"
+            className="family-map-input flex-1 bg-transparent text-xs text-white placeholder-white/40 focus:outline-none"
           />
           <button
             type="submit"
@@ -1248,8 +1263,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                 activeNearbyCategory === key
                   ? 'bg-[#6C5CFF] border-[#8E82FF] text-white shadow-lg shadow-[#6C5CFF]/25'
                   : routeOrigin
-                  ? 'bg-[#0F1E36]/90 border-white/10 text-white/75'
-                  : 'bg-[#0F1E36]/65 border-white/5 text-white/35'
+                  ? 'family-map-panel border-white/10 text-white/75'
+                  : 'family-map-panel border-white/5 text-white/35'
               } disabled:opacity-55`}
               title={routeOrigin ? `${label} à moins de 5 km` : 'Activez votre position pour rechercher à proximité'}
             >
@@ -1259,8 +1274,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
           ))}
         </div>
 
-        <div className="mt-2 rounded-2xl bg-[#0F1E36]/75 border border-white/8 px-3 py-2 backdrop-blur-xl">
-          <p className="text-[10px] text-white/60 font-semibold leading-normal flex items-start gap-1.5">
+        <div className="family-map-panel mt-2 rounded-2xl bg-[#0F1E36]/75 border border-white/8 px-3 py-2 backdrop-blur-xl">
+          <p className="family-map-muted text-[10px] text-white/60 font-semibold leading-normal flex items-start gap-1.5">
             {routeOrigin
               ? <LocateFixed className="mt-0.5 h-3 w-3 shrink-0 text-[#00D26A]" />
               : <Info className="mt-0.5 h-3 w-3 shrink-0 text-[#FFB020]" />}
@@ -1273,7 +1288,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         </div>
 
         {mapNotice && (
-          <div className={`mt-2 rounded-2xl border px-3 py-2 backdrop-blur-xl shadow-2xl flex items-start justify-between gap-2 ${
+          <div className={`family-map-notice mt-2 rounded-2xl border px-3 py-2 backdrop-blur-xl shadow-2xl flex items-start justify-between gap-2 ${
             mapNotice.type === 'success'
               ? 'bg-[#00D26A]/15 border-[#00D26A]/25'
               : mapNotice.type === 'warning'
@@ -1284,7 +1299,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
             <button
               type="button"
               onClick={() => setMapNotice(null)}
-              className="text-[10px] text-white/45 hover:text-white font-black"
+              className="family-map-muted text-[10px] text-white/45 hover:text-white font-black"
             >
               OK
             </button>
@@ -1292,8 +1307,8 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         )}
 
         {searching && searchResults.length === 0 && (
-          <div className="mt-2 rounded-2xl border border-white/10 bg-[#0F1E36]/95 p-3 backdrop-blur-xl shadow-2xl">
-            <div className="flex items-center gap-2 text-[11px] font-bold text-white/65">
+          <div className="family-map-panel mt-2 rounded-2xl border border-white/10 bg-[#0F1E36]/95 p-3 backdrop-blur-xl shadow-2xl">
+            <div className="family-map-muted flex items-center gap-2 text-[11px] font-bold text-white/65">
               <Crosshair className="h-4 w-4 animate-spin text-[#00D26A]" />
               Recherche des meilleurs résultats...
             </div>
@@ -1302,25 +1317,26 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
         {/* Nominatim Search Results Floating Panel */}
         {searchResults.length > 0 && (
-          <div className="mt-2 bg-[#0F1E36]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-2 max-h-[180px] overflow-y-auto shadow-2xl space-y-1">
+          <div className="family-map-results mt-2 bg-[#0F1E36]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-2 max-h-[210px] overflow-y-auto shadow-2xl space-y-1">
             {searchResults.map((res, idx) => {
               const formatted = formatSearchResult(res);
+              const isNearby = Boolean(res.nearbyCategory);
               return (
                 <button
                   key={idx}
                   onClick={() => handleSelectSearchResult(res)}
-                  className="w-full text-left p-2.5 rounded-xl text-white hover:bg-white/5 transition block font-medium"
+                  className="family-map-result-item w-full text-left p-2.5 rounded-xl text-white hover:bg-white/5 transition block font-medium"
                 >
                   <span className="text-[11px] font-extrabold text-white flex items-center gap-1.5">
-                    <span>📍</span>
+                    <span>{isNearby ? '•' : '📍'}</span>
                     <span className="truncate">{formatted.title}</span>
                     {typeof res.distanceKm === 'number' && (
-                      <span className="ml-auto shrink-0 rounded-lg bg-[#00D26A]/10 px-2 py-1 text-[10px] text-[#00D26A]">
+                      <span className="family-map-distance ml-auto shrink-0 rounded-lg bg-[#00D26A]/10 px-2 py-1 text-[10px] text-[#00D26A]">
                         {res.distanceKm < 1 ? `${Math.round(res.distanceKm * 1000)} m` : `${res.distanceKm.toFixed(1)} km`}
                       </span>
                     )}
                   </span>
-                  <span className="text-[10px] text-white/50 block truncate mt-1">{formatted.subtitle}</span>
+                  <span className="family-map-muted text-[10px] text-white/50 block truncate mt-1">{formatted.subtitle}</span>
                 </button>
               );
             })}
@@ -1328,7 +1344,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         )}
 
         {searchError && (
-          <div className="mt-2 bg-[#FF4D6D]/15 backdrop-blur-xl border border-[#FF4D6D]/25 rounded-2xl p-3 shadow-2xl flex items-start space-x-2">
+          <div className="family-map-error mt-2 bg-[#FF4D6D]/15 backdrop-blur-xl border border-[#FF4D6D]/25 rounded-2xl p-3 shadow-2xl flex items-start space-x-2">
             <AlertCircle className="w-4 h-4 text-[#FF4D6D] shrink-0 mt-0.5" />
             <p className="text-[10px] text-white/80 font-semibold leading-normal">{searchError}</p>
           </div>
@@ -1494,17 +1510,18 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
               </>
             )}
 
-            {searchResults.filter(result => result.nearbyCategory).map((result) => {
+            {searchResults.filter(result => result.nearbyCategory).map((result, index) => {
               const lat = Number(result.lat);
               const lon = Number(result.lon);
               const category = result.nearbyCategory as NearbyCategory;
               const formatted = formatSearchResult(result);
-              if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+              if (!isValidMapCoords(lat, lon)) return null;
               return (
-                <Marker
-                  key={`nearby-${category}-${result.lat}-${result.lon}`}
-                  position={[lat, lon]}
-                  icon={createNearbyMarkerIcon(category)}
+                <CircleMarker
+                  key={`nearby-${category}-${lat.toFixed(5)}-${lon.toFixed(5)}-${index}`}
+                  center={[lat, lon]}
+                  radius={9}
+                  pathOptions={getNearbyMarkerStyle(category)}
                 >
                   <Popup closeButton={false}>
                     <div className="min-w-[180px] p-1 text-left text-white">
@@ -1533,7 +1550,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                       </div>
                     </div>
                   </Popup>
-                </Marker>
+                </CircleMarker>
               );
             })}
 
