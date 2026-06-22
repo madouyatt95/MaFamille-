@@ -44,10 +44,33 @@ const createFavoriteId = (type: FavoritePlace['type']) => `fav-${Date.now()}-${t
 const MAX_SEARCH_RESULTS = 8;
 const NEARBY_RADIUS_METERS = 5000;
 const NEARBY_FETCH_LIMIT = 60;
+const LOCATION_PUBLISH_INTERVAL_MS = 15 * 60 * 1000;
+const LOCATION_PUBLISH_DISTANCE_KM = 0.1;
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter'
 ];
+
+interface PublishedLocationSnapshot {
+  lat: number;
+  lng: number;
+  status: string;
+  publishedAt: number;
+}
+
+const readPublishedLocation = (memberId: string): PublishedLocationSnapshot | null => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(`mf_map_published_location_${memberId}`) || 'null');
+    if (!parsed || !Number.isFinite(parsed.lat) || !Number.isFinite(parsed.lng) || !Number.isFinite(parsed.publishedAt)) return null;
+    return parsed as PublishedLocationSnapshot;
+  } catch {
+    return null;
+  }
+};
+
+const storePublishedLocation = (memberId: string, snapshot: PublishedLocationSnapshot) => {
+  localStorage.setItem(`mf_map_published_location_${memberId}`, JSON.stringify(snapshot));
+};
 
 const isValidMapCoords = (lat: number, lng: number) => (
   Number.isFinite(lat) &&
@@ -508,8 +531,11 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
   const selectedStatusRef = useRef(selectedStatus);
   const onUpdateMemberProfileRef = useRef(onUpdateMemberProfile);
   
-  // Layer style: 'dark' | 'satellite'
-  const [mapLayer, setMapLayer] = useState<'dark' | 'satellite'>('dark');
+  const [appearanceMode] = useState<'dark' | 'light' | 'sepia'>(() => {
+    const saved = localStorage.getItem('app_appearance_mode');
+    return saved === 'light' || saved === 'sepia' ? saved : 'dark';
+  });
+  const [mapLayer, setMapLayer] = useState<'plan' | 'satellite'>('plan');
   
   // Nominatim Real Search Bar States
   const [searchQuery, setSearchQuery] = useState('');
@@ -784,16 +810,26 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
           setLoadingLoc(false);
 
           const updateMemberProfile = onUpdateMemberProfileRef.current;
-          if (updateMemberProfile) {
+          const previousPublish = readPublishedLocation(activeMemberId);
+          const movedDistance = previousPublish
+            ? getHaversineDistance(previousPublish.lat, previousPublish.lng, lat, lng)
+            : Infinity;
+          const shouldPublish = !previousPublish
+            || Date.now() - previousPublish.publishedAt >= LOCATION_PUBLISH_INTERVAL_MS
+            || movedDistance >= LOCATION_PUBLISH_DISTANCE_KM
+            || previousPublish.status !== currentStatus;
+          if (updateMemberProfile && shouldPublish) {
             updateMemberProfile(activeMemberId, {
               latitude: lat,
               longitude: lng,
               locationStatus: currentStatus,
               lastLocatedAt: new Date().toISOString()
+            }).then(() => {
+              storePublishedLocation(activeMemberId, { lat, lng, status: currentStatus, publishedAt: Date.now() });
             }).catch((error) => {
-              console.error('Unable to publish member location:', error);
-              setMapNotice({ type: 'warning', message: "Votre position est visible sur cet appareil, mais sa synchronisation a échoué." });
-            });
+                console.error('Unable to publish member location:', error);
+                setMapNotice({ type: 'warning', message: "Votre position est visible sur cet appareil, mais sa synchronisation a échoué." });
+              });
           }
           addLocationHistoryEntry([lat, lng], currentStatus);
         },
@@ -824,6 +860,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     localStorage.setItem('mf_share_location', nextVal ? 'true' : 'false');
 
     if (!nextVal) {
+      localStorage.removeItem(`mf_map_published_location_${activeMemberId}`);
       setUserLocation(null);
       setRouteTarget(null);
       setRoutePoints([]);
@@ -890,13 +927,22 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
     if (status === selectedStatus) return;
     setSelectedStatus(status);
     const coords = routeOrigin;
+    const locatedAt = new Date().toISOString();
     try {
       const updateMemberProfile = onUpdateMemberProfileRef.current;
       if (updateMemberProfile) {
         await updateMemberProfile(activeMemberId, {
           locationStatus: status,
-          lastLocatedAt: new Date().toISOString()
+          lastLocatedAt: locatedAt
         });
+        if (coords) {
+          storePublishedLocation(activeMemberId, {
+            lat: coords[0],
+            lng: coords[1],
+            status,
+            publishedAt: Date.parse(locatedAt)
+          });
+        }
       }
       if (coords) addLocationHistoryEntry(coords, status);
     } catch (error) {
@@ -1243,7 +1289,9 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
   // TileLayer provider switcher
   const darkLayer = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+  const lightLayer = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
   const satLayer = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+  const planLayer = appearanceMode === 'dark' ? darkLayer : lightLayer;
 
   return (
     <div className="family-map flex flex-col h-[calc(100vh-80px)] bg-[#07111F] text-white overflow-hidden relative">
@@ -1565,11 +1613,11 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
         </button>
 
         <button
-          onClick={() => setMapLayer(prev => prev === 'dark' ? 'satellite' : 'dark')}
+          onClick={() => setMapLayer(prev => prev === 'plan' ? 'satellite' : 'plan')}
           className="p-3 bg-[#0F1E36]/90 backdrop-blur-md rounded-2xl border border-white/10 shadow-xl hover:bg-[#162C4E] transition text-white active:scale-95 flex items-center justify-center cursor-pointer"
           title="Changer de vue (Plan / Satellite)"
         >
-          {mapLayer === 'dark' ? <Map className="w-4.5 h-4.5" /> : <Layers className="w-4.5 h-4.5 text-[#FFB020]" />}
+          {mapLayer === 'plan' ? <Map className="w-4.5 h-4.5" /> : <Layers className="w-4.5 h-4.5 text-[#FFB020]" />}
         </button>
 
         {/* Manual Geolocate centering */}
@@ -1620,8 +1668,9 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
             zoomControl={false}
           >
             <TileLayer
-              url={mapLayer === 'dark' ? darkLayer : satLayer}
-              attribution={mapLayer === 'dark' 
+              url={mapLayer === 'plan' ? planLayer : satLayer}
+              className={mapLayer === 'plan' && appearanceMode === 'sepia' ? 'family-map-tiles-sepia' : ''}
+              attribution={mapLayer === 'plan'
                 ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
                 : 'Esri, DigitalGlobe, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AEX, Getmapping, Aerogrid, IGN, IGP, swisstopo, and the GIS User Community'
               }

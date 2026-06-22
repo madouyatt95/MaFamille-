@@ -44,6 +44,79 @@ type SyncExternalCalendarEventsOptions = {
   externalEvents: ExternalEvent[];
 };
 
+export type CloudCalendarState = {
+  sources: CalendarSource[];
+  events: ExternalEvent[];
+};
+
+const splitCloudDateTime = (value: string | null, isAllDay: boolean) => {
+  if (!value) return { date: '', time: undefined as string | undefined };
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return { date: '', time: undefined as string | undefined };
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return {
+    date: `${year}-${month}-${day}`,
+    time: isAllDay ? undefined : `${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}`
+  };
+};
+
+export const loadExternalCalendarStateFromCloud = async (foyerId: string): Promise<CloudCalendarState> => {
+  const supabase = getSupabaseClient();
+  if (!supabase || !foyerId) return { sources: [], events: [] };
+
+  const { min, max } = getSyncWindow();
+  const { data, error } = await supabase
+    .from('external_calendar_events')
+    .select('external_id, source_id, source_name, source_url, source_color, member_id, title, description, location, start_at, end_at, is_all_day')
+    .eq('foyer_id', foyerId)
+    .gte('start_at', min.toISOString())
+    .lte('start_at', max.toISOString())
+    .order('start_at', { ascending: true })
+    .limit(MAX_SYNCED_EVENTS);
+
+  if (error) {
+    console.warn('[Agenda] Chargement des calendriers cloud ignoré :', error.message);
+    return { sources: [], events: [] };
+  }
+
+  const sourceMap = new Map<string, CalendarSource>();
+  const events = (data || []).map(row => {
+    const sourceName = row.source_name || 'Calendrier cloud';
+    const sourceId = row.source_id || `cloud-${sourceName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
+    if (!sourceMap.has(sourceId)) {
+      sourceMap.set(sourceId, {
+        id: sourceId,
+        name: sourceName,
+        url: row.source_url || 'cloud-only:',
+        color: row.source_color || '#6C5CFF',
+        memberId: row.member_id || undefined,
+        isActive: true
+      });
+    }
+    const start = splitCloudDateTime(row.start_at, !!row.is_all_day);
+    const end = splitCloudDateTime(row.end_at, !!row.is_all_day);
+    return {
+      id: row.external_id,
+      title: row.title || 'Sans titre',
+      startDate: start.date,
+      endDate: end.date || start.date,
+      startTime: start.time,
+      endTime: end.time,
+      description: row.description || undefined,
+      location: row.location || undefined,
+      sourceId,
+      sourceName,
+      sourceColor: row.source_color || '#6C5CFF',
+      memberId: row.member_id || undefined,
+      isAllDay: !!row.is_all_day
+    } satisfies ExternalEvent;
+  }).filter(event => Boolean(event.startDate));
+
+  return { sources: [...sourceMap.values()], events };
+};
+
 export const syncExternalCalendarEventsForReminders = async ({
   foyer,
   activeMemberId,

@@ -318,7 +318,7 @@ export const Agenda: React.FC<AgendaProps> = ({
     
     for (const source of calendarSources) {
       if (!source.isActive) continue;
-      if (source.url.startsWith('local-file:')) {
+      if (source.url.startsWith('local-file:') || source.url.startsWith('cloud-only:')) {
         const currentFileEvents = externalEvents
           .filter(ee => (ee.sourceId ? ee.sourceId === source.id : ee.sourceName === source.name))
           .map(event => ({ ...event, sourceId: source.id }));
@@ -362,8 +362,8 @@ export const Agenda: React.FC<AgendaProps> = ({
 
   // Synchronisation d'une seule source iCal spécifique
   const syncSingleSource = async (source: CalendarSource) => {
-    if (source.url.startsWith('local-file:')) {
-      alert(`"${source.name}" vient d'un fichier importé. Pour le mettre à jour, réimportez un nouveau fichier ICS.`);
+    if (source.url.startsWith('local-file:') || source.url.startsWith('cloud-only:')) {
+      alert(`"${source.name}" est disponible depuis sa dernière sauvegarde cloud. Pour le mettre à jour, réimportez son fichier ou son lien ICS.`);
       return;
     }
     setSyncing(true);
@@ -511,7 +511,7 @@ export const Agenda: React.FC<AgendaProps> = ({
 
     if (!nextIsActive) {
       onCalendarSourceDeleted?.(previousSource);
-    } else if (!previousSource.url.startsWith('local-file:')) {
+    } else if (!previousSource.url.startsWith('local-file:') && !previousSource.url.startsWith('cloud-only:')) {
       void syncSingleSource({ ...previousSource, isActive: true });
     }
   };

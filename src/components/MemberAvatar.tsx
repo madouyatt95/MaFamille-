@@ -25,7 +25,7 @@ export function MemberAvatar({
       <img
         src={photoUrl || undefined}
         alt={name ? `Photo de ${name}` : 'Photo de profil'}
-        className={`${className} ${imageClassName} object-cover`}
+        className={`${className} ${imageClassName} block shrink-0 aspect-square object-cover object-center`}
         style={style}
         onError={() => setFailedUrl(photoUrl || null)}
       />
@@ -36,7 +36,7 @@ export function MemberAvatar({
   return (
     <span
       aria-label={name ? `Profil de ${name}` : 'Profil sans photo'}
-      className={`${className} inline-flex shrink-0 items-center justify-center bg-[#6C5CFF]/15 text-[#6C5CFF] font-black`}
+      className={`${className} inline-flex shrink-0 aspect-square items-center justify-center overflow-hidden bg-[#6C5CFF]/15 text-[#6C5CFF] font-black`}
       style={style}
     >
       {initials || <UserRound className="h-1/2 w-1/2" />}

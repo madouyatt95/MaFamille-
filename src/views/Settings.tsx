@@ -442,17 +442,6 @@ export const Settings: React.FC<SettingsProps> = ({
     }
   }, [myMemberProfile, members, activeMemberId]);
 
-  const presetAvatars = [
-    { emoji: '👨‍👩‍👧', label: 'Famille', url: 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=150' },
-    { emoji: '👨‍💼', label: 'Parent 1', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150' },
-    { emoji: '👩‍💼', label: 'Parent 2', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150' },
-    { emoji: '🧒', label: 'Garçon', url: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150' },
-    { emoji: '👧', label: 'Fille', url: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=150' },
-    { emoji: '🦁', label: 'Lion', url: 'https://images.unsplash.com/photo-1546182990-dffeafbe841d?w=150' },
-    { emoji: '🐱', label: 'Chat', url: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150' },
-    { emoji: '🥑', label: 'Avocat', url: 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?w=150' }
-  ];
-
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingProfile(true);
@@ -620,43 +609,6 @@ export const Settings: React.FC<SettingsProps> = ({
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoFile} className="hidden" />
             <input ref={galleryInputRef} type="file" accept="image/*" onChange={handlePhotoFile} className="hidden" />
 
-            <details className="group w-full rounded-2xl bg-white/3 border border-white/5 overflow-hidden">
-              <summary className="px-3.5 py-3 text-[10px] font-extrabold text-white/55 uppercase tracking-wider cursor-pointer list-none flex items-center justify-between">
-                <span>Options avatar avancées</span>
-                <span className="text-white/30 group-open:rotate-180 transition-transform">▼</span>
-              </summary>
-              <div className="px-3.5 pb-3 space-y-3 border-t border-white/5">
-                <div className="space-y-2 w-full pt-3">
-                  <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block text-center">Choisir un avatar</span>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {presetAvatars.map((av) => (
-                      <button
-                        type="button"
-                        key={av.url}
-                        onClick={() => setProfilePhoto(av.url)}
-                        className={`p-2 rounded-xl bg-white/5 border text-sm hover:bg-white/10 active:scale-95 transition-all cursor-pointer ${
-                          profilePhoto === av.url ? 'border-[#6C5CFF] bg-[#6C5CFF]/10 scale-110 shadow-md' : 'border-transparent'
-                        }`}
-                        title={av.label}
-                      >
-                        {av.emoji}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="w-full space-y-1">
-                  <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">URL d'une image</label>
-                  <input
-                    type="text"
-                    placeholder="https://images.unsplash.com/..."
-                    value={profilePhoto}
-                    onChange={(e) => setProfilePhoto(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
-                  />
-                </div>
-              </div>
-            </details>
           </div>
 
           {/* Display Name input */}

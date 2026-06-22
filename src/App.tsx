@@ -205,7 +205,7 @@ import { accountService } from './services/accountService';
 import { PasswordRecoveryView } from './components/PasswordRecoveryView';
 import { foyerService } from './services/foyerService';
 import { spaceService, type Space } from './services/spaceService';
-import { deleteExternalCalendarSourceForReminders, syncExternalCalendarEventsForReminders } from './services/calendarReminderService';
+import { deleteExternalCalendarSourceForReminders, loadExternalCalendarStateFromCloud, syncExternalCalendarEventsForReminders } from './services/calendarReminderService';
 import { CommuneHub } from './components/modules/CommuneHub';
 import { getSupabaseClient, deserializeCategoryIcon, serializeTransactionComment, deserializeTransactionComment, getModuleIdFromTransaction, serializeEventDescription, deserializeEventDescription, logQueryVolume, getCleanDescription } from './utils/supabase';
 import type { Foyer, FoyerMember } from './types';
@@ -1547,6 +1547,40 @@ function App() {
     }, 250);
     return () => window.clearTimeout(timeout);
   }, [foyer, activeMemberId, calendarSources, externalEvents, enqueueCalendarReminderTask]);
+
+  const calendarCloudLoadRef = useRef<{ foyerId: string; loadedAt: number } | null>(null);
+  useEffect(() => {
+    if (activeModule !== 'agenda' || !foyer?.id) return;
+    const previousLoad = calendarCloudLoadRef.current;
+    if (previousLoad?.foyerId === foyer.id && Date.now() - previousLoad.loadedAt < 5 * 60 * 1000) return;
+    calendarCloudLoadRef.current = { foyerId: foyer.id, loadedAt: Date.now() };
+    let cancelled = false;
+
+    void loadExternalCalendarStateFromCloud(foyer.id).then(cloudState => {
+      if (cancelled) return;
+      if (cloudState.sources.length > 0) {
+        setCalendarSources(previous => {
+          const merged = new Map(cloudState.sources.map(source => [source.id, source]));
+          previous.forEach(source => merged.set(source.id, source));
+          return [...merged.values()];
+        });
+      }
+      if (cloudState.events.length > 0) {
+        setExternalEvents(previous => {
+          const merged = new Map(cloudState.events.map(event => [event.id, event]));
+          previous.forEach(event => merged.set(event.id, event));
+          return [...merged.values()];
+        });
+      }
+    }).catch(error => {
+      calendarCloudLoadRef.current = null;
+      console.warn('[Agenda] Impossible de restaurer les calendriers cloud :', error);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeModule, foyer?.id]);
 
   const [myMemberProfile, setMyMemberProfile] = useState<FoyerMember | null>(() => {
     return safeGetLocalStorage<FoyerMember | null>('mf_cached_member_profile', null);

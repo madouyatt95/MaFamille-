@@ -1732,6 +1732,18 @@ html.high-contrast [class*="text-white/5"] {
   color: #ffffff !important;
 }
 
+.theme-light .family-map .leaflet-container {
+  background: #e8edf3 !important;
+}
+
+.theme-sepia .family-map .leaflet-container {
+  background: #eee4cf !important;
+}
+
+.family-map .family-map-tiles-sepia {
+  filter: sepia(0.32) saturate(0.78) brightness(0.98);
+}
+
 .theme-light .family-map .family-map-panel,
 .theme-light .family-map .family-map-results,
 .theme-light .family-map .family-map-modal {
