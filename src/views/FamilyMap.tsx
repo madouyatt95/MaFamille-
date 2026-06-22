@@ -22,14 +22,12 @@ import {
   ShieldCheck,
   UserX,
   MapPin,
-  Info,
   ExternalLink,
   Pill,
   Stethoscope,
   ShoppingBasket,
   TrainFront,
   Trees,
-  LocateFixed,
   X,
   Car,
   Footprints,
@@ -628,6 +626,16 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
       .map(result => [Number(result.lat), Number(result.lon)] as [number, number])
       .filter(([lat, lon]) => isValidMapCoords(lat, lon));
   }, [searchResults]);
+  const hasSearchOverlay = searching || searchResults.length > 0 || Boolean(searchError);
+
+  const clearMapSearch = () => {
+    ++addressSearchRequestRef.current;
+    ++nearbySearchRequestRef.current;
+    setActiveNearbyCategory(null);
+    setSearchResults([]);
+    setSearchError(null);
+    setSearching(false);
+  };
 
   useEffect(() => {
     isSharingRef.current = isSharing;
@@ -1292,20 +1300,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
           ))}
         </div>
 
-        <div className="family-map-panel mt-2 rounded-2xl bg-[#0F1E36]/75 border border-white/8 px-3 py-2 backdrop-blur-xl">
-          <p className="family-map-muted text-[10px] text-white/60 font-semibold leading-normal flex items-start gap-1.5">
-            {routeOrigin
-              ? <LocateFixed className="mt-0.5 h-3 w-3 shrink-0 text-[#00D26A]" />
-              : <Info className="mt-0.5 h-3 w-3 shrink-0 text-[#FFB020]" />}
-            <span>
-              {routeOrigin
-                ? 'Lieux proches triés par distance autour de votre position, dans un rayon de 5 km.'
-                : 'Position masquée : activez-la pour obtenir les écoles, pharmacies et services réellement proches.'}
-            </span>
-          </p>
-        </div>
-
-        {mapNotice && (
+        {mapNotice && !hasSearchOverlay && (
           <div className={`family-map-notice mt-2 rounded-2xl border px-3 py-2 backdrop-blur-xl shadow-2xl flex items-start justify-between gap-2 ${
             mapNotice.type === 'success'
               ? 'bg-[#00D26A]/15 border-[#00D26A]/25'
@@ -1326,16 +1321,30 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
         {searching && searchResults.length === 0 && (
           <div className="family-map-panel mt-2 rounded-2xl border border-white/10 bg-[#0F1E36]/95 p-3 backdrop-blur-xl shadow-2xl">
-            <div className="family-map-muted flex items-center gap-2 text-[11px] font-bold text-white/65">
-              <Crosshair className="h-4 w-4 animate-spin text-[#00D26A]" />
-              Recherche des meilleurs résultats...
+            <div className="flex items-center justify-between gap-3">
+              <div className="family-map-muted flex items-center gap-2 text-[11px] font-bold text-white/65">
+                <Crosshair className="h-4 w-4 animate-spin text-[#00D26A]" />
+                Recherche à moins de 5 km...
+              </div>
+              <button type="button" onClick={clearMapSearch} className="family-map-muted p-1 text-white/55" title="Annuler">
+                <X className="h-4 w-4" />
+              </button>
             </div>
           </div>
         )}
 
         {/* Nominatim Search Results Floating Panel */}
         {searchResults.length > 0 && (
-          <div className="family-map-results mt-2 bg-[#0F1E36]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-2 max-h-[210px] overflow-y-auto shadow-2xl space-y-1">
+          <div className="family-map-results mt-2 bg-[#0F1E36]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-2 shadow-2xl">
+            <div className="flex items-center justify-between gap-3 px-1.5 pb-1.5">
+              <p className="family-map-muted text-[10px] font-black text-white/60">
+                {searchResults.length} lieu{searchResults.length > 1 ? 'x' : ''} trouvé{searchResults.length > 1 ? 's' : ''}
+              </p>
+              <button type="button" onClick={clearMapSearch} className="family-map-muted p-1 text-white/55" title="Fermer les résultats">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="max-h-[min(32vh,230px)] overflow-y-auto space-y-1">
             {searchResults.map((res, idx) => {
               const formatted = formatSearchResult(res);
               const isNearby = Boolean(res.nearbyCategory);
@@ -1358,19 +1367,25 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
                 </button>
               );
             })}
+            </div>
           </div>
         )}
 
         {searchError && (
-          <div className="family-map-error mt-2 bg-[#FF4D6D]/15 backdrop-blur-xl border border-[#FF4D6D]/25 rounded-2xl p-3 shadow-2xl flex items-start space-x-2">
+          <div className="family-map-error mt-2 bg-[#FF4D6D]/15 backdrop-blur-xl border border-[#FF4D6D]/25 rounded-2xl p-3 shadow-2xl flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-[#FF4D6D] shrink-0 mt-0.5" />
-            <p className="text-[10px] text-white/80 font-semibold leading-normal">{searchError}</p>
+            <p className="min-w-0 flex-1 text-[10px] text-white/80 font-semibold leading-normal">{searchError}</p>
+            <button type="button" onClick={clearMapSearch} className="family-map-muted p-1 text-white/55" title="Fermer">
+              <X className="h-4 w-4" />
+            </button>
           </div>
         )}
       </div>
 
       {/* FLOATING MAP LAYER STYLE SWITCHER */}
-      <div className="absolute top-40 right-4 z-[999] flex flex-col space-y-2">
+      <div className={`absolute top-[8.75rem] right-4 z-[998] flex flex-col space-y-2 transition-opacity ${
+        hasSearchOverlay || routeTarget ? 'pointer-events-none opacity-0' : 'opacity-100'
+      }`}>
         <button
           onClick={() => setEmergencyConfirmOpen(true)}
           className="p-3 bg-[#FF3B30]/90 backdrop-blur-md rounded-2xl border border-[#FF3B30]/60 shadow-xl transition active:scale-95 flex items-center justify-center cursor-pointer text-white"
@@ -1778,7 +1793,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({ members, activeMemberId, o
 
         {/* Route Details Overlay Banner */}
         {routeTarget && (
-          <div className="absolute top-28 left-4 right-4 z-[999] bg-[#0F1E36]/95 backdrop-blur-xl text-white border border-[#00D26A]/30 px-3.5 py-3 rounded-2xl shadow-2xl space-y-2">
+          <div className="absolute top-[8.75rem] left-4 right-4 z-[998] bg-[#0F1E36]/95 backdrop-blur-xl text-white border border-[#00D26A]/30 px-3.5 py-3 rounded-2xl shadow-2xl space-y-2">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center space-x-2">

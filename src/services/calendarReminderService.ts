@@ -5,6 +5,16 @@ import type { ExternalEvent } from '../utils/icalParser';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_SYNCED_EVENTS = 2000;
+const CALENDAR_SYNC_VERSION = 2;
+
+const hashCalendarPayload = (value: string): string => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${value.length}:${(hash >>> 0).toString(36)}`;
+};
 
 const getSyncWindow = () => {
   const now = new Date();
@@ -88,6 +98,17 @@ export const syncExternalCalendarEventsForReminders = async ({
     .slice(0, MAX_SYNCED_EVENTS);
 
   if (rows.length === 0) return;
+  const syncSignature = hashCalendarPayload(JSON.stringify(rows.map(row => [
+    row.external_id,
+    row.source_id,
+    row.title,
+    row.start_at,
+    row.end_at,
+    row.location,
+    row.description
+  ])));
+  const signatureKey = `mf_calendar_reminder_signature_v${CALENDAR_SYNC_VERSION}_${foyer.id}`;
+  if (localStorage.getItem(signatureKey) === syncSignature) return;
 
   const { error } = await supabase
     .from('external_calendar_events')
@@ -95,7 +116,9 @@ export const syncExternalCalendarEventsForReminders = async ({
 
   if (error) {
     console.warn('[Agenda] Synchronisation serveur des rappels ICS ignorée :', error.message);
+    return;
   }
+  localStorage.setItem(signatureKey, syncSignature);
 };
 
 export const deleteExternalCalendarSourceForReminders = async (
@@ -131,5 +154,6 @@ export const deleteExternalCalendarSourceForReminders = async (
     console.warn('[Agenda] Nettoyage des anciens rappels ICS ignoré :', legacyError.message);
     return false;
   }
+  localStorage.removeItem(`mf_calendar_reminder_signature_v${CALENDAR_SYNC_VERSION}_${foyer.id}`);
   return true;
 };
