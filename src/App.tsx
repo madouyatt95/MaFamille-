@@ -1000,6 +1000,7 @@ function App() {
   const [pinError, setPinError] = useState(false);
   const [pinErrorMessage, setPinErrorMessage] = useState('Code PIN incorrect');
   const [sharedPackId, setSharedPackId] = useState<string | null>(null);
+  const [sharedPackToken, setSharedPackToken] = useState<string | null>(null);
 
 
 
@@ -9657,10 +9658,15 @@ function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
-      if (hash.startsWith('#share_')) {
+      if (hash.startsWith('#sharelink_')) {
+        setSharedPackToken(hash.replace('#sharelink_', ''));
+        setSharedPackId(null);
+      } else if (hash.startsWith('#share_')) {
         setSharedPackId(hash.replace('#share_', ''));
+        setSharedPackToken(null);
       } else {
         setSharedPackId(null);
+        setSharedPackToken(null);
       }
     };
     handleHashChange();
@@ -12113,6 +12119,10 @@ function App() {
     const appFilteredAlerts = filteredAlerts;
     const appEvents = unifiedEvents;
 
+    if (sharedPackToken) {
+      return <SharedPackView token={sharedPackToken} />;
+    }
+
     if (sharedPackId) {
       const pack = justificatifPacks.find(p => p.id === sharedPackId);
       if (pack) {
@@ -13495,7 +13505,7 @@ function App() {
     );
   }
 
-  if (sharedPackId) {
+  if (sharedPackId || sharedPackToken) {
     return (
       <Suspense fallback={<AppLoadingFallback />}>
         {renderContent()}
@@ -13507,7 +13517,6 @@ function App() {
   const appMembers = members;
   const appActiveMemberId = activeMemberId;
   const activeMemberObj = appMembers.find(m => m.id === appActiveMemberId);
-  const appDocuments = documents.filter(document => !isSystemDocument(document));
   const isKidMode = activeMemberObj && activeMemberObj.age && parseInt(activeMemberObj.age) < 11;
 
   const forceOnboarding = user && myFoyers.length === 0;

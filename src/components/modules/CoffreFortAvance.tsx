@@ -5,6 +5,7 @@ import type { DocumentFile, DocumentCategory, Member, Demarche, JustificatifPack
 import { demarcheTemplates } from '../../data/demoData';
 import { compressImageToBlob, dataUrlToBlob, extensionFromMimeType, isDataUrl, uploadBlobToStorage } from '../../utils/imageCompressor';
 import { foyerService } from '../../services/foyerService';
+import { createSharedPackLink } from '../../services/sharedPackService';
 
 interface CoffreFortAvanceProps {
   documents: DocumentFile[];
@@ -192,6 +193,8 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     return 30; // default to adult
   };
 
+  const generateShareCode = () => String(Math.floor(100000 + Math.random() * 900000));
+
   // Pack states
   const [showNewPack, setShowNewPack] = useState(false);
   const [newPackName, setNewPackName] = useState('');
@@ -199,6 +202,8 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
   const [selectedPackDocs, setSelectedPackDocs] = useState<string[]>([]);
   const [newPackShareDurationDays, setNewPackShareDurationDays] = useState(7);
   const [newPackAllowDirectDownloads, setNewPackAllowDirectDownloads] = useState(true);
+  const [newPackRecipientLabel, setNewPackRecipientLabel] = useState('');
+  const [newPackAccessCode, setNewPackAccessCode] = useState(() => generateShareCode());
   
   // Upload Form State
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -336,6 +341,38 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
   const protectedDocsCount = documents.filter(d => d.isSecure).length;
   const readyPacksCount = packs.filter(p => p.documentIds.length > 0).length;
 
+  const duplicateDocumentGroups = useMemo(() => {
+    const groups = new Map<string, DocumentFile[]>();
+    documents.forEach(doc => {
+      const key = `${doc.name.trim().toLowerCase().replace(/\s+/g, ' ')}|${doc.category}|${doc.memberId || 'family'}`;
+      groups.set(key, [...(groups.get(key) || []), doc]);
+    });
+    return Array.from(groups.values()).filter(group => group.length > 1).slice(0, 4);
+  }, [documents]);
+
+  const packSuggestions = useMemo(() => {
+    const byCategory = (category: DocumentCategory) => documents.filter(doc => doc.category === category && !doc.isExpired);
+    const existingTemplates = new Set(packs.map(pack => pack.templateType));
+    const suggestions: { id: string; title: string; type: JustificatifPack['templateType']; reason: string; documentIds: string[] }[] = [];
+
+    const locationDocs = [...byCategory('identity'), ...byCategory('home'), ...byCategory('bank')].slice(0, 6);
+    if (!existingTemplates.has('location') && locationDocs.length >= 2) {
+      suggestions.push({ id: 'suggest-location', title: 'Dossier location prêt', type: 'location', reason: 'Identité, logement ou banque détectés', documentIds: locationDocs.map(doc => doc.id) });
+    }
+
+    const schoolDocs = [...byCategory('identity'), ...byCategory('school'), ...byCategory('health')].slice(0, 6);
+    if (!existingTemplates.has('ecole') && schoolDocs.length >= 2) {
+      suggestions.push({ id: 'suggest-ecole', title: 'Dossier école prêt', type: 'ecole', reason: 'Pièces enfant, santé ou scolarité regroupables', documentIds: schoolDocs.map(doc => doc.id) });
+    }
+
+    const bankDocs = [...byCategory('identity'), ...byCategory('bank'), ...byCategory('contract')].slice(0, 6);
+    if (!existingTemplates.has('banque') && bankDocs.length >= 2) {
+      suggestions.push({ id: 'suggest-banque', title: 'Dossier banque prêt', type: 'banque', reason: 'Identité et justificatifs financiers disponibles', documentIds: bankDocs.map(doc => doc.id) });
+    }
+
+    return suggestions.slice(0, 3);
+  }, [documents, packs]);
+
   const addDocumentRenewalReminder = (doc: DocumentFile) => {
     const parsed = parseDocumentDate(doc.expiryDate);
     if (!parsed || !onAddEvent) return;
@@ -344,6 +381,66 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     const dateForCalendar = reminderDate > new Date() ? reminderDate : parsed;
     onAddEvent(`Renouveler : ${doc.name}`, dateForCalendar.toISOString().split('T')[0]);
     alert('📅 Rappel ajouté au calendrier familial.');
+  };
+
+  const createSuggestedPack = (suggestion: { title: string; type: JustificatifPack['templateType']; documentIds: string[] }) => {
+    const newPack: JustificatifPack = {
+      id: `pack-${Date.now()}`,
+      name: suggestion.title,
+      templateType: suggestion.type,
+      documentIds: suggestion.documentIds,
+      createdAt: new Date().toLocaleDateString('fr-FR'),
+      shareDurationDays: 7,
+      shareExpiresAt: addDaysIso(7),
+      allowDirectDownloads: true
+    };
+    setPacks(prev => [newPack, ...prev]);
+  };
+
+  const handleCopyPackShareLink = async (pack: JustificatifPack) => {
+    const shareStatus = getPackShareStatus(pack);
+    if (shareStatus.expired) {
+      alert('Ce lien est expiré. Prolongez le dossier ou recréez un lien.');
+      return;
+    }
+
+    const recipientLabel = window.prompt('Nom du destinataire (optionnel)', pack.shareRecipientLabel || '') || '';
+    const accessCode = window.prompt('Code court à transmettre séparément (laissez vide pour générer un code)', generateShareCode()) || '';
+    const expiresAt = pack.shareExpiresAt || addDaysIso(pack.shareDurationDays || 7);
+    const allowDirectDownloads = pack.allowDirectDownloads !== false;
+
+    if (!foyerId) {
+      const shareUrl = `${window.location.origin}${window.location.pathname}#share_${pack.id}`;
+      await navigator.clipboard.writeText(shareUrl);
+      alert('Lien local copié. La protection avancée sera disponible après synchronisation du foyer.');
+      return;
+    }
+
+    try {
+      const link = await createSharedPackLink({
+        foyerId,
+        pack,
+        recipientLabel,
+        accessCode,
+        expiresAt,
+        allowDirectDownloads
+      });
+      const shareUrl = `${window.location.origin}${window.location.pathname}#sharelink_${link.token}`;
+      await navigator.clipboard.writeText(shareUrl);
+      setPacks(prev => prev.map(item => item.id === pack.id ? {
+        ...item,
+        shareToken: link.token,
+        shareRecipientLabel: recipientLabel || undefined,
+        shareExpiresAt: link.expiresAt || expiresAt,
+        shareOpenedCount: link.openedCount || 0,
+        shareLastOpenedAt: link.lastOpenedAt || null,
+        shareAccessCodeRequired: !!accessCode
+      } : item));
+      alert(`Lien sécurisé copié.\nCode à transmettre séparément : ${accessCode}`);
+    } catch (err) {
+      console.error('Impossible de créer le lien sécurisé', err);
+      alert("Impossible de créer le lien sécurisé. Vérifiez que la migration Supabase est bien appliquée.");
+    }
   };
 
   const filteredDocs = useMemo(() => {
@@ -820,6 +917,20 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
 
         {viewMode === 'all' && (
           <div className="space-y-2">
+            {duplicateDocumentGroups.length > 0 && (
+              <div className="mb-4 rounded-2xl border border-[#FFB020]/25 bg-[#FFB020]/10 p-3">
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#FFB020]">Doublons possibles</p>
+                <p className="mt-1 text-[10px] text-white/50">Même nom, même catégorie et même membre.</p>
+                <div className="mt-3 space-y-2">
+                  {duplicateDocumentGroups.map(group => (
+                    <div key={group.map(doc => doc.id).join('-')} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 px-3 py-2">
+                      <span className="min-w-0 truncate text-[10px] font-bold text-white">{group[0].name}</span>
+                      <span className="shrink-0 text-[10px] text-[#FFB020]">{group.length} copies</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {filteredDocs.map(doc => {
               const config = categoryConfig[doc.category];
               const Icon = config?.icon || FileText;
@@ -939,54 +1050,63 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                 <p className="text-[10px] text-white/45">Les pièces expirées ou proches de leur échéance sont regroupées ici.</p>
               </div>
             </div>
-            {renewalDocs.length > 0 ? renewalDocs.map(({ doc, renewal }) => {
-              const config = categoryConfig[doc.category];
-              const Icon = config?.icon || FileText;
-              return (
-                <div
-                  key={doc.id}
-                  className={`p-3 rounded-xl border ${renewal.border} ${renewal.bg} space-y-3`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleDocumentClick(doc)}
-                      className="flex items-center gap-3 min-w-0 text-left flex-1"
+            {renewalDocs.length > 0 ? ([
+              { key: 'expired', title: 'Expirés', items: renewalDocs.filter(item => item.renewal.status === 'expired') },
+              { key: 'urgent', title: 'Dans les 30 jours', items: renewalDocs.filter(item => item.renewal.status === 'urgent') },
+              { key: 'soon', title: 'Dans les 90 jours', items: renewalDocs.filter(item => item.renewal.status === 'soon') }
+            ]).map(group => group.items.length > 0 && (
+              <div key={group.key} className="space-y-2">
+                <p className="px-1 text-[10px] font-extrabold uppercase tracking-widest text-white/45">{group.title}</p>
+                {group.items.map(({ doc, renewal }) => {
+                  const config = categoryConfig[doc.category];
+                  const Icon = config?.icon || FileText;
+                  return (
+                    <div
+                      key={doc.id}
+                      className={`p-3 rounded-xl border ${renewal.border} ${renewal.bg} space-y-3`}
                     >
-                      <div className={`p-2 rounded-lg ${config?.color || 'text-white bg-white/10'} shrink-0`}>
-                        <Icon className="w-4 h-4" />
+                      <div className="flex items-center justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleDocumentClick(doc)}
+                          className="flex items-center gap-3 min-w-0 text-left flex-1"
+                        >
+                          <div className={`p-2 rounded-lg ${config?.color || 'text-white bg-white/10'} shrink-0`}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm truncate">{doc.name}</p>
+                            <p className="text-[10px] text-white/45 truncate">
+                              {doc.memberName || 'Famille'} • {config?.label || doc.category} • expire le {formatDocumentDate(doc.expiryDate)}
+                            </p>
+                          </div>
+                        </button>
+                        <span className={`text-[10px] font-extrabold shrink-0 ${renewal.accent}`}>{renewal.label}</span>
                       </div>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-sm truncate">{doc.name}</p>
-                        <p className="text-[10px] text-white/45 truncate">
-                          {doc.memberName || 'Famille'} • {config?.label || doc.category} • expire le {formatDocumentDate(doc.expiryDate)}
-                        </p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleDocumentClick(doc)}
+                          className="flex-1 py-2 rounded-xl bg-white/8 border border-white/10 text-white text-[10px] font-bold"
+                        >
+                          Voir le document
+                        </button>
+                        {onAddEvent && (
+                          <button
+                            type="button"
+                            onClick={() => addDocumentRenewalReminder(doc)}
+                            className="flex-1 py-2 rounded-xl bg-[#4F8CFF]/10 border border-[#4F8CFF]/20 text-[#7AA8FF] text-[10px] font-bold flex items-center justify-center gap-1"
+                          >
+                            <Calendar className="w-3.5 h-3.5" />
+                            <span>Créer rappel</span>
+                          </button>
+                        )}
                       </div>
-                    </button>
-                    <span className={`text-[10px] font-extrabold shrink-0 ${renewal.accent}`}>{renewal.label}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleDocumentClick(doc)}
-                      className="flex-1 py-2 rounded-xl bg-white/8 border border-white/10 text-white text-[10px] font-bold"
-                    >
-                      Voir le document
-                    </button>
-                    {onAddEvent && (
-                      <button
-                        type="button"
-                        onClick={() => addDocumentRenewalReminder(doc)}
-                        className="flex-1 py-2 rounded-xl bg-[#4F8CFF]/10 border border-[#4F8CFF]/20 text-[#7AA8FF] text-[10px] font-bold flex items-center justify-center gap-1"
-                      >
-                        <Calendar className="w-3.5 h-3.5" />
-                        <span>Créer rappel</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            }) : (
+                    </div>
+                  );
+                })}
+              </div>
+            )) : (
               <div className="text-center py-10 rounded-2xl border border-white/8 bg-white/[0.03]">
                 <CheckCircle2 className="w-8 h-8 text-[#00D26A] mx-auto mb-2" />
                 <p className="text-sm font-bold text-white">Aucune échéance urgente</p>
@@ -1531,6 +1651,31 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
             </button>
           </div>
 
+          {packSuggestions.length > 0 && (
+            <div className="rounded-[24px] border border-[#00D26A]/20 bg-[#00D26A]/10 p-4 space-y-3">
+              <div>
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#00D26A]">Suggestions intelligentes</p>
+                <p className="mt-1 text-[10px] text-white/45">Créées localement depuis vos documents déjà chargés.</p>
+              </div>
+              <div className="space-y-2">
+                {packSuggestions.map(suggestion => (
+                  <button
+                    key={suggestion.id}
+                    type="button"
+                    onClick={() => createSuggestedPack(suggestion)}
+                    className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-left active:scale-[0.98] transition"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-extrabold text-white">{suggestion.title}</span>
+                      <span className="text-[10px] font-bold text-[#00D26A]">{suggestion.documentIds.length} docs</span>
+                    </div>
+                    <p className="mt-0.5 text-[9px] text-white/40">{suggestion.reason}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {packs.map(pack => {
             const packDocs = documents.filter(d => pack.documentIds.includes(d.id));
             const typeLabel = pack.templateType === 'location' ? '🏠 Location' : pack.templateType === 'ecole' ? '🎓 École' : pack.templateType === 'banque' ? '🏦 Banque' : pack.templateType === 'emploi' ? '💼 Emploi' : '📁 Personnalisé';
@@ -1550,8 +1695,14 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   <div className="min-w-0">
                     <p className={`text-[10px] font-extrabold ${shareStatus.accent}`}>{shareStatus.label}</p>
                     <p className="text-[9px] text-white/40">
+                      {pack.shareRecipientLabel ? `${pack.shareRecipientLabel} • ` : ''}
                       {pack.allowDirectDownloads === false ? 'Sommaire uniquement' : 'Ouverture directe des fichiers disponibles'}
                     </p>
+                    {(typeof pack.shareOpenedCount === 'number' || pack.shareAccessCodeRequired) && (
+                      <p className="mt-0.5 text-[9px] text-white/35">
+                        {pack.shareAccessCodeRequired ? 'Code requis' : 'Sans code'} • {pack.shareOpenedCount || 0} ouverture{(pack.shareOpenedCount || 0) > 1 ? 's' : ''}
+                      </p>
+                    )}
                   </div>
                   <Shield className={`w-4 h-4 shrink-0 ${shareStatus.accent}`} />
                 </div>
@@ -1602,15 +1753,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      if (shareStatus.expired) {
-                        alert('Ce lien est expiré. Modifiez la durée du pack ou recréez un dossier.');
-                        return;
-                      }
-                      const shareUrl = `${window.location.origin}${window.location.pathname}#share_${pack.id}`;
-                      navigator.clipboard.writeText(shareUrl);
-                      alert('🔗 Lien de partage copié dans le presse-papiers !\nEnvoyez-le à votre destinataire.');
-                    }}
+                    onClick={() => void handleCopyPackShareLink(pack)}
                     className={`py-2.5 rounded-xl text-[10px] font-bold transition flex items-center justify-center space-x-1.5 ${
                       shareStatus.expired
                         ? 'bg-white/5 border border-white/10 text-white/30 cursor-not-allowed'
@@ -1648,6 +1791,13 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   <option value="emploi">💼 Emploi</option>
                   <option value="custom">📁 Personnalisé</option>
                 </select>
+                <input
+                  type="text"
+                  placeholder="Destinataire du partage (optionnel)"
+                  value={newPackRecipientLabel}
+                  onChange={e => setNewPackRecipientLabel(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                />
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-white/40">Expiration du lien</label>
@@ -1671,8 +1821,27 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                         : 'border-white/10 bg-white/5 text-white/45'
                     }`}
                   >
-                    {newPackAllowDirectDownloads ? 'Fichiers ouvrables' : 'Sommaire seul'}
+                      {newPackAllowDirectDownloads ? 'Fichiers ouvrables' : 'Sommaire seul'}
                   </button>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+                  <label className="mb-2 block text-[9px] font-bold uppercase tracking-wider text-white/40">Code court du lien</label>
+                  <div className="flex gap-2">
+                    <input
+                      value={newPackAccessCode}
+                      onChange={e => setNewPackAccessCode(e.target.value)}
+                      inputMode="numeric"
+                      className="min-w-0 flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-bold text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setNewPackAccessCode(generateShareCode())}
+                      className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-bold text-white/70"
+                    >
+                      Nouveau
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[9px] text-white/35">À transmettre séparément du lien.</p>
                 </div>
                 <div className="space-y-1.5">
                   <span className="text-[9px] font-bold text-white/40 uppercase block">Sélectionner les documents</span>
@@ -1701,11 +1870,13 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                       createdAt: new Date().toLocaleDateString('fr-FR'),
                       shareDurationDays: newPackShareDurationDays,
                       shareExpiresAt: addDaysIso(newPackShareDurationDays),
-                      allowDirectDownloads: newPackAllowDirectDownloads
+                      allowDirectDownloads: newPackAllowDirectDownloads,
+                      shareRecipientLabel: newPackRecipientLabel || undefined,
+                      shareAccessCodeRequired: !!newPackAccessCode
                     };
                     setPacks(prev => [newPack, ...prev]);
                     setShowNewPack(false);
-                    setNewPackName(''); setSelectedPackDocs([]); setNewPackShareDurationDays(7); setNewPackAllowDirectDownloads(true);
+                    setNewPackName(''); setSelectedPackDocs([]); setNewPackShareDurationDays(7); setNewPackAllowDirectDownloads(true); setNewPackRecipientLabel(''); setNewPackAccessCode(generateShareCode());
                   }}
                   className="w-full py-3 bg-[#6C5CFF] rounded-xl text-white text-xs font-extrabold cursor-pointer hover:opacity-90 transition"
                 >

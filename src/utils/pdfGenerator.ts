@@ -22,12 +22,19 @@ const loadDocumentPayload = async (doc: DocumentFile): Promise<{ mime: string; b
 
 export const generatePackPDF = async (pack: JustificatifPack, documents: DocumentFile[]): Promise<void> => {
   try {
-    // 1. Création d'un nouveau document PDF
     const pdfDoc = await PDFDocument.create();
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const generatedAt = new Date();
+    const expiresAt = pack.shareExpiresAt ? new Date(pack.shareExpiresAt) : null;
+    const watermarkParts = [
+      'MyFamily+',
+      `généré le ${generatedAt.toLocaleDateString('fr-FR')}`,
+      expiresAt && !Number.isNaN(expiresAt.getTime()) ? `expire le ${expiresAt.toLocaleDateString('fr-FR')}` : null,
+      pack.shareRecipientLabel ? `destinataire : ${pack.shareRecipientLabel}` : null
+    ].filter(Boolean);
+    const watermark = watermarkParts.join(' • ');
 
-    // 2. Page de garde
     const coverPage = pdfDoc.addPage();
     const { width, height } = coverPage.getSize();
     
@@ -39,13 +46,33 @@ export const generatePackPDF = async (pack: JustificatifPack, documents: Documen
       color: rgb(0.2, 0.2, 0.2),
     });
 
-    coverPage.drawText(`Généré le ${new Date().toLocaleDateString('fr-FR')}`, {
+    coverPage.drawText(`Généré le ${generatedAt.toLocaleDateString('fr-FR')}`, {
       x: 50,
       y: height - 130,
       size: 12,
       font: font,
       color: rgb(0.5, 0.5, 0.5),
     });
+
+    if (expiresAt && !Number.isNaN(expiresAt.getTime())) {
+      coverPage.drawText(`Lien valable jusqu'au ${expiresAt.toLocaleDateString('fr-FR')}`, {
+        x: 50,
+        y: height - 150,
+        size: 11,
+        font: font,
+        color: rgb(0.45, 0.45, 0.45),
+      });
+    }
+
+    if (pack.shareRecipientLabel) {
+      coverPage.drawText(`Destinataire : ${pack.shareRecipientLabel}`, {
+        x: 50,
+        y: height - 168,
+        size: 11,
+        font: font,
+        color: rgb(0.45, 0.45, 0.45),
+      });
+    }
 
     coverPage.drawText('Sommaire des pièces jointes :', {
       x: 50,
@@ -57,7 +84,6 @@ export const generatePackPDF = async (pack: JustificatifPack, documents: Documen
 
     let yOffset = height - 240;
     
-    // 3. Traitement des documents
     for (let i = 0; i < documents.length; i++) {
       const doc = documents[i];
       
@@ -107,7 +133,18 @@ export const generatePackPDF = async (pack: JustificatifPack, documents: Documen
       }
     }
 
-    // 4. Sauvegarde et téléchargement
+    pdfDoc.getPages().forEach((page) => {
+      const { width: pageWidth } = page.getSize();
+      page.drawText(watermark, {
+        x: 36,
+        y: 22,
+        size: 7,
+        font,
+        color: rgb(0.55, 0.55, 0.55),
+        maxWidth: pageWidth - 72
+      });
+    });
+
     const pdfBytes = await pdfDoc.save();
     const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);

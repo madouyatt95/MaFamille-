@@ -1,5 +1,5 @@
 import { getSupabaseClient, logQueryVolume } from '../utils/supabase';
-import type { FamilyJoinRequest, Foyer, FoyerMember, FoyerMemberProfileUpdate, MalusSettings, Member, MemberRole } from '../types';
+import type { FamilyJoinRequest, Foyer, FoyerMember, FoyerMemberProfileUpdate, MalusSettings, Member } from '../types';
 
 type PremiumUpdateOptions = {
   source?: Foyer['premiumSource'];

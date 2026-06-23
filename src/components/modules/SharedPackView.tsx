@@ -1,20 +1,75 @@
-import React, { useState } from 'react';
-import { FileText, Download, ShieldCheck, CheckSquare, Square, PackageOpen, ExternalLink, AlertTriangle, Clock } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { FileText, Download, ShieldCheck, CheckSquare, Square, PackageOpen, ExternalLink, AlertTriangle, Clock, KeyRound } from 'lucide-react';
 import type { JustificatifPack, DocumentFile } from '../../types';
+import { fetchSharedPackByToken } from '../../services/sharedPackService';
 
 interface SharedPackViewProps {
-  pack: JustificatifPack;
-  documents: DocumentFile[];
+  pack?: JustificatifPack;
+  documents?: DocumentFile[];
+  token?: string;
 }
 
-export const SharedPackView: React.FC<SharedPackViewProps> = ({ pack, documents }) => {
-  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set(documents.map(d => d.id)));
+export const SharedPackView: React.FC<SharedPackViewProps> = ({ pack: initialPack, documents: initialDocuments = [], token }) => {
+  const [pack, setPack] = useState<JustificatifPack | undefined>(initialPack);
+  const [documents, setDocuments] = useState<DocumentFile[]>(initialDocuments);
+  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set(initialDocuments.map(d => d.id)));
   const [isGenerating, setIsGenerating] = useState(false);
-  const expiresAt = pack.shareExpiresAt ? new Date(pack.shareExpiresAt) : null;
-  const isExpired = !!expiresAt && !Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now();
-  const directDownloadsAllowed = pack.allowDirectDownloads !== false;
+  const [isLoading, setIsLoading] = useState(!!token);
+  const [accessCode, setAccessCode] = useState('');
+  const [accessCodeRequired, setAccessCodeRequired] = useState(false);
+  const [accessCodeError, setAccessCodeError] = useState(false);
+  const [loadMessage, setLoadMessage] = useState<string | null>(null);
+  const [renderTimestamp] = useState(() => Date.now());
+
+  const expiresAt = pack?.shareExpiresAt ? new Date(pack.shareExpiresAt) : null;
+  const isExpired = !!expiresAt && !Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < renderTimestamp;
+  const directDownloadsAllowed = pack?.allowDirectDownloads !== false;
+  const selectedCount = useMemo(() => selectedDocs.size, [selectedDocs]);
 
   const getDocumentPayload = (doc: DocumentFile) => doc.fileUrl || doc.fileBase64 || '';
+
+  const loadSharedPack = async (code?: string) => {
+    if (!token) return;
+    setIsLoading(true);
+    setAccessCodeError(false);
+    setLoadMessage(null);
+    const payload = await fetchSharedPackByToken(token, code);
+    setIsLoading(false);
+
+    if (payload.accessCodeRequired) {
+      setAccessCodeRequired(true);
+      setAccessCodeError(!!payload.codeInvalid);
+      setLoadMessage(payload.message || null);
+      return;
+    }
+
+    if (payload.expired || payload.message || !payload.pack) {
+      setPack(undefined);
+      setDocuments([]);
+      setLoadMessage(payload.message || 'Ce dossier n’est plus disponible.');
+      return;
+    }
+
+    setPack(payload.pack);
+    setDocuments(payload.documents || []);
+    setSelectedDocs(new Set((payload.documents || []).map(d => d.id)));
+    setAccessCodeRequired(false);
+  };
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      if (token) {
+        void loadSharedPack();
+      } else {
+        setPack(initialPack);
+        setDocuments(initialDocuments);
+        setSelectedDocs(new Set(initialDocuments.map(d => d.id)));
+      }
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+    // The loader intentionally reacts only to the token or initial pack identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, initialPack?.id]);
 
   const toggleDoc = (id: string) => {
     const newSet = new Set(selectedDocs);
@@ -24,13 +79,73 @@ export const SharedPackView: React.FC<SharedPackViewProps> = ({ pack, documents 
   };
 
   const handleDownload = async () => {
-    if (isExpired) return;
+    if (isExpired || !pack) return;
     setIsGenerating(true);
     const docsToInclude = documents.filter(d => selectedDocs.has(d.id));
     const { generatePackPDF } = await import('../../utils/pdfGenerator');
     await generatePackPDF(pack, docsToInclude);
     setIsGenerating(false);
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans flex flex-col items-center justify-center">
+        <div className="w-full max-w-sm rounded-[28px] border border-white/10 bg-white/[0.04] p-6 text-center">
+          <PackageOpen className="mx-auto mb-3 h-8 w-8 animate-pulse text-[#6C5CFF]" />
+          <p className="text-sm font-bold">Ouverture du dossier sécurisé...</p>
+          <p className="mt-1 text-xs text-white/45">Vérification du lien de partage.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (accessCodeRequired) {
+    return (
+      <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans flex flex-col items-center justify-center">
+        <form
+          onSubmit={e => {
+            e.preventDefault();
+            void loadSharedPack(accessCode);
+          }}
+          className="w-full max-w-sm rounded-[28px] border border-white/10 bg-white/[0.04] p-6 space-y-4"
+        >
+          <div className="text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#6C5CFF]/25 bg-[#6C5CFF]/10">
+              <KeyRound className="h-7 w-7 text-[#6C5CFF]" />
+            </div>
+            <h1 className="text-lg font-black">Code d’accès requis</h1>
+            <p className="mt-1 text-xs text-white/45">Saisissez le code transmis avec le lien de partage.</p>
+          </div>
+          <input
+            value={accessCode}
+            onChange={e => setAccessCode(e.target.value)}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="Code à 6 chiffres"
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center text-lg font-black tracking-[0.35em] text-white outline-none focus:border-[#6C5CFF]"
+          />
+          {(accessCodeError || loadMessage) && (
+            <p className="text-center text-xs font-bold text-[#FF4D6D]">{accessCodeError ? 'Code incorrect.' : loadMessage}</p>
+          )}
+          <button className="w-full rounded-2xl bg-[#6C5CFF] py-3 text-sm font-black text-white active:scale-[0.98] transition">
+            Ouvrir le dossier
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  if (!pack) {
+    return (
+      <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans flex flex-col items-center justify-center">
+        <div className="w-full max-w-sm rounded-[28px] border border-[#FF4D6D]/20 bg-[#FF4D6D]/10 p-6 text-center">
+          <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-[#FF4D6D]" />
+          <h1 className="text-lg font-black text-[#FF4D6D]">Dossier indisponible</h1>
+          <p className="mt-2 text-sm text-white/55">{loadMessage || 'Le lien est invalide ou le dossier a été supprimé.'}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#07111F] text-white p-4 font-sans flex flex-col items-center pt-10">
@@ -79,7 +194,7 @@ export const SharedPackView: React.FC<SharedPackViewProps> = ({ pack, documents 
                 onClick={() => setSelectedDocs(selectedDocs.size === documents.length ? new Set() : new Set(documents.map(d => d.id)))}
                 className="text-[10px] text-[#6C5CFF] font-bold hover:opacity-80"
               >
-                {selectedDocs.size === documents.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+            {selectedDocs.size === documents.length ? 'Tout désélectionner' : 'Tout sélectionner'}
               </button>
             </div>
           </div>
@@ -136,10 +251,15 @@ export const SharedPackView: React.FC<SharedPackViewProps> = ({ pack, documents 
             ) : (
               <>
                 <Download className="w-5 h-5" />
-                <span>Télécharger la sélection ({selectedDocs.size})</span>
+                <span>Télécharger la sélection ({selectedCount})</span>
               </>
             )}
           </button>
+          {typeof pack.shareOpenedCount === 'number' && (
+            <p className="mt-2 text-center text-[10px] text-white/30">
+              Ouvert {pack.shareOpenedCount} fois{pack.shareLastOpenedAt ? ` • dernière ouverture ${new Date(pack.shareLastOpenedAt).toLocaleDateString('fr-FR')}` : ''}
+            </p>
+          )}
           <p className="mt-3 text-center text-[10px] text-white/35">
             Le PDF regroupe les informations du dossier. Les fichiers directs restent disponibles uniquement quand le propriétaire les autorise.
           </p>

@@ -687,6 +687,11 @@ export interface JustificatifPack {
   shareExpiresAt?: string;
   shareDurationDays?: number;
   allowDirectDownloads?: boolean;
+  shareRecipientLabel?: string;
+  shareToken?: string;
+  shareOpenedCount?: number;
+  shareLastOpenedAt?: string | null;
+  shareAccessCodeRequired?: boolean;
 }
 
 export interface Artisan {
