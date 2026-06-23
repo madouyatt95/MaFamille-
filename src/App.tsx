@@ -366,6 +366,10 @@ function App() {
 
   // If a cloud foyer was active last session, start empty (cloud data will load)
   const hadCloudFoyer = !!localStorage.getItem('mf_cloud_foyer_id');
+  const systemDocumentNames = useMemo(() => new Set(['__foyer_permissions__.json']), []);
+  const isSystemDocument = useCallback((document: DocumentFile) => (
+    systemDocumentNames.has(document.name) || document.tags?.includes('system')
+  ), [systemDocumentNames]);
 
   const [members, setMembers] = useState<Member[]>(() => {
     return safeGetLocalStorage('mf_members', []);
@@ -2266,6 +2270,7 @@ function App() {
     setFoyer(membership.foyer);
     setMyMemberProfile(membership.member);
     setActiveMemberId(membership.member.id);
+    setIsPremium(billingService.isFoyerPremium(membership.foyer));
     localStorage.setItem('mf_cloud_foyer_id', membership.foyer.id);
     localStorage.setItem('mf_active_foyer_id', membership.foyer.id);
     await loadFoyerData(membership.foyer.id);
@@ -2281,6 +2286,8 @@ function App() {
       setSpaceSelectorOpen(false);
       return;
     }
+    setProfileSwitcherOpen(false);
+    setSpaceSelectorOpen(false);
     requestParentPin(null, () => switchActiveFoyerMembership(membership));
   };
 
@@ -12040,7 +12047,7 @@ function App() {
     const appTrips = trips;
     const appGroceries = groceries;
     const appTasks = tasks;
-    const appDocuments = documents;
+    const appDocuments = documents.filter(document => !isSystemDocument(document));
     const appVehicles = vehicles;
     const appMaintenance = maintenance;
     const appPets = pets;
@@ -13444,6 +13451,7 @@ function App() {
   const appMembers = members;
   const appActiveMemberId = activeMemberId;
   const activeMemberObj = appMembers.find(m => m.id === appActiveMemberId);
+  const appDocuments = documents.filter(document => !isSystemDocument(document));
   const isKidMode = activeMemberObj && activeMemberObj.age && parseInt(activeMemberObj.age) < 11;
 
   const forceOnboarding = user && myFoyers.length === 0;
