@@ -190,10 +190,10 @@ export const familyGameService = {
     return data ? mapRoom(data as GameRoomRow) : null;
   },
 
-  async fetchResults(foyerId: string): Promise<FamilyGameResult[]> {
+  async fetchResults(foyerId: string, options: { cloud?: boolean } = {}): Promise<FamilyGameResult[]> {
     const client = getSupabaseClient();
     const local = readLocalResults(foyerId);
-    if (!client || !foyerId || foyerId === 'local') return local;
+    if (options.cloud === false || !client || !foyerId || foyerId === 'local') return local;
     await this.syncPendingResults(foyerId);
     const { data, error } = await client
       .from('family_game_results')
@@ -283,8 +283,16 @@ export const familyGameService = {
     if (!foyerId || foyerId === 'local') throw new Error('Sélectionnez une famille synchronisée pour créer une partie privée.');
 
     const existingRoom = await this.fetchActiveRoom(foyerId);
-    if (existingRoom?.gameType === gameType) return existingRoom;
-    if (existingRoom) throw new Error('Une autre salle privée est déjà ouverte. Fermez-la avant de créer cette partie.');
+    if (existingRoom?.gameType === gameType) {
+      if (gameType === 'family-challenge') {
+        await this.closeRoom(existingRoom.id, foyerId);
+      } else {
+        return existingRoom;
+      }
+    }
+    if (existingRoom && existingRoom.gameType !== gameType) {
+      throw new Error('Une autre salle privée est déjà ouverte. Fermez-la avant de créer cette partie.');
+    }
 
     const { data, error } = await client.rpc('create_family_game_room', {
       p_foyer_id: foyerId,
@@ -363,6 +371,20 @@ export const familyGameService = {
       status: value.status || 'rejected',
       message: value.message
     };
+  },
+
+  async forceChallengeFaceoffRandom(roomId: string, foyerId: string, winnerTeam: 0 | 1, answerIndex: number): Promise<FamilyGameRoom> {
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Connexion Supabase indisponible.');
+    const { data, error } = await client.rpc('force_family_challenge_faceoff_random', {
+      p_room_id: roomId,
+      p_foyer_id: foyerId,
+      p_winner_team: winnerTeam,
+      p_answer_index: answerIndex
+    });
+    if (error) throw new Error(getRoomErrorMessage(error));
+    const row = Array.isArray(data) ? data[0] : data;
+    return mapRoom(row as GameRoomRow);
   },
 
   async refreshRoom(roomId: string, foyerId: string): Promise<FamilyGameRoom> {

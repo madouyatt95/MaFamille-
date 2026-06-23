@@ -10,7 +10,7 @@ import { familyGameService, type FamilyGameRoom } from '../../services/familyGam
 import { matchChallengeAnswer } from '../../utils/familyChallengeMatcher';
 
 type ChallengePhase = 'faceoff' | 'play' | 'steal' | 'round-end' | 'game-end';
-const FACEOFF_SECONDS = 10;
+const FACEOFF_SECONDS = 15;
 const FACEOFF_TIMEOUT_VALUE = '__timer_expired__';
 
 type Team = {
@@ -96,6 +96,7 @@ export function FamilyChallengeGame({
   const [roundBank, setRoundBank] = useState(() => typeof roomState.roundBank === 'number' ? roomState.roundBank : 0);
   const [faceoffInputs, setFaceoffInputs] = useState<[string, string]>(['', '']);
   const [localFaceoffAnswers, setLocalFaceoffAnswers] = useState<[string | null, string | null]>([null, null]);
+  const [faceoffMisses, setFaceoffMisses] = useState(() => typeof roomState.faceoffMisses === 'number' ? roomState.faceoffMisses : 0);
   const [guessInput, setGuessInput] = useState('');
   const [feedback, setFeedback] = useState('');
   const [seconds, setSeconds] = useState(60);
@@ -120,6 +121,7 @@ export function FamilyChallengeGame({
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<FamilyChallengeQuestion['ageGroup'] | 'Tous'>(initialFilters.ageGroup || 'Tous');
   const [roundHistory, setRoundHistory] = useState<FamilyChallengeRoundSummary[]>(() => asRoundHistory(roomState.roundHistory));
   const [suddenDeath, setSuddenDeath] = useState(() => roomState.suddenDeath === true);
+  const [questionSessionSeed] = useState(() => crypto.randomUUID());
   const [playedQuestionIds, setPlayedQuestionIds] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem(`mf_family_challenge_played_${foyerId}`) || '[]');
@@ -129,6 +131,8 @@ export function FamilyChallengeGame({
   });
   const timerExpiredRef = useRef(false);
   const finishedRoomRef = useRef<string | null>(null);
+  const serverFaceoffMissesRef = useRef(0);
+  const processedServerMissRoomRef = useRef<FamilyGameRoom | null>(null);
 
   const questionCount = isPremium ? FAMILY_CHALLENGE_QUESTIONS.length : 12;
   const questionFilters = useMemo<ChallengeQuestionFilters>(() => ({
@@ -138,8 +142,8 @@ export function FamilyChallengeGame({
     ageGroup: selectedAgeGroup === 'Tous' ? undefined : selectedAgeGroup
   }), [selectedAgeGroup, selectedCategory, selectedDifficulty, selectedPack]);
   const localQuestion = useMemo(
-    () => getChallengeQuestion(round, room?.code || foyerId, questionCount, playedQuestionIds.slice(-160), questionFilters),
-    [foyerId, playedQuestionIds, questionCount, questionFilters, room?.code, round]
+    () => getChallengeQuestion(round, room?.code || `${foyerId}-${questionSessionSeed}`, questionCount, playedQuestionIds.slice(-160), questionFilters),
+    [foyerId, playedQuestionIds, questionCount, questionFilters, questionSessionSeed, room?.code, round]
   );
   const question = isChallengeQuestion(roomState.question) ? roomState.question : localQuestion;
   const localTeamIndex: 0 | 1 = room?.guestUserId && currentUserId === room.guestUserId ? 1 : 0;
@@ -218,6 +222,7 @@ export function FamilyChallengeGame({
       if (state.controllingTeam === 0 || state.controllingTeam === 1) setControllingTeam(state.controllingTeam);
       setFoundAnswers(asNumberArray(state.foundAnswers));
       if (typeof state.strikes === 'number') setStrikes(state.strikes);
+      if (typeof state.faceoffMisses === 'number') setFaceoffMisses(state.faceoffMisses);
       if (typeof state.roundBank === 'number') setRoundBank(state.roundBank);
       if (typeof state.totalRounds === 'number') setTotalRounds(state.totalRounds);
       setRoundHistory(asRoundHistory(state.roundHistory));
@@ -288,13 +293,30 @@ export function FamilyChallengeGame({
     const firstAccepted = matches[0].status !== 'rejected';
     const secondAccepted = matches[1].status !== 'rejected';
     if (!firstAccepted && !secondAccepted) {
+      const nextMisses = faceoffMisses + 1;
       setFaceoffInputs(['', '']);
       setLocalFaceoffAnswers([null, null]);
       setFaceoffSeconds(FACEOFF_SECONDS);
+      if (nextMisses >= 2) {
+        const randomWinner = Math.random() < 0.5 ? 0 : 1;
+        const randomAnswerIndex = Math.floor(Math.random() * question.answers.length);
+        const randomBank = question.answers[randomAnswerIndex]?.points || 0;
+        setFaceoffMisses(0);
+        setControllingTeam(randomWinner);
+        setFoundAnswers([randomAnswerIndex]);
+        setRoundBank(randomBank);
+        setStrikes(0);
+        setPhase('play');
+        setFeedback(`Deux duels sans réponse au tableau : ${teams[randomWinner].name} prend la main au hasard.`);
+        playCue('good');
+        return;
+      }
+      setFaceoffMisses(nextMisses);
       setFeedback('Aucune réponse au tableau : on relance le duel.');
       playCue('bad');
       return;
     }
+    setFaceoffMisses(0);
     let winner: 0 | 1 = 0;
     if (firstAccepted && !secondAccepted) winner = 0;
     if (secondAccepted && !firstAccepted) winner = 1;
@@ -328,13 +350,36 @@ export function FamilyChallengeGame({
     setStrikes(0);
     setPhase('play');
     setFeedback(`${teams[winner].name} prend la main avec la meilleure réponse.`);
-  }, [onFinished, playCue, question, roundHistory, scores, suddenDeath, teams]);
+  }, [faceoffMisses, onFinished, playCue, question, roundHistory, scores, suddenDeath, teams]);
 
   useEffect(() => {
     if (phase !== 'faceoff' || faceoffAnswers[0] === null || faceoffAnswers[1] === null) return;
     if (room) return;
     queueMicrotask(() => resolveFaceoff([faceoffAnswers[0]!, faceoffAnswers[1]!]));
   }, [faceoffAnswers, phase, resolveFaceoff, room]);
+
+  useEffect(() => {
+    if (!room || room.hostFoyerId !== foyerId || phase !== 'faceoff') return;
+    const missedServerDuel = room.state.feedback === 'Aucune réponse au tableau : nouveau duel.'
+      && room.state.hostSubmitted === false
+      && room.state.guestSubmitted === false;
+    if (!missedServerDuel || processedServerMissRoomRef.current === room) return;
+    processedServerMissRoomRef.current = room;
+    serverFaceoffMissesRef.current += 1;
+    if (serverFaceoffMissesRef.current < 2) return;
+
+    serverFaceoffMissesRef.current = 0;
+    const randomWinner = Math.random() < 0.5 ? 0 : 1;
+    const randomAnswerIndex = Math.floor(Math.random() * question.answers.length);
+    void familyGameService.forceChallengeFaceoffRandom(room.id, foyerId, randomWinner, randomAnswerIndex)
+      .then(onRoomChange)
+      .catch(error => setFeedback(error instanceof Error ? error.message : 'Départage automatique impossible.'));
+  }, [foyerId, onRoomChange, phase, question.answers.length, room]);
+
+  useEffect(() => {
+    serverFaceoffMissesRef.current = 0;
+    processedServerMissRoomRef.current = null;
+  }, [question.id, round]);
 
   useEffect(() => {
     if (phase !== 'faceoff') return;
@@ -513,7 +558,7 @@ export function FamilyChallengeGame({
     localStorage.setItem(`mf_family_challenge_played_${foyerId}`, JSON.stringify(nextPlayedIds));
     const nextQuestion = getChallengeQuestion(
       nextRoundNumber,
-      room?.code || foyerId,
+      room?.code || `${foyerId}-${questionSessionSeed}`,
       questionCount,
       nextPlayedIds,
       questionFilters
@@ -540,6 +585,7 @@ export function FamilyChallengeGame({
         setFoundAnswers([]);
         setFaceoffInputs(['', '']);
         setLocalFaceoffAnswers([null, null]);
+        setFaceoffMisses(0);
         setFeedback('Égalité : une dernière question départage les équipes.');
         return;
       }
@@ -561,6 +607,7 @@ export function FamilyChallengeGame({
     setRoundBank(0);
     setFaceoffInputs(['', '']);
     setLocalFaceoffAnswers([null, null]);
+    setFaceoffMisses(0);
     setGuessInput('');
     setFeedback('');
     setSeconds(60);
@@ -778,13 +825,15 @@ export function FamilyChallengeGame({
           <span className="text-[10px] font-black uppercase tracking-wider text-[#FF4D6D]">
             {question.pack} · {question.ageGroup} · Manche {round + 1}
           </span>
-          <button type="button" onClick={() => {
-            const next = !timerRunning;
-            setTimerRunning(next);
-            if (next && room) applyState({ seconds: 60 }, 'start_timer');
-          }} disabled={Boolean(room && room.hostFoyerId !== foyerId)} className={`flex items-center gap-1.5 text-sm font-black disabled:opacity-50 ${seconds <= 10 ? 'text-[#FF4D6D]' : 'text-[#FFB020]'}`}>
-            <Clock3 className="w-4 h-4" /> {seconds}s
-          </button>
+          {(phase === 'play' || phase === 'steal') && (
+            <button type="button" onClick={() => {
+              const next = !timerRunning;
+              setTimerRunning(next);
+              if (next && room) applyState({ seconds: 60 }, 'start_timer');
+            }} disabled={Boolean(room && room.hostFoyerId !== foyerId)} className={`flex items-center gap-1.5 text-sm font-black disabled:opacity-50 ${seconds <= 10 ? 'text-[#FF4D6D]' : 'text-[#FFB020]'}`}>
+              <Clock3 className="w-4 h-4" /> {seconds}s
+            </button>
+          )}
         </div>
         <h2 className="mt-4 text-lg sm:text-2xl font-black leading-snug text-white">{question.prompt}</h2>
         <div className="mt-4 flex items-center justify-between text-xs font-black">

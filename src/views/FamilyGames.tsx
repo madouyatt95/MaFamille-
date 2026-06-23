@@ -401,6 +401,7 @@ export function FamilyGames({
   const [connectVsBot, setConnectVsBot] = useState(false);
   const [connectMode, setConnectMode] = useState<ConnectMode>('local');
   const [privateChallengeReady, setPrivateChallengeReady] = useState(false);
+  const [privateChallengeSeed, setPrivateChallengeSeed] = useState(() => crypto.randomUUID());
   const [privateChallengePack, setPrivateChallengePack] = useState<FamilyChallengeQuestion['pack'] | 'Tous'>('Tous');
   const [privateChallengeCategory, setPrivateChallengeCategory] = useState<FamilyChallengeQuestion['category'] | 'Toutes'>('Toutes');
   const [privateChallengeDifficulty, setPrivateChallengeDifficulty] = useState<FamilyChallengeQuestion['difficulty'] | 'Toutes'>('Toutes');
@@ -495,11 +496,11 @@ export function FamilyGames({
   }), [privateChallengeAgeGroup, privateChallengeCategory, privateChallengeDifficulty, privateChallengePack]);
   const privateChallengePayload = useMemo(() => ({
     totalRounds: privateChallengeRounds,
-    question: getChallengeQuestion(0, foyerId, challengeQuestionCount, [], privateChallengeFilters),
+    question: getChallengeQuestion(0, `${foyerId}-${privateChallengeSeed}`, challengeQuestionCount, [], privateChallengeFilters),
     filters: privateChallengeFilters,
     teamMembers: challengeTeams.map(team => team.members || []),
     teamCaptains: challengeTeams.map(team => team.captain || team.members?.[0] || '')
-  }), [challengeQuestionCount, challengeTeams, foyerId, privateChallengeFilters, privateChallengeRounds]);
+  }), [challengeQuestionCount, challengeTeams, foyerId, privateChallengeFilters, privateChallengeRounds, privateChallengeSeed]);
   const gameStats = useMemo(() => {
     const wins = new Map<string, number>();
     results.forEach(result => {
@@ -555,34 +556,14 @@ export function FamilyGames({
   }, [favoriteGameIds, foyerId]);
 
   useEffect(() => {
-    const preload = () => void import('../components/games/VillageSecretGame');
-    if ('requestIdleCallback' in window) {
-      const idleId = window.requestIdleCallback(preload, { timeout: 2500 });
-      return () => window.cancelIdleCallback(idleId);
-    }
-    const timer = globalThis.setTimeout(preload, 1800);
-    return () => globalThis.clearTimeout(timer);
-  }, []);
+    void familyGameService.getCurrentUserId().then(setCurrentUserId);
+    void familyGameService.fetchResults(foyerId, { cloud: false }).then(setResults);
+  }, [foyerId]);
 
   useEffect(() => {
-    void familyGameService.getCurrentUserId().then(setCurrentUserId);
+    if (hubView !== 'progress') return;
     void familyGameService.fetchResults(foyerId).then(setResults);
-    if (isPremium) {
-      void familyGameService.fetchActiveRoom(foyerId).then(room => {
-        if (room && (room.status === 'waiting' || room.status === 'active')) {
-          const resume = room.status === 'active'
-            ? familyGameService.refreshRoom(room.id, foyerId).catch(() => room)
-            : Promise.resolve(room);
-          void resume.then(nextRoom => {
-            setActiveRoom(nextRoom);
-            if (nextRoom.gameType === 'family-challenge') setChallengeMode('private');
-            if (nextRoom.gameType === 'connect4') setConnectMode('private');
-            setActiveGame(nextRoom.gameType);
-          });
-        }
-      });
-    }
-  }, [foyerId, isPremium]);
+  }, [foyerId, hubView]);
 
   useEffect(() => {
     if (!connectRoom?.id) return;
@@ -2180,6 +2161,7 @@ export function FamilyGames({
                         onTriggerPaywall?.();
                         return;
                       }
+                      setPrivateChallengeSeed(crypto.randomUUID());
                       setPrivateChallengeReady(false);
                       setChallengeMode('private');
                     }}
@@ -2220,14 +2202,13 @@ export function FamilyGames({
                 <span className="text-[9px] font-black uppercase tracking-widest text-[#9E94FF]">Salle {challengeRoom.code}</span>
                 <span className="text-xs font-black text-white">{challengeRoom.guestName || 'En attente'}</span>
                 <button type="button" onClick={() => {
-                  void familyGameService.performRoomAction(
-                    challengeRoom.id,
-                    foyerId,
-                    challengeRoom.status === 'active'
-                      ? 'leave'
-                      : challengeRoom.hostFoyerId === foyerId ? 'cancel' : 'leave'
-                  ).finally(() => setActiveRoom(null));
-                }} className="rounded-xl border border-[#FF4D6D]/20 p-2 text-[#FF4D6D]" title="Quitter la partie">
+                  void familyGameService.closeRoom(challengeRoom.id, foyerId)
+                    .catch(error => setConnectionMessage(error instanceof Error ? error.message : 'Fermeture de la partie impossible.'))
+                    .finally(() => {
+                      setActiveRoom(null);
+                      setChallengeMode(null);
+                    });
+                }} className="rounded-xl border border-[#FF4D6D]/20 p-2 text-[#FF4D6D]" title="Arrêter définitivement la partie">
                   <ArrowLeft className="w-4 h-4" />
                 </button>
               </div>
