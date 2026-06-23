@@ -2075,12 +2075,12 @@ export const Membres: React.FC<MembresProps> = ({
                   <div className="space-y-4 animate-fade-in">
                     <div className="rounded-2xl border border-[#00D26A]/20 bg-[#00D26A]/8 p-3">
                       <p className="text-[10px] leading-relaxed text-white/65">
-                        Le code du foyer est l’unique méthode d’invitation. Aucun e-mail n’est envoyé par l’application.
+                        Invitez un proche avec le code du foyer. Il crée son compte, saisit le code, puis vous validez son arrivée.
                       </p>
                     </div>
                     {/* Share Invitation Code */}
                     <div className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-3">
-                      <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block font-sans">Partager le Code Unique</span>
+                      <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block font-sans">Code d’invitation</span>
                       <p className="text-[10px] text-white/50 leading-relaxed font-medium">
                         Donnez ce code à vos proches. Après avoir créé leur compte, ils pourront le saisir pour envoyer leur demande d’accès.
                       </p>
@@ -2117,7 +2117,7 @@ export const Membres: React.FC<MembresProps> = ({
                             <span>{regeneratingCode ? 'Régénération...' : 'Générer un nouveau code'}</span>
                           </button>
                           <p className="text-[8.5px] text-white/30 text-center mt-1.5 leading-normal">
-                            Générer un nouveau code désactive immédiatement l'ancien. Cette opération est optimisée et n'impacte pas l'egress de la base de données.
+                            Le nouveau code remplace l’ancien. Les personnes déjà membres gardent leur accès.
                           </p>
                         </div>
                       )}
