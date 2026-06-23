@@ -24,6 +24,14 @@ interface CoffreFortAvanceProps {
 }
 
 const FREE_DOCUMENT_LIMIT = 3;
+type ShareDraft = {
+  durationDays: number;
+  recipientLabel: string;
+  accessCode: string;
+  allowDirectDownloads: boolean;
+};
+
+const SHARE_DURATION_OPTIONS = [1, 3, 7, 14, 30];
 
 export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, setDocuments, members, demarches, setDemarches, packs, setPacks, onAddEvent, onAddTransaction, isPremium = false, onTriggerPaywall, defaultTab, foyerId }) => {
   const [mainTab, setMainTab] = useState<'docs' | 'demarches' | 'packs'>(defaultTab || 'docs');
@@ -41,6 +49,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     return localStorage.getItem('mf_vault_rgpd_accepted') === 'true';
   });
   const [showRgpdCenter, setShowRgpdCenter] = useState(false);
+  const [shareDrafts, setShareDrafts] = useState<Record<string, ShareDraft>>({});
   const canAddDocument = isPremium || documents.length < FREE_DOCUMENT_LIMIT;
   const remainingFreeDocuments = Math.max(0, FREE_DOCUMENT_LIMIT - documents.length);
 
@@ -203,7 +212,6 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
   const [newPackShareDurationDays, setNewPackShareDurationDays] = useState(7);
   const [newPackAllowDirectDownloads, setNewPackAllowDirectDownloads] = useState(true);
   const [newPackRecipientLabel, setNewPackRecipientLabel] = useState('');
-  const [newPackAccessCode, setNewPackAccessCode] = useState(() => generateShareCode());
   
   // Upload Form State
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -291,6 +299,23 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     const date = new Date();
     date.setDate(date.getDate() + days);
     return date.toISOString();
+  };
+
+  const getShareDraft = (pack: JustificatifPack): ShareDraft => shareDrafts[pack.id] || {
+    durationDays: pack.shareDurationDays || 7,
+    recipientLabel: pack.shareRecipientLabel || '',
+    accessCode: '',
+    allowDirectDownloads: pack.allowDirectDownloads !== false
+  };
+
+  const updateShareDraft = (pack: JustificatifPack, updates: Partial<ShareDraft>) => {
+    setShareDrafts(prev => ({
+      ...prev,
+      [pack.id]: {
+        ...getShareDraft(pack),
+        ...updates
+      }
+    }));
   };
 
   const getPackShareStatus = (pack: JustificatifPack) => {
@@ -391,23 +416,17 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
       documentIds: suggestion.documentIds,
       createdAt: new Date().toLocaleDateString('fr-FR'),
       shareDurationDays: 7,
-      shareExpiresAt: addDaysIso(7),
       allowDirectDownloads: true
     };
     setPacks(prev => [newPack, ...prev]);
   };
 
   const handleCopyPackShareLink = async (pack: JustificatifPack) => {
-    const shareStatus = getPackShareStatus(pack);
-    if (shareStatus.expired) {
-      alert('Ce lien est expiré. Prolongez le dossier ou recréez un lien.');
-      return;
-    }
-
-    const recipientLabel = window.prompt('Nom du destinataire (optionnel)', pack.shareRecipientLabel || '') || '';
-    const accessCode = window.prompt('Code court à transmettre séparément (laissez vide pour générer un code)', generateShareCode()) || '';
-    const expiresAt = pack.shareExpiresAt || addDaysIso(pack.shareDurationDays || 7);
-    const allowDirectDownloads = pack.allowDirectDownloads !== false;
+    const draft = getShareDraft(pack);
+    const recipientLabel = draft.recipientLabel.trim();
+    const accessCode = draft.accessCode.trim() || generateShareCode();
+    const expiresAt = addDaysIso(draft.durationDays);
+    const allowDirectDownloads = draft.allowDirectDownloads;
 
     if (!foyerId) {
       const shareUrl = `${window.location.origin}${window.location.pathname}#share_${pack.id}`;
@@ -432,14 +451,23 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
         shareToken: link.token,
         shareRecipientLabel: recipientLabel || undefined,
         shareExpiresAt: link.expiresAt || expiresAt,
+        shareDurationDays: draft.durationDays,
+        allowDirectDownloads,
         shareOpenedCount: link.openedCount || 0,
         shareLastOpenedAt: link.lastOpenedAt || null,
         shareAccessCodeRequired: !!accessCode
       } : item));
+      setShareDrafts(prev => ({
+        ...prev,
+        [pack.id]: {
+          ...draft,
+          accessCode: ''
+        }
+      }));
       alert(`Lien sécurisé copié.\nCode à transmettre séparément : ${accessCode}`);
     } catch (err) {
       console.error('Impossible de créer le lien sécurisé', err);
-      alert("Impossible de créer le lien sécurisé. Vérifiez que la migration Supabase est bien appliquée.");
+      alert(err instanceof Error ? err.message : "Impossible de créer le lien sécurisé. Vérifiez que la migration Supabase est bien appliquée.");
     }
   };
 
@@ -1680,6 +1708,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
             const packDocs = documents.filter(d => pack.documentIds.includes(d.id));
             const typeLabel = pack.templateType === 'location' ? '🏠 Location' : pack.templateType === 'ecole' ? '🎓 École' : pack.templateType === 'banque' ? '🏦 Banque' : pack.templateType === 'emploi' ? '💼 Emploi' : '📁 Personnalisé';
             const shareStatus = getPackShareStatus(pack);
+            const shareDraft = getShareDraft(pack);
             return (
               <div key={pack.id} className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
                 <div className="flex items-center justify-between">
@@ -1706,28 +1735,46 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   </div>
                   <Shield className={`w-4 h-4 shrink-0 ${shareStatus.accent}`} />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPacks(prev => prev.map(item => item.id === pack.id ? {
-                      ...item,
-                      shareDurationDays: 7,
-                      shareExpiresAt: addDaysIso(7)
-                    } : item))}
-                    className="rounded-xl border border-[#00D26A]/20 bg-[#00D26A]/10 px-3 py-2 text-[10px] font-bold text-[#00D26A]"
-                  >
-                    Prolonger 7 jours
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPacks(prev => prev.map(item => item.id === pack.id ? {
-                      ...item,
-                      shareExpiresAt: new Date(Date.now() - 1000).toISOString()
-                    } : item))}
-                    className="rounded-xl border border-[#FF4D6D]/20 bg-[#FF4D6D]/10 px-3 py-2 text-[10px] font-bold text-[#FF4D6D]"
-                  >
-                    Expirer le lien
-                  </button>
+                <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="mb-1 block text-[9px] font-bold uppercase tracking-wide text-white/35">Expiration du lien</span>
+                      <select
+                        value={shareDraft.durationDays}
+                        onChange={event => updateShareDraft(pack, { durationDays: Number(event.target.value) })}
+                        className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-bold text-white outline-none"
+                      >
+                        {SHARE_DURATION_OPTIONS.map(days => (
+                          <option key={days} value={days}>{days} jour{days > 1 ? 's' : ''}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-[9px] font-bold uppercase tracking-wide text-white/35">Code d’accès</span>
+                      <input
+                        value={shareDraft.accessCode}
+                        onChange={event => updateShareDraft(pack, { accessCode: event.target.value })}
+                        placeholder="Auto"
+                        maxLength={12}
+                        className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-bold text-white outline-none placeholder:text-white/25"
+                      />
+                    </label>
+                  </div>
+                  <input
+                    value={shareDraft.recipientLabel}
+                    onChange={event => updateShareDraft(pack, { recipientLabel: event.target.value })}
+                    placeholder="Destinataire optionnel"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-bold text-white outline-none placeholder:text-white/25"
+                  />
+                  <label className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+                    <span className="text-[10px] font-bold text-white/55">Autoriser l’ouverture des fichiers</span>
+                    <input
+                      type="checkbox"
+                      checked={shareDraft.allowDirectDownloads}
+                      onChange={event => updateShareDraft(pack, { allowDirectDownloads: event.target.checked })}
+                      className="h-4 w-4 accent-[#6C5CFF]"
+                    />
+                  </label>
                 </div>
                 <div className="space-y-1.5">
                   {packDocs.map(doc => (
@@ -1793,14 +1840,14 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                 </select>
                 <input
                   type="text"
-                  placeholder="Destinataire du partage (optionnel)"
+                  placeholder="Destinataire par défaut (optionnel)"
                   value={newPackRecipientLabel}
                   onChange={e => setNewPackRecipientLabel(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
                 />
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-white/40">Expiration du lien</label>
+                    <label className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-white/40">Durée par défaut</label>
                     <select
                       value={newPackShareDurationDays}
                       onChange={e => setNewPackShareDurationDays(Number(e.target.value))}
@@ -1823,25 +1870,6 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   >
                       {newPackAllowDirectDownloads ? 'Fichiers ouvrables' : 'Sommaire seul'}
                   </button>
-                </div>
-                <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
-                  <label className="mb-2 block text-[9px] font-bold uppercase tracking-wider text-white/40">Code court du lien</label>
-                  <div className="flex gap-2">
-                    <input
-                      value={newPackAccessCode}
-                      onChange={e => setNewPackAccessCode(e.target.value)}
-                      inputMode="numeric"
-                      className="min-w-0 flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-bold text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setNewPackAccessCode(generateShareCode())}
-                      className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-bold text-white/70"
-                    >
-                      Nouveau
-                    </button>
-                  </div>
-                  <p className="mt-2 text-[9px] text-white/35">À transmettre séparément du lien.</p>
                 </div>
                 <div className="space-y-1.5">
                   <span className="text-[9px] font-bold text-white/40 uppercase block">Sélectionner les documents</span>
@@ -1869,14 +1897,12 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                       documentIds: selectedPackDocs,
                       createdAt: new Date().toLocaleDateString('fr-FR'),
                       shareDurationDays: newPackShareDurationDays,
-                      shareExpiresAt: addDaysIso(newPackShareDurationDays),
                       allowDirectDownloads: newPackAllowDirectDownloads,
-                      shareRecipientLabel: newPackRecipientLabel || undefined,
-                      shareAccessCodeRequired: !!newPackAccessCode
+                      shareRecipientLabel: newPackRecipientLabel || undefined
                     };
                     setPacks(prev => [newPack, ...prev]);
                     setShowNewPack(false);
-                    setNewPackName(''); setSelectedPackDocs([]); setNewPackShareDurationDays(7); setNewPackAllowDirectDownloads(true); setNewPackRecipientLabel(''); setNewPackAccessCode(generateShareCode());
+                    setNewPackName(''); setSelectedPackDocs([]); setNewPackShareDurationDays(7); setNewPackAllowDirectDownloads(true); setNewPackRecipientLabel('');
                   }}
                   className="w-full py-3 bg-[#6C5CFF] rounded-xl text-white text-xs font-extrabold cursor-pointer hover:opacity-90 transition"
                 >

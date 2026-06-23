@@ -80,7 +80,21 @@ export const createSharedPackLink = async (params: {
     p_allow_direct_downloads: params.allowDirectDownloads
   });
 
-  if (error) throw error;
+  if (error) {
+    const details = [error.message, 'details' in error ? error.details : '', 'hint' in error ? error.hint : '']
+      .filter(Boolean)
+      .join(' ');
+    if (/function .*create_shared_pack_link|pgrst202|schema cache/i.test(details)) {
+      throw new Error('Le service de liens sécurisés doit être activé sur Supabase. Appliquez la dernière migration puis réessayez.');
+    }
+    if (/permission|accès refusé|row-level/i.test(details)) {
+      throw new Error('Ce compte n’a pas le droit de créer un lien pour ce foyer.');
+    }
+    if (/dossier introuvable|pack/i.test(details)) {
+      throw new Error('Ce dossier n’est pas encore synchronisé. Patientez quelques secondes puis réessayez.');
+    }
+    throw new Error(error.message || 'Impossible de créer le lien sécurisé.');
+  }
   return (data || {}) as SharedPackLinkResponse;
 };
 

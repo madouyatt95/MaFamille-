@@ -20,6 +20,16 @@ CREATE TABLE IF NOT EXISTS public.shared_pack_links (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+ALTER TABLE public.shared_pack_links
+  ALTER COLUMN id SET DEFAULT (
+    substr(md5(random()::text || clock_timestamp()::text), 1, 8) || '-' ||
+    substr(md5(random()::text || clock_timestamp()::text), 9, 4) || '-' ||
+    substr(md5(random()::text || clock_timestamp()::text), 13, 4) || '-' ||
+    substr(md5(random()::text || clock_timestamp()::text), 17, 4) || '-' ||
+    substr(md5(random()::text || clock_timestamp()::text), 21, 12)
+  )::uuid,
+  ALTER COLUMN token SET DEFAULT md5(random()::text || clock_timestamp()::text);
+
 CREATE INDEX IF NOT EXISTS idx_shared_pack_links_foyer_id ON public.shared_pack_links(foyer_id);
 CREATE INDEX IF NOT EXISTS idx_shared_pack_links_token ON public.shared_pack_links(token);
 CREATE INDEX IF NOT EXISTS idx_shared_pack_links_pack_id ON public.shared_pack_links(pack_id);
@@ -104,13 +114,26 @@ BEGIN
     RAISE EXCEPTION 'Accès refusé';
   END IF;
 
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.justificatif_packs p
+    WHERE p.foyer_id = p_foyer_id
+      AND p.id::text = p_pack_id
+  ) THEN
+    RAISE EXCEPTION 'Dossier introuvable';
+  END IF;
+
   IF p_expires_at IS NULL OR p_expires_at <= now() THEN
     v_expires_at := now() + interval '7 days';
   ELSE
-    v_expires_at := p_expires_at;
+    v_expires_at := LEAST(p_expires_at, now() + interval '90 days');
   END IF;
 
   v_token := md5(random()::text || clock_timestamp()::text);
+  WHILE EXISTS (SELECT 1 FROM public.shared_pack_links WHERE token = v_token) LOOP
+    v_token := md5(random()::text || clock_timestamp()::text);
+  END LOOP;
+
   IF p_access_code IS NOT NULL AND length(trim(p_access_code)) > 0 THEN
     v_hash := md5(v_token || ':' || trim(p_access_code));
   END IF;
@@ -254,5 +277,7 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.create_shared_pack_link(uuid, text, text, text, timestamptz, boolean) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_shared_pack_by_token(text, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.create_shared_pack_link(uuid, text, text, text, timestamptz, boolean) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_shared_pack_by_token(text, text) TO anon, authenticated;
