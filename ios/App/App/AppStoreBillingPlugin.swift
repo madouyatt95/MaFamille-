@@ -23,7 +23,7 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
             do {
                 let products = try await Product.products(for: productIds)
                 #if DEBUG
-                if products.isEmpty {
+                if products.isEmpty && allowsLocalStoreKitFallback {
                     call.resolve([
                         "products": productIds.compactMap { debugProduct(for: $0) }
                     ])
@@ -54,7 +54,7 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
             do {
                 guard let product = try await Product.products(for: [productId]).first else {
                     #if DEBUG
-                    guard debugProduct(for: productId) != nil else {
+                    guard allowsLocalStoreKitFallback, debugProduct(for: productId) != nil else {
                         call.reject("Produit App Store introuvable.")
                         return
                     }
@@ -104,7 +104,8 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
                     }
                 }
                 #if DEBUG
-                if let productId = UserDefaults.standard.string(forKey: "myfamilyplus.debugStoreKitProductId"),
+                if allowsLocalStoreKitFallback,
+                   let productId = UserDefaults.standard.string(forKey: "myfamilyplus.debugStoreKitProductId"),
                    productIds.isEmpty || productIds.contains(productId) {
                     call.resolve(debugTransaction(productId: productId, appAccountToken: UUID()))
                     return
@@ -125,6 +126,12 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
             throw error
         }
     }
+
+    #if DEBUG
+    private var allowsLocalStoreKitFallback: Bool {
+        ProcessInfo.processInfo.environment["MYFAMILYPLUS_ALLOW_LOCAL_STOREKIT_FALLBACK"] == "1"
+    }
+    #endif
 
     private func serializeProduct(_ product: Product) -> [String: Any] {
         var payload: [String: Any] = [

@@ -62,6 +62,17 @@ Le plugin natif est dans :
 - `ios/App/App/AppStoreBillingPlugin.swift`
 - `ios/App/App/BridgeViewController.swift`
 
+Pour un vrai test Sandbox Apple par cable, le scheme principal `App` ne doit pas utiliser
+de fichier StoreKit local. Si Apple ne renvoie pas les produits, l'app doit afficher une erreur
+au lieu de simuler un achat.
+
+Le fichier `ios/App/App/MyFamilyPlus.storekit` reste utile uniquement pour des tests locaux
+simules. Dans ce cas, activer explicitement la variable de lancement Xcode :
+
+```env
+MYFAMILYPLUS_ALLOW_LOCAL_STOREKIT_FALLBACK=1
+```
+
 ## Avant envoi Apple Review
 
 - Creer les achats integres dans App Store Connect.
