@@ -21,6 +21,7 @@ import {
   PREMIUM_PRICING,
   PREMIUM_YEARLY_SAVE
 } from '../utils/premiumPricing';
+import { appStoreBillingService, type AppStoreProduct } from '../services/appStoreBillingService';
 
 interface PaywallProps {
   isOpen: boolean;
@@ -29,6 +30,10 @@ interface PaywallProps {
   onStartStripeCheckout?: (options: {
     plan: 'monthly' | 'yearly';
   }) => Promise<void>;
+  onStartAppStorePurchase?: (options: {
+    plan: 'monthly' | 'yearly';
+  }) => Promise<void>;
+  onRestoreAppStorePurchase?: () => Promise<void>;
   onUnlockPremium: (options: {
     platform: 'web' | 'ios';
     plan: 'monthly' | 'yearly';
@@ -89,37 +94,73 @@ export const Paywall: React.FC<PaywallProps> = ({
   onClose,
   foyerId,
   onStartStripeCheckout,
+  onStartAppStorePurchase,
+  onRestoreAppStorePurchase,
   onUnlockPremium
 }) => {
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [simulating, setSimulating] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [appStoreProducts, setAppStoreProducts] = useState<AppStoreProduct[]>([]);
 
   const isWeb = Capacitor.getPlatform() === 'web';
   const platform = isWeb ? 'web' : 'ios';
-  const priceMonthly = PREMIUM_PRICING[platform].monthly;
-  const priceYearly = PREMIUM_PRICING[platform].yearly;
-  const priceMonthlyEquivalent = PREMIUM_MONTHLY_EQUIVALENT[platform];
-  const priceYearlySave = PREMIUM_YEARLY_SAVE[platform];
+  const monthlyAppStoreProduct = appStoreProducts.find(product => product.id === appStoreBillingService.productIds.monthly);
+  const yearlyAppStoreProduct = appStoreProducts.find(product => product.id === appStoreBillingService.productIds.yearly);
+  const priceMonthly = monthlyAppStoreProduct?.price || PREMIUM_PRICING[platform].monthly;
+  const priceYearly = yearlyAppStoreProduct?.price || PREMIUM_PRICING[platform].yearly;
+  const dynamicMonthlyEquivalent = yearlyAppStoreProduct?.priceAmount && yearlyAppStoreProduct.currencyCode
+    ? new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: yearlyAppStoreProduct.currencyCode,
+        maximumFractionDigits: 2
+      }).format(yearlyAppStoreProduct.priceAmount / 12)
+    : null;
+  const dynamicYearlySave = monthlyAppStoreProduct?.priceAmount && yearlyAppStoreProduct?.priceAmount
+    ? Math.max(0, Math.round((1 - yearlyAppStoreProduct.priceAmount / (monthlyAppStoreProduct.priceAmount * 12)) * 100))
+    : null;
+  const priceMonthlyEquivalent = dynamicMonthlyEquivalent || PREMIUM_MONTHLY_EQUIVALENT[platform];
+  const priceYearlySave = dynamicYearlySave !== null
+    ? `-${dynamicYearlySave}%`
+    : PREMIUM_YEARLY_SAVE[platform];
   const selectedPrice = selectedPlan === 'monthly' ? priceMonthly : priceYearly;
   const selectedPeriod = selectedPlan === 'monthly' ? 'par mois' : 'par an';
   const canUseStripe = isWeb && !!foyerId && !!onStartStripeCheckout;
+  const canUseAppStore = !isWeb && !!foyerId && !!onStartAppStorePurchase;
   const testModeEnabled = import.meta.env.DEV && import.meta.env.VITE_ENABLE_PREMIUM_TEST_MODE === 'true';
-  const canPurchase = canUseStripe || testModeEnabled;
+  const canPurchase = canUseStripe || canUseAppStore || testModeEnabled;
 
   useEffect(() => {
     if (!isOpen) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !checkoutLoading && !simulating) onClose();
+      if (event.key === 'Escape' && !checkoutLoading && !restoreLoading && !simulating) onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [checkoutLoading, isOpen, onClose, simulating]);
+  }, [checkoutLoading, isOpen, onClose, restoreLoading, simulating]);
+
+  useEffect(() => {
+    if (!isOpen || isWeb) return;
+    let cancelled = false;
+
+    appStoreBillingService.getProducts()
+      .then(products => {
+        if (!cancelled) setAppStoreProducts(products);
+      })
+      .catch(error => {
+        console.warn('[Paywall] Unable to load localized App Store prices:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, isWeb]);
 
   if (!isOpen) return null;
 
@@ -141,19 +182,40 @@ export const Paywall: React.FC<PaywallProps> = ({
   };
 
   const handleRealPurchase = async () => {
-    if (!canUseStripe || !onStartStripeCheckout) return;
     try {
       setCheckoutLoading(true);
-      await onStartStripeCheckout({ plan: selectedPlan });
+      if (canUseStripe && onStartStripeCheckout) {
+        await onStartStripeCheckout({ plan: selectedPlan });
+        return;
+      }
+      if (canUseAppStore && onStartAppStorePurchase) {
+        await onStartAppStorePurchase({ plan: selectedPlan });
+        onClose();
+        return;
+      }
     } catch (error) {
-      console.error('[Paywall] Stripe checkout failed:', error);
-      alert(error instanceof Error ? error.message : 'Impossible de démarrer le paiement Stripe.');
+      console.error('[Paywall] Premium checkout failed:', error);
+      alert(error instanceof Error ? error.message : 'Impossible de démarrer le paiement Premium.');
     } finally {
       setCheckoutLoading(false);
     }
   };
 
-  const handlePrimaryAction = testModeEnabled && !canUseStripe
+  const handleRestorePurchase = async () => {
+    if (isWeb || !onRestoreAppStorePurchase) return;
+    try {
+      setRestoreLoading(true);
+      await onRestoreAppStorePurchase();
+      onClose();
+    } catch (error) {
+      console.error('[Paywall] App Store restore failed:', error);
+      alert(error instanceof Error ? error.message : 'Impossible de restaurer les achats App Store.');
+    } finally {
+      setRestoreLoading(false);
+    }
+  };
+
+  const handlePrimaryAction = testModeEnabled && !canUseStripe && !canUseAppStore
     ? handlePurchaseSimulate
     : handleRealPurchase;
 
@@ -299,17 +361,28 @@ export const Paywall: React.FC<PaywallProps> = ({
           <button
             type="button"
             onClick={handlePrimaryAction}
-            disabled={!canPurchase || checkoutLoading || simulating}
+            disabled={!canPurchase || checkoutLoading || restoreLoading || simulating}
             className="premium-paywall__cta flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#6C5CFF] px-4 text-sm font-black text-white shadow-[0_12px_30px_rgba(108,92,255,0.3)] transition hover:bg-[#5B4EFA] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-55"
           >
             {checkoutLoading || simulating ? (
               <><RefreshCw className="h-4 w-4 animate-spin" /> Préparation de votre essai...</>
             ) : canPurchase ? (
-              <>Essayer Premium gratuitement <ChevronRight className="h-4 w-4" /></>
+              <>{isWeb ? 'Essayer Premium gratuitement' : 'Continuer avec l’App Store'} <ChevronRight className="h-4 w-4" /></>
             ) : (
               <><LockKeyhole className="h-4 w-4" /> Disponible bientôt sur l’App Store</>
             )}
           </button>
+
+          {!isWeb && (
+            <button
+              type="button"
+              onClick={handleRestorePurchase}
+              disabled={!onRestoreAppStorePurchase || checkoutLoading || restoreLoading || simulating}
+              className="mt-2.5 flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-4 text-[11px] font-black text-white/62 transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {restoreLoading ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Restauration...</> : 'Restaurer mes achats'}
+            </button>
+          )}
 
           <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-[9px] font-semibold text-white/38">
             <span>7 jours gratuits</span>
@@ -318,6 +391,7 @@ export const Paywall: React.FC<PaywallProps> = ({
             <span aria-hidden="true">•</span>
             <span>Annulable à tout moment</span>
             {isWeb && <><span aria-hidden="true">•</span><span className="inline-flex items-center gap-1"><CreditCard className="h-3 w-3" /> Codes promotionnels acceptés</span></>}
+            {!isWeb && <><span aria-hidden="true">•</span><span>Facturation Apple</span></>}
           </div>
           <div className="mt-2 flex justify-center gap-4 text-[9px] font-bold text-white/35">
             <a href="/legal/terms.html" target="_blank" rel="noreferrer" className="hover:text-white/60">Conditions</a>

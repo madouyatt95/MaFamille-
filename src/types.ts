@@ -63,7 +63,6 @@ export interface Foyer {
   id: string;
   name: string;
   inviteCode: string;
-  inviteLink?: string;
   createdBy: string;
   createdAt: string;
   isPremium: boolean;

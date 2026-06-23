@@ -10,8 +10,9 @@ export type PremiumSubscriptionSnapshot = {
   source: BillingProvider;
   plan: PremiumPlan;
   status: PremiumStatus;
-  expiresAt: string;
+  expiresAt: string | null;
   platform: PremiumPlatform;
+  appStoreOriginalTransactionId?: string | null;
 };
 
 export const billingService = {

@@ -128,6 +128,17 @@ export function BattleshipGame({
   useEffect(() => {
     if (!privateRoom?.id) return;
     const channel = familyGameService.subscribeToRoom(privateRoom.id, nextRoom => onRoomChange(nextRoom));
+    const refreshRoom = () => {
+      if (document.visibilityState !== 'visible') return;
+      void familyGameService.fetchRoom(privateRoom.id).then(nextRoom => {
+        if (!nextRoom || nextRoom.status === 'cancelled') {
+          onRoomChange(null);
+          reset();
+          return;
+        }
+        onRoomChange(nextRoom);
+      });
+    };
     const ready = localPrivateIndex === 0 ? privateRoom.state.hostReady : privateRoom.state.guestReady;
     if (ready) {
       queueMicrotask(() => {
@@ -139,10 +150,14 @@ export function BattleshipGame({
         setFleets(previous => localPrivateIndex === 0 ? [[cells], previous[1]] : [previous[0], [cells]]);
       });
     }
+    document.addEventListener('visibilitychange', refreshRoom);
+    window.addEventListener('online', refreshRoom);
     return () => {
+      document.removeEventListener('visibilitychange', refreshRoom);
+      window.removeEventListener('online', refreshRoom);
       void familyGameService.unsubscribe(channel);
     };
-  }, [foyerId, localPrivateIndex, onRoomChange, privateRoom?.id, privateRoom?.state.guestReady, privateRoom?.state.hostReady]);
+  }, [foyerId, localPrivateIndex, onRoomChange, privateRoom?.id, privateRoom?.state.guestReady, privateRoom?.state.hostReady, reset]);
 
   useEffect(() => {
     if (!privateRoom || privateRoom.status !== 'active' || privateWinner !== null) return;
@@ -255,13 +270,7 @@ export function BattleshipGame({
     if (!privateRoom || busy) return;
     setBusy(true);
     try {
-      if (privateRoom.status !== 'finished') {
-        await familyGameService.performRoomAction(
-          privateRoom.id,
-          foyerId,
-          privateRoom.hostFoyerId === foyerId ? 'cancel' : 'leave'
-        );
-      }
+      await familyGameService.closeRoom(privateRoom.id, foyerId);
       onRoomChange(null);
       reset();
       setMode('private');

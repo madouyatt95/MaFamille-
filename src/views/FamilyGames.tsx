@@ -1039,13 +1039,7 @@ export function FamilyGames({
     if (!connectRoom || connectPrivateBusy) return;
     setConnectPrivateBusy(true);
     try {
-      if (connectRoom.status !== 'finished') {
-        await familyGameService.performRoomAction(
-          connectRoom.id,
-          foyerId,
-          connectRoom.status === 'active' ? 'leave' : connectRoom.hostFoyerId === foyerId ? 'cancel' : 'leave'
-        );
-      }
+      await familyGameService.closeRoom(connectRoom.id, foyerId);
       setActiveRoom(null);
       setConnectMode('local');
       setConnectPrivateMessage('');

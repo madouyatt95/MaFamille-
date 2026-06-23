@@ -715,7 +715,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
                   <div>
                     <h4 className="text-sm font-extrabold text-white uppercase tracking-wider">Unification de la Gestion 👨‍👩‍👧</h4>
                     <p className="text-xs text-white/50 leading-relaxed max-w-xs mx-auto mt-1.5 font-medium">
-                      Pour garantir une sécurité et une cohérence absolue, l'ajout local de profils de santé et l'envoi d'invitations officielles par e-mail avec codes de foyer se font désormais depuis le panneau principal.
+                      L’ajout de profils sans compte et le partage du code de foyer se font depuis le module Membres.
                     </p>
                   </div>
                   

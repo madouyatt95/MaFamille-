@@ -129,7 +129,7 @@ BEGIN
   ELSE
     RAISE EXCEPTION 'Accès refusé à cette partie';
   END IF;
-  IF p_foyer_id <> CASE WHEN v_player = 0 THEN v_room.host_foyer_id ELSE v_room.guest_foyer_id END
+  IF ((v_player = 0 AND p_foyer_id <> v_room.host_foyer_id) OR (v_player = 1 AND p_foyer_id <> v_room.guest_foyer_id))
      OR p_foyer_id NOT IN (SELECT public.user_foyer_ids()) THEN
     RAISE EXCEPTION 'Accès refusé à ce foyer';
   END IF;
@@ -248,7 +248,7 @@ BEGIN
   ELSE
     RAISE EXCEPTION 'Accès refusé à cette partie';
   END IF;
-  IF p_foyer_id <> CASE WHEN v_shooter = 0 THEN v_room.host_foyer_id ELSE v_room.guest_foyer_id END
+  IF ((v_shooter = 0 AND p_foyer_id <> v_room.host_foyer_id) OR (v_shooter = 1 AND p_foyer_id <> v_room.guest_foyer_id))
      OR p_foyer_id NOT IN (SELECT public.user_foyer_ids()) THEN
     RAISE EXCEPTION 'Accès refusé';
   END IF;
@@ -321,7 +321,7 @@ BEGIN
   ELSE
     RAISE EXCEPTION 'Accès refusé à cette partie';
   END IF;
-  IF p_foyer_id <> CASE WHEN v_player = 0 THEN v_room.host_foyer_id ELSE v_room.guest_foyer_id END
+  IF ((v_player = 0 AND p_foyer_id <> v_room.host_foyer_id) OR (v_player = 1 AND p_foyer_id <> v_room.guest_foyer_id))
      OR p_foyer_id NOT IN (SELECT public.user_foyer_ids()) THEN
     RAISE EXCEPTION 'Accès refusé';
   END IF;
@@ -396,7 +396,7 @@ BEGIN
   ELSE
     RAISE EXCEPTION 'Accès refusé à cette partie';
   END IF;
-  IF p_foyer_id <> CASE WHEN v_player = 1 THEN v_room.host_foyer_id ELSE v_room.guest_foyer_id END
+  IF ((v_player = 1 AND p_foyer_id <> v_room.host_foyer_id) OR (v_player = 2 AND p_foyer_id <> v_room.guest_foyer_id))
      OR p_foyer_id NOT IN (SELECT public.user_foyer_ids()) THEN
     RAISE EXCEPTION 'Accès refusé';
   END IF;
@@ -478,7 +478,7 @@ BEGIN
   ELSIF auth.uid() = v_room.guest_user_id THEN v_player := 2;
   ELSE RAISE EXCEPTION 'Accès refusé à cette partie';
   END IF;
-  IF p_foyer_id <> CASE WHEN v_player = 1 THEN v_room.host_foyer_id ELSE v_room.guest_foyer_id END
+  IF ((v_player = 1 AND p_foyer_id <> v_room.host_foyer_id) OR (v_player = 2 AND p_foyer_id <> v_room.guest_foyer_id))
      OR p_foyer_id NOT IN (SELECT public.user_foyer_ids()) THEN RAISE EXCEPTION 'Accès refusé'; END IF;
 
   v_state := COALESCE(v_room.state, '{}'::jsonb);

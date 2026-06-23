@@ -407,6 +407,18 @@ export const familyGameService = {
     return mapRoom(row as GameRoomRow);
   },
 
+  async closeRoom(roomId: string, foyerId: string): Promise<FamilyGameRoom> {
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Connexion Supabase indisponible.');
+    const { data, error } = await client.rpc('close_family_game_room', {
+      p_room_id: roomId,
+      p_foyer_id: foyerId
+    });
+    if (error) throw new Error(getRoomErrorMessage(error));
+    const row = Array.isArray(data) ? data[0] : data;
+    return mapRoom(row as GameRoomRow);
+  },
+
   async playConnect4Column(roomId: string, foyerId: string, column: number): Promise<FamilyGameRoom> {
     const client = getSupabaseClient();
     if (!client) throw new Error('Connexion Supabase indisponible.');

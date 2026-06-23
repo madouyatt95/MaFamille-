@@ -215,7 +215,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
               <p className="text-xs font-black uppercase tracking-[0.16em] text-[#00D26A]">Dernière étape</p>
               <h2 className="mt-2 text-xl font-black text-white">Confirmez votre adresse e-mail</h2>
               <p className="mt-2 text-xs leading-relaxed text-white/60">
-                Nous avons envoyé un lien à <strong className="text-white">{pendingEmail}</strong>. Touchez ce lien pour activer votre compte. Vous pourrez ensuite accepter l’invitation reçue ou créer votre propre foyer.
+                Nous avons envoyé un lien à <strong className="text-white">{pendingEmail}</strong>. Touchez ce lien pour activer votre compte. Vous pourrez ensuite saisir un code de foyer ou créer votre propre foyer.
               </p>
             </div>
             {successMessage && <p className="rounded-2xl border border-[#00D26A]/20 bg-[#00D26A]/8 p-3 text-xs font-bold text-[#00D26A]">{successMessage}</p>}
@@ -284,7 +284,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
 
           {activeMode === 'create' && (
             <p className="rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/10 p-3 text-xs leading-relaxed text-white/65">
-              Cette inscription crée uniquement votre compte personnel. Après confirmation, vous pourrez accepter une invitation reçue ou créer votre propre foyer.
+              Cette inscription crée uniquement votre compte personnel. Après confirmation, vous pourrez saisir un code de foyer ou créer votre propre foyer.
             </p>
           )}
           

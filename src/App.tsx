@@ -197,6 +197,7 @@ import { MemberAvatar } from './components/MemberAvatar';
 import { isGeneratedAvatar } from './utils/avatar';
 
 import { DEFAULT_CATEGORIES } from './data/budgetCategories';
+import { appStoreBillingService } from './services/appStoreBillingService';
 import { billingService } from './services/billingService';
 import { accountService } from './services/accountService';
 import { foyerService } from './services/foyerService';
@@ -11803,7 +11804,6 @@ function App() {
         id: res.foyer_id,
         name: familyName,
         inviteCode: res.invite_code,
-        inviteLink: `https://ma-famille-nu.vercel.app/?join=${encodeURIComponent(res.invite_code)}`,
         createdBy: user?.id || '',
         createdAt: new Date().toISOString(),
         isPremium: false,
@@ -12998,6 +12998,7 @@ function App() {
               myMemberProfile={myMemberProfile}
               isPremium={isPremium}
               onTriggerPaywall={() => setPaywallOpen(true)}
+              onUpdateFoyer={(updates) => setFoyer(prev => prev ? { ...prev, ...updates } : null)}
             />
           </div>
         );
@@ -13904,6 +13905,40 @@ function App() {
             throw new Error("Aucun foyer actif n'est chargé.");
           }
           await billingService.startStripeCheckout(foyer.id, plan);
+        }}
+        onStartAppStorePurchase={async ({ plan }) => {
+          if (!foyer?.id) {
+            throw new Error("Aucun foyer actif n'est chargé.");
+          }
+          const subscription = await appStoreBillingService.purchase(foyer.id, plan);
+          setIsPremium(subscription.isPremium);
+          setFoyer(prev => prev ? {
+            ...prev,
+            isPremium: subscription.isPremium,
+            maxMembers: subscription.isPremium ? 999 : 3,
+            premiumSource: subscription.source,
+            premiumPlan: subscription.plan,
+            premiumStatus: subscription.status,
+            premiumExpiresAt: subscription.expiresAt,
+            appStoreOriginalTransactionId: subscription.appStoreOriginalTransactionId || prev.appStoreOriginalTransactionId
+          } : null);
+        }}
+        onRestoreAppStorePurchase={async () => {
+          if (!foyer?.id) {
+            throw new Error("Aucun foyer actif n'est chargé.");
+          }
+          const subscription = await appStoreBillingService.restore(foyer.id);
+          setIsPremium(subscription.isPremium);
+          setFoyer(prev => prev ? {
+            ...prev,
+            isPremium: subscription.isPremium,
+            maxMembers: subscription.isPremium ? 999 : 3,
+            premiumSource: subscription.source,
+            premiumPlan: subscription.plan,
+            premiumStatus: subscription.status,
+            premiumExpiresAt: subscription.expiresAt,
+            appStoreOriginalTransactionId: subscription.appStoreOriginalTransactionId || prev.appStoreOriginalTransactionId
+          } : null);
         }}
         onUnlockPremium={async ({ platform, plan }) => {
           const subscription = billingService.createTestSubscription(platform, plan);
@@ -15271,19 +15306,15 @@ function App() {
                     <span className="text-[9px] font-bold text-white/30 uppercase tracking-wider block">Code Foyer</span>
                     <span className="text-sm font-mono font-bold text-white select-all block mt-0.5">{welcomeCreatedFoyer.inviteCode}</span>
                   </div>
-                  <div>
-                    <span className="text-[9px] font-bold text-white/30 uppercase tracking-wider block">Lien de Partage</span>
-                    <span className="text-[11px] font-mono text-[#6C5CFF] select-all block mt-0.5 break-all">{welcomeCreatedFoyer.inviteLink}</span>
-                  </div>
                   <button
                     type="button"
                     onClick={() => {
-                      void navigator.clipboard.writeText(welcomeCreatedFoyer.inviteLink || `https://ma-famille-nu.vercel.app/?join=${welcomeCreatedFoyer.inviteCode}`);
-                      setActiveToast({ title: 'Lien copié', description: 'Vous pouvez maintenant l’envoyer à vos proches.' });
+                      void navigator.clipboard.writeText(welcomeCreatedFoyer.inviteCode);
+                      setActiveToast({ title: 'Code copié', description: 'Vous pouvez maintenant le transmettre à vos proches.' });
                     }}
                     className="w-full rounded-xl border border-white/10 bg-white/5 py-3 text-[10px] font-black text-white"
                   >
-                    Copier le lien d’invitation
+                    Copier le code du foyer
                   </button>
                 </div>
 

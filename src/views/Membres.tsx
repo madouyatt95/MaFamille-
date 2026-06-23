@@ -14,7 +14,8 @@ import {
   Copy,
   Check,
   Camera,
-  LogOut
+  LogOut,
+  RefreshCw
 } from 'lucide-react';
 import { foyerService } from '../services/foyerService';
 import { getSupabaseClient } from '../utils/supabase';
@@ -65,6 +66,7 @@ interface MembresProps {
   onUpdatePermissions?: (memberId: string, modulePermissions: Record<FamilyModule, ModulePermissions>) => void;
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
+  onUpdateFoyer?: (updates: Partial<Foyer>) => void;
 }
 
 export const Membres: React.FC<MembresProps> = ({ 
@@ -82,7 +84,8 @@ export const Membres: React.FC<MembresProps> = ({
   memberPermissions,
   onUpdatePermissions,
   isPremium = false,
-  onTriggerPaywall
+  onTriggerPaywall,
+  onUpdateFoyer
 }) => {
   // Invitation réelle & Ajout unifié
   const [isAddingMember, setIsAddingMember] = useState(false);
@@ -132,10 +135,7 @@ export const Membres: React.FC<MembresProps> = ({
   const [addHasExemption, setAddHasExemption] = useState(false);
   const [submittingAdd, setSubmittingAdd] = useState(false);
 
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<string>('enfant');
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteMessage, setInviteMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
   const [copiedCode, setCopiedCode] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [panelOpenSequence, setPanelOpenSequence] = useState(0);
@@ -235,33 +235,35 @@ export const Membres: React.FC<MembresProps> = ({
     }
   };
 
-  const handleSendInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!foyer || !inviteEmail.trim()) return;
-    if (blockFreeMemberLimit()) return;
-    setInviteLoading(true);
-    setInviteMessage(null);
-    try {
-      const dbRole: MemberRole =
-        inviteRole === 'chef_famille' ? 'admin' :
-        ['parent', 'gestionnaire', 'adulte'].includes(inviteRole) ? 'parent' :
-        ['adolescent', 'enfant'].includes(inviteRole) ? 'child' :
-        'guest';
-      await foyerService.inviteByEmail(foyer.id, inviteEmail.trim(), dbRole);
-      setInviteMessage({ text: `Invitation envoyée avec succès à ${inviteEmail} ! ✉️`, type: 'success' });
-      setInviteEmail('');
-    } catch (err: unknown) {
-      setInviteMessage({ text: getErrorMessage(err) || "Erreur lors de l'envoi de l'invitation.", type: 'error' });
-    } finally {
-      setInviteLoading(false);
-    }
-  };
-
   const handleCopyInviteCode = () => {
     if (!foyer) return;
     navigator.clipboard.writeText(foyer.inviteCode);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const [regeneratingCode, setRegeneratingCode] = useState(false);
+
+  const handleRegenerateInviteCode = async () => {
+    if (!foyer) return;
+    const confirmRegen = window.confirm(
+      "⚠️ RÉGÉNÉRATION DU CODE D'INVITATION\n\nÊtes-vous sûr de vouloir générer un nouveau code d'invitation ? L'ancien code ne fonctionnera plus pour rejoindre le foyer."
+    );
+    if (!confirmRegen) return;
+
+    setRegeneratingCode(true);
+    try {
+      const newCode = await foyerService.regenerateInviteCode(foyer.id);
+      if (onUpdateFoyer) {
+        onUpdateFoyer({ inviteCode: newCode });
+      }
+      alert(`🎉 Nouveau code d'invitation généré avec succès : ${newCode}`);
+    } catch (err: unknown) {
+      console.error("Erreur lors de la régénération du code :", err);
+      alert(`Erreur : ${getErrorMessage(err) || "Impossible de régénérer le code."}`);
+    } finally {
+      setRegeneratingCode(false);
+    }
   };
   const [selectedMember, setSelectedMember] = useState<Member | null>(() => members.length > 0 ? members[0] : null);
   const [isEditing, setIsEditing] = useState(false);
@@ -629,7 +631,7 @@ export const Membres: React.FC<MembresProps> = ({
                   : 'text-white/40 hover:text-white/60'
               }`}
             >
-              Rejoindre un foyer ✉️
+              Rejoindre avec un code
             </button>
             <button
               onClick={() => setNoFoyerAction('create')}
@@ -647,12 +649,12 @@ export const Membres: React.FC<MembresProps> = ({
             <form onSubmit={handleJoinFoyerSubmit} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
-                  Code d'invitation (6 caractères)
+                  Code du foyer
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="Ex: ABCDEF"
+                  placeholder="Ex: FAM-W5ZP6"
                   value={inviteCodeInput}
                   onChange={(e) => setInviteCodeInput(e.target.value.toUpperCase())}
                   className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF] font-mono text-center uppercase"
@@ -1895,7 +1897,7 @@ export const Membres: React.FC<MembresProps> = ({
                   </h3>
                   <p className="text-[10px] text-white/40 mt-0.5">
                     {addingTab === 'invite'
-                      ? 'Elle recevra une invitation et utilisera son propre compte.'
+                      ? 'Partagez le code du foyer. La personne crée son compte puis saisit ce code.'
                       : 'Solution réservée aux enfants ou aux personnes sans accès personnel.'}
                   </p>
                 </div>
@@ -2073,14 +2075,14 @@ export const Membres: React.FC<MembresProps> = ({
                   <div className="space-y-4 animate-fade-in">
                     <div className="rounded-2xl border border-[#00D26A]/20 bg-[#00D26A]/8 p-3">
                       <p className="text-[10px] leading-relaxed text-white/65">
-                        Recommandé : la personne reçoit une invitation, crée son compte puis rejoint automatiquement votre foyer.
+                        Le code du foyer est l’unique méthode d’invitation. Aucun e-mail n’est envoyé par l’application.
                       </p>
                     </div>
                     {/* Share Invitation Code */}
-                    <div className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-2">
-                      <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block font-sans">1. Partager le Code Unique</span>
+                    <div className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-3">
+                      <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block font-sans">Partager le Code Unique</span>
                       <p className="text-[10px] text-white/50 leading-relaxed font-medium">
-                        Donnez ce code de foyer à vos proches. Ils pourront le saisir lors de leur inscription pour rejoindre instantanément votre foyer.
+                        Donnez ce code à vos proches. Après avoir créé leur compte, ils pourront le saisir pour envoyer leur demande d’accès.
                       </p>
                       <button
                         type="button"
@@ -2088,7 +2090,7 @@ export const Membres: React.FC<MembresProps> = ({
                         className="w-full mt-1.5 py-3 px-4 rounded-xl bg-white/5 border border-white/8 text-white text-xs font-bold flex items-center justify-between hover:bg-white/8 active:scale-95 transition-all cursor-pointer"
                       >
                         <div className="text-left font-sans">
-                          <span className="text-[8px] text-white/40 block font-normal uppercase">Code à 6 caractères</span>
+                          <span className="text-[8px] text-white/40 block font-normal uppercase">Code du foyer</span>
                           <span className="font-mono text-sm font-black text-[#6C5CFF] block mt-0.5">{foyer.inviteCode}</span>
                         </div>
                         {copiedCode ? (
@@ -2101,57 +2103,25 @@ export const Membres: React.FC<MembresProps> = ({
                           </span>
                         )}
                       </button>
-                    </div>
 
-                    {/* Email Invitation Form */}
-                    <form onSubmit={handleSendInvite} className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-3.5">
-                      <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block font-sans">2. Envoyer par e-mail</span>
-                      
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Adresse e-mail de l'invité</label>
-                        <input
-                          type="email"
-                          required
-                          placeholder="ex: epouse@gmail.com"
-                          value={inviteEmail}
-                          onChange={(e) => setInviteEmail(e.target.value)}
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider block">Rôle assigné</label>
-                        <select
-                          value={inviteRole}
-                          onChange={(e) => setInviteRole(e.target.value)}
-                          className="w-full px-3 py-2.5 rounded-xl bg-[#07111F] border border-white/10 text-white text-xs focus:outline-none focus:border-[#6C5CFF]"
-                        >
-                          <option value="chef_famille">👑 Chef de famille</option>
-                          <option value="parent">👨 Parent</option>
-                          <option value="gestionnaire">⚙️ Gestionnaire</option>
-                          <option value="adulte">🧑 Membre adulte (18 ans et +)</option>
-                          <option value="adolescent">👦 Adolescent (11-17 ans)</option>
-                          <option value="enfant">🧒 Enfant (-11 ans)</option>
-                          <option value="invite">👤 Invité</option>
-                        </select>
-                      </div>
-
-                      {inviteMessage && (
-                        <div className={`p-2.5 rounded-xl border text-[10px] font-medium leading-normal ${
-                          inviteMessage.type === 'success' ? 'bg-[#00D26A]/10 border-[#00D26A]/20 text-[#00D26A]' : 'bg-red-500/10 border-red-500/20 text-red-400'
-                        }`}>
-                          {inviteMessage.text}
+                      {/* Regenerate Code Option (Admin only) */}
+                      {(!myMemberProfile || myMemberProfile.role === 'admin') && (
+                        <div className="pt-2 border-t border-white/5">
+                          <button
+                            type="button"
+                            onClick={handleRegenerateInviteCode}
+                            disabled={regeneratingCode}
+                            className="w-full py-2.5 px-4 rounded-xl bg-[#FFB020]/10 border border-[#FFB020]/25 text-[#FFB020] text-[10px] font-extrabold uppercase tracking-wider hover:bg-[#FFB020]/15 active:scale-98 transition-all cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${regeneratingCode ? 'animate-spin' : ''}`} />
+                            <span>{regeneratingCode ? 'Régénération...' : 'Générer un nouveau code'}</span>
+                          </button>
+                          <p className="text-[8.5px] text-white/30 text-center mt-1.5 leading-normal">
+                            Générer un nouveau code désactive immédiatement l'ancien. Cette opération est optimisée et n'impacte pas l'egress de la base de données.
+                          </p>
                         </div>
                       )}
-
-                      <button
-                        type="submit"
-                        disabled={inviteLoading}
-                        className="w-full py-3 rounded-xl bg-[#6C5CFF] text-white text-xs font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-md shadow-[#6C5CFF]/15"
-                      >
-                        {inviteLoading ? 'Envoi...' : 'Envoyer l\'invitation ✉️'}
-                      </button>
-                    </form>
+                    </div>
 
                     <div className="border-t border-white/6 pt-4 text-center">
                       <p className="text-[9px] text-white/35">La personne ne peut vraiment pas créer de compte ?</p>

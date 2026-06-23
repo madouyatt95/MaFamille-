@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.myfamilyplus.test',
+  appId: 'fr.myfamilyplus.app',
   appName: 'MyFamily+',
   webDir: 'dist'
 };

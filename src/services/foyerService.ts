@@ -21,7 +21,7 @@ type JoinFoyerResponse = { foyer_id: string; foyer_name: string; role: 'parent' 
 
 // Avatars are fetched separately so legacy Base64 values never leave Postgres.
 const FOYER_MEMBER_COLUMNS = 'id, foyer_id, user_id, display_name, role, age, birth_date, blood_group, allergies, treatments, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, school_or_employer, has_exemption, joined_at, latitude, longitude, location_status, last_located_at, approved, notification_prefs';
-const FOYER_MEMBERSHIP_COLUMNS = `${FOYER_MEMBER_COLUMNS}, foyers(id, name, invite_code, invite_link, created_by, created_at, is_premium, max_members, premium_source, premium_plan, premium_status, premium_expires_at, stripe_customer_id, stripe_subscription_id, app_store_original_transaction_id, malus_settings)`;
+const FOYER_MEMBERSHIP_COLUMNS = `${FOYER_MEMBER_COLUMNS}, foyers(id, name, invite_code, created_by, created_at, is_premium, max_members, premium_source, premium_plan, premium_status, premium_expires_at, stripe_customer_id, stripe_subscription_id, app_store_original_transaction_id, malus_settings)`;
 
 const isSafeAvatarUrl = (value: unknown): value is string => (
   typeof value === 'string' && value.length > 0 && !value.startsWith('data:')
@@ -31,7 +31,6 @@ type FoyerDbRow = {
   id: string;
   name: string;
   invite_code: string;
-  invite_link?: string;
   created_by: string;
   created_at: string;
   is_premium: boolean;
@@ -199,7 +198,6 @@ export const foyerService = {
           id: foyerData.id,
           name: foyerData.name,
           inviteCode: foyerData.invite_code,
-          inviteLink: foyerData.invite_link,
           createdBy: foyerData.created_by,
           createdAt: foyerData.created_at,
           isPremium: foyerData.is_premium,
@@ -297,7 +295,6 @@ export const foyerService = {
       id: foyerData.id,
       name: foyerData.name,
       inviteCode: foyerData.invite_code,
-      inviteLink: foyerData.invite_link,
       createdBy: foyerData.created_by,
       createdAt: foyerData.created_at,
       isPremium: foyerData.is_premium,
@@ -411,22 +408,6 @@ export const foyerService = {
       approved: m.approved !== false,
       notificationPrefs: m.notification_prefs || undefined
     }));
-  },
-
-  /**
-   * Inviter un membre par email
-   */
-  async inviteByEmail(foyerId: string, email: string, role: MemberRole = 'child'): Promise<void> {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new Error("Supabase n'est pas configuré");
-
-    const { error } = await supabase.rpc('invite_by_email', {
-      p_foyer_id: foyerId,
-      p_email: email,
-      p_role: role
-    });
-
-    if (error) throw error;
   },
 
   /**
@@ -924,84 +905,43 @@ export const foyerService = {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase n'est pas configuré");
 
-    const normalizedInput = inviteCode.replace(/[\s-]/g, '').toUpperCase();
-    const variations = [normalizedInput];
-
-    // 1. If it has 8 chars and starts with 'FAM', split as 'FAM-' + 5 chars
-    if (normalizedInput.startsWith('FAM') && normalizedInput.length === 8) {
-      variations.push(`FAM-${normalizedInput.substring(3)}`);
+    const normalizedCode = inviteCode.replace(/[^a-z0-9]/gi, '').toUpperCase();
+    if (normalizedCode.length < 6) {
+      throw new Error("Code d'invitation incomplet.");
     }
 
-    // 2. If the original input had a hyphen or space, find where it was and split there
-    const originalMatch = inviteCode.match(/^([A-Za-z]+)[\s-]([A-Za-z0-9]+)$/);
-    if (originalMatch) {
-      const prefix = originalMatch[1].toUpperCase();
-      const suffix = originalMatch[2].toUpperCase();
-      variations.push(`${prefix}-${suffix}`);
+    const { data, error } = await supabase.rpc('request_family_join_by_code', {
+      p_invite_code: normalizedCode,
+      p_applicant_name: applicantName.trim(),
+      p_applicant_email: applicantEmail.trim() || null,
+      p_applicant_avatar: applicantAvatar || null,
+      p_requested_by_qr: byQr
+    });
+
+    if (error) {
+      const message = error.message || '';
+      if (message.toLowerCase().includes('invalide')) {
+        throw new Error("Code d'invitation invalide. Vérifiez le code et réessayez.");
+      }
+      throw error;
     }
 
-    // 3. General split of letters followed by digits (like YATTA4832 -> YATTA-4832)
-    const lettersDigitsMatch = normalizedInput.match(/^([A-Z]+)([0-9]+)$/);
-    if (lettersDigitsMatch) {
-      variations.push(`${lettersDigitsMatch[1]}-${lettersDigitsMatch[2]}`);
-    }
+    const result = (Array.isArray(data) ? data[0] : data) as {
+      request_id?: string;
+      family_id?: string;
+      family_name?: string;
+      status?: FamilyJoinRequest['status'];
+    } | null;
 
-    const uniqueVariations = Array.from(new Set(variations));
-
-    // Developer temporary logs
-    console.log("Code saisi :", inviteCode);
-    console.log("Code normalisé :", uniqueVariations);
-
-    const { data: foyerList, error: foyerError } = await supabase
-      .rpc('get_foyer_by_invite_code', {
-        p_variations: uniqueVariations
-      });
-
-    const foyerData = foyerList && foyerList.length > 0 ? foyerList[0] : null;
-
-    console.log("Résultat recherche famille :", foyerError ? "Erreur" : (foyerData ? "Succès" : "Non trouvé"));
-    console.log("Famille trouvée :", foyerData);
-    console.log("Erreur exacte :", foyerError);
-
-    if (foyerError || !foyerData) {
-      throw new Error("Code d'invitation invalide. Vérifiez le code et réessayez.");
-    }
-
-    const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user;
-    if (!user) throw new Error("Non authentifié");
-
-    // Supprimer d'anciennes demandes éventuelles annulées ou rejetées pour cette famille pour éviter les conflits d'unicité
-    await supabase
-      .from('family_join_requests')
-      .delete()
-      .eq('family_id', foyerData.id)
-      .eq('applicant_user_id', user.id);
-
-    const { data: requestData, error: requestError } = await supabase
-      .from('family_join_requests')
-      .insert({
-        family_id: foyerData.id,
-        applicant_user_id: user.id,
-        applicant_name: applicantName,
-        applicant_email: applicantEmail,
-        applicant_avatar: applicantAvatar || null,
-        status: 'pending',
-        requested_by_code: !byQr,
-        requested_by_qr: byQr
-      })
-      .select()
-      .single();
-
-    if (requestError) {
-      throw requestError;
+    if (!result?.request_id || !result.family_id || !result.family_name) {
+      throw new Error("Impossible d'enregistrer la demande d'adhésion.");
     }
 
     return {
-      requestId: requestData.id,
-      familyId: foyerData.id,
-      familyName: foyerData.name,
-      status: requestData.status
+      requestId: result.request_id,
+      familyId: result.family_id,
+      familyName: result.family_name,
+      status: result.status || 'pending'
     };
   },
 
