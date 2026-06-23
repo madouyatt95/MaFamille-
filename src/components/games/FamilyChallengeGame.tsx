@@ -10,6 +10,8 @@ import { familyGameService, type FamilyGameRoom } from '../../services/familyGam
 import { matchChallengeAnswer } from '../../utils/familyChallengeMatcher';
 
 type ChallengePhase = 'faceoff' | 'play' | 'steal' | 'round-end' | 'game-end';
+const FACEOFF_SECONDS = 10;
+const FACEOFF_TIMEOUT_VALUE = '__timer_expired__';
 
 type Team = {
   id: string;
@@ -97,6 +99,7 @@ export function FamilyChallengeGame({
   const [guessInput, setGuessInput] = useState('');
   const [feedback, setFeedback] = useState('');
   const [seconds, setSeconds] = useState(60);
+  const [faceoffSeconds, setFaceoffSeconds] = useState(FACEOFF_SECONDS);
   const [timerRunning, setTimerRunning] = useState(false);
   const [reconnectNow, setReconnectNow] = useState(() => Date.now());
   const [submitting, setSubmitting] = useState(false);
@@ -168,6 +171,12 @@ export function FamilyChallengeGame({
     },
     [localFaceoffAnswers, room]
   );
+  const localFaceoffTurn: 0 | 1 | null = localFaceoffAnswers[0] === null ? 0 : localFaceoffAnswers[1] === null ? 1 : null;
+  const localFaceoffSubmitted = !room && localFaceoffTurn === null;
+  const serverFaceoffSubmitted = room
+    ? Boolean(localTeamIndex === 0 ? room.state.hostSubmitted : room.state.guestSubmitted)
+    : false;
+  const faceoffCountdownActive = phase === 'faceoff' && (room ? !serverFaceoffSubmitted : !localFaceoffSubmitted);
 
   const playCue = useCallback((kind: 'good' | 'bad' | 'win') => {
     if (silentMode) return;
@@ -271,10 +280,21 @@ export function FamilyChallengeGame({
   }, [seconds]);
 
   const resolveFaceoff = useCallback((answers: [string, string]) => {
-    const matches = answers.map(value => matchChallengeAnswer(value, question));
+    const matches = answers.map(value => value === FACEOFF_TIMEOUT_VALUE
+      ? ({ status: 'rejected', answerIndex: -1 } as ReturnType<typeof matchChallengeAnswer>)
+      : matchChallengeAnswer(value, question)
+    );
     const firstAccepted = matches[0].status !== 'rejected';
     const secondAccepted = matches[1].status !== 'rejected';
-    let winner: 0 | 1 = round % 2 === 0 ? 0 : 1;
+    if (!firstAccepted && !secondAccepted) {
+      setFaceoffInputs(['', '']);
+      setLocalFaceoffAnswers([null, null]);
+      setFaceoffSeconds(FACEOFF_SECONDS);
+      setFeedback('Aucune réponse au tableau : on relance le duel.');
+      playCue('bad');
+      return;
+    }
+    let winner: 0 | 1 = 0;
     if (firstAccepted && !secondAccepted) winner = 0;
     if (secondAccepted && !firstAccepted) winner = 1;
     if (firstAccepted && secondAccepted && matches[0].answerIndex !== matches[1].answerIndex) {
@@ -307,18 +327,38 @@ export function FamilyChallengeGame({
     setStrikes(0);
     setPhase('play');
     setFeedback(`${teams[winner].name} prend la main avec la meilleure réponse.`);
-  }, [onFinished, playCue, question, round, roundHistory, scores, suddenDeath, teams]);
+  }, [onFinished, playCue, question, roundHistory, scores, suddenDeath, teams]);
 
   useEffect(() => {
-    if (phase !== 'faceoff' || !faceoffAnswers[0] || !faceoffAnswers[1]) return;
+    if (phase !== 'faceoff' || faceoffAnswers[0] === null || faceoffAnswers[1] === null) return;
     if (room) return;
     queueMicrotask(() => resolveFaceoff([faceoffAnswers[0]!, faceoffAnswers[1]!]));
   }, [faceoffAnswers, phase, resolveFaceoff, room]);
 
-  const submitFaceoff = async (teamIndex: 0 | 1) => {
-    const value = faceoffInputs[teamIndex].trim();
+  useEffect(() => {
+    if (phase !== 'faceoff') return;
+    queueMicrotask(() => setFaceoffSeconds(FACEOFF_SECONDS));
+  }, [
+    phase,
+    round,
+    localFaceoffTurn,
+    localTeamIndex,
+    room?.id,
+    room?.state.hostSubmitted,
+    room?.state.guestSubmitted
+  ]);
+
+  useEffect(() => {
+    if (!faceoffCountdownActive || faceoffSeconds <= 0) return;
+    const timer = window.setInterval(() => setFaceoffSeconds(value => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [faceoffCountdownActive, faceoffSeconds]);
+
+  const submitFaceoff = async (teamIndex: 0 | 1, forcedValue?: string) => {
+    const value = (forcedValue ?? faceoffInputs[teamIndex]).trim();
     if (!value) return;
     if (!room) {
+      if (localFaceoffTurn !== teamIndex) return;
       setLocalFaceoffAnswers(previous => {
         const next: [string | null, string | null] = [...previous];
         next[teamIndex] = value;
@@ -335,6 +375,17 @@ export function FamilyChallengeGame({
       setSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (!faceoffCountdownActive || faceoffSeconds !== 0) return;
+    const teamIndex = room ? localTeamIndex : localFaceoffTurn;
+    if (teamIndex === null) return;
+    queueMicrotask(() => {
+      void submitFaceoff(teamIndex, FACEOFF_TIMEOUT_VALUE);
+    });
+  // submitFaceoff intentionally reads the latest input/submission state at timeout.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [faceoffCountdownActive, faceoffSeconds, localFaceoffTurn, localTeamIndex, room]);
 
   const finishRound = (winner: 0 | 1, finalFound: number[], finalBank: number, message: string) => {
     const nextScores: [number, number] = [...scores];
@@ -757,13 +808,21 @@ export function FamilyChallengeGame({
       {phase === 'faceoff' && (
         <div className="grid gap-3 sm:grid-cols-2">
           {teams.map((team, index) => {
-            const canAnswer = !room || localTeamIndex === index;
+            const canAnswer = room ? localTeamIndex === index : localFaceoffTurn === index;
             const submitted = room
               ? Boolean(index === 0 ? room.state.hostSubmitted : room.state.guestSubmitted)
-              : Boolean(localFaceoffAnswers[index]);
+              : localFaceoffAnswers[index] !== null;
+            const isActiveAnswer = canAnswer && !submitted;
             return (
-              <div key={team.id} className="glass-panel rounded-[22px] border border-white/8 p-4 space-y-3">
-                <strong className="text-xs text-white">{team.name} répond au duel</strong>
+              <div key={team.id} className={`glass-panel rounded-[22px] border p-4 space-y-3 ${isActiveAnswer ? 'border-[#FFB020]/35' : 'border-white/8'}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <strong className="text-xs text-white">{team.name} répond au duel</strong>
+                  {isActiveAnswer && (
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-black ${faceoffSeconds <= 3 ? 'bg-[#FF4D6D]/15 text-[#FF4D6D]' : 'bg-[#FFB020]/15 text-[#FFB020]'}`}>
+                      {faceoffSeconds}s
+                    </span>
+                  )}
+                </div>
                 {canAnswer ? (
                   <>
                     <input
@@ -771,7 +830,7 @@ export function FamilyChallengeGame({
                       value={faceoffInputs[index]}
                       onChange={event => setFaceoffInputs(previous => index === 0 ? [event.target.value, previous[1]] : [previous[0], event.target.value])}
                       disabled={submitted || submitting}
-                      placeholder="Réponse secrète..."
+                      placeholder={submitted ? 'Réponse envoyée' : 'Réponse secrète...'}
                       className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none"
                     />
                     <button type="button" onClick={() => void submitFaceoff(index as 0 | 1)} disabled={submitted || !faceoffInputs[index].trim()} className={`w-full py-3 rounded-2xl disabled:opacity-40 text-xs font-black text-white ${index === 0 ? 'bg-[#6C5CFF]' : 'bg-[#FF4D6D]'}`}>
@@ -779,7 +838,9 @@ export function FamilyChallengeGame({
                     </button>
                   </>
                 ) : (
-                  <p className="rounded-2xl bg-white/5 p-3 text-xs text-white/45">{submitted ? 'Réponse validée' : 'La famille réfléchit...'}</p>
+                  <p className="rounded-2xl bg-white/5 p-3 text-xs text-white/45">
+                    {submitted ? 'Réponse validée' : room ? 'La famille réfléchit...' : 'En attente de son tour.'}
+                  </p>
                 )}
               </div>
             );
