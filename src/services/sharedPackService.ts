@@ -126,3 +126,16 @@ export const fetchSharedPackByToken = async (token: string, accessCode?: string)
     documents: Array.isArray(payload.documents) ? payload.documents.map(item => mapDocument(asRecord(item))) : []
   };
 };
+
+export const revokeSharedPackLink = async (params: {
+  foyerId: string;
+  token: string;
+}): Promise<void> => {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Supabase n'est pas configuré");
+  const { error } = await supabase.rpc('revoke_shared_pack_link', {
+    p_foyer_id: params.foyerId,
+    p_token: params.token
+  });
+  if (error) throw new Error(error.message || 'Impossible de révoquer ce lien.');
+};

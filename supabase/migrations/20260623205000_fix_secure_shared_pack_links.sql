@@ -277,7 +277,41 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.revoke_shared_pack_link(
+  p_foyer_id uuid,
+  p_token text
+) RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Utilisateur non connecté';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.foyer_members fm
+    WHERE fm.foyer_id = p_foyer_id
+      AND fm.user_id = auth.uid()
+      AND COALESCE(fm.approved, true) = true
+      AND fm.role IN ('admin', 'parent')
+  ) THEN
+    RAISE EXCEPTION 'Accès refusé';
+  END IF;
+
+  UPDATE public.shared_pack_links
+  SET revoked_at = now()
+  WHERE foyer_id = p_foyer_id
+    AND token = p_token
+    AND revoked_at IS NULL;
+END;
+$$;
+
 REVOKE ALL ON FUNCTION public.create_shared_pack_link(uuid, text, text, text, timestamptz, boolean) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_shared_pack_by_token(text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.revoke_shared_pack_link(uuid, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.create_shared_pack_link(uuid, text, text, text, timestamptz, boolean) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_shared_pack_by_token(text, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.revoke_shared_pack_link(uuid, text) TO authenticated;

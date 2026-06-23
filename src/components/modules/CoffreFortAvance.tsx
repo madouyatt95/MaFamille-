@@ -5,7 +5,7 @@ import type { DocumentFile, DocumentCategory, Member, Demarche, JustificatifPack
 import { demarcheTemplates } from '../../data/demoData';
 import { compressImageToBlob, dataUrlToBlob, extensionFromMimeType, isDataUrl, uploadBlobToStorage } from '../../utils/imageCompressor';
 import { foyerService } from '../../services/foyerService';
-import { createSharedPackLink } from '../../services/sharedPackService';
+import { createSharedPackLink, revokeSharedPackLink } from '../../services/sharedPackService';
 
 interface CoffreFortAvanceProps {
   documents: DocumentFile[];
@@ -19,7 +19,7 @@ interface CoffreFortAvanceProps {
   onAddTransaction?: (newTrans: any) => void;
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
-  defaultTab?: 'docs' | 'demarches' | 'packs';
+  defaultTab?: 'docs' | 'demarches' | 'packs' | 'shares';
   foyerId?: string;
 }
 
@@ -34,8 +34,9 @@ type ShareDraft = {
 const SHARE_DURATION_OPTIONS = [1, 3, 7, 14, 30];
 
 export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, setDocuments, members, demarches, setDemarches, packs, setPacks, onAddEvent, onAddTransaction, isPremium = false, onTriggerPaywall, defaultTab, foyerId }) => {
-  const [mainTab, setMainTab] = useState<'docs' | 'demarches' | 'packs'>(defaultTab || 'docs');
-  const [viewMode, setViewMode] = useState<'categories' | 'members' | 'expiring' | 'all'>('categories');
+  const [mainTab, setMainTab] = useState<'docs' | 'demarches' | 'packs' | 'shares'>(defaultTab || 'docs');
+  const [viewMode, setViewMode] = useState<'categories' | 'members' | 'expiring' | 'all'>('all');
+  const [quickFilter, setQuickFilter] = useState<'all' | 'identity' | 'health' | 'school' | 'home' | 'expired' | 'shared' | 'secure'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<DocumentFile | null>(null);
@@ -92,7 +93,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
       setMainTab('docs');
       onTriggerPaywall?.();
     }
-    if (!isPremium && mainTab === 'packs') {
+    if (!isPremium && (mainTab === 'packs' || mainTab === 'shares')) {
       setMainTab('docs');
       onTriggerPaywall?.();
     }
@@ -365,6 +366,21 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
   const completedDemarchesCount = demarches.filter(d => d.status === 'completed').length;
   const protectedDocsCount = documents.filter(d => d.isSecure).length;
   const readyPacksCount = packs.filter(p => p.documentIds.length > 0).length;
+  const sharedPacks = packs.filter(pack => Boolean(pack.shareToken || pack.shareExpiresAt || pack.shareRecipientLabel));
+  const activeSharedPacks = sharedPacks.filter(pack => !getPackShareStatus(pack).expired);
+  const expiredSharedPacks = sharedPacks.filter(pack => getPackShareStatus(pack).expired);
+  const recentDocuments = useMemo(() => [...documents].slice(0, 5), [documents]);
+
+  const quickFilters: { id: typeof quickFilter; label: string }[] = [
+    { id: 'all', label: 'Tous' },
+    { id: 'identity', label: 'Identité' },
+    { id: 'health', label: 'Santé' },
+    { id: 'school', label: 'École' },
+    { id: 'home', label: 'Logement' },
+    { id: 'expired', label: 'Expirés' },
+    { id: 'shared', label: 'Partagés' },
+    { id: 'secure', label: 'Protégés' }
+  ];
 
   const duplicateDocumentGroups = useMemo(() => {
     const groups = new Map<string, DocumentFile[]>();
@@ -471,11 +487,43 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     }
   };
 
+  const handleRevokePackShareLink = async (pack: JustificatifPack) => {
+    if (!pack.shareToken) {
+      setPacks(prev => prev.map(item => item.id === pack.id ? {
+        ...item,
+        shareExpiresAt: new Date(Date.now() - 1000).toISOString()
+      } : item));
+      return;
+    }
+    if (!window.confirm('Révoquer ce lien de partage ?')) return;
+    try {
+      if (foyerId) {
+        await revokeSharedPackLink({ foyerId, token: pack.shareToken });
+      }
+      setPacks(prev => prev.map(item => item.id === pack.id ? {
+        ...item,
+        shareToken: undefined,
+        shareExpiresAt: new Date(Date.now() - 1000).toISOString()
+      } : item));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Révocation impossible.');
+    }
+  };
+
   const filteredDocs = useMemo(() => {
     return documents.filter(doc => {
       const matchSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           (doc.tags || []).some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
       if (!matchSearch) return false;
+      if (quickFilter === 'identity' || quickFilter === 'health' || quickFilter === 'school' || quickFilter === 'home') {
+        if (doc.category !== quickFilter) return false;
+      }
+      if (quickFilter === 'expired') {
+        const expiryDate = parseDocumentDate(doc.expiryDate);
+        if (!doc.isExpired && (!expiryDate || expiryDate.getTime() >= Date.now())) return false;
+      }
+      if (quickFilter === 'secure' && !doc.isSecure) return false;
+      if (quickFilter === 'shared' && !packs.some(pack => pack.documentIds.includes(doc.id) && (pack.shareToken || pack.shareExpiresAt))) return false;
       
       if (viewMode === 'expiring') {
         if (!doc.expiryDate) return false;
@@ -486,7 +534,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
       }
       return true;
     });
-  }, [documents, searchQuery, viewMode]);
+  }, [documents, packs, quickFilter, searchQuery, viewMode]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -757,6 +805,33 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
         </div>
       </div>
 
+      <div className="px-4 pt-4 grid grid-cols-3 gap-2">
+        <button
+          type="button"
+          onClick={() => canAddDocument ? setIsUploading(true) : requestVaultPremium()}
+          className="rounded-2xl border border-[#6C5CFF]/25 bg-[#6C5CFF]/12 px-3 py-3 text-center active:scale-[0.98] transition"
+        >
+          <Plus className="mx-auto mb-1 h-4 w-4 text-[#9D8CFF]" />
+          <span className="block text-[10px] font-extrabold text-white">Ajouter</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => isPremium ? (setMainTab('packs'), setShowNewPack(true), setSelectedPackDocs([])) : requestVaultPremium()}
+          className="rounded-2xl border border-[#00D26A]/20 bg-[#00D26A]/10 px-3 py-3 text-center active:scale-[0.98] transition"
+        >
+          <FileText className="mx-auto mb-1 h-4 w-4 text-[#00D26A]" />
+          <span className="block text-[10px] font-extrabold text-white">Dossier</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => isPremium ? setMainTab('shares') : requestVaultPremium()}
+          className="rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/10 px-3 py-3 text-center active:scale-[0.98] transition"
+        >
+          <Share2 className="mx-auto mb-1 h-4 w-4 text-[#FFB020]" />
+          <span className="block text-[10px] font-extrabold text-white">Partager</span>
+        </button>
+      </div>
+
       <div className="px-4 pt-4 grid grid-cols-2 gap-2">
         <button
           type="button"
@@ -798,7 +873,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
 
       {/* Main Tab Navigation */}
       <div className="p-3 border-b border-white/5">
-        <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 grid grid-cols-3 gap-1">
+        <div className="bg-[#07111F]/60 p-1 rounded-2xl border border-white/5 grid grid-cols-4 gap-1">
           <button onClick={() => setMainTab('docs')} className={`py-2.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${mainTab === 'docs' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
             📁 Documents
           </button>
@@ -822,6 +897,12 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
             className={`py-2.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${mainTab === 'packs' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}
           >
             📦 Packs {!isPremium && <Lock className="inline-block w-3 h-3 ml-1 -mt-0.5" />}
+          </button>
+          <button
+            onClick={() => isPremium ? setMainTab('shares') : requestVaultPremium()}
+            className={`py-2.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${mainTab === 'shares' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}
+          >
+            🔗 Partages {!isPremium && <Lock className="inline-block w-3 h-3 ml-1 -mt-0.5" />}
           </button>
         </div>
       </div>
@@ -860,10 +941,92 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
             </button>
           ))}
         </div>
+        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+          {quickFilters.map(filter => (
+            <button
+              key={filter.id}
+              type="button"
+              onClick={() => {
+                setQuickFilter(filter.id);
+                if (filter.id !== 'all') {
+                  setViewMode('all');
+                  setSelectedCategory(null);
+                }
+              }}
+              className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[10px] font-extrabold transition ${
+                quickFilter === filter.id
+                  ? 'bg-[#6C5CFF] text-white'
+                  : 'border border-white/8 bg-white/[0.04] text-white/45'
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {viewMode === 'all' && !searchQuery && quickFilter === 'all' && (
+          <>
+            <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-extrabold uppercase tracking-widest text-white/40">Documents récents</p>
+                  <p className="mt-1 text-[10px] text-white/45">Métadonnées uniquement, les fichiers restent fermés tant que vous ne les ouvrez pas.</p>
+                </div>
+                <Shield className="h-5 w-5 text-[#00D26A]" />
+              </div>
+              <div className="space-y-2">
+                {recentDocuments.map(doc => {
+                  const config = categoryConfig[doc.category];
+                  const Icon = config?.icon || FileText;
+                  const renewal = getRenewalStatus(doc);
+                  return (
+                    <button
+                      key={doc.id}
+                      type="button"
+                      onClick={() => handleDocumentClick(doc)}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.04] p-3 text-left active:scale-[0.98] transition"
+                    >
+                      <div className={`shrink-0 rounded-xl p-2 ${config?.color || 'bg-white/10 text-white'}`}>
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-extrabold text-white">{doc.name}</p>
+                        <p className="mt-0.5 truncate text-[10px] text-white/40">{doc.memberName || 'Famille'} • {config?.label || doc.category}</p>
+                      </div>
+                      {doc.isSecure && <Lock className="h-3.5 w-3.5 text-[#FFB020]" />}
+                      {renewal.status !== 'none' && renewal.status !== 'ok' && <span className={`shrink-0 text-[9px] font-bold ${renewal.accent}`}>{renewal.label}</span>}
+                    </button>
+                  );
+                })}
+                {recentDocuments.length === 0 && (
+                  <p className="rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-center text-xs text-white/40">Aucun document pour le moment.</p>
+                )}
+              </div>
+            </div>
+
+            {renewalDocs.length > 0 && (
+              <div className="rounded-[24px] border border-[#FFB020]/25 bg-[#FFB020]/10 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#FFB020]">À vérifier</p>
+                    <p className="mt-1 text-xs font-bold text-white">{renewalDocs.length} document{renewalDocs.length > 1 ? 's' : ''} avec échéance proche</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('expiring')}
+                    className="rounded-xl bg-[#FFB020] px-3 py-2 text-[10px] font-extrabold text-[#07111F]"
+                  >
+                    Voir
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
         {viewMode === 'categories' && (
           selectedCategory ? (
             <div className="space-y-4">
@@ -1708,7 +1871,6 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
             const packDocs = documents.filter(d => pack.documentIds.includes(d.id));
             const typeLabel = pack.templateType === 'location' ? '🏠 Location' : pack.templateType === 'ecole' ? '🎓 École' : pack.templateType === 'banque' ? '🏦 Banque' : pack.templateType === 'emploi' ? '💼 Emploi' : '📁 Personnalisé';
             const shareStatus = getPackShareStatus(pack);
-            const shareDraft = getShareDraft(pack);
             return (
               <div key={pack.id} className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
                 <div className="flex items-center justify-between">
@@ -1735,47 +1897,6 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   </div>
                   <Shield className={`w-4 h-4 shrink-0 ${shareStatus.accent}`} />
                 </div>
-                <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block">
-                      <span className="mb-1 block text-[9px] font-bold uppercase tracking-wide text-white/35">Expiration du lien</span>
-                      <select
-                        value={shareDraft.durationDays}
-                        onChange={event => updateShareDraft(pack, { durationDays: Number(event.target.value) })}
-                        className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-bold text-white outline-none"
-                      >
-                        {SHARE_DURATION_OPTIONS.map(days => (
-                          <option key={days} value={days}>{days} jour{days > 1 ? 's' : ''}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-[9px] font-bold uppercase tracking-wide text-white/35">Code d’accès</span>
-                      <input
-                        value={shareDraft.accessCode}
-                        onChange={event => updateShareDraft(pack, { accessCode: event.target.value })}
-                        placeholder="Auto"
-                        maxLength={12}
-                        className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-bold text-white outline-none placeholder:text-white/25"
-                      />
-                    </label>
-                  </div>
-                  <input
-                    value={shareDraft.recipientLabel}
-                    onChange={event => updateShareDraft(pack, { recipientLabel: event.target.value })}
-                    placeholder="Destinataire optionnel"
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-bold text-white outline-none placeholder:text-white/25"
-                  />
-                  <label className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
-                    <span className="text-[10px] font-bold text-white/55">Autoriser l’ouverture des fichiers</span>
-                    <input
-                      type="checkbox"
-                      checked={shareDraft.allowDirectDownloads}
-                      onChange={event => updateShareDraft(pack, { allowDirectDownloads: event.target.checked })}
-                      className="h-4 w-4 accent-[#6C5CFF]"
-                    />
-                  </label>
-                </div>
                 <div className="space-y-1.5">
                   {packDocs.map(doc => (
                     <div key={doc.id} className="flex items-center space-x-2 p-2 bg-white/[0.03] rounded-lg border border-white/5 text-[10px]">
@@ -1800,15 +1921,11 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   </button>
                   <button
                     type="button"
-                    onClick={() => void handleCopyPackShareLink(pack)}
-                    className={`py-2.5 rounded-xl text-[10px] font-bold transition flex items-center justify-center space-x-1.5 ${
-                      shareStatus.expired
-                        ? 'bg-white/5 border border-white/10 text-white/30 cursor-not-allowed'
-                        : 'bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF] cursor-pointer hover:bg-[#6C5CFF]/20'
-                    }`}
+                    onClick={() => setMainTab('shares')}
+                    className="py-2.5 rounded-xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF] text-[10px] font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer hover:bg-[#6C5CFF]/20"
                   >
                     <Share2 className="w-3.5 h-3.5" />
-                    <span>Lien de partage</span>
+                    <span>Gérer partage</span>
                   </button>
                 </div>
               </div>
@@ -1909,6 +2026,140 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   Créer le dossier ({selectedPackDocs.length} doc{selectedPackDocs.length > 1 ? 's' : ''})
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {mainTab === 'shares' && (
+        <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          <div className="rounded-[24px] border border-[#6C5CFF]/20 bg-[#6C5CFF]/10 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#9D8CFF]">Partages sécurisés</p>
+                <p className="mt-1 text-xs leading-relaxed text-white/55">Chaque lien possède sa propre date d’expiration, son code et son niveau d’accès.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div className="rounded-2xl bg-white/8 px-3 py-2">
+                  <p className="text-lg font-extrabold text-white">{activeSharedPacks.length}</p>
+                  <p className="text-[8px] font-bold uppercase text-white/40">actifs</p>
+                </div>
+                <div className="rounded-2xl bg-white/8 px-3 py-2">
+                  <p className="text-lg font-extrabold text-white">{expiredSharedPacks.length}</p>
+                  <p className="text-[8px] font-bold uppercase text-white/40">expirés</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {packs.length === 0 ? (
+            <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-8 text-center">
+              <Share2 className="mx-auto mb-3 h-8 w-8 text-white/25" />
+              <p className="text-sm font-bold text-white">Aucun dossier à partager</p>
+              <p className="mt-1 text-xs text-white/40">Créez d’abord un dossier justificatif avec les documents à envoyer.</p>
+              <button
+                type="button"
+                onClick={() => { setMainTab('packs'); setShowNewPack(true); }}
+                className="mt-4 rounded-2xl bg-[#6C5CFF] px-4 py-2.5 text-xs font-extrabold text-white"
+              >
+                Créer un dossier
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {packs.map(pack => {
+                const packDocs = documents.filter(document => pack.documentIds.includes(document.id));
+                const shareStatus = getPackShareStatus(pack);
+                const shareDraft = getShareDraft(pack);
+                return (
+                  <div key={pack.id} className="rounded-[24px] border border-white/8 bg-white/[0.035] p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-extrabold text-white">{pack.name}</p>
+                        <p className="mt-0.5 text-[10px] text-white/40">{packDocs.length} document(s) • {pack.shareRecipientLabel || 'Aucun destinataire'}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-extrabold ${shareStatus.border} ${shareStatus.bg} ${shareStatus.accent}`}>
+                        {shareStatus.expired ? 'Expiré' : pack.shareToken ? 'Actif' : 'À créer'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-2">
+                        <p className="text-[8px] uppercase text-white/35 font-bold">Expiration</p>
+                        <p className="mt-1 text-[10px] font-bold text-white">{pack.shareExpiresAt ? new Date(pack.shareExpiresAt).toLocaleDateString('fr-FR') : `${shareDraft.durationDays} j`}</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-2">
+                        <p className="text-[8px] uppercase text-white/35 font-bold">Ouvertures</p>
+                        <p className="mt-1 text-[10px] font-bold text-white">{pack.shareOpenedCount || 0}</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-2">
+                        <p className="text-[8px] uppercase text-white/35 font-bold">Accès</p>
+                        <p className="mt-1 text-[10px] font-bold text-white">{pack.allowDirectDownloads === false ? 'Sommaire' : 'Fichiers'}</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/8 bg-[#07111F]/40 p-3 space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="block">
+                          <span className="mb-1 block text-[9px] font-bold uppercase tracking-wide text-white/35">Durée du nouveau lien</span>
+                          <select
+                            value={shareDraft.durationDays}
+                            onChange={event => updateShareDraft(pack, { durationDays: Number(event.target.value) })}
+                            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-bold text-white outline-none"
+                          >
+                            {SHARE_DURATION_OPTIONS.map(days => (
+                              <option key={days} value={days}>{days} jour{days > 1 ? 's' : ''}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-[9px] font-bold uppercase tracking-wide text-white/35">Code séparé</span>
+                          <input
+                            value={shareDraft.accessCode}
+                            onChange={event => updateShareDraft(pack, { accessCode: event.target.value })}
+                            placeholder="Auto"
+                            maxLength={12}
+                            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-bold text-white outline-none placeholder:text-white/25"
+                          />
+                        </label>
+                      </div>
+                      <input
+                        value={shareDraft.recipientLabel}
+                        onChange={event => updateShareDraft(pack, { recipientLabel: event.target.value })}
+                        placeholder="Destinataire optionnel"
+                        className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-bold text-white outline-none placeholder:text-white/25"
+                      />
+                      <label className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+                        <span className="text-[10px] font-bold text-white/55">Autoriser l’ouverture des fichiers</span>
+                        <input
+                          type="checkbox"
+                          checked={shareDraft.allowDirectDownloads}
+                          onChange={event => updateShareDraft(pack, { allowDirectDownloads: event.target.checked })}
+                          className="h-4 w-4 accent-[#6C5CFF]"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleCopyPackShareLink(pack)}
+                        className="rounded-2xl bg-[#6C5CFF] px-4 py-3 text-[10px] font-extrabold text-white active:scale-[0.98] transition"
+                      >
+                        Créer et copier le lien
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleRevokePackShareLink(pack)}
+                        disabled={!pack.shareToken && !pack.shareExpiresAt}
+                        className="rounded-2xl border border-[#FF4D6D]/20 bg-[#FF4D6D]/10 px-4 py-3 text-[10px] font-extrabold text-[#FF4D6D] disabled:opacity-35 active:scale-[0.98] transition"
+                      >
+                        Révoquer le lien
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
