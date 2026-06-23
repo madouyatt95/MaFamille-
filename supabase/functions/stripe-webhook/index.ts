@@ -5,6 +5,7 @@ const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const stripeWebhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
+const stripeSignatureToleranceSeconds = 300;
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -66,7 +67,6 @@ async function hmacSha256Hex(secret: string, payload: string): Promise<string> {
 }
 
 async function verifyStripeSignature(rawBody: string, signatureHeader: string | null): Promise<boolean> {
-  console.log("[stripe-webhook] Starting signature verification...");
   if (!stripeWebhookSecret) {
     console.error("[stripe-webhook] Error: STRIPE_WEBHOOK_SECRET environment variable is not set!");
     return false;
@@ -77,27 +77,42 @@ async function verifyStripeSignature(rawBody: string, signatureHeader: string | 
   }
 
   try {
-    const parts = Object.fromEntries(
-      signatureHeader.split(",").map((part) => {
-        const [key, value] = part.split("=");
-        return [key, value];
-      }),
-    );
-    const timestamp = parts.t;
-    const receivedSignature = parts.v1;
-    if (!timestamp || !receivedSignature) {
-      console.error("[stripe-webhook] Error: timestamp or v1 signature missing in header:", signatureHeader);
+    const signatureParts = signatureHeader.split(",").map((part) => {
+      const separatorIndex = part.indexOf("=");
+      return {
+        key: part.slice(0, separatorIndex),
+        value: part.slice(separatorIndex + 1),
+      };
+    });
+    const timestamp = signatureParts.find((part) => part.key === "t")?.value;
+    const receivedSignatures = signatureParts
+      .filter((part) => part.key === "v1")
+      .map((part) => part.value)
+      .filter(Boolean);
+    if (!timestamp || receivedSignatures.length === 0) {
+      console.error("[stripe-webhook] Error: timestamp or v1 signature missing");
+      return false;
+    }
+
+    const timestampSeconds = Number(timestamp);
+    if (!Number.isFinite(timestampSeconds)) {
+      console.error("[stripe-webhook] Error: invalid signature timestamp");
+      return false;
+    }
+    const signatureAgeSeconds = Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds);
+    if (signatureAgeSeconds > stripeSignatureToleranceSeconds) {
+      console.error("[stripe-webhook] Error: signature timestamp outside tolerance");
       return false;
     }
 
     const expected = await hmacSha256Hex(stripeWebhookSecret, `${timestamp}.${rawBody}`);
-    const matches = timingSafeEqual(hexToBytes(expected), hexToBytes(receivedSignature));
+    const expectedBytes = hexToBytes(expected);
+    const matches = receivedSignatures.some((receivedSignature) => {
+      if (!/^[a-f0-9]{64}$/i.test(receivedSignature)) return false;
+      return timingSafeEqual(expectedBytes, hexToBytes(receivedSignature));
+    });
     if (!matches) {
       console.error("[stripe-webhook] Error: Signature mismatch!");
-      console.error("[stripe-webhook] Expected HMAC SHA256 v1:", expected);
-      console.error("[stripe-webhook] Received signature in header:", receivedSignature);
-    } else {
-      console.log("[stripe-webhook] Signature successfully verified!");
     }
     return matches;
   } catch (err) {
@@ -176,7 +191,6 @@ serve(async (req) => {
 
   const rawBody = await req.text();
   const signatureHeader = req.headers.get("stripe-signature");
-  console.log("[stripe-webhook] stripe-signature header:", signatureHeader);
 
   const isValid = await verifyStripeSignature(rawBody, signatureHeader);
   if (!isValid) {
