@@ -202,10 +202,6 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
             payload["appAccountToken"] = appAccountToken.uuidString.lowercased()
         }
 
-        #if DEBUG
-        payload["localStoreKitTest"] = true
-        #endif
-
         return payload
     }
 }
