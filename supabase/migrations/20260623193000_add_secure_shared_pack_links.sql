@@ -1,10 +1,8 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 CREATE TABLE IF NOT EXISTS public.shared_pack_links (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   foyer_id uuid NOT NULL REFERENCES public.foyers(id) ON DELETE CASCADE,
   pack_id text NOT NULL,
-  token text NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(18), 'hex'),
+  token text NOT NULL UNIQUE DEFAULT md5(random()::text || clock_timestamp()::text || gen_random_uuid()::text),
   recipient_label text,
   access_code_hash text,
   expires_at timestamptz NOT NULL,
@@ -106,9 +104,9 @@ BEGIN
     v_expires_at := p_expires_at;
   END IF;
 
-  v_token := encode(gen_random_bytes(18), 'hex');
+  v_token := md5(random()::text || clock_timestamp()::text || gen_random_uuid()::text);
   IF p_access_code IS NOT NULL AND length(trim(p_access_code)) > 0 THEN
-    v_hash := encode(digest(v_token || ':' || trim(p_access_code), 'sha256'), 'hex');
+    v_hash := md5(v_token || ':' || trim(p_access_code));
   END IF;
 
   INSERT INTO public.shared_pack_links (
@@ -184,7 +182,7 @@ BEGIN
       RETURN jsonb_build_object('accessCodeRequired', true, 'message', 'Code requis');
     END IF;
 
-    IF encode(digest(v_link.token || ':' || trim(p_access_code), 'sha256'), 'hex') <> v_link.access_code_hash THEN
+    IF md5(v_link.token || ':' || trim(p_access_code)) <> v_link.access_code_hash THEN
       RETURN jsonb_build_object('accessCodeRequired', true, 'codeInvalid', true, 'message', 'Code incorrect');
     END IF;
   END IF;
