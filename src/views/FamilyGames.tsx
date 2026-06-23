@@ -1108,7 +1108,7 @@ export function FamilyGames({
     const first = members.find(member => member.id === activeMemberId) || members[0];
     const second = members.find(member => member.id !== first?.id);
     if (!first || !second) {
-      setConnectionMessage('Ajoutez au moins deux membres pour lancer un 1 contre 1.');
+      setConnectionMessage('Ajoutez au moins deux membres pour composer deux joueurs.');
       return false;
     }
     setTeamSettings(previous => ({
@@ -2361,7 +2361,7 @@ export function FamilyGames({
                         onClick={applyOneVsOneChallengeTeams}
                         className="rounded-full border border-[#FFB020]/25 bg-[#FFB020]/10 px-3 py-2 text-[9px] font-black text-[#FFB020]"
                       >
-                        1 contre 1
+                        Deux joueurs
                       </button>
                     </div>
                     <p className="mt-3 text-[10px] leading-relaxed text-white/45">
