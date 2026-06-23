@@ -30,14 +30,17 @@
     }
   ],
   "share_target": {
-    "action": "/?action=share-receipt",
+    "action": "/share-target/",
     "method": "POST",
     "enctype": "multipart/form-data",
     "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
       "files": [
         {
           "name": "receipt",
-          "accept": ["image/*"]
+          "accept": ["image/*", "application/pdf"]
         }
       ]
     }

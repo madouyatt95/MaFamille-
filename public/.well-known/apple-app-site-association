@@ -1,0 +1,18 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "7384RARK23.fr.myfamilyplus.app",
+        "paths": [
+          "*"
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": [
+      "7384RARK23.fr.myfamilyplus.app"
+    ]
+  }
+}

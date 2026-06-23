@@ -75,7 +75,7 @@ messaging.onBackgroundMessage((payload) => {
 });
 
 // PARTIE CACHING PWA
-const CACHE_NAME = 'myfamily-plus-cache-v4';
+const CACHE_NAME = 'myfamily-plus-cache-v5';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -87,6 +87,37 @@ const ASSETS_TO_CACHE = [
   '/icon-maskable-192x192.png',
   '/icon-maskable-512x512.png'
 ];
+
+const SHARE_DB_NAME = 'myfamily-plus-share-target';
+const SHARE_STORE_NAME = 'payloads';
+
+const openShareDb = () => new Promise((resolve, reject) => {
+  const request = indexedDB.open(SHARE_DB_NAME, 1);
+  request.onupgradeneeded = () => {
+    const db = request.result;
+    if (!db.objectStoreNames.contains(SHARE_STORE_NAME)) {
+      db.createObjectStore(SHARE_STORE_NAME, { keyPath: 'id' });
+    }
+  };
+  request.onsuccess = () => resolve(request.result);
+  request.onerror = () => reject(request.error);
+});
+
+const saveSharedPayload = async (payload) => {
+  const db = await openShareDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SHARE_STORE_NAME, 'readwrite');
+    tx.objectStore(SHARE_STORE_NAME).put(payload);
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+  });
+};
 
 // Install Event
 self.addEventListener('install', (event) => {
@@ -115,7 +146,26 @@ self.addEventListener('activate', (event) => {
 // Fetch Event
 self.addEventListener('fetch', (event) => {
   const request = event.request;
+  const requestUrl = new URL(request.url);
   const url = request.url;
+
+  if (request.method === 'POST' && requestUrl.pathname === '/share-target/') {
+    event.respondWith((async () => {
+      const formData = await request.formData();
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const files = formData.getAll('receipt').filter((item) => item instanceof File);
+      await saveSharedPayload({
+        id,
+        title: String(formData.get('title') || ''),
+        text: String(formData.get('text') || ''),
+        url: String(formData.get('url') || ''),
+        files,
+        receivedAt: new Date().toISOString()
+      });
+      return Response.redirect(`/?action=share-receipt&shareId=${encodeURIComponent(id)}`, 303);
+    })());
+    return;
+  }
 
   // Ne pas intercepter les requêtes de dev local
   if (url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1')) {

@@ -2449,6 +2449,34 @@ function App() {
     const moduleParam = params.get('module');
     const groupIdParam = params.get('groupId');
     const actionParam = params.get('action');
+    const shareIdParam = params.get('shareId');
+
+    const readSharedPayload = (shareId: string): Promise<LooseValue | null> => new Promise((resolve) => {
+      const request = indexedDB.open('myfamily-plus-share-target', 1);
+      request.onerror = () => resolve(null);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains('payloads')) {
+          db.createObjectStore('payloads', { keyPath: 'id' });
+        }
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction('payloads', 'readwrite');
+        const store = tx.objectStore('payloads');
+        const getRequest = store.get(shareId);
+        getRequest.onsuccess = () => {
+          const payload = getRequest.result || null;
+          if (payload) store.delete(shareId);
+          db.close();
+          resolve(payload);
+        };
+        getRequest.onerror = () => {
+          db.close();
+          resolve(null);
+        };
+      };
+    });
     
     if (tabParam) {
       setActiveTab(tabParam);
@@ -2468,9 +2496,25 @@ function App() {
       setActiveTab('budget');
       setActiveModule('');
       setQuickActionsOpen(true);
-      setTimeout(() => {
-        alert("📷 Ticket de caisse partagé reçu ! MyFamily+ l'analyse avec l'IA...");
-      }, 500);
+      if (shareIdParam) {
+        readSharedPayload(shareIdParam).then((payload) => {
+          const fileCount = Array.isArray(payload?.files) ? payload.files.length : 0;
+          const hasText = !!(payload?.text || payload?.url || payload?.title);
+          setTimeout(() => {
+            alert(
+              fileCount > 0
+                ? `📷 ${fileCount} fichier(s) partagé(s) reçu(s). Ouvrez l'ajout de dépense pour les joindre.`
+                : hasText
+                ? "🔗 Contenu partagé reçu. Le budget est prêt pour l'ajouter."
+                : "📷 Partage reçu. Le budget est prêt."
+            );
+          }, 500);
+        });
+      } else {
+        setTimeout(() => {
+          alert("📷 Partage reçu. Le budget est prêt.");
+        }, 500);
+      }
     }
     
     if (tabParam || moduleParam || groupIdParam || actionParam) {
