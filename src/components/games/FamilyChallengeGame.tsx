@@ -104,8 +104,9 @@ export function FamilyChallengeGame({
   const [reconnectNow, setReconnectNow] = useState(() => Date.now());
   const [submitting, setSubmitting] = useState(false);
   const [showRules, setShowRules] = useState(() => (
-    !isChallengeQuestion(roomState.question)
-    || localStorage.getItem('mf_family_challenge_rules_seen') !== '1'
+    room
+      ? !isChallengeQuestion(roomState.question)
+      : localStorage.getItem('mf_family_challenge_rules_seen') !== '1'
   ));
   const [totalRounds, setTotalRounds] = useState(() => typeof roomState.totalRounds === 'number' ? roomState.totalRounds : 5);
   const [silentMode, setSilentMode] = useState(() => localStorage.getItem('mf_games_silent') === '1');

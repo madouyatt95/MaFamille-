@@ -14816,12 +14816,12 @@ function App() {
 
       {/* Interactive Profile Switcher Bottom Drawer */}
       {profileSwitcherOpen && (
-        <div className="fixed inset-0 bg-[#07111F]/80 backdrop-blur-sm z-50 flex items-end justify-center">
+        <div className="fixed inset-0 bg-[#07111F]/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center overflow-y-auto overscroll-contain p-0 sm:p-4">
           <div 
             onClick={() => setProfileSwitcherOpen(false)} 
             className="absolute inset-0"
           />
-          <div className="relative glass-panel border-t border-white/10 rounded-t-[32px] w-full max-w-md p-6 space-y-5 shadow-[0_-15px_40px_rgba(0,0,0,0.6)] animate-slide-up pointer-events-auto z-50">
+          <div className="relative glass-panel border-t sm:border border-white/10 rounded-t-[32px] sm:rounded-[32px] w-full max-w-md max-h-[calc(100dvh-20px)] sm:max-h-[min(720px,calc(100dvh-32px))] overflow-y-auto overscroll-contain px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] space-y-5 shadow-[0_-15px_40px_rgba(0,0,0,0.6)] animate-slide-up pointer-events-auto z-50">
             <div className="flex items-center justify-between border-b border-white/5 pb-3">
               <div>
                 <h3 className="text-sm font-bold uppercase tracking-wider text-white">Changer de profil</h3>
@@ -14835,7 +14835,7 @@ function App() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 py-1 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-3 py-1">
               {members.filter(m => m.id !== "5").map((m) => {
                 const isParent = ["admin", "parent", "Parent", "Chef de famille", "Gestionnaire"].includes(m.role);
                 const isActive = m.id === activeMemberId;

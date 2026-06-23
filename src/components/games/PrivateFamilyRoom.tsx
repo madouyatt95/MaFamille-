@@ -7,11 +7,12 @@ interface PrivateFamilyRoomProps {
   familyName: string;
   selectedGame: FamilyGameType;
   initialRoom?: FamilyGameRoom | null;
+  onRoomCreated?: (room: FamilyGameRoom) => FamilyGameRoom | void | Promise<FamilyGameRoom | void>;
   onRoomReady?: (room: FamilyGameRoom) => void;
   onRoomClosed?: () => void;
 }
 
-export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, initialRoom = null, onRoomReady, onRoomClosed }: PrivateFamilyRoomProps) {
+export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, initialRoom = null, onRoomCreated, onRoomReady, onRoomClosed }: PrivateFamilyRoomProps) {
   const [mode, setMode] = useState<'menu' | 'create' | 'join'>(() => initialRoom ? 'create' : 'menu');
   const [room, setRoom] = useState<FamilyGameRoom | null>(initialRoom);
   const [code, setCode] = useState('');
@@ -20,13 +21,15 @@ export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, initialRo
   const [copied, setCopied] = useState(false);
   const roomId = room?.id;
   const roomStatus = room?.status;
+  const onRoomCreatedRef = useRef(onRoomCreated);
   const onRoomReadyRef = useRef(onRoomReady);
   const onRoomClosedRef = useRef(onRoomClosed);
 
   useEffect(() => {
+    onRoomCreatedRef.current = onRoomCreated;
     onRoomReadyRef.current = onRoomReady;
     onRoomClosedRef.current = onRoomClosed;
-  }, [onRoomClosed, onRoomReady]);
+  }, [onRoomClosed, onRoomCreated, onRoomReady]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -82,9 +85,11 @@ export function PrivateFamilyRoom({ foyerId, familyName, selectedGame, initialRo
     setError('');
     try {
       const nextRoom = await familyGameService.createRoom(foyerId, selectedGame, familyName);
-      setRoom(nextRoom);
+      const configuredRoom = await onRoomCreatedRef.current?.(nextRoom);
+      const displayedRoom = configuredRoom || nextRoom;
+      setRoom(displayedRoom);
       setMode('create');
-      if (nextRoom.status === 'active') onRoomReady?.(nextRoom);
+      if (displayedRoom.status === 'active') onRoomReady?.(displayedRoom);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : 'Création de la partie impossible.');
     } finally {

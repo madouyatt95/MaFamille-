@@ -43,7 +43,12 @@ import {
   type FamilyGameRoom,
   type FamilyGameType
 } from '../services/familyGameService';
-import { FAMILY_CHALLENGE_QUESTIONS } from '../data/familyChallengeQuestions';
+import {
+  FAMILY_CHALLENGE_QUESTIONS,
+  getChallengeQuestion,
+  type ChallengeQuestionFilters,
+  type FamilyChallengeQuestion
+} from '../data/familyChallengeQuestions';
 
 type GameId = FamilyGameType | 'village-secret';
 type MemoryCard = {
@@ -395,6 +400,12 @@ export function FamilyGames({
   const [connectDraw, setConnectDraw] = useState(false);
   const [connectVsBot, setConnectVsBot] = useState(false);
   const [connectMode, setConnectMode] = useState<ConnectMode>('local');
+  const [privateChallengeReady, setPrivateChallengeReady] = useState(false);
+  const [privateChallengePack, setPrivateChallengePack] = useState<FamilyChallengeQuestion['pack'] | 'Tous'>('Tous');
+  const [privateChallengeCategory, setPrivateChallengeCategory] = useState<FamilyChallengeQuestion['category'] | 'Toutes'>('Toutes');
+  const [privateChallengeDifficulty, setPrivateChallengeDifficulty] = useState<FamilyChallengeQuestion['difficulty'] | 'Toutes'>('Toutes');
+  const [privateChallengeAgeGroup, setPrivateChallengeAgeGroup] = useState<FamilyChallengeQuestion['ageGroup'] | 'Tous'>('Tous');
+  const [privateChallengeRounds, setPrivateChallengeRounds] = useState(5);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [connectPrivateBusy, setConnectPrivateBusy] = useState(false);
   const [connectPrivateMessage, setConnectPrivateMessage] = useState('');
@@ -476,6 +487,19 @@ export function FamilyGames({
       }
     ];
   }, [challengeRoom, challengeTeamMemberIds, members, teamSettings.names]);
+  const privateChallengeFilters = useMemo<ChallengeQuestionFilters>(() => ({
+    pack: privateChallengePack === 'Tous' ? undefined : privateChallengePack,
+    category: privateChallengeCategory === 'Toutes' ? undefined : privateChallengeCategory,
+    difficulty: privateChallengeDifficulty === 'Toutes' ? undefined : privateChallengeDifficulty,
+    ageGroup: privateChallengeAgeGroup === 'Tous' ? undefined : privateChallengeAgeGroup
+  }), [privateChallengeAgeGroup, privateChallengeCategory, privateChallengeDifficulty, privateChallengePack]);
+  const privateChallengePayload = useMemo(() => ({
+    totalRounds: privateChallengeRounds,
+    question: getChallengeQuestion(0, foyerId, challengeQuestionCount, [], privateChallengeFilters),
+    filters: privateChallengeFilters,
+    teamMembers: challengeTeams.map(team => team.members || []),
+    teamCaptains: challengeTeams.map(team => team.captain || team.members?.[0] || '')
+  }), [challengeQuestionCount, challengeTeams, foyerId, privateChallengeFilters, privateChallengeRounds]);
   const gameStats = useMemo(() => {
     const wins = new Map<string, number>();
     results.forEach(result => {
@@ -880,8 +904,21 @@ export function FamilyGames({
     );
   };
 
+  const configurePrivateChallengeRoom = useCallback(async (room: FamilyGameRoom) => {
+    if (room.gameType !== 'family-challenge') return room;
+    if (room.hostFoyerId !== foyerId) return room;
+    if (room.state?.question) return room;
+    try {
+      return await familyGameService.performRoomAction(room.id, foyerId, 'configure', privateChallengePayload);
+    } catch (error) {
+      console.warn('[FamilyGames] Private challenge setup not synced:', error);
+      return room;
+    }
+  }, [foyerId, privateChallengePayload]);
+
   const handleRoomReady = useCallback((room: FamilyGameRoom) => {
     setChallengeMode('private');
+    setPrivateChallengeReady(true);
     setActiveRoom(room.status === 'active' ? room : null);
   }, []);
 
@@ -1067,18 +1104,23 @@ export function FamilyGames({
     });
   };
 
-  const prepareOneVsOneChallenge = () => {
+  const applyOneVsOneChallengeTeams = () => {
     const first = members.find(member => member.id === activeMemberId) || members[0];
     const second = members.find(member => member.id !== first?.id);
     if (!first || !second) {
       setConnectionMessage('Ajoutez au moins deux membres pour lancer un 1 contre 1.');
-      return;
+      return false;
     }
     setTeamSettings(previous => ({
       ...previous,
       names: [first.name, second.name]
     }));
     setChallengeTeamMemberIds([[first.id], [second.id]]);
+    return true;
+  };
+
+  const prepareOneVsOneChallenge = () => {
+    if (!applyOneVsOneChallengeTeams()) return;
     setChallengeMode('local');
   };
 
@@ -2133,7 +2175,14 @@ export function FamilyGames({
                   </button>
                   <button
                     type="button"
-                    onClick={() => isPremium ? setChallengeMode('private') : onTriggerPaywall?.()}
+                    onClick={() => {
+                      if (!isPremium) {
+                        onTriggerPaywall?.();
+                        return;
+                      }
+                      setPrivateChallengeReady(false);
+                      setChallengeMode('private');
+                    }}
                     className="glass-panel relative min-h-40 rounded-[22px] border border-[#6C5CFF]/25 p-5 text-left hover:bg-white/8 transition-colors"
                   >
                     {!isPremium && <Lock className="absolute right-4 top-4 h-4 w-4 text-[#FFB020]" />}
@@ -2156,7 +2205,10 @@ export function FamilyGames({
             {!challengeRoom && challengeMode && !lastRecap && (
               <button
                 type="button"
-                onClick={() => setChallengeMode(null)}
+                onClick={() => {
+                  setPrivateChallengeReady(false);
+                  setChallengeMode(null);
+                }}
                 className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-[10px] font-black text-white/55"
               >
                 <ArrowLeft className="h-3.5 w-3.5" /> Changer de mode
@@ -2209,25 +2261,156 @@ export function FamilyGames({
               </div>
             )}
             {challengeMode === 'private' && !challengeRoom && !lastRecap ? (
-              <PrivateFamilyRoom
-                foyerId={foyerId}
-                familyName={privatePlayerName}
-                selectedGame="family-challenge"
-                onRoomReady={handleRoomReady}
-                onRoomClosed={() => {
-                  setActiveRoom(null);
-                  setChallengeMode(null);
-                }}
-              />
+              !privateChallengeReady ? (
+                <section className="family-games-challenge rounded-[28px] border p-5 sm:p-7 space-y-5">
+                  <div>
+                    <span className="inline-flex rounded-full border border-[#6C5CFF]/25 bg-[#6C5CFF]/10 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-[#9E94FF]">
+                      Avant invitation
+                    </span>
+                    <h2 className="mt-3 text-xl font-black text-white">Préparer le duel privé</h2>
+                    <p className="mt-2 text-xs leading-relaxed text-white/50">
+                      Choisissez les règles maintenant. La famille invitée arrive ensuite directement dans la partie.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-2 block text-xs font-black text-white">Nombre de manches</span>
+                      <select
+                        value={privateChallengeRounds}
+                        onChange={event => setPrivateChallengeRounds(Number(event.target.value))}
+                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white"
+                      >
+                        {[1, 3, 5, 7, 9].map(value => <option key={value} value={value}>{value} manche{value > 1 ? 's' : ''}</option>)}
+                      </select>
+                    </label>
+                    {isPremium && (
+                      <label className="block">
+                        <span className="mb-2 block text-xs font-black text-white">Pack de questions</span>
+                        <select
+                          value={privateChallengePack}
+                          onChange={event => setPrivateChallengePack(event.target.value as FamilyChallengeQuestion['pack'] | 'Tous')}
+                          className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white"
+                        >
+                          {[
+                            'Tous',
+                            'Essentiel',
+                            'Enfants',
+                            'Adolescents',
+                            'Parents',
+                            'Vacances',
+                            'Fêtes',
+                            'Culture familiale',
+                            'Noël & hiver',
+                            'Été',
+                            'Grands-parents',
+                            'France & régions',
+                            'Monde & cultures'
+                          ].map(pack => <option key={pack} value={pack}>{pack}</option>)}
+                        </select>
+                      </label>
+                    )}
+                    {isPremium && (
+                      <label className="block">
+                        <span className="mb-2 block text-xs font-black text-white">Catégorie</span>
+                        <select
+                          value={privateChallengeCategory}
+                          onChange={event => setPrivateChallengeCategory(event.target.value as FamilyChallengeQuestion['category'] | 'Toutes')}
+                          className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white"
+                        >
+                          {['Toutes', 'Maison', 'Quotidien', 'Repas', 'Vacances', 'École', 'Loisirs', 'Famille', 'Fêtes'].map(category => <option key={category} value={category}>{category}</option>)}
+                        </select>
+                      </label>
+                    )}
+                    {isPremium && (
+                      <label className="block">
+                        <span className="mb-2 block text-xs font-black text-white">Âge</span>
+                        <select
+                          value={privateChallengeAgeGroup}
+                          onChange={event => setPrivateChallengeAgeGroup(event.target.value as FamilyChallengeQuestion['ageGroup'] | 'Tous')}
+                          className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white"
+                        >
+                          {['Tous', 'Enfants', 'Adolescents', 'Famille', 'Adultes'].map(age => <option key={age} value={age}>{age}</option>)}
+                        </select>
+                      </label>
+                    )}
+                    {isPremium && (
+                      <label className="block">
+                        <span className="mb-2 block text-xs font-black text-white">Difficulté</span>
+                        <select
+                          value={privateChallengeDifficulty}
+                          onChange={event => setPrivateChallengeDifficulty(event.target.value as FamilyChallengeQuestion['difficulty'] | 'Toutes')}
+                          className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white"
+                        >
+                          {['Toutes', 'Facile', 'Intermédiaire', 'Difficile'].map(difficulty => <option key={difficulty} value={difficulty}>{difficulty}</option>)}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>
+                        <strong className="block text-xs text-white">Équipes utilisées</strong>
+                        <span className="mt-1 block text-[10px] text-white/45">
+                          {challengeTeams[0].name} contre {challengeTeams[1].name}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={applyOneVsOneChallengeTeams}
+                        className="rounded-full border border-[#FFB020]/25 bg-[#FFB020]/10 px-3 py-2 text-[9px] font-black text-[#FFB020]"
+                      >
+                        1 contre 1
+                      </button>
+                    </div>
+                    <p className="mt-3 text-[10px] leading-relaxed text-white/45">
+                      Les noms et membres se règlent dans les options du module. Une équipe peut contenir un seul joueur.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setPrivateChallengeReady(true)}
+                      className="rounded-2xl bg-[#6C5CFF] py-4 text-sm font-black text-white"
+                    >
+                      Créer l’invitation
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPrivateChallengeReady(true)}
+                      className="rounded-2xl border border-white/8 bg-white/5 py-4 text-sm font-black text-white/65"
+                    >
+                      J’ai déjà un code
+                    </button>
+                  </div>
+                </section>
+              ) : (
+                <PrivateFamilyRoom
+                  foyerId={foyerId}
+                  familyName={privatePlayerName}
+                  selectedGame="family-challenge"
+                  onRoomCreated={configurePrivateChallengeRoom}
+                  onRoomReady={handleRoomReady}
+                  onRoomClosed={() => {
+                    setActiveRoom(null);
+                    setPrivateChallengeReady(false);
+                    setChallengeMode(null);
+                  }}
+                />
+              )
             ) : challengeRoom?.status === 'waiting' ? (
               <PrivateFamilyRoom
                 foyerId={foyerId}
                 familyName={privatePlayerName}
                 selectedGame="family-challenge"
                 initialRoom={challengeRoom}
+                onRoomCreated={configurePrivateChallengeRoom}
                 onRoomReady={handleRoomReady}
                 onRoomClosed={() => {
                   setActiveRoom(null);
+                  setPrivateChallengeReady(false);
                   setChallengeMode(null);
                 }}
               />
