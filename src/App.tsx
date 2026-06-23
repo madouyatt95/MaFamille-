@@ -92,7 +92,7 @@ const FOYER_TABLE_COLUMNS = {
   chat_groups: 'id, foyer_id, name, is_private, member_ids, last_message, last_message_time, unread_count',
   chat_messages: 'id, foyer_id, group_id, sender_id, sender_user_id, sender_name, type, content, timestamp, read_by, reactions, created_at',
   demarches: 'id, foyer_id, template_id, title, icon, status, assigned_member_id, assigned_member_name, steps, pieces, created_at_text, notes',
-  justificatif_packs: 'id, foyer_id, name, template_type, document_ids, created_at_text',
+  justificatif_packs: 'id, foyer_id, name, template_type, document_ids, created_at_text, share_expires_at, share_duration_days, allow_direct_downloads',
   vehicles: 'id, foyer_id, name, plate, insurance_expiry, technical_control, last_service, next_service, mileage',
   maintenance: 'id, foyer_id, title, provider, date, cost, status',
   trips: 'id, foyer_id, destination, start_date, end_date, budget, checklist, booking_refs',
@@ -3278,7 +3278,10 @@ function App() {
           name: p.name,
           templateType: p.template_type,
           documentIds: p.document_ids || [],
-          createdAt: p.created_at_text
+          createdAt: p.created_at_text,
+          shareExpiresAt: p.share_expires_at || undefined,
+          shareDurationDays: p.share_duration_days || undefined,
+          allowDirectDownloads: p.allow_direct_downloads !== false
         })));
       }
 
@@ -4034,7 +4037,9 @@ function App() {
 
       if (packsRes.data) {
         const mapped = packsRes.data.map(p => ({
-          id: p.id, name: p.name, templateType: p.template_type, documentIds: p.document_ids || [], createdAt: p.created_at_text
+          id: p.id, name: p.name, templateType: p.template_type, documentIds: p.document_ids || [], createdAt: p.created_at_text,
+          shareExpiresAt: p.share_expires_at || undefined, shareDurationDays: p.share_duration_days || undefined,
+          allowDirectDownloads: p.allow_direct_downloads !== false
         }));
         setJustificatifPacks(prev => {
           const sortedPrev = [...prev].sort((a, b) => a.id.localeCompare(b.id));
@@ -4842,7 +4847,10 @@ function App() {
         name: p.name || p.title || '',
         templateType: p.template_type || '',
         documentIds: p.document_ids || [],
-        createdAt: p.created_at_text || ''
+        createdAt: p.created_at_text || '',
+        shareExpiresAt: p.share_expires_at || undefined,
+        shareDurationDays: p.share_duration_days || undefined,
+        allowDirectDownloads: p.allow_direct_downloads !== false
       }));
     });
 
@@ -5333,7 +5341,10 @@ function App() {
         name: p.name,
         template_type: p.templateType,
         document_ids: p.documentIds || [],
-        created_at_text: p.createdAt
+        created_at_text: p.createdAt,
+        share_expires_at: p.shareExpiresAt || null,
+        share_duration_days: p.shareDurationDays || null,
+        allow_direct_downloads: p.allowDirectDownloads !== false
       }), true);
 
       // Vehicles
@@ -12105,7 +12116,8 @@ function App() {
     if (sharedPackId) {
       const pack = justificatifPacks.find(p => p.id === sharedPackId);
       if (pack) {
-        return <SharedPackView pack={pack} documents={documents} />;
+        const packDocuments = documents.filter(document => pack.documentIds.includes(document.id));
+        return <SharedPackView pack={pack} documents={packDocuments} />;
       }
       return (
         <div className="min-h-screen bg-[#07111F] text-white flex flex-col items-center justify-center p-4">

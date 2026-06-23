@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Download, ShieldCheck, CheckSquare, Square, PackageOpen } from 'lucide-react';
+import { FileText, Download, ShieldCheck, CheckSquare, Square, PackageOpen, ExternalLink, AlertTriangle, Clock } from 'lucide-react';
 import type { JustificatifPack, DocumentFile } from '../../types';
 
 interface SharedPackViewProps {
@@ -10,6 +10,11 @@ interface SharedPackViewProps {
 export const SharedPackView: React.FC<SharedPackViewProps> = ({ pack, documents }) => {
   const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set(documents.map(d => d.id)));
   const [isGenerating, setIsGenerating] = useState(false);
+  const expiresAt = pack.shareExpiresAt ? new Date(pack.shareExpiresAt) : null;
+  const isExpired = !!expiresAt && !Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now();
+  const directDownloadsAllowed = pack.allowDirectDownloads !== false;
+
+  const getDocumentPayload = (doc: DocumentFile) => doc.fileUrl || doc.fileBase64 || '';
 
   const toggleDoc = (id: string) => {
     const newSet = new Set(selectedDocs);
@@ -19,6 +24,7 @@ export const SharedPackView: React.FC<SharedPackViewProps> = ({ pack, documents 
   };
 
   const handleDownload = async () => {
+    if (isExpired) return;
     setIsGenerating(true);
     const docsToInclude = documents.filter(d => selectedDocs.has(d.id));
     const { generatePackPDF } = await import('../../utils/pdfGenerator');
@@ -40,16 +46,32 @@ export const SharedPackView: React.FC<SharedPackViewProps> = ({ pack, documents 
         </div>
 
         {/* Security Badge */}
-        <div className="bg-[#00D26A]/10 border border-[#00D26A]/20 rounded-2xl p-4 flex items-center space-x-3">
-          <ShieldCheck className="w-6 h-6 text-[#00D26A]" />
+        <div className={`${isExpired ? 'bg-[#FF4D6D]/10 border-[#FF4D6D]/25' : 'bg-[#00D26A]/10 border-[#00D26A]/20'} border rounded-2xl p-4 flex items-center space-x-3`}>
+          {isExpired ? <AlertTriangle className="w-6 h-6 text-[#FF4D6D]" /> : <ShieldCheck className="w-6 h-6 text-[#00D26A]" />}
           <div>
-            <h3 className="text-xs font-bold text-[#00D26A]">Partage Sécurisé MyFamily+</h3>
-            <p className="text-[10px] text-[#00D26A]/70">Les documents sont chiffrés et vérifiés.</p>
+            <h3 className={`text-xs font-bold ${isExpired ? 'text-[#FF4D6D]' : 'text-[#00D26A]'}`}>
+              {isExpired ? 'Lien expiré' : 'Partage MyFamily+'}
+            </h3>
+            <p className={`text-[10px] ${isExpired ? 'text-[#FF4D6D]/70' : 'text-[#00D26A]/70'}`}>
+              {isExpired
+                ? 'Ce dossier n’est plus consultable.'
+                : expiresAt
+                ? `Accessible jusqu’au ${expiresAt.toLocaleDateString('fr-FR')}.`
+                : 'Accessible via le lien transmis par la famille.'}
+            </p>
           </div>
         </div>
 
+        {isExpired && (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center">
+            <Clock className="mx-auto mb-2 h-7 w-7 text-white/35" />
+            <p className="text-sm font-bold text-white">Demandez un nouveau lien</p>
+            <p className="mt-1 text-xs text-white/45">Le propriétaire du foyer peut recréer un dossier ou prolonger l’expiration.</p>
+          </div>
+        )}
+
         {/* Document List */}
-        <div className="glass-panel border border-white/10 rounded-[28px] overflow-hidden">
+        {!isExpired && <div className="glass-panel border border-white/10 rounded-[28px] overflow-hidden">
           <div className="p-4 border-b border-white/5 bg-white/5">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold">Pièces jointes ({documents.length})</h3>
@@ -65,30 +87,45 @@ export const SharedPackView: React.FC<SharedPackViewProps> = ({ pack, documents 
           <div className="divide-y divide-white/5">
             {documents.map(doc => {
               const isSelected = selectedDocs.has(doc.id);
+              const payload = getDocumentPayload(doc);
+              const canOpenFile = directDownloadsAllowed && !!payload && !doc.isSecure;
               return (
                 <div 
                   key={doc.id} 
-                  onClick={() => toggleDoc(doc.id)}
-                  className={`p-4 flex items-center justify-between cursor-pointer transition-colors ${isSelected ? 'bg-white/5 hover:bg-white/10' : 'hover:bg-white/5 opacity-50 hover:opacity-80'}`}
+                  className={`p-4 flex items-center justify-between gap-3 transition-colors ${isSelected ? 'bg-white/5 hover:bg-white/10' : 'hover:bg-white/5 opacity-50 hover:opacity-80'}`}
                 >
-                  <div className="flex items-center space-x-3">
+                  <button type="button" onClick={() => toggleDoc(doc.id)} className="flex min-w-0 flex-1 items-center space-x-3 text-left">
                     <div className={`p-2 rounded-xl border transition-colors ${isSelected ? 'bg-[#6C5CFF]/20 border-[#6C5CFF]/50 text-[#6C5CFF]' : 'bg-white/5 border-white/10 text-white/30'}`}>
                       {isSelected ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
                     </div>
-                    <div>
-                      <p className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-white/60'}`}>{doc.name}</p>
-                      <p className="text-[10px] text-white/40">{doc.category} • {doc.uploadDate}</p>
+                    <div className="min-w-0">
+                      <p className={`truncate text-sm font-bold ${isSelected ? 'text-white' : 'text-white/60'}`}>{doc.name}</p>
+                      <p className="text-[10px] text-white/40">
+                        {doc.category} • {doc.uploadDate} • {canOpenFile ? 'fichier disponible' : 'sommaire uniquement'}
+                      </p>
                     </div>
-                  </div>
-                  <FileText className={`w-5 h-5 ${isSelected ? 'text-white/50' : 'text-white/20'}`} />
+                  </button>
+                  {canOpenFile ? (
+                    <a
+                      href={payload}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="shrink-0 rounded-xl border border-[#00D26A]/25 bg-[#00D26A]/10 px-3 py-2 text-[10px] font-bold text-[#00D26A] inline-flex items-center gap-1"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Ouvrir
+                    </a>
+                  ) : (
+                    <FileText className={`w-5 h-5 shrink-0 ${isSelected ? 'text-white/50' : 'text-white/20'}`} />
+                  )}
                 </div>
               );
             })}
           </div>
-        </div>
+        </div>}
 
         {/* Action Bar */}
-        <div className="pt-4">
+        {!isExpired && <div className="pt-4">
           <button
             onClick={handleDownload}
             disabled={selectedDocs.size === 0 || isGenerating}
@@ -103,7 +140,10 @@ export const SharedPackView: React.FC<SharedPackViewProps> = ({ pack, documents 
               </>
             )}
           </button>
-        </div>
+          <p className="mt-3 text-center text-[10px] text-white/35">
+            Le PDF regroupe les informations du dossier. Les fichiers directs restent disponibles uniquement quand le propriétaire les autorise.
+          </p>
+        </div>}
 
         <p className="text-center text-[10px] text-white/30 pt-8">Propulsé par MyFamily+</p>
       </div>

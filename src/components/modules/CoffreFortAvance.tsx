@@ -22,6 +22,8 @@ interface CoffreFortAvanceProps {
   foyerId?: string;
 }
 
+const FREE_DOCUMENT_LIMIT = 3;
+
 export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, setDocuments, members, demarches, setDemarches, packs, setPacks, onAddEvent, onAddTransaction, isPremium = false, onTriggerPaywall, defaultTab, foyerId }) => {
   const [mainTab, setMainTab] = useState<'docs' | 'demarches' | 'packs'>(defaultTab || 'docs');
   const [viewMode, setViewMode] = useState<'categories' | 'members' | 'expiring' | 'all'>('categories');
@@ -38,6 +40,19 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
     return localStorage.getItem('mf_vault_rgpd_accepted') === 'true';
   });
   const [showRgpdCenter, setShowRgpdCenter] = useState(false);
+  const canAddDocument = isPremium || documents.length < FREE_DOCUMENT_LIMIT;
+  const remainingFreeDocuments = Math.max(0, FREE_DOCUMENT_LIMIT - documents.length);
+
+  const requestVaultPremium = () => {
+    onTriggerPaywall?.();
+  };
+
+  const getDocumentPayload = (doc: DocumentFile) => doc.fileUrl || doc.fileBase64 || '';
+
+  const canPreviewInline = (doc: DocumentFile) => {
+    const payload = getDocumentPayload(doc);
+    return payload.startsWith('data:image/') || /\.(png|jpe?g|webp|gif|avif)(\?|#|$)/i.test(payload);
+  };
 
   const uploadSelectedDocument = async (docId: string, payload: string): Promise<{ fileUrl?: string; thumbnailUrl?: string; fileBase64?: string }> => {
     const foyerId = localStorage.getItem('mf_cloud_foyer_id');
@@ -67,10 +82,18 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
       setMainTab('docs');
       onTriggerPaywall?.();
     }
+    if (!isPremium && mainTab === 'packs') {
+      setMainTab('docs');
+      onTriggerPaywall?.();
+    }
   }, [isPremium, mainTab, onTriggerPaywall]);
 
   const handleDocumentClick = (doc: DocumentFile) => {
     if (doc.isSecure) {
+      if (!isPremium) {
+        requestVaultPremium();
+        return;
+      }
       setDocToUnlock(doc);
       setPinInput('');
       setPinError(false);
@@ -174,6 +197,8 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
   const [newPackName, setNewPackName] = useState('');
   const [newPackType, setNewPackType] = useState<'location' | 'ecole' | 'banque' | 'emploi' | 'custom'>('location');
   const [selectedPackDocs, setSelectedPackDocs] = useState<string[]>([]);
+  const [newPackShareDurationDays, setNewPackShareDurationDays] = useState(7);
+  const [newPackAllowDirectDownloads, setNewPackAllowDirectDownloads] = useState(true);
   
   // Upload Form State
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -255,6 +280,26 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
   const formatDocumentDate = (value?: string) => {
     const parsed = parseDocumentDate(value);
     return parsed ? parsed.toLocaleDateString('fr-FR') : value || '';
+  };
+
+  const addDaysIso = (days: number) => {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    return date.toISOString();
+  };
+
+  const getPackShareStatus = (pack: JustificatifPack) => {
+    if (!pack.shareExpiresAt) {
+      return { expired: false, label: 'Lien sans expiration', accent: 'text-white/40', border: 'border-white/10', bg: 'bg-white/5' };
+    }
+    const expires = new Date(pack.shareExpiresAt);
+    if (Number.isNaN(expires.getTime())) {
+      return { expired: false, label: 'Expiration non lisible', accent: 'text-white/40', border: 'border-white/10', bg: 'bg-white/5' };
+    }
+    if (expires.getTime() < Date.now()) {
+      return { expired: true, label: 'Lien expiré', accent: 'text-[#FF4D6D]', border: 'border-[#FF4D6D]/30', bg: 'bg-[#FF4D6D]/10' };
+    }
+    return { expired: false, label: `Expire le ${expires.toLocaleDateString('fr-FR')}`, accent: 'text-[#00D26A]', border: 'border-[#00D26A]/25', bg: 'bg-[#00D26A]/10' };
   };
 
   const getRenewalStatus = (doc: DocumentFile) => {
@@ -363,6 +408,14 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
 
   const handleSubmitUpload = async () => {
     if (!newDocName || !selectedFileBase64) return;
+    if (!canAddDocument) {
+      requestVaultPremium();
+      return;
+    }
+    if (newDocSecure && !isPremium) {
+      requestVaultPremium();
+      return;
+    }
     
     const member = members.find(m => m.id === newDocMember);
     const docId = `doc_${Date.now()}`;
@@ -413,6 +466,10 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
   };
 
   const handleShareDocument = (doc: DocumentFile) => {
+    if (doc.isSecure && !isPremium) {
+      requestVaultPremium();
+      return;
+    }
     if (navigator.share) {
       navigator.share({
         title: doc.name,
@@ -523,19 +580,57 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   <span>🔒 RGPD</span>
                 </button>
               </div>
-              <p className="text-xs text-white/50">{documents.length} documents • {activeDemarchesCount} démarches ouvertes • {readyPacksCount} dossiers prêts</p>
+              <p className="text-xs text-white/50">
+                {documents.length} documents • {isPremium ? 'Premium actif' : `${remainingFreeDocuments} ajout(s) gratuit(s)`} • stockage économe
+              </p>
             </div>
           </div>
           {mainTab === 'docs' && (
             <button 
-              onClick={() => setIsUploading(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-[#6C5CFF] rounded-full text-sm font-semibold hover:bg-[#5B4BE0] transition-colors cursor-pointer"
+              onClick={() => canAddDocument ? setIsUploading(true) : requestVaultPremium()}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-semibold transition-colors cursor-pointer ${
+                canAddDocument ? 'bg-[#6C5CFF] hover:bg-[#5B4BE0] text-white' : 'bg-[#FFB020]/15 border border-[#FFB020]/30 text-[#FFB020]'
+              }`}
             >
               <Plus className="w-4 h-4" />
-              <span>Ajouter</span>
+              <span>{canAddDocument ? 'Ajouter' : 'Premium'}</span>
             </button>
           )}
         </div>
+
+      <div className="px-4 pt-4">
+        <div className={`rounded-3xl border p-4 ${
+          isPremium
+            ? 'border-[#00D26A]/25 bg-[#00D26A]/10'
+            : 'border-[#FFB020]/25 bg-[#FFB020]/10'
+        }`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className={`text-[10px] font-extrabold uppercase tracking-widest ${isPremium ? 'text-[#00D26A]' : 'text-[#FFB020]'}`}>
+                {isPremium ? 'Coffre Premium activé' : 'Coffre gratuit limité'}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-white/60">
+                {isPremium
+                  ? 'Documents illimités, protection PIN, démarches guidées, dossiers justificatifs et suivi des échéances.'
+                  : `Vous pouvez ajouter ${FREE_DOCUMENT_LIMIT} documents. Premium débloque les dossiers, l'OCR, la protection PIN et les démarches.`}
+              </p>
+            </div>
+            <div className="shrink-0 rounded-2xl bg-white/8 px-3 py-2 text-right">
+              <p className="text-lg font-extrabold text-white">{documents.length}</p>
+              <p className="text-[9px] font-bold text-white/45 uppercase">docs</p>
+            </div>
+          </div>
+          {!isPremium && (
+            <button
+              type="button"
+              onClick={requestVaultPremium}
+              className="mt-3 w-full rounded-2xl bg-[#FFB020] px-4 py-2.5 text-xs font-extrabold text-[#07111F] active:scale-[0.98] transition"
+            >
+              Déverrouiller le coffre complet
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="px-4 pt-4 grid grid-cols-2 gap-2">
         <button
@@ -567,12 +662,12 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
         </button>
         <button
           type="button"
-          onClick={() => setMainTab('packs')}
+          onClick={() => isPremium ? setMainTab('packs') : requestVaultPremium()}
           className="text-left rounded-2xl border border-[#00D26A]/20 bg-[#00D26A]/10 p-3 active:scale-[0.98] transition"
         >
           <p className="text-[9px] uppercase tracking-widest text-[#00D26A] font-extrabold">Dossiers prêts</p>
           <p className="text-lg font-extrabold text-white">{readyPacksCount}</p>
-          <p className="text-[10px] text-white/45">packs justificatifs</p>
+          <p className="text-[10px] text-white/45">{isPremium ? 'packs justificatifs' : 'Premium'}</p>
         </button>
       </div>
 
@@ -597,8 +692,11 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
               <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#FFB020] rounded-full text-[8px] font-bold text-black flex items-center justify-center">{demarches.filter(d => d.status !== 'completed').length}</span>
             )}
           </button>
-          <button onClick={() => setMainTab('packs')} className={`py-2.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${mainTab === 'packs' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}>
-            📦 Packs
+          <button
+            onClick={() => isPremium ? setMainTab('packs') : requestVaultPremium()}
+            className={`py-2.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${mainTab === 'packs' ? 'bg-[#6C5CFF] text-white shadow-md' : 'text-white/40 hover:text-white/60'}`}
+          >
+            📦 Packs {!isPremium && <Lock className="inline-block w-3 h-3 ml-1 -mt-0.5" />}
           </button>
         </div>
       </div>
@@ -913,11 +1011,20 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
             <div className="space-y-4">
               {/* File Picker */}
               <div 
-                className="border-2 border-dashed border-white/20 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:border-[#6C5CFF] hover:bg-[#6C5CFF]/5 transition"
-                onClick={() => fileInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center transition ${
+                  canAddDocument ? 'border-white/20 cursor-pointer hover:border-[#6C5CFF] hover:bg-[#6C5CFF]/5' : 'border-[#FFB020]/30 bg-[#FFB020]/10'
+                }`}
+                onClick={() => canAddDocument ? fileInputRef.current?.click() : requestVaultPremium()}
               >
-                <Upload className="w-8 h-8 text-white/50 mb-2" />
-                <p className="text-sm font-medium text-center">{selectedFileBase64 ? "Fichier sélectionné" : "Appuyez pour Scanner ou Sélectionner un fichier"}</p>
+                <Upload className={`w-8 h-8 mb-2 ${canAddDocument ? 'text-white/50' : 'text-[#FFB020]'}`} />
+                <p className="text-sm font-medium text-center">
+                  {canAddDocument
+                    ? selectedFileBase64 ? "Fichier sélectionné" : "Appuyez pour scanner ou sélectionner un fichier"
+                    : "Limite gratuite atteinte"}
+                </p>
+                {!canAddDocument && (
+                  <p className="mt-1 text-[10px] text-[#FFB020]/80 text-center">Premium débloque les documents illimités sans chargement automatique des fichiers.</p>
+                )}
                 <input 
                   type="file" 
                   ref={fileInputRef} 
@@ -968,33 +1075,34 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   <div className="flex items-center space-x-3 pt-2">
                     <button
                       type="button"
-                      onClick={() => setNewDocSecure(!newDocSecure)}
+                      onClick={() => isPremium ? setNewDocSecure(!newDocSecure) : requestVaultPremium()}
                       className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl border text-xs font-bold transition-all ${
                         newDocSecure ? 'bg-[#FF4D6D]/20 border-[#FF4D6D]/50 text-[#FF4D6D]' : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
                       }`}
                     >
                       <Lock className="w-4 h-4" />
-                      <span>{newDocSecure ? "Sécurisé (PIN requis)" : "Non sécurisé"}</span>
+                      <span>{isPremium ? newDocSecure ? "Sécurisé (PIN requis)" : "Non sécurisé" : "PIN Premium"}</span>
                     </button>
                     
                     {selectedFileBase64.startsWith('data:image') && (
                       <button
                         type="button"
-                        onClick={handleOcrScan}
+                        onClick={() => isPremium ? handleOcrScan() : requestVaultPremium()}
                         disabled={isOcrProcessing}
                         className="flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl border border-[#00D26A]/30 bg-[#00D26A]/10 text-[#00D26A] text-xs font-bold hover:bg-[#00D26A]/20 transition-all disabled:opacity-50"
                       >
                         <Scan className={`w-4 h-4 ${isOcrProcessing ? 'animate-spin' : ''}`} />
-                        <span>{isOcrProcessing ? "Analyse..." : "Scanner (IA)"}</span>
+                        <span>{isPremium ? isOcrProcessing ? "Analyse..." : "Scanner (IA)" : "OCR Premium"}</span>
                       </button>
                     )}
                   </div>
 
                   <button 
                     onClick={handleSubmitUpload}
-                    className="w-full py-3 mt-4 bg-[#6C5CFF] text-white font-bold rounded-xl shadow-lg hover:shadow-[#6C5CFF]/20 active:scale-95 transition-all"
+                    disabled={!canAddDocument}
+                    className="w-full py-3 mt-4 bg-[#6C5CFF] disabled:bg-white/10 disabled:text-white/35 text-white font-bold rounded-xl shadow-lg hover:shadow-[#6C5CFF]/20 active:scale-95 transition-all"
                   >
-                    Sauvegarder dans le Coffre
+                    {canAddDocument ? 'Sauvegarder dans le coffre' : 'Passer Premium pour ajouter'}
                   </button>
                 </>
               )}
@@ -1104,14 +1212,15 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
             
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {/* Image Preview if available */}
-              {(previewDoc.fileUrl || previewDoc.fileBase64) ? (
+              {canPreviewInline(previewDoc) ? (
                 <div className="w-full rounded-2xl overflow-hidden border border-white/10 bg-black/50 flex items-center justify-center">
-                  <img src={previewDoc.fileUrl || previewDoc.fileBase64} alt={previewDoc.name} className="max-w-full h-auto max-h-[40vh] object-contain" />
+                  <img src={getDocumentPayload(previewDoc)} alt={previewDoc.name} className="max-w-full h-auto max-h-[40vh] object-contain" />
                 </div>
               ) : (
                 <div className="w-full h-48 rounded-2xl border border-dashed border-white/20 flex flex-col items-center justify-center text-white/30">
                   <FileText className="w-12 h-12 mb-2 opacity-50" />
                   <span className="text-xs font-bold uppercase">Aperçu non disponible</span>
+                  <span className="mt-1 text-[10px] text-white/35">Le fichier ne sera chargé que si vous l’ouvrez ou le téléchargez.</span>
                 </div>
               )}
 
@@ -1149,7 +1258,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                 <div className="flex gap-2 pt-3 mt-3 border-t border-white/10">
                   {(previewDoc.fileUrl || previewDoc.fileBase64) && (
                     <a 
-                      href={previewDoc.fileUrl || previewDoc.fileBase64} 
+                      href={getDocumentPayload(previewDoc)}
                       download={previewDoc.name}
                       className="flex-1 py-2.5 bg-[#00D26A]/10 hover:bg-[#00D26A]/20 text-[#00D26A] border border-[#00D26A]/20 font-bold rounded-xl flex items-center justify-center space-x-1 transition text-[10px] sm:text-xs cursor-pointer text-center"
                     >
@@ -1425,6 +1534,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
           {packs.map(pack => {
             const packDocs = documents.filter(d => pack.documentIds.includes(d.id));
             const typeLabel = pack.templateType === 'location' ? '🏠 Location' : pack.templateType === 'ecole' ? '🎓 École' : pack.templateType === 'banque' ? '🏦 Banque' : pack.templateType === 'emploi' ? '💼 Emploi' : '📁 Personnalisé';
+            const shareStatus = getPackShareStatus(pack);
             return (
               <div key={pack.id} className="glass-panel border border-white/8 rounded-[24px] p-4 space-y-3">
                 <div className="flex items-center justify-between">
@@ -1434,6 +1544,38 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   </div>
                   <button type="button" onClick={() => { if(window.confirm('Supprimer ce pack ?')) setPacks(prev => prev.filter(p => p.id !== pack.id)); }} className="p-1.5 hover:bg-[#FF4D6D]/10 rounded-xl text-[#FF4D6D] transition cursor-pointer">
                     <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className={`flex items-center justify-between gap-2 rounded-2xl border px-3 py-2 ${shareStatus.border} ${shareStatus.bg}`}>
+                  <div className="min-w-0">
+                    <p className={`text-[10px] font-extrabold ${shareStatus.accent}`}>{shareStatus.label}</p>
+                    <p className="text-[9px] text-white/40">
+                      {pack.allowDirectDownloads === false ? 'Sommaire uniquement' : 'Ouverture directe des fichiers disponibles'}
+                    </p>
+                  </div>
+                  <Shield className={`w-4 h-4 shrink-0 ${shareStatus.accent}`} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPacks(prev => prev.map(item => item.id === pack.id ? {
+                      ...item,
+                      shareDurationDays: 7,
+                      shareExpiresAt: addDaysIso(7)
+                    } : item))}
+                    className="rounded-xl border border-[#00D26A]/20 bg-[#00D26A]/10 px-3 py-2 text-[10px] font-bold text-[#00D26A]"
+                  >
+                    Prolonger 7 jours
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPacks(prev => prev.map(item => item.id === pack.id ? {
+                      ...item,
+                      shareExpiresAt: new Date(Date.now() - 1000).toISOString()
+                    } : item))}
+                    className="rounded-xl border border-[#FF4D6D]/20 bg-[#FF4D6D]/10 px-3 py-2 text-[10px] font-bold text-[#FF4D6D]"
+                  >
+                    Expirer le lien
                   </button>
                 </div>
                 <div className="space-y-1.5">
@@ -1461,11 +1603,19 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   <button
                     type="button"
                     onClick={() => {
+                      if (shareStatus.expired) {
+                        alert('Ce lien est expiré. Modifiez la durée du pack ou recréez un dossier.');
+                        return;
+                      }
                       const shareUrl = `${window.location.origin}${window.location.pathname}#share_${pack.id}`;
                       navigator.clipboard.writeText(shareUrl);
                       alert('🔗 Lien de partage copié dans le presse-papiers !\nEnvoyez-le à votre destinataire.');
                     }}
-                    className="py-2.5 rounded-xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF] text-[10px] font-bold cursor-pointer hover:bg-[#6C5CFF]/20 transition flex items-center justify-center space-x-1.5"
+                    className={`py-2.5 rounded-xl text-[10px] font-bold transition flex items-center justify-center space-x-1.5 ${
+                      shareStatus.expired
+                        ? 'bg-white/5 border border-white/10 text-white/30 cursor-not-allowed'
+                        : 'bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF] cursor-pointer hover:bg-[#6C5CFF]/20'
+                    }`}
                   >
                     <Share2 className="w-3.5 h-3.5" />
                     <span>Lien de partage</span>
@@ -1498,6 +1648,32 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                   <option value="emploi">💼 Emploi</option>
                   <option value="custom">📁 Personnalisé</option>
                 </select>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-white/40">Expiration du lien</label>
+                    <select
+                      value={newPackShareDurationDays}
+                      onChange={e => setNewPackShareDurationDays(Number(e.target.value))}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#6C5CFF]"
+                    >
+                      <option value={1}>24 heures</option>
+                      <option value={7}>7 jours</option>
+                      <option value={30}>30 jours</option>
+                      <option value={90}>90 jours</option>
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNewPackAllowDirectDownloads(prev => !prev)}
+                    className={`mt-4 rounded-xl border px-3 py-2.5 text-left text-[10px] font-bold transition ${
+                      newPackAllowDirectDownloads
+                        ? 'border-[#00D26A]/25 bg-[#00D26A]/10 text-[#00D26A]'
+                        : 'border-white/10 bg-white/5 text-white/45'
+                    }`}
+                  >
+                    {newPackAllowDirectDownloads ? 'Fichiers ouvrables' : 'Sommaire seul'}
+                  </button>
+                </div>
                 <div className="space-y-1.5">
                   <span className="text-[9px] font-bold text-white/40 uppercase block">Sélectionner les documents</span>
                   {documents.map(doc => (
@@ -1522,11 +1698,14 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                       name: newPackName,
                       templateType: newPackType,
                       documentIds: selectedPackDocs,
-                      createdAt: new Date().toLocaleDateString('fr-FR')
+                      createdAt: new Date().toLocaleDateString('fr-FR'),
+                      shareDurationDays: newPackShareDurationDays,
+                      shareExpiresAt: addDaysIso(newPackShareDurationDays),
+                      allowDirectDownloads: newPackAllowDirectDownloads
                     };
                     setPacks(prev => [newPack, ...prev]);
                     setShowNewPack(false);
-                    setNewPackName(''); setSelectedPackDocs([]);
+                    setNewPackName(''); setSelectedPackDocs([]); setNewPackShareDurationDays(7); setNewPackAllowDirectDownloads(true);
                   }}
                   className="w-full py-3 bg-[#6C5CFF] rounded-xl text-white text-xs font-extrabold cursor-pointer hover:opacity-90 transition"
                 >

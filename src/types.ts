@@ -684,6 +684,9 @@ export interface JustificatifPack {
   templateType: 'location' | 'ecole' | 'banque' | 'emploi' | 'custom';
   documentIds: string[];
   createdAt: string;
+  shareExpiresAt?: string;
+  shareDurationDays?: number;
+  allowDirectDownloads?: boolean;
 }
 
 export interface Artisan {
