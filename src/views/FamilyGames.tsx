@@ -1052,6 +1052,12 @@ export function FamilyGames({
 
   const assignChallengeMember = (memberId: string, teamIndex: 0 | 1) => {
     setChallengeTeamMemberIds(previous => {
+      if (previous[teamIndex].includes(memberId)) {
+        return [
+          teamIndex === 0 ? previous[0].filter(id => id !== memberId) : previous[0],
+          teamIndex === 1 ? previous[1].filter(id => id !== memberId) : previous[1]
+        ];
+      }
       const next: [string[], string[]] = [
         previous[0].filter(id => id !== memberId),
         previous[1].filter(id => id !== memberId)
@@ -1059,6 +1065,21 @@ export function FamilyGames({
       next[teamIndex].push(memberId);
       return next;
     });
+  };
+
+  const prepareOneVsOneChallenge = () => {
+    const first = members.find(member => member.id === activeMemberId) || members[0];
+    const second = members.find(member => member.id !== first?.id);
+    if (!first || !second) {
+      setConnectionMessage('Ajoutez au moins deux membres pour lancer un 1 contre 1.');
+      return;
+    }
+    setTeamSettings(previous => ({
+      ...previous,
+      names: [first.name, second.name]
+    }));
+    setChallengeTeamMemberIds([[first.id], [second.id]]);
+    setChallengeMode('local');
   };
 
   useEffect(() => {
@@ -1528,7 +1549,17 @@ export function FamilyGames({
                     ))}
                   </div>
                   <div className="space-y-3">
-                    <span className="block text-[9px] font-black uppercase text-white/40">Composition des équipes</span>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="block text-[9px] font-black uppercase text-white/40">Composition des équipes</span>
+                      <button
+                        type="button"
+                        onClick={prepareOneVsOneChallenge}
+                        className="rounded-full border border-[#FFB020]/25 bg-[#FFB020]/10 px-3 py-1.5 text-[9px] font-black text-[#FFB020]"
+                      >
+                        Mode 1 contre 1
+                      </button>
+                    </div>
+                    <p className="text-[9px] leading-relaxed text-white/40">Une équipe peut contenir un seul joueur. Appuyez de nouveau sur un membre sélectionné pour le retirer.</p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       {[0, 1].map(teamIndex => (
                         <div key={teamIndex} className="rounded-2xl border border-white/8 bg-white/5 p-3">
@@ -2086,19 +2117,19 @@ export function FamilyGames({
               <section className="family-games-challenge rounded-[28px] border p-5 sm:p-7 space-y-5">
                 <div className="text-center">
                   <h2 className="text-xl font-black text-white">Comment souhaitez-vous jouer ?</h2>
-                  <p className="mt-2 text-xs leading-relaxed text-white/50">Préparez deux équipes dans votre foyer ou invitez une famille connue avec un code privé.</p>
+                  <p className="mt-2 text-xs leading-relaxed text-white/50">Préparez deux équipes, lancez un 1 contre 1 ou invitez un autre appareil avec un code privé.</p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <button
                     type="button"
-                    onClick={() => setChallengeMode('local')}
+                    onClick={prepareOneVsOneChallenge}
                     className="glass-panel min-h-40 rounded-[22px] border border-[#FF4D6D]/25 p-5 text-left hover:bg-white/8 transition-colors"
                   >
                     <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FF4D6D]/12 text-[#FF4D6D]">
                       <Users className="h-5 w-5" />
                     </span>
-                    <strong className="mt-4 block text-sm text-white">Jouer dans ce foyer</strong>
-                    <span className="mt-1 block text-[10px] leading-relaxed text-white/45">Deux équipes jouent ensemble sur le même appareil.</span>
+                    <strong className="mt-4 block text-sm text-white">1 contre 1 rapide</strong>
+                    <span className="mt-1 block text-[10px] leading-relaxed text-white/45">Deux membres du foyer, chacun son équipe.</span>
                   </button>
                   <button
                     type="button"
@@ -2109,10 +2140,17 @@ export function FamilyGames({
                     <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#6C5CFF]/12 text-[#9E94FF]">
                       <Gamepad2 className="h-5 w-5" />
                     </span>
-                    <strong className="mt-4 block text-sm text-white">Défier une famille</strong>
-                    <span className="mt-1 block text-[10px] leading-relaxed text-white/45">Créez ou rejoignez une salle privée avec un code à six caractères.</span>
+                    <strong className="mt-4 block text-sm text-white">Duel privé</strong>
+                    <span className="mt-1 block text-[10px] leading-relaxed text-white/45">Même foyer ou autre famille, chacun sur son appareil.</span>
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setChallengeMode('local')}
+                  className="w-full rounded-2xl border border-white/8 bg-white/5 py-3 text-xs font-black text-white/65"
+                >
+                  Composer deux équipes manuellement
+                </button>
               </section>
             )}
             {!challengeRoom && challengeMode && !lastRecap && (
@@ -2173,7 +2211,7 @@ export function FamilyGames({
             {challengeMode === 'private' && !challengeRoom && !lastRecap ? (
               <PrivateFamilyRoom
                 foyerId={foyerId}
-                familyName={familyName}
+                familyName={privatePlayerName}
                 selectedGame="family-challenge"
                 onRoomReady={handleRoomReady}
                 onRoomClosed={() => {
@@ -2184,7 +2222,7 @@ export function FamilyGames({
             ) : challengeRoom?.status === 'waiting' ? (
               <PrivateFamilyRoom
                 foyerId={foyerId}
-                familyName={familyName}
+                familyName={privatePlayerName}
                 selectedGame="family-challenge"
                 initialRoom={challengeRoom}
                 onRoomReady={handleRoomReady}
@@ -2211,6 +2249,7 @@ export function FamilyGames({
                 }
               ]}
               room={challengeRoom}
+              currentUserId={currentUserId}
               onRoomChange={handleRoomReady}
               onFinished={recap => {
                 setLastRecap(recap);

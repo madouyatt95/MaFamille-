@@ -40,6 +40,7 @@ interface FamilyChallengeGameProps {
   isPremium: boolean;
   teams: [Team, Team];
   room: FamilyGameRoom | null;
+  currentUserId?: string | null;
   onRoomChange: (room: FamilyGameRoom) => void;
   onFinished: (recap: FamilyChallengeRecap) => void;
 }
@@ -76,6 +77,7 @@ export function FamilyChallengeGame({
   isPremium,
   teams,
   room,
+  currentUserId,
   onRoomChange,
   onFinished
 }: FamilyChallengeGameProps) {
@@ -136,7 +138,7 @@ export function FamilyChallengeGame({
     [foyerId, playedQuestionIds, questionCount, questionFilters, room?.code, round]
   );
   const question = isChallengeQuestion(roomState.question) ? roomState.question : localQuestion;
-  const localTeamIndex: 0 | 1 = room?.guestFoyerId === foyerId ? 1 : 0;
+  const localTeamIndex: 0 | 1 = room?.guestUserId && currentUserId === room.guestUserId ? 1 : 0;
   const activeTeam: 0 | 1 = phase === 'steal' ? (controllingTeam === 0 ? 1 : 0) : controllingTeam;
   const activeResponder = teams[activeTeam].members?.length
     ? teams[activeTeam].members![(foundAnswers.length + strikes + round) % teams[activeTeam].members!.length]
