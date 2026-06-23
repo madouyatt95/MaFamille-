@@ -13511,7 +13511,7 @@ function App() {
                     value={welcomeFamilyName}
                     onChange={event => setWelcomeFamilyName(event.target.value)}
                     maxLength={60}
-                    placeholder="Ex : Famille Yattabare"
+                    placeholder="Ex : Famille Martin"
                     className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none focus:border-[#6C5CFF]"
                   />
                 </label>
@@ -15194,7 +15194,7 @@ function App() {
                       value={welcomeFamilyName}
                       onChange={event => setWelcomeFamilyName(event.target.value)}
                       maxLength={60}
-                      placeholder="Ex : Famille Yattabare"
+                      placeholder="Ex : Famille Martin"
                       className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none focus:border-[#6C5CFF]"
                     />
                   </label>

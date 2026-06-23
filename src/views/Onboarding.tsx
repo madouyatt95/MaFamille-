@@ -305,7 +305,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                       type="text" 
                       required
                       autoComplete="given-name"
-                      placeholder="Ex: Issa"
+                      placeholder="Ex: Camille"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
                       className="w-full pl-9 pr-3 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#6C5CFF] focus:bg-white/8 transition-all"
@@ -325,7 +325,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                       type="text" 
                       required
                       autoComplete="family-name"
-                      placeholder="Ex: Yattabare"
+                      placeholder="Ex: Martin"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
                       className="w-full pl-9 pr-3 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#6C5CFF] focus:bg-white/8 transition-all"
@@ -348,7 +348,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
                   type="email" 
                   required
                   autoComplete="email"
-                  placeholder="Ex: issa.yatta@gmail.com"
+                  placeholder="Ex: camille.martin@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#6C5CFF] focus:bg-white/8 transition-all"
