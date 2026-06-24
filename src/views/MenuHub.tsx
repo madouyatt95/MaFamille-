@@ -223,7 +223,7 @@ interface MenuHubProps {
   justificatifPacks: JustificatifPack[];
   setJustificatifPacks: React.Dispatch<React.SetStateAction<JustificatifPack[]>>;
   onAddEvent?: (title: string, dateTime: string) => void;
-  onAddTransaction?: (newTrans: any) => void;
+  onAddTransaction?: (newTrans: any) => void | Promise<void>;
   onAddEventDirect?: (newEvent: any) => void;
   isPremium?: boolean;
   setIsPremium?: (val: boolean) => void;
@@ -985,15 +985,58 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   const [isValiderAchatsOpen, setIsValiderAchatsOpen] = useState(false);
   const [validerAchatsCost, setValiderAchatsCost] = useState('');
   const [validerAchatsAccountId, setValiderAchatsAccountId] = useState('');
+  const [isValidatingPurchases, setIsValidatingPurchases] = useState(false);
+  const [fallbackAccounts, setFallbackAccounts] = useState<Account[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('mf_accounts') || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
+  const accountsLookupKey = useRef<string | null>(null);
+  const availableAccounts = accounts.length > 0 ? accounts : fallbackAccounts;
 
   useEffect(() => {
-    if (isValiderAchatsOpen && !validerAchatsAccountId && accounts && accounts.length > 0) {
-      const firstBank = accounts.find(a => a.type === 'bank') || accounts[0];
+    if (accounts.length > 0) {
+      localStorage.setItem('mf_accounts', JSON.stringify(accounts));
+    }
+  }, [accounts]);
+
+  useEffect(() => {
+    if (!isValiderAchatsOpen || accounts.length > 0 || fallbackAccounts.length > 0) return;
+    const foyerId = foyer?.id || localStorage.getItem('mf_cloud_foyer_id');
+    if (!foyerId || accountsLookupKey.current === foyerId) return;
+    accountsLookupKey.current = foyerId;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    supabase
+      .from('accounts')
+      .select('id, foyer_id, name, type, balance')
+      .eq('foyer_id', foyerId)
+      .then(({ data, error }) => {
+        if (error || !data) return;
+        const loadedAccounts = data.map((account: any) => ({
+          id: account.id,
+          name: account.name,
+          type: account.type || 'bank',
+          balance: Number(account.balance || 0)
+        })) as Account[];
+        if (loadedAccounts.length > 0) {
+          localStorage.setItem('mf_accounts', JSON.stringify(loadedAccounts));
+          setFallbackAccounts(loadedAccounts);
+        }
+      });
+  }, [accounts.length, fallbackAccounts.length, foyer?.id, isValiderAchatsOpen]);
+
+  useEffect(() => {
+    if (isValiderAchatsOpen && !validerAchatsAccountId && availableAccounts.length > 0) {
+      const firstBank = availableAccounts.find(a => a.type === 'bank') || availableAccounts[0];
       if (firstBank) {
         queueMicrotask(() => setValiderAchatsAccountId(firstBank.id));
       }
     }
-  }, [isValiderAchatsOpen, accounts, validerAchatsAccountId]);
+  }, [isValiderAchatsOpen, availableAccounts, validerAchatsAccountId]);
 
   const [newFraisType, setNewFraisType] = useState('Consultation');
   const [newFraisAmount, setNewFraisAmount] = useState('');
@@ -8396,19 +8439,25 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   onChange={(e) => setValiderAchatsAccountId(e.target.value)}
                   className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FFB020] cursor-pointer"
                 >
-                  <option value="">Sélectionner un compte...</option>
-                  {(accounts || []).map((acc) => (
+                  <option value="">{availableAccounts.length > 0 ? 'Sélectionner un compte...' : 'Aucun compte disponible'}</option>
+                  {availableAccounts.map((acc) => (
                     <option key={acc.id} value={acc.id} className="bg-[#0b1726]">
                       {acc.name} ({formatMoney(acc.balance)})
                     </option>
                   ))}
                 </select>
+                {availableAccounts.length === 0 && (
+                  <p className="mt-2 rounded-xl border border-[#FFB020]/20 bg-[#FFB020]/8 px-3 py-2 text-[10px] font-bold leading-relaxed text-[#FFCB6B]">
+                    Ajoutez d’abord un compte dans Budget pour débiter les courses.
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="flex space-x-2 pt-2">
               <button
                 type="button"
+                disabled={isValidatingPurchases}
                 onClick={() => setIsValiderAchatsOpen(false)}
                 className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer border border-white/5"
               >
@@ -8416,20 +8465,29 @@ export const MenuHub: React.FC<MenuHubProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => {
+                disabled={isValidatingPurchases}
+                onClick={async () => {
                   const costVal = parseFloat(validerAchatsCost);
                   if (isNaN(costVal) || costVal <= 0) {
                     alert("Veuillez saisir un montant valide.");
                     return;
                   }
+                  const selectedAccountId = validerAchatsAccountId;
+                  const matchedAcc = availableAccounts.find(a => a.id === selectedAccountId);
+                  if (!selectedAccountId || !matchedAcc) {
+                    alert("Veuillez choisir le compte à débiter.");
+                    return;
+                  }
+                  setIsValidatingPurchases(true);
+                  try {
                   if (onAddTransaction) {
-                    onAddTransaction({
+                    await onAddTransaction({
                       amount: costVal,
                       type: 'expense',
                       category: 'Alimentation',
                       title: `Courses validées`,
                       date: new Date().toISOString().split('T')[0],
-                      accountId: validerAchatsAccountId || null,
+                      accountId: selectedAccountId,
                       moduleSource: 'courses'
                     });
                   }
@@ -8446,21 +8504,25 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                   setValiderAchatsAccountId('');
 
                   if (onSendNotification) {
-                    const matchedAcc = accounts?.find(a => a.id === validerAchatsAccountId);
-                    const accName = matchedAcc ? matchedAcc.name : 'Compte bancaire';
                     onSendNotification(
                       "🛒 Courses Validées",
-                      `Les courses d'un montant de ${costVal.toFixed(2)}€ ont été validées et débitées du compte "${accName}".`,
+                      `Les courses d'un montant de ${costVal.toFixed(2)}€ ont été validées et débitées du compte "${matchedAcc.name}".`,
                       "budget",
                       "success"
                     );
                   }
 
                   alert("🛒 Achats validés et ajoutés au Budget !");
+                  } catch (error) {
+                    console.error('Erreur lors de la validation des achats :', error);
+                    alert("La dépense n'a pas pu être rattachée au budget. Réessayez dans un instant.");
+                  } finally {
+                    setIsValidatingPurchases(false);
+                  }
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-[#00D26A] text-white font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer hover:opacity-90"
               >
-                Valider
+                {isValidatingPurchases ? 'Validation...' : 'Valider'}
               </button>
             </div>
           </div>

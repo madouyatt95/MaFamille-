@@ -3573,8 +3573,8 @@ export const Budget: React.FC<BudgetProps> = ({
                 const srcAcc = accounts.find(a => a.id === transferForm.sourceAccountId)!;
                 const tarAcc = accounts.find(a => a.id === transferForm.targetAccountId)!;
                 
-                await client.from('bank_accounts').update({ balance: srcAcc.balance - amt }).eq('id', srcAcc.id);
-                await client.from('bank_accounts').update({ balance: tarAcc.balance + amt }).eq('id', tarAcc.id);
+                await client.from('accounts').update({ balance: srcAcc.balance - amt }).eq('id', srcAcc.id);
+                await client.from('accounts').update({ balance: tarAcc.balance + amt }).eq('id', tarAcc.id);
 
                 // Add double transactions
                 const now = new Date();

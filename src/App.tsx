@@ -9718,6 +9718,10 @@ function App() {
   }, [transactions]);
 
   useEffect(() => {
+    safeSetLocalStorage('mf_accounts', JSON.stringify(accounts));
+  }, [accounts]);
+
+  useEffect(() => {
     safeSetLocalStorage('mf_documents', JSON.stringify(documents));
   }, [documents]);
 
@@ -10339,25 +10343,26 @@ function App() {
 
     // Update bank account balance if accountId is provided
     if (finalTx.accountId) {
-      setAccounts(prev => prev.map(acc => {
-        if (acc.id === finalTx.accountId) {
-          const change = finalTx.type === 'income' ? finalTx.amount : -finalTx.amount;
-          const updatedBalance = acc.balance + change;
-          
-          // Update database asynchronously
-          const supabase = getSupabaseClient();
-          if (supabase) {
-            supabase.from('accounts')
-              .update({ balance: updatedBalance })
-              .eq('id', acc.id)
-              .then(({ error }) => {
-                if (error) console.error("Error updating account balance in Supabase:", error);
-              });
+      const currentAccount = accounts.find(acc => acc.id === finalTx.accountId);
+      if (currentAccount) {
+        const change = finalTx.type === 'income' ? finalTx.amount : -finalTx.amount;
+        const updatedBalance = currentAccount.balance + change;
+        setAccounts(prev => prev.map(acc => (
+          acc.id === finalTx.accountId ? { ...acc, balance: updatedBalance } : acc
+        )));
+
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          const { error } = await supabase
+            .from('accounts')
+            .update({ balance: updatedBalance })
+            .eq('id', currentAccount.id);
+          if (error) {
+            console.error("Error updating account balance in Supabase:", error);
+            throw error;
           }
-          return { ...acc, balance: updatedBalance };
         }
-        return acc;
-      }));
+      }
     }
 
     // Si la transaction est de type Épargne, mettre à jour l'objectif d'épargne principal
