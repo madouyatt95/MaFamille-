@@ -1252,8 +1252,8 @@ export function FamilyGames({
       coverSize: '200% auto',
       meta: '3 à 12 joueurs · 10 min',
       tags: ['premium', 'quick', 'team', 'kids'],
-      modes: ['Un seul téléphone', 'Rôles secrets', 'Packs variés'],
-      premiumBenefits: ['Composition secrète', 'Packs de mots famille', 'Révélation premium'],
+      modes: ['Un seul téléphone', 'Indices à voix haute', 'Votes successifs'],
+      premiumBenefits: ['Mots variés', 'Bluff familial', 'Révélation finale'],
       premiumOnly: true
     },
     {
