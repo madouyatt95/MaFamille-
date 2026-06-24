@@ -1244,7 +1244,7 @@ export function FamilyGames({
     {
       id: 'agent-cache' as const,
       title: 'Agent caché',
-      description: 'Un mot commun, un agent avec un mot proche, un Agent blanc sans indice et un vote final.',
+      description: 'Un jeu de bluff avec mots secrets, indices publics et votes successifs.',
       icon: Fingerprint,
       accent: '#FF4D6D',
       coverPosition: GAME_COVER_POSITIONS['agent-cache'],
@@ -1252,8 +1252,8 @@ export function FamilyGames({
       coverSize: '200% auto',
       meta: '3 à 12 joueurs · 10 min',
       tags: ['premium', 'quick', 'team', 'kids'],
-      modes: ['Un seul téléphone', 'Agent blanc', 'Packs locaux'],
-      premiumBenefits: ['Jeu 100% local', 'Packs de mots famille', 'Révélation premium'],
+      modes: ['Un seul téléphone', 'Rôles secrets', 'Packs variés'],
+      premiumBenefits: ['Composition secrète', 'Packs de mots famille', 'Révélation premium'],
       premiumOnly: true
     },
     {
@@ -2562,7 +2562,7 @@ export function FamilyGames({
 
         {activeGame === 'agent-cache' && (
           <>
-            {gameHeader('Agent caché', 'Un mot commun, un agent avec un mot proche et un Agent blanc sans indice.', Fingerprint)}
+            {gameHeader('Agent caché', 'Un jeu de bluff avec mots secrets, indices publics et votes successifs.', Fingerprint)}
             <button
               type="button"
               onClick={() => setActiveGame(null)}
