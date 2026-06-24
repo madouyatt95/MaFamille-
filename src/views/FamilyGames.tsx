@@ -1068,6 +1068,39 @@ export function FamilyGames({
     }
   };
 
+  const closeConnect4Completely = async () => {
+    if (connectPrivateBusy) return;
+    if (connectRoom) {
+      setConnectPrivateBusy(true);
+      try {
+        await familyGameService.closeRoom(connectRoom.id, foyerId);
+      } catch (error) {
+        setConnectPrivateMessage(error instanceof Error ? error.message : 'Impossible de fermer la partie.');
+        setConnectPrivateBusy(false);
+        return;
+      }
+      setConnectPrivateBusy(false);
+    }
+    setActiveRoom(null);
+    setConnectMode('local');
+    setConnectVsBot(false);
+    setConnectPrivateMessage('');
+    setBoard(emptyBoard());
+    setConnectWinner(0);
+    setConnectDraw(false);
+    setLastDroppedCell(null);
+    setCurrentPlayer(1);
+    localStorage.removeItem(`mf_games_resume_${foyerId}`);
+    setResumeSnapshot(null);
+    setActiveGame(null);
+  };
+
+  const closeMimeChallengeCompletely = () => {
+    localStorage.removeItem(`mf_games_resume_${foyerId}`);
+    setResumeSnapshot(null);
+    setActiveGame(null);
+  };
+
   const assignChallengeMember = (memberId: string, teamIndex: 0 | 1) => {
     setChallengeTeamMemberIds(previous => {
       if (previous[teamIndex].includes(memberId)) {
@@ -1953,6 +1986,14 @@ export function FamilyGames({
         {activeGame === 'connect4' && (
           <>
             {gameHeader('Puissance 4', 'Alignez quatre jetons horizontalement, verticalement ou en diagonale.', Circle)}
+            <button
+              type="button"
+              onClick={() => void closeConnect4Completely()}
+              disabled={connectPrivateBusy}
+              className="ml-auto flex items-center gap-2 rounded-2xl border border-[#FF4D6D]/25 bg-[#FF4D6D]/8 px-4 py-2.5 text-[10px] font-black text-[#FF9BAF] disabled:opacity-50"
+            >
+              <X className="h-4 w-4" /> Fermer complètement la partie
+            </button>
             <div className="grid grid-cols-3 gap-2 max-w-xl mx-auto">
               {([
                 ['local', Users, 'Même écran'],
@@ -2437,6 +2478,13 @@ export function FamilyGames({
         {activeGame === 'mime-challenge' && (
           <>
             {gameHeader('Mimes et défis', 'Faites deviner un maximum de cartes en 60 secondes.', Mic2)}
+            <button
+              type="button"
+              onClick={closeMimeChallengeCompletely}
+              className="ml-auto flex items-center gap-2 rounded-2xl border border-[#FF4D6D]/25 bg-[#FF4D6D]/8 px-4 py-2.5 text-[10px] font-black text-[#FF9BAF]"
+            >
+              <X className="h-4 w-4" /> Fermer complètement la partie
+            </button>
             <MimeChallengeGame
               teamNames={teamSettings.names}
               isPremium={isPremium}
