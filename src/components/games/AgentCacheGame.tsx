@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import type { Member } from '../../types';
 
-type Stage = 'setup' | 'pass' | 'card' | 'clues' | 'vote' | 'vote-result' | 'result';
+type Stage = 'setup' | 'pass' | 'card' | 'clues' | 'vote' | 'vote-result' | 'white-guess' | 'result';
 type Role = 'citizen' | 'undercover' | 'white';
 type Pack = 'famille' | 'quotidien' | 'vacances' | 'ados' | 'ecole' | 'culture' | 'nourriture' | 'objets' | 'lieux' | 'loisirs' | 'nature' | 'sport' | 'metiers' | 'emotions';
 
@@ -52,6 +52,7 @@ interface AgentCacheGameProps {
 }
 
 const CARD_IMAGE = '/game-assets/agent-cache-cards.jpg';
+const USED_PAIRS_KEY = 'mf_agent_cache_used_pairs_v1';
 
 const WORD_PAIRS: WordPair[] = [
   { pack: 'famille', publicWord: 'Cousin', undercoverWord: 'Voisin' },
@@ -311,6 +312,8 @@ const ROLE_LABELS: Record<Role, string> = {
   white: 'Agent blanc'
 };
 
+const CLUE_DURATIONS = [10, 15, 20] as const;
+
 const shuffle = <T,>(items: T[]) => {
   const copy = [...items];
   for (let index = copy.length - 1; index > 0; index -= 1) {
@@ -368,6 +371,24 @@ const isCitizenWordGuess = (guess: string, citizenWord: string) => {
     && getEditDistance(normalizedGuess, normalizedWord) <= allowedDistance;
 };
 
+const pairKey = (pair: WordPair) => `${pair.publicWord}|${pair.undercoverWord}`;
+
+const pickFreshPair = () => {
+  const fallback = WORD_PAIRS[Math.floor(Math.random() * WORD_PAIRS.length)] || WORD_PAIRS[0];
+  try {
+    const usedKeys = JSON.parse(localStorage.getItem(USED_PAIRS_KEY) || '[]') as string[];
+    const usedSet = new Set(usedKeys);
+    const freshPairs = WORD_PAIRS.filter(pair => !usedSet.has(pairKey(pair)));
+    const pool = freshPairs.length > 0 ? freshPairs : WORD_PAIRS;
+    const selected = pool[Math.floor(Math.random() * pool.length)] || fallback;
+    const nextKeys = [pairKey(selected), ...usedKeys.filter(key => key !== pairKey(selected))].slice(0, 120);
+    localStorage.setItem(USED_PAIRS_KEY, JSON.stringify(nextKeys));
+    return selected;
+  } catch {
+    return fallback;
+  }
+};
+
 const getSecretRoleCounts = (playerCount: number) => {
   const maxHiddenAgents = Math.max(1, Math.min(3, Math.floor((playerCount - 1) / 3)));
   const whiteAllowed = playerCount >= 5;
@@ -410,7 +431,7 @@ const checkWinner = (alivePlayers: Player[]) => {
 
   if (aliveWhite && alivePlayers.length <= 2) return 'white' as const;
   if (aliveUndercover === 0 && !aliveWhite) return 'citizens' as const;
-  if (aliveUndercover > 0 && aliveUndercover >= aliveCitizens) return 'undercover' as const;
+  if (!aliveWhite && aliveUndercover > 0 && aliveUndercover >= aliveCitizens) return 'undercover' as const;
   return null;
 };
 
@@ -447,6 +468,9 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
   const [winner, setWinner] = useState<ReturnType<typeof checkWinner>>(null);
   const [clueSecondsLeft, setClueSecondsLeft] = useState(15);
   const [voteCandidates, setVoteCandidates] = useState<string[] | null>(null);
+  const [clueDuration, setClueDuration] = useState<(typeof CLUE_DURATIONS)[number]>(15);
+  const [whiteGuessInput, setWhiteGuessInput] = useState('');
+  const [finalRevealCount, setFinalRevealCount] = useState(1);
 
   const selectedMembers = useMemo(
     () => selectedIds.map(id => playableMembers.find(member => member.id === id)).filter((member): member is Member => Boolean(member)),
@@ -458,7 +482,7 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
   const voteTargets = voteCandidates
     ? alivePlayers.filter(player => voteCandidates.includes(player.id))
     : alivePlayers;
-  const visibleClues = clues.slice().sort((a, b) => b.round - a.round);
+  const clueRounds = Array.from(new Set(clues.map(clue => clue.round))).sort((a, b) => b - a);
 
   const togglePlayer = (memberId: string) => {
     setSelectedIds(previous => {
@@ -469,7 +493,7 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
   };
 
   const startGame = () => {
-    const nextPair = WORD_PAIRS[Math.floor(Math.random() * WORD_PAIRS.length)] || WORD_PAIRS[0];
+    const nextPair = pickFreshPair();
     const secretRoles = getSecretRoleCounts(selectedMembers.length);
     const roleDeck: Role[] = [
       ...Array.from({ length: secretRoles.undercoverCount }, () => 'undercover' as const),
@@ -498,8 +522,10 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
     setVotes({});
     setVoteOutcome(null);
     setWinner(null);
-    setClueSecondsLeft(15);
+    setClueSecondsLeft(clueDuration);
     setVoteCandidates(null);
+    setWhiteGuessInput('');
+    setFinalRevealCount(1);
     setStage('pass');
   };
 
@@ -511,6 +537,7 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
       && isCitizenWordGuess(clueInput, pair.publicWord)
     ) {
       setWinner('white');
+      setFinalRevealCount(1);
       setStage('result');
       return;
     }
@@ -522,7 +549,7 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
     }]);
     setClueInput('');
     setRevealed(false);
-    setClueSecondsLeft(15);
+    setClueSecondsLeft(clueDuration);
     if (currentIndex >= alivePlayers.length - 1) {
       setCurrentIndex(0);
       setStage('clues');
@@ -556,6 +583,19 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
     }
     const eliminated = alivePlayers.find(player => player.id === tiedLeaders[0]?.id) || alivePlayers[0];
     if (!eliminated) return;
+    if (eliminated.role === 'white') {
+      setVoteOutcome({
+        eliminatedId: eliminated.id,
+        eliminatedName: eliminated.name,
+        eliminatedRole: eliminated.role,
+        tied: false,
+        counts: totals
+      });
+      setVoteCandidates(null);
+      setWhiteGuessInput('');
+      setStage('white-guess');
+      return;
+    }
     const nextPlayers = keepWhiteAwayFromFirstTurn(players.map(player => player.id === eliminated.id ? { ...player, eliminated: true } : player));
     const nextAlive = nextPlayers.filter(player => !player.eliminated);
     const nextWinner = checkWinner(nextAlive);
@@ -569,6 +609,26 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
     });
     setWinner(nextWinner);
     setVoteCandidates(null);
+    setFinalRevealCount(1);
+    setStage(nextWinner ? 'result' : 'vote-result');
+  };
+
+  const eliminateWhiteAfterGuess = () => {
+    if (!voteOutcome?.eliminatedId || !pair) return;
+    if (isCitizenWordGuess(whiteGuessInput, pair.publicWord)) {
+      setWinner('white');
+      setFinalRevealCount(1);
+      setStage('result');
+      return;
+    }
+
+    const nextPlayers = keepWhiteAwayFromFirstTurn(players.map(player => (
+      player.id === voteOutcome.eliminatedId ? { ...player, eliminated: true } : player
+    )));
+    const nextWinner = checkWinner(nextPlayers.filter(player => !player.eliminated));
+    setPlayers(nextPlayers);
+    setWinner(nextWinner);
+    setFinalRevealCount(1);
     setStage(nextWinner ? 'result' : 'vote-result');
   };
 
@@ -601,8 +661,10 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
     setVotes({});
     setVoteOutcome(null);
     setWinner(null);
-    setClueSecondsLeft(15);
+    setClueSecondsLeft(clueDuration);
     setVoteCandidates(null);
+    setWhiteGuessInput('');
+    setFinalRevealCount(1);
     setStage('setup');
   };
 
@@ -613,6 +675,10 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
     }, 1000);
     return () => window.clearInterval(intervalId);
   }, [revealed, stage, currentPlayer?.id, round]);
+
+  const eliminatedPlayer = voteOutcome?.eliminatedId
+    ? players.find(player => player.id === voteOutcome.eliminatedId)
+    : undefined;
 
   if (stage === 'setup') {
     return (
@@ -664,8 +730,26 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
             <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
               <strong className="block text-xs text-white">Déroulé</strong>
               <span className="mt-1 block text-[9px] leading-relaxed text-white/45">
-                Un mot est donné à chaque joueur. Écrivez votre indice en 15 secondes, dites-le à voix haute, puis débattez avant le vote.
+                Un mot est donné à chaque joueur. Écrivez votre indice, dites-le à voix haute, puis débattez avant le vote.
               </span>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+              <strong className="block text-xs text-white">Temps par indice</strong>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {CLUE_DURATIONS.map(duration => (
+                  <button
+                    key={duration}
+                    type="button"
+                    onClick={() => {
+                      setClueDuration(duration);
+                      setClueSecondsLeft(duration);
+                    }}
+                    className={`rounded-xl border py-2 text-xs font-black ${clueDuration === duration ? 'border-[#FFB020]/50 bg-[#FFB020]/15 text-[#FFDA8A]' : 'border-white/8 bg-white/5 text-white/55'}`}
+                  >
+                    {duration}s
+                  </button>
+                ))}
+              </div>
             </div>
             <button type="button" onClick={startGame} disabled={selectedIds.length < 3} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#FF4D6D] py-4 text-sm font-black text-white disabled:opacity-40">
               <Sparkles className="h-4 w-4" /> Lancer l’attribution
@@ -715,9 +799,9 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
           </div>
           {!revealed ? (
             <button type="button" onClick={() => {
-              setClueSecondsLeft(15);
+              setClueSecondsLeft(clueDuration);
               setRevealed(true);
-            }} className="mt-4 w-full rounded-2xl bg-[#6C5CFF] py-4 text-sm font-black text-white">
+            }} className="mt-4 w-full rounded-2xl bg-[#6C5CFF] py-4 text-sm font-black text-white transition-transform [transform-style:preserve-3d] active:scale-[0.99]">
               Afficher mon mot
             </button>
           ) : (
@@ -732,7 +816,7 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
               <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
                 <span
                   className="block h-full rounded-full bg-[#FFB020] transition-all duration-300"
-                  style={{ width: `${Math.max(0, clueSecondsLeft / 15) * 100}%` }}
+                  style={{ width: `${Math.max(0, clueSecondsLeft / clueDuration) * 100}%` }}
                 />
               </div>
               <button type="button" onClick={saveClueAndContinue} disabled={!clueInput.trim()} className="w-full rounded-2xl bg-[#FFB020] py-4 text-sm font-black text-[#07111F] disabled:opacity-40">
@@ -753,12 +837,18 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
           <h2 className="mt-2 text-2xl font-black text-white">Comparez les indices</h2>
           <p className="mt-2 text-xs leading-relaxed text-white/55">Les indices des tours précédents restent visibles. Discutez, défendez-vous, puis votez pour éliminer un suspect.</p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {visibleClues.map(clue => (
-            <div key={`${clue.round}-${clue.playerId}`} className="rounded-2xl border border-white/8 bg-white/5 p-3">
-              <strong className="block text-xs text-white">{clue.playerName}</strong>
-              <span className="text-[9px] font-black uppercase tracking-wider text-white/35">Tour {clue.round}</span>
-              <span className="mt-1 block text-sm font-black text-[#FFB020]">{clue.text}</span>
+        <div className="space-y-3">
+          {clueRounds.map(clueRound => (
+            <div key={clueRound} className="rounded-2xl border border-white/8 bg-white/5 p-3">
+              <span className="text-[10px] font-black uppercase tracking-wider text-[#FFB020]">Tour {clueRound}</span>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {clues.filter(clue => clue.round === clueRound).map(clue => (
+                  <div key={`${clue.round}-${clue.playerId}`} className="rounded-xl bg-black/10 p-2">
+                    <strong className="block text-[11px] text-white">{clue.playerName}</strong>
+                    <span className="mt-1 block text-sm font-black text-white/80">{clue.text}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
@@ -794,6 +884,35 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
     );
   }
 
+  if (stage === 'white-guess' && voteOutcome?.eliminatedName) {
+    return (
+      <section className="mx-auto max-w-2xl space-y-4">
+        <div className="rounded-[28px] border border-[#FFB020]/25 bg-[#FFB020]/10 p-5 text-center">
+          <span className="text-[10px] font-black uppercase tracking-widest text-[#FFB020]">Dernière chance</span>
+          <h2 className="mt-2 text-2xl font-black text-white">{voteOutcome.eliminatedName} était l’Agent blanc</h2>
+          <p className="mt-2 text-xs leading-relaxed text-white/60">Avant de sortir, il peut tenter de trouver le mot des citoyens.</p>
+        </div>
+        {eliminatedPlayer && <EliminatedRevealCard player={eliminatedPlayer} />}
+        <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+          <input
+            value={whiteGuessInput}
+            onChange={event => setWhiteGuessInput(event.target.value)}
+            placeholder="Entrer le mot des citoyens"
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-white/30"
+          />
+          <button
+            type="button"
+            onClick={eliminateWhiteAfterGuess}
+            disabled={!whiteGuessInput.trim()}
+            className="mt-3 w-full rounded-2xl bg-[#FFB020] py-4 text-sm font-black text-[#07111F] disabled:opacity-40"
+          >
+            Tenter le mot
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   if (stage === 'vote-result' && voteOutcome) {
     if (voteOutcome.tied) {
       return (
@@ -823,10 +942,8 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
         <div className="rounded-[28px] border border-[#FFB020]/25 bg-[#FFB020]/10 p-5 text-center">
           <span className="text-[10px] font-black uppercase tracking-widest text-[#FFB020]">Élimination</span>
           <h2 className="mt-2 text-2xl font-black text-white">{voteOutcome.eliminatedName} quitte la partie</h2>
-          <p className="mt-2 text-xs text-white/60">
-            Rôle révélé : <strong className="text-white">{voteOutcome.eliminatedRole ? ROLE_LABELS[voteOutcome.eliminatedRole] : 'Inconnu'}</strong>
-          </p>
         </div>
+        {eliminatedPlayer && <EliminatedRevealCard player={eliminatedPlayer} />}
         <div className="grid gap-2 sm:grid-cols-2">
           {voteOutcome.counts.map(item => (
             <div key={item.id} className="rounded-2xl border border-white/8 bg-white/5 p-3">
@@ -866,8 +983,17 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
       </div>
       <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
         <div className="grid gap-2 sm:grid-cols-2">
-          {players.map(player => <RoleRevealCard key={player.id} player={player} />)}
+          {players.slice(0, finalRevealCount).map(player => <RoleRevealCard key={player.id} player={player} />)}
         </div>
+        {finalRevealCount < players.length && (
+          <button
+            type="button"
+            onClick={() => setFinalRevealCount(count => Math.min(players.length, count + 1))}
+            className="mt-3 w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-xs font-black text-white/70"
+          >
+            Révéler le rôle suivant
+          </button>
+        )}
         {pair && (
           <p className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-3 text-center text-xs font-bold text-white/65">
             Mot citoyen : <span className="text-[#00D26A]">{pair.publicWord}</span> · Mot agent caché : <span className="text-[#FF4D6D]">{pair.undercoverWord}</span>
@@ -907,6 +1033,31 @@ function RoleRevealCard({ player }: { player: Player }) {
           </span>
           <span className="mt-2 block text-[10px] text-white/45">{player.word || 'Aucun mot'}</span>
         </span>
+      </div>
+    </div>
+  );
+}
+
+function EliminatedRevealCard({ player }: { player: Player }) {
+  return (
+    <div className={`overflow-hidden rounded-[26px] border ${roleBorderClass(player.role)} shadow-xl`}>
+      <div className="grid gap-0 sm:grid-cols-[170px_1fr]">
+        <span
+          className="min-h-[190px] bg-cover bg-no-repeat"
+          style={{
+            backgroundImage: `url('${CARD_IMAGE}')`,
+            backgroundPosition: roleImagePosition(player.role),
+            backgroundSize: '200% auto'
+          }}
+        />
+        <div className="flex flex-col justify-center p-5">
+          <span className="text-[10px] font-black uppercase tracking-widest text-white/45">Carte révélée</span>
+          <h3 className="mt-2 text-2xl font-black text-white">{player.name}</h3>
+          <span className="mt-3 inline-flex w-fit rounded-full bg-black/20 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white/75">
+            {ROLE_LABELS[player.role]}
+          </span>
+          <p className="mt-3 text-sm font-bold text-white/60">{player.word || 'Aucun mot'}</p>
+        </div>
       </div>
     </div>
   );
