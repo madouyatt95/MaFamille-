@@ -1112,6 +1112,38 @@ html,
   --games-slot-border: rgba(91, 64, 41, 0.16);
 }
 
+.theme-light .family-games .family-games-intro,
+.theme-light .family-games .family-games-intro > div,
+.theme-light .family-games .game-victory,
+.theme-sepia .family-games .family-games-intro,
+.theme-sepia .family-games .family-games-intro > div,
+.theme-sepia .family-games .game-victory {
+  background: color-mix(in srgb, var(--family-surface) 92%, white) !important;
+  border-color: color-mix(in srgb, var(--family-border) 72%, transparent) !important;
+}
+
+.theme-light .family-games .family-games-intro p,
+.theme-sepia .family-games .family-games-intro p {
+  color: var(--family-muted) !important;
+}
+
+.theme-light .family-games .battleship-grid {
+  background: rgba(221, 233, 255, 0.72) !important;
+  border-color: rgba(37, 99, 235, 0.24) !important;
+}
+
+.theme-sepia .family-games .battleship-grid {
+  background: rgba(216, 193, 158, 0.56) !important;
+  border-color: rgba(122, 78, 45, 0.24) !important;
+}
+
+.theme-light .family-games .family-games-challenge,
+.theme-light .family-games .glass-panel,
+.theme-sepia .family-games .family-games-challenge,
+.theme-sepia .family-games .glass-panel {
+  color: var(--family-text);
+}
+
 .theme-light [class^="bg-[#6C5CFF]"],
 .theme-light [class*=" bg-[#6C5CFF]"],
 .theme-light [class^="bg-[#5B4EFA]"],

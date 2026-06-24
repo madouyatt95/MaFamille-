@@ -1122,7 +1122,48 @@ export function FamilyGames({
     setActiveGame(null);
   };
 
+  const closeBattleshipCompletely = async () => {
+    const roomToClose = activeRoom?.gameType === 'battleship' ? activeRoom : null;
+    if (roomToClose) {
+      try {
+        await familyGameService.closeRoom(roomToClose.id, foyerId);
+      } catch (error) {
+        setConnectionMessage(error instanceof Error ? error.message : 'Impossible de fermer la partie.');
+        return;
+      }
+    }
+    setActiveRoom(null);
+    localStorage.removeItem(`mf_games_resume_${foyerId}`);
+    setResumeSnapshot(null);
+    setActiveGame(null);
+  };
+
   const closeMimeChallengeCompletely = () => {
+    localStorage.removeItem(`mf_games_resume_${foyerId}`);
+    setResumeSnapshot(null);
+    setActiveGame(null);
+  };
+
+  const closeFamilyChallengeCompletely = async () => {
+    if (challengeRoom) {
+      try {
+        await familyGameService.closeRoom(challengeRoom.id, foyerId);
+      } catch (error) {
+        setConnectionMessage(error instanceof Error ? error.message : 'Fermeture de la partie impossible.');
+        return;
+      }
+    }
+    setActiveRoom(null);
+    setChallengeMode(null);
+    setPrivateChallengeReady(false);
+    setLocalChallengeReady(false);
+    setLastRecap(null);
+    localStorage.removeItem(`mf_games_resume_${foyerId}`);
+    setResumeSnapshot(null);
+    setActiveGame(null);
+  };
+
+  const closeAgentCacheCompletely = () => {
     localStorage.removeItem(`mf_games_resume_${foyerId}`);
     setResumeSnapshot(null);
     setActiveGame(null);
@@ -1417,6 +1458,17 @@ export function FamilyGames({
           Noms et couleurs d’équipes avec Premium
         </button>
       )}
+    </section>
+  );
+
+  const gameIntroPanel = (items: string[]) => (
+    <section className="family-games-intro grid gap-2 rounded-[22px] border border-white/8 bg-white/5 p-3 sm:grid-cols-3">
+      {items.map((item, index) => (
+        <div key={item} className="rounded-2xl border border-white/8 bg-black/10 p-3">
+          <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#6C5CFF]/12 text-[10px] font-black text-[#9E94FF]">{index + 1}</span>
+          <p className="mt-2 text-[10px] font-bold leading-relaxed text-white/60">{item}</p>
+        </div>
+      ))}
     </section>
   );
 
@@ -1939,6 +1991,11 @@ export function FamilyGames({
             )}
             {!memoryStarted ? (
               <section className="glass-panel rounded-[24px] border border-white/8 p-5 space-y-5">
+                {gameIntroPanel([
+                  'Choisissez les joueurs et le nombre de paires.',
+                  'Retournez deux cartes à votre tour.',
+                  'Une paire trouvée permet de rejouer.'
+                ])}
                 <div>
                   <h2 className="text-base font-black text-white">Joueurs et plateau</h2>
                   <p className="mt-1 text-xs text-white/50">Choisissez jusqu’à six joueurs et la taille du plateau.</p>
@@ -2074,6 +2131,11 @@ export function FamilyGames({
             >
               <X className="h-4 w-4" /> Fermer complètement la partie
             </button>
+            {connectMode !== 'private' && !connectWinner && !connectDraw && board.every(row => row.every(cell => cell === 0)) && gameIntroPanel([
+              'Choisissez deux joueurs ou un adversaire automatique.',
+              'Les jetons tombent chacun leur tour dans une colonne.',
+              'Quatre jetons alignés remportent la manche.'
+            ])}
             {connectMode !== 'private' && twoPlayerSetupPanel(
               'Joueurs de cette partie',
               connectVsBot ? 'Choisissez le membre qui affronte l’ordinateur.' : 'Choisissez les deux joueurs avant de lancer la manche.',
@@ -2241,6 +2303,13 @@ export function FamilyGames({
         {activeGame === 'battleship' && (
           <>
             {gameHeader('Bataille navale', 'Placez votre flotte, protégez vos positions et coulez les cinq bateaux adverses.', Ship)}
+            <button
+              type="button"
+              onClick={() => void closeBattleshipCompletely()}
+              className="ml-auto flex items-center gap-2 rounded-2xl border border-[#FF4D6D]/25 bg-[#FF4D6D]/8 px-4 py-2.5 text-[10px] font-black text-[#FF9BAF]"
+            >
+              <X className="h-4 w-4" /> Fermer complètement la partie
+            </button>
             {twoPlayerSetupPanel(
               'Joueurs de cette partie',
               'Choisissez les deux joueurs avant de placer les bateaux.'
@@ -2261,8 +2330,22 @@ export function FamilyGames({
         {activeGame === 'family-challenge' && (
           <>
             {gameHeader('Défi famille', 'Prenez la main, complétez le tableau et protégez la cagnotte.', Users)}
+            {(challengeMode || challengeRoom || lastRecap) && (
+              <button
+                type="button"
+                onClick={() => void closeFamilyChallengeCompletely()}
+                className="ml-auto flex items-center gap-2 rounded-2xl border border-[#FF4D6D]/25 bg-[#FF4D6D]/8 px-4 py-2.5 text-[10px] font-black text-[#FF9BAF]"
+              >
+                <X className="h-4 w-4" /> Fermer complètement la partie
+              </button>
+            )}
             {!challengeRoom && !challengeMode && !lastRecap && (
               <section className="family-games-challenge rounded-[28px] border p-5 sm:p-7 space-y-5">
+                {gameIntroPanel([
+                  'La meilleure réponse du duel prend la main.',
+                  'L’équipe en contrôle trouve un maximum de réponses.',
+                  'Après trois erreurs, l’autre équipe peut voler la manche.'
+                ])}
                 <div className="text-center">
                   <h2 className="text-xl font-black text-white">Comment souhaitez-vous jouer ?</h2>
                   <p className="mt-2 text-xs leading-relaxed text-white/50">Préparez deux équipes, lancez un 1 contre 1 ou invitez un autre appareil avec un code privé.</p>
@@ -2330,16 +2413,8 @@ export function FamilyGames({
                 <span className="text-xs font-black text-white">{challengeRoom.hostName}</span>
                 <span className="text-[9px] font-black uppercase tracking-widest text-[#9E94FF]">Salle {challengeRoom.code}</span>
                 <span className="text-xs font-black text-white">{challengeRoom.guestName || 'En attente'}</span>
-                <button type="button" onClick={() => {
-                  void familyGameService.closeRoom(challengeRoom.id, foyerId)
-                    .catch(error => setConnectionMessage(error instanceof Error ? error.message : 'Fermeture de la partie impossible.'))
-                    .finally(() => {
-                      setActiveRoom(null);
-                      setChallengeMode(null);
-                      setLocalChallengeReady(false);
-                    });
-                }} className="rounded-xl border border-[#FF4D6D]/20 p-2 text-[#FF4D6D]" title="Arrêter définitivement la partie">
-                  <ArrowLeft className="w-4 h-4" />
+                <button type="button" onClick={() => void closeFamilyChallengeCompletely()} className="rounded-xl border border-[#FF4D6D]/20 p-2 text-[#FF4D6D]" title="Arrêter définitivement la partie">
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             )}
@@ -2579,6 +2654,11 @@ export function FamilyGames({
             >
               <X className="h-4 w-4" /> Fermer complètement la partie
             </button>
+            {gameIntroPanel([
+              'Formez deux équipes avant la première manche.',
+              'Un joueur fait deviner sans prononcer le mot affiché.',
+              'Alternez les manches pour garder un score clair.'
+            ])}
             {teamSetupPanel(
               'Équipes de cette partie',
               'Préparez les équipes avant de lancer les manches de mimes.',
@@ -2598,11 +2678,16 @@ export function FamilyGames({
             {gameHeader('Agent caché', 'Un jeu de bluff avec mots secrets, indices publics et votes successifs.', Fingerprint)}
             <button
               type="button"
-              onClick={() => setActiveGame(null)}
-              className="ml-auto flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-[10px] font-black text-white/60"
+              onClick={closeAgentCacheCompletely}
+              className="ml-auto flex items-center gap-2 rounded-2xl border border-[#FF4D6D]/25 bg-[#FF4D6D]/8 px-4 py-2.5 text-[10px] font-black text-[#FF9BAF]"
             >
-              <X className="h-4 w-4" /> Fermer
+              <X className="h-4 w-4" /> Fermer complètement la partie
             </button>
+            {gameIntroPanel([
+              'Chaque joueur découvre sa carte en secret.',
+              'Écrivez puis annoncez un indice à haute voix.',
+              'Votez, révélez les cartes et cherchez les imposteurs.'
+            ])}
             <Suspense fallback={<div className="rounded-[28px] border border-white/8 bg-white/5 p-8 text-center text-xs font-bold text-white/55">Préparation des cartes secrètes...</div>}>
               <AgentCacheGame members={members} />
             </Suspense>
@@ -2619,6 +2704,11 @@ export function FamilyGames({
             >
               <X className="h-4 w-4" /> Fermer complètement la partie
             </button>
+            {gameIntroPanel([
+              'Choisissez les joueurs puis distribuez les rôles.',
+              'Le narrateur guide la nuit et le débat.',
+              'Votez pour protéger le village ou brouiller les pistes.'
+            ])}
             <Suspense fallback={<div className="rounded-[28px] border border-white/8 bg-white/5 p-8 text-center text-xs font-bold text-white/55">Préparation du village...</div>}>
               <VillageSecretGame members={members} />
             </Suspense>

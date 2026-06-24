@@ -348,6 +348,18 @@ export function BattleshipGame({
           <h2 className="text-base font-black text-white">Choisissez votre bataille</h2>
           <p className="mt-1 text-xs text-white/50">Les flottes sont placées automatiquement et peuvent être mélangées avant de commencer.</p>
         </div>
+        <div className="family-games-intro grid gap-2 rounded-[22px] border border-white/8 bg-white/5 p-3 sm:grid-cols-3">
+          {[
+            'Choisissez votre mode de jeu.',
+            'Gardez votre flotte secrète.',
+            'Touchez tous les bateaux adverses pour gagner.'
+          ].map((item, index) => (
+            <div key={item} className="rounded-2xl border border-white/8 bg-black/10 p-3">
+              <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#4F8CFF]/12 text-[10px] font-black text-[#8AB7FF]">{index + 1}</span>
+              <p className="mt-2 text-[10px] font-bold leading-relaxed text-white/60">{item}</p>
+            </div>
+          ))}
+        </div>
         <div className="grid grid-cols-3 gap-2">
           {([
             ['bot', Bot, 'Ordinateur'],
