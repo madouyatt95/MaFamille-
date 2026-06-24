@@ -7,33 +7,81 @@ const MIME_PACKS: Record<MimePack, string[]> = {
   enfants: [
     'Un chat qui se réveille', 'Souffler des bougies', 'Se brosser les dents',
     'Un bébé qui apprend à marcher', 'Un pingouin pressé', 'Sauter dans une flaque',
-    'Un dinosaure qui éternue', 'Ouvrir un cadeau surprenant'
+    'Un dinosaure qui éternue', 'Ouvrir un cadeau surprenant', 'Un chien qui cherche son os',
+    'Un lapin qui mange une carotte', 'Un enfant qui apprend à faire du vélo', 'Une grenouille qui saute',
+    'Un escargot très lent', 'Un dragon qui crache du feu', 'Un ours qui hiberne',
+    'Un éléphant qui se douche', 'Un poisson hors de l’eau', 'Un singe qui mange une banane',
+    'Faire une cabane avec des coussins', 'Construire une tour de cubes', 'Jouer à cache-cache',
+    'Un magicien qui sort un foulard', 'Un cheval qui galope', 'Une poule qui pond un œuf',
+    'Mettre ses chaussures à l’envers', 'Faire voler un cerf-volant', 'Un pompier qui déroule un tuyau',
+    'Un pirate qui cherche un trésor', 'Un roi qui perd sa couronne', 'Un clown qui jongle'
   ],
   famille: [
     'Marcher sur la Lune', 'Faire du ski', 'Un robot en panne', 'Rater son bus',
     'Nager sous l’eau', 'Faire une photo de famille', 'Porter une valise très lourde',
     'Danser sous la pluie', 'Chercher ses clés', 'Préparer une pizza',
-    'Un super-héros qui décolle', 'Jouer au tennis'
+    'Un super-héros qui décolle', 'Jouer au tennis', 'Faire les courses avec un caddie fou',
+    'Changer une ampoule trop haute', 'Monter un meuble sans notice', 'Chercher la télécommande',
+    'Faire semblant de dormir', 'Réparer un vélo', 'Faire un barbecue', 'Arroser des plantes',
+    'Ouvrir un pot de confiture impossible', 'Porter un bébé qui pleure', 'Faire un gâteau',
+    'Prendre le train en retard', 'Faire la vaisselle en musique', 'Passer l’aspirateur',
+    'Un chef cuisinier pressé', 'Un arbitre qui siffle', 'Un chanteur sur scène',
+    'Une personne coincée dans un ascenseur', 'Faire du yoga', 'Pêcher un très gros poisson',
+    'Marcher sur du sable brûlant', 'Faire une surprise à quelqu’un', 'Déballer un colis',
+    'Jouer au bowling', 'Peindre un mur', 'Faire du jardinage', 'Prendre une douche froide',
+    'Essayer un vêtement trop petit', 'Un bébé qui refuse de manger', 'Un parent qui marche sur un jouet'
   ],
   ados: [
     'Faire semblant de perdre le réseau', 'Prendre un selfie parfait', 'Arriver en retard en cours',
     'Danser dans un concert', 'Jouer à un jeu vidéo', 'Écrire un message très gênant',
-    'Regarder une série en cachette', 'Essayer une nouvelle coiffure'
+    'Regarder une série en cachette', 'Essayer une nouvelle coiffure', 'Chercher son chargeur',
+    'Faire une chorégraphie TikTok', 'Réviser au dernier moment', 'Faire semblant d’écouter en visio',
+    'Déballer un nouveau téléphone', 'Mettre des écouteurs emmêlés', 'Réagir à un spoiler',
+    'Essayer de prendre une photo discrète', 'Faire la queue pour un concert', 'Rater son bus scolaire',
+    'Jouer une finale de jeu vidéo', 'Se préparer pour une sortie', 'Recevoir une mauvaise note',
+    'Faire un exposé sans stress', 'Chercher une tenue parfaite', 'Envoyer un vocal trop long',
+    'Faire semblant de ne pas voir un message', 'Regarder un match très tendu', 'Faire du skate',
+    'Apprendre une danse compliquée', 'Avoir trop chaud avec un sweat', 'Trouver un mot de passe oublié',
+    'Essayer un filtre ridicule', 'Faire une photo de groupe', 'Manger des nouilles très chaudes'
   ],
   vacances: [
     'Monter une tente', 'Mettre de la crème solaire', 'Chercher sa valise',
     'Nager avec un masque', 'Prendre l’avion', 'Faire une bataille d’eau',
-    'Lire une carte à l’envers', 'Dormir dans un hamac'
+    'Lire une carte à l’envers', 'Dormir dans un hamac', 'Faire une randonnée trop longue',
+    'Porter une glacière lourde', 'Monter dans un manège', 'Faire du pédalo',
+    'Se battre avec un parasol', 'Chercher une place à la plage', 'Faire un château de sable',
+    'Manger une glace qui fond', 'Prendre une photo devant un monument', 'Faire une plongée',
+    'Rater une vague en surf', 'Installer une caravane', 'Faire un feu de camp',
+    'Lire au bord de la piscine', 'Avoir peur dans l’avion', 'Courir après un chapeau envolé',
+    'Faire une sieste au soleil', 'Pêcher au bord d’un lac', 'Faire du snorkeling',
+    'Préparer un pique-nique', 'Porter des tongs qui collent', 'Faire du vélo en montagne',
+    'Chercher son hôtel', 'Déplier une serviette de plage', 'Faire du canoë'
   ],
   fetes: [
     'Décorer un sapin', 'Souffler des bougies', 'Emballer un cadeau',
     'Lancer des confettis', 'Danser à un mariage', 'Chercher les œufs de Pâques',
-    'Faire un bonhomme de neige', 'Porter un gâteau très fragile'
+    'Faire un bonhomme de neige', 'Porter un gâteau très fragile', 'Ouvrir une bouteille de champagne',
+    'Accrocher une guirlande', 'Recevoir un cadeau étrange', 'Faire un discours au micro',
+    'Danser avec sa grand-mère', 'Organiser une chasse au trésor', 'Mettre une couronne des rois',
+    'Casser une piñata', 'Préparer une surprise', 'Lancer le bouquet à un mariage',
+    'Se déguiser pour Halloween', 'Faire peur derrière une porte', 'Allumer des bougies',
+    'Faire un compte à rebours', 'Prendre une photo de groupe', 'Porter un costume trop grand',
+    'Chercher une place à table', 'Couper une bûche de Noël', 'Distribuer des bonbons',
+    'Faire tourner une galette', 'Décorer des œufs', 'Installer des ballons',
+    'Oublier les paroles d’une chanson', 'Déballer un cadeau minuscule', 'Faire un toast'
   ],
   cinema: [
     'Un détective qui enquête', 'Un pirate sur son bateau', 'Un monstre timide',
     'Un astronaute en apesanteur', 'Un magicien qui rate son tour', 'Un espion discret',
-    'Un cow-boy à cheval', 'Un réalisateur qui donne des ordres'
+    'Un cow-boy à cheval', 'Un réalisateur qui donne des ordres', 'Un super-vilain qui rit',
+    'Un héros au ralenti', 'Un fantôme qui traverse un mur', 'Une poursuite en voiture',
+    'Un chevalier avec une épée trop lourde', 'Un scientifique fou', 'Un zombie fatigué',
+    'Un cascadeur qui saute', 'Un acteur qui oublie son texte', 'Un vampire qui évite le soleil',
+    'Un policier qui arrête la circulation', 'Un pilote de vaisseau spatial', 'Une momie qui marche',
+    'Un chanteur de comédie musicale', 'Un explorateur dans la jungle', 'Un samouraï concentré',
+    'Un gardien de musée la nuit', 'Un robot qui découvre les émotions', 'Un dinosaure dans la ville',
+    'Un roi qui fait un discours', 'Un détective avec une loupe', 'Un chef d’orchestre dramatique',
+    'Un ninja silencieux', 'Un marin dans la tempête', 'Un extraterrestre qui apprend à saluer'
   ]
 };
 
@@ -44,7 +92,19 @@ interface MimeChallengeGameProps {
   onFinished: (scores: [number, number], rounds: number, winnerName: string) => void;
 }
 
-const FREE_MIME_CARDS = MIME_PACKS.famille.slice(0, 8);
+const FREE_MIME_CARDS = MIME_PACKS.famille.slice(0, 20);
+
+const shuffleMimeCards = (source: string[], previousCard?: string): string[] => {
+  const shuffled = [...source];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  if (previousCard && shuffled.length > 1 && shuffled[0] === previousCard) {
+    [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
+  }
+  return shuffled;
+};
 
 export function MimeChallengeGame({ teamNames, isPremium, onTriggerPaywall, onFinished }: MimeChallengeGameProps) {
   const [pack, setPack] = useState<MimePack>('famille');
@@ -61,6 +121,7 @@ export function MimeChallengeGame({ teamNames, isPremium, onTriggerPaywall, onFi
   const [revealed, setRevealed] = useState(false);
   const [finished, setFinished] = useState(false);
   const [cardIndex, setCardIndex] = useState(0);
+  const [cardDeck, setCardDeck] = useState<string[]>([]);
   const [customCard, setCustomCard] = useState('');
   const [showCustomCards, setShowCustomCards] = useState(false);
   const [editingCard, setEditingCard] = useState<string | null>(null);
@@ -78,6 +139,7 @@ export function MimeChallengeGame({ teamNames, isPremium, onTriggerPaywall, onFi
     () => isPremium ? [...MIME_PACKS[pack], ...customCards] : FREE_MIME_CARDS,
     [customCards, isPremium, pack]
   );
+  const activeCards = cardDeck.length > 0 ? cardDeck : cards;
   const activeTeam = round % 2 as 0 | 1;
 
   useEffect(() => {
@@ -118,12 +180,19 @@ export function MimeChallengeGame({ teamNames, isPremium, onTriggerPaywall, onFi
   const nextCard = (found: boolean) => {
     if (found) setRoundScore(value => value + 1);
     else setPasses(value => value + 1);
-    setCardIndex(value => (value + 1) % cards.length);
+    const nextIndex = cardIndex + 1;
+    if (nextIndex >= activeCards.length) {
+      setCardDeck(shuffleMimeCards(cards, activeCards[cardIndex]));
+      setCardIndex(0);
+    } else {
+      setCardIndex(nextIndex);
+    }
     setRevealed(false);
   };
 
   const startTurn = () => {
     completedRef.current = false;
+    if (cardDeck.length === 0) setCardDeck(shuffleMimeCards(cards));
     setRoundScore(0);
     setPasses(0);
     setSeconds(duration);
@@ -151,6 +220,8 @@ export function MimeChallengeGame({ teamNames, isPremium, onTriggerPaywall, onFi
     setRunning(false);
     setFinished(false);
     setConfigured(false);
+    setCardDeck([]);
+    setCardIndex(0);
     setRevealed(false);
     setTurnCompleted(false);
     completedRef.current = false;
@@ -200,7 +271,7 @@ export function MimeChallengeGame({ teamNames, isPremium, onTriggerPaywall, onFi
           </label>
         ) : (
           <button type="button" onClick={onTriggerPaywall} className="w-full rounded-2xl border border-[#FFB020]/25 bg-[#FFB020]/8 p-4 text-left">
-            <strong className="block text-xs text-white">Paquet découverte · 8 cartes</strong>
+            <strong className="block text-xs text-white">Paquet découverte · 20 cartes</strong>
             <span className="mt-1 block text-[10px] text-white/50">Premium débloque tous les âges, vacances, fêtes, cinéma et vos propres cartes.</span>
           </button>
         )}
@@ -270,7 +341,7 @@ export function MimeChallengeGame({ teamNames, isPremium, onTriggerPaywall, onFi
           {teamNames.map((name, index) => <div key={name} className={`rounded-2xl border p-3 ${activeTeam === index ? 'border-[#FF4D6D]/40 bg-[#FF4D6D]/10' : 'border-white/8'}`}><strong className="block text-xs text-white">{name}</strong><span className="text-xl font-black text-[#FFB020]">{scores[index]}</span></div>)}
         </div>
         <h2 className="text-xl font-black text-white">{turnCompleted ? `${roundScore} mime${roundScore > 1 ? 's' : ''} trouvé${roundScore > 1 ? 's' : ''}` : `${teamNames[activeTeam]} fait deviner`}</h2>
-        <p className="text-xs text-white/50">Manche {round + 1} sur {totalRounds} · {isPremium ? `paquet ${pack}` : 'paquet découverte'}</p>
+        <p className="text-xs text-white/50">Manche {round + 1} sur {totalRounds} · {isPremium ? `paquet ${pack}` : 'paquet découverte'} · {cards.length} cartes</p>
         {turnCompleted && <p className="text-[10px] text-white/40">{passes} carte{passes > 1 ? 's' : ''} passée{passes > 1 ? 's' : ''}</p>}
         {turnCompleted ? (
           <button type="button" onClick={nextRound} className="w-full rounded-2xl bg-[#FFB020] py-3 text-xs font-black text-[#07111F]">Équipe suivante</button>
@@ -289,7 +360,7 @@ export function MimeChallengeGame({ teamNames, isPremium, onTriggerPaywall, onFi
         <button type="button" onClick={finishTurn} className="text-white/45" title="Arrêter"><RotateCcw className="w-4 h-4" /></button>
       </div>
       <button type="button" onClick={() => setRevealed(true)} className={`mime-reveal-card family-games-challenge w-full min-h-[320px] rounded-[28px] border p-6 flex flex-col items-center justify-center text-center ${revealed ? 'is-revealed' : ''}`}>
-        {revealed ? <><span className="text-[10px] font-black uppercase tracking-widest text-[#FF4D6D]">À mimer</span><strong className="mt-5 text-3xl sm:text-4xl leading-tight text-white">{cards[cardIndex]}</strong></> : <><Eye className="w-10 h-10 text-[#6C5CFF]" /><strong className="mt-4 text-lg text-white">Touchez pour révéler</strong></>}
+        {revealed ? <><span className="text-[10px] font-black uppercase tracking-widest text-[#FF4D6D]">À mimer</span><strong className="mt-5 text-3xl sm:text-4xl leading-tight text-white">{activeCards[cardIndex] || cards[0]}</strong></> : <><Eye className="w-10 h-10 text-[#6C5CFF]" /><strong className="mt-4 text-lg text-white">Touchez pour révéler</strong></>}
       </button>
       <div className="grid grid-cols-2 gap-3">
         <button type="button" onClick={() => nextCard(false)} className="py-4 rounded-2xl border border-white/8 bg-white/5 text-white/60 text-xs font-black flex items-center justify-center gap-2"><SkipForward className="w-4 h-4" /> Passer</button>
