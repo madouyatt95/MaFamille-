@@ -401,6 +401,7 @@ export function FamilyGames({
   const [connectVsBot, setConnectVsBot] = useState(false);
   const [connectMode, setConnectMode] = useState<ConnectMode>('local');
   const [privateChallengeReady, setPrivateChallengeReady] = useState(false);
+  const [localChallengeReady, setLocalChallengeReady] = useState(false);
   const [privateChallengeSeed, setPrivateChallengeSeed] = useState(() => crypto.randomUUID());
   const [privateChallengePack, setPrivateChallengePack] = useState<FamilyChallengeQuestion['pack'] | 'Tous'>('Tous');
   const [privateChallengeCategory, setPrivateChallengeCategory] = useState<FamilyChallengeQuestion['category'] | 'Toutes'>('Toutes');
@@ -1135,6 +1136,7 @@ export function FamilyGames({
 
   const prepareOneVsOneChallenge = () => {
     if (!applyOneVsOneChallengeTeams()) return;
+    setLocalChallengeReady(true);
     setChallengeMode('local');
   };
 
@@ -1278,6 +1280,104 @@ export function FamilyGames({
       ? ['memory', 'mime-challenge', 'family-challenge']
       : ['connect4', 'battleship', 'memory'];
   const suggestedGames = suggestedGameIds.map(id => gameCards.find(game => game.id === id)).filter((game): game is NonNullable<typeof game> => Boolean(game));
+
+  const twoPlayerSetupPanel = (title: string, subtitle: string, disableSecondPlayer = false) => (
+    <section className="mx-auto w-full max-w-xl rounded-[22px] border border-white/8 bg-white/5 p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <span>
+          <strong className="block text-xs text-white">{title}</strong>
+          <span className="mt-1 block text-[10px] leading-relaxed text-white/45">{subtitle}</span>
+        </span>
+        <Users className="h-5 w-5 shrink-0 text-[#6C5CFF]" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {[0, 1].map(index => (
+          <select
+            key={index}
+            value={playerIds[index]}
+            disabled={disableSecondPlayer && index === 1}
+            onChange={event => setPlayerIds(previous => index === 0 ? [event.target.value, previous[1]] : [previous[0], event.target.value])}
+            className="rounded-2xl border border-white/10 bg-[#10172A] px-3 py-3 text-xs font-bold text-white outline-none disabled:opacity-50"
+          >
+            {members.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}
+          </select>
+        ))}
+      </div>
+    </section>
+  );
+
+  const teamSetupPanel = (title: string, subtitle: string, showOneVsOne = true) => (
+    <section className="rounded-[24px] border border-white/8 bg-white/5 p-4 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <span>
+          <strong className="block text-xs text-white">{title}</strong>
+          <span className="mt-1 block text-[10px] leading-relaxed text-white/45">{subtitle}</span>
+        </span>
+        {showOneVsOne && (
+          <button
+            type="button"
+            onClick={applyOneVsOneChallengeTeams}
+            className="shrink-0 rounded-full border border-[#FFB020]/25 bg-[#FFB020]/10 px-3 py-2 text-[9px] font-black text-[#FFB020]"
+          >
+            1 contre 1
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[0, 1].map(index => (
+          <label key={index} className="flex items-center gap-2 rounded-2xl border border-white/8 bg-black/10 p-2">
+            <input
+              disabled={!isPremium}
+              type="color"
+              value={teamSettings.colors[index]}
+              onChange={event => setTeamSettings(previous => ({ ...previous, colors: index === 0 ? [event.target.value, previous.colors[1]] : [previous.colors[0], event.target.value] }))}
+              className="h-9 w-9 rounded-lg border-0 p-0 disabled:opacity-50"
+              title={`Couleur équipe ${index + 1}`}
+            />
+            <input
+              disabled={!isPremium}
+              value={teamSettings.names[index]}
+              maxLength={24}
+              onChange={event => setTeamSettings(previous => ({ ...previous, names: index === 0 ? [event.target.value, previous.names[1]] : [previous.names[0], event.target.value] }))}
+              className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none disabled:opacity-60"
+            />
+          </label>
+        ))}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {[0, 1].map(teamIndex => (
+          <div key={teamIndex} className="rounded-2xl border border-white/8 bg-black/10 p-3">
+            <strong className="block truncate text-xs text-white">{teamSettings.names[teamIndex]}</strong>
+            <span className="mt-1 block text-[9px] text-white/40">
+              {challengeTeamMemberIds[teamIndex].length > 0
+                ? `${challengeTeamMemberIds[teamIndex].length} joueur${challengeTeamMemberIds[teamIndex].length > 1 ? 's' : ''}`
+                : 'Ajoutez au moins un membre'}
+            </span>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {members.map(member => {
+                const selected = challengeTeamMemberIds[teamIndex].includes(member.id);
+                return (
+                  <button
+                    key={member.id}
+                    type="button"
+                    onClick={() => assignChallengeMember(member.id, teamIndex as 0 | 1)}
+                    className={`rounded-full border px-3 py-1.5 text-[9px] font-black ${selected ? 'border-[#00D26A]/35 bg-[#00D26A]/12 text-[#00D26A]' : 'border-white/8 text-white/45'}`}
+                  >
+                    {member.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      {!isPremium && (
+        <button type="button" onClick={onTriggerPaywall} className="w-full rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/8 py-3 text-[10px] font-black text-[#FFB020]">
+          Noms et couleurs d’équipes avec Premium
+        </button>
+      )}
+    </section>
+  );
 
   const gameHeader = (title: string, subtitle: string, icon: typeof Gamepad2) => {
     const Icon = icon;
@@ -1544,27 +1644,8 @@ export function FamilyGames({
               )}
             </section>}
 
-            {hubView === 'progress' && <section className="order-5 glass-panel rounded-[24px] border border-white/8 p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-black text-white">Joueurs de la prochaine partie</h3>
-                  <p className="text-[10px] text-white/45">Les scores seront associés à ces membres.</p>
-                </div>
-                <Users className="w-5 h-5 text-[#6C5CFF]" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {[0, 1].map(index => (
-                  <select
-                    key={index}
-                    value={playerIds[index]}
-                    onChange={event => setPlayerIds(previous => index === 0 ? [event.target.value, previous[1]] : [previous[0], event.target.value])}
-                    className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-bold text-white outline-none"
-                  >
-                    {members.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}
-                  </select>
-                ))}
-              </div>
-              {pocketMoney.length > 0 && (
+            {hubView === 'progress' && pocketMoney.length > 0 && (
+              <section className="order-5 glass-panel rounded-[24px] border border-white/8 p-5 space-y-4">
                 <div className="rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/8 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="flex items-center gap-2">
@@ -1593,69 +1674,8 @@ export function FamilyGames({
                     </p>
                   )}
                 </div>
-              )}
-              {isAdult ? (
-                <>
-                  <div className="grid grid-cols-2 gap-3 border-t border-white/8 pt-4">
-                    {[0, 1].map(index => (
-                      <label key={index} className="flex items-center gap-2 rounded-2xl border border-white/8 bg-white/5 p-2">
-                        <input disabled={!isPremium} type="color" value={teamSettings.colors[index]} onChange={event => setTeamSettings(previous => ({ ...previous, colors: index === 0 ? [event.target.value, previous.colors[1]] : [previous.colors[0], event.target.value] }))} className="h-9 w-9 rounded-lg border-0 p-0 disabled:opacity-50" title={`Couleur équipe ${index + 1}`} />
-                        <input disabled={!isPremium} value={teamSettings.names[index]} maxLength={24} onChange={event => setTeamSettings(previous => ({ ...previous, names: index === 0 ? [event.target.value, previous.names[1]] : [previous.names[0], event.target.value] }))} className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none disabled:opacity-60" />
-                      </label>
-                    ))}
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="block text-[9px] font-black uppercase text-white/40">Composition des équipes</span>
-                      <button
-                        type="button"
-                        onClick={prepareOneVsOneChallenge}
-                        className="rounded-full border border-[#FFB020]/25 bg-[#FFB020]/10 px-3 py-1.5 text-[9px] font-black text-[#FFB020]"
-                      >
-                        Mode 1 contre 1
-                      </button>
-                    </div>
-                    <p className="text-[9px] leading-relaxed text-white/40">Une équipe peut contenir un seul joueur. Appuyez de nouveau sur un membre sélectionné pour le retirer.</p>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {[0, 1].map(teamIndex => (
-                        <div key={teamIndex} className="rounded-2xl border border-white/8 bg-white/5 p-3">
-                          <strong className="block truncate text-xs text-white">{teamSettings.names[teamIndex]}</strong>
-                          <span className="mt-1 block text-[9px] text-white/40">
-                            {challengeTeamMemberIds[teamIndex].length > 0
-                              ? `Capitaine : ${members.find(member => member.id === challengeTeamMemberIds[teamIndex][0])?.name || 'À choisir'}`
-                              : 'Ajoutez au moins un membre'}
-                          </span>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {members.map(member => {
-                              const selected = challengeTeamMemberIds[teamIndex].includes(member.id);
-                              return (
-                                <button
-                                  key={member.id}
-                                  type="button"
-                                  onClick={() => assignChallengeMember(member.id, teamIndex as 0 | 1)}
-                                  className={`rounded-full border px-3 py-1.5 text-[9px] font-black ${selected ? 'border-[#00D26A]/35 bg-[#00D26A]/12 text-[#00D26A]' : 'border-white/8 text-white/45'}`}
-                                >
-                                  {member.name}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <p className="rounded-2xl border border-white/8 bg-white/5 p-3 text-[10px] font-bold text-white/45">
-                  Un parent peut personnaliser les équipes et gérer les récompenses.
-                </p>
-              )}
-              {!isPremium && isAdult && (
-                <button type="button" onClick={onTriggerPaywall} className="w-full rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/8 py-3 text-[10px] font-black text-[#FFB020]">
-                  Personnaliser les équipes avec Premium
-                </button>
-              )}
-            </section>}
+              </section>
+            )}
 
             {hubView === 'progress' && isAdult && (onAddEventDirect || setVotes || pendingRewards.length > 0) && (
               <section className="order-5 glass-panel rounded-[24px] border border-white/8 p-5 space-y-4">
@@ -1863,7 +1883,7 @@ export function FamilyGames({
             {!memoryStarted ? (
               <section className="glass-panel rounded-[24px] border border-white/8 p-5 space-y-5">
                 <div>
-                  <h2 className="text-base font-black text-white">Préparer la partie</h2>
+                  <h2 className="text-base font-black text-white">Joueurs et plateau</h2>
                   <p className="mt-1 text-xs text-white/50">Choisissez jusqu’à six joueurs et la taille du plateau.</p>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
@@ -1994,6 +2014,11 @@ export function FamilyGames({
             >
               <X className="h-4 w-4" /> Fermer complètement la partie
             </button>
+            {connectMode !== 'private' && twoPlayerSetupPanel(
+              'Joueurs de cette partie',
+              connectVsBot ? 'Choisissez le membre qui affronte l’ordinateur.' : 'Choisissez les deux joueurs avant de lancer la manche.',
+              connectVsBot
+            )}
             <div className="grid grid-cols-3 gap-2 max-w-xl mx-auto">
               {([
                 ['local', Users, 'Même écran'],
@@ -2090,13 +2115,6 @@ export function FamilyGames({
               </div>
             ) : (
               <>
-            <div className="grid grid-cols-2 gap-2 max-w-xl mx-auto">
-              {[0, 1].map(index => (
-                <select key={index} value={playerIds[index]} disabled={connectVsBot && index === 1} onChange={event => setPlayerIds(previous => index === 0 ? [event.target.value, previous[1]] : [previous[0], event.target.value])} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-bold text-white">
-                  {members.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}
-                </select>
-              ))}
-            </div>
             {connectVsBot && (
               <div className="grid grid-cols-3 gap-2 max-w-xl mx-auto">
                 {BOT_DIFFICULTIES.map(([value, label]) => (
@@ -2161,6 +2179,10 @@ export function FamilyGames({
         {activeGame === 'battleship' && (
           <>
             {gameHeader('Bataille navale', 'Placez votre flotte, protégez vos positions et coulez les cinq bateaux adverses.', Ship)}
+            {twoPlayerSetupPanel(
+              'Joueurs de cette partie',
+              'Choisissez les deux joueurs avant de placer les bateaux.'
+            )}
             <BattleshipGame
               foyerId={foyerId}
               familyName={privatePlayerName}
@@ -2218,7 +2240,10 @@ export function FamilyGames({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setChallengeMode('local')}
+                  onClick={() => {
+                    setLocalChallengeReady(false);
+                    setChallengeMode('local');
+                  }}
                   className="w-full rounded-2xl border border-white/8 bg-white/5 py-3 text-xs font-black text-white/65"
                 >
                   Composer deux équipes manuellement
@@ -2230,6 +2255,7 @@ export function FamilyGames({
                 type="button"
                 onClick={() => {
                   setPrivateChallengeReady(false);
+                  setLocalChallengeReady(false);
                   setChallengeMode(null);
                 }}
                 className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-[10px] font-black text-white/55"
@@ -2248,6 +2274,7 @@ export function FamilyGames({
                     .finally(() => {
                       setActiveRoom(null);
                       setChallengeMode(null);
+                      setLocalChallengeReady(false);
                     });
                 }} className="rounded-xl border border-[#FF4D6D]/20 p-2 text-[#FF4D6D]" title="Arrêter définitivement la partie">
                   <ArrowLeft className="w-4 h-4" />
@@ -2279,7 +2306,11 @@ export function FamilyGames({
                     ))}
                   </div>
                 )}
-                <button type="button" onClick={() => setLastRecap(null)} className="mt-4 rounded-2xl bg-[#FFB020] px-5 py-3 text-xs font-black text-[#07111F]">Nouvelle partie</button>
+                <button type="button" onClick={() => {
+                  setLastRecap(null);
+                  setLocalChallengeReady(false);
+                  setChallengeMode(null);
+                }} className="mt-4 rounded-2xl bg-[#FFB020] px-5 py-3 text-xs font-black text-[#07111F]">Nouvelle partie</button>
               </div>
             )}
             {challengeMode === 'private' && !challengeRoom && !lastRecap ? (
@@ -2370,26 +2401,10 @@ export function FamilyGames({
                     )}
                   </div>
 
-                  <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <span>
-                        <strong className="block text-xs text-white">Équipes utilisées</strong>
-                        <span className="mt-1 block text-[10px] text-white/45">
-                          {challengeTeams[0].name} contre {challengeTeams[1].name}
-                        </span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={applyOneVsOneChallengeTeams}
-                        className="rounded-full border border-[#FFB020]/25 bg-[#FFB020]/10 px-3 py-2 text-[9px] font-black text-[#FFB020]"
-                      >
-                        Deux joueurs
-                      </button>
-                    </div>
-                    <p className="mt-3 text-[10px] leading-relaxed text-white/45">
-                      Les noms et membres se règlent dans les options du module. Une équipe peut contenir un seul joueur.
-                    </p>
-                  </div>
+                  {teamSetupPanel(
+                    'Équipes avant invitation',
+                    'Choisissez les équipes maintenant. La famille invitée arrive ensuite directement dans la partie.'
+                  )}
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <button
@@ -2418,6 +2433,7 @@ export function FamilyGames({
                   onRoomClosed={() => {
                     setActiveRoom(null);
                     setPrivateChallengeReady(false);
+                    setLocalChallengeReady(false);
                     setChallengeMode(null);
                   }}
                 />
@@ -2433,9 +2449,25 @@ export function FamilyGames({
                 onRoomClosed={() => {
                   setActiveRoom(null);
                   setPrivateChallengeReady(false);
+                  setLocalChallengeReady(false);
                   setChallengeMode(null);
                 }}
               />
+            ) : challengeMode === 'local' && !localChallengeReady && !lastRecap ? (
+              <section className="family-games-challenge rounded-[28px] border p-5 sm:p-7 space-y-5">
+                {teamSetupPanel(
+                  'Équipes de cette partie',
+                  'Composez les deux équipes avant de lancer Défi famille. Une équipe peut contenir un seul joueur.'
+                )}
+                <button
+                  type="button"
+                  onClick={() => setLocalChallengeReady(true)}
+                  disabled={challengeTeamMemberIds[0].length === 0 || challengeTeamMemberIds[1].length === 0}
+                  className="w-full rounded-2xl bg-[#FFB020] py-4 text-sm font-black text-[#07111F] disabled:opacity-40"
+                >
+                  Lancer la partie
+                </button>
+              </section>
             ) : (challengeMode === 'local' || challengeRoom) && !lastRecap ? <FamilyChallengeGame
               foyerId={foyerId}
               isPremium={isPremium}
@@ -2485,6 +2517,11 @@ export function FamilyGames({
             >
               <X className="h-4 w-4" /> Fermer complètement la partie
             </button>
+            {teamSetupPanel(
+              'Équipes de cette partie',
+              'Préparez les équipes avant de lancer les manches de mimes.',
+              false
+            )}
             <MimeChallengeGame
               teamNames={teamSettings.names}
               isPremium={isPremium}
