@@ -409,13 +409,15 @@ const pickFreshPair = (customPairs: WordPair[] = []) => {
 const getSecretRoleCounts = (playerCount: number) => {
   const maxHiddenAgents = Math.max(1, Math.min(3, Math.floor((playerCount - 1) / 3)));
   const whiteAllowed = playerCount >= 5;
-  const includeWhite = whiteAllowed && Math.random() < 0.45;
-  const undercoverCount = Math.random() < 0.25 && includeWhite
-    ? 0
-    : Math.max(1, 1 + Math.floor(Math.random() * maxHiddenAgents));
+  const includeWhite = whiteAllowed && Math.random() < 0.5;
+  const availableSlots = Math.max(1, playerCount - (includeWhite ? 2 : 1));
+  const undercoverCount = Math.max(1, Math.min(
+    availableSlots,
+    1 + Math.floor(Math.random() * maxHiddenAgents)
+  ));
 
   return {
-    undercoverCount: Math.min(undercoverCount, playerCount - (includeWhite ? 2 : 1)),
+    undercoverCount,
     includeWhite
   };
 };
@@ -755,7 +757,7 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
             <span className="absolute inset-0 bg-gradient-to-t from-[#0B1020] via-[#0B1020]/55 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 p-5">
               <h2 className="mt-3 text-2xl font-black text-white">Agent caché</h2>
-              <p className="mt-2 max-w-xl text-xs leading-relaxed text-white/65">Choisissez les joueurs, découvrez chacun votre mot, annoncez un indice à voix haute puis votez pour le joueur le plus suspect.</p>
+              <p className="mt-2 max-w-xl text-xs leading-relaxed text-white/65">Un mot secret, des indices à voix haute, puis un vote pour démasquer les imposteurs.</p>
             </div>
           </div>
         </div>
@@ -765,7 +767,7 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
             <div className="flex items-center justify-between gap-3">
               <span>
                 <strong className="block text-sm text-white">Joueurs</strong>
-                <span className="mt-1 block text-[10px] text-white/45">3 à 12 joueurs. Appuyez pour cocher ou décocher.</span>
+                <span className="mt-1 block text-[10px] text-white/45">Sélectionnez les participants de la partie.</span>
               </span>
               <span className="rounded-full bg-[#6C5CFF]/15 px-3 py-1 text-[10px] font-black text-[#C4BEFF]">{selectedIds.length}/12</span>
             </div>
@@ -812,20 +814,20 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
                 </button>
               </div>
             </div>
-            <div className="mt-4 rounded-2xl border border-white/8 bg-white/5 p-3">
-              <div className="flex items-center justify-between gap-3">
+            <details className="mt-4 rounded-2xl border border-white/8 bg-white/5 p-3">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
                 <span>
-                  <strong className="block text-xs text-white">Mots personnalisés</strong>
-                  <span className="mt-1 block text-[9px] text-white/40">Enregistrés uniquement sur cet appareil.</span>
+                  <strong className="block text-xs text-white">Options de mots</strong>
+                  <span className="mt-1 block text-[9px] text-white/40">Ajouter quelques paires maison pour varier les parties.</span>
                 </span>
                 <span className="rounded-full bg-white/5 px-2 py-1 text-[9px] font-black text-white/45">{customPairs.length}/80</span>
-              </div>
+              </summary>
               <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
                 <input
                   value={customPublicWord}
                   onChange={event => setCustomPublicWord(event.target.value)}
                   maxLength={32}
-                  placeholder="Mot principal"
+                  placeholder="Mot commun"
                   className="min-w-0 rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-xs font-bold text-white outline-none placeholder:text-white/30"
                 />
                 <input
@@ -835,7 +837,7 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
                     if (event.key === 'Enter') addCustomPair();
                   }}
                   maxLength={32}
-                  placeholder="Mot proche"
+                  placeholder="Mot voisin"
                   className="min-w-0 rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-xs font-bold text-white outline-none placeholder:text-white/30"
                 />
                 <button
@@ -862,16 +864,10 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
                   {customPairs.length > 8 && <p className="text-center text-[9px] font-bold text-white/35">+{customPairs.length - 8} autres paires</p>}
                 </div>
               )}
-            </div>
+            </details>
           </div>
 
           <div className="space-y-3 rounded-[24px] border border-white/8 bg-white/5 p-4">
-            <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
-              <strong className="block text-xs text-white">Déroulé</strong>
-              <span className="mt-1 block text-[9px] leading-relaxed text-white/45">
-                Un mot est donné à chaque joueur. Écrivez votre indice, dites-le à voix haute, puis débattez avant le vote.
-              </span>
-            </div>
             <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
               <strong className="block text-xs text-white">Temps par indice</strong>
               <div className="mt-3 grid grid-cols-3 gap-2">

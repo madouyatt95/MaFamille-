@@ -949,6 +949,20 @@ export function FamilyGames({
     setMemoryScores(Array.from({ length: Math.max(1, memoryCompetitorNames.length) }, () => 0));
   };
 
+  const closeMemoryCompletely = () => {
+    setMemoryStarted(false);
+    setMemoryRound(previous => previous + 1);
+    setFlippedCards([]);
+    setMatchedPairs([]);
+    setMemoryMoves(0);
+    setMemorySaved(false);
+    setMemoryCurrentPlayer(0);
+    setMemoryScores([]);
+    localStorage.removeItem(`mf_games_resume_${foyerId}`);
+    setResumeSnapshot(null);
+    setActiveGame(null);
+  };
+
   const startMemory = () => {
     const competitorCount = memoryMode === 'teams' ? 2 : memoryPlayers.length;
     if (competitorCount < 1) return;
@@ -1909,6 +1923,15 @@ export function FamilyGames({
         {activeGame === 'memory' && (
           <>
             {gameHeader('Memory famille', 'Trouvez une paire pour rejouer, sinon passez la main.', Brain)}
+            {memoryStarted && (
+              <button
+                type="button"
+                onClick={closeMemoryCompletely}
+                className="ml-auto flex items-center gap-2 rounded-2xl border border-[#FF4D6D]/25 bg-[#FF4D6D]/8 px-4 py-2.5 text-[10px] font-black text-[#FF9BAF]"
+              >
+                <X className="h-4 w-4" /> Fermer complètement la partie
+              </button>
+            )}
             {!memoryStarted ? (
               <section className="glass-panel rounded-[24px] border border-white/8 p-5 space-y-5">
                 <div>
@@ -2011,6 +2034,9 @@ export function FamilyGames({
                 </div>
                 <button type="button" onClick={resetMemory} className="mt-4 px-5 py-3 rounded-2xl bg-[#00D26A] text-[#07111F] text-xs font-black">
                   Nouvelle partie
+                </button>
+                <button type="button" onClick={closeMemoryCompletely} className="mt-4 ml-2 px-5 py-3 rounded-2xl border border-[#FF4D6D]/25 bg-[#FF4D6D]/8 text-[#FF9BAF] text-xs font-black">
+                  Fermer
                 </button>
                 <button
                   type="button"
