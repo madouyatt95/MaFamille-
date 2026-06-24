@@ -450,9 +450,15 @@ const getVictoryExplanation = (
 };
 
 export function AgentCacheGame({ members }: AgentCacheGameProps) {
+  const [extraPlayers, setExtraPlayers] = useState<Member[]>([]);
   const playableMembers = useMemo(
-    () => members.length > 0 ? members : [{ id: 'guest-1', name: 'Joueur 1' }, { id: 'guest-2', name: 'Joueur 2' }, { id: 'guest-3', name: 'Joueur 3' }] as Member[],
-    [members]
+    () => {
+      const baseMembers = members.length > 0
+        ? members
+        : [{ id: 'guest-1', name: 'Joueur 1' }, { id: 'guest-2', name: 'Joueur 2' }, { id: 'guest-3', name: 'Joueur 3' }] as Member[];
+      return [...baseMembers, ...extraPlayers];
+    },
+    [extraPlayers, members]
   );
   const [selectedIds, setSelectedIds] = useState<string[]>(() => playableMembers.slice(0, Math.min(6, playableMembers.length)).map(member => member.id));
   const [stage, setStage] = useState<Stage>('setup');
@@ -471,6 +477,7 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
   const [clueDuration, setClueDuration] = useState<(typeof CLUE_DURATIONS)[number]>(15);
   const [whiteGuessInput, setWhiteGuessInput] = useState('');
   const [finalRevealCount, setFinalRevealCount] = useState(1);
+  const [newPlayerName, setNewPlayerName] = useState('');
 
   const selectedMembers = useMemo(
     () => selectedIds.map(id => playableMembers.find(member => member.id === id)).filter((member): member is Member => Boolean(member)),
@@ -490,6 +497,15 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
       if (previous.length >= 12) return previous;
       return [...previous, memberId];
     });
+  };
+
+  const addExtraPlayer = () => {
+    const name = newPlayerName.trim();
+    if (!name) return;
+    const id = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setExtraPlayers(previous => [...previous, { id, name } as Member]);
+    setSelectedIds(previous => previous.length >= 12 ? previous : [...previous, id]);
+    setNewPlayerName('');
   };
 
   const startGame = () => {
@@ -723,6 +739,29 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
                   </button>
                 );
               })}
+            </div>
+            <div className="mt-4 rounded-2xl border border-white/8 bg-white/5 p-3">
+              <strong className="block text-xs text-white">Ajouter un joueur</strong>
+              <div className="mt-2 flex gap-2">
+                <input
+                  value={newPlayerName}
+                  onChange={event => setNewPlayerName(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') addExtraPlayer();
+                  }}
+                  maxLength={24}
+                  placeholder="Prénom"
+                  className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-xs font-bold text-white outline-none placeholder:text-white/30"
+                />
+                <button
+                  type="button"
+                  onClick={addExtraPlayer}
+                  disabled={!newPlayerName.trim() || selectedIds.length >= 12}
+                  className="rounded-xl bg-[#6C5CFF] px-4 py-2 text-xs font-black text-white disabled:opacity-40"
+                >
+                  Ajouter
+                </button>
+              </div>
             </div>
           </div>
 
@@ -986,13 +1025,22 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
           {players.slice(0, finalRevealCount).map(player => <RoleRevealCard key={player.id} player={player} />)}
         </div>
         {finalRevealCount < players.length && (
-          <button
-            type="button"
-            onClick={() => setFinalRevealCount(count => Math.min(players.length, count + 1))}
-            className="mt-3 w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-xs font-black text-white/70"
-          >
-            Révéler le rôle suivant
-          </button>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setFinalRevealCount(count => Math.min(players.length, count + 1))}
+              className="rounded-2xl border border-white/10 bg-white/5 py-3 text-xs font-black text-white/70"
+            >
+              Révéler le rôle suivant
+            </button>
+            <button
+              type="button"
+              onClick={() => setFinalRevealCount(players.length)}
+              className="rounded-2xl bg-[#6C5CFF] py-3 text-xs font-black text-white"
+            >
+              Tout révéler
+            </button>
+          </div>
         )}
         {pair && (
           <p className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-3 text-center text-xs font-bold text-white/65">
@@ -1056,7 +1104,7 @@ function EliminatedRevealCard({ player }: { player: Player }) {
           <span className="mt-3 inline-flex w-fit rounded-full bg-black/20 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white/75">
             {ROLE_LABELS[player.role]}
           </span>
-          <p className="mt-3 text-sm font-bold text-white/60">{player.word || 'Aucun mot'}</p>
+          <p className="mt-3 text-sm font-bold text-white/60">Mot masqué jusqu’à la fin de partie</p>
         </div>
       </div>
     </div>
