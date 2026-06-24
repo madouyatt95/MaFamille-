@@ -8,6 +8,7 @@ import {
   Check,
   ChevronRight,
   Circle,
+  Fingerprint,
   Gamepad2,
   Gift,
   Grid3X3,
@@ -50,7 +51,7 @@ import {
   type FamilyChallengeQuestion
 } from '../data/familyChallengeQuestions';
 
-type GameId = FamilyGameType | 'village-secret';
+type GameId = FamilyGameType | 'village-secret' | 'agent-cache';
 type MemoryCard = {
   id: string;
   pairId: string;
@@ -123,12 +124,18 @@ const GAME_COVER_POSITIONS: Record<GameId, string> = {
   battleship: '100% 0%',
   'family-challenge': '0% 100%',
   'mime-challenge': '50% 100%',
-  'village-secret': '100% 100%'
+  'village-secret': '100% 100%',
+  'agent-cache': '0% 0%'
 };
 
 const VillageSecretGame = lazy(async () => {
   const module = await import('../components/games/VillageSecretGame');
   return { default: module.VillageSecretGame };
+});
+
+const AgentCacheGame = lazy(async () => {
+  const module = await import('../components/games/AgentCacheGame');
+  return { default: module.AgentCacheGame };
 });
 
 interface FamilyGamesProps {
@@ -616,7 +623,7 @@ export function FamilyGames({
   }, [activeGame, board, connectDraw, connectVsBot, connectWinner, currentPlayer, foyerId, matchedPairs, memoryCurrentPlayer, memoryMode, memoryMoves, memoryPairCount, memoryPlayerIds, memoryRound, memoryScores, memorySource, memoryStarted]);
 
   const openGame = useCallback((gameId: GameId) => {
-    if (gameId === 'village-secret' && !isPremium) {
+    if ((gameId === 'village-secret' || gameId === 'agent-cache') && !isPremium) {
       onTriggerPaywall?.();
       return;
     }
@@ -1235,6 +1242,21 @@ export function FamilyGames({
       premiumBenefits: ['Six paquets complets', 'Cartes personnalisées', 'Historique des scores']
     },
     {
+      id: 'agent-cache' as const,
+      title: 'Agent caché',
+      description: 'Un mot commun, un agent avec un mot proche, un Agent blanc sans indice et un vote final.',
+      icon: Fingerprint,
+      accent: '#FF4D6D',
+      coverPosition: GAME_COVER_POSITIONS['agent-cache'],
+      coverImage: '/game-assets/agent-cache-cards.jpg',
+      coverSize: '200% auto',
+      meta: '3 à 12 joueurs · 10 min',
+      tags: ['premium', 'quick', 'team', 'kids'],
+      modes: ['Un seul téléphone', 'Agent blanc', 'Packs locaux'],
+      premiumBenefits: ['Jeu 100% local', 'Packs de mots famille', 'Révélation premium'],
+      premiumOnly: true
+    },
+    {
       id: 'village-secret' as const,
       title: 'Village Secret',
       description: 'Rôles secrets, alliances, débats et votes guidés par un maître du jeu automatique.',
@@ -1556,8 +1578,8 @@ export function FamilyGames({
                     <span
                       className="absolute inset-0 bg-cover bg-no-repeat transition-transform duration-500 group-hover:scale-105"
                       style={{
-                        backgroundImage: "url('/game-assets/family-games-covers.webp')",
-                        backgroundSize: '300% auto',
+                        backgroundImage: `url('${'coverImage' in game && game.coverImage ? game.coverImage : '/game-assets/family-games-covers.webp'}')`,
+                        backgroundSize: 'coverSize' in game && game.coverSize ? game.coverSize : '300% auto',
                         backgroundPosition: game.coverPosition
                       }}
                     />
@@ -1840,7 +1862,14 @@ export function FamilyGames({
           <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center" onClick={() => setPreviewGameId(null)}>
             <section role="dialog" aria-modal="true" aria-labelledby="game-preview-title" className="app-dialog-surface max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-[26px] border border-white/10 bg-[#111827] shadow-2xl" onClick={event => event.stopPropagation()}>
               <div className="family-game-cover-card family-game-preview-cover relative overflow-hidden rounded-t-[25px]">
-                <span className="absolute inset-0 bg-no-repeat" style={{ backgroundImage: "url('/game-assets/family-games-covers.webp')", backgroundSize: '300% auto', backgroundPosition: previewedGame.coverPosition }} />
+                <span
+                  className="absolute inset-0 bg-no-repeat"
+                  style={{
+                    backgroundImage: `url('${'coverImage' in previewedGame && previewedGame.coverImage ? previewedGame.coverImage : '/game-assets/family-games-covers.webp'}')`,
+                    backgroundSize: 'coverSize' in previewedGame && previewedGame.coverSize ? previewedGame.coverSize : '300% auto',
+                    backgroundPosition: previewedGame.coverPosition
+                  }}
+                />
                 <span className="absolute inset-0 bg-gradient-to-t from-[#111827] via-transparent to-black/25" />
                 <button type="button" onClick={() => setPreviewGameId(null)} className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur-md" aria-label="Fermer la présentation"><X className="h-5 w-5" /></button>
                 <button type="button" onClick={() => toggleFavorite(previewedGame.id)} className="absolute left-3 top-3 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur-md" aria-label={favoriteGameIds.includes(previewedGame.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}>
@@ -2528,6 +2557,22 @@ export function FamilyGames({
               onTriggerPaywall={onTriggerPaywall}
               onFinished={(scores, rounds, winnerName) => void saveResult('mime-challenge', scores, winnerName, { rounds }, teamSettings.names)}
             />
+          </>
+        )}
+
+        {activeGame === 'agent-cache' && (
+          <>
+            {gameHeader('Agent caché', 'Un mot commun, un agent avec un mot proche et un Agent blanc sans indice.', Fingerprint)}
+            <button
+              type="button"
+              onClick={() => setActiveGame(null)}
+              className="ml-auto flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-[10px] font-black text-white/60"
+            >
+              <X className="h-4 w-4" /> Fermer
+            </button>
+            <Suspense fallback={<div className="rounded-[28px] border border-white/8 bg-white/5 p-8 text-center text-xs font-bold text-white/55">Préparation des cartes secrètes...</div>}>
+              <AgentCacheGame members={members} />
+            </Suspense>
           </>
         )}
 
