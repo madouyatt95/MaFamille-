@@ -3,9 +3,11 @@ import {
   ArrowLeft,
   Check,
   Eye,
+  Plus,
   RotateCcw,
   Shield,
   Sparkles,
+  Trash2,
   UserRound,
   Users,
   Vote
@@ -53,6 +55,7 @@ interface AgentCacheGameProps {
 
 const CARD_IMAGE = '/game-assets/agent-cache-cards.jpg';
 const USED_PAIRS_KEY = 'mf_agent_cache_used_pairs_v1';
+const CUSTOM_PAIRS_KEY = 'mf_agent_cache_custom_pairs_v1';
 
 const WORD_PAIRS: WordPair[] = [
   { pack: 'famille', publicWord: 'Cousin', undercoverWord: 'Voisin' },
@@ -373,13 +376,27 @@ const isCitizenWordGuess = (guess: string, citizenWord: string) => {
 
 const pairKey = (pair: WordPair) => `${pair.publicWord}|${pair.undercoverWord}`;
 
-const pickFreshPair = () => {
-  const fallback = WORD_PAIRS[Math.floor(Math.random() * WORD_PAIRS.length)] || WORD_PAIRS[0];
+const loadCustomPairs = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CUSTOM_PAIRS_KEY) || '[]') as WordPair[];
+    return parsed.filter(pair => pair?.publicWord?.trim() && pair?.undercoverWord?.trim()).slice(0, 80);
+  } catch {
+    return [];
+  }
+};
+
+const saveCustomPairs = (pairs: WordPair[]) => {
+  localStorage.setItem(CUSTOM_PAIRS_KEY, JSON.stringify(pairs.slice(0, 80)));
+};
+
+const pickFreshPair = (customPairs: WordPair[] = []) => {
+  const allPairs = [...customPairs, ...WORD_PAIRS];
+  const fallback = allPairs[Math.floor(Math.random() * allPairs.length)] || WORD_PAIRS[0];
   try {
     const usedKeys = JSON.parse(localStorage.getItem(USED_PAIRS_KEY) || '[]') as string[];
     const usedSet = new Set(usedKeys);
-    const freshPairs = WORD_PAIRS.filter(pair => !usedSet.has(pairKey(pair)));
-    const pool = freshPairs.length > 0 ? freshPairs : WORD_PAIRS;
+    const freshPairs = allPairs.filter(pair => !usedSet.has(pairKey(pair)));
+    const pool = freshPairs.length > 0 ? freshPairs : allPairs;
     const selected = pool[Math.floor(Math.random() * pool.length)] || fallback;
     const nextKeys = [pairKey(selected), ...usedKeys.filter(key => key !== pairKey(selected))].slice(0, 120);
     localStorage.setItem(USED_PAIRS_KEY, JSON.stringify(nextKeys));
@@ -422,6 +439,12 @@ const roleBorderClass = (role: Role) => {
   if (role === 'undercover') return 'border-[#FF4D6D]/30 bg-[#FF4D6D]/10';
   if (role === 'white') return 'border-[#FFB020]/30 bg-[#FFB020]/10';
   return 'border-[#00D26A]/25 bg-[#00D26A]/10';
+};
+
+const winnerRole = (winner: ReturnType<typeof checkWinner>): Role => {
+  if (winner === 'white') return 'white';
+  if (winner === 'undercover') return 'undercover';
+  return 'citizen';
 };
 
 const checkWinner = (alivePlayers: Player[]) => {
@@ -478,6 +501,9 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
   const [whiteGuessInput, setWhiteGuessInput] = useState('');
   const [finalRevealCount, setFinalRevealCount] = useState(1);
   const [newPlayerName, setNewPlayerName] = useState('');
+  const [customPairs, setCustomPairs] = useState<WordPair[]>(() => loadCustomPairs());
+  const [customPublicWord, setCustomPublicWord] = useState('');
+  const [customUndercoverWord, setCustomUndercoverWord] = useState('');
 
   const selectedMembers = useMemo(
     () => selectedIds.map(id => playableMembers.find(member => member.id === id)).filter((member): member is Member => Boolean(member)),
@@ -489,7 +515,10 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
   const voteTargets = voteCandidates
     ? alivePlayers.filter(player => voteCandidates.includes(player.id))
     : alivePlayers;
-  const clueRounds = Array.from(new Set(clues.map(clue => clue.round))).sort((a, b) => b - a);
+  const clueHistoryByPlayer = players.map(player => ({
+    player,
+    clues: clues.filter(clue => clue.playerId === player.id).sort((a, b) => a.round - b.round)
+  })).filter(item => item.clues.length > 0);
 
   const togglePlayer = (memberId: string) => {
     setSelectedIds(previous => {
@@ -508,8 +537,28 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
     setNewPlayerName('');
   };
 
+  const addCustomPair = () => {
+    const publicWord = customPublicWord.trim();
+    const undercoverWord = customUndercoverWord.trim();
+    if (!publicWord || !undercoverWord || normalizeGuess(publicWord) === normalizeGuess(undercoverWord)) return;
+    const nextPairs = [
+      { pack: 'famille' as const, publicWord, undercoverWord },
+      ...customPairs.filter(pair => pairKey(pair) !== `${publicWord}|${undercoverWord}`)
+    ].slice(0, 80);
+    setCustomPairs(nextPairs);
+    saveCustomPairs(nextPairs);
+    setCustomPublicWord('');
+    setCustomUndercoverWord('');
+  };
+
+  const removeCustomPair = (target: WordPair) => {
+    const nextPairs = customPairs.filter(pair => pairKey(pair) !== pairKey(target));
+    setCustomPairs(nextPairs);
+    saveCustomPairs(nextPairs);
+  };
+
   const startGame = () => {
-    const nextPair = pickFreshPair();
+    const nextPair = pickFreshPair(customPairs);
     const secretRoles = getSecretRoleCounts(selectedMembers.length);
     const roleDeck: Role[] = [
       ...Array.from({ length: secretRoles.undercoverCount }, () => 'undercover' as const),
@@ -763,6 +812,57 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
                 </button>
               </div>
             </div>
+            <div className="mt-4 rounded-2xl border border-white/8 bg-white/5 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <span>
+                  <strong className="block text-xs text-white">Mots personnalisés</strong>
+                  <span className="mt-1 block text-[9px] text-white/40">Enregistrés uniquement sur cet appareil.</span>
+                </span>
+                <span className="rounded-full bg-white/5 px-2 py-1 text-[9px] font-black text-white/45">{customPairs.length}/80</span>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                <input
+                  value={customPublicWord}
+                  onChange={event => setCustomPublicWord(event.target.value)}
+                  maxLength={32}
+                  placeholder="Mot principal"
+                  className="min-w-0 rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-xs font-bold text-white outline-none placeholder:text-white/30"
+                />
+                <input
+                  value={customUndercoverWord}
+                  onChange={event => setCustomUndercoverWord(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') addCustomPair();
+                  }}
+                  maxLength={32}
+                  placeholder="Mot proche"
+                  className="min-w-0 rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-xs font-bold text-white outline-none placeholder:text-white/30"
+                />
+                <button
+                  type="button"
+                  onClick={addCustomPair}
+                  disabled={!customPublicWord.trim() || !customUndercoverWord.trim() || customPairs.length >= 80}
+                  className="inline-flex items-center justify-center gap-1 rounded-xl bg-[#00D26A] px-3 py-2 text-xs font-black text-[#07111F] disabled:opacity-40"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Ajouter
+                </button>
+              </div>
+              {customPairs.length > 0 && (
+                <div className="mt-3 max-h-32 space-y-2 overflow-y-auto pr-1">
+                  {customPairs.slice(0, 8).map(pairItem => (
+                    <div key={pairKey(pairItem)} className="flex items-center justify-between gap-2 rounded-xl bg-black/10 px-3 py-2">
+                      <span className="min-w-0 truncate text-[10px] font-bold text-white/70">
+                        {pairItem.publicWord} / {pairItem.undercoverWord}
+                      </span>
+                      <button type="button" onClick={() => removeCustomPair(pairItem)} className="shrink-0 rounded-lg border border-white/10 bg-white/5 p-1 text-white/45">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {customPairs.length > 8 && <p className="text-center text-[9px] font-bold text-white/35">+{customPairs.length - 8} autres paires</p>}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-3 rounded-[24px] border border-white/8 bg-white/5 p-4">
@@ -877,15 +977,21 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
           <p className="mt-2 text-xs leading-relaxed text-white/55">Les indices des tours précédents restent visibles. Discutez, défendez-vous, puis votez pour éliminer un suspect.</p>
         </div>
         <div className="space-y-3">
-          {clueRounds.map(clueRound => (
-            <div key={clueRound} className="rounded-2xl border border-white/8 bg-white/5 p-3">
-              <span className="text-[10px] font-black uppercase tracking-wider text-[#FFB020]">Tour {clueRound}</span>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {clues.filter(clue => clue.round === clueRound).map(clue => (
-                  <div key={`${clue.round}-${clue.playerId}`} className="rounded-xl bg-black/10 p-2">
-                    <strong className="block text-[11px] text-white">{clue.playerName}</strong>
-                    <span className="mt-1 block text-sm font-black text-white/80">{clue.text}</span>
-                  </div>
+          {clueHistoryByPlayer.map(({ player, clues: playerClues }) => (
+            <div key={player.id} className="rounded-2xl border border-white/8 bg-white/5 p-3">
+              <div className="flex items-center gap-3">
+                {player.photoUrl ? <img src={player.photoUrl} alt="" className="h-9 w-9 rounded-full object-cover" /> : <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/8 text-[10px] font-black text-white">{getInitials(player.name)}</span>}
+                <span className="min-w-0 flex-1">
+                  <strong className="block truncate text-xs text-white">{player.name}</strong>
+                  <span className="text-[9px] text-white/40">{player.eliminated ? 'Éliminé' : 'Encore en jeu'}</span>
+                </span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {playerClues.map(clue => (
+                  <span key={`${clue.round}-${clue.playerId}`} className="rounded-xl border border-white/8 bg-black/10 px-3 py-2">
+                    <span className="block text-[8px] font-black uppercase tracking-wider text-[#FFB020]">Tour {clue.round}</span>
+                    <span className="block text-sm font-black text-white/80">{clue.text}</span>
+                  </span>
                 ))}
               </div>
             </div>
@@ -1000,27 +1106,15 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
 
   return (
     <section className="mx-auto max-w-2xl space-y-4">
-      <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[#10172A] p-5 text-center shadow-2xl">
-        <span className="absolute inset-0 bg-cover bg-center opacity-45" style={{ backgroundImage: `url('${CARD_IMAGE}')` }} />
-        <span className="absolute inset-0 bg-[#080B16]/70" />
-        <div className="relative">
-          <TrophyIcon winner={winner} />
-          <h2 className="mt-3 text-2xl font-black text-white">
-            {winner === 'citizens' ? 'Les citoyens gagnent !' : winner === 'white' ? 'L’Agent blanc gagne !' : 'Les agents cachés gagnent !'}
-          </h2>
-          <p className="mt-2 text-xs leading-relaxed text-white/70">
-            {getVictoryExplanation(winner, pair)}
-          </p>
-          {voteOutcome && (
-            <p className="mt-2 text-xs leading-relaxed text-white/60">
-              {voteOutcome.eliminatedName && voteOutcome.eliminatedRole
-                ? `Dernier éliminé : ${voteOutcome.eliminatedName}, ${ROLE_LABELS[voteOutcome.eliminatedRole]}.`
-                : 'La partie s’est terminée avant une nouvelle élimination.'}
-            </p>
-          )}
-        </div>
-      </div>
+      <WinnerCard winner={winner} pair={pair} voteOutcome={voteOutcome} />
       <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <span>
+            <strong className="block text-sm text-white">Révélation finale</strong>
+            <span className="mt-1 block text-[10px] text-white/45">Les rôles apparaissent progressivement pour garder le suspense.</span>
+          </span>
+          <span className="rounded-full bg-white/5 px-3 py-1 text-[10px] font-black text-white/45">{Math.min(finalRevealCount, players.length)}/{players.length}</span>
+        </div>
         <div className="grid gap-2 sm:grid-cols-2">
           {players.slice(0, finalRevealCount).map(player => <RoleRevealCard key={player.id} player={player} />)}
         </div>
@@ -1048,6 +1142,21 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
           </p>
         )}
       </div>
+      {clueHistoryByPlayer.length > 0 && (
+        <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+          <strong className="block text-sm text-white">Indices de la partie</strong>
+          <div className="mt-3 space-y-2">
+            {clueHistoryByPlayer.map(({ player, clues: playerClues }) => (
+              <div key={player.id} className="rounded-2xl bg-black/10 p-3">
+                <strong className="block text-xs text-white">{player.name}</strong>
+                <p className="mt-1 text-[10px] font-bold leading-relaxed text-white/55">
+                  {playerClues.map(clue => `Tour ${clue.round} : ${clue.text}`).join(' · ')}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <button type="button" onClick={resetGame} className="flex items-center justify-center gap-2 rounded-2xl bg-[#6C5CFF] py-3 text-xs font-black text-white"><RotateCcw className="h-4 w-4" /> Nouvelle partie</button>
         <button type="button" onClick={() => setStage('setup')} className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 py-3 text-xs font-black text-white/65"><ArrowLeft className="h-4 w-4" /> Réglages</button>
@@ -1056,10 +1165,46 @@ export function AgentCacheGame({ members }: AgentCacheGameProps) {
   );
 }
 
-function TrophyIcon({ winner }: { winner: ReturnType<typeof checkWinner> }) {
-  if (winner === 'white') return <UserRound className="mx-auto h-12 w-12 text-[#FFB020]" />;
-  if (winner === 'citizens') return <Users className="mx-auto h-12 w-12 text-[#00D26A]" />;
-  return <Shield className="mx-auto h-12 w-12 text-[#FF4D6D]" />;
+function WinnerCard({
+  winner,
+  pair,
+  voteOutcome
+}: {
+  winner: ReturnType<typeof checkWinner>;
+  pair: WordPair | null;
+  voteOutcome: VoteOutcome | null;
+}) {
+  const role = winnerRole(winner);
+  const title = winner === 'citizens' ? 'Les citoyens gagnent !' : winner === 'white' ? 'L’Agent blanc gagne !' : 'Les agents cachés gagnent !';
+  const Icon = winner === 'citizens' ? Users : winner === 'white' ? UserRound : Shield;
+  return (
+    <div className={`overflow-hidden rounded-[30px] border ${roleBorderClass(role)} shadow-2xl`}>
+      <div className="grid gap-0 sm:grid-cols-[220px_1fr]">
+        <span
+          className="min-h-[240px] bg-cover bg-no-repeat"
+          style={{
+            backgroundImage: `url('${CARD_IMAGE}')`,
+            backgroundPosition: roleImagePosition(role),
+            backgroundSize: '200% auto'
+          }}
+        />
+        <div className="flex flex-col justify-center bg-[#10172A]/85 p-5 text-left">
+          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white/60">
+            <Icon className="h-3.5 w-3.5" /> Équipe gagnante
+          </span>
+          <h2 className="mt-4 text-2xl font-black text-white">{title}</h2>
+          <p className="mt-2 text-xs leading-relaxed text-white/70">{getVictoryExplanation(winner, pair)}</p>
+          {voteOutcome && (
+            <p className="mt-3 rounded-2xl border border-white/8 bg-black/10 p-3 text-xs leading-relaxed text-white/60">
+              {voteOutcome.eliminatedName && voteOutcome.eliminatedRole
+                ? `Dernier éliminé : ${voteOutcome.eliminatedName}, ${ROLE_LABELS[voteOutcome.eliminatedRole]}.`
+                : 'La partie s’est terminée avant une nouvelle élimination.'}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function RoleRevealCard({ player }: { player: Player }) {
