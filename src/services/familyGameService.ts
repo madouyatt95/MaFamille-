@@ -480,6 +480,21 @@ export const familyGameService = {
     return Array.isArray(data) ? data.filter((cell): cell is string => typeof cell === 'string') : [];
   },
 
+  async getBattleshipRevealedFleets(roomId: string, foyerId: string): Promise<{ host: string[]; guest: string[] } | null> {
+    const client = getSupabaseClient();
+    if (!client) return null;
+    const { data, error } = await client.rpc('get_battleship_revealed_fleets', {
+      p_room_id: roomId,
+      p_foyer_id: foyerId
+    });
+    if (error || !data || typeof data !== 'object') return null;
+    const value = data as { host?: unknown; guest?: unknown };
+    return {
+      host: Array.isArray(value.host) ? value.host.filter((cell): cell is string => typeof cell === 'string') : [],
+      guest: Array.isArray(value.guest) ? value.guest.filter((cell): cell is string => typeof cell === 'string') : []
+    };
+  },
+
   subscribeToRoom(roomId: string, onRoom: (room: FamilyGameRoom) => void): RealtimeChannel | null {
     const client = getSupabaseClient();
     if (!client) return null;

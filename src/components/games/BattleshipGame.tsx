@@ -76,6 +76,7 @@ export function BattleshipGame({
   const [busy, setBusy] = useState(false);
   const [privateFleetPlaced, setPrivateFleetPlaced] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [revealedPrivateFleets, setRevealedPrivateFleets] = useState<{ host: string[]; guest: string[] } | null>(null);
   const reportedPrivateWinner = useRef<number | null>(null);
   const celebratedWinner = useRef<number | null>(null);
   const privateRoom = room?.gameType === 'battleship' ? room : null;
@@ -102,6 +103,10 @@ export function BattleshipGame({
   }, [mode, privateWinner, winner]);
   const ownFleet = fleets[mode === 'private' ? localPrivateIndex : currentPlayer];
   const ownFleetSet = useMemo(() => fleetCells(ownFleet), [ownFleet]);
+  const privateOpponentFleetSet = useMemo(() => {
+    if (!revealedPrivateFleets) return null;
+    return new Set(localPrivateIndex === 0 ? revealedPrivateFleets.guest : revealedPrivateFleets.host);
+  }, [localPrivateIndex, revealedPrivateFleets]);
   const rematchRequested = localPrivateIndex === 0
     ? privateRoom?.state.rematchHost === true
     : privateRoom?.state.rematchGuest === true;
@@ -118,6 +123,7 @@ export function BattleshipGame({
     setWinner(null);
     setMessage('');
     setPrivateFleetPlaced(false);
+    setRevealedPrivateFleets(null);
     setBusy(false);
   }, []);
 
@@ -180,6 +186,13 @@ export function BattleshipGame({
     const winnerName = privateWinner === 0 ? privateRoom.hostName : (privateRoom.guestName || 'Famille invitée');
     onFinished(privateWinner === localPrivateIndex ? [1, 0] : [0, 1], winnerName, 'private');
   }, [currentUserId, localPrivateIndex, onFinished, privateRoom, privateWinner]);
+
+  useEffect(() => {
+    if (!privateRoom?.id || privateWinner === null || revealedPrivateFleets) return;
+    void familyGameService.getBattleshipRevealedFleets(privateRoom.id, foyerId).then(fleetsResult => {
+      if (fleetsResult) setRevealedPrivateFleets(fleetsResult);
+    });
+  }, [foyerId, privateRoom?.id, privateWinner, revealedPrivateFleets]);
 
   const chooseBotCell = (botShots: Shot[]): string => {
     const tried = new Set(botShots.map(shot => shot.cell));
@@ -303,7 +316,7 @@ export function BattleshipGame({
     }
   };
 
-  const renderGrid = (gridShots: Shot[], ships: Set<string> | null, onCell: (cell: string) => void, disabled = false) => (
+  const renderGrid = (gridShots: Shot[], ships: Set<string> | null, onCell: (cell: string) => void, disabled = false, revealMissingShips = false) => (
     <div className="battleship-grid grid grid-cols-10 gap-1 rounded-[20px] border border-[#4F8CFF]/25 bg-[#4F8CFF]/8 p-2">
       {CELLS.map(cell => {
         const shot = gridShots.find(item => item.cell === cell);
@@ -317,6 +330,7 @@ export function BattleshipGame({
             className={`aspect-square min-w-0 rounded-[5px] border transition-all ${
               shot?.result === 'hit' ? 'border-[#FF4D6D] bg-[#FF4D6D] shadow-[0_0_10px_rgba(255,77,109,.4)]'
                 : shot?.result === 'miss' ? 'border-[#4F8CFF]/20 bg-white/45'
+                  : ship && revealMissingShips ? 'border-[#FFB020] bg-[#FFB020] shadow-[0_0_10px_rgba(255,176,32,.35)]'
                   : ship ? 'border-[#6C5CFF]/45 bg-[#6C5CFF]/55'
                     : 'border-[#4F8CFF]/12 bg-[#4F8CFF]/12 hover:bg-[#4F8CFF]/25'
             }`}
@@ -431,7 +445,12 @@ export function BattleshipGame({
                 )}
                 <div>
                   <div className="mb-2 flex items-center justify-between"><strong className="text-xs text-white">Océan adverse</strong><Crosshair className="h-4 w-4 text-[#FF4D6D]" /></div>
-                  {renderGrid(privateShots[localPrivateIndex], null, cell => void firePrivateShot(cell), !bothPrivateReady || privateTurn !== localPrivateIndex || privateWinner !== null || busy)}
+                  {renderGrid(privateShots[localPrivateIndex], privateWinner !== null ? privateOpponentFleetSet : null, cell => void firePrivateShot(cell), !bothPrivateReady || privateTurn !== localPrivateIndex || privateWinner !== null || busy, privateWinner !== null)}
+                  {privateWinner !== null && (
+                    <p className="mt-2 text-[10px] font-bold text-white/45">
+                      Rouge : touché · Bleu : raté · Jaune : bateau non trouvé.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <div className="mb-2 flex items-center justify-between"><strong className="text-xs text-white">Votre flotte</strong><Shield className="h-4 w-4 text-[#6C5CFF]" /></div>
@@ -493,6 +512,11 @@ export function BattleshipGame({
         <div className="game-victory rounded-[24px] border border-[#00D26A]/25 bg-[#00D26A]/8 p-6 text-center">
           <Check className="mx-auto h-10 w-10 text-[#00D26A]" />
           <h2 className="mt-3 text-lg font-black text-white">{winner === 1 && mode === 'bot' ? 'L’ordinateur gagne cette bataille' : `${playerNames[winner]} remporte la bataille !`}</h2>
+          <div className="mt-5 text-left">
+            <div className="mb-2 flex items-center justify-between"><strong className="text-xs text-white">Flotte adverse révélée</strong><Ship className="h-4 w-4 text-[#FFB020]" /></div>
+            {renderGrid(shots[winner], fleetCells(fleets[winner === 0 ? 1 : 0]), () => undefined, true, true)}
+            <p className="mt-2 text-[10px] font-bold text-white/50">Jaune : bateau restant à trouver.</p>
+          </div>
           <button type="button" onClick={reset} className="mt-5 rounded-2xl bg-[#4F8CFF] px-6 py-3 text-xs font-black text-white">Nouvelle bataille</button>
         </div>
       )}

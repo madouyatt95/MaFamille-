@@ -1014,10 +1014,15 @@ export function FamilyGames({
       : Array(42).fill(0);
     return Array.from({ length: 6 }, (_, row) => flat.slice(row * 7, row * 7 + 7) as ConnectCell[]);
   }, [connectRoom]);
+  const privateConnectIdentityReady = Boolean(!connectRoom || currentUserId);
   const privateConnectPlayer: 1 | 2 = connectRoom?.guestUserId === currentUserId ? 2 : 1;
   const privateConnectTurn: 1 | 2 = connectRoom?.state.turn === 2 ? 2 : 1;
-  const privateConnectWinner = connectRoom?.state.winner === 1 || connectRoom?.state.winner === 2
+  const privateConnectBoardWinner = getConnectWinner(privateConnectBoard);
+  const privateConnectStateWinner = connectRoom?.state.winner === 1 || connectRoom?.state.winner === 2
     ? connectRoom.state.winner
+    : 0;
+  const privateConnectWinner = privateConnectStateWinner && privateConnectStateWinner === privateConnectBoardWinner
+    ? privateConnectStateWinner
     : 0;
   const privateConnectDraw = connectRoom?.state.draw === true;
   const privateConnectRematchRequested = privateConnectPlayer === 1
@@ -1045,7 +1050,7 @@ export function FamilyGames({
   }, [connectRoom, currentUserId, privateConnectDraw, privateConnectWinner, saveResult]);
 
   const playPrivateConnectColumn = async (column: number) => {
-    if (!connectRoom || connectRoom.status !== 'active' || privateConnectTurn !== privateConnectPlayer || connectPrivateBusy) return;
+    if (!connectRoom || !privateConnectIdentityReady || connectRoom.status !== 'active' || privateConnectTurn !== privateConnectPlayer || connectPrivateBusy) return;
     setConnectPrivateBusy(true);
     setConnectPrivateMessage('');
     try {
@@ -2126,10 +2131,12 @@ export function FamilyGames({
                     </div>
                     <div className={`rounded-2xl border p-4 text-center ${privateConnectTurn === privateConnectPlayer && connectRoom.status === 'active' ? 'border-[#00D26A]/25 bg-[#00D26A]/8' : 'border-white/8 bg-white/5'}`}>
                       <strong className="text-sm text-white">
-                        {connectRoom.status === 'waiting'
+                        {!privateConnectIdentityReady
+                          ? 'Synchronisation du joueur...'
+                          : connectRoom.status === 'waiting'
                           ? 'En attente d’un autre joueur...'
                           : connectRoom.status === 'finished'
-                            ? privateConnectDraw ? 'Grille pleine : égalité' : privateConnectWinner === privateConnectPlayer ? 'Vous remportez la manche !' : 'L’autre joueur remporte la manche'
+                            ? privateConnectDraw ? 'Grille pleine : égalité' : privateConnectWinner ? privateConnectWinner === privateConnectPlayer ? 'Vous remportez la manche !' : 'L’autre joueur remporte la manche' : 'Manche terminée à relancer'
                             : privateConnectTurn === privateConnectPlayer ? 'À vous de jouer' : 'L’autre joueur réfléchit...'}
                       </strong>
                     </div>
@@ -2139,13 +2146,13 @@ export function FamilyGames({
                           <button
                             key={`${rowIndex}-${colIndex}`}
                             type="button"
-                            disabled={connectRoom.status !== 'active' || privateConnectTurn !== privateConnectPlayer || connectPrivateBusy || privateConnectWinner !== 0 || privateConnectDraw}
+                            disabled={!privateConnectIdentityReady || connectRoom.status !== 'active' || privateConnectTurn !== privateConnectPlayer || connectPrivateBusy || privateConnectWinner !== 0 || privateConnectDraw}
                             onClick={() => void playPrivateConnectColumn(colIndex)}
                             className="family-games-slot aspect-square rounded-full border p-[12%] disabled:cursor-default"
                             aria-label={`Colonne ${colIndex + 1}`}
                           >
                             <span className={`connect-piece block w-full h-full rounded-full ${
-                              cell === 1 ? 'bg-[#FF4D6D]' : cell === 2 ? 'bg-[#FFB020]' : 'bg-white/5'
+                              cell === 1 ? 'connect-piece-red bg-[#FF4D6D]' : cell === 2 ? 'connect-piece-yellow bg-[#FFB020]' : 'connect-piece-empty bg-white/5'
                             }`} />
                           </button>
                         )))}
@@ -2203,7 +2210,7 @@ export function FamilyGames({
                     aria-label={`Colonne ${colIndex + 1}`}
                   >
                     <span key={lastDroppedCell?.row === rowIndex && lastDroppedCell.column === colIndex ? lastDroppedCell.nonce : `${rowIndex}-${colIndex}-piece`} className={`connect-piece block w-full h-full rounded-full transition-colors ${lastDroppedCell?.row === rowIndex && lastDroppedCell.column === colIndex ? 'is-dropping' : ''} ${
-                      cell === 1 ? 'bg-[#FF4D6D]' : cell === 2 ? 'bg-[#FFB020]' : 'bg-white/5'
+                      cell === 1 ? 'connect-piece-red bg-[#FF4D6D]' : cell === 2 ? 'connect-piece-yellow bg-[#FFB020]' : 'connect-piece-empty bg-white/5'
                     }`} />
                   </button>
                 )))}
