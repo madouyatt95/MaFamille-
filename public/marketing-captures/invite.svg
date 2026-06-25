@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="1520" viewBox="0 0 390 760">
+  <defs>
+    <linearGradient id="shell" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#111827"/><stop offset="1" stop-color="#050914"/></linearGradient>
+    <radialGradient id="glow" cx="20%" cy="0%" r="70%"><stop stop-color="#FF4D6D" stop-opacity=".52"/><stop offset="1" stop-color="#FF4D6D" stop-opacity="0"/></radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="26" stdDeviation="22" flood-color="#101426" flood-opacity=".28"/></filter>
+  </defs>
+  <rect width="390" height="760" rx="42" fill="url(#shell)" filter="url(#shadow)"/>
+  <rect x="10" y="10" width="370" height="740" rx="33" fill="#07111F"/>
+  <rect x="10" y="10" width="370" height="740" rx="33" fill="url(#glow)"/>
+  <circle cx="330" cy="76" r="62" fill="#FFB020" fill-opacity=".12"/>
+  <rect x="166" y="24" width="58" height="7" rx="4" fill="rgba(255,255,255,.18)"/>
+  <circle cx="346" cy="58" r="22" fill="#FF4D6D" fill-opacity=".17"/>
+  <text x="42" y="74" fill="rgba(255,255,255,.48)" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="850" letter-spacing="1.2">MYFAMILY+</text>
+  <text x="42" y="112" fill="#fff" font-family="Inter, Arial, sans-serif" font-size="32" font-weight="950">Invitation foyer</text>
+  <text x="42" y="140" fill="rgba(255,255,255,.58)" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="650">Un proche rejoint le bon espace.</text>
+  <g font-family="Inter, Arial, sans-serif">
+  <rect x="42" y="190" width="306" height="200" rx="32" fill="rgba(255,255,255,.07)" stroke="rgba(255,255,255,.08)"/>
+  <text x="66" y="232" fill="rgba(255,255,255,.42)" font-size="12" font-weight="950">INVITATION</text>
+  <rect x="66" y="258" width="258" height="96" rx="28" fill="#fff"/>
+  <text x="195" y="292" fill="#667085" text-anchor="middle" font-size="12" font-weight="950">CODE FOYER</text>
+  <text x="195" y="330" fill="#101426" text-anchor="middle" font-size="36" font-weight="950" letter-spacing="3">MFP-482</text>
+  <rect x="42" y="420" width="306" height="58" rx="24" fill="rgba(255,255,255,.07)"/><text x="70" y="456" fill="#00D26A" font-size="17" font-weight="950">✓</text><text x="104" y="456" fill="rgba(255,255,255,.72)" font-size="15" font-weight="850">Lien prêt à partager</text><rect x="42" y="496" width="306" height="58" rx="24" fill="rgba(255,255,255,.07)"/><text x="70" y="532" fill="#00D26A" font-size="17" font-weight="950">✓</text><text x="104" y="532" fill="rgba(255,255,255,.72)" font-size="15" font-weight="850">Validation du foyer</text><rect x="42" y="572" width="306" height="58" rx="24" fill="rgba(255,255,255,.07)"/><text x="70" y="608" fill="#00D26A" font-size="17" font-weight="950">✓</text><text x="104" y="608" fill="rgba(255,255,255,.72)" font-size="15" font-weight="850">Accès adapté au rôle</text>
+  <rect x="42" y="654" width="306" height="58" rx="24" fill="#FF4D6D" fill-opacity=".13"/><text x="66" y="690" fill="rgba(255,255,255,.70)" font-size="14" font-weight="800">Lina a rejoint le foyer Martin.</text>
+</g>
+</svg>

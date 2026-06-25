@@ -76,12 +76,12 @@ function PhoneFrame({ screen }: { screen: DemoScreen }) {
   const Icon = screen.icon;
 
   return (
-    <article className="mx-auto w-full max-w-[390px]">
+    <article className="mx-auto w-full max-w-[390px]" data-capture-screen={screen.content}>
       <div className="mb-4">
         <h2 className="text-2xl font-black text-[#101426]">{screen.title}</h2>
         <p className="mt-1 text-sm font-semibold text-[#667085]">{screen.subtitle}</p>
       </div>
-      <div className="overflow-hidden rounded-[42px] border border-[#101426]/10 bg-[#08111F] p-3 shadow-2xl shadow-[#101426]/20">
+      <div className="overflow-hidden rounded-[42px] border border-[#101426]/10 bg-[#08111F] p-3 shadow-2xl shadow-[#101426]/20" data-phone-frame={screen.content}>
         <div className="min-h-[760px] overflow-hidden rounded-[32px] bg-[#07111F] text-white">
           <div className="relative p-5">
             <div

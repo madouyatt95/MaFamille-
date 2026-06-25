@@ -13,7 +13,6 @@ import {
   FileText,
   Gamepad2,
   HeartHandshake,
-  House,
   LockKeyhole,
   MessageCircle,
   Mic,
@@ -77,27 +76,39 @@ const experiences = [
 const productPreviews = [
   {
     title: 'Accueil familial',
-    icon: House,
-    tone: 'from-[#6C5CFF] to-[#9E94FF]',
-    lines: ['Vue famille', 'Planning du jour', 'Actions rapides']
+    tag: 'Vue du jour',
+    image: '/marketing-captures/home.svg',
+    text: 'La journée du foyer devient immédiatement lisible.'
   },
   {
     title: 'Budget clair',
-    icon: WalletCards,
-    tone: 'from-[#00A957] to-[#4EE38A]',
-    lines: ['Comptes', 'Argent de poche', 'Dépenses']
+    tag: 'Dépenses',
+    image: '/marketing-captures/budget.svg',
+    text: 'Les comptes, les mouvements et l’argent de poche gardent une forme simple.'
   },
   {
     title: 'Coffre-fort',
-    icon: LockKeyhole,
-    tone: 'from-[#101426] to-[#3B455A]',
-    lines: ['Documents', 'Partage maîtrisé', 'Liens temporaires']
+    tag: 'Documents',
+    image: '/marketing-captures/safe.svg',
+    text: 'Les documents importants restent rangés, protégés et partageables au bon moment.'
   },
   {
     title: 'Jeux du foyer',
-    icon: Gamepad2,
-    tone: 'from-[#FF9F1C] to-[#FF4D6D]',
-    lines: ['Village Secret', 'Défi famille', 'Agent caché']
+    tag: 'Moments',
+    image: '/marketing-captures/games.svg',
+    text: 'Des jeux familiaux prêts à lancer pour créer de vrais moments ensemble.'
+  },
+  {
+    title: 'Invitation foyer',
+    tag: 'Partage',
+    image: '/marketing-captures/invite.svg',
+    text: 'Un proche rejoint le bon foyer grâce à un code ou un lien clair.'
+  },
+  {
+    title: 'Premium',
+    tag: 'Confort',
+    image: '/marketing-captures/premium.svg',
+    text: 'L’assistant, le coffre-fort avancé et les jeux privés donnent de l’avance au foyer.'
   }
 ];
 
@@ -316,35 +327,31 @@ export function MarketingLanding() {
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="max-w-2xl">
-                <span className="text-sm font-black uppercase tracking-wide text-[#6C5CFF]">Aperçu produit</span>
-                <h2 className="mt-3 text-4xl font-black tracking-normal sm:text-5xl">On comprend l’app avant même de créer son compte.</h2>
+                <span className="text-sm font-black uppercase tracking-wide text-[#6C5CFF]">Aperçu en images</span>
+                <h2 className="mt-3 text-4xl font-black tracking-normal sm:text-5xl">De vrais écrans démo pour se projeter immédiatement.</h2>
               </div>
               <a href={appUrl} className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-wide text-[#6C5CFF]">
                 Voir l’application <ChevronRight className="h-5 w-5" />
               </a>
             </div>
-            <div className="grid gap-4 md:grid-cols-4">
-              {productPreviews.map(item => {
-                const Icon = item.icon;
-                return (
-                  <article key={item.title} className="group overflow-hidden rounded-[30px] border border-[#101426]/8 bg-white shadow-xl shadow-[#101426]/6 transition hover:-translate-y-1 hover:shadow-2xl">
-                    <div className={`bg-gradient-to-br ${item.tone} p-5 text-white`}>
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/18 backdrop-blur">
-                        <Icon className="h-6 w-6" />
-                      </div>
-                      <h3 className="mt-8 text-xl font-black">{item.title}</h3>
-                    </div>
-                    <div className="space-y-3 p-5">
-                      {item.lines.map(line => (
-                        <div key={line} className="flex items-center gap-3 rounded-2xl bg-[#F7F8FC] px-3 py-2 text-sm font-bold text-[#536073]">
-                          <Check className="h-4 w-4 text-[#00A957]" />
-                          {line}
-                        </div>
-                      ))}
-                    </div>
-                  </article>
-                );
-              })}
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {productPreviews.map(item => (
+                <article key={item.title} className="group overflow-hidden rounded-[32px] border border-[#101426]/8 bg-white shadow-xl shadow-[#101426]/6 transition hover:-translate-y-1 hover:shadow-2xl">
+                  <div className="bg-[#EEF2FA] px-6 pt-6">
+                    <img
+                      src={item.image}
+                      alt={`Aperçu MyFamily+ - ${item.title}`}
+                      loading="lazy"
+                      className="mx-auto h-[360px] w-auto drop-shadow-2xl transition duration-500 group-hover:scale-[1.02]"
+                    />
+                  </div>
+                  <div className="p-6">
+                    <span className="rounded-full bg-[#6C5CFF]/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-[#6C5CFF]">{item.tag}</span>
+                    <h3 className="mt-4 text-2xl font-black">{item.title}</h3>
+                    <p className="mt-3 text-sm font-semibold leading-6 text-[#667085]">{item.text}</p>
+                  </div>
+                </article>
+              ))}
             </div>
           </div>
         </section>

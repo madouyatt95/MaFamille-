@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="1520" viewBox="0 0 390 760">
+  <defs>
+    <linearGradient id="shell" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#111827"/><stop offset="1" stop-color="#050914"/></linearGradient>
+    <radialGradient id="glow" cx="20%" cy="0%" r="70%"><stop stop-color="#111827" stop-opacity=".52"/><stop offset="1" stop-color="#111827" stop-opacity="0"/></radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="26" stdDeviation="22" flood-color="#101426" flood-opacity=".28"/></filter>
+  </defs>
+  <rect width="390" height="760" rx="42" fill="url(#shell)" filter="url(#shadow)"/>
+  <rect x="10" y="10" width="370" height="740" rx="33" fill="#07111F"/>
+  <rect x="10" y="10" width="370" height="740" rx="33" fill="url(#glow)"/>
+  <circle cx="330" cy="76" r="62" fill="#FFB020" fill-opacity=".12"/>
+  <rect x="166" y="24" width="58" height="7" rx="4" fill="rgba(255,255,255,.18)"/>
+  <circle cx="346" cy="58" r="22" fill="#111827" fill-opacity=".17"/>
+  <text x="42" y="74" fill="rgba(255,255,255,.48)" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="850" letter-spacing="1.2">MYFAMILY+</text>
+  <text x="42" y="112" fill="#fff" font-family="Inter, Arial, sans-serif" font-size="32" font-weight="950">Coffre-fort</text>
+  <text x="42" y="140" fill="rgba(255,255,255,.58)" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="650">Documents et partages maîtrisés.</text>
+  <g font-family="Inter, Arial, sans-serif">
+  <rect x="42" y="190" width="306" height="70" rx="24" fill="#111E35" stroke="rgba(255,255,255,.07)"/><circle cx="74" cy="225" r="16" fill="#6C5CFF" fill-opacity=".22"/><text x="102" y="221" fill="#fff" font-size="16" font-weight="850">Carnet de santé</text><text x="102" y="241" fill="rgba(255,255,255,.48)" font-size="12" font-weight="650">Partage expirant demain</text><rect x="42" y="282" width="306" height="70" rx="24" fill="#111E35" stroke="rgba(255,255,255,.07)"/><circle cx="74" cy="317" r="16" fill="#00A957" fill-opacity=".22"/><text x="102" y="313" fill="#fff" font-size="16" font-weight="850">Assurance habitation</text><text x="102" y="333" fill="rgba(255,255,255,.48)" font-size="12" font-weight="650">Protégé</text><rect x="42" y="374" width="306" height="70" rx="24" fill="#111E35" stroke="rgba(255,255,255,.07)"/><circle cx="74" cy="409" r="16" fill="#FFB020" fill-opacity=".22"/><text x="102" y="405" fill="#fff" font-size="16" font-weight="850">Passeports famille</text><text x="102" y="425" fill="rgba(255,255,255,.48)" font-size="12" font-weight="650">Pack voyage</text>
+  <rect x="42" y="496" width="306" height="150" rx="32" fill="#fff"/>
+  <circle cx="76" cy="536" r="18" fill="#00D26A" fill-opacity=".15"/><text x="69" y="543" fill="#00A957" font-size="20" font-weight="950">✓</text>
+  <text x="106" y="542" fill="#101426" font-size="18" font-weight="950">Partage maîtrisé</text>
+  <text x="66" y="582" fill="#667085" font-size="14" font-weight="700">Le lien se ferme automatiquement</text><text x="66" y="604" fill="#667085" font-size="14" font-weight="700">à la date choisie.</text>
+  <rect x="66" y="624" width="132" height="34" rx="17" fill="#101426" fill-opacity=".16"/><text x="82" y="647" fill="#101426" font-size="13" font-weight="800">Lien sécurisé</text>
+</g>
+</svg>
