@@ -2,13 +2,13 @@ import { useState } from 'react';
 import {
   Apple,
   ArrowRight,
+  BadgeCheck,
   CalendarDays,
   Check,
   ChevronRight,
   Crown,
   Download,
   Gamepad2,
-  HeartHandshake,
   LockKeyhole,
   MessageCircle,
   Mic,
@@ -25,26 +25,26 @@ const appUrl = '/app';
 const pillars = [
   {
     icon: CalendarDays,
-    title: 'Un foyer qui respire',
-    text: 'Agenda, rappels, école, courses et documents restent au même endroit, sans multiplier les applis.'
+    title: 'Les journées se posent',
+    text: 'Planning, école, rappels, courses et moments importants se retrouvent dans un espace clair.'
   },
   {
     icon: PiggyBank,
-    title: 'Le budget devient clair',
-    text: 'Comptes, argent de poche, dépenses et abonnements prennent une forme lisible pour toute la famille.'
+    title: 'L’argent devient lisible',
+    text: 'Budget, comptes, argent de poche et dépenses prennent une forme simple, sans tableau compliqué.'
   },
   {
     icon: Gamepad2,
-    title: 'Des moments à partager',
-    text: 'Jeux familiaux, défis privés et rituels du soir transforment l’organisation en expérience vivante.'
+    title: 'La famille se retrouve',
+    text: 'Jeux, histoires du soir et petits rituels donnent envie d’ouvrir l’application ensemble.'
   }
 ];
 
 const premiumItems = [
-  'Micro intelligent pour ouvrir les modules et piloter les actions',
-  'Coffre-fort familial et packs de partage sécurisés',
-  'Jeux privés, progression, packs et statistiques',
-  'Organisation avancée du foyer et personnalisation'
+  'Assistant vocal pour agir vite sans chercher dans les menus',
+  'Coffre-fort familial avec liens de partage maîtrisés',
+  'Jeux privés, progression, packs et souvenirs de partie',
+  'Personnalisation avancée pour chaque foyer'
 ];
 
 const modules = [
@@ -54,25 +54,38 @@ const modules = [
   { label: 'Jeux', value: 'Soirée prête', icon: Gamepad2, tone: 'text-[#FFB020]' }
 ];
 
+const highlights = [
+  { value: '1', label: 'lieu pour le foyer' },
+  { value: '24h', label: 'de repères quotidiens' },
+  { value: 'Premium', label: 'pour aller plus loin' }
+];
+
+const experiences = [
+  ['Matin', 'Planning, école, trajets et rappels importants.'],
+  ['Journée', 'Courses, budget, messages et documents à portée de main.'],
+  ['Soir', 'Jeux, histoires, souvenirs et moments à partager.'],
+  ['Urgence', 'Informations utiles, contacts et documents protégés.']
+];
+
 export function MarketingLanding() {
   const [installHelpOpen, setInstallHelpOpen] = useState(false);
 
   return (
     <div className="min-h-screen overflow-hidden bg-[#F7F8FC] text-[#101426]">
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/25 bg-white/72 backdrop-blur-2xl">
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/30 bg-white/78 backdrop-blur-2xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <a href="/" className="flex items-center gap-3" aria-label="MyFamily+ accueil">
             <img src="/icon-192x192.png" alt="" className="h-10 w-10 rounded-2xl shadow-lg shadow-[#6C5CFF]/20" />
             <span className="text-lg font-black tracking-tight">MyFamily+</span>
           </a>
           <nav className="hidden items-center gap-6 text-sm font-bold text-[#536073] md:flex">
-            <a href="#modules" className="hover:text-[#101426]">Modules</a>
+            <a href="#modules" className="hover:text-[#101426]">Découvrir</a>
             <a href="#premium" className="hover:text-[#101426]">Premium</a>
-            <a href="#telecharger" className="hover:text-[#101426]">Télécharger</a>
+            <a href="#telecharger" className="hover:text-[#101426]">Commencer</a>
           </nav>
           <a
             href={appUrl}
-            className="inline-flex items-center gap-2 rounded-2xl bg-[#101426] px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white shadow-xl shadow-[#101426]/15"
+            className="inline-flex items-center gap-2 rounded-full bg-[#101426] px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white shadow-xl shadow-[#101426]/15"
           >
             Ouvrir <ArrowRight className="h-4 w-4" />
           </a>
@@ -93,33 +106,41 @@ export function MarketingLanding() {
           </div>
           <div className="relative mx-auto grid min-h-[calc(92vh-6rem)] max-w-6xl items-center gap-10 px-4 pb-12 sm:px-6 lg:grid-cols-[1.02fr_0.98fr]">
             <div className="max-w-2xl">
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#6C5CFF]/18 bg-white/82 px-3 py-2 text-xs font-black uppercase tracking-wide text-[#5B4EFA] shadow-lg shadow-[#6C5CFF]/8">
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#6C5CFF]/18 bg-white/88 px-3 py-2 text-xs font-black uppercase tracking-wide text-[#5B4EFA] shadow-lg shadow-[#6C5CFF]/8">
                 <Sparkles className="h-4 w-4" />
-                L’application familiale tout-en-un
+                L’espace privé des familles organisées
               </div>
               <h1 className="max-w-3xl text-5xl font-black leading-[0.96] tracking-normal text-[#101426] sm:text-6xl lg:text-7xl">
                 MyFamily+
               </h1>
               <p className="mt-6 max-w-xl text-lg font-semibold leading-8 text-[#536073] sm:text-xl">
-                Le cockpit doux et puissant pour organiser le foyer, suivre le budget, protéger les documents et créer des moments en famille.
+                Une application élégante pour organiser le foyer, suivre le budget, protéger les documents et créer des moments qui rassemblent.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a
                   href={appUrl}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6C5CFF] px-6 py-4 text-sm font-black uppercase tracking-wide text-white shadow-2xl shadow-[#6C5CFF]/25"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#6C5CFF] px-6 py-4 text-sm font-black uppercase tracking-wide text-white shadow-2xl shadow-[#6C5CFF]/25 transition hover:-translate-y-0.5 hover:shadow-[#6C5CFF]/35"
                 >
-                  Essayer maintenant <ChevronRight className="h-5 w-5" />
+                  Découvrir l’application <ChevronRight className="h-5 w-5" />
                 </a>
                 <button
                   type="button"
                   onClick={() => setInstallHelpOpen(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#101426]/10 bg-white px-6 py-4 text-sm font-black uppercase tracking-wide text-[#101426] shadow-xl shadow-[#101426]/8"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-[#101426]/10 bg-white px-6 py-4 text-sm font-black uppercase tracking-wide text-[#101426] shadow-xl shadow-[#101426]/8 transition hover:-translate-y-0.5"
                 >
-                  Installer la PWA <Download className="h-5 w-5" />
+                  Ajouter à mon téléphone <Download className="h-5 w-5" />
                 </button>
               </div>
-              <div className="mt-7 flex flex-wrap gap-3 text-sm font-bold text-[#536073]">
-                {['Foyer', 'Budget', 'Agenda', 'Coffre-fort', 'Jeux', 'IA'].map(item => (
+              <div className="mt-8 grid max-w-lg grid-cols-3 gap-3">
+                {highlights.map(item => (
+                  <div key={item.label} className="rounded-3xl border border-white/70 bg-white/82 p-4 shadow-xl shadow-[#101426]/6 backdrop-blur-xl">
+                    <strong className="block text-xl font-black text-[#101426]">{item.value}</strong>
+                    <span className="mt-1 block text-[11px] font-bold uppercase leading-4 text-[#667085]">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2 text-sm font-bold text-[#536073]">
+                {['Foyer', 'Budget', 'Agenda', 'Coffre-fort', 'Jeux', 'Assistant'].map(item => (
                   <span key={item} className="rounded-full border border-[#101426]/8 bg-white/78 px-3 py-2">{item}</span>
                 ))}
               </div>
@@ -150,6 +171,7 @@ export function MarketingLanding() {
               </div>
 
               <div className="relative rounded-[42px] border border-[#101426]/10 bg-[#101426] p-3 shadow-[0_38px_90px_rgba(16,20,38,0.28)]">
+                <div className="absolute -inset-1 rounded-[46px] bg-[linear-gradient(135deg,rgba(108,92,255,0.28),rgba(255,176,32,0.18),rgba(0,210,106,0.16))] blur-xl" />
                 <div className="overflow-hidden rounded-[32px] bg-[#08111F] text-white">
                   <div className="relative p-5">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(108,92,255,0.42),transparent_34%),radial-gradient(circle_at_90%_14%,rgba(255,176,32,0.18),transparent_26%)]" />
@@ -199,9 +221,14 @@ export function MarketingLanding() {
 
         <section id="modules" className="bg-white py-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="max-w-2xl">
-              <span className="text-sm font-black uppercase tracking-wide text-[#6C5CFF]">Pourquoi ça change tout</span>
-              <h2 className="mt-3 text-4xl font-black tracking-normal text-[#101426] sm:text-5xl">Une seule maison pour toute la vie familiale.</h2>
+            <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
+              <div className="max-w-2xl">
+                <span className="text-sm font-black uppercase tracking-wide text-[#6C5CFF]">Pensé pour le quotidien</span>
+                <h2 className="mt-3 text-4xl font-black tracking-normal text-[#101426] sm:text-5xl">Une seule maison numérique pour toute la vie familiale.</h2>
+              </div>
+              <p className="text-base font-semibold leading-7 text-[#667085]">
+                MyFamily+ n’ajoute pas une couche de plus à votre organisation. Elle remet de l’ordre, rend les priorités visibles et garde les informations importantes là où toute la famille peut les retrouver.
+              </p>
             </div>
             <div className="mt-10 grid gap-4 md:grid-cols-3">
               {pillars.map(item => {
@@ -223,21 +250,14 @@ export function MarketingLanding() {
         <section className="bg-[#101426] py-20 text-white">
           <div className="mx-auto grid max-w-6xl gap-8 px-4 sm:px-6 lg:grid-cols-[0.9fr_1.1fr]">
             <div>
-              <span className="text-sm font-black uppercase tracking-wide text-[#FFB020]">Une app qui vit avec vous</span>
+              <span className="text-sm font-black uppercase tracking-wide text-[#FFB020]">Du matin au soir</span>
               <h2 className="mt-3 text-4xl font-black tracking-normal sm:text-5xl">Du matin pressé au soir tranquille.</h2>
               <p className="mt-5 text-base font-semibold leading-7 text-white/62">
                 MyFamily+ rassemble les petites décisions du quotidien, les documents importants et les moments de lien dans une interface pensée pour les parents, les enfants et les ados.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              {[
-                ['Agenda partagé', 'Rappels, école, rendez-vous et routines.'],
-                ['Coffre-fort familial', 'Documents, packs de partage et expiration de liens.'],
-                ['Argent de poche', 'Soldes, mouvements et règles claires.'],
-                ['Jeux en famille', 'Memory, Défi famille, Village Secret, Agent caché.'],
-                ['Carte familiale', 'Lieux utiles, zones et favoris.'],
-                ['Messagerie', 'Échanges internes et informations du foyer.']
-              ].map(([title, text]) => (
+              {experiences.map(([title, text]) => (
                 <div key={title} className="rounded-3xl border border-white/8 bg-white/6 p-5">
                   <Star className="mb-4 h-5 w-5 text-[#FFB020]" />
                   <strong className="block text-lg">{title}</strong>
@@ -255,7 +275,7 @@ export function MarketingLanding() {
                 <Crown className="h-4 w-4" />
                 MyFamily+ Premium
               </div>
-              <h2 className="text-4xl font-black tracking-normal">La version qui donne au foyer un vrai pilote automatique.</h2>
+              <h2 className="text-4xl font-black tracking-normal">La version qui donne au foyer une longueur d’avance.</h2>
               <div className="mt-7 space-y-3">
                 {premiumItems.map(item => (
                   <div key={item} className="flex items-start gap-3 rounded-2xl bg-[#F7F8FC] p-4">
@@ -268,21 +288,21 @@ export function MarketingLanding() {
             <div className="space-y-4">
               <div className="rounded-[30px] bg-[#6C5CFF] p-6 text-white shadow-2xl shadow-[#6C5CFF]/22">
                 <Mic className="mb-5 h-8 w-8" />
-                <strong className="block text-2xl font-black">Micro principal intelligent</strong>
+                <strong className="block text-2xl font-black">Assistant vocal familial</strong>
                 <p className="mt-3 text-sm font-semibold leading-6 text-white/72">
-                  Ouvrez rapidement les modules et gardez le contrôle vocal des courses, dépenses, voyages et routines.
+                  Ouvrez rapidement les espaces utiles et gardez le contrôle des courses, dépenses, voyages et routines.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-[26px] bg-white p-5 shadow-xl shadow-[#101426]/6">
                   <LockKeyhole className="mb-4 h-6 w-6 text-[#101426]" />
-                  <strong className="block">Privé</strong>
-                  <span className="mt-2 block text-xs font-semibold leading-5 text-[#667085]">Données du foyer séparées et contrôlées.</span>
+                  <strong className="block">Protégé</strong>
+                  <span className="mt-2 block text-xs font-semibold leading-5 text-[#667085]">Chaque foyer garde son espace, ses accès et ses documents.</span>
                 </div>
                 <div className="rounded-[26px] bg-white p-5 shadow-xl shadow-[#101426]/6">
-                  <HeartHandshake className="mb-4 h-6 w-6 text-[#FF4D6D]" />
-                  <strong className="block">Humain</strong>
-                  <span className="mt-2 block text-xs font-semibold leading-5 text-[#667085]">Pensé pour être utilisé tous les jours.</span>
+                  <BadgeCheck className="mb-4 h-6 w-6 text-[#FF4D6D]" />
+                  <strong className="block">Soigné</strong>
+                  <span className="mt-2 block text-xs font-semibold leading-5 text-[#667085]">Des détails utiles, visibles, et pensés pour les vrais usages.</span>
                 </div>
               </div>
             </div>
@@ -294,27 +314,27 @@ export function MarketingLanding() {
             <img src="/icon-512x512.png" alt="" className="mx-auto h-20 w-20 rounded-[24px] shadow-2xl shadow-[#6C5CFF]/18" />
             <h2 className="mt-6 text-4xl font-black tracking-normal sm:text-5xl">Prêt à inviter votre foyer ?</h2>
             <p className="mx-auto mt-4 max-w-2xl text-base font-semibold leading-7 text-[#667085]">
-              Commencez dans le navigateur, installez la PWA sur le téléphone, puis passez à l’App Store dès la publication.
+              Commencez depuis votre navigateur, ajoutez MyFamily+ à l’écran d’accueil, puis retrouvez bientôt l’application sur l’App Store.
             </p>
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              <a href={appUrl} className="flex items-center justify-center gap-2 rounded-2xl bg-[#101426] px-5 py-4 text-sm font-black uppercase text-white">
-                Ouvrir l’app <ArrowRight className="h-5 w-5" />
+              <a href={appUrl} className="flex items-center justify-center gap-2 rounded-full bg-[#101426] px-5 py-4 text-sm font-black uppercase text-white">
+                Ouvrir MyFamily+ <ArrowRight className="h-5 w-5" />
               </a>
-              <button type="button" onClick={() => setInstallHelpOpen(true)} className="flex items-center justify-center gap-2 rounded-2xl border border-[#101426]/10 bg-[#F7F8FC] px-5 py-4 text-sm font-black uppercase text-[#101426]">
-                Installer <Download className="h-5 w-5" />
+              <button type="button" onClick={() => setInstallHelpOpen(true)} className="flex items-center justify-center gap-2 rounded-full border border-[#101426]/10 bg-[#F7F8FC] px-5 py-4 text-sm font-black uppercase text-[#101426]">
+                Ajouter au téléphone <Download className="h-5 w-5" />
               </button>
               {APP_STORE_URL ? (
-                <a href={APP_STORE_URL} className="flex items-center justify-center gap-2 rounded-2xl border border-[#101426]/10 bg-[#F7F8FC] px-5 py-4 text-sm font-black uppercase text-[#101426]">
+                <a href={APP_STORE_URL} className="flex items-center justify-center gap-2 rounded-full border border-[#101426]/10 bg-[#F7F8FC] px-5 py-4 text-sm font-black uppercase text-[#101426]">
                   App Store <Apple className="h-5 w-5" />
                 </a>
               ) : (
-                <div className="flex items-center justify-center gap-2 rounded-2xl border border-[#101426]/10 bg-[#F7F8FC] px-5 py-4 text-sm font-black uppercase text-[#667085]">
+                <div className="flex items-center justify-center gap-2 rounded-full border border-[#101426]/10 bg-[#F7F8FC] px-5 py-4 text-sm font-black uppercase text-[#667085]">
                   App Store bientôt <Apple className="h-5 w-5" />
                 </div>
               )}
             </div>
             <p className="mt-5 text-xs font-semibold text-[#8A94A6]">
-              Sur iPhone ou Android : ouvrez l’app, puis utilisez le menu du navigateur pour l’ajouter à l’écran d’accueil.
+              Sur iPhone ou Android, MyFamily+ peut vivre directement sur votre écran d’accueil.
             </p>
           </div>
         </section>
@@ -336,7 +356,7 @@ export function MarketingLanding() {
           <div className="w-full max-w-md rounded-[30px] bg-white p-6 shadow-2xl shadow-[#101426]/25">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <span className="text-xs font-black uppercase tracking-wide text-[#6C5CFF]">Installation PWA</span>
+                <span className="text-xs font-black uppercase tracking-wide text-[#6C5CFF]">Sur votre téléphone</span>
                 <h3 className="mt-2 text-2xl font-black">Ajoutez MyFamily+ à l’écran d’accueil</h3>
               </div>
               <button
@@ -349,14 +369,14 @@ export function MarketingLanding() {
               </button>
             </div>
             <div className="mt-5 space-y-3 text-sm font-semibold leading-6 text-[#536073]">
-              <p><strong className="text-[#101426]">Sur iPhone :</strong> ouvrez l’app, touchez Partager, puis “Sur l’écran d’accueil”.</p>
-              <p><strong className="text-[#101426]">Sur Android :</strong> ouvrez l’app, puis choisissez “Installer l’application” ou “Ajouter à l’écran d’accueil”.</p>
+              <p><strong className="text-[#101426]">Sur iPhone :</strong> ouvrez MyFamily+, touchez Partager, puis “Sur l’écran d’accueil”.</p>
+              <p><strong className="text-[#101426]">Sur Android :</strong> ouvrez MyFamily+, puis choisissez “Installer l’application” ou “Ajouter à l’écran d’accueil”.</p>
             </div>
             <a
               href={appUrl}
-              className="mt-6 flex items-center justify-center gap-2 rounded-2xl bg-[#6C5CFF] px-5 py-4 text-sm font-black uppercase text-white"
+              className="mt-6 flex items-center justify-center gap-2 rounded-full bg-[#6C5CFF] px-5 py-4 text-sm font-black uppercase text-white"
             >
-              Ouvrir l’app <ArrowRight className="h-5 w-5" />
+              Ouvrir MyFamily+ <ArrowRight className="h-5 w-5" />
             </a>
           </div>
         </div>

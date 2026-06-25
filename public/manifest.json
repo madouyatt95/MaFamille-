@@ -2,7 +2,7 @@
   "id": "/",
   "name": "MyFamily+",
   "short_name": "MyFamily+",
-  "description": "Application familiale tout-en-un pour gérer agenda, budget, tâches, école, documents et IA.",
+  "description": "Application familiale tout-en-un pour gérer agenda, budget, tâches, école, documents, assistant familial et jeux.",
   "start_url": "/app",
   "scope": "/",
   "lang": "fr-FR",
