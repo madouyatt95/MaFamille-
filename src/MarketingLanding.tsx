@@ -328,7 +328,7 @@ export function MarketingLanding() {
             <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="max-w-2xl">
                 <span className="text-sm font-black uppercase tracking-wide text-[#6C5CFF]">Aperçu en images</span>
-                <h2 className="mt-3 text-4xl font-black tracking-normal sm:text-5xl">De vrais écrans démo pour se projeter immédiatement.</h2>
+                <h2 className="mt-3 text-4xl font-black tracking-normal sm:text-5xl">Des aperçus fidèles à l’univers de l’application.</h2>
               </div>
               <a href={appUrl} className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-wide text-[#6C5CFF]">
                 Voir l’application <ChevronRight className="h-5 w-5" />
