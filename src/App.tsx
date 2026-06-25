@@ -2715,6 +2715,27 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    if (!user) return;
+    const params = new URLSearchParams(window.location.search);
+    const premiumResult = params.get('premium');
+    if (!premiumResult) return;
+
+    params.delete('premium');
+    const nextSearch = params.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`);
+
+    if (premiumResult !== 'success') return;
+
+    const refreshTimers = [1200, 4200, 9000].map(delay => window.setTimeout(() => {
+      void checkUserFoyerSession(user);
+    }, delay));
+
+    return () => {
+      refreshTimers.forEach(timer => window.clearTimeout(timer));
+    };
+  }, [checkUserFoyerSession, user]);
+
   const [isInitializingAuth, setIsInitializingAuth] = useState(true);
 
   // Restore session from native preferences on mount

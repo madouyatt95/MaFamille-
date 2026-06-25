@@ -124,7 +124,7 @@ serve(async (req) => {
     params.set("client_reference_id", foyerId);
     params.set("success_url", successUrl);
     params.set("cancel_url", cancelUrl);
-    params.set("allow_promotion_codes", plan === "monthly" ? "true" : "false");
+    params.set("allow_promotion_codes", "true");
     params.set("line_items[0][price]", priceId);
     params.set("line_items[0][quantity]", "1");
     params.set("metadata[foyer_id]", foyerId);
