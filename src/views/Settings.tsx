@@ -148,12 +148,24 @@ export const Settings: React.FC<SettingsProps> = ({
     setOpeningStripePortal(true);
     setStripePortalError('');
     try {
-      await billingService.openStripePortal(foyer.id);
+      const portalUrl = await billingService.openStripePortal(foyer.id);
+      window.location.assign(portalUrl);
+      window.setTimeout(() => setOpeningStripePortal(false), 8000);
     } catch (err) {
       setStripePortalError(getErrorMessage(err, "Impossible d'ouvrir la gestion de l'abonnement."));
       setOpeningStripePortal(false);
     }
   };
+
+  useEffect(() => {
+    const resetStripePortalState = () => setOpeningStripePortal(false);
+    window.addEventListener('pageshow', resetStripePortalState);
+    window.addEventListener('focus', resetStripePortalState);
+    return () => {
+      window.removeEventListener('pageshow', resetStripePortalState);
+      window.removeEventListener('focus', resetStripePortalState);
+    };
+  }, []);
 
   const handleDeleteAccount = async () => {
     if (!onDeleteAccount || deleteAccountConfirmation !== 'SUPPRIMER' || deletingAccount) return;

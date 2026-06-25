@@ -72,7 +72,7 @@ export const billingService = {
     window.location.href = data.url;
   },
 
-  async openStripePortal(foyerId: string): Promise<void> {
+  async openStripePortal(foyerId: string): Promise<string> {
     const supabase = getSupabaseClient();
     if (!supabase) {
       throw new Error("Supabase n'est pas disponible.");
@@ -98,6 +98,6 @@ export const billingService = {
       throw new Error(data?.message || "Stripe n'a pas renvoyé de lien de gestion.");
     }
 
-    window.location.href = data.url;
+    return data.url;
   }
 };
