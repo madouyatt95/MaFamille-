@@ -25,10 +25,13 @@ import {
   CaseSensitive,
   Contrast,
   Gauge,
-  X
+  X,
+  Crown,
+  CreditCard
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
+import { billingService } from '../services/billingService';
 import { notificationService } from '../services/notificationService';
 import type { Foyer, FoyerMember, Member } from '../types';
 import type { User } from '@supabase/supabase-js';
@@ -49,6 +52,8 @@ const defaultNotificationPrefs: NotificationPrefs = {
 
 const getErrorMessage = (err: unknown, fallback: string) =>
   err instanceof Error ? err.message : fallback;
+
+const SETTINGS_REFERENCE_TIME = Date.now();
 
 interface SettingsProps {
   currency: string;
@@ -81,6 +86,7 @@ export const Settings: React.FC<SettingsProps> = ({
   currency,
   setCurrency,
   onResetData,
+  onOpenPaywall,
   user,
   foyer,
   myMemberProfile,
@@ -106,6 +112,48 @@ export const Settings: React.FC<SettingsProps> = ({
   const [deleteAccountConfirmation, setDeleteAccountConfirmation] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteAccountError, setDeleteAccountError] = useState('');
+  const [openingStripePortal, setOpeningStripePortal] = useState(false);
+  const [stripePortalError, setStripePortalError] = useState('');
+
+  const premiumExpiresAt = foyer?.premiumExpiresAt ? new Date(foyer.premiumExpiresAt) : null;
+  const hasValidPremiumDate = Boolean(premiumExpiresAt && Number.isFinite(premiumExpiresAt.getTime()));
+  const premiumDaysLeft = hasValidPremiumDate && premiumExpiresAt
+    ? Math.max(0, Math.ceil((premiumExpiresAt.getTime() - SETTINGS_REFERENCE_TIME) / (24 * 60 * 60 * 1000)))
+    : null;
+  const premiumStatusLabel = (() => {
+    if (!foyer?.isPremium) return 'Gratuit';
+    if (foyer.premiumStatus === 'trialing') return 'Essai Premium';
+    if (foyer.premiumStatus === 'past_due') return 'Paiement à vérifier';
+    if (foyer.premiumStatus === 'canceled') return 'Abonnement annulé';
+    if (foyer.premiumSource === 'stripe') return 'Premium Stripe';
+    if (foyer.premiumSource === 'appstore') return 'Premium App Store';
+    if (foyer.premiumSource === 'test') return 'Premium test';
+    return 'Premium actif';
+  })();
+  const premiumPlanLabel = foyer?.premiumPlan === 'monthly'
+    ? 'Mensuel'
+    : foyer?.premiumPlan === 'yearly'
+      ? 'Annuel'
+      : foyer?.isPremium
+        ? 'Forfait actif'
+        : 'Aucun forfait';
+  const premiumRenewalLabel = hasValidPremiumDate && premiumExpiresAt
+    ? `${foyer?.premiumStatus === 'trialing' ? "Essai jusqu'au" : 'Échéance'} ${premiumExpiresAt.toLocaleDateString('fr-FR')}`
+    : foyer?.isPremium
+      ? 'Échéance gérée par le fournisseur'
+      : 'Aucun abonnement actif';
+
+  const handleOpenStripePortal = async () => {
+    if (!foyer?.id || openingStripePortal) return;
+    setOpeningStripePortal(true);
+    setStripePortalError('');
+    try {
+      await billingService.openStripePortal(foyer.id);
+    } catch (err) {
+      setStripePortalError(getErrorMessage(err, "Impossible d'ouvrir la gestion de l'abonnement."));
+      setOpeningStripePortal(false);
+    }
+  };
 
   const handleDeleteAccount = async () => {
     if (!onDeleteAccount || deleteAccountConfirmation !== 'SUPPRIMER' || deletingAccount) return;
@@ -1016,6 +1064,87 @@ export const Settings: React.FC<SettingsProps> = ({
               <span className="truncate">Foyer : {foyer.name}</span>
             </h3>
             <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-[#00D26A]/20 text-[#00D26A]">Compte Actif</span>
+          </div>
+
+          <div className="rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/10 p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="rounded-2xl bg-[#FFB020]/10 p-3 text-[#FFB020] border border-[#FFB020]/20">
+                  <Crown className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-sm font-black text-white">Abonnement Premium</h4>
+                  <p className="text-[11px] text-white/60 font-semibold mt-0.5">{premiumStatusLabel}</p>
+                </div>
+              </div>
+              <span className="shrink-0 rounded-full bg-white/8 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white/80">
+                {premiumPlanLabel}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="rounded-xl bg-black/20 border border-white/8 p-3">
+                <span className="block text-[9px] font-black uppercase tracking-wider text-white/40">Temps restant</span>
+                <strong className="block mt-1 text-sm text-white">
+                  {premiumDaysLeft !== null
+                    ? `${premiumDaysLeft} jour${premiumDaysLeft > 1 ? 's' : ''}`
+                    : foyer.isPremium ? 'Actif' : 'Non actif'}
+                </strong>
+              </div>
+              <div className="rounded-xl bg-black/20 border border-white/8 p-3">
+                <span className="block text-[9px] font-black uppercase tracking-wider text-white/40">Échéance</span>
+                <strong className="block mt-1 text-sm text-white">{premiumRenewalLabel}</strong>
+              </div>
+            </div>
+
+            {foyer.premiumSource === 'stripe' && (
+              <button
+                type="button"
+                onClick={handleOpenStripePortal}
+                disabled={openingStripePortal || !foyer.stripeCustomerId}
+                className="w-full py-3 rounded-xl bg-white text-[#101426] font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-black/10 hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <CreditCard className={`w-4 h-4 ${openingStripePortal ? 'animate-pulse' : ''}`} />
+                {openingStripePortal ? 'Ouverture...' : "Gérer l'abonnement Stripe"}
+              </button>
+            )}
+
+            {foyer.premiumSource === 'appstore' && (
+              <a
+                href="https://apps.apple.com/account/subscriptions"
+                target="_blank"
+                rel="noreferrer"
+                className="w-full py-3 rounded-xl bg-white text-[#101426] font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-black/10 hover:opacity-90 active:scale-[0.99] transition-all"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Gérer sur l'App Store
+              </a>
+            )}
+
+            {!foyer.isPremium && (
+              <button
+                type="button"
+                onClick={onOpenPaywall}
+                className="w-full py-3 rounded-xl bg-[#6C5CFF] text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#6C5CFF]/15 hover:opacity-90 active:scale-[0.99] transition-all"
+              >
+                <Sparkles className="w-4 h-4" />
+                Découvrir Premium
+              </button>
+            )}
+
+            {foyer.premiumSource === 'stripe' && !foyer.stripeCustomerId && (
+              <p className="text-[10px] text-[#FFB020] font-semibold leading-relaxed">
+                L'abonnement est actif, mais le lien de gestion Stripe n'est pas encore rattaché à ce foyer.
+              </p>
+            )}
+            {stripePortalError && (
+              <p role="alert" className="text-[10px] text-[#FF4D6D] font-semibold leading-relaxed">
+                {stripePortalError}
+              </p>
+            )}
+            <p className="text-[10px] text-white/45 leading-relaxed font-medium">
+              Annulation, carte bancaire et factures restent gérées dans le portail sécurisé du fournisseur.
+            </p>
           </div>
 
           {/* Premium Shortcut to Unified Member Manager */}

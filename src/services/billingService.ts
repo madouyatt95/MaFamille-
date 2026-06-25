@@ -70,5 +70,34 @@ export const billingService = {
     }
 
     window.location.href = data.url;
+  },
+
+  async openStripePortal(foyerId: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      throw new Error("Supabase n'est pas disponible.");
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error("Vous devez être connecté pour gérer l'abonnement.");
+    }
+
+    const { data, error } = await supabase.functions.invoke('create-stripe-portal', {
+      body: { foyerId },
+      headers: {
+        Authorization: `Bearer ${session.access_token}`
+      }
+    });
+
+    if (error) {
+      throw new Error(error.message || "Impossible d'ouvrir la gestion de l'abonnement.");
+    }
+
+    if (!data?.url) {
+      throw new Error(data?.message || "Stripe n'a pas renvoyé de lien de gestion.");
+    }
+
+    window.location.href = data.url;
   }
 };
