@@ -13,6 +13,7 @@ import {
   Lock,
   Copy,
   Check,
+  Share2,
   Camera,
   LogOut,
   RefreshCw
@@ -48,6 +49,11 @@ type JoinRequestSummary = {
 };
 
 const getErrorMessage = (err: unknown) => err instanceof Error ? err.message : String(err);
+
+const getInviteLink = (inviteCode: string) => {
+  const baseUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
+  return `${baseUrl.replace(/\/$/, '')}/?join=${encodeURIComponent(inviteCode)}`;
+};
 
 interface MembresProps {
   members: Member[];
@@ -238,6 +244,34 @@ export const Membres: React.FC<MembresProps> = ({
   const handleCopyInviteCode = () => {
     if (!foyer) return;
     navigator.clipboard.writeText(foyer.inviteCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleCopyInviteLink = () => {
+    if (!foyer) return;
+    navigator.clipboard.writeText(getInviteLink(foyer.inviteCode));
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleShareInviteLink = async () => {
+    if (!foyer) return;
+    const inviteLink = getInviteLink(foyer.inviteCode);
+    const message = `Rejoins notre foyer ${foyer.name} sur MyFamily+ : ${inviteLink}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Invitation ${foyer.name}`,
+          text: message,
+          url: inviteLink
+        });
+        return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+      }
+    }
+    await navigator.clipboard.writeText(message);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
   };
@@ -2080,10 +2114,37 @@ export const Membres: React.FC<MembresProps> = ({
                     </div>
                     {/* Share Invitation Code */}
                     <div className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-3">
-                      <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block font-sans">Code d’invitation</span>
+                      <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block font-sans">Invitation au foyer</span>
                       <p className="text-[10px] text-white/50 leading-relaxed font-medium">
-                        Donnez ce code à vos proches. Après avoir créé leur compte, ils pourront le saisir pour envoyer leur demande d’accès.
+                        Partagez le lien à vos proches. Il ouvrira directement l’écran de demande avec le code prérempli.
                       </p>
+                      <button
+                        type="button"
+                        onClick={handleShareInviteLink}
+                        className="w-full py-3 px-4 rounded-xl bg-[#6C5CFF] text-white text-xs font-black flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all cursor-pointer"
+                      >
+                        <Share2 className="w-4 h-4" />
+                        Partager le lien d’invitation
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCopyInviteLink}
+                        className="w-full py-3 px-4 rounded-xl bg-white/5 border border-white/8 text-white text-xs font-bold flex items-center justify-between hover:bg-white/8 active:scale-95 transition-all cursor-pointer"
+                      >
+                        <div className="min-w-0 text-left font-sans">
+                          <span className="text-[8px] text-white/40 block font-normal uppercase">Lien direct</span>
+                          <span className="block mt-0.5 truncate text-[10px] text-white/70">{getInviteLink(foyer.inviteCode)}</span>
+                        </div>
+                        {copiedCode ? (
+                          <span className="shrink-0 text-[9px] font-bold text-[#00D26A] flex items-center gap-1">
+                            <Check className="w-3.5 h-3.5" /> Copié
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-[9px] text-white/40 flex items-center gap-1 font-bold">
+                            <Copy className="w-3.5 h-3.5" /> Copier
+                          </span>
+                        )}
+                      </button>
                       <button
                         type="button"
                         onClick={handleCopyInviteCode}

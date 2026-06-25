@@ -2455,6 +2455,7 @@ function App() {
     const groupIdParam = params.get('groupId');
     const actionParam = params.get('action');
     const shareIdParam = params.get('shareId');
+    const joinParam = params.get('join')?.trim().toUpperCase() || '';
 
     const readSharedPayload = (shareId: string): Promise<LooseValue | null> => new Promise((resolve) => {
       const request = indexedDB.open('myfamily-plus-share-target', 1);
@@ -2492,6 +2493,11 @@ function App() {
     if (groupIdParam) {
       setInitialChatGroupId(groupIdParam);
     }
+    if (joinParam) {
+      setWelcomeInviteCode(joinParam);
+      setWelcomeScreenMode('join');
+      setShowWelcomeScreen(true);
+    }
     
     if (actionParam === 'add-expense') {
       setActiveTab('budget');
@@ -2522,7 +2528,7 @@ function App() {
       }
     }
     
-    if (tabParam || moduleParam || groupIdParam || actionParam) {
+    if (tabParam || moduleParam || groupIdParam || actionParam || joinParam) {
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
     }
@@ -2695,6 +2701,11 @@ function App() {
         localStorage.setItem('mf_cloud_foyer_id', myFoyer.id);
         localStorage.setItem('mf_active_foyer_id', myFoyer.id);
         await loadFoyerData(myFoyer.id);
+        if (initialJoinCode) {
+          setWelcomeInviteCode(initialJoinCode);
+          setWelcomeScreenMode('join');
+          setShowWelcomeScreen(true);
+        }
       } else {
         console.log("[MyFamily+ Session] No foyer found in DB for user. Showing welcome screen.");
         setFoyer(null);
@@ -2705,13 +2716,13 @@ function App() {
         localStorage.removeItem('mf_active_foyer_id');
         setOnboardingActive(false);
         setShowWelcomeScreen(true);
-        setWelcomeScreenMode('select');
+        setWelcomeScreenMode(initialJoinCode ? 'join' : 'select');
       }
     } catch (err) {
       console.error("Erreur lors de la vérification de session foyer :", err);
       if (!foyerRef.current) {
         setShowWelcomeScreen(true);
-        setWelcomeScreenMode('select');
+        setWelcomeScreenMode(initialJoinCode ? 'join' : 'select');
       }
     } finally {
       isSessionCheckingRef.current = false;
