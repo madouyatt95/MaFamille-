@@ -211,7 +211,7 @@ import { getUnifiedEvents } from './utils/agendaHelper';
 import { buildSmartFamilyAlerts, defaultSmartFamilyPreferences, type SmartFamilyPreferences } from './utils/smartFamily';
 import type { GlobalSearchResult } from './utils/globalSearch';
 import type { ExternalEvent } from './utils/icalParser';
-import { Volume2, Mic, Bell, X, ChevronRight, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check, Star, ArrowLeft } from 'lucide-react';
+import { Volume2, Mic, Bell, X, ChevronRight, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check, Star, ArrowLeft, Crown } from 'lucide-react';
 
 const Accueil = lazy(() => import('./views/Accueil').then(module => ({ default: module.Accueil })));
 const Timeline = lazy(() => import('./views/Timeline').then(module => ({ default: module.Timeline })));
@@ -671,6 +671,10 @@ function App() {
 
   const [isSyncReady, setIsSyncReady] = useState(false);
   const [isSessionChecking, setIsSessionChecking] = useState(false);
+  const [isPremiumReturnSyncing, setIsPremiumReturnSyncing] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('premium') === 'success' || sessionStorage.getItem('mf_pending_premium_refresh') === 'true';
+  });
   const [agendaSelectedDate, setAgendaSelectedDate] = useState<string>('');
 
   // Settings State
@@ -2716,7 +2720,6 @@ function App() {
   };
 
   useEffect(() => {
-    if (!user) return;
     const params = new URLSearchParams(window.location.search);
     const premiumResult = params.get('premium');
     if (!premiumResult) return;
@@ -2725,16 +2728,46 @@ function App() {
     const nextSearch = params.toString();
     window.history.replaceState(null, '', `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`);
 
-    if (premiumResult !== 'success') return;
+    if (premiumResult === 'success') {
+      sessionStorage.setItem('mf_pending_premium_refresh', 'true');
+      setIsPremiumReturnSyncing(true);
+      setShowWelcomeScreen(false);
+    } else {
+      sessionStorage.removeItem('mf_pending_premium_refresh');
+      setIsPremiumReturnSyncing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user || sessionStorage.getItem('mf_pending_premium_refresh') !== 'true') return;
+    setIsPremiumReturnSyncing(true);
+    setShowWelcomeScreen(false);
 
     const refreshTimers = [1200, 4200, 9000].map(delay => window.setTimeout(() => {
       void checkUserFoyerSession(user);
     }, delay));
 
+    const fallbackTimer = window.setTimeout(() => {
+      sessionStorage.removeItem('mf_pending_premium_refresh');
+      setIsPremiumReturnSyncing(false);
+    }, 12000);
+
     return () => {
       refreshTimers.forEach(timer => window.clearTimeout(timer));
+      window.clearTimeout(fallbackTimer);
     };
-  }, [checkUserFoyerSession, user]);
+  }, [user]);
+
+  useEffect(() => {
+    if (!isPremium || sessionStorage.getItem('mf_pending_premium_refresh') !== 'true') return;
+    sessionStorage.removeItem('mf_pending_premium_refresh');
+    setIsPremiumReturnSyncing(false);
+    setShowWelcomeScreen(false);
+    setActiveToast({
+      title: 'Premium activé',
+      description: 'Votre foyer est maintenant synchronisé avec Stripe.'
+    });
+  }, [isPremium]);
 
   const [isInitializingAuth, setIsInitializingAuth] = useState(true);
 
@@ -13350,7 +13383,36 @@ function App() {
     );
   }
 
-  const showGlobalLoader = isInitializingAuth || (isSessionChecking && !foyer);
+  const showPremiumReturnLoader = isPremiumReturnSyncing && !foyer;
+  const showGlobalLoader = !showPremiumReturnLoader && (isInitializingAuth || (isSessionChecking && !foyer));
+
+  if (showPremiumReturnLoader) {
+    return (
+      <div className="min-h-screen bg-[#07111F] text-white flex flex-col justify-center items-center px-4 relative overflow-hidden font-sans">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#FFB020]/15 blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#6C5CFF]/15 blur-[120px] pointer-events-none" />
+
+        <div className="text-center space-y-6 relative z-10 animate-fade-in">
+          <div className="inline-flex p-5 rounded-full bg-[#FFB020]/10 border border-[#FFB020]/20 text-[#FFB020] animate-pulse">
+            <Crown className="h-10 w-10" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-[#FFCB6B] via-white to-white/70">
+              Premium en cours d’activation
+            </h1>
+            <p className="mx-auto max-w-xs text-xs text-white/55 leading-relaxed">
+              Paiement confirmé. Nous synchronisons votre foyer avec Stripe.
+            </p>
+          </div>
+          <div className="flex justify-center space-x-1.5 pt-4">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#FFB020] animate-bounce [animation-delay:-0.3s]" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#6C5CFF] animate-bounce [animation-delay:-0.15s]" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#FFB020] animate-bounce" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (showGlobalLoader) {
     return (
@@ -15221,7 +15283,7 @@ function App() {
       )}
 
       {/* Welcome Screen Overlay Modal */}
-      {showWelcomeScreen && (
+      {showWelcomeScreen && !isPremiumReturnSyncing && (
         <div className="fixed inset-0 bg-[#07111F]/95 backdrop-blur-md z-[99] flex items-center justify-center p-6 animate-fade-in text-white overflow-y-auto">
           <div className="max-w-md w-full glass-panel border border-white/10 rounded-[32px] p-6 sm:p-8 space-y-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] relative overflow-hidden bg-white/2 backdrop-blur-lg">
             <div className="absolute top-[-20%] left-[-20%] w-60 h-60 rounded-full bg-[#6C5CFF]/15 blur-[60px] pointer-events-none" />
