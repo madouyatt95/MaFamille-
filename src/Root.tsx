@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { MarketingLanding } from './MarketingLanding';
 
 const App = lazy(() => import('./App'));
+const MarketingDemoCapture = lazy(() => import('./MarketingDemoCapture').then(module => ({ default: module.MarketingDemoCapture })));
 
 const shouldRenderApp = () => {
   const { pathname, search, hash } = window.location;
@@ -13,6 +14,14 @@ const shouldRenderApp = () => {
 };
 
 export function Root() {
+  if (window.location.pathname.startsWith('/demo-vitrine')) {
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-[#F7F8FC]" />}>
+        <MarketingDemoCapture />
+      </Suspense>
+    );
+  }
+
   if (!shouldRenderApp()) {
     return <MarketingLanding />;
   }
