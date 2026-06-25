@@ -112,11 +112,25 @@ const startSteps = [
   ['Organisez ensemble', 'Planning, budget, documents, jeux et messages se mettent en place naturellement.']
 ];
 
-const audiences = [
-  ['Parents', 'Une vue claire de ce qui compte, sans courir après les informations.'],
-  ['Ados', 'Un accès adapté pour participer, suivre et gagner en autonomie.'],
-  ['Enfants', 'Des repères simples, des jeux et des routines faciles à comprendre.'],
-  ['Familles élargies', 'Grands-parents, foyers recomposés ou proches aidants gardent le bon niveau d’accès.']
+const interfacePreviews = [
+  {
+    title: 'Parents',
+    tag: 'Vue complète',
+    image: '/marketing-captures/interface-parent.jpg',
+    text: 'Accès rapides, parcours familiaux, planning, budget et décisions du foyer au même endroit.'
+  },
+  {
+    title: 'Enfants',
+    tag: 'Simple et motivant',
+    image: '/marketing-captures/interface-enfant.jpg',
+    text: 'Missions, devoirs, jeux, points et argent de poche dans une interface plus directe.'
+  },
+  {
+    title: 'Ados',
+    tag: 'Plus autonome',
+    image: '/marketing-captures/interface-ado.jpg',
+    text: 'Objectifs d’épargne, missions, école, messages et jeux avec une présentation adaptée.'
+  }
 ];
 
 const freePlan = ['Accueil du foyer', 'Agenda et budget essentiels', 'Premiers jeux familiaux', 'Invitations au foyer'];
@@ -399,15 +413,39 @@ export function MarketingLanding() {
             <div className="max-w-3xl">
               <span className="text-sm font-black uppercase tracking-wide text-[#6C5CFF]">Pour toute la famille</span>
               <h2 className="mt-3 text-4xl font-black tracking-normal sm:text-5xl">Chaque membre a sa place, sans avoir la même interface.</h2>
+              <p className="mt-5 text-base font-semibold leading-7 text-[#667085]">
+                Parents, enfants et ados ne voient pas la même chose : chacun retrouve les bons repères, au bon niveau.
+              </p>
             </div>
-            <div className="mt-10 grid gap-4 md:grid-cols-4">
-              {audiences.map(([title, text]) => (
-                <article key={title} className="rounded-[28px] border border-[#101426]/8 bg-[#F7F8FC] p-6">
-                  <UserRound className="mb-5 h-6 w-6 text-[#6C5CFF]" />
-                  <h3 className="text-xl font-black">{title}</h3>
-                  <p className="mt-3 text-sm font-semibold leading-6 text-[#667085]">{text}</p>
+            <div className="mt-10 grid gap-5 lg:grid-cols-3">
+              {interfacePreviews.map(item => (
+                <article key={item.title} className="group overflow-hidden rounded-[34px] border border-[#101426]/8 bg-[#F7F8FC] shadow-xl shadow-[#101426]/6 transition hover:-translate-y-1 hover:shadow-2xl">
+                  <div className="bg-[#101426] px-5 pt-5">
+                    <img
+                      src={item.image}
+                      alt={`Interface MyFamily+ ${item.title}`}
+                      loading="lazy"
+                      className="mx-auto h-[420px] w-auto rounded-t-[30px] border border-white/10 object-contain shadow-2xl shadow-black/30 transition duration-500 group-hover:scale-[1.015]"
+                    />
+                  </div>
+                  <div className="p-6">
+                    <span className="rounded-full bg-[#6C5CFF]/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-[#6C5CFF]">{item.tag}</span>
+                    <h3 className="mt-4 text-2xl font-black">{item.title}</h3>
+                    <p className="mt-3 text-sm font-semibold leading-6 text-[#667085]">{item.text}</p>
+                  </div>
                 </article>
               ))}
+            </div>
+            <div className="mt-5 rounded-[28px] border border-[#101426]/8 bg-[#F7F8FC] p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-xl font-black">Et pour les proches de confiance</h3>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-[#667085]">
+                    Grands-parents, foyers recomposés ou proches aidants gardent le bon niveau d’accès, sans alourdir l’expérience.
+                  </p>
+                </div>
+                <UserRound className="h-8 w-8 shrink-0 text-[#6C5CFF]" />
+              </div>
             </div>
           </div>
         </section>
