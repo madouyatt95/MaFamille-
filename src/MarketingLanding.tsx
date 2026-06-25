@@ -77,38 +77,32 @@ const productPreviews = [
   {
     title: 'Accueil familial',
     tag: 'Vue du jour',
-    image: '/marketing-captures/home.svg',
+    image: '/marketing-captures/home-real.jpg',
     text: 'La journée du foyer devient immédiatement lisible.'
   },
   {
     title: 'Budget clair',
     tag: 'Dépenses',
-    image: '/marketing-captures/budget.svg',
+    image: '/marketing-captures/budget-real.jpg',
     text: 'Les comptes, les mouvements et l’argent de poche gardent une forme simple.'
   },
   {
     title: 'Coffre-fort',
     tag: 'Documents',
-    image: '/marketing-captures/safe.svg',
+    image: '/marketing-captures/safe-real.jpg',
     text: 'Les documents importants restent rangés, protégés et partageables au bon moment.'
   },
   {
     title: 'Jeux du foyer',
     tag: 'Moments',
-    image: '/marketing-captures/games.svg',
+    image: '/marketing-captures/games-real.jpg',
     text: 'Des jeux familiaux prêts à lancer pour créer de vrais moments ensemble.'
   },
   {
     title: 'Invitation foyer',
     tag: 'Partage',
-    image: '/marketing-captures/invite.svg',
+    image: '/marketing-captures/invite-real.jpg',
     text: 'Un proche rejoint le bon foyer grâce à un code ou un lien clair.'
-  },
-  {
-    title: 'Premium',
-    tag: 'Confort',
-    image: '/marketing-captures/premium.svg',
-    text: 'L’assistant, le coffre-fort avancé et les jeux privés donnent de l’avance au foyer.'
   }
 ];
 
@@ -342,7 +336,7 @@ export function MarketingLanding() {
                       src={item.image}
                       alt={`Aperçu MyFamily+ - ${item.title}`}
                       loading="lazy"
-                      className="mx-auto h-[360px] w-auto drop-shadow-2xl transition duration-500 group-hover:scale-[1.02]"
+                      className="mx-auto h-[390px] w-auto rounded-t-[28px] border border-white/70 object-contain shadow-2xl shadow-[#101426]/18 transition duration-500 group-hover:scale-[1.02]"
                     />
                   </div>
                   <div className="p-6">
