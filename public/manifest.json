@@ -3,7 +3,7 @@
   "name": "MyFamily+",
   "short_name": "MyFamily+",
   "description": "Application familiale tout-en-un pour gérer agenda, budget, tâches, école, documents et IA.",
-  "start_url": "/",
+  "start_url": "/app",
   "scope": "/",
   "lang": "fr-FR",
   "dir": "ltr",
@@ -19,7 +19,7 @@
       "name": "Ajouter une Dépense",
       "short_name": "+ Dépense",
       "description": "Ajouter rapidement une dépense à votre foyer",
-      "url": "/?tab=budget&action=add-expense",
+      "url": "/app?tab=budget&action=add-expense",
       "icons": [
         {
           "src": "/icon-192x192.png?v=3",

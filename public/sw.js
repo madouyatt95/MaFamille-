@@ -9,14 +9,14 @@ self.addEventListener('notificationclick', (event) => {
   const module = notificationData.module || '';
   const clickAction = notificationData.click_action || notificationData.clickAction;
   
-  let targetUrl = clickAction || '/';
+  let targetUrl = clickAction || '/app';
   if (!clickAction && (module === 'chat' || module === 'messagerie')) {
     const groupId = notificationData.groupId || notificationData.chatGroupId || '';
-    targetUrl = `/?tab=menu&module=messagerie${groupId ? `&groupId=${groupId}` : ''}`;
+    targetUrl = `/app?tab=menu&module=messagerie${groupId ? `&groupId=${groupId}` : ''}`;
   } else if (!clickAction && (module === 'agenda' || module === 'calendar')) {
-    targetUrl = '/?tab=menu&module=agenda';
+    targetUrl = '/app?tab=menu&module=agenda';
   } else if (!clickAction && module) {
-    targetUrl = `/?tab=menu&module=${module}`;
+    targetUrl = `/app?tab=menu&module=${module}`;
   }
   
   event.waitUntil(
@@ -75,13 +75,15 @@ messaging.onBackgroundMessage((payload) => {
 });
 
 // PARTIE CACHING PWA
-const CACHE_NAME = 'myfamily-plus-cache-v5';
+const CACHE_NAME = 'myfamily-plus-cache-v6';
 const ASSETS_TO_CACHE = [
   '/',
+  '/app',
   '/index.html',
   '/manifest.json',
   '/favicon.svg',
   '/icons.svg',
+  '/landing-hero-family.jpg',
   '/icon-192x192.png',
   '/icon-512x512.png',
   '/icon-maskable-192x192.png',
@@ -162,7 +164,7 @@ self.addEventListener('fetch', (event) => {
         files,
         receivedAt: new Date().toISOString()
       });
-      return Response.redirect(`/?action=share-receipt&shareId=${encodeURIComponent(id)}`, 303);
+      return Response.redirect(`/app?action=share-receipt&shareId=${encodeURIComponent(id)}`, 303);
     })());
     return;
   }

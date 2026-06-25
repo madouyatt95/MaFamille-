@@ -1,8 +1,8 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import App from './App.tsx'
 import { AppErrorBoundary } from './components/AppErrorBoundary.tsx'
+import { Root } from './Root.tsx'
 
 // Register Service Worker for PWA offline capabilities
 if ('serviceWorker' in navigator) {
@@ -14,7 +14,7 @@ if ('serviceWorker' in navigator) {
   });
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js?v=20260621-2', { scope: '/', updateViaCache: 'none' })
+    navigator.serviceWorker.register('/sw.js?v=20260625-landing', { scope: '/', updateViaCache: 'none' })
       .then(reg => {
         console.log('Service Worker registered successfully on scope:', reg.scope);
         void reg.update();
@@ -33,7 +33,7 @@ if ('serviceWorker' in navigator) {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AppErrorBoundary>
-      <App />
+      <Root />
     </AppErrorBoundary>
   </StrictMode>,
 )

@@ -135,7 +135,7 @@ export const notificationService = {
     if (!this.isSupported()) return null;
 
     try {
-      const swUrl = '/sw.js?v=20260621-2';
+      const swUrl = '/sw.js?v=20260625-landing';
       const registration = await navigator.serviceWorker.register(swUrl, {
         scope: '/',
         updateViaCache: 'none',
