@@ -1,4 +1,22 @@
 {
+  "rewrites": [
+    {
+      "source": "/app",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/app/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/share/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/share-target/:path*",
+      "destination": "/index.html"
+    }
+  ],
   "headers": [
     {
       "source": "/sw.js",
