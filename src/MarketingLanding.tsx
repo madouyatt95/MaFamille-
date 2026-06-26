@@ -133,6 +133,13 @@ const interfacePreviews = [
   }
 ];
 
+const micUseCases = [
+  'Ajouter une dépense ou retrouver le budget',
+  'Ouvrir les courses, les voyages ou le coffre-fort',
+  'Lancer rapidement un jeu ou un rituel familial',
+  'Aller au bon module sans chercher dans les menus'
+];
+
 const freePlan = ['Accueil du foyer', 'Agenda et budget essentiels', 'Premiers jeux familiaux', 'Invitations au foyer'];
 const paidPlan = ['Assistant vocal familial', 'Coffre-fort avancé', 'Jeux privés et progression', 'Personnalisation et statistiques'];
 
@@ -451,6 +458,36 @@ export function MarketingLanding() {
         </section>
 
         <section id="premium" className="bg-[#F7F8FC] py-20">
+          <div className="mx-auto mb-14 grid max-w-6xl items-center gap-8 px-4 sm:px-6 lg:grid-cols-[0.92fr_1.08fr]">
+            <div>
+              <span className="text-sm font-black uppercase tracking-wide text-[#6C5CFF]">Micro principal intelligent</span>
+              <h2 className="mt-3 text-4xl font-black tracking-normal sm:text-5xl">Une action rapide, depuis le centre de l’application.</h2>
+              <p className="mt-5 text-base font-semibold leading-7 text-[#667085]">
+                Le micro principal sert de raccourci familial : il aide à passer des courses au budget, des documents aux jeux, sans fouiller dans tous les menus.
+              </p>
+              <div className="mt-7 grid gap-3">
+                {micUseCases.map(item => (
+                  <div key={item} className="flex items-center gap-3 rounded-2xl border border-[#101426]/8 bg-white px-4 py-3 shadow-lg shadow-[#101426]/4">
+                    <Mic className="h-5 w-5 shrink-0 text-[#FF4D6D]" />
+                    <span className="text-sm font-bold leading-6 text-[#536073]">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-[36px] border border-[#101426]/8 bg-[#101426] p-4 shadow-2xl shadow-[#101426]/18">
+              <video
+                className="aspect-[9/16] w-full rounded-[28px] bg-[#07111F] object-cover"
+                src="/marketing-captures/micro-principal-demo.mp4"
+                autoPlay
+                muted
+                loop
+                playsInline
+                controls
+                preload="metadata"
+                aria-label="Démonstration du micro principal MyFamily+"
+              />
+            </div>
+          </div>
           <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 sm:px-6 lg:grid-cols-[1fr_0.9fr]">
             <div className="rounded-[34px] border border-[#101426]/8 bg-white p-6 shadow-2xl shadow-[#101426]/8 sm:p-8">
               <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-[#FFB020]/12 px-3 py-2 text-xs font-black uppercase tracking-wide text-[#9A650F]">
