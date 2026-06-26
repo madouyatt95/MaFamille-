@@ -14,15 +14,13 @@ import {
   Gamepad2,
   HeartHandshake,
   LockKeyhole,
-  MessageCircle,
   Mic,
   PiggyBank,
   ShieldCheck,
   Sparkles,
   Star,
   UserRound,
-  Users,
-  WalletCards
+  Users
 } from 'lucide-react';
 
 const APP_STORE_URL = import.meta.env.VITE_APP_STORE_URL || '';
@@ -53,16 +51,9 @@ const premiumItems = [
   'Personnalisation avancée pour chaque foyer'
 ];
 
-const modules = [
-  { label: 'Planning', value: 'Aujourd’hui', icon: CalendarDays, tone: 'text-[#6C5CFF]' },
-  { label: 'Budget jour', value: '0 alerte', icon: WalletCards, tone: 'text-[#00D26A]' },
-  { label: 'Messages', value: 'Famille', icon: MessageCircle, tone: 'text-[#8AB5FF]' },
-  { label: 'Jeux', value: 'Soirée prête', icon: Gamepad2, tone: 'text-[#FFB020]' }
-];
-
 const highlights = [
-  { value: '1', label: 'lieu pour le foyer' },
-  { value: '24h', label: 'de repères quotidiens' },
+  { value: 'Tous', label: 'les repères du foyer' },
+  { value: '3', label: 'interfaces adaptées' },
   { value: 'Premium', label: 'pour aller plus loin' }
 ];
 
@@ -140,8 +131,20 @@ const micUseCases = [
   'Aller au bon module sans chercher dans les menus'
 ];
 
+const conversionPoints = [
+  'Espace familial privé',
+  'Installation rapide sur téléphone',
+  'Premium disponible quand le foyer grandit'
+];
+
 const freePlan = ['Accueil du foyer', 'Agenda et budget essentiels', 'Premiers jeux familiaux', 'Invitations au foyer'];
 const paidPlan = ['Assistant vocal familial', 'Coffre-fort avancé', 'Jeux privés et progression', 'Personnalisation et statistiques'];
+
+const premiumCards = [
+  ['Assistant vocal', 'Le micro central ouvre les bons modules et accélère les actions du quotidien.'],
+  ['Coffre-fort avancé', 'Documents, packs de partage, expiration des liens et accès protégés.'],
+  ['Jeux privés', 'Parties en famille, défis privés, progression et packs plus riches.']
+];
 
 const trustItems = [
   ['Espace privé', 'Aucun fil public, aucune recherche de familles inconnues.'],
@@ -212,7 +215,7 @@ export function MarketingLanding() {
                   href={appUrl}
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-[#6C5CFF] px-6 py-4 text-sm font-black uppercase tracking-wide text-white shadow-2xl shadow-[#6C5CFF]/25 transition hover:-translate-y-0.5 hover:shadow-[#6C5CFF]/35"
                 >
-                  Découvrir l’application <ChevronRight className="h-5 w-5" />
+                  Ouvrir l’application <ChevronRight className="h-5 w-5" />
                 </a>
                 <button
                   type="button"
@@ -221,6 +224,14 @@ export function MarketingLanding() {
                 >
                   Ajouter à mon téléphone <Download className="h-5 w-5" />
                 </button>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {conversionPoints.map(item => (
+                  <span key={item} className="inline-flex items-center gap-2 rounded-full border border-[#101426]/8 bg-white/78 px-3 py-2 text-xs font-black uppercase tracking-wide text-[#536073] shadow-lg shadow-[#101426]/5">
+                    <Check className="h-4 w-4 text-[#00A957]" />
+                    {item}
+                  </span>
+                ))}
               </div>
               <div className="mt-8 grid max-w-lg grid-cols-3 gap-3">
                 {highlights.map(item => (
@@ -238,7 +249,7 @@ export function MarketingLanding() {
             </div>
 
             <div className="relative mx-auto w-full max-w-[430px]">
-              <div className="absolute -left-8 top-12 hidden rounded-3xl border border-white/70 bg-white/85 p-4 shadow-2xl shadow-[#6C5CFF]/16 backdrop-blur-xl sm:block">
+              <div className="absolute -left-8 top-12 z-20 hidden rounded-3xl border border-white/70 bg-white/88 p-4 shadow-2xl shadow-[#6C5CFF]/16 backdrop-blur-xl sm:block">
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#00D26A]/12 text-[#00A957]">
                     <ShieldCheck className="h-5 w-5" />
@@ -249,7 +260,7 @@ export function MarketingLanding() {
                   </div>
                 </div>
               </div>
-              <div className="absolute -right-6 bottom-20 hidden rounded-3xl border border-white/70 bg-white/88 p-4 shadow-2xl shadow-[#FFB020]/18 backdrop-blur-xl sm:block">
+              <div className="absolute -right-6 bottom-20 z-20 hidden rounded-3xl border border-white/70 bg-white/90 p-4 shadow-2xl shadow-[#FFB020]/18 backdrop-blur-xl sm:block">
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FFB020]/14 text-[#B7791F]">
                     <Crown className="h-5 w-5" />
@@ -260,51 +271,26 @@ export function MarketingLanding() {
                   </div>
                 </div>
               </div>
-
-              <div className="relative rounded-[42px] border border-[#101426]/10 bg-[#101426] p-3 shadow-[0_38px_90px_rgba(16,20,38,0.28)]">
+              <img
+                src="/marketing-captures/interface-ado.jpg"
+                alt=""
+                className="absolute -right-8 top-12 hidden h-[390px] rotate-6 rounded-[36px] border border-white/70 object-cover opacity-75 shadow-2xl shadow-[#101426]/18 lg:block"
+                loading="eager"
+              />
+              <img
+                src="/marketing-captures/interface-enfant.jpg"
+                alt=""
+                className="absolute -left-10 bottom-4 hidden h-[340px] -rotate-6 rounded-[34px] border border-white/70 object-cover opacity-70 shadow-2xl shadow-[#101426]/16 lg:block"
+                loading="eager"
+              />
+              <div className="relative z-10 rounded-[42px] border border-[#101426]/10 bg-[#101426] p-3 shadow-[0_38px_90px_rgba(16,20,38,0.28)]">
                 <div className="absolute -inset-1 rounded-[46px] bg-[linear-gradient(135deg,rgba(108,92,255,0.28),rgba(255,176,32,0.18),rgba(0,210,106,0.16))] blur-xl" />
-                <div className="overflow-hidden rounded-[32px] bg-[#08111F] text-white">
-                  <div className="relative p-5">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(108,92,255,0.42),transparent_34%),radial-gradient(circle_at_90%_14%,rgba(255,176,32,0.18),transparent_26%)]" />
-                    <div className="relative flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-bold text-white/55">Bonjour</span>
-                        <h2 className="text-2xl font-black">Famille Yatta</h2>
-                      </div>
-                      <img src="/icon-192x192.png" alt="" className="h-11 w-11 rounded-2xl" />
-                    </div>
-                    <div className="relative mt-5 rounded-3xl border border-white/8 bg-white/7 p-4">
-                      <div className="mb-4 flex items-center justify-between">
-                        <div>
-                          <h3 className="text-lg font-black">Vue famille</h3>
-                          <p className="text-xs font-semibold text-white/50">Ce qui mérite attention.</p>
-                        </div>
-                        <Mic className="h-5 w-5 text-[#FF4D6D]" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        {modules.map(module => {
-                          const Icon = module.icon;
-                          return (
-                            <div key={module.label} className="rounded-2xl border border-white/8 bg-[#0D1930] p-3">
-                              <Icon className={`mb-3 h-5 w-5 ${module.tone}`} />
-                              <span className="block text-[10px] font-black uppercase text-white/38">{module.label}</span>
-                              <strong className="mt-1 block text-sm">{module.value}</strong>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div className="relative mt-4 rounded-3xl border border-[#00D26A]/18 bg-[#00D26A]/10 p-4">
-                      <div className="flex items-center gap-3">
-                        <Check className="h-5 w-5 text-[#00D26A]" />
-                        <div>
-                          <strong className="block text-sm">Journée prête</strong>
-                          <span className="text-xs font-semibold text-white/50">Planning, courses et budget alignés.</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <img
+                  src="/marketing-captures/home-real.jpg"
+                  alt="Aperçu de l’écran d’accueil MyFamily+"
+                  className="relative w-full rounded-[32px] object-cover"
+                  loading="eager"
+                />
               </div>
             </div>
           </div>
@@ -495,7 +481,7 @@ export function MarketingLanding() {
                 MyFamily+ Premium
               </div>
               <h2 className="text-4xl font-black tracking-normal">La version qui donne au foyer une longueur d’avance.</h2>
-              <div className="mt-7 space-y-3">
+              <div className="mt-7 grid gap-3 sm:grid-cols-2">
                 {premiumItems.map(item => (
                   <div key={item} className="flex items-start gap-3 rounded-2xl bg-[#F7F8FC] p-4">
                     <Check className="mt-0.5 h-5 w-5 shrink-0 text-[#00A957]" />
@@ -503,6 +489,12 @@ export function MarketingLanding() {
                   </div>
                 ))}
               </div>
+              <a
+                href={appUrl}
+                className="mt-7 inline-flex items-center justify-center gap-2 rounded-full bg-[#101426] px-6 py-4 text-sm font-black uppercase tracking-wide text-white shadow-xl shadow-[#101426]/16"
+              >
+                Découvrir Premium <Crown className="h-5 w-5" />
+              </a>
             </div>
             <div className="space-y-4">
               <div className="rounded-[30px] bg-[#6C5CFF] p-6 text-white shadow-2xl shadow-[#6C5CFF]/22">
@@ -512,18 +504,13 @@ export function MarketingLanding() {
                   Ouvrez rapidement les espaces utiles et gardez le contrôle des courses, dépenses, voyages et routines.
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-[26px] bg-white p-5 shadow-xl shadow-[#101426]/6">
-                  <LockKeyhole className="mb-4 h-6 w-6 text-[#101426]" />
-                  <strong className="block">Protégé</strong>
-                  <span className="mt-2 block text-xs font-semibold leading-5 text-[#667085]">Chaque foyer garde son espace, ses accès et ses documents.</span>
+              {premiumCards.map(([title, text], index) => (
+                <div key={title} className="rounded-[26px] bg-white p-5 shadow-xl shadow-[#101426]/6">
+                  {index === 0 ? <Mic className="mb-4 h-6 w-6 text-[#FF4D6D]" /> : index === 1 ? <LockKeyhole className="mb-4 h-6 w-6 text-[#101426]" /> : <BadgeCheck className="mb-4 h-6 w-6 text-[#6C5CFF]" />}
+                  <strong className="block">{title}</strong>
+                  <span className="mt-2 block text-xs font-semibold leading-5 text-[#667085]">{text}</span>
                 </div>
-                <div className="rounded-[26px] bg-white p-5 shadow-xl shadow-[#101426]/6">
-                  <BadgeCheck className="mb-4 h-6 w-6 text-[#FF4D6D]" />
-                  <strong className="block">Soigné</strong>
-                  <span className="mt-2 block text-xs font-semibold leading-5 text-[#667085]">Des détails utiles, visibles, et pensés pour les vrais usages.</span>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </section>
