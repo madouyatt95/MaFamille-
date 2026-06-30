@@ -81,7 +81,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
   "mediationTip": "Conseil de médiation de paix en français pour la famille (1 phrase)"
 }`;
 
-        const groqEndpoint = import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/groq' : '/api/groq';
+        const groqEndpoint = import.meta.env.DEV ? 'https://myfamilyplus.fr/api/groq' : '/api/groq';
         const headers = await aiQuotaService.getAIProxyHeaders();
 
         const response = await fetch(groqEndpoint, {

@@ -84,7 +84,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
           const base64Data = (reader.result as string).split(',')[1];
           const mimeType = file.type || 'image/jpeg';
           
-          const geminiEndpoint = import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini';
+          const geminiEndpoint = import.meta.env.DEV ? 'https://myfamilyplus.fr/api/gemini' : '/api/gemini';
 
           const requestBody = {
             contents: [

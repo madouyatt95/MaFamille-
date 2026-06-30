@@ -12,7 +12,7 @@ const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const stripeWebMonthlyPriceId = Deno.env.get("STRIPE_PRICE_WEB_MONTHLY") || "";
 const stripeWebYearlyPriceId = Deno.env.get("STRIPE_PRICE_WEB_YEARLY") || "";
-const siteUrl = Deno.env.get("SITE_URL") || "https://ma-famille-nu.vercel.app";
+const siteUrl = Deno.env.get("SITE_URL") || "https://myfamilyplus.fr";
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 

@@ -44,8 +44,7 @@ Dans `Authentication > URL Configuration` :
 - cette même URL doit figurer dans `Redirect URLs`.
 
 L'application utilise `VITE_SITE_URL` quand cette variable est définie, avec
-`https://ma-famille-nu.vercel.app` comme valeur de secours.
+`https://myfamilyplus.fr` comme valeur de secours.
 
-Tant que `myfamilyplus.fr` n'est pas relie a l'application, garder
-`https://ma-famille-nu.vercel.app` en `Site URL` et ajouter
+Pour la production, utiliser `https://myfamilyplus.fr` en `Site URL` et ajouter
 `https://myfamilyplus.fr/**` dans les redirections autorisees.

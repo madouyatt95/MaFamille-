@@ -17,7 +17,7 @@ import {
 import { getSupabaseClient } from '../utils/supabase';
 
 const AUTH_REDIRECT_URL = (
-  import.meta.env.VITE_SITE_URL || 'https://ma-famille-nu.vercel.app'
+  import.meta.env.VITE_SITE_URL || 'https://myfamilyplus.fr'
 ).replace(/\/+$/, '');
 
 const getAuthErrorMessage = (error: unknown): string => {

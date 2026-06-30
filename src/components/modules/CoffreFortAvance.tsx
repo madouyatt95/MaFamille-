@@ -732,7 +732,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
           </button>
           
           <p className="text-[9px] text-white/30 text-center max-w-xs">
-            En activant ce coffre, vous acceptez nos CGU de stockage sécurisé. Vous pouvez révoquer ce consentement à tout moment en contactant notre DPO à dpo@mafamilleplus.fr.
+            En activant ce coffre, vous acceptez nos CGU de stockage sécurisé. Vous pouvez révoquer ce consentement à tout moment en contactant notre DPO à dpo@myfamilyplus.fr.
           </p>
         </div>
       ) : (
@@ -2192,7 +2192,7 @@ export const CoffreFortAvance: React.FC<CoffreFortAvanceProps> = ({ documents, s
                 </div>
                 <div>
                   <p className="font-bold text-white flex items-center"><span className="mr-1.5">📁</span> Droit à la portabilité</p>
-                  <p className="text-[10px] text-white/40 leading-normal mt-0.5">Vous conservez l'entière propriété de vos pièces. Contactez notre délégué à la protection à dpo@mafamilleplus.fr pour toute question.</p>
+                  <p className="text-[10px] text-white/40 leading-normal mt-0.5">Vous conservez l'entière propriété de vos pièces. Contactez notre délégué à la protection à dpo@myfamilyplus.fr pour toute question.</p>
                 </div>
               </div>
 

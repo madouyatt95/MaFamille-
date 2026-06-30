@@ -263,7 +263,7 @@ Chaque recette doit être un objet JSON avec les propriétés suivantes rédigé
 - prepSteps (tableau de 3 étapes courtes et concrètes)
 - promptKeywords (mots-clés très descriptifs en anglais séparés par des virgules pour générer la photo culinaire ex: 'creamy chicken soup with warm bread, hyper detailed food photography, Pixar style 3d')`;
 
-        const geminiEndpoint = import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini';
+        const geminiEndpoint = import.meta.env.DEV ? 'https://myfamilyplus.fr/api/gemini' : '/api/gemini';
         const headers = await aiQuotaService.getAIProxyHeaders();
 
         const response = await fetch(geminiEndpoint, {

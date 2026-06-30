@@ -245,7 +245,7 @@ export const fetchExternalCalendar = async (
 ): Promise<ExternalEvent[]> => {
   try {
     const apiRoute = import.meta.env.DEV 
-      ? 'https://ma-famille-nu.vercel.app/api/ical' 
+      ? 'https://myfamilyplus.fr/api/ical' 
       : '/api/ical';
 
     let text = '';

@@ -176,7 +176,7 @@ ${expectedJsonShape}
 }
 Génère EXACTEMENT 5 éléments ultra-pertinents par membre. N'invente aucun prénom absent de la liste.`;
 
-        const groqEndpoint = import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/groq' : '/api/groq';
+        const groqEndpoint = import.meta.env.DEV ? 'https://myfamilyplus.fr/api/groq' : '/api/groq';
         const headers = await aiQuotaService.getAIProxyHeaders();
 
         const response = await fetch(groqEndpoint, {

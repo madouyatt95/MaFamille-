@@ -1583,7 +1583,7 @@ export const Settings: React.FC<SettingsProps> = ({
             <div className="p-4 pt-0 text-[10px] text-white/40 leading-relaxed space-y-2 border-t border-white/5">
               <p><strong>Éditeur de l'application :</strong> Yatta Digital.</p>
               <p><strong>Hébergement :</strong> Supabase & Vercel, selon la configuration du projet.</p>
-              <p><strong>Contact confidentialité :</strong> dpo@mafamilleplus.fr.</p>
+              <p><strong>Contact confidentialité :</strong> dpo@myfamilyplus.fr.</p>
             </div>
           </details>
 

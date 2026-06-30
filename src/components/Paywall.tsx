@@ -390,7 +390,7 @@ export const Paywall: React.FC<PaywallProps> = ({
             <span>Puis {selectedPrice} {selectedPeriod}</span>
             <span aria-hidden="true">•</span>
             <span>Annulable à tout moment</span>
-            {isWeb && <><span aria-hidden="true">•</span><span className="inline-flex items-center gap-1"><CreditCard className="h-3 w-3" /> Codes promotionnels acceptés</span></>}
+            {isWeb && selectedPlan === 'monthly' && <><span aria-hidden="true">•</span><span className="inline-flex items-center gap-1"><CreditCard className="h-3 w-3" /> Codes promotionnels acceptés</span></>}
             {!isWeb && <><span aria-hidden="true">•</span><span>Facturation Apple</span></>}
           </div>
           <div className="mt-2 flex justify-center gap-4 text-[9px] font-bold text-white/35">

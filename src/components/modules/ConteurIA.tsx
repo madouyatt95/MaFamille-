@@ -561,7 +561,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
   ]
 }`;
 
-        const geminiEndpoint = import.meta.env.DEV ? 'https://ma-famille-nu.vercel.app/api/gemini' : '/api/gemini';
+        const geminiEndpoint = import.meta.env.DEV ? 'https://myfamilyplus.fr/api/gemini' : '/api/gemini';
         const headers = await aiQuotaService.getAIProxyHeaders();
 
         const response = await fetch(geminiEndpoint, {
