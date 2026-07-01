@@ -13,7 +13,8 @@ import {
   Phone,
   Plus,
   Compass,
-  GraduationCap
+  GraduationCap,
+  Lock
 } from 'lucide-react';
 
 // Interfaces for our static data
@@ -148,6 +149,71 @@ export function FamilyRoots({
     if (cousinFilter === 'Par branche') return matchesSearch && c.location?.includes('Dakar');
     return matchesSearch;
   });
+
+  const isBlocked = true;
+
+  if (isBlocked) {
+    return (
+      <div className="relative min-h-screen w-full bg-[#050C1A] text-white font-sans overflow-x-hidden pb-12 select-none">
+        {/* Top Banner/Header */}
+        <header className="px-4 pt-6 pb-4 border-b border-white/5 bg-[#050C1A]">
+          <div className="flex items-center justify-between">
+            <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 hover:bg-white/10">
+              <ArrowLeft className="h-5 w-5 text-white/80" />
+            </button>
+            <div className="text-center">
+              <h1 className="text-lg font-black tracking-wide flex items-center justify-center gap-1.5">
+                Racines familiales 🌳
+              </h1>
+              <p className="text-[10px] font-semibold text-white/40 mt-0.5">
+                Notre histoire, nos liens, nos racines 🌳
+              </p>
+            </div>
+            <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 hover:bg-white/10">
+              <SlidersHorizontal className="h-4 w-4 text-white/80" />
+            </button>
+          </div>
+        </header>
+
+        {/* Blurred preview and Bientôt disponible card overlay */}
+        <div className="relative px-6 py-20 flex flex-col items-center justify-center min-h-[70vh] overflow-hidden">
+          
+          {/* Blurred background components representing the tree shapes */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center opacity-10 filter blur-[12px] pointer-events-none scale-90">
+            {/* Minimal SVG tree structure for background visual depth */}
+            <svg className="w-[300px] h-[300px]" viewBox="0 0 100 100">
+              <line x1="50" y1="20" x2="50" y2="80" stroke="white" strokeWidth="3" />
+              <line x1="20" y1="50" x2="80" y2="50" stroke="white" strokeWidth="3" />
+              <circle cx="50" cy="20" r="10" fill="white" />
+              <circle cx="20" cy="50" r="10" fill="white" />
+              <circle cx="80" cy="50" r="10" fill="white" />
+              <circle cx="50" cy="80" r="10" fill="white" />
+            </svg>
+          </div>
+
+          {/* Premium Glassmorphic Overlay Card */}
+          <div className="relative z-10 w-full max-w-sm rounded-[32px] bg-gradient-to-b from-[#0A1224]/85 to-[#050C1A]/95 border border-white/10 p-8 text-center backdrop-blur-xl shadow-[0_24px_64px_rgba(0,0,0,0.5)]">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#A196FF] shadow-[0_8px_24px_rgba(108,92,255,0.4)] mb-6">
+              <Lock className="h-7 w-7 text-white" strokeWidth={2.5} />
+            </div>
+            
+            <h2 className="text-2xl font-black tracking-wide text-white">Bientôt disponible</h2>
+            <p className="text-xs font-bold text-[#A196FF] mt-1.5 uppercase tracking-widest">Module en cours de finalisation</p>
+            
+            <p className="text-xs leading-relaxed text-white/50 mt-5">
+              Le module **Racines Familiales** arrive très bientôt pour votre foyer ! Vous pourrez y explorer votre arbre généalogique interactif, cartographier vos branches géographiques et rester connecté avec vos cousins.
+            </p>
+
+            <div className="mt-8 pt-6 border-t border-white/5">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#6C5CFF]/12 border border-[#6C5CFF]/20 px-4 py-2 text-[10px] font-black text-[#C9C3FF] uppercase tracking-wider">
+                ⏳ Lancement imminent
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen w-full bg-[#050C1A] text-white font-sans overflow-x-hidden pb-12 select-none">
