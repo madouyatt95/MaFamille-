@@ -156,7 +156,7 @@ const trustItems = [
 const faqs = [
   ['Est-ce gratuit ?', 'Oui. Le foyer peut démarrer gratuitement, puis Premium débloque les fonctions avancées.'],
   ['Comment inviter ma famille ?', 'Vous partagez un code ou un lien d’invitation, et le membre rejoint directement le bon foyer.'],
-  ['Puis-je l’ajouter sur téléphone ?', 'Oui. MyFamily+ peut être ajoutée à l’écran d’accueil sur iPhone et Android.'],
+  ['Puis-je l’ajouter sur téléphone ?', 'Oui. Sur iPhone et iPad, ouvrez MyFamily+ dans Safari pour l’ajouter à l’écran d’accueil. Sur Android, utilisez l’option d’installation de votre navigateur.'],
   ['Les enfants ont-ils un accès adapté ?', 'Oui. Les interfaces enfants et ados sont pensées pour afficher moins, mais mieux.'],
   ['Où sont mes documents ?', 'Ils restent liés à votre foyer et les partages se font uniquement quand vous les déclenchez.']
 ];
@@ -662,7 +662,7 @@ export function MarketingLanding() {
               )}
             </div>
             <p className="mt-5 text-xs font-semibold text-[#8A94A6]">
-              Sur iPhone ou Android, MyFamily+ peut vivre directement sur votre écran d’accueil.
+              Sur iPhone et iPad, ouvrez cette page dans Safari pour ajouter MyFamily+ à votre écran d’accueil.
             </p>
           </div>
         </section>
@@ -697,7 +697,7 @@ export function MarketingLanding() {
               </button>
             </div>
             <div className="mt-5 space-y-3 text-sm font-semibold leading-6 text-[#536073]">
-              <p><strong className="text-[#101426]">Sur iPhone :</strong> ouvrez MyFamily+, touchez Partager, puis “Sur l’écran d’accueil”.</p>
+              <p><strong className="text-[#101426]">Sur iPhone ou iPad :</strong> ouvrez d’abord MyFamily+ dans Safari, touchez Partager, puis “Sur l’écran d’accueil”.</p>
               <p><strong className="text-[#101426]">Sur Android :</strong> ouvrez MyFamily+, puis choisissez “Installer l’application” ou “Ajouter à l’écran d’accueil”.</p>
             </div>
             <a
