@@ -36,6 +36,8 @@ type Props = {
 type ViewId = 'arbre' | 'cousins' | 'branches' | 'carte' | 'dates';
 type GedcomPreview = { people: GedcomPerson[]; links: GedcomLink[] } | null;
 type MemoryDraft = { title: string; note: string; date: string; photoUrl: string; visibility: FamilyTreeMemory['visibility'] };
+type GenerationGroup = { generation: number; people: FamilyTreeProfile[] };
+type RelationshipPreview = { id: string; label: string; targetName: string };
 
 const branchLabels: Record<FamilyBranch, string> = {
   proche: 'Famille proche',
@@ -55,6 +57,16 @@ const relationshipLabels: Record<FamilyRelationshipType, string> = {
   grand_parent: 'Grand-parent',
   petit_enfant: 'Petit-enfant',
   famille: 'Autre lien familial'
+};
+
+const reciprocalRelationshipType = (type: FamilyRelationshipType): FamilyRelationshipType => {
+  if (type === 'parent') return 'enfant';
+  if (type === 'enfant') return 'parent';
+  if (type === 'grand_parent') return 'petit_enfant';
+  if (type === 'petit_enfant') return 'grand_parent';
+  if (type === 'oncle_tante') return 'neveu_niece';
+  if (type === 'neveu_niece') return 'oncle_tante';
+  return type;
 };
 
 const eventLabels: Record<FamilyTreeEvent['eventType'], string> = {
@@ -150,19 +162,28 @@ const ageDiff = (older?: string, younger?: string) => {
 
 const profileLabel = (profile: FamilyTreeProfile) => profile.nickname ? `${profile.displayName} · ${profile.nickname}` : profile.displayName;
 
-const buildGenerations = (profiles: FamilyTreeProfile[], relationships: FamilyRootsSnapshot['relationships']) => {
+const buildGenerations = (profiles: FamilyTreeProfile[], relationships: FamilyRootsSnapshot['relationships']): GenerationGroup[] => {
   const visible = profiles.filter(profile => profile.visibility !== 'masque');
   const ids = new Set(visible.map(profile => profile.id));
   const levels = new Map(visible.map(profile => [profile.id, 0]));
-  const parentLinks = relationships.filter(link => link.relationshipType === 'parent' && ids.has(link.sourceProfileId) && ids.has(link.targetProfileId));
+  const generationLinks = relationships.flatMap(link => {
+    if (!ids.has(link.sourceProfileId) || !ids.has(link.targetProfileId)) return [];
+    if (link.relationshipType === 'parent') return [{ parentId: link.sourceProfileId, childId: link.targetProfileId, offset: 1 }];
+    if (link.relationshipType === 'enfant') return [{ parentId: link.targetProfileId, childId: link.sourceProfileId, offset: 1 }];
+    if (link.relationshipType === 'grand_parent') return [{ parentId: link.sourceProfileId, childId: link.targetProfileId, offset: 2 }];
+    if (link.relationshipType === 'petit_enfant') return [{ parentId: link.targetProfileId, childId: link.sourceProfileId, offset: 2 }];
+    if (link.relationshipType === 'oncle_tante') return [{ parentId: link.sourceProfileId, childId: link.targetProfileId, offset: 1 }];
+    if (link.relationshipType === 'neveu_niece') return [{ parentId: link.targetProfileId, childId: link.sourceProfileId, offset: 1 }];
+    return [];
+  });
 
   for (let i = 0; i < Math.max(1, visible.length); i += 1) {
     let changed = false;
-    for (const link of parentLinks) {
-      const parentLevel = levels.get(link.sourceProfileId) ?? 0;
-      const childLevel = levels.get(link.targetProfileId) ?? 0;
-      if (childLevel <= parentLevel) {
-        levels.set(link.targetProfileId, parentLevel + 1);
+    for (const link of generationLinks) {
+      const parentLevel = levels.get(link.parentId) ?? 0;
+      const childLevel = levels.get(link.childId) ?? 0;
+      if (childLevel < parentLevel + link.offset) {
+        levels.set(link.childId, parentLevel + link.offset);
         changed = true;
       }
     }
@@ -176,6 +197,13 @@ const buildGenerations = (profiles: FamilyTreeProfile[], relationships: FamilyRo
     groups.set(generation, [...(groups.get(generation) || []), profile]);
   });
   return [...groups.entries()].sort(([a], [b]) => a - b).map(([generation, people]) => ({ generation, people }));
+};
+
+const relationshipPreviewTone = (type: FamilyRelationshipType) => {
+  if (['parent', 'enfant', 'grand_parent', 'petit_enfant'].includes(type)) return 'roots-link-green';
+  if (['conjoint', 'fratrie'].includes(type)) return 'roots-link-violet';
+  if (['cousin', 'oncle_tante', 'neveu_niece'].includes(type)) return 'roots-link-blue';
+  return 'roots-link-amber';
 };
 
 const buildWarnings = (profiles: FamilyTreeProfile[], relationships: FamilyRootsSnapshot['relationships']) => {
@@ -321,11 +349,87 @@ export function FamilyRoots({
   const pendingIdentity = snapshot.identityRequests.filter(request => request.status === 'pending');
   const incomingIdentity = pendingIdentity.filter(request => request.direction === 'incoming');
   const profileById = useCallback((id?: string) => snapshot.profiles.find(profile => profile.id === id), [snapshot.profiles]);
-  const warnings = useMemo(() => buildWarnings(snapshot.profiles, snapshot.relationships), [snapshot.profiles, snapshot.relationships]);
+  const connectionRelationships = useMemo(() => confirmedConnections
+    .filter(connection => connection.targetProfileId)
+    .flatMap(connection => {
+      const direct = {
+        id: `connection-${connection.id}`,
+        foyerId,
+        sourceProfileId: connection.requesterProfileId,
+        targetProfileId: connection.targetProfileId as string,
+        relationshipType: connection.relationshipType
+      };
+      const inverse = {
+        id: `connection-${connection.id}-inverse`,
+        foyerId,
+        sourceProfileId: connection.targetProfileId as string,
+        targetProfileId: connection.requesterProfileId,
+        relationshipType: reciprocalRelationshipType(connection.relationshipType)
+      };
+      return [direct, inverse];
+    }), [confirmedConnections, foyerId]);
+  const treeRelationships = useMemo(() => {
+    const seen = new Set<string>();
+    return [...snapshot.relationships, ...connectionRelationships].filter(link => {
+      const key = `${link.sourceProfileId}|${link.targetProfileId}|${link.relationshipType}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [connectionRelationships, snapshot.relationships]);
+  const warnings = useMemo(() => buildWarnings(snapshot.profiles, treeRelationships), [snapshot.profiles, treeRelationships]);
   const allTreeProfiles = useMemo(() => [...localProfiles, ...remoteProfiles], [localProfiles, remoteProfiles]);
+  const relationshipPreviewsByProfile = useMemo(() => {
+    const ids = new Set(allTreeProfiles.map(profile => profile.id));
+    const map = new Map<string, RelationshipPreview[]>();
+    treeRelationships.forEach(link => {
+      if (!ids.has(link.sourceProfileId) || !ids.has(link.targetProfileId)) return;
+      const target = profileById(link.targetProfileId);
+      if (!target || target.visibility === 'masque') return;
+      map.set(link.sourceProfileId, [...(map.get(link.sourceProfileId) || []), {
+        id: link.id,
+        label: relationshipLabels[link.relationshipType],
+        targetName: target.displayName
+      }]);
+    });
+    return map;
+  }, [allTreeProfiles, profileById, treeRelationships]);
+  const visibleRelationshipSummaries = useMemo(() => {
+    const ids = new Set(allTreeProfiles.map(profile => profile.id));
+    const displayed = new Set<string>();
+    return treeRelationships.flatMap(link => {
+      if (!ids.has(link.sourceProfileId) || !ids.has(link.targetProfileId)) return [];
+      const source = profileById(link.sourceProfileId);
+      const target = profileById(link.targetProfileId);
+      if (!source || !target || source.visibility === 'masque' || target.visibility === 'masque') return [];
+      const symmetric = ['fratrie', 'cousin', 'conjoint', 'famille'].includes(link.relationshipType);
+      const displaySourceId = link.relationshipType === 'enfant' || link.relationshipType === 'petit_enfant' || link.relationshipType === 'neveu_niece'
+        ? link.targetProfileId
+        : link.sourceProfileId;
+      const displayTargetId = link.relationshipType === 'enfant' || link.relationshipType === 'petit_enfant' || link.relationshipType === 'neveu_niece'
+        ? link.sourceProfileId
+        : link.targetProfileId;
+      const displayType = link.relationshipType === 'enfant' || link.relationshipType === 'petit_enfant' || link.relationshipType === 'neveu_niece'
+        ? reciprocalRelationshipType(link.relationshipType)
+        : link.relationshipType;
+      const ordered = symmetric ? [displaySourceId, displayTargetId].sort() : [displaySourceId, displayTargetId];
+      const key = `${ordered[0]}|${ordered[1]}|${displayType}`;
+      if (displayed.has(key)) return [];
+      displayed.add(key);
+      const displaySource = profileById(displaySourceId);
+      const displayTarget = profileById(displayTargetId);
+      if (!displaySource || !displayTarget) return [];
+      return [{
+        id: link.id,
+        type: displayType,
+        sourceName: displaySource.displayName,
+        targetName: displayTarget.displayName
+      }];
+    }).slice(0, 8);
+  }, [allTreeProfiles, profileById, treeRelationships]);
   const cousinProfiles = useMemo(() => {
     const ids = new Set<string>();
-    snapshot.relationships.filter(link => link.relationshipType === 'cousin').forEach(link => {
+    treeRelationships.filter(link => link.relationshipType === 'cousin').forEach(link => {
       if (!focusProfile || link.sourceProfileId === focusProfile.id) ids.add(link.targetProfileId);
       if (!focusProfile || link.targetProfileId === focusProfile.id) ids.add(link.sourceProfileId);
     });
@@ -338,7 +442,7 @@ export function FamilyRoots({
       .filter(profile => profile.branch !== 'proche' || !profile.isLocal)
       .filter(matches)
       .slice(0, 24);
-  }, [allTreeProfiles, focusProfile, snapshot.relationships, treeSearch]);
+  }, [allTreeProfiles, focusProfile, treeRelationships, treeSearch]);
   const branchSummaries = useMemo(() => (['proche', 'paternelle', 'maternelle', 'autre'] as FamilyBranch[]).map(branch => ({
     branch,
     profiles: localProfiles.filter(profile => profile.branch === branch),
@@ -378,12 +482,12 @@ export function FamilyRoots({
   const linkedProfileIds = useMemo(() => {
     if (!treeLinkProfileId) return null;
     const ids = new Set([treeLinkProfileId]);
-    snapshot.relationships.forEach(link => {
+    treeRelationships.forEach(link => {
       if (link.sourceProfileId === treeLinkProfileId) ids.add(link.targetProfileId);
       if (link.targetProfileId === treeLinkProfileId) ids.add(link.sourceProfileId);
     });
     return ids;
-  }, [snapshot.relationships, treeLinkProfileId]);
+  }, [treeRelationships, treeLinkProfileId]);
   const filteredTreeProfiles = useMemo(() => allTreeProfiles.filter(profile => {
     const query = normalizeText(treeSearch);
     const country = profile.country?.trim() || 'Pays non indiqué';
@@ -394,7 +498,7 @@ export function FamilyRoots({
     if (linkedProfileIds && !linkedProfileIds.has(profile.id)) return false;
     return true;
   }), [allTreeProfiles, linkedProfileIds, treeBranchFilter, treePlaceFilter, treeSearch]);
-  const generations = useMemo(() => buildGenerations(filteredTreeProfiles, snapshot.relationships), [filteredTreeProfiles, snapshot.relationships]);
+  const generations = useMemo(() => buildGenerations(filteredTreeProfiles, treeRelationships), [filteredTreeProfiles, treeRelationships]);
   const generationOptions = useMemo(() => ['all', ...generations.map(group => String(group.generation))], [generations]);
   const visibleGenerations = useMemo(() => generations.filter(group => treeGenerationFilter === 'all' || String(group.generation) === treeGenerationFilter), [generations, treeGenerationFilter]);
   const filteredUpcomingEvents = useMemo(() => upcomingEvents.filter(event => {
@@ -548,10 +652,17 @@ export function FamilyRoots({
 
   const addInternalRelationship = async () => {
     if (!editingProfile || !relationTargetId) return setNotice('Choisissez la personne reliée.');
+    const sourceProfileId = editingProfile.id;
     await runAction(async () => {
-      await familyRootsService.addRelationship(foyerId, editingProfile.id, relationTargetId, relationType);
+      await familyRootsService.addRelationship(foyerId, sourceProfileId, relationTargetId, relationType);
       setRelationTargetId('');
-    }, 'Le lien familial a été ajouté avec son lien réciproque.');
+      setTreeBranchFilter('all');
+      setTreePlaceFilter('all');
+      setTreeGenerationFilter('all');
+      setTreeLinkProfileId(sourceProfileId);
+      setEditingProfile(null);
+      setView('arbre');
+    }, 'Le lien familial est ajouté. L’arbre est recentré autour de cette personne.');
   };
 
   const sendConnection = async () => {
@@ -840,7 +951,7 @@ export function FamilyRoots({
                   <option value="">Vue globale</option>
                   {allTreeProfiles.map(profile => <option key={profile.id} value={profile.id}>Autour de {profile.displayName}</option>)}
                 </select>
-                <button type="button" onClick={() => setReadingOpen(true)} className="roots-icon-button" aria-label="Lecture familiale"><Maximize2 className="h-4 w-4" /></button>
+                <button type="button" onClick={() => setReadingOpen(true)} className="roots-fullscreen-button" aria-label="Lire en plein écran"><Maximize2 className="h-4 w-4" /><span>Plein écran</span></button>
                 <div className="flex rounded-2xl border border-white/8 bg-white/5 p-1">
                   <button type="button" onClick={() => setTreeZoom(value => Math.max(0.8, Number((value - 0.1).toFixed(1))))} className="roots-icon-button" aria-label="Réduire"><Minus className="h-4 w-4" /></button>
                   <button type="button" onClick={() => setTreeZoom(value => Math.min(1.4, Number((value + 0.1).toFixed(1))))} className="roots-icon-button" aria-label="Agrandir"><Plus className="h-4 w-4" /></button>
@@ -871,11 +982,22 @@ export function FamilyRoots({
                     group={group}
                     isFirst={group.generation === visibleGenerations[0]?.generation}
                     canManage={canManage}
+                    relationshipPreviewsByProfile={relationshipPreviewsByProfile}
                     onProfileClick={profile => canManage && profile.isLocal && setEditingProfile(profile)}
                   />
                 )) : <div className="max-w-sm"><EmptyState icon={<Search className="h-8 w-8" />} text="Aucune fiche ne correspond aux filtres." /></div>}
               </div>
             </div>
+            {visibleRelationshipSummaries.length > 0 && (
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {visibleRelationshipSummaries.slice(0, 4).map(link => (
+                  <div key={`${link.id}-${link.sourceName}-${link.targetName}`} className={`roots-link-summary ${relationshipPreviewTone(link.type)}`}>
+                    <span>{relationshipLabels[link.type]}</span>
+                    <strong>{link.sourceName} · {link.targetName}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
@@ -1328,6 +1450,8 @@ export function FamilyRoots({
       {readingOpen && <ReadingMode
         familyName={familyName}
         generations={generations}
+        relationshipPreviewsByProfile={relationshipPreviewsByProfile}
+        visibleRelationshipSummaries={visibleRelationshipSummaries}
         branchSummaries={branchSummaries}
         memories={snapshot.memories}
         events={upcomingEvents}
@@ -1455,6 +1579,7 @@ export function FamilyRoots({
         .family-roots .roots-muted{font-size:11px;font-weight:700;line-height:1.55;color:rgba(255,255,255,.48)}
         .family-roots .roots-kicker{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.46)}
         .family-roots .roots-icon-button{display:flex;height:44px;width:44px;align-items:center;justify-content:center;border-radius:16px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.05);color:rgba(255,255,255,.65)}
+        .family-roots .roots-fullscreen-button{display:flex;min-height:44px;align-items:center;justify-content:center;gap:8px;border-radius:16px;border:1px solid rgba(108,92,255,.25);background:rgba(108,92,255,.12);padding:0 12px;color:#C9C3FF;font-size:11px;font-weight:900}
         .family-roots .roots-action{display:flex;min-height:46px;align-items:center;justify-content:center;gap:8px;border-radius:16px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.055);padding:0 12px;font-size:11px;font-weight:900;color:rgba(255,255,255,.7)}
         .family-roots .roots-action-green{border-color:rgba(0,210,106,.25);background:rgba(0,210,106,.08);color:#00D26A;width:100%}
         .family-roots .roots-action-violet{border-color:rgba(108,92,255,.3);background:rgba(108,92,255,.13);color:#b8b0ff;width:100%}
@@ -1482,9 +1607,19 @@ export function FamilyRoots({
         .family-roots .roots-tree-generation{padding-top:10px}
         .family-roots .roots-tree-stem{position:absolute;left:50%;top:-24px;height:28px;width:2px;transform:translateX(-50%);background:rgba(0,210,106,.35)}
         .family-roots .roots-tree-row:before{content:"";position:absolute;left:10%;right:10%;top:-8px;height:2px;background:linear-gradient(90deg,transparent,rgba(0,210,106,.34),transparent);border-radius:999px}
-        .family-roots .roots-tree-node{isolation:isolate}
+        .family-roots .roots-tree-generation-wide .roots-tree-row{gap:22px}
+        .family-roots .roots-tree-node{isolation:isolate;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+        .family-roots .roots-tree-node:not(:disabled):active{transform:scale(.985)}
+        .family-roots .roots-tree-node:not(:disabled):hover{border-color:rgba(0,210,106,.25);box-shadow:0 22px 60px rgba(0,0,0,.24)}
         .family-roots .roots-tree-node:before{content:"";position:absolute;left:50%;top:-14px;height:14px;width:2px;transform:translateX(-50%);background:rgba(0,210,106,.34)}
         .family-roots .roots-tree-dot{position:absolute;left:50%;top:-18px;height:9px;width:9px;transform:translateX(-50%);border-radius:999px;background:#00D26A;box-shadow:0 0 18px rgba(0,210,106,.55)}
+        .family-roots .roots-relation-chip{display:flex;min-width:0;align-items:center;justify-content:space-between;gap:6px;border-radius:999px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.055);padding:5px 7px;text-align:left}
+        .family-roots .roots-relation-chip span{min-width:0;color:rgba(255,255,255,.42);font-size:8px;font-weight:900;text-transform:uppercase}
+        .family-roots .roots-relation-chip strong{min-width:0;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(255,255,255,.72);font-size:9px;font-weight:900}
+        .family-roots .roots-link-summary{display:flex;min-height:54px;flex-direction:column;justify-content:center;border-radius:18px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.045);padding:10px 12px}
+        .family-roots .roots-link-summary span{font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
+        .family-roots .roots-link-summary strong{margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(255,255,255,.74);font-size:11px;font-weight:900}
+        .family-roots .roots-link-green span{color:#00D26A}.family-roots .roots-link-violet span{color:#C9C3FF}.family-roots .roots-link-blue span{color:#7FB0FF}.family-roots .roots-link-amber span{color:#FFB020}
         .root-input{width:100%;min-height:48px;border-radius:16px;border:1px solid rgba(255,255,255,.1);background:#101c34;padding:0 14px;color:white;font-size:12px;font-weight:700;outline:none}
         textarea.root-input{resize:vertical}
         .root-input:focus{border-color:rgba(108,92,255,.6)}
@@ -1493,12 +1628,15 @@ export function FamilyRoots({
         .theme-light .family-roots .roots-muted, .theme-light .family-roots .roots-kicker{color:rgba(24,32,51,.58)!important}
         .theme-light .family-roots .root-input{background:#fff;color:#182033;border-color:rgba(24,32,51,.16)}
         .theme-light .family-roots .roots-icon-button,.theme-light .family-roots .roots-action{background:#f5f7fb;border-color:rgba(24,32,51,.12);color:#243047}
+        .theme-light .family-roots .roots-fullscreen-button{background:#F0EAFF;border-color:#DCD0FF;color:#5B35D5}
         .theme-light .family-roots .roots-solid-violet{background:#6C5CFF!important;color:#fff!important}
         .theme-light .family-roots .roots-main-header,.theme-light .family-roots .roots-tabs,.theme-light .family-roots .roots-branch-row,.theme-light .family-roots .roots-search-pill{background:#fff;border-color:rgba(24,32,51,.10);box-shadow:0 14px 38px rgba(24,32,51,.06)}
         .theme-light .family-roots .roots-tab{color:#4B5565}.theme-light .family-roots .roots-tab-active{background:#F0EAFF;color:#5B35D5;border-color:#DCD0FF}
         .theme-light .family-roots .roots-view-select,.theme-light .family-roots .roots-search-pill input{background:#fff;color:#182033;border-color:rgba(24,32,51,.12)}
         .theme-light .family-roots .roots-filter-chip{background:#fff;color:#667085;border-color:rgba(24,32,51,.10)}.theme-light .family-roots .roots-filter-chip-active{background:#F0EAFF;color:#5B35D5;border-color:#DCD0FF}
         .theme-light .family-roots .roots-map-point{background:#fff;color:#182033;border-color:rgba(24,32,51,.10)}
+        .theme-light .family-roots .roots-relation-chip,.theme-light .family-roots .roots-link-summary{background:#fff;border-color:rgba(24,32,51,.10)}
+        .theme-light .family-roots .roots-relation-chip span{color:rgba(24,32,51,.46)}.theme-light .family-roots .roots-relation-chip strong,.theme-light .family-roots .roots-link-summary strong{color:#182033}
         .theme-light .family-roots .roots-world-map{background:radial-gradient(circle at 28% 44%,rgba(0,210,106,.16),transparent 7%),radial-gradient(circle at 51% 40%,rgba(108,92,255,.16),transparent 8%),radial-gradient(circle at 76% 52%,rgba(79,140,255,.16),transparent 8%),linear-gradient(135deg,#EEF8FF,#fff 48%,#F0FFF8)}
         .theme-light .family-roots .roots-tree-shell{background:#fff}
         .theme-light .family-roots .family-tree-canvas{background:linear-gradient(180deg,#f7fbf8,#fff)}
@@ -1510,12 +1648,15 @@ export function FamilyRoots({
         .theme-sepia .family-roots .roots-muted, .theme-sepia .family-roots .roots-kicker{color:rgba(53,47,39,.6)!important}
         .theme-sepia .family-roots .root-input{background:#fffaf0;color:#352f27;border-color:rgba(53,47,39,.18)}
         .theme-sepia .family-roots .roots-icon-button,.theme-sepia .family-roots .roots-action{background:#f7ecd8;border-color:rgba(53,47,39,.14);color:#42382d}
+        .theme-sepia .family-roots .roots-fullscreen-button{background:#F1E5D4;border-color:rgba(91,53,213,.22);color:#5B35D5}
         .theme-sepia .family-roots .roots-solid-violet{background:#6C5CFF!important;color:#fff!important}
         .theme-sepia .family-roots .roots-main-header,.theme-sepia .family-roots .roots-tabs,.theme-sepia .family-roots .roots-branch-row,.theme-sepia .family-roots .roots-search-pill{background:#fffaf0;border-color:rgba(53,47,39,.12);box-shadow:0 14px 38px rgba(53,47,39,.06)}
         .theme-sepia .family-roots .roots-tab{color:#6B5E50}.theme-sepia .family-roots .roots-tab-active{background:#F1E5D4;color:#5B35D5;border-color:rgba(91,53,213,.22)}
         .theme-sepia .family-roots .roots-view-select,.theme-sepia .family-roots .roots-search-pill input{background:#fffaf0;color:#352f27;border-color:rgba(53,47,39,.14)}
         .theme-sepia .family-roots .roots-filter-chip{background:#fffaf0;color:#6B5E50;border-color:rgba(53,47,39,.12)}.theme-sepia .family-roots .roots-filter-chip-active{background:#F1E5D4;color:#5B35D5;border-color:rgba(91,53,213,.22)}
         .theme-sepia .family-roots .roots-map-point{background:#fffaf0;color:#352f27;border-color:rgba(53,47,39,.14)}
+        .theme-sepia .family-roots .roots-relation-chip,.theme-sepia .family-roots .roots-link-summary{background:#fffaf0;border-color:rgba(53,47,39,.13)}
+        .theme-sepia .family-roots .roots-relation-chip span{color:rgba(53,47,39,.5)}.theme-sepia .family-roots .roots-relation-chip strong,.theme-sepia .family-roots .roots-link-summary strong{color:#352f27}
         .theme-sepia .family-roots .roots-world-map{background:linear-gradient(135deg,#F5EBD8,#FFFAF0 48%,#EEF8E8)}
         .theme-sepia .family-roots .roots-tree-shell{background:#fffaf0}
         .theme-sepia .family-roots .family-tree-canvas{background:linear-gradient(180deg,#f8efd9,#fffaf0)}
@@ -1531,15 +1672,19 @@ function TreeGeneration({
   group,
   isFirst,
   canManage,
+  relationshipPreviewsByProfile,
+  fullScreen = false,
   onProfileClick
 }: {
-  group: { generation: number; people: FamilyTreeProfile[] };
+  group: GenerationGroup;
   isFirst: boolean;
   canManage: boolean;
+  relationshipPreviewsByProfile: Map<string, RelationshipPreview[]>;
+  fullScreen?: boolean;
   onProfileClick: (profile: FamilyTreeProfile) => void;
 }) {
   return (
-    <section className="roots-tree-generation relative">
+    <section className={`roots-tree-generation relative ${fullScreen ? 'roots-tree-generation-wide' : ''}`}>
       {!isFirst && <span className="roots-tree-stem" aria-hidden="true" />}
       <div className="mb-3 flex items-center justify-center">
         <span className="rounded-full border border-[#00D26A]/22 bg-[#00D26A]/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.08em] text-[#00D26A]">
@@ -1552,6 +1697,8 @@ function TreeGeneration({
             key={profile.id}
             profile={profile}
             variant="tree"
+            links={relationshipPreviewsByProfile.get(profile.id)}
+            fullScreen={fullScreen}
             onClick={() => onProfileClick(profile)}
             disabled={!canManage || !profile.isLocal}
           />
@@ -1561,7 +1708,21 @@ function TreeGeneration({
   );
 }
 
-function ProfileCard({ profile, onClick, variant = 'list', disabled = false }: { profile: FamilyTreeProfile; onClick?: () => void; variant?: 'list' | 'tree'; disabled?: boolean }) {
+function ProfileCard({
+  profile,
+  onClick,
+  variant = 'list',
+  disabled = false,
+  links = [],
+  fullScreen = false
+}: {
+  profile: FamilyTreeProfile;
+  onClick?: () => void;
+  variant?: 'list' | 'tree';
+  disabled?: boolean;
+  links?: RelationshipPreview[];
+  fullScreen?: boolean;
+}) {
   const branchTone = profile.branch === 'paternelle'
     ? 'from-[#4F8CFF]/24 to-[#102846]'
     : profile.branch === 'maternelle'
@@ -1576,10 +1737,10 @@ function ProfileCard({ profile, onClick, variant = 'list', disabled = false }: {
         type="button"
         onClick={onClick}
         disabled={disabled}
-        className={`roots-tree-node relative flex min-h-[154px] w-[168px] flex-col items-center justify-start rounded-[30px] border border-white/10 bg-gradient-to-br ${branchTone} p-3 text-center shadow-[0_18px_50px_rgba(0,0,0,.18)] disabled:cursor-default`}
+        className={`roots-tree-node relative flex ${fullScreen ? 'min-h-[178px] w-[188px]' : 'min-h-[164px] w-[174px]'} flex-col items-center justify-start rounded-[30px] border border-white/10 bg-gradient-to-br ${branchTone} p-3 text-center shadow-[0_18px_50px_rgba(0,0,0,.18)] disabled:cursor-default`}
       >
         <span className="roots-tree-dot" aria-hidden="true" />
-        <MemberAvatar name={profile.displayName} photoUrl={profile.photoUrl} className="h-16 w-16 rounded-full ring-4 ring-white/10" />
+        <MemberAvatar name={profile.displayName} photoUrl={profile.photoUrl} className={`${fullScreen ? 'h-20 w-20' : 'h-16 w-16'} rounded-full ring-4 ring-white/10`} />
         <strong className="mt-3 line-clamp-2 text-sm font-black leading-4 text-white">{profileLabel(profile)}</strong>
         <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-4 text-white/48">{profile.originCity || profile.country || branchLabels[profile.branch]}</p>
         <div className="mt-3 flex flex-wrap justify-center gap-1">
@@ -1587,6 +1748,16 @@ function ProfileCard({ profile, onClick, variant = 'list', disabled = false }: {
           {profile.isMinor && <span className="rounded-full bg-[#00D26A]/14 px-2 py-1 text-[9px] font-black text-[#00D26A]">Protégé</span>}
           {profile.isMemorial && <span className="rounded-full bg-[#FFB020]/14 px-2 py-1 text-[9px] font-black text-[#FFB020]">Souvenir</span>}
         </div>
+        {links.length > 0 && (
+          <div className="mt-3 flex w-full flex-col gap-1.5">
+            {links.slice(0, 2).map(link => (
+              <span key={link.id} className="roots-relation-chip">
+                <span>{link.label}</span>
+                <strong>{link.targetName}</strong>
+              </span>
+            ))}
+          </div>
+        )}
       </button>
     );
   }
@@ -1664,6 +1835,8 @@ function GuideModal({
 function ReadingMode({
   familyName,
   generations,
+  relationshipPreviewsByProfile,
+  visibleRelationshipSummaries,
   branchSummaries,
   memories,
   events,
@@ -1671,7 +1844,9 @@ function ReadingMode({
   onClose
 }: {
   familyName: string;
-  generations: Array<{ generation: number; people: FamilyTreeProfile[] }>;
+  generations: GenerationGroup[];
+  relationshipPreviewsByProfile: Map<string, RelationshipPreview[]>;
+  visibleRelationshipSummaries: Array<{ id: string; type: FamilyRelationshipType; sourceName: string; targetName: string }>;
   branchSummaries: Array<{ branch: FamilyBranch; profiles: FamilyTreeProfile[]; events: FamilyTreeEvent[]; memories: FamilyTreeMemory[] }>;
   memories: FamilyTreeMemory[];
   events: FamilyTreeEvent[];
@@ -1679,13 +1854,13 @@ function ReadingMode({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[95] overflow-y-auto bg-[#07111F] p-4 text-white">
-      <div className="mx-auto max-w-5xl space-y-6 pb-10">
-        <header className="flex items-start justify-between gap-4 rounded-[30px] border border-white/10 bg-gradient-to-br from-[#102846] via-[#101A35] to-[#062820] p-5">
+    <div className="family-roots fixed inset-0 z-[95] overflow-y-auto bg-[#07111F] p-4 text-white">
+      <div className="mx-auto max-w-7xl space-y-6 pb-10">
+        <header className="flex items-start justify-between gap-4 rounded-[34px] border border-white/10 bg-gradient-to-br from-[#102846] via-[#101A35] to-[#062820] p-5 shadow-[0_24px_80px_rgba(0,0,0,.28)]">
           <div>
             <span className="roots-kicker text-[#00D26A]">Lecture familiale</span>
             <h2 className="mt-2 text-2xl font-black">{familyName}</h2>
-            <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-white/60">Une vue calme pour présenter les branches, les générations et les souvenirs sans boutons d’édition.</p>
+            <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-white/60">Une vue plein écran pour lire l’arbre, les générations et les liens familiaux sans outils d’édition.</p>
           </div>
           <button type="button" onClick={onClose} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/8 text-white/70" aria-label="Fermer"><X className="h-4 w-4" /></button>
         </header>
@@ -1698,33 +1873,59 @@ function ReadingMode({
             </div>
           ))}
         </section>
-        <section className="space-y-6 rounded-[30px] border border-white/10 bg-white/5 p-5">
-          <h3 className="text-lg font-black">Arbre</h3>
-          {generations.length ? generations.map(group => (
-            <div key={group.generation}>
-              <span className="roots-kicker">{group.generation === 0 ? 'Origines proches' : `Génération ${group.generation + 1}`}</span>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {group.people.map(profile => <ProfileCard key={profile.id} profile={profile} />)}
-              </div>
+        <section className="roots-card roots-tree-shell overflow-hidden p-4">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-black text-white">Arbre familial</h3>
+              <p className="roots-muted">Faites glisser horizontalement pour parcourir les grandes familles.</p>
             </div>
-          )) : <EmptyState icon={<TreePine className="h-8 w-8" />} text="L’arbre est encore vide." />}
+            <TreePine className="h-5 w-5 text-[#00D26A]" />
+          </div>
+          <div className="overflow-x-auto pb-3">
+            <div className="family-tree-canvas min-w-[980px] space-y-10 px-6 py-6">
+              {generations.length ? generations.map(group => (
+                <TreeGeneration
+                  key={group.generation}
+                  group={group}
+                  isFirst={group.generation === generations[0]?.generation}
+                  canManage={false}
+                  fullScreen
+                  relationshipPreviewsByProfile={relationshipPreviewsByProfile}
+                  onProfileClick={() => undefined}
+                />
+              )) : <EmptyState icon={<TreePine className="h-8 w-8" />} text="L’arbre est encore vide." />}
+            </div>
+          </div>
+          {visibleRelationshipSummaries.length > 0 && (
+            <div className="mt-4 grid gap-2 md:grid-cols-4">
+              {visibleRelationshipSummaries.slice(0, 8).map(link => (
+                <div key={`reading-${link.id}-${link.sourceName}-${link.targetName}`} className={`roots-link-summary ${relationshipPreviewTone(link.type)}`}>
+                  <span>{relationshipLabels[link.type]}</span>
+                  <strong>{link.sourceName} · {link.targetName}</strong>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
-        {(memories.length > 0 || events.length > 0) && (
-          <section className="grid gap-4 lg:grid-cols-2">
+
+        <section className="grid gap-4 lg:grid-cols-2">
+          {memories.length > 0 && (
             <div className="rounded-[30px] border border-white/10 bg-white/5 p-5">
               <h3 className="text-lg font-black">Souvenirs</h3>
-              <div className="mt-4 space-y-3">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {memories.slice(0, 6).map(memory => <MemoryCard key={memory.id} memory={memory} profileName={profileById(memory.profileId)?.displayName} />)}
               </div>
             </div>
+          )}
+          {events.length > 0 && (
             <div className="rounded-[30px] border border-white/10 bg-white/5 p-5">
               <h3 className="text-lg font-black">Prochaines dates</h3>
               <div className="mt-4 space-y-3">
                 {events.slice(0, 8).map(event => <p key={event.id} className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-xs font-bold text-white/65">{formatDate(nextOccurrence(event).toISOString().slice(0, 10))} · {event.title}</p>)}
               </div>
             </div>
-          </section>
-        )}
+          )}
+        </section>
       </div>
     </div>
   );
