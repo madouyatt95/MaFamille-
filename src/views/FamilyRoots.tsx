@@ -1465,10 +1465,8 @@ export function FamilyRoots({
       />}
 
       {readingOpen && <ReadingMode
-        familyName={familyName}
         generations={generations}
         relationshipPreviewsByProfile={relationshipPreviewsByProfile}
-        visibleRelationshipSummaries={visibleRelationshipSummaries}
         onClose={() => setReadingOpen(false)}
       />}
 
@@ -1635,6 +1633,11 @@ export function FamilyRoots({
         .family-roots .roots-link-summary span{font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
         .family-roots .roots-link-summary strong{margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(255,255,255,.74);font-size:11px;font-weight:900}
         .family-roots .roots-link-green span{color:#00D26A}.family-roots .roots-link-violet span{color:#C9C3FF}.family-roots .roots-link-blue span{color:#7FB0FF}.family-roots .roots-link-amber span{color:#FFB020}
+        .family-roots.roots-reading-mode{background:radial-gradient(circle at 50% 0%,rgba(108,92,255,.14),transparent 30%),radial-gradient(circle at 24% 22%,rgba(0,210,106,.12),transparent 24%),#07111F}
+        .family-roots .roots-reading-viewport{height:100dvh;width:100vw;overflow:auto;padding:18px;display:flex;align-items:center;justify-content:center}
+        .family-roots .roots-reading-canvas{flex:0 0 auto;transform-origin:center center;border:0;background:transparent!important;box-shadow:none}
+        .family-roots .roots-reading-canvas:before{opacity:.8}
+        .family-roots .roots-reading-close{position:fixed;right:calc(16px + env(safe-area-inset-right));top:calc(16px + env(safe-area-inset-top));z-index:2;display:flex;height:46px;width:46px;align-items:center;justify-content:center;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(7,17,31,.72);color:rgba(255,255,255,.78);box-shadow:0 18px 48px rgba(0,0,0,.24);backdrop-filter:blur(16px)}
         .root-input{width:100%;min-height:48px;border-radius:16px;border:1px solid rgba(255,255,255,.1);background:#101c34;padding:0 14px;color:white;font-size:12px;font-weight:700;outline:none}
         textarea.root-input{resize:vertical}
         .root-input:focus{border-color:rgba(108,92,255,.6)}
@@ -1655,6 +1658,8 @@ export function FamilyRoots({
         .theme-light .family-roots .roots-world-map{background:radial-gradient(circle at 28% 44%,rgba(0,210,106,.16),transparent 7%),radial-gradient(circle at 51% 40%,rgba(108,92,255,.16),transparent 8%),radial-gradient(circle at 76% 52%,rgba(79,140,255,.16),transparent 8%),linear-gradient(135deg,#EEF8FF,#fff 48%,#F0FFF8)}
         .theme-light .family-roots .roots-tree-shell{background:#fff}
         .theme-light .family-roots .family-tree-canvas{background:linear-gradient(180deg,#f7fbf8,#fff)}
+        .theme-light .family-roots.roots-reading-mode{background:radial-gradient(circle at 18% 10%,rgba(0,210,106,.12),transparent 24%),radial-gradient(circle at 82% 0%,rgba(108,92,255,.12),transparent 26%),#fff}
+        .theme-light .family-roots .roots-reading-close{background:rgba(255,255,255,.78);color:#182033;border-color:rgba(24,32,51,.12)}
         .theme-light .family-roots .roots-tree-node{background:linear-gradient(145deg,#fff,#F8FBFF)!important;border-color:rgba(24,32,51,.12);box-shadow:0 18px 42px rgba(24,32,51,.08)}
         .theme-light .family-roots input::placeholder{color:rgba(24,32,51,.35)}
         .theme-light .family-roots .roots-modal-panel{background:#fff;color:#182033;border-color:rgba(24,32,51,.12)}
@@ -1675,6 +1680,8 @@ export function FamilyRoots({
         .theme-sepia .family-roots .roots-world-map{background:linear-gradient(135deg,#F5EBD8,#FFFAF0 48%,#EEF8E8)}
         .theme-sepia .family-roots .roots-tree-shell{background:#fffaf0}
         .theme-sepia .family-roots .family-tree-canvas{background:linear-gradient(180deg,#f8efd9,#fffaf0)}
+        .theme-sepia .family-roots.roots-reading-mode{background:radial-gradient(circle at 18% 10%,rgba(0,210,106,.10),transparent 24%),radial-gradient(circle at 82% 0%,rgba(108,92,255,.10),transparent 26%),#fffaf0}
+        .theme-sepia .family-roots .roots-reading-close{background:rgba(255,250,240,.78);color:#352f27;border-color:rgba(53,47,39,.14)}
         .theme-sepia .family-roots .roots-tree-node{background:linear-gradient(145deg,#fffaf0,#f8ecd7)!important;border-color:rgba(53,47,39,.14);box-shadow:0 18px 42px rgba(53,47,39,.08)}
         .theme-sepia .family-roots input::placeholder{color:rgba(53,47,39,.4)}
         .theme-sepia .family-roots .roots-modal-panel{background:#fffaf0;color:#352f27;border-color:rgba(53,47,39,.14)}
@@ -1847,64 +1854,36 @@ function GuideModal({
   );
 }
 
-function ReadingMode({
-  familyName,
-  generations,
-  relationshipPreviewsByProfile,
-  visibleRelationshipSummaries,
-  onClose
-}: {
-  familyName: string;
+function ReadingMode({ generations, relationshipPreviewsByProfile, onClose }: {
   generations: GenerationGroup[];
   relationshipPreviewsByProfile: Map<string, RelationshipPreview[]>;
-  visibleRelationshipSummaries: Array<{ id: string; type: FamilyRelationshipType; sourceName: string; targetName: string }>;
   onClose: () => void;
 }) {
+  const maxGenerationSize = Math.max(1, ...generations.map(group => group.people.length));
+  const densityScale = maxGenerationSize >= 8 ? 0.44 : maxGenerationSize >= 6 ? 0.52 : maxGenerationSize >= 4 ? 0.64 : 0.78;
+  const heightScale = generations.length >= 6 ? 0.58 : generations.length >= 5 ? 0.66 : generations.length >= 4 ? 0.76 : 0.86;
+  const readingScale = Number(Math.min(densityScale, heightScale).toFixed(2));
+  const canvasWidth = Math.max(980, maxGenerationSize * 214);
   return (
-    <div className="family-roots fixed inset-0 z-[95] overflow-y-auto bg-[#07111F] p-4 text-white">
-      <div className="mx-auto max-w-7xl space-y-6 pb-10">
-        <header className="flex items-start justify-between gap-4 rounded-[34px] border border-white/10 bg-gradient-to-br from-[#102846] via-[#101A35] to-[#062820] p-5 shadow-[0_24px_80px_rgba(0,0,0,.28)]">
-          <div>
-            <span className="roots-kicker text-[#00D26A]">Lecture familiale</span>
-            <h2 className="mt-2 text-2xl font-black">{familyName}</h2>
-            <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-white/60">Une vue plein écran pour lire l’arbre, les générations et les liens familiaux sans outils d’édition.</p>
-          </div>
-          <button type="button" onClick={onClose} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/8 text-white/70" aria-label="Fermer"><X className="h-4 w-4" /></button>
-        </header>
-        <section className="roots-card roots-tree-shell overflow-hidden p-4">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-black text-white">Arbre familial</h3>
-              <p className="roots-muted">Faites glisser horizontalement pour parcourir les grandes familles.</p>
-            </div>
-            <TreePine className="h-5 w-5 text-[#00D26A]" />
-          </div>
-          <div className="overflow-x-auto pb-3">
-            <div className="family-tree-canvas min-w-[980px] space-y-10 px-6 py-6">
-              {generations.length ? generations.map(group => (
-                <TreeGeneration
-                  key={group.generation}
-                  group={group}
-                  isFirst={group.generation === generations[0]?.generation}
-                  canManage={false}
-                  fullScreen
-                  relationshipPreviewsByProfile={relationshipPreviewsByProfile}
-                  onProfileClick={() => undefined}
-                />
-              )) : <EmptyState icon={<TreePine className="h-8 w-8" />} text="L’arbre est encore vide." />}
-            </div>
-          </div>
-          {visibleRelationshipSummaries.length > 0 && (
-            <div className="mt-4 grid gap-2 md:grid-cols-4">
-              {visibleRelationshipSummaries.slice(0, 8).map(link => (
-                <div key={`reading-${link.id}-${link.sourceName}-${link.targetName}`} className={`roots-link-summary ${relationshipPreviewTone(link.type)}`}>
-                  <span>{relationshipLabels[link.type]}</span>
-                  <strong>{link.sourceName} · {link.targetName}</strong>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+    <div className="family-roots roots-reading-mode fixed inset-0 z-[95] overflow-hidden bg-[#07111F] text-white">
+      <button type="button" onClick={onClose} className="roots-reading-close" aria-label="Fermer"><X className="h-5 w-5" /></button>
+      <div className="roots-reading-viewport">
+        <div
+          className="family-tree-canvas roots-reading-canvas space-y-10 px-6 py-6"
+          style={{ width: canvasWidth, transform: `scale(${readingScale})` }}
+        >
+          {generations.length ? generations.map(group => (
+            <TreeGeneration
+              key={group.generation}
+              group={group}
+              isFirst={group.generation === generations[0]?.generation}
+              canManage={false}
+              fullScreen
+              relationshipPreviewsByProfile={relationshipPreviewsByProfile}
+              onProfileClick={() => undefined}
+            />
+          )) : <EmptyState icon={<TreePine className="h-8 w-8" />} text="L’arbre est encore vide." />}
+        </div>
       </div>
     </div>
   );
