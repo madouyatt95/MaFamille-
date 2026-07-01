@@ -20,6 +20,7 @@ import {
 } from '../services/familyRootsService';
 import { MemberAvatar } from '../components/MemberAvatar';
 import { exportGedcom, parseGedcom, type GedcomLink, type GedcomPerson } from '../utils/gedcom';
+import { compressImageToBlob, uploadBlobToStorage } from '../utils/imageCompressor';
 
 type Props = {
   foyerId?: string;
@@ -32,7 +33,7 @@ type Props = {
   onCreateBranchGroup?: (name: string, memberIds: string[]) => Promise<void> | void;
 };
 
-type ViewId = 'arbre' | 'carte' | 'histoire' | 'dates' | 'branches';
+type ViewId = 'arbre' | 'cousins' | 'branches' | 'carte' | 'dates';
 type GedcomPreview = { people: GedcomPerson[]; links: GedcomLink[] } | null;
 type MemoryDraft = { title: string; note: string; date: string; photoUrl: string; visibility: FamilyTreeMemory['visibility'] };
 
@@ -216,6 +217,12 @@ export function FamilyRoots({
   const [snapshot, setSnapshot] = useState<FamilyRootsSnapshot>(emptySnapshot);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [todayTimestamp] = useState(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today.getTime();
+  });
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [notice, setNotice] = useState('');
   const [editingProfile, setEditingProfile] = useState<FamilyTreeProfile | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<FamilyBranch | null>(null);
@@ -307,6 +314,7 @@ export function FamilyRoots({
 
   const localProfiles = useMemo(() => snapshot.profiles.filter(profile => profile.isLocal && profile.visibility !== 'masque'), [snapshot.profiles]);
   const remoteProfiles = useMemo(() => snapshot.profiles.filter(profile => !profile.isLocal && profile.visibility === 'famille'), [snapshot.profiles]);
+  const focusProfile = localProfiles[0] || snapshot.profiles.find(profile => profile.visibility !== 'masque');
   const confirmedConnections = snapshot.connections.filter(connection => connection.status === 'confirmed');
   const pendingConnections = snapshot.connections.filter(connection => connection.status === 'pending');
   const incomingConnections = pendingConnections.filter(connection => connection.direction === 'incoming');
@@ -315,6 +323,22 @@ export function FamilyRoots({
   const profileById = useCallback((id?: string) => snapshot.profiles.find(profile => profile.id === id), [snapshot.profiles]);
   const warnings = useMemo(() => buildWarnings(snapshot.profiles, snapshot.relationships), [snapshot.profiles, snapshot.relationships]);
   const allTreeProfiles = useMemo(() => [...localProfiles, ...remoteProfiles], [localProfiles, remoteProfiles]);
+  const cousinProfiles = useMemo(() => {
+    const ids = new Set<string>();
+    snapshot.relationships.filter(link => link.relationshipType === 'cousin').forEach(link => {
+      if (!focusProfile || link.sourceProfileId === focusProfile.id) ids.add(link.targetProfileId);
+      if (!focusProfile || link.targetProfileId === focusProfile.id) ids.add(link.sourceProfileId);
+    });
+    const query = normalizeText(treeSearch);
+    const matches = (profile: FamilyTreeProfile) => !query || normalizeText(`${profile.displayName} ${profile.nickname || ''} ${profile.country || ''} ${profile.originCity || ''}`).includes(query);
+    const explicit = allTreeProfiles.filter(profile => ids.has(profile.id) && profile.id !== focusProfile?.id).filter(matches);
+    if (explicit.length) return explicit;
+    return allTreeProfiles
+      .filter(profile => profile.id !== focusProfile?.id)
+      .filter(profile => profile.branch !== 'proche' || !profile.isLocal)
+      .filter(matches)
+      .slice(0, 24);
+  }, [allTreeProfiles, focusProfile, snapshot.relationships, treeSearch]);
   const branchSummaries = useMemo(() => (['proche', 'paternelle', 'maternelle', 'autre'] as FamilyBranch[]).map(branch => ({
     branch,
     profiles: localProfiles.filter(profile => profile.branch === branch),
@@ -340,6 +364,16 @@ export function FamilyRoots({
   const upcomingEvents = useMemo(() => [...snapshot.events]
     .sort((a, b) => nextOccurrence(a).getTime() - nextOccurrence(b).getTime())
     .slice(0, 40), [snapshot.events]);
+  const highlightedEvent = useMemo(() => {
+    const event = upcomingEvents[0];
+    if (!event) return null;
+    const date = nextOccurrence(event);
+    return {
+      event,
+      date,
+      days: Math.max(0, Math.ceil((date.getTime() - todayTimestamp) / 86400000))
+    };
+  }, [todayTimestamp, upcomingEvents]);
   const places = useMemo(() => ['all', ...countries.map(([place]) => place)], [countries]);
   const linkedProfileIds = useMemo(() => {
     if (!treeLinkProfileId) return null;
@@ -433,6 +467,50 @@ export function FamilyRoots({
       setNotice(normalizeError(error));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const uploadFamilyRootPhoto = async (file: File, folder: 'profiles' | 'memories', ownerId: string, preset: 'profile' | 'classic' = 'profile') => {
+    if (!file.type.startsWith('image/')) throw new Error('Choisissez une image.');
+    setPhotoUploading(true);
+    try {
+      const { blob, ext } = await compressImageToBlob(file, preset);
+      const safeOwnerId = ownerId.replace(/[^a-z0-9_-]/gi, '-').slice(0, 80) || 'photo';
+      return await uploadBlobToStorage('avatars', `${foyerId}/family-roots/${folder}/${safeOwnerId}-${Date.now()}.${ext}`, blob);
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  const uploadNewProfilePhoto = async (file: File) => {
+    try {
+      const url = await uploadFamilyRootPhoto(file, 'profiles', profileDraft.name || 'nouvelle-personne');
+      setProfileDraft(current => ({ ...current, photoUrl: url }));
+      setNotice('Photo ajoutée à la fiche.');
+    } catch (error) {
+      setNotice(normalizeError(error));
+    }
+  };
+
+  const uploadEditedProfilePhoto = async (file: File) => {
+    if (!editingProfile) return;
+    try {
+      const url = await uploadFamilyRootPhoto(file, 'profiles', editingProfile.id);
+      setEditingProfile(current => current ? { ...current, photoUrl: url } : current);
+      setNotice('Photo ajoutée à la fiche.');
+    } catch (error) {
+      setNotice(normalizeError(error));
+    }
+  };
+
+  const uploadMemoryPhoto = async (file: File) => {
+    const ownerId = editingProfile?.id || memoryDraft.title || 'souvenir';
+    try {
+      const url = await uploadFamilyRootPhoto(file, 'memories', ownerId, 'classic');
+      setMemoryDraft(current => ({ ...current, photoUrl: url }));
+      setNotice('Photo ajoutée au souvenir.');
+    } catch (error) {
+      setNotice(normalizeError(error));
     }
   };
 
@@ -735,12 +813,6 @@ export function FamilyRoots({
     if (view === 'arbre') {
       return (
         <div className="space-y-5">
-          <div className="grid grid-cols-3 gap-2">
-            <StatCard icon={<Users className="h-5 w-5" />} value={localProfiles.length} label="foyer proche" tone="green" />
-            <StatCard icon={<GitBranch className="h-5 w-5" />} value={confirmedConnections.length} label="branches liées" tone="violet" />
-            <StatCard icon={<Earth className="h-5 w-5" />} value={countries.filter(([place]) => place !== 'Pays non indiqué').length} label="lieux déclarés" tone="blue" />
-          </div>
-
           {canManage && (localProfiles.length < 2 || snapshot.relationships.length === 0) && (
             <section className="roots-card border-[#00D26A]/22 bg-[#00D26A]/7 p-4">
               <div className="flex items-start gap-3">
@@ -757,28 +829,17 @@ export function FamilyRoots({
             </section>
           )}
 
-          {canManage && <button type="button" onClick={() => setProfileOpen(true)} className="roots-action roots-action-green"><Plus className="h-4 w-4" /> Ajouter une personne</button>}
-
-          <section className="grid gap-3 sm:grid-cols-2">
-            {branchSummaries.map(item => (
-              <button key={item.branch} type="button" onClick={() => setSelectedBranch(item.branch)} className="roots-card min-h-[112px] p-4 text-left">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#00D26A]/10 text-[#00D26A]"><GitBranch className="h-5 w-5" /></div>
-                  <span className="rounded-full bg-white/6 px-3 py-1 text-[10px] font-black text-white/45">Voir</span>
-                </div>
-                <strong className="mt-4 block text-sm font-black text-white">{branchLabels[item.branch]}</strong>
-                <p className="mt-1 text-[11px] font-semibold text-white/45">{item.profiles.length} personne{item.profiles.length > 1 ? 's' : ''} · {item.events.length} date{item.events.length > 1 ? 's' : ''} · {item.memories.length} souvenir{item.memories.length > 1 ? 's' : ''}</p>
-              </button>
-            ))}
-          </section>
-
-          <section className="roots-card p-4">
-            <div className="mb-4 flex items-center justify-between gap-3">
+          <section className="roots-card roots-tree-shell overflow-hidden p-3 sm:p-4">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="roots-title">Arbre par générations</h2>
-                <p className="roots-muted">Les liens parent-enfant structurent l’arbre automatiquement.</p>
+                <h2 className="roots-title">Arbre familial</h2>
+                <p className="roots-muted">{localProfiles.length + remoteProfiles.length} personnes visibles · {confirmedConnections.length} branche{confirmedConnections.length > 1 ? 's' : ''} liée{confirmedConnections.length > 1 ? 's' : ''}</p>
               </div>
               <div className="flex items-center gap-2">
+                <select value={treeLinkProfileId} onChange={event => setTreeLinkProfileId(event.target.value)} className="roots-view-select">
+                  <option value="">Vue globale</option>
+                  {allTreeProfiles.map(profile => <option key={profile.id} value={profile.id}>Autour de {profile.displayName}</option>)}
+                </select>
                 <button type="button" onClick={() => setReadingOpen(true)} className="roots-icon-button" aria-label="Lecture familiale"><Maximize2 className="h-4 w-4" /></button>
                 <div className="flex rounded-2xl border border-white/8 bg-white/5 p-1">
                   <button type="button" onClick={() => setTreeZoom(value => Math.max(0.8, Number((value - 0.1).toFixed(1))))} className="roots-icon-button" aria-label="Réduire"><Minus className="h-4 w-4" /></button>
@@ -786,39 +847,53 @@ export function FamilyRoots({
                 </div>
               </div>
             </div>
-            <div className="mb-4 grid gap-2 sm:grid-cols-2">
-              <label className="flex min-h-12 items-center gap-2 rounded-2xl border border-white/8 bg-white/5 px-3">
-                <Search className="h-4 w-4 shrink-0 text-white/35" />
-                <input value={treeSearch} onChange={event => setTreeSearch(event.target.value)} placeholder="Rechercher une personne, ville, branche..." className="min-w-0 flex-1 bg-transparent text-xs font-bold text-white outline-none placeholder:text-white/28" />
+            <div className="mb-4 grid gap-2 sm:grid-cols-4">
+              <label className="roots-search-pill roots-search-compact sm:col-span-2">
+                <input value={treeSearch} onChange={event => setTreeSearch(event.target.value)} placeholder="Rechercher une personne, une ville..." />
+                <Search className="h-4 w-4" />
               </label>
               <select value={treeBranchFilter} onChange={event => setTreeBranchFilter(event.target.value as 'all' | FamilyBranch)} className="root-input">
                 <option value="all">Toutes les branches</option>
                 {Object.entries(branchLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
-              <select value={treePlaceFilter} onChange={event => setTreePlaceFilter(event.target.value)} className="root-input">
-                {places.map(place => <option key={place} value={place}>{place === 'all' ? 'Tous les lieux' : place}</option>)}
-              </select>
               <select value={treeGenerationFilter} onChange={event => setTreeGenerationFilter(event.target.value)} className="root-input">
                 {generationOptions.map(option => <option key={option} value={option}>{option === 'all' ? 'Toutes les générations' : option === '0' ? 'Origines proches' : `Génération ${Number(option) + 1}`}</option>)}
               </select>
-              <select value={treeLinkProfileId} onChange={event => setTreeLinkProfileId(event.target.value)} className="root-input sm:col-span-2">
-                <option value="">Voir tout l’arbre</option>
-                {allTreeProfiles.map(profile => <option key={profile.id} value={profile.id}>Autour de {profile.displayName}</option>)}
+              <select value={treePlaceFilter} onChange={event => setTreePlaceFilter(event.target.value)} className="root-input sm:col-span-4">
+                {places.map(place => <option key={place} value={place}>{place === 'all' ? 'Tous les lieux déclarés' : place}</option>)}
               </select>
             </div>
             <div className="overflow-x-auto pb-2">
-              <div className="min-w-[680px] space-y-5" style={{ transform: `scale(${treeZoom})`, transformOrigin: 'top left', width: `${100 / treeZoom}%` }}>
+              <div className="family-tree-canvas min-w-[720px] space-y-8 px-3 py-4" style={{ transform: `scale(${treeZoom})`, transformOrigin: 'top left', width: `${100 / treeZoom}%` }}>
                 {visibleGenerations.length ? visibleGenerations.map(group => (
-                  <div key={group.generation} className="space-y-2">
-                    <span className="roots-kicker">{group.generation === 0 ? 'Origines proches' : `Génération ${group.generation + 1}`}</span>
-                    <div className="flex flex-wrap gap-3">
-                      {group.people.map(profile => <ProfileCard key={profile.id} profile={profile} onClick={() => canManage && profile.isLocal && setEditingProfile(profile)} />)}
-                    </div>
-                  </div>
+                  <TreeGeneration
+                    key={group.generation}
+                    group={group}
+                    isFirst={group.generation === visibleGenerations[0]?.generation}
+                    canManage={canManage}
+                    onProfileClick={profile => canManage && profile.isLocal && setEditingProfile(profile)}
+                  />
                 )) : <div className="max-w-sm"><EmptyState icon={<Search className="h-8 w-8" />} text="Aucune fiche ne correspond aux filtres." /></div>}
               </div>
             </div>
           </section>
+
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+            {canManage && <button type="button" onClick={() => setProfileOpen(true)} className="roots-action roots-action-green"><Plus className="h-4 w-4" /> Ajouter une personne</button>}
+            {canManage && <button type="button" onClick={() => setLinkOpen(true)} className="roots-action roots-action-violet"><Link2 className="h-4 w-4" /> Lier une nouvelle branche</button>}
+          </div>
+
+          {highlightedEvent && (
+            <section className="roots-card roots-event-strip flex items-center gap-4 p-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#FF4D6D]/10 text-[#FF4D6D]"><CalendarDays className="h-5 w-5" /></div>
+              <div className="min-w-0 flex-1">
+                <span className="roots-kicker">Événement à venir</span>
+                <strong className="mt-1 block truncate text-sm font-black text-white">{highlightedEvent.event.title}</strong>
+                <p className="roots-muted">{formatDate(highlightedEvent.date.toISOString().slice(0, 10))}</p>
+              </div>
+              <span className="rounded-full bg-[#6C5CFF]/10 px-3 py-2 text-[11px] font-black text-[#6C5CFF]">{highlightedEvent.days} j</span>
+            </section>
+          )}
 
           {warnings.length > 0 && (
             <section className="roots-card border-[#FFB020]/25 bg-[#FFB020]/8 p-4">
@@ -874,51 +949,43 @@ export function FamilyRoots({
       );
     }
 
-    if (view === 'histoire') {
+    if (view === 'cousins') {
       return (
         <div className="space-y-4">
+          <label className="roots-search-pill">
+            <input value={treeSearch} onChange={event => setTreeSearch(event.target.value)} placeholder="Rechercher un cousin, une cousine..." />
+            <Search className="h-5 w-5" />
+          </label>
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard icon={<Users className="h-5 w-5" />} value={cousinProfiles.length} label="cousins" tone="violet" />
+            <StatCard icon={<GitBranch className="h-5 w-5" />} value={confirmedConnections.length} label="branches liées" tone="green" />
+            <StatCard icon={<Earth className="h-5 w-5" />} value={countries.filter(([place]) => place !== 'Pays non indiqué').length} label="pays" tone="blue" />
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {['Tous', 'Proches', 'Par pays', 'Par branche'].map(filter => <span key={filter} className={`roots-filter-chip shrink-0 ${filter === 'Tous' ? 'roots-filter-chip-active' : ''}`}>{filter}</span>)}
+          </div>
           <section className="roots-card p-4">
-            <div className="flex items-center justify-between gap-3">
+            <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="roots-title">Chronologie familiale</h2>
-                <p className="roots-muted">Naissances, souvenirs et événements validés.</p>
+                <h2 className="roots-title">Cousins & cousines</h2>
+                <p className="roots-muted">{cousinProfiles.length} personne{cousinProfiles.length > 1 ? 's' : ''} trouvée{cousinProfiles.length > 1 ? 's' : ''}</p>
               </div>
-              <History className="h-5 w-5 text-[#FFB020]" />
+              <Users className="h-5 w-5 text-[#6C5CFF]" />
             </div>
-            <div className="mt-5 space-y-3">
-              {timeline.length ? timeline.map(item => (
-                <div key={item.id} className="relative pl-6">
-                  <span className="absolute left-1 top-2 h-2.5 w-2.5 rounded-full bg-[#FFB020]" />
-                  <span className="absolute bottom-[-14px] left-[8px] top-5 w-px bg-white/8" />
-                  <p className="text-[10px] font-black uppercase text-[#FFB020]">{formatDate(item.date)}</p>
-                  <strong className="mt-1 block text-sm font-black text-white">{item.title}</strong>
-                  {item.detail && <p className="mt-1 text-xs font-semibold text-white/45">{item.detail}</p>}
-                </div>
-              )) : <EmptyState icon={<History className="h-8 w-8" />} text="Ajoutez quelques dates pour créer l’histoire familiale." />}
-            </div>
-          </section>
-
-          <section className="roots-card p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="roots-title">Livret et import</h2>
-                <p className="roots-muted">PDF local et format GEDCOM traité avant validation.</p>
+            {cousinProfiles.length ? (
+              <div className="divide-y divide-black/6">
+                {cousinProfiles.map(profile => (
+                  <button key={profile.id} type="button" onClick={() => profile.isLocal && canManage && setEditingProfile(profile)} className="flex w-full items-center gap-3 py-3 text-left">
+                    <MemberAvatar name={profile.displayName} photoUrl={profile.photoUrl} className="h-12 w-12 rounded-full" />
+                    <div className="min-w-0 flex-1">
+                      <strong className="block truncate text-sm font-black text-white">{profile.displayName}</strong>
+                      <p className="mt-0.5 text-[11px] font-semibold text-white/45">{profile.originCity || profile.country || branchLabels[profile.branch]}</p>
+                    </div>
+                    <span className="rounded-full bg-[#6C5CFF]/8 px-3 py-2 text-[10px] font-black text-[#6C5CFF]">Voir</span>
+                  </button>
+                ))}
               </div>
-              <button type="button" onClick={() => void downloadFamilyBooklet()} className="roots-icon-button" aria-label="Exporter le livret"><FileText className="h-4 w-4" /></button>
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <button type="button" onClick={() => void downloadFamilyBooklet()} className="roots-action"><FileText className="h-4 w-4" /> Livret</button>
-              <button type="button" onClick={() => importInputRef.current?.click()} className="roots-action"><FileUp className="h-4 w-4" /> Importer</button>
-              <button type="button" onClick={downloadGedcom} className="roots-action"><Download className="h-4 w-4" /> Exporter</button>
-            </div>
-            <input ref={importInputRef} type="file" accept=".ged,.gedcom,text/plain" onChange={event => void handleGedcomFile(event)} className="hidden" />
-            {gedcomPreview && (
-              <div className="mt-4 rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/8 p-4">
-                <strong className="block text-xs font-black text-white">{gedcomPreview.people.length} personnes détectées</strong>
-                <p className="mt-1 text-[11px] font-semibold text-white/45">{gedcomPreview.links.length} liens seront proposés en brouillon privé.</p>
-                <button type="button" disabled={busy} onClick={() => void importGedcomPreview()} className="mt-3 w-full rounded-2xl bg-[#6C5CFF] py-3 text-xs font-black text-white">Importer dans mon foyer</button>
-              </div>
-            )}
+            ) : <EmptyState icon={<Users className="h-8 w-8" />} text="Aucun cousin relié pour le moment." />}
           </section>
         </div>
       );
@@ -974,22 +1041,62 @@ export function FamilyRoots({
               })}
             </div>
           ) : <EmptyState icon={<CalendarDays className="h-8 w-8" />} text="Aucune date familiale enregistrée." />}
+          {timeline.length > 0 && (
+            <section className="roots-card p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="roots-title">Chronologie familiale</h2>
+                  <p className="roots-muted">Naissances, souvenirs et moments importants.</p>
+                </div>
+                <History className="h-5 w-5 text-[#FFB020]" />
+              </div>
+              <div className="mt-4 space-y-3">
+                {timeline.slice(-8).reverse().map(item => (
+                  <div key={item.id} className="relative rounded-2xl border border-white/8 bg-white/5 p-3 pl-11">
+                    <span className="absolute left-4 top-4 h-3 w-3 rounded-full bg-[#FFB020] shadow-[0_0_16px_rgba(255,176,32,.45)]" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.08em] text-[#FFB020]">{formatDate(item.date)}</span>
+                    <strong className="mt-1 block text-xs font-black text-white">{item.title}</strong>
+                    {item.detail && <p className="mt-1 text-[10px] font-semibold text-white/45">{item.detail}</p>}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       );
     }
 
     return (
       <div className="space-y-5">
-        <section className="roots-card border-[#6C5CFF]/20 bg-[#6C5CFF]/7 p-5">
-          <div className="mb-4 rounded-[22px] border border-white/10 bg-gradient-to-br from-[#6C5CFF]/24 via-[#101C34] to-[#00D26A]/12 p-4">
-            <span className="roots-kicker text-[#C9C3FF]">Carte à partager</span>
-            <h2 className="mt-2 text-lg font-black text-white">{familyName} vous invite à relier votre branche</h2>
-            <p className="mt-2 text-xs font-semibold leading-5 text-white/55">Le lien est privé, temporaire, et chaque rattachement devra être confirmé par les deux côtés.</p>
-          </div>
-          <div className="flex items-start justify-between gap-3">
+        <BranchWorldMap countries={countries} />
+
+        <section className="roots-card p-4">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <div>
+              <h2 className="roots-title">Liste des branches</h2>
+              <p className="roots-muted">Foyers proches, branches liées et demandes en cours.</p>
+            </div>
+            <GitBranch className="h-5 w-5 text-[#6C5CFF]" />
+          </div>
+          <div className="space-y-2">
+            {branchSummaries.map((item, index) => (
+              <button key={item.branch} type="button" onClick={() => setSelectedBranch(item.branch)} className="roots-branch-row flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left">
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${index === 0 ? 'bg-[#6C5CFF]/10 text-[#6C5CFF]' : index === 1 ? 'bg-[#00D26A]/10 text-[#00A862]' : index === 2 ? 'bg-[#FF7A1A]/10 text-[#FF7A1A]' : 'bg-[#4F8CFF]/10 text-[#247CFF]'}`}><Users className="h-5 w-5" /></span>
+                <span className="min-w-0 flex-1">
+                  <strong className="block truncate text-sm font-black text-white">{branchLabels[item.branch]}</strong>
+                  <span className="mt-0.5 block text-[11px] font-semibold text-white/45">{item.profiles.length} membre{item.profiles.length > 1 ? 's' : ''} · {item.memories.length} souvenir{item.memories.length > 1 ? 's' : ''}</span>
+                </span>
+                <span className="text-[10px] font-black text-[#00A862]">{index === 0 ? 'Vous' : item.profiles.length ? 'Lié' : 'À créer'}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="roots-card border-[#6C5CFF]/20 bg-[#6C5CFF]/7 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
               <span className="roots-kicker text-[#9E94FF]">Invitation privée</span>
-              <strong className="mt-2 block font-mono text-xl font-black tracking-wider text-white">{snapshot.shareCode || 'Migration requise'}</strong>
+              <strong className="mt-2 block font-mono text-lg font-black tracking-wider text-white">{snapshot.shareCode || 'Migration requise'}</strong>
               {snapshot.shareCodeExpiresAt && <p className="roots-muted mt-1">Valable jusqu’au {formatDate(snapshot.shareCodeExpiresAt.slice(0, 10))}</p>}
             </div>
             {snapshot.shareCode && <button type="button" onClick={() => void copyText(snapshot.shareCode || '', 'Code Racines copié.')} className="roots-icon-button" aria-label="Copier le code"><Copy className="h-4 w-4" /></button>}
@@ -998,8 +1105,35 @@ export function FamilyRoots({
             <button type="button" onClick={() => void shareBranchLink()} className="roots-action"><ScanLine className="h-4 w-4" /> Partager</button>
             {canManage && <button type="button" disabled={busy} onClick={() => void regenerateCode()} className="roots-action"><RefreshCw className="h-4 w-4" /> Nouveau code</button>}
           </div>
-          {shareUrl && <button type="button" onClick={() => void copyText(shareUrl, 'Lien privé copié.')} className="mt-3 w-full truncate rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-left text-[11px] font-bold text-white/50">{shareUrl}</button>}
-          {canManage && <button type="button" onClick={() => setLinkOpen(true)} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#6C5CFF] px-4 py-3.5 text-xs font-black text-white"><Link2 className="h-4 w-4" /> Relier une branche</button>}
+          {canManage && <button type="button" onClick={() => setLinkOpen(true)} className="roots-solid-violet mt-3 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-xs font-black"><Plus className="h-4 w-4" /> Lier une nouvelle branche</button>}
+        </section>
+
+        <section className="roots-card p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="roots-title">Livret familial</h2>
+              <p className="roots-muted">Exporter l’arbre ou importer une base généalogique existante.</p>
+            </div>
+            <FileText className="h-5 w-5 text-[#FFB020]" />
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <button type="button" onClick={() => void downloadFamilyBooklet()} className="roots-action"><Download className="h-4 w-4" /> Livret PDF</button>
+            <button type="button" onClick={downloadGedcom} className="roots-action"><Download className="h-4 w-4" /> GEDCOM</button>
+            <label className="roots-action cursor-pointer">
+              <FileUp className="h-4 w-4" /> Importer
+              <input ref={importInputRef} type="file" accept=".ged,.gedcom,text/plain" className="hidden" onChange={event => void handleGedcomFile(event)} />
+            </label>
+          </div>
+          {gedcomPreview && (
+            <div className="mt-4 rounded-2xl border border-[#00D26A]/18 bg-[#00D26A]/7 p-3">
+              <strong className="block text-xs font-black text-white">{gedcomPreview.people.length} personne{gedcomPreview.people.length > 1 ? 's' : ''} détectée{gedcomPreview.people.length > 1 ? 's' : ''}</strong>
+              <p className="mt-1 text-[10px] font-semibold text-white/45">{gedcomPreview.links.length} lien{gedcomPreview.links.length > 1 ? 's' : ''} familial{gedcomPreview.links.length > 1 ? 'aux' : ''} prêt{gedcomPreview.links.length > 1 ? 's' : ''} à importer en privé.</p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setGedcomPreview(null)} className="rounded-2xl border border-white/8 bg-white/5 py-2.5 text-[10px] font-black text-white/55">Annuler</button>
+                <button type="button" disabled={busy} onClick={() => void importGedcomPreview()} className="rounded-2xl bg-[#00D26A] py-2.5 text-[10px] font-black text-[#07111F]">Importer</button>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="roots-card p-4">
@@ -1145,7 +1279,7 @@ export function FamilyRoots({
 
   return (
     <div className="family-roots space-y-6 pb-20 premium-glow-green">
-      <header className="flex items-start justify-between gap-4">
+      <header className="roots-main-header flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="shrink-0 rounded-2xl border border-[#00D26A]/25 bg-[#00D26A]/10 p-3 text-[#00D26A]"><TreePine className="h-6 w-6" /></div>
           <div className="min-w-0">
@@ -1156,12 +1290,12 @@ export function FamilyRoots({
         <button type="button" onClick={() => void load()} aria-label="Actualiser" className="roots-icon-button"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /></button>
       </header>
 
-      <div className="grid grid-cols-5 gap-2">
+      <div className="roots-tabs flex gap-2 overflow-x-auto pb-1">
         <TabButton active={view === 'arbre'} onClick={() => setView('arbre')} icon={<TreePine className="h-4 w-4" />} label="Arbre" />
+        <TabButton active={view === 'cousins'} onClick={() => setView('cousins')} icon={<Users className="h-4 w-4" />} label="Cousins" />
+        <TabButton active={view === 'branches'} onClick={() => setView('branches')} icon={<Link2 className="h-4 w-4" />} label="Branches" badge={incomingConnections.length + incomingIdentity.length} />
         <TabButton active={view === 'carte'} onClick={() => setView('carte')} icon={<Earth className="h-4 w-4" />} label="Carte" />
-        <TabButton active={view === 'histoire'} onClick={() => setView('histoire')} icon={<History className="h-4 w-4" />} label="Histoire" />
-        <TabButton active={view === 'dates'} onClick={() => setView('dates')} icon={<CalendarDays className="h-4 w-4" />} label="Dates" />
-        <TabButton active={view === 'branches'} onClick={() => setView('branches')} icon={<Link2 className="h-4 w-4" />} label="Liens" badge={incomingConnections.length + incomingIdentity.length} />
+        <TabButton active={view === 'dates'} onClick={() => setView('dates')} icon={<CalendarDays className="h-4 w-4" />} label="Événements" />
       </div>
 
       {notice && <div className="flex items-start justify-between gap-3 rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/8 px-4 py-3 text-xs font-semibold text-white/75"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Fermer"><X className="h-4 w-4" /></button></div>}
@@ -1213,11 +1347,14 @@ export function FamilyRoots({
         relationTargetId={relationTargetId}
         setRelationTargetId={setRelationTargetId}
         busy={busy}
+        photoUploading={photoUploading}
         canAddRelationship={snapshot.cloudEnabled && localProfiles.length > 1}
         onSave={saveProfile}
         onClose={() => setEditingProfile(null)}
         onAddRelationship={addInternalRelationship}
         onAddMemory={() => addMemory(editingProfile.id)}
+        onUploadProfilePhoto={uploadEditedProfilePhoto}
+        onUploadMemoryPhoto={uploadMemoryPhoto}
       />}
 
       {selectedBranch && <BranchModal
@@ -1235,17 +1372,22 @@ export function FamilyRoots({
           <Field label="Élément à corriger"><select value={correctionDraft.fieldName} onChange={event => setCorrectionDraft({ ...correctionDraft, fieldName: event.target.value })} className="root-input">{Object.entries(correctionFieldLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
           <Field label="Correction proposée"><input value={correctionDraft.proposedValue} onChange={event => setCorrectionDraft({ ...correctionDraft, proposedValue: event.target.value })} className="root-input" /></Field>
           <Field label="Précision facultative"><textarea value={correctionDraft.note} onChange={event => setCorrectionDraft({ ...correctionDraft, note: event.target.value })} rows={3} className="root-input min-h-[96px] py-3" /></Field>
-          <button type="button" disabled={busy} onClick={() => void requestCorrection()} className="w-full rounded-2xl bg-[#6C5CFF] py-3.5 text-xs font-black text-white">Envoyer la correction</button>
+          <button type="button" disabled={busy} onClick={() => void requestCorrection()} className="roots-solid-violet w-full rounded-2xl py-3.5 text-xs font-black">Envoyer la correction</button>
         </div>
       </Modal>}
 
       {profileOpen && <Modal title="Ajouter une personne" onClose={() => setProfileOpen(false)}>
         <div className="space-y-4">
           <Field label="Prénom et nom"><input value={profileDraft.name} onChange={event => setProfileDraft({ ...profileDraft, name: event.target.value })} placeholder="Ex. Prénom Nom" className="root-input" /></Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Surnom"><input value={profileDraft.nickname} onChange={event => setProfileDraft({ ...profileDraft, nickname: event.target.value })} placeholder="Facultatif" className="root-input" /></Field>
-            <Field label="Photo"><input value={profileDraft.photoUrl} onChange={event => setProfileDraft({ ...profileDraft, photoUrl: event.target.value })} placeholder="Adresse du fichier" className="root-input" /></Field>
-          </div>
+          <Field label="Surnom"><input value={profileDraft.nickname} onChange={event => setProfileDraft({ ...profileDraft, nickname: event.target.value })} placeholder="Facultatif" className="root-input" /></Field>
+          <PhotoPicker
+            label="Photo de la personne"
+            name={profileDraft.name}
+            photoUrl={profileDraft.photoUrl}
+            uploading={photoUploading}
+            onSelect={uploadNewProfilePhoto}
+            onClear={() => setProfileDraft(current => ({ ...current, photoUrl: '' }))}
+          />
           <div className="grid grid-cols-2 gap-3">
             <Field label="Branche"><select value={profileDraft.branch} onChange={event => setProfileDraft({ ...profileDraft, branch: event.target.value as FamilyBranch })} className="root-input">{Object.entries(branchLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
             <Field label="Pays"><input value={profileDraft.country} onChange={event => setProfileDraft({ ...profileDraft, country: event.target.value })} placeholder="Ex. Sénégal" className="root-input" /></Field>
@@ -1289,7 +1431,7 @@ export function FamilyRoots({
           <Field label="Membre qui crée le lien"><select value={sourceProfileId} onChange={event => setSourceProfileId(event.target.value)} className="root-input">{localProfiles.map(profile => <option key={profile.id} value={profile.id}>{profile.displayName}</option>)}</select></Field>
           <Field label="Lien familial"><select value={relationshipType} onChange={event => setRelationshipType(event.target.value as FamilyRelationshipType)} className="root-input">{Object.entries(relationshipLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
           <HeroNotice icon={<ShieldCheck className="h-4 w-4" />} title="Double confirmation" text="La branche invitée choisira le membre correspondant et confirmera le lien avant tout affichage partagé." compact />
-          <button type="button" disabled={busy} onClick={() => void sendConnection()} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#6C5CFF] py-3.5 text-xs font-black text-white"><Send className="h-4 w-4" /> Envoyer la demande</button>
+          <button type="button" disabled={busy} onClick={() => void sendConnection()} className="roots-solid-violet flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-xs font-black"><Send className="h-4 w-4" /> Envoyer la demande</button>
         </div>
       </Modal>}
 
@@ -1316,7 +1458,33 @@ export function FamilyRoots({
         .family-roots .roots-action{display:flex;min-height:46px;align-items:center;justify-content:center;gap:8px;border-radius:16px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.055);padding:0 12px;font-size:11px;font-weight:900;color:rgba(255,255,255,.7)}
         .family-roots .roots-action-green{border-color:rgba(0,210,106,.25);background:rgba(0,210,106,.08);color:#00D26A;width:100%}
         .family-roots .roots-action-violet{border-color:rgba(108,92,255,.3);background:rgba(108,92,255,.13);color:#b8b0ff;width:100%}
+        .family-roots .roots-solid-violet{background:#6C5CFF;color:#fff;box-shadow:0 14px 34px rgba(108,92,255,.22)}
         .family-roots .roots-small-action{display:flex;height:44px;align-items:center;gap:8px;border-radius:16px;background:#FFB020;padding:0 14px;font-size:11px;font-weight:900;color:#101426}
+        .family-roots .roots-main-header{border-radius:28px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(135deg,rgba(255,255,255,.07),rgba(255,255,255,.025));padding:14px}
+        .family-roots .roots-tabs{border-radius:24px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);padding:6px}
+        .family-roots .roots-tab{border-color:transparent;background:transparent;color:rgba(255,255,255,.56)}
+        .family-roots .roots-tab-active{border-color:rgba(108,92,255,.24);background:rgba(108,92,255,.16);color:#C9C3FF;box-shadow:0 12px 30px rgba(108,92,255,.14)}
+        .family-roots .roots-view-select{min-height:44px;max-width:170px;border-radius:16px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.055);padding:0 12px;color:rgba(255,255,255,.72);font-size:11px;font-weight:900;outline:none}
+        .family-roots .roots-search-pill{display:flex;min-height:56px;align-items:center;gap:10px;border-radius:22px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.055);padding:0 16px;color:rgba(255,255,255,.45)}
+        .family-roots .roots-search-compact{min-height:48px;border-radius:16px}
+        .family-roots .roots-search-pill input{min-width:0;flex:1;background:transparent;color:white;font-size:13px;font-weight:700;outline:none}
+        .family-roots .roots-filter-chip{border-radius:999px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.045);padding:9px 16px;font-size:11px;font-weight:900;color:rgba(255,255,255,.56)}
+        .family-roots .roots-filter-chip-active{border-color:rgba(108,92,255,.28);background:rgba(108,92,255,.16);color:#C9C3FF}
+        .family-roots .roots-branch-row{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.045);box-shadow:0 14px 34px rgba(0,0,0,.14)}
+        .family-roots .roots-world-map{background:radial-gradient(circle at 28% 44%,rgba(0,210,106,.18),transparent 7%),radial-gradient(circle at 51% 40%,rgba(108,92,255,.22),transparent 8%),radial-gradient(circle at 76% 52%,rgba(79,140,255,.20),transparent 8%),linear-gradient(135deg,rgba(79,140,255,.14),rgba(255,255,255,.03) 42%,rgba(0,210,106,.10));}
+        .family-roots .roots-world-map:before{content:"";position:absolute;inset:56px 18px 18px;border-radius:28px;background:linear-gradient(115deg,transparent 0 18%,rgba(255,255,255,.08) 18% 19%,transparent 19% 36%,rgba(255,255,255,.07) 36% 37%,transparent 37% 100%);opacity:.7}
+        .family-roots .roots-world-map:after{content:"";position:absolute;left:21%;right:18%;top:48%;height:2px;border-top:2px dashed rgba(108,92,255,.38);transform:rotate(-6deg);transform-origin:center}
+        .family-roots .roots-map-point{position:absolute;z-index:2;display:flex;align-items:center;gap:8px;transform:translate(-50%,-50%);border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(7,17,31,.88);padding:6px 9px;box-shadow:0 14px 32px rgba(0,0,0,.22);font-size:10px;font-weight:900;color:white;white-space:nowrap}
+        .family-roots .roots-map-green span{color:#00D26A}.family-roots .roots-map-violet span{color:#C9C3FF}.family-roots .roots-map-orange span{color:#FFB020}.family-roots .roots-map-blue span{color:#7FB0FF}
+        .family-roots .roots-tree-shell{background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.025))}
+        .family-roots .family-tree-canvas{position:relative;border-radius:28px;background:radial-gradient(circle at 50% 0%,rgba(0,210,106,.12),transparent 32%),radial-gradient(circle at 20% 16%,rgba(108,92,255,.12),transparent 24%),linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015))}
+        .family-roots .family-tree-canvas:before{content:"";position:absolute;left:50%;top:28px;bottom:28px;width:2px;background:linear-gradient(180deg,rgba(0,210,106,.45),rgba(108,92,255,.18));transform:translateX(-50%);border-radius:999px}
+        .family-roots .roots-tree-generation{padding-top:10px}
+        .family-roots .roots-tree-stem{position:absolute;left:50%;top:-24px;height:28px;width:2px;transform:translateX(-50%);background:rgba(0,210,106,.35)}
+        .family-roots .roots-tree-row:before{content:"";position:absolute;left:10%;right:10%;top:-8px;height:2px;background:linear-gradient(90deg,transparent,rgba(0,210,106,.34),transparent);border-radius:999px}
+        .family-roots .roots-tree-node{isolation:isolate}
+        .family-roots .roots-tree-node:before{content:"";position:absolute;left:50%;top:-14px;height:14px;width:2px;transform:translateX(-50%);background:rgba(0,210,106,.34)}
+        .family-roots .roots-tree-dot{position:absolute;left:50%;top:-18px;height:9px;width:9px;transform:translateX(-50%);border-radius:999px;background:#00D26A;box-shadow:0 0 18px rgba(0,210,106,.55)}
         .root-input{width:100%;min-height:48px;border-radius:16px;border:1px solid rgba(255,255,255,.1);background:#101c34;padding:0 14px;color:white;font-size:12px;font-weight:700;outline:none}
         textarea.root-input{resize:vertical}
         .root-input:focus{border-color:rgba(108,92,255,.6)}
@@ -1325,6 +1493,16 @@ export function FamilyRoots({
         .theme-light .family-roots .roots-muted, .theme-light .family-roots .roots-kicker{color:rgba(24,32,51,.58)!important}
         .theme-light .family-roots .root-input{background:#fff;color:#182033;border-color:rgba(24,32,51,.16)}
         .theme-light .family-roots .roots-icon-button,.theme-light .family-roots .roots-action{background:#f5f7fb;border-color:rgba(24,32,51,.12);color:#243047}
+        .theme-light .family-roots .roots-solid-violet{background:#6C5CFF!important;color:#fff!important}
+        .theme-light .family-roots .roots-main-header,.theme-light .family-roots .roots-tabs,.theme-light .family-roots .roots-branch-row,.theme-light .family-roots .roots-search-pill{background:#fff;border-color:rgba(24,32,51,.10);box-shadow:0 14px 38px rgba(24,32,51,.06)}
+        .theme-light .family-roots .roots-tab{color:#4B5565}.theme-light .family-roots .roots-tab-active{background:#F0EAFF;color:#5B35D5;border-color:#DCD0FF}
+        .theme-light .family-roots .roots-view-select,.theme-light .family-roots .roots-search-pill input{background:#fff;color:#182033;border-color:rgba(24,32,51,.12)}
+        .theme-light .family-roots .roots-filter-chip{background:#fff;color:#667085;border-color:rgba(24,32,51,.10)}.theme-light .family-roots .roots-filter-chip-active{background:#F0EAFF;color:#5B35D5;border-color:#DCD0FF}
+        .theme-light .family-roots .roots-map-point{background:#fff;color:#182033;border-color:rgba(24,32,51,.10)}
+        .theme-light .family-roots .roots-world-map{background:radial-gradient(circle at 28% 44%,rgba(0,210,106,.16),transparent 7%),radial-gradient(circle at 51% 40%,rgba(108,92,255,.16),transparent 8%),radial-gradient(circle at 76% 52%,rgba(79,140,255,.16),transparent 8%),linear-gradient(135deg,#EEF8FF,#fff 48%,#F0FFF8)}
+        .theme-light .family-roots .roots-tree-shell{background:#fff}
+        .theme-light .family-roots .family-tree-canvas{background:linear-gradient(180deg,#f7fbf8,#fff)}
+        .theme-light .family-roots .roots-tree-node{background:linear-gradient(145deg,#fff,#F8FBFF)!important;border-color:rgba(24,32,51,.12);box-shadow:0 18px 42px rgba(24,32,51,.08)}
         .theme-light .family-roots input::placeholder{color:rgba(24,32,51,.35)}
         .theme-light .family-roots .roots-modal-panel{background:#fff;color:#182033;border-color:rgba(24,32,51,.12)}
         .theme-sepia .family-roots .roots-card{background:#fffaf0;border-color:rgba(53,47,39,.14)}
@@ -1332,6 +1510,16 @@ export function FamilyRoots({
         .theme-sepia .family-roots .roots-muted, .theme-sepia .family-roots .roots-kicker{color:rgba(53,47,39,.6)!important}
         .theme-sepia .family-roots .root-input{background:#fffaf0;color:#352f27;border-color:rgba(53,47,39,.18)}
         .theme-sepia .family-roots .roots-icon-button,.theme-sepia .family-roots .roots-action{background:#f7ecd8;border-color:rgba(53,47,39,.14);color:#42382d}
+        .theme-sepia .family-roots .roots-solid-violet{background:#6C5CFF!important;color:#fff!important}
+        .theme-sepia .family-roots .roots-main-header,.theme-sepia .family-roots .roots-tabs,.theme-sepia .family-roots .roots-branch-row,.theme-sepia .family-roots .roots-search-pill{background:#fffaf0;border-color:rgba(53,47,39,.12);box-shadow:0 14px 38px rgba(53,47,39,.06)}
+        .theme-sepia .family-roots .roots-tab{color:#6B5E50}.theme-sepia .family-roots .roots-tab-active{background:#F1E5D4;color:#5B35D5;border-color:rgba(91,53,213,.22)}
+        .theme-sepia .family-roots .roots-view-select,.theme-sepia .family-roots .roots-search-pill input{background:#fffaf0;color:#352f27;border-color:rgba(53,47,39,.14)}
+        .theme-sepia .family-roots .roots-filter-chip{background:#fffaf0;color:#6B5E50;border-color:rgba(53,47,39,.12)}.theme-sepia .family-roots .roots-filter-chip-active{background:#F1E5D4;color:#5B35D5;border-color:rgba(91,53,213,.22)}
+        .theme-sepia .family-roots .roots-map-point{background:#fffaf0;color:#352f27;border-color:rgba(53,47,39,.14)}
+        .theme-sepia .family-roots .roots-world-map{background:linear-gradient(135deg,#F5EBD8,#FFFAF0 48%,#EEF8E8)}
+        .theme-sepia .family-roots .roots-tree-shell{background:#fffaf0}
+        .theme-sepia .family-roots .family-tree-canvas{background:linear-gradient(180deg,#f8efd9,#fffaf0)}
+        .theme-sepia .family-roots .roots-tree-node{background:linear-gradient(145deg,#fffaf0,#f8ecd7)!important;border-color:rgba(53,47,39,.14);box-shadow:0 18px 42px rgba(53,47,39,.08)}
         .theme-sepia .family-roots input::placeholder{color:rgba(53,47,39,.4)}
         .theme-sepia .family-roots .roots-modal-panel{background:#fffaf0;color:#352f27;border-color:rgba(53,47,39,.14)}
       `}</style>
@@ -1339,7 +1527,70 @@ export function FamilyRoots({
   );
 }
 
-function ProfileCard({ profile, onClick }: { profile: FamilyTreeProfile; onClick?: () => void }) {
+function TreeGeneration({
+  group,
+  isFirst,
+  canManage,
+  onProfileClick
+}: {
+  group: { generation: number; people: FamilyTreeProfile[] };
+  isFirst: boolean;
+  canManage: boolean;
+  onProfileClick: (profile: FamilyTreeProfile) => void;
+}) {
+  return (
+    <section className="roots-tree-generation relative">
+      {!isFirst && <span className="roots-tree-stem" aria-hidden="true" />}
+      <div className="mb-3 flex items-center justify-center">
+        <span className="rounded-full border border-[#00D26A]/22 bg-[#00D26A]/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.08em] text-[#00D26A]">
+          {group.generation === 0 ? 'Origines proches' : `Génération ${group.generation + 1}`}
+        </span>
+      </div>
+      <div className="roots-tree-row relative flex flex-wrap justify-center gap-4">
+        {group.people.map(profile => (
+          <ProfileCard
+            key={profile.id}
+            profile={profile}
+            variant="tree"
+            onClick={() => onProfileClick(profile)}
+            disabled={!canManage || !profile.isLocal}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ProfileCard({ profile, onClick, variant = 'list', disabled = false }: { profile: FamilyTreeProfile; onClick?: () => void; variant?: 'list' | 'tree'; disabled?: boolean }) {
+  const branchTone = profile.branch === 'paternelle'
+    ? 'from-[#4F8CFF]/24 to-[#102846]'
+    : profile.branch === 'maternelle'
+      ? 'from-[#FF4D6D]/18 to-[#221428]'
+      : profile.branch === 'autre'
+        ? 'from-[#FFB020]/18 to-[#221B10]'
+        : 'from-[#00D26A]/18 to-[#10251C]';
+
+  if (variant === 'tree') {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={`roots-tree-node relative flex min-h-[154px] w-[168px] flex-col items-center justify-start rounded-[30px] border border-white/10 bg-gradient-to-br ${branchTone} p-3 text-center shadow-[0_18px_50px_rgba(0,0,0,.18)] disabled:cursor-default`}
+      >
+        <span className="roots-tree-dot" aria-hidden="true" />
+        <MemberAvatar name={profile.displayName} photoUrl={profile.photoUrl} className="h-16 w-16 rounded-full ring-4 ring-white/10" />
+        <strong className="mt-3 line-clamp-2 text-sm font-black leading-4 text-white">{profileLabel(profile)}</strong>
+        <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-4 text-white/48">{profile.originCity || profile.country || branchLabels[profile.branch]}</p>
+        <div className="mt-3 flex flex-wrap justify-center gap-1">
+          {profile.birthDate && <span className="rounded-full bg-white/8 px-2 py-1 text-[9px] font-black text-white/50">{new Date(`${profile.birthDate}T12:00:00`).getFullYear()}</span>}
+          {profile.isMinor && <span className="rounded-full bg-[#00D26A]/14 px-2 py-1 text-[9px] font-black text-[#00D26A]">Protégé</span>}
+          {profile.isMemorial && <span className="rounded-full bg-[#FFB020]/14 px-2 py-1 text-[9px] font-black text-[#FFB020]">Souvenir</span>}
+        </div>
+      </button>
+    );
+  }
+
   return (
     <button type="button" onClick={onClick} className={`roots-card flex min-h-[96px] w-[205px] items-center gap-3 p-3 text-left ${profile.isMemorial ? 'border-[#FFB020]/28 bg-[#FFB020]/7' : ''}`}>
       <MemberAvatar name={profile.displayName} photoUrl={profile.photoUrl} className="h-12 w-12 shrink-0" />
@@ -1523,6 +1774,41 @@ function BranchModal({
   );
 }
 
+function BranchWorldMap({ countries }: { countries: Array<[string, FamilyTreeProfile[]]> }) {
+  const points = countries.filter(([place]) => place !== 'Pays non indiqué').slice(0, 4);
+  const positions = [
+    { left: '24%', top: '48%', tone: 'green' },
+    { left: '50%', top: '40%', tone: 'violet' },
+    { left: '46%', top: '67%', tone: 'orange' },
+    { left: '78%', top: '52%', tone: 'blue' }
+  ];
+  return (
+    <section className="roots-card overflow-hidden p-0">
+      <div className="roots-world-map relative min-h-[240px] p-4">
+        <div className="relative z-10 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="roots-title">Branches familiales</h2>
+            <p className="roots-muted">Pays et villes déclarés dans les fiches.</p>
+          </div>
+          <Earth className="h-5 w-5 text-[#4F8CFF]" />
+        </div>
+        {points.map(([place, profiles], index) => {
+          const position = positions[index] || positions[0];
+          return (
+            <div key={place} className={`roots-map-point roots-map-${position.tone}`} style={{ left: position.left, top: position.top }}>
+              <div className="flex -space-x-2">
+                {profiles.slice(0, 2).map(profile => <MemberAvatar key={profile.id} name={profile.displayName} photoUrl={profile.photoUrl} className="h-8 w-8 rounded-full border-2 border-white" />)}
+              </div>
+              <span>{place}</span>
+            </div>
+          );
+        })}
+        {points.length === 0 && <div className="absolute inset-x-4 bottom-4 z-10 rounded-2xl border border-dashed border-white/12 bg-white/6 p-4 text-center text-xs font-semibold text-white/45">Ajoutez un pays ou une ville dans une fiche pour afficher la carte des branches.</div>}
+      </div>
+    </section>
+  );
+}
+
 function MemoryCard({ memory, profileName }: { memory: FamilyTreeMemory; profileName?: string }) {
   return (
     <article className="overflow-hidden rounded-[22px] border border-white/8 bg-white/5">
@@ -1542,6 +1828,54 @@ function MemoryCard({ memory, profileName }: { memory: FamilyTreeMemory; profile
         <p className="mt-2 line-clamp-4 text-[11px] font-semibold leading-5 text-white/50">{memory.note}</p>
       </div>
     </article>
+  );
+}
+
+function PhotoPicker({
+  label,
+  name,
+  photoUrl,
+  uploading,
+  onSelect,
+  onClear
+}: {
+  label: string;
+  name?: string;
+  photoUrl?: string;
+  uploading: boolean;
+  onSelect: (file: File) => Promise<void>;
+  onClear: () => void;
+}) {
+  return (
+    <Field label={label}>
+      <div className="rounded-[22px] border border-white/8 bg-white/5 p-3">
+        <div className="flex items-center gap-3">
+          <MemberAvatar name={name} photoUrl={photoUrl} className="h-16 w-16 rounded-2xl" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-black text-white">{photoUrl ? 'Photo prête' : 'Aucune photo choisie'}</p>
+            <p className="mt-1 text-[10px] font-semibold leading-4 text-white/42">Choisissez une image depuis le téléphone. Elle est compressée avant l’envoi.</p>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <label className={`flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#6C5CFF]/25 bg-[#6C5CFF]/12 px-3 text-[10px] font-black text-[#C9C3FF] ${uploading ? 'pointer-events-none opacity-50' : ''}`}>
+            <FileUp className="h-4 w-4" />
+            {uploading ? 'Envoi...' : 'Photo'}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={uploading}
+              onChange={event => {
+                const file = event.target.files?.[0];
+                event.currentTarget.value = '';
+                if (file) void onSelect(file);
+              }}
+            />
+          </label>
+          <button type="button" disabled={!photoUrl || uploading} onClick={onClear} className="min-h-11 rounded-2xl border border-white/8 bg-white/4 px-3 text-[10px] font-black text-white/45 disabled:opacity-35">Retirer</button>
+        </div>
+      </div>
+    </Field>
   );
 }
 
@@ -1570,7 +1904,8 @@ function SharedFieldsPicker({ profile, onChange }: { profile: FamilyTreeProfile;
 
 function ProfileModal({
   profile, setProfile, localProfiles, relationType, setRelationType, relationTargetId, setRelationTargetId,
-  memories, memoryDraft, setMemoryDraft, busy, canAddRelationship, onSave, onClose, onAddRelationship, onAddMemory
+  memories, memoryDraft, setMemoryDraft, busy, photoUploading, canAddRelationship, onSave, onClose, onAddRelationship, onAddMemory,
+  onUploadProfilePhoto, onUploadMemoryPhoto
 }: {
   profile: FamilyTreeProfile;
   setProfile: (profile: FamilyTreeProfile | null) => void;
@@ -1583,11 +1918,14 @@ function ProfileModal({
   relationTargetId: string;
   setRelationTargetId: (value: string) => void;
   busy: boolean;
+  photoUploading: boolean;
   canAddRelationship: boolean;
   onSave: () => Promise<void>;
   onClose: () => void;
   onAddRelationship: () => Promise<void>;
   onAddMemory: () => Promise<void>;
+  onUploadProfilePhoto: (file: File) => Promise<void>;
+  onUploadMemoryPhoto: (file: File) => Promise<void>;
 }) {
   return (
     <Modal title="Fiche familiale" onClose={onClose}>
@@ -1600,10 +1938,15 @@ function ProfileModal({
           </div>
         </div>
         <Field label="Nom affiché"><input value={profile.displayName} onChange={event => setProfile({ ...profile, displayName: event.target.value })} className="root-input" /></Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Surnom"><input value={profile.nickname || ''} onChange={event => setProfile({ ...profile, nickname: event.target.value })} className="root-input" /></Field>
-          <Field label="Photo"><input value={profile.photoUrl || ''} onChange={event => setProfile({ ...profile, photoUrl: event.target.value })} className="root-input" /></Field>
-        </div>
+        <Field label="Surnom"><input value={profile.nickname || ''} onChange={event => setProfile({ ...profile, nickname: event.target.value })} className="root-input" /></Field>
+        <PhotoPicker
+          label="Photo de la personne"
+          name={profile.displayName}
+          photoUrl={profile.photoUrl}
+          uploading={photoUploading}
+          onSelect={onUploadProfilePhoto}
+          onClear={() => setProfile({ ...profile, photoUrl: undefined })}
+        />
         <div className="grid grid-cols-2 gap-3">
           <Field label="Branche"><select value={profile.branch} onChange={event => setProfile({ ...profile, branch: event.target.value as FamilyBranch })} className="root-input">{Object.entries(branchLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
           <Field label="Pays"><input value={profile.country || ''} onChange={event => setProfile({ ...profile, country: event.target.value })} className="root-input" /></Field>
@@ -1625,7 +1968,14 @@ function ProfileModal({
           </div>}
           <Field label="Titre du souvenir"><input value={memoryDraft.title} onChange={event => setMemoryDraft(current => ({ ...current, title: event.target.value }))} className="root-input" /></Field>
           <Field label="Souvenir"><textarea value={memoryDraft.note} onChange={event => setMemoryDraft(current => ({ ...current, note: event.target.value }))} rows={3} className="root-input min-h-[96px] py-3" /></Field>
-          <Field label="Photo du souvenir"><input value={memoryDraft.photoUrl} onChange={event => setMemoryDraft(current => ({ ...current, photoUrl: event.target.value }))} placeholder="Lien d’image facultatif" className="root-input" /></Field>
+          <PhotoPicker
+            label="Photo du souvenir"
+            name={memoryDraft.title || profile.displayName}
+            photoUrl={memoryDraft.photoUrl}
+            uploading={photoUploading}
+            onSelect={onUploadMemoryPhoto}
+            onClear={() => setMemoryDraft(current => ({ ...current, photoUrl: '' }))}
+          />
           <div className="grid grid-cols-2 gap-2">
             <Field label="Date"><input type="date" value={memoryDraft.date} onChange={event => setMemoryDraft(current => ({ ...current, date: event.target.value }))} className="root-input" /></Field>
             <Field label="Visibilité"><select value={memoryDraft.visibility} onChange={event => setMemoryDraft(current => ({ ...current, visibility: event.target.value as FamilyTreeMemory['visibility'] }))} className="root-input"><option value="famille">Branches</option><option value="prive">Ce foyer</option></select></Field>
@@ -1711,8 +2061,8 @@ function IdentityList({ requests, profileById, busy, runAction }: { requests: Fa
 
 function TabButton({ active, onClick, icon, label, badge = 0 }: { active: boolean; onClick: () => void; icon: ReactNode; label: string; badge?: number }) {
   return (
-    <button type="button" onClick={onClick} className={`relative flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl border px-1 text-[10px] font-black ${active ? 'border-[#00D26A]/35 bg-[#00D26A]/12 text-[#00D26A]' : 'border-white/8 bg-white/4 text-white/50'}`}>
-      {icon}<span>{label}</span>{badge > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#FF4D6D]" />}
+    <button type="button" onClick={onClick} className={`roots-tab relative flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border px-4 text-[11px] font-black ${active ? 'roots-tab-active' : ''}`}>
+      <span className="hidden sm:block">{icon}</span><span>{label}</span>{badge > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#FF4D6D]" />}
     </button>
   );
 }
