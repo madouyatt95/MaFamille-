@@ -276,9 +276,6 @@ export function FamilyRoots({
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [datePlaceFilter, setDatePlaceFilter] = useState('all');
   const [treeSearch, setTreeSearch] = useState('');
-  const [treeBranchFilter, setTreeBranchFilter] = useState<'all' | FamilyBranch>('all');
-  const [treePlaceFilter, setTreePlaceFilter] = useState('all');
-  const [treeGenerationFilter, setTreeGenerationFilter] = useState('all');
   const [treeLinkProfileId, setTreeLinkProfileId] = useState('');
   const [treeZoom, setTreeZoom] = useState(1);
   const [targetCode, setTargetCode] = useState('');
@@ -531,18 +528,11 @@ export function FamilyRoots({
     return ids;
   }, [treeRelationships, treeLinkProfileId]);
   const filteredTreeProfiles = useMemo(() => allTreeProfiles.filter(profile => {
-    const query = normalizeText(treeSearch);
-    const country = profile.country?.trim() || 'Pays non indiqué';
-    const place = profile.originCity ? `${profile.originCity}, ${country}` : country;
-    if (query && !normalizeText(`${profile.displayName} ${profile.nickname || ''} ${profile.country || ''} ${profile.originCity || ''} ${profile.bio || ''}`).includes(query)) return false;
-    if (treeBranchFilter !== 'all' && profile.branch !== treeBranchFilter) return false;
-    if (treePlaceFilter !== 'all' && place !== treePlaceFilter) return false;
     if (linkedProfileIds && !linkedProfileIds.has(profile.id)) return false;
     return true;
-  }), [allTreeProfiles, linkedProfileIds, treeBranchFilter, treePlaceFilter, treeSearch]);
+  }), [allTreeProfiles, linkedProfileIds]);
   const generations = useMemo(() => buildGenerations(filteredTreeProfiles, treeRelationships), [filteredTreeProfiles, treeRelationships]);
-  const generationOptions = useMemo(() => ['all', ...generations.map(group => String(group.generation))], [generations]);
-  const visibleGenerations = useMemo(() => generations.filter(group => treeGenerationFilter === 'all' || String(group.generation) === treeGenerationFilter), [generations, treeGenerationFilter]);
+  const visibleGenerations = generations;
   const filteredUpcomingEvents = useMemo(() => upcomingEvents.filter(event => {
     if (datePlaceFilter === 'all') return true;
     const profile = profileById(event.profileId);
@@ -698,9 +688,6 @@ export function FamilyRoots({
     await runAction(async () => {
       await familyRootsService.addRelationship(foyerId, sourceProfileId, relationTargetId, relationType);
       setRelationTargetId('');
-      setTreeBranchFilter('all');
-      setTreePlaceFilter('all');
-      setTreeGenerationFilter('all');
       setTreeLinkProfileId(sourceProfileId);
     }, 'Le lien familial est ajouté à la fiche et à l’arbre.');
   };
@@ -986,42 +973,16 @@ export function FamilyRoots({
             </section>
           )}
 
-          <section className="roots-card roots-tree-shell overflow-hidden p-3 sm:p-4">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="roots-title">Arbre familial</h2>
-                <p className="roots-muted">{localProfiles.length + remoteProfiles.length} personnes visibles · {confirmedConnections.length} branche{confirmedConnections.length > 1 ? 's' : ''} liée{confirmedConnections.length > 1 ? 's' : ''}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <select value={treeLinkProfileId} onChange={event => setTreeLinkProfileId(event.target.value)} className="roots-view-select">
-                  <option value="">Vue globale</option>
-                  {allTreeProfiles.map(profile => <option key={profile.id} value={profile.id}>Autour de {profile.displayName}</option>)}
-                </select>
-                <button type="button" onClick={() => setReadingOpen(true)} className="roots-fullscreen-button" aria-label="Lire en plein écran"><Maximize2 className="h-4 w-4" /><span>Plein écran</span></button>
-                <div className="flex rounded-2xl border border-white/8 bg-white/5 p-1">
-                  <button type="button" onClick={() => setTreeZoom(value => Math.max(0.8, Number((value - 0.1).toFixed(1))))} className="roots-icon-button" aria-label="Réduire"><Minus className="h-4 w-4" /></button>
-                  <button type="button" onClick={() => setTreeZoom(value => Math.min(1.4, Number((value + 0.1).toFixed(1))))} className="roots-icon-button" aria-label="Agrandir"><Plus className="h-4 w-4" /></button>
-                </div>
-              </div>
+          <section className="roots-reference-shell overflow-hidden">
+            <div className="roots-tree-topbar">
+              <select value={treeLinkProfileId} onChange={event => setTreeLinkProfileId(event.target.value)} className="roots-view-select">
+                <option value="">Vue globale</option>
+                {allTreeProfiles.map(profile => <option key={profile.id} value={profile.id}>Autour de {profile.displayName}</option>)}
+              </select>
+              <button type="button" onClick={() => setReadingOpen(true)} className="roots-round-tool" aria-label="Lire en plein écran"><Maximize2 className="h-4 w-4" /></button>
             </div>
-            <div className="mb-4 grid gap-2 sm:grid-cols-4">
-              <label className="roots-search-pill roots-search-compact sm:col-span-2">
-                <input value={treeSearch} onChange={event => setTreeSearch(event.target.value)} placeholder="Rechercher une personne, une ville..." />
-                <Search className="h-4 w-4" />
-              </label>
-              <select value={treeBranchFilter} onChange={event => setTreeBranchFilter(event.target.value as 'all' | FamilyBranch)} className="root-input">
-                <option value="all">Toutes les branches</option>
-                {Object.entries(branchLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
-              <select value={treeGenerationFilter} onChange={event => setTreeGenerationFilter(event.target.value)} className="root-input">
-                {generationOptions.map(option => <option key={option} value={option}>{option === 'all' ? 'Toutes les générations' : option === '0' ? 'Origines proches' : `Génération ${Number(option) + 1}`}</option>)}
-              </select>
-              <select value={treePlaceFilter} onChange={event => setTreePlaceFilter(event.target.value)} className="root-input sm:col-span-4">
-                {places.map(place => <option key={place} value={place}>{place === 'all' ? 'Tous les lieux déclarés' : place}</option>)}
-              </select>
-            </div>
-            <div className="overflow-x-auto pb-2">
-              <div className="family-tree-canvas min-w-[720px] space-y-8 px-3 py-4" style={{ transform: `scale(${treeZoom})`, transformOrigin: 'top left', width: `${100 / treeZoom}%` }}>
+            <div className="roots-reference-scroll overflow-x-auto pb-2">
+              <div className="family-tree-canvas roots-reference-canvas min-w-[640px] space-y-7 px-4 py-5" style={{ transform: `scale(${treeZoom})`, transformOrigin: 'top left', width: `${100 / treeZoom}%` }}>
                 {visibleGenerations.length ? visibleGenerations.map(group => (
                   <TreeGeneration
                     key={group.generation}
@@ -1031,11 +992,16 @@ export function FamilyRoots({
                     relationshipPreviewsByProfile={relationshipPreviewsByProfile}
                     onProfileClick={profile => canManage && profile.isLocal && setEditingProfile(profile)}
                   />
-                )) : <div className="max-w-sm"><EmptyState icon={<Search className="h-8 w-8" />} text="Aucune fiche ne correspond aux filtres." /></div>}
+                )) : <div className="max-w-sm"><EmptyState icon={<Search className="h-8 w-8" />} text="Aucune fiche familiale à afficher pour le moment." /></div>}
+              </div>
+              <div className="roots-tree-zoom">
+                <button type="button" onClick={() => setTreeZoom(value => Math.min(1.4, Number((value + 0.1).toFixed(1))))} aria-label="Agrandir"><Plus className="h-4 w-4" /></button>
+                <span>{Math.round(treeZoom * 100)}%</span>
+                <button type="button" onClick={() => setTreeZoom(value => Math.max(0.8, Number((value - 0.1).toFixed(1))))} aria-label="Réduire"><Minus className="h-4 w-4" /></button>
               </div>
             </div>
             {visibleRelationshipSummaries.length > 0 && (
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <div className="roots-link-strip">
                 {visibleRelationshipSummaries.slice(0, 4).map(link => (
                   <div key={`${link.id}-${link.sourceName}-${link.targetName}`} className={`roots-link-summary ${relationshipPreviewTone(link.type)}`}>
                     <span>{relationshipLabels[link.type]}</span>
@@ -1627,6 +1593,15 @@ export function FamilyRoots({
         .family-roots .roots-action-violet{border-color:rgba(108,92,255,.3);background:rgba(108,92,255,.13);color:#b8b0ff;width:100%}
         .family-roots .roots-solid-violet{background:#6C5CFF;color:#fff;box-shadow:0 14px 34px rgba(108,92,255,.22)}
         .family-roots .roots-small-action{display:flex;height:44px;align-items:center;gap:8px;border-radius:16px;background:#FFB020;padding:0 14px;font-size:11px;font-weight:900;color:#101426}
+        .family-roots .roots-reference-shell{position:relative;overflow:hidden;border-radius:30px;border:1px solid rgba(255,255,255,.08);background:radial-gradient(circle at 50% 4%,rgba(108,92,255,.18),transparent 28%),radial-gradient(circle at 14% 18%,rgba(0,210,106,.12),transparent 24%),#07111F;box-shadow:inset 0 0 0 1px rgba(255,255,255,.025)}
+        .family-roots .roots-reference-shell:before{content:"";position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:58px 58px;mask-image:linear-gradient(180deg,rgba(0,0,0,.72),rgba(0,0,0,.18));pointer-events:none}
+        .family-roots .roots-tree-topbar{position:relative;z-index:2;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 12px 0}
+        .family-roots .roots-round-tool{display:flex;height:42px;width:42px;align-items:center;justify-content:center;border-radius:16px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.06);color:rgba(255,255,255,.78);box-shadow:0 14px 34px rgba(0,0,0,.18)}
+        .family-roots .roots-reference-scroll{position:relative;z-index:1}
+        .family-roots .roots-tree-zoom{position:absolute;right:14px;bottom:18px;z-index:3;display:flex;flex-direction:column;align-items:center;overflow:hidden;border-radius:18px;border:1px solid rgba(255,255,255,.10);background:rgba(7,17,31,.78);box-shadow:0 18px 44px rgba(0,0,0,.26);backdrop-filter:blur(16px)}
+        .family-roots .roots-tree-zoom button{display:flex;height:38px;width:42px;align-items:center;justify-content:center;color:rgba(255,255,255,.82)}
+        .family-roots .roots-tree-zoom span{border-block:1px solid rgba(255,255,255,.08);padding:7px 8px;font-size:9px;font-weight:900;color:rgba(255,255,255,.54)}
+        .family-roots .roots-link-strip{display:grid;gap:8px;padding:0 14px 14px}
         .family-roots .roots-main-header{border-radius:28px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(135deg,rgba(255,255,255,.07),rgba(255,255,255,.025));padding:14px}
         .family-roots .roots-tabs{border-radius:24px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);padding:6px}
         .family-roots .roots-tab{border-color:transparent;background:transparent;color:rgba(255,255,255,.56)}
@@ -1646,11 +1621,14 @@ export function FamilyRoots({
         .family-roots .roots-map-point{position:absolute;z-index:2;display:flex;align-items:center;gap:8px;transform:translate(-50%,-50%);border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(7,17,31,.88);padding:6px 9px;box-shadow:0 14px 32px rgba(0,0,0,.22);font-size:10px;font-weight:900;color:white;white-space:nowrap}
         .family-roots .roots-map-green span{color:#00D26A}.family-roots .roots-map-violet span{color:#C9C3FF}.family-roots .roots-map-orange span{color:#FFB020}.family-roots .roots-map-blue span{color:#7FB0FF}
         .family-roots .roots-tree-shell{background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.025))}
-        .family-roots .family-tree-canvas{position:relative;border-radius:28px;background:radial-gradient(circle at 50% 0%,rgba(108,92,255,.16),transparent 31%),radial-gradient(circle at 20% 16%,rgba(0,210,106,.12),transparent 24%),linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.012))}
-        .family-roots .family-tree-canvas:before{content:"";position:absolute;left:50%;top:34px;bottom:36px;width:2px;background:linear-gradient(180deg,rgba(108,92,255,.56),rgba(0,210,106,.22));transform:translateX(-50%);border-radius:999px;box-shadow:0 0 28px rgba(108,92,255,.28)}
-        .family-roots .roots-tree-generation{padding-top:10px}
+        .family-roots .family-tree-canvas{position:relative;border-radius:28px;background:transparent}
+        .family-roots .family-tree-canvas:before{content:"";position:absolute;left:50%;top:34px;bottom:36px;width:2px;background:linear-gradient(180deg,rgba(108,92,255,.58),rgba(0,210,106,.22));transform:translateX(-50%);border-radius:999px;box-shadow:0 0 28px rgba(108,92,255,.28)}
+        .family-roots .roots-tree-generation{padding-top:8px}
         .family-roots .roots-tree-stem{position:absolute;left:50%;top:-24px;height:28px;width:2px;transform:translateX(-50%);background:rgba(108,92,255,.4)}
-        .family-roots .roots-tree-row:before{content:"";position:absolute;left:9%;right:9%;top:-8px;height:2px;background:linear-gradient(90deg,transparent,rgba(108,92,255,.48),rgba(0,210,106,.30),transparent);border-radius:999px}
+        .family-roots .roots-generation-track{position:relative;display:flex;align-items:center;justify-content:center;margin-bottom:18px}
+        .family-roots .roots-generation-track:before{content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:linear-gradient(90deg,transparent,rgba(108,92,255,.32),rgba(0,210,106,.24),transparent)}
+        .family-roots .roots-generation-label{position:relative;z-index:1;border-radius:999px;border:1px solid rgba(108,92,255,.32);background:rgba(18,20,52,.92);padding:8px 18px;color:#C9C3FF;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;box-shadow:0 12px 30px rgba(0,0,0,.18)}
+        .family-roots .roots-tree-row:before{content:"";position:absolute;left:11%;right:11%;top:-12px;height:2px;background:linear-gradient(90deg,transparent,rgba(108,92,255,.50),rgba(0,210,106,.30),transparent);border-radius:999px}
         .family-roots .roots-tree-generation-wide .roots-tree-row{gap:18px}
         .family-roots .roots-tree-person{isolation:isolate;transition:transform .18s ease,filter .18s ease}
         .family-roots .roots-tree-person:before{content:"";position:absolute;left:50%;top:-14px;height:14px;width:2px;transform:translateX(-50%);background:rgba(108,92,255,.44)}
@@ -1712,6 +1690,10 @@ export function FamilyRoots({
         .theme-light .family-roots .roots-world-route{stroke:rgba(91,53,213,.42)}
         .theme-light .family-roots .roots-world-route-alt{stroke:rgba(212,126,0,.36)}
         .theme-light .family-roots .roots-tree-shell{background:#fff}
+        .theme-light .family-roots .roots-reference-shell{background:radial-gradient(circle at 50% 4%,rgba(108,92,255,.10),transparent 28%),radial-gradient(circle at 14% 18%,rgba(0,210,106,.10),transparent 24%),#fff;border-color:rgba(24,32,51,.10)}
+        .theme-light .family-roots .roots-round-tool,.theme-light .family-roots .roots-tree-zoom{background:rgba(255,255,255,.86);border-color:rgba(24,32,51,.12);color:#182033}
+        .theme-light .family-roots .roots-tree-zoom button{color:#182033}.theme-light .family-roots .roots-tree-zoom span{border-color:rgba(24,32,51,.10);color:rgba(24,32,51,.56)}
+        .theme-light .family-roots .roots-generation-label{background:#F0EAFF;border-color:#DCD0FF;color:#5B35D5}
         .theme-light .family-roots .family-tree-canvas{background:linear-gradient(180deg,#f7fbf8,#fff)}
         .theme-light .family-roots.roots-reading-mode{background:radial-gradient(circle at 18% 10%,rgba(0,210,106,.12),transparent 24%),radial-gradient(circle at 82% 0%,rgba(108,92,255,.12),transparent 26%),#fff}
         .theme-light .family-roots .roots-reading-close{background:rgba(255,255,255,.78);color:#182033;border-color:rgba(24,32,51,.12)}
@@ -1739,6 +1721,10 @@ export function FamilyRoots({
         .theme-sepia .family-roots .roots-world-route{stroke:rgba(91,53,213,.40)}
         .theme-sepia .family-roots .roots-world-route-alt{stroke:rgba(174,96,0,.38)}
         .theme-sepia .family-roots .roots-tree-shell{background:#fffaf0}
+        .theme-sepia .family-roots .roots-reference-shell{background:radial-gradient(circle at 50% 4%,rgba(108,92,255,.10),transparent 28%),radial-gradient(circle at 14% 18%,rgba(0,210,106,.09),transparent 24%),#fffaf0;border-color:rgba(53,47,39,.12)}
+        .theme-sepia .family-roots .roots-round-tool,.theme-sepia .family-roots .roots-tree-zoom{background:rgba(255,250,240,.86);border-color:rgba(53,47,39,.14);color:#352f27}
+        .theme-sepia .family-roots .roots-tree-zoom button{color:#352f27}.theme-sepia .family-roots .roots-tree-zoom span{border-color:rgba(53,47,39,.12);color:rgba(53,47,39,.58)}
+        .theme-sepia .family-roots .roots-generation-label{background:#F1E5D4;border-color:rgba(91,53,213,.22);color:#5B35D5}
         .theme-sepia .family-roots .family-tree-canvas{background:linear-gradient(180deg,#f8efd9,#fffaf0)}
         .theme-sepia .family-roots.roots-reading-mode{background:radial-gradient(circle at 18% 10%,rgba(0,210,106,.10),transparent 24%),radial-gradient(circle at 82% 0%,rgba(108,92,255,.10),transparent 26%),#fffaf0}
         .theme-sepia .family-roots .roots-reading-close{background:rgba(255,250,240,.78);color:#352f27;border-color:rgba(53,47,39,.14)}
@@ -1776,12 +1762,12 @@ function TreeGeneration({
   return (
     <section className={`roots-tree-generation relative ${fullScreen ? 'roots-tree-generation-wide' : ''}`}>
       {!isFirst && <span className="roots-tree-stem" aria-hidden="true" />}
-      <div className="mb-3 flex items-center justify-center">
-        <span className="roots-generation-label rounded-full border border-[#00D26A]/22 bg-[#00D26A]/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.08em] text-[#00D26A]">
+      <div className="roots-generation-track">
+        <span className="roots-generation-label">
           {generationLabel(group.generation)}
         </span>
       </div>
-      <div className="roots-tree-row relative flex flex-wrap justify-center gap-4">
+      <div className="roots-tree-row relative flex flex-wrap justify-center gap-3">
         {visiblePeople.map(profile => (
           <ProfileCard
             key={profile.id}
