@@ -496,22 +496,27 @@ export function FamilyRoots({
                 </button>
               </div>
 
-              {/* Stylized SVG Map */}
+              {/* High-fidelity SVG World Map */}
               <div className="relative w-full h-[180px] mt-2">
-                <svg className="w-full h-full opacity-20 pointer-events-none" viewBox="0 0 1000 500">
-                  <path fill="currentColor" className="text-white" d="M150,150 Q250,100 450,220 T750,180" stroke="none" fillRule="evenodd" />
-                  <path fill="currentColor" className="text-white" d="M300,320 Q500,280 650,400 T850,350" stroke="none" fillRule="evenodd" />
+                <svg className="w-full h-full text-white/10 opacity-30 pointer-events-none" viewBox="0 0 1000 520" preserveAspectRatio="xMidYMid meet">
+                  <path fill="currentColor" d="M115 155c34-56 91-83 171-81 46 1 83 15 111 40 20 19 23 43 7 72-15 27-38 40-68 38-25-2-42 7-51 28-12 27-37 39-73 36-36-2-68-18-96-47-25-27-25-56-1-86Z" />
+                  <path fill="currentColor" d="M285 303c40 14 69 38 87 72 18 35 18 72-2 111-34-11-61-36-82-74-21-39-22-75-3-109Z" />
+                  <path fill="currentColor" d="M430 141c38-35 86-48 144-39 35 5 60 19 75 41 13 19 10 40-10 62-25 27-59 37-101 30-45-8-80-1-104 21-31-24-33-62-4-115Z" />
+                  <path fill="currentColor" d="M506 270c49 7 86 31 111 72 26 44 28 92 4 144-47-12-84-42-110-90-25-46-27-88-5-126Z" />
+                  <path fill="currentColor" d="M585 120c70-40 154-45 252-15 64 20 103 56 118 108-52 18-104 20-156 7-46-11-84-8-114 10-35 22-75 24-121 6-48-19-59-57-33-114 15 4 33 3 54-2Z" />
+                  <path fill="currentColor" d="M744 318c37-20 78-24 123-10 42 12 72 36 89 71-35 29-77 41-127 36-51-5-79-37-85-97Z" />
+                  <path fill="currentColor" d="M452 82c35-18 76-22 122-12 24 6 41 15 51 28-33 19-72 25-117 18-30-5-49-16-56-34Z" />
                 </svg>
 
                 {/* Connection paths */}
-                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 1000 500">
-                  {/* Curved connecting line */}
-                  <path d="M 500 180 Q 300 240 250 340 T 450 430" fill="none" stroke="#6C5CFF" strokeWidth="2" strokeDasharray="5 5" />
-                  <path d="M 250 340 Q 320 280 800 250" fill="none" stroke="#00D26A" strokeWidth="2" strokeDasharray="3 3" />
+                <svg className="absolute inset-0 w-full h-full opacity-40 pointer-events-none" viewBox="0 0 1000 520" preserveAspectRatio="xMidYMid meet">
+                  <path d="M445 318 C478 240 504 202 515 178" fill="none" stroke="#6C5CFF" strokeWidth="2.5" strokeDasharray="4 4" />
+                  <path d="M445 318 C438 354 446 378 466 398" fill="none" stroke="#FF7A1A" strokeWidth="2.5" strokeDasharray="4 4" />
+                  <path d="M445 318 C486 304 600 270 760 234" fill="none" stroke="#00A3FF" strokeWidth="2.5" strokeDasharray="4 4" />
                 </svg>
 
                 {/* Paris, France Pin */}
-                <div className="absolute top-[25%] left-[48%] flex items-center gap-1.5 bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 px-2 py-1 rounded-full backdrop-blur-sm">
+                <div className="absolute top-[34%] left-[51.5%] flex items-center gap-1.5 bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 px-2 py-1 rounded-full backdrop-blur-sm -translate-x-1/2 -translate-y-1/2">
                   <div className="flex -space-x-1">
                     <img src="https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=40&h=40&q=80" alt="" className="h-4 w-4 rounded-full border border-[#0A1224] object-cover" />
                     <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=40&h=40&q=80" alt="" className="h-4 w-4 rounded-full border border-[#0A1224] object-cover" />
@@ -520,7 +525,7 @@ export function FamilyRoots({
                 </div>
 
                 {/* Dakar, Sénégal Pin */}
-                <div className="absolute top-[65%] left-[20%] flex items-center gap-1.5 bg-[#00D26A]/15 border border-[#00D26A]/30 px-2 py-1 rounded-full backdrop-blur-sm">
+                <div className="absolute top-[61%] left-[44.5%] flex items-center gap-1.5 bg-[#00D26A]/15 border border-[#00D26A]/30 px-2 py-1 rounded-full backdrop-blur-sm -translate-x-1/2 -translate-y-1/2">
                   <div className="flex -space-x-1">
                     <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=40&h=40&q=80" alt="" className="h-4 w-4 rounded-full border border-[#0A1224] object-cover" />
                     <img src="https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=40&h=40&q=80" alt="" className="h-4 w-4 rounded-full border border-[#0A1224] object-cover" />
@@ -529,13 +534,13 @@ export function FamilyRoots({
                 </div>
 
                 {/* New York, USA Pin */}
-                <div className="absolute top-[42%] left-[76%] flex items-center gap-1.5 bg-[#00A3FF]/15 border border-[#00A3FF]/30 px-2 py-1 rounded-full backdrop-blur-sm">
+                <div className="absolute top-[45%] left-[76%] flex items-center gap-1.5 bg-[#00A3FF]/15 border border-[#00A3FF]/30 px-2 py-1 rounded-full backdrop-blur-sm -translate-x-1/2 -translate-y-1/2">
                   <img src="https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=40&h=40&q=80" alt="" className="h-4 w-4 rounded-full border border-[#0A1224] object-cover" />
                   <span className="text-[7px] font-black text-white">New York, USA</span>
                 </div>
 
                 {/* Abidjan, Côte d'Ivoire Pin */}
-                <div className="absolute top-[80%] left-[40%] flex items-center gap-1.5 bg-[#FF7A1A]/15 border border-[#FF7A1A]/30 px-2 py-1 rounded-full backdrop-blur-sm">
+                <div className="absolute top-[76.5%] left-[46.6%] flex items-center gap-1.5 bg-[#FF7A1A]/15 border border-[#FF7A1A]/30 px-2 py-1 rounded-full backdrop-blur-sm -translate-x-1/2 -translate-y-1/2">
                   <img src="https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=40&h=40&q=80" alt="" className="h-4 w-4 rounded-full border border-[#0A1224] object-cover" />
                   <span className="text-[7px] font-black text-white">Abidjan, Côte d'Ivoire</span>
                 </div>
