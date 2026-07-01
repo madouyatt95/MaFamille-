@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, Dispatch, ReactNode, SetStateAction } from 'react';
 import {
-  Bell, BookOpen, CalendarDays, Check, Copy, Download, Earth, Eye, FileText, FileUp,
+  ArrowLeft, Bell, BookOpen, CalendarDays, Check, Copy, Download, Earth, Eye, FileText, FileUp,
   GitBranch, History, Image, Link2, LockKeyhole, MapPin, Maximize2, MessageCircle, Minus,
-  Plus, RefreshCw, ScanLine, Search, Send, ShieldAlert, ShieldCheck, Sparkles, Trash2, TreePine,
+  MoreHorizontal, Phone, Plus, RefreshCw, ScanLine, Search, Send, ShieldAlert, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, TreePine,
   Undo2, UserPlus, Users, X
 } from 'lucide-react';
 import type { Member } from '../types';
@@ -1412,16 +1412,14 @@ export function FamilyRoots({
   };
 
   return (
-    <div className="family-roots space-y-6 pb-20 premium-glow-green">
-      <header className="roots-main-header flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="shrink-0 rounded-2xl border border-[#00D26A]/25 bg-[#00D26A]/10 p-3 text-[#00D26A]"><TreePine className="h-6 w-6" /></div>
-          <div className="min-w-0">
-            <h1 className="truncate text-xl font-black text-white">Racines familiales</h1>
-            <p className="mt-0.5 text-xs font-semibold text-white/50">{familyName} · {localProfiles.length + remoteProfiles.length} personnes visibles</p>
-          </div>
+    <div className="family-roots roots-reference-page space-y-4 pb-20 premium-glow-green">
+      <header className="roots-reference-header">
+        <button type="button" aria-label="Retour" className="roots-header-icon"><ArrowLeft className="h-5 w-5" /></button>
+        <div className="min-w-0 text-center">
+          <h1>Racines familiales</h1>
+          <p>Notre histoire, nos liens, nos racines 🌳</p>
         </div>
-        <button type="button" onClick={() => void load()} aria-label="Actualiser" className="roots-icon-button"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /></button>
+        <button type="button" onClick={() => void load()} aria-label="Réglages" className="roots-header-icon"><SlidersHorizontal className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /></button>
       </header>
 
       <div className="roots-tabs flex gap-2 overflow-x-auto pb-1">
@@ -1582,6 +1580,11 @@ export function FamilyRoots({
       </Modal>}
 
       <style>{`
+        .family-roots.roots-reference-page{position:relative;margin:-4px -2px 0;padding-inline:2px;color:white}
+        .family-roots .roots-reference-header{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:8px;padding:4px 0 2px}
+        .family-roots .roots-reference-header h1{font-size:17px;font-weight:950;line-height:1.1;color:#fff}
+        .family-roots .roots-reference-header p{margin-top:4px;font-size:10px;font-weight:700;line-height:1.15;color:rgba(255,255,255,.48)}
+        .family-roots .roots-header-icon{display:flex;height:40px;width:40px;align-items:center;justify-content:center;border-radius:16px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.035);color:rgba(255,255,255,.76)}
         .family-roots .roots-card{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.045);border-radius:26px}
         .family-roots .roots-title{font-size:14px;font-weight:900;color:white}
         .family-roots .roots-muted{font-size:11px;font-weight:700;line-height:1.55;color:rgba(255,255,255,.48)}
@@ -1603,10 +1606,10 @@ export function FamilyRoots({
         .family-roots .roots-tree-zoom span{border-block:1px solid rgba(255,255,255,.08);padding:7px 8px;font-size:9px;font-weight:900;color:rgba(255,255,255,.54)}
         .family-roots .roots-link-strip{display:grid;gap:8px;padding:0 14px 14px}
         .family-roots .roots-main-header{border-radius:28px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(135deg,rgba(255,255,255,.07),rgba(255,255,255,.025));padding:14px}
-        .family-roots .roots-tabs{border-radius:24px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);padding:6px}
+        .family-roots .roots-tabs{border-radius:25px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);padding:5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
         .family-roots .roots-tab{border-color:transparent;background:transparent;color:rgba(255,255,255,.56)}
-        .family-roots .roots-tab-active{border-color:rgba(108,92,255,.24);background:rgba(108,92,255,.16);color:#C9C3FF;box-shadow:0 12px 30px rgba(108,92,255,.14)}
-        .family-roots .roots-view-select{min-height:44px;max-width:170px;border-radius:16px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.055);padding:0 12px;color:rgba(255,255,255,.72);font-size:11px;font-weight:900;outline:none}
+        .family-roots .roots-tab-active{border-color:rgba(108,92,255,.34);background:linear-gradient(180deg,rgba(108,92,255,.34),rgba(108,92,255,.16));color:#EEE9FF;box-shadow:0 10px 28px rgba(108,92,255,.30),inset 0 1px 0 rgba(255,255,255,.12)}
+        .family-roots .roots-view-select{min-height:38px;max-width:156px;border-radius:15px;border:1px solid rgba(255,255,255,.08);background:rgba(12,23,40,.78);padding:0 10px;color:rgba(255,255,255,.72);font-size:10px;font-weight:900;outline:none}
         .family-roots .roots-search-pill{display:flex;min-height:56px;align-items:center;gap:10px;border-radius:22px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.055);padding:0 16px;color:rgba(255,255,255,.45)}
         .family-roots .roots-search-compact{min-height:48px;border-radius:16px}
         .family-roots .roots-search-pill input{min-width:0;flex:1;background:transparent;color:white;font-size:13px;font-weight:700;outline:none}
@@ -1630,11 +1633,16 @@ export function FamilyRoots({
         .family-roots .roots-generation-label{position:relative;z-index:1;border-radius:999px;border:1px solid rgba(108,92,255,.32);background:rgba(18,20,52,.92);padding:8px 18px;color:#C9C3FF;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;box-shadow:0 12px 30px rgba(0,0,0,.18)}
         .family-roots .roots-tree-row:before{content:"";position:absolute;left:11%;right:11%;top:-12px;height:2px;background:linear-gradient(90deg,transparent,rgba(108,92,255,.50),rgba(0,210,106,.30),transparent);border-radius:999px}
         .family-roots .roots-tree-generation-wide .roots-tree-row{gap:18px}
-        .family-roots .roots-tree-person{isolation:isolate;transition:transform .18s ease,filter .18s ease}
+        .family-roots .roots-tree-person,.family-roots .roots-tree-family-card{isolation:isolate;transition:transform .18s ease,filter .18s ease}
         .family-roots .roots-tree-person:before{content:"";position:absolute;left:50%;top:-14px;height:14px;width:2px;transform:translateX(-50%);background:rgba(108,92,255,.44)}
-        .family-roots .roots-tree-person:not(:disabled):active{transform:scale(.985)}
-        .family-roots .roots-tree-person:not(:disabled):hover{filter:brightness(1.08);transform:translateY(-2px)}
+        .family-roots .roots-tree-family-card:before{content:"";position:absolute;left:50%;top:-14px;height:14px;width:2px;transform:translateX(-50%);background:rgba(108,92,255,.44)}
+        .family-roots .roots-tree-person:not(:disabled):active,.family-roots .roots-tree-family-card:not(:disabled):active{transform:scale(.985)}
+        .family-roots .roots-tree-person:not(:disabled):hover,.family-roots .roots-tree-family-card:not(:disabled):hover{filter:brightness(1.08);transform:translateY(-2px)}
         .family-roots .roots-tree-avatar{border:3px solid rgba(255,255,255,.14);box-shadow:0 16px 36px rgba(0,0,0,.20),0 0 0 5px rgba(108,92,255,.18)}
+        .family-roots .roots-tree-family-card{border:1px solid rgba(108,92,255,.34);background:linear-gradient(180deg,rgba(20,31,57,.88),rgba(11,19,35,.74));box-shadow:0 18px 46px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.06)}
+        .family-roots .roots-tree-family-card.roots-tree-green{border-color:rgba(0,210,106,.34)}.family-roots .roots-tree-family-card.roots-tree-amber{border-color:rgba(255,176,32,.36)}.family-roots .roots-tree-family-card.roots-tree-blue{border-color:rgba(79,140,255,.34)}.family-roots .roots-tree-family-card.roots-tree-pink{border-color:rgba(255,77,109,.34)}
+        .family-roots .roots-family-photo-wrap{display:flex;height:58px;width:70px;align-items:center;justify-content:center;overflow:hidden;border-radius:18px;background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.02));box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+        .family-roots .roots-family-photo{border-radius:16px!important}
         .family-roots .roots-tree-green .roots-tree-avatar{box-shadow:0 16px 36px rgba(0,0,0,.20),0 0 0 5px rgba(0,210,106,.16)}
         .family-roots .roots-tree-blue .roots-tree-avatar{box-shadow:0 16px 36px rgba(0,0,0,.20),0 0 0 5px rgba(79,140,255,.17)}
         .family-roots .roots-tree-pink .roots-tree-avatar{box-shadow:0 16px 36px rgba(0,0,0,.20),0 0 0 5px rgba(255,77,109,.16)}
@@ -1663,6 +1671,21 @@ export function FamilyRoots({
         .family-roots .roots-link-summary span{font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
         .family-roots .roots-link-summary strong{margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(255,255,255,.74);font-size:11px;font-weight:900}
         .family-roots .roots-link-green span{color:#00D26A}.family-roots .roots-link-violet span{color:#C9C3FF}.family-roots .roots-link-blue span{color:#7FB0FF}.family-roots .roots-link-amber span{color:#FFB020}
+        .family-roots .roots-profile-hero{border-radius:28px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.025));padding:14px}
+        .family-roots .roots-profile-back{display:flex;height:38px;width:38px;align-items:center;justify-content:center;border-radius:15px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.045);color:rgba(255,255,255,.74)}
+        .family-roots .roots-profile-avatar{border:4px solid rgba(255,255,255,.14);box-shadow:0 18px 46px rgba(0,0,0,.26),0 0 0 6px rgba(108,92,255,.24),0 0 36px rgba(108,92,255,.42)}
+        .family-roots .roots-profile-action{display:flex;min-height:74px;flex-direction:column;align-items:center;justify-content:center;gap:8px;border-radius:20px;border:1px solid rgba(255,255,255,.07);background:rgba(108,92,255,.075);color:#C9C3FF;font-size:9px;font-weight:900}
+        .family-roots .roots-profile-tabs{display:grid;grid-template-columns:repeat(4,1fr);border-radius:20px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);padding:4px}
+        .family-roots .roots-profile-tabs span{display:flex;min-height:38px;align-items:center;justify-content:center;border-radius:16px;font-size:10px;font-weight:900;color:rgba(255,255,255,.52)}
+        .family-roots .roots-profile-tabs span.active{background:linear-gradient(180deg,rgba(108,92,255,.34),rgba(108,92,255,.16));color:#EEE9FF;box-shadow:0 10px 24px rgba(108,92,255,.22)}
+        .family-roots .roots-profile-section{border-radius:24px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);padding:14px}
+        .family-roots .roots-profile-section h3{font-size:12px;font-weight:950;color:white;margin-bottom:12px}
+        .family-roots .roots-profile-info-grid{display:grid;grid-template-columns:112px minmax(0,1fr);gap:12px 10px;font-size:11px}
+        .family-roots .roots-profile-info-grid span{font-weight:900;color:rgba(255,255,255,.42)}
+        .family-roots .roots-profile-info-grid strong{min-width:0;font-weight:800;color:rgba(255,255,255,.72)}
+        .family-roots .roots-profile-family-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;border-radius:18px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.035);padding:10px}
+        .family-roots .roots-profile-family-row span{font-size:10px;font-weight:900;color:rgba(255,255,255,.46)}
+        .family-roots .roots-profile-family-row strong{font-size:11px;font-weight:950;color:rgba(255,255,255,.76)}
         .family-roots.roots-reading-mode{background:radial-gradient(circle at 50% 0%,rgba(108,92,255,.14),transparent 30%),radial-gradient(circle at 24% 22%,rgba(0,210,106,.12),transparent 24%),#07111F}
         .family-roots .roots-reading-viewport{height:100dvh;width:100vw;overflow:auto;padding:calc(52px + env(safe-area-inset-top)) 18px 24px;display:flex;align-items:flex-start;justify-content:center}
         .family-roots .roots-reading-canvas{flex:0 0 auto;transform-origin:top center;border:0;background:transparent!important;box-shadow:none}
@@ -1672,6 +1695,7 @@ export function FamilyRoots({
         textarea.root-input{resize:vertical}
         .root-input:focus{border-color:rgba(108,92,255,.6)}
         .theme-light .family-roots .roots-card{background:#fff;border-color:rgba(24,32,51,.12)}
+        .theme-light .family-roots .roots-reference-header h1{color:#182033}.theme-light .family-roots .roots-reference-header p{color:rgba(24,32,51,.55)}.theme-light .family-roots .roots-header-icon{background:#fff;border-color:rgba(24,32,51,.12);color:#182033}
         .theme-light .family-roots [class*="text-white"], .theme-light .family-roots .roots-title{color:#182033!important}
         .theme-light .family-roots .roots-muted, .theme-light .family-roots .roots-kicker{color:rgba(24,32,51,.58)!important}
         .theme-light .family-roots .root-input{background:#fff;color:#182033;border-color:rgba(24,32,51,.16)}
@@ -1699,10 +1723,16 @@ export function FamilyRoots({
         .theme-light .family-roots .roots-reading-close{background:rgba(255,255,255,.78);color:#182033;border-color:rgba(24,32,51,.12)}
         .theme-light .family-roots .roots-tree-person strong{color:#182033!important}
         .theme-light .family-roots .roots-tree-person p{color:rgba(24,32,51,.58)!important}
+        .theme-light .family-roots .roots-tree-family-card{background:linear-gradient(180deg,#fff,#F8FBFF);box-shadow:0 18px 42px rgba(24,32,51,.08)}
+        .theme-light .family-roots .roots-tree-family-card strong{color:#182033!important}.theme-light .family-roots .roots-tree-family-card p{color:rgba(24,32,51,.58)!important}
         .theme-light .family-roots .roots-tree-pill{background:rgba(24,32,51,.07);color:rgba(24,32,51,.62)}
+        .theme-light .family-roots .roots-profile-hero,.theme-light .family-roots .roots-profile-section{background:#fff;border-color:rgba(24,32,51,.12)}
+        .theme-light .family-roots .roots-profile-back,.theme-light .family-roots .roots-profile-action,.theme-light .family-roots .roots-profile-tabs,.theme-light .family-roots .roots-profile-family-row{background:#F7F8FC;border-color:rgba(24,32,51,.10);color:#5B35D5}
+        .theme-light .family-roots .roots-profile-section h3,.theme-light .family-roots .roots-profile-info-grid strong,.theme-light .family-roots .roots-profile-family-row strong{color:#182033}.theme-light .family-roots .roots-profile-info-grid span,.theme-light .family-roots .roots-profile-family-row span{color:rgba(24,32,51,.55)}
         .theme-light .family-roots input::placeholder{color:rgba(24,32,51,.35)}
         .theme-light .family-roots .roots-modal-panel{background:#fff;color:#182033;border-color:rgba(24,32,51,.12)}
         .theme-sepia .family-roots .roots-card{background:#fffaf0;border-color:rgba(53,47,39,.14)}
+        .theme-sepia .family-roots .roots-reference-header h1{color:#352f27}.theme-sepia .family-roots .roots-reference-header p{color:rgba(53,47,39,.58)}.theme-sepia .family-roots .roots-header-icon{background:#fffaf0;border-color:rgba(53,47,39,.14);color:#352f27}
         .theme-sepia .family-roots [class*="text-white"], .theme-sepia .family-roots .roots-title{color:#352f27!important}
         .theme-sepia .family-roots .roots-muted, .theme-sepia .family-roots .roots-kicker{color:rgba(53,47,39,.6)!important}
         .theme-sepia .family-roots .root-input{background:#fffaf0;color:#352f27;border-color:rgba(53,47,39,.18)}
@@ -1730,7 +1760,12 @@ export function FamilyRoots({
         .theme-sepia .family-roots .roots-reading-close{background:rgba(255,250,240,.78);color:#352f27;border-color:rgba(53,47,39,.14)}
         .theme-sepia .family-roots .roots-tree-person strong{color:#352f27!important}
         .theme-sepia .family-roots .roots-tree-person p{color:rgba(53,47,39,.60)!important}
+        .theme-sepia .family-roots .roots-tree-family-card{background:linear-gradient(180deg,#fffaf0,#f8ecd7);box-shadow:0 18px 42px rgba(53,47,39,.08)}
+        .theme-sepia .family-roots .roots-tree-family-card strong{color:#352f27!important}.theme-sepia .family-roots .roots-tree-family-card p{color:rgba(53,47,39,.60)!important}
         .theme-sepia .family-roots .roots-tree-pill{background:rgba(53,47,39,.08);color:rgba(53,47,39,.62)}
+        .theme-sepia .family-roots .roots-profile-hero,.theme-sepia .family-roots .roots-profile-section{background:#fffaf0;border-color:rgba(53,47,39,.14)}
+        .theme-sepia .family-roots .roots-profile-back,.theme-sepia .family-roots .roots-profile-action,.theme-sepia .family-roots .roots-profile-tabs,.theme-sepia .family-roots .roots-profile-family-row{background:#F7ECD8;border-color:rgba(53,47,39,.12);color:#5B35D5}
+        .theme-sepia .family-roots .roots-profile-section h3,.theme-sepia .family-roots .roots-profile-info-grid strong,.theme-sepia .family-roots .roots-profile-family-row strong{color:#352f27}.theme-sepia .family-roots .roots-profile-info-grid span,.theme-sepia .family-roots .roots-profile-family-row span{color:rgba(53,47,39,.58)}
         .theme-sepia .family-roots input::placeholder{color:rgba(53,47,39,.4)}
         .theme-sepia .family-roots .roots-modal-panel{background:#fffaf0;color:#352f27;border-color:rgba(53,47,39,.14)}
       `}</style>
@@ -1775,6 +1810,7 @@ function TreeGeneration({
             variant="tree"
             links={relationshipPreviewsByProfile.get(profile.id)}
             fullScreen={fullScreen}
+            familyCard={group.generation === 2}
             onClick={() => onProfileClick(profile)}
             disabled={!canManage || !profile.isLocal}
           />
@@ -1801,7 +1837,8 @@ function ProfileCard({
   variant = 'list',
   disabled = false,
   links = [],
-  fullScreen = false
+  fullScreen = false,
+  familyCard = false
 }: {
   profile: FamilyTreeProfile;
   onClick?: () => void;
@@ -1809,6 +1846,7 @@ function ProfileCard({
   disabled?: boolean;
   links?: RelationshipPreview[];
   fullScreen?: boolean;
+  familyCard?: boolean;
 }) {
   const branchAccent = profile.branch === 'paternelle'
     ? 'roots-tree-blue'
@@ -1820,6 +1858,24 @@ function ProfileCard({
   const birthYear = profile.birthDate ? new Date(`${profile.birthDate}T12:00:00`).getFullYear() : null;
 
   if (variant === 'tree') {
+    if (familyCard) {
+      return (
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={disabled}
+          className={`roots-tree-family-card ${branchAccent} relative flex ${fullScreen ? 'min-h-[118px] w-[118px]' : 'min-h-[132px] w-[132px]'} flex-col items-center justify-start rounded-[22px] px-2.5 py-3 text-center disabled:cursor-default`}
+        >
+          <span className="roots-tree-dot" aria-hidden="true" />
+          <div className="roots-family-photo-wrap">
+            <MemberAvatar name={profile.displayName} photoUrl={profile.photoUrl} className="roots-family-photo h-14 w-14 rounded-2xl" />
+          </div>
+          <strong className="mt-2 line-clamp-2 text-[11px] font-black leading-3 text-white">Famille<br />{profileLabel(profile).split(' ')[0] || profileLabel(profile)}</strong>
+          <p className="mt-1 line-clamp-1 text-[8px] font-semibold text-white/50">{profile.originCity || profile.country || branchLabels[profile.branch]}</p>
+          {links.length > 0 && <span className="roots-tree-link-count" aria-label={`${links.length} lien familial`}>{links.length}</span>}
+        </button>
+      );
+    }
     return (
       <button
         type="button"
@@ -2169,16 +2225,75 @@ function ProfileModal({
   onUploadProfilePhoto: (file: File) => Promise<void>;
   onUploadMemoryPhoto: (file: File) => Promise<void>;
 }) {
+  const birthText = profile.birthDate ? `Né(e) le ${formatDate(profile.birthDate)}` : 'Naissance non renseignée';
+  const locationText = [profile.originCity, profile.country].filter(Boolean).join(', ');
+  const familyLinks = editableLinks.slice(0, 4);
+  const parents = editableLinks.filter(({ relationship }) => ['parent', 'grand_parent'].includes(relationship.relationshipType)).slice(0, 2);
+  const siblings = editableLinks.filter(({ relationship }) => relationship.relationshipType === 'fratrie').slice(0, 3);
+  const profileActions: Array<[typeof MessageCircle, string]> = [
+    [MessageCircle, 'Message'],
+    [Phone, 'Appeler'],
+    [CalendarDays, 'Événement'],
+    [Plus, 'Plus']
+  ];
   return (
-    <Modal title="Fiche familiale" onClose={onClose}>
+    <Modal title="Profil de membre" onClose={onClose}>
       <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <MemberAvatar name={profile.displayName} photoUrl={profile.photoUrl} className="h-12 w-12" />
-          <div>
-            <strong className="text-sm font-black text-white">{profile.displayName}</strong>
-            <p className="text-[10px] font-semibold text-white/45">{profile.isMinor ? 'Profil mineur protégé' : profile.isMemorial ? 'Mode souvenir' : 'Profil familial'}</p>
+        <section className="roots-profile-hero">
+          <div className="flex items-start justify-between gap-3">
+            <button type="button" onClick={onClose} className="roots-profile-back" aria-label="Retour"><ArrowLeft className="h-4 w-4" /></button>
+            <button type="button" className="roots-profile-back" aria-label="Plus"><MoreHorizontal className="h-4 w-4" /></button>
           </div>
-        </div>
+          <div className="mt-4 flex flex-col items-center text-center">
+            <MemberAvatar name={profile.displayName} photoUrl={profile.photoUrl} className="roots-profile-avatar h-24 w-24 rounded-full" />
+            <h2 className="mt-3 text-2xl font-black text-white">{profile.displayName}</h2>
+            <span className="mt-1 rounded-full bg-[#6C5CFF]/18 px-3 py-1 text-[10px] font-black text-[#C9C3FF]">{profile.nickname || branchLabels[profile.branch]}</span>
+            <p className="mt-3 text-[11px] font-bold text-white/56">{birthText}</p>
+            {locationText && <p className="mt-1 text-[11px] font-bold text-white/56">🇫🇷 {locationText}</p>}
+          </div>
+          <div className="mt-5 grid grid-cols-4 gap-2">
+            {profileActions.map(([Icon, label]) => (
+              <button key={label} type="button" className="roots-profile-action">
+                <Icon className="h-4 w-4" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="roots-profile-tabs mt-5">
+            {['Infos', 'Famille', 'Médias', 'Liens'].map((tab, index) => <span key={tab} className={index === 0 ? 'active' : ''}>{tab}</span>)}
+          </div>
+        </section>
+
+        <section className="roots-profile-section">
+          <h3>À propos</h3>
+          <div className="roots-profile-info-grid">
+            <span>Études</span><strong>{profile.bio || 'Non renseigné'}</strong>
+            <span>Langues</span><strong>{profile.languages.length ? profile.languages.join(', ') : 'Non renseigné'}</strong>
+            <span>Centres d’intérêt</span><strong>{profile.originCity || profile.country || branchLabels[profile.branch]}</strong>
+          </div>
+        </section>
+
+        <section className="roots-profile-section">
+          <h3>Famille</h3>
+          <div className="space-y-2">
+            {(parents.length ? parents : familyLinks).slice(0, 3).map(({ relationship, target }) => (
+              <div key={relationship.id} className="roots-profile-family-row">
+                <MemberAvatar name={target.displayName} photoUrl={target.photoUrl} className="h-8 w-8 rounded-full" />
+                <span>{relationshipLabels[relationship.relationshipType]}</span>
+                <strong>{target.displayName}</strong>
+              </div>
+            ))}
+            {siblings.length > 0 && <div className="roots-profile-family-row"><Users className="h-5 w-5 text-[#C9C3FF]" /><span>Frères & sœurs</span><strong>{siblings.length} lien{siblings.length > 1 ? 's' : ''}</strong></div>}
+          </div>
+        </section>
+
+        {memories.length > 0 && <section className="roots-profile-section">
+          <h3>Albums partagés</h3>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {memories.slice(0, 6).map(memory => <MemoryCard key={memory.id} memory={memory} />)}
+          </div>
+        </section>}
+
         <Field label="Nom affiché"><input value={profile.displayName} onChange={event => setProfile({ ...profile, displayName: event.target.value })} className="root-input" /></Field>
         <Field label="Surnom"><input value={profile.nickname || ''} onChange={event => setProfile({ ...profile, nickname: event.target.value })} className="root-input" /></Field>
         <PhotoPicker
@@ -2336,8 +2451,8 @@ function IdentityList({ requests, profileById, busy, runAction }: { requests: Fa
 
 function TabButton({ active, onClick, icon, label, badge = 0 }: { active: boolean; onClick: () => void; icon: ReactNode; label: string; badge?: number }) {
   return (
-    <button type="button" onClick={onClick} className={`roots-tab relative flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border px-4 text-[11px] font-black ${active ? 'roots-tab-active' : ''}`}>
-      <span className="hidden sm:block">{icon}</span><span>{label}</span>{badge > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#FF4D6D]" />}
+    <button type="button" onClick={onClick} className={`roots-tab relative flex min-h-10 shrink-0 items-center justify-center rounded-2xl border px-4 text-[11px] font-black ${active ? 'roots-tab-active' : ''}`} aria-label={label}>
+      <span className="sr-only">{icon}</span><span>{label}</span>{badge > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#FF4D6D]" />}
     </button>
   );
 }
