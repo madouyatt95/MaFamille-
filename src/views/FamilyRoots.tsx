@@ -3,7 +3,7 @@ import type { ChangeEvent, Dispatch, ReactNode, SetStateAction } from 'react';
 import {
   Bell, BookOpen, CalendarDays, Check, Copy, Download, Earth, Eye, FileText, FileUp,
   GitBranch, History, Image, Link2, LockKeyhole, MapPin, Maximize2, MessageCircle, Minus,
-  Plus, RefreshCw, ScanLine, Search, Send, ShieldAlert, ShieldCheck, Sparkles, TreePine,
+  Plus, RefreshCw, ScanLine, Search, Send, ShieldAlert, ShieldCheck, Sparkles, Trash2, TreePine,
   Undo2, UserPlus, Users, X
 } from 'lucide-react';
 import type { Member } from '../types';
@@ -16,6 +16,7 @@ import {
   type FamilyTreeIdentityRequest,
   type FamilyTreeMemory,
   type FamilyTreeProfile,
+  type FamilyTreeRelationship,
   type FamilyProfileVisibility
 } from '../services/familyRootsService';
 import { MemberAvatar } from '../components/MemberAvatar';
@@ -394,6 +395,18 @@ export function FamilyRoots({
     });
     return map;
   }, [allTreeProfiles, profileById, treeRelationships]);
+  const editableRelationshipsByProfile = useMemo(() => {
+    const map = new Map<string, Array<{ relationship: FamilyTreeRelationship; target: FamilyTreeProfile }>>();
+    snapshot.relationships.forEach(relationship => {
+      const target = profileById(relationship.targetProfileId);
+      if (!target || target.visibility === 'masque') return;
+      map.set(relationship.sourceProfileId, [
+        ...(map.get(relationship.sourceProfileId) || []),
+        { relationship, target }
+      ]);
+    });
+    return map;
+  }, [profileById, snapshot.relationships]);
   const visibleRelationshipSummaries = useMemo(() => {
     const ids = new Set(allTreeProfiles.map(profile => profile.id));
     const displayed = new Set<string>();
@@ -660,9 +673,13 @@ export function FamilyRoots({
       setTreePlaceFilter('all');
       setTreeGenerationFilter('all');
       setTreeLinkProfileId(sourceProfileId);
-      setEditingProfile(null);
-      setView('arbre');
-    }, 'Le lien familial est ajouté. L’arbre est recentré autour de cette personne.');
+    }, 'Le lien familial est ajouté à la fiche et à l’arbre.');
+  };
+
+  const deleteInternalRelationship = async (relationshipId: string) => {
+    await runAction(async () => {
+      await familyRootsService.deleteRelationship(foyerId, relationshipId);
+    }, 'Le lien familial a été supprimé.');
   };
 
   const sendConnection = async () => {
@@ -1452,10 +1469,6 @@ export function FamilyRoots({
         generations={generations}
         relationshipPreviewsByProfile={relationshipPreviewsByProfile}
         visibleRelationshipSummaries={visibleRelationshipSummaries}
-        branchSummaries={branchSummaries}
-        memories={snapshot.memories}
-        events={upcomingEvents}
-        profileById={profileById}
         onClose={() => setReadingOpen(false)}
       />}
 
@@ -1463,6 +1476,7 @@ export function FamilyRoots({
         profile={editingProfile}
         setProfile={setEditingProfile}
         localProfiles={localProfiles}
+        editableLinks={editableRelationshipsByProfile.get(editingProfile.id) || []}
         memories={snapshot.memories.filter(memory => memory.profileId === editingProfile.id)}
         memoryDraft={memoryDraft}
         setMemoryDraft={setMemoryDraft}
@@ -1476,6 +1490,7 @@ export function FamilyRoots({
         onSave={saveProfile}
         onClose={() => setEditingProfile(null)}
         onAddRelationship={addInternalRelationship}
+        onDeleteRelationship={deleteInternalRelationship}
         onAddMemory={() => addMemory(editingProfile.id)}
         onUploadProfilePhoto={uploadEditedProfilePhoto}
         onUploadMemoryPhoto={uploadMemoryPhoto}
@@ -1837,20 +1852,12 @@ function ReadingMode({
   generations,
   relationshipPreviewsByProfile,
   visibleRelationshipSummaries,
-  branchSummaries,
-  memories,
-  events,
-  profileById,
   onClose
 }: {
   familyName: string;
   generations: GenerationGroup[];
   relationshipPreviewsByProfile: Map<string, RelationshipPreview[]>;
   visibleRelationshipSummaries: Array<{ id: string; type: FamilyRelationshipType; sourceName: string; targetName: string }>;
-  branchSummaries: Array<{ branch: FamilyBranch; profiles: FamilyTreeProfile[]; events: FamilyTreeEvent[]; memories: FamilyTreeMemory[] }>;
-  memories: FamilyTreeMemory[];
-  events: FamilyTreeEvent[];
-  profileById: (id?: string) => FamilyTreeProfile | undefined;
   onClose: () => void;
 }) {
   return (
@@ -1864,15 +1871,6 @@ function ReadingMode({
           </div>
           <button type="button" onClick={onClose} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/8 text-white/70" aria-label="Fermer"><X className="h-4 w-4" /></button>
         </header>
-        <section className="grid gap-3 sm:grid-cols-4">
-          {branchSummaries.map(item => (
-            <div key={item.branch} className="rounded-[24px] border border-white/10 bg-white/5 p-4">
-              <span className="roots-kicker">{branchLabels[item.branch]}</span>
-              <strong className="mt-3 block text-2xl font-black">{item.profiles.length}</strong>
-              <p className="mt-1 text-xs font-semibold text-white/45">personne{item.profiles.length > 1 ? 's' : ''}</p>
-            </div>
-          ))}
-        </section>
         <section className="roots-card roots-tree-shell overflow-hidden p-4">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
@@ -1904,25 +1902,6 @@ function ReadingMode({
                   <strong>{link.sourceName} · {link.targetName}</strong>
                 </div>
               ))}
-            </div>
-          )}
-        </section>
-
-        <section className="grid gap-4 lg:grid-cols-2">
-          {memories.length > 0 && (
-            <div className="rounded-[30px] border border-white/10 bg-white/5 p-5">
-              <h3 className="text-lg font-black">Souvenirs</h3>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {memories.slice(0, 6).map(memory => <MemoryCard key={memory.id} memory={memory} profileName={profileById(memory.profileId)?.displayName} />)}
-              </div>
-            </div>
-          )}
-          {events.length > 0 && (
-            <div className="rounded-[30px] border border-white/10 bg-white/5 p-5">
-              <h3 className="text-lg font-black">Prochaines dates</h3>
-              <div className="mt-4 space-y-3">
-                {events.slice(0, 8).map(event => <p key={event.id} className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-xs font-bold text-white/65">{formatDate(nextOccurrence(event).toISOString().slice(0, 10))} · {event.title}</p>)}
-              </div>
             </div>
           )}
         </section>
@@ -2104,13 +2083,14 @@ function SharedFieldsPicker({ profile, onChange }: { profile: FamilyTreeProfile;
 }
 
 function ProfileModal({
-  profile, setProfile, localProfiles, relationType, setRelationType, relationTargetId, setRelationTargetId,
+  profile, setProfile, localProfiles, editableLinks, relationType, setRelationType, relationTargetId, setRelationTargetId,
   memories, memoryDraft, setMemoryDraft, busy, photoUploading, canAddRelationship, onSave, onClose, onAddRelationship, onAddMemory,
-  onUploadProfilePhoto, onUploadMemoryPhoto
+  onDeleteRelationship, onUploadProfilePhoto, onUploadMemoryPhoto
 }: {
   profile: FamilyTreeProfile;
   setProfile: (profile: FamilyTreeProfile | null) => void;
   localProfiles: FamilyTreeProfile[];
+  editableLinks: Array<{ relationship: FamilyTreeRelationship; target: FamilyTreeProfile }>;
   memories: FamilyTreeMemory[];
   memoryDraft: MemoryDraft;
   setMemoryDraft: Dispatch<SetStateAction<MemoryDraft>>;
@@ -2124,6 +2104,7 @@ function ProfileModal({
   onSave: () => Promise<void>;
   onClose: () => void;
   onAddRelationship: () => Promise<void>;
+  onDeleteRelationship: (relationshipId: string) => Promise<void>;
   onAddMemory: () => Promise<void>;
   onUploadProfilePhoto: (file: File) => Promise<void>;
   onUploadMemoryPhoto: (file: File) => Promise<void>;
@@ -2183,6 +2164,33 @@ function ProfileModal({
           </div>
           <button type="button" disabled={busy} onClick={() => void onAddMemory()} className="roots-action roots-action-violet"><BookOpen className="h-4 w-4" /> Ajouter le souvenir</button>
         </div>
+        {canAddRelationship && <div className="space-y-3 border-t border-white/8 pt-4">
+          <span className="block text-[10px] font-black uppercase text-white/45">Liens familiaux</span>
+          {editableLinks.length > 0 ? (
+            <div className="space-y-2">
+              {editableLinks.map(({ relationship, target }) => (
+                <div key={relationship.id} className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/4 p-3">
+                  <MemberAvatar name={target.displayName} photoUrl={target.photoUrl} className="h-9 w-9 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <strong className="block truncate text-xs font-black text-white">{target.displayName}</strong>
+                    <p className="mt-0.5 text-[10px] font-bold text-white/45">{relationshipLabels[relationship.relationshipType]}</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void onDeleteRelationship(relationship.id)}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-[#FF4D6D]/20 bg-[#FF4D6D]/10 text-[#FF7A92] disabled:opacity-45"
+                    aria-label={`Supprimer le lien avec ${target.displayName}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-2xl border border-dashed border-white/10 p-4 text-xs font-semibold text-white/35">Aucun lien direct ajouté pour cette personne.</p>
+          )}
+        </div>}
         {canAddRelationship && <div className="space-y-3 border-t border-white/8 pt-4">
           <span className="block text-[10px] font-black uppercase text-white/45">Ajouter un lien familial</span>
           <div className="grid grid-cols-2 gap-2">
