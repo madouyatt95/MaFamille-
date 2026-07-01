@@ -2,7 +2,7 @@ import { lazy, Suspense, useMemo } from 'react';
 import {
   BookOpen, Brush, Calendar, Camera, Car, Coins, Dog, FolderLock, Gamepad2,
   GraduationCap, HeartHandshake, HeartPulse, Home, Layers, Map, Phone, Plane,
-  ShieldCheck, ShoppingCart, TreePine, Users, Wrench
+  ShieldCheck, ShoppingCart, Users, Wrench
 } from 'lucide-react';
 import { PREMIUM_MODULE_FEATURES } from '../utils/premiumFeatures';
 import { getDefaultPermissions } from '../types';
@@ -16,7 +16,6 @@ const modulePermissionKeys: Record<string, FamilyModule> = {
   courses: 'courses', sante: 'sante', voyages: 'voyages', documents: 'documents',
   vehicules: 'vehicules', animaux: 'animaux', capsule: 'capsule_temporelle',
   contacts: 'repertoire_important', peacemaker: 'peacemaker', settings: 'parametres', carte: 'carte_familiale',
-  racines: 'racines_familiales'
 };
 
 type Props = {
@@ -55,7 +54,6 @@ export function MenuHubLanding({
     { id: 'taches', title: 'Tâches', desc: 'Répartition des tâches et suivi', badge: `${taskCount} en cours`, icon: Brush, color: 'text-[#00D26A] bg-[#00D26A]/10' },
     { id: 'argent', title: 'Argent de poche', desc: 'Missions, récompenses et suivi', badge: 'Confiance', icon: Coins, color: 'text-[#FFB020] bg-[#FFB020]/10' },
     { id: 'games', title: 'Jeux en famille', desc: 'Jeux et défis à plusieurs', badge: 'Nouveau', icon: Gamepad2, color: 'text-[#FF4D6D] bg-[#FF4D6D]/10' },
-    { id: 'racines', title: 'Racines familiales', desc: 'Arbre, branches et liens confirmés', badge: 'Famille', icon: TreePine, color: 'text-[#00D26A] bg-[#00D26A]/10' },
     { id: 'ecole', title: 'École et devoirs', desc: 'Tuteur, devoirs et quiz', badge: `${schoolTaskCount} devoirs`, icon: GraduationCap, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10' },
     { id: 'logement', title: 'Logement', desc: 'Maintenance et garanties', badge: 'Équipements', icon: Home, color: 'text-[#FFB020] bg-[#FFB020]/10' },
     { id: 'agenda', title: 'Agenda familial', desc: 'Calendrier partagé du foyer', badge: 'Calendrier', icon: Calendar, color: 'text-[#6C5CFF] bg-[#6C5CFF]/10' },

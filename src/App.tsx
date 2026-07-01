@@ -232,7 +232,6 @@ const PeaceMaker = lazy(() => import('./components/modules/PeaceMaker').then(mod
 const CapsuleTemporelle = lazy(() => import('./components/modules/CapsuleTemporelle').then(module => ({ default: module.CapsuleTemporelle })));
 const ConseilFamille = lazy(() => import('./components/modules/ConseilFamille').then(module => ({ default: module.ConseilFamille })));
 const FamilyGames = lazy(() => import('./views/FamilyGames').then(module => ({ default: module.FamilyGames })));
-const FamilyRoots = lazy(() => import('./views/FamilyRoots').then(module => ({ default: module.FamilyRoots })));
 const Onboarding = lazy(() => import('./views/Onboarding').then(module => ({ default: module.Onboarding })));
 const MenuHubLanding = lazy(() => import('./views/MenuHubLanding').then(module => ({ default: module.MenuHubLanding })));
 const QuickActionsSheet = lazy(() => import('./components/QuickActionsSheet').then(module => ({ default: module.QuickActionsSheet })));
@@ -2490,10 +2489,6 @@ function App() {
     }
     if (moduleParam) {
       setActiveModule(moduleParam);
-    }
-    if (params.get('racines')) {
-      setActiveTab('menu');
-      setActiveModule('racines');
     }
     if (groupIdParam) {
       setInitialChatGroupId(groupIdParam);
@@ -10967,54 +10962,6 @@ function App() {
     setActiveModule('messagerie');
   };
 
-  const handleCreateBranchChatGroup = async (branchName: string, memberIds: string[]) => {
-    const uniqueMemberIds = [...new Set(memberIds.filter(Boolean))];
-    if (activeMemberId && !uniqueMemberIds.includes(activeMemberId)) uniqueMemberIds.unshift(activeMemberId);
-    if (!uniqueMemberIds.length) return;
-
-    const normalizedName = `Branche ${branchName}`;
-    const existingGroup = chatGroups.find(group =>
-      group.name === normalizedName
-      && group.memberIds.length === uniqueMemberIds.length
-      && uniqueMemberIds.every(memberId => group.memberIds.includes(memberId))
-    );
-    if (existingGroup) {
-      setInitialChatGroupId(existingGroup.id);
-      setActiveModule('messagerie');
-      return;
-    }
-
-    const newGroupId = `g-roots-${Date.now()}`;
-    const newGroup: ChatGroup = {
-      id: newGroupId,
-      name: normalizedName,
-      isPrivate: true,
-      memberIds: uniqueMemberIds,
-      unreadCount: 0
-    };
-
-    setChatGroups(prev => [newGroup, ...prev]);
-    const client = getSupabaseClient();
-    if (client && foyer) {
-      try {
-        await client.from('chat_groups').insert({
-          id: newGroupId,
-          foyer_id: foyer.id,
-          name: newGroup.name,
-          is_private: true,
-          member_ids: uniqueMemberIds,
-          last_message: null,
-          last_message_time: null,
-          pinned_message_id: null
-        });
-      } catch (err) {
-        console.error('Erreur lors de la création de la discussion de branche :', err);
-      }
-    }
-    setInitialChatGroupId(newGroupId);
-    setActiveModule('messagerie');
-  };
-
   const handleMoveEvent = async (id: string, newDate: string) => {
     const client = getSupabaseClient();
 
@@ -13298,17 +13245,6 @@ function App() {
       if (activeModule === 'mavie') return standaloneModule(<MaVieSimulator />);
       if (activeModule === 'conteur') return standaloneModule(<ConteurIA onBack={() => setActiveModule('')} members={appMembers} isPremium={isPremium} onTriggerPaywall={() => setPaywallOpen(true)} />);
       if (activeModule === 'contacts') return standaloneModule(<ContactsImportants canManage={canManageFamily} />);
-      if (activeModule === 'racines') return standaloneModule(<FamilyRoots
-        foyerId={appFoyer?.id}
-        familyName={appFoyer?.name}
-        members={appMembers}
-        canManage={canManageFamily}
-        isPremium={isPremium}
-        onTriggerPaywall={() => setPaywallOpen(true)}
-        onSendNotification={sendLocalNotification}
-        onAddAgendaEvent={handleAddEvent}
-        onCreateBranchGroup={handleCreateBranchChatGroup}
-      />);
 
       if (!activeModule) {
         return (

@@ -39,7 +39,6 @@ export type FamilyModule =
   | 'parametres'
   | 'micro'
   | 'jeux_famille'
-  | 'racines_familiales'
   | 'commune'
   | 'etablissement';
 
@@ -726,7 +725,7 @@ export const ALL_FAMILY_MODULES: FamilyModule[] = [
   'vehicules', 'logement', 'animaux', 'ecole', 'taches', 'conseil_famille', 'histoires_soir',
   'messagerie', 'capsule_temporelle', 'repertoire_important', 'peacemaker', 'carte_familiale',
   'menu_semaine', 'demarches', 'notifications', 'parametres', 'micro', 'jeux_famille',
-  'racines_familiales', 'commune', 'etablissement'
+  'commune', 'etablissement'
 ];
 
 export function getDefaultPermissions(role: string): Record<FamilyModule, ModulePermissions> {
