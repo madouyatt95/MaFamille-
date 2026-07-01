@@ -2491,6 +2491,10 @@ function App() {
     if (moduleParam) {
       setActiveModule(moduleParam);
     }
+    if (params.get('racines')) {
+      setActiveTab('menu');
+      setActiveModule('racines');
+    }
     if (groupIdParam) {
       setInitialChatGroupId(groupIdParam);
     }
@@ -13301,6 +13305,7 @@ function App() {
         canManage={canManageFamily}
         isPremium={isPremium}
         onTriggerPaywall={() => setPaywallOpen(true)}
+        onSendNotification={sendLocalNotification}
         onAddAgendaEvent={handleAddEvent}
         onCreateBranchGroup={handleCreateBranchChatGroup}
       />);

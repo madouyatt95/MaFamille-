@@ -387,14 +387,6 @@ export const familyRootsService = {
       .limit(30);
     if (connectionsResult.error) throw connectionsResult.error;
 
-    const relationshipsResult = await client
-      .from('family_tree_relationships')
-      .select('id, foyer_id, source_profile_id, target_profile_id, relationship_type')
-      .eq('foyer_id', foyerId)
-      .order('created_at', { ascending: true })
-      .limit(160);
-    if (relationshipsResult.error) throw relationshipsResult.error;
-
     const connectionRows = (connectionsResult.data || []) as ConnectionRow[];
     const remoteFoyerIds = [...new Set(connectionRows
       .filter(row => row.status === 'confirmed')
@@ -433,6 +425,14 @@ export const familyRootsService = {
     }));
 
     const visibleFoyerIds = [foyerId, ...remoteFoyerIds];
+    const relationshipsResult = await client
+      .from('family_tree_relationships')
+      .select('id, foyer_id, source_profile_id, target_profile_id, relationship_type')
+      .in('foyer_id', visibleFoyerIds)
+      .order('created_at', { ascending: true })
+      .limit(300);
+    if (relationshipsResult.error) throw relationshipsResult.error;
+
     const eventsResult = await client
       .from('family_tree_events')
       .select('id, foyer_id, profile_id, event_type, title, event_date, repeats_yearly, visibility, agenda_event_id')

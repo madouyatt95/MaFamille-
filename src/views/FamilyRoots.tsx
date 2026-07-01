@@ -30,6 +30,7 @@ type Props = {
   canManage: boolean;
   isPremium: boolean;
   onTriggerPaywall: () => void;
+  onSendNotification?: (title: string, description: string, moduleName?: string, type?: 'info' | 'warning' | 'error' | 'success') => Promise<void> | void;
   onAddAgendaEvent?: (event: { title: string; dateTime: string; type?: string; description?: string; memberId?: string; memberName?: string }) => Promise<void> | void;
   onCreateBranchGroup?: (name: string, memberIds: string[]) => Promise<void> | void;
 };
@@ -45,6 +46,17 @@ const branchLabels: Record<FamilyBranch, string> = {
   paternelle: 'Branche paternelle',
   maternelle: 'Branche maternelle',
   autre: 'Autre branche'
+};
+
+const generationLabel = (generation: number) => {
+  const labels = [
+    'Génération 1 · Grands-parents',
+    'Génération 2 · Parents et oncles/tantes',
+    'Génération 3 · Foyers',
+    'Génération 4 · Enfants',
+    'Génération 5 · Petits-enfants'
+  ];
+  return labels[generation] || `Génération ${generation + 1}`;
 };
 
 const relationshipLabels: Record<FamilyRelationshipType, string> = {
@@ -239,6 +251,7 @@ export function FamilyRoots({
   canManage,
   isPremium,
   onTriggerPaywall,
+  onSendNotification,
   onAddAgendaEvent,
   onCreateBranchGroup
 }: Props) {
@@ -350,6 +363,22 @@ export function FamilyRoots({
   const pendingIdentity = snapshot.identityRequests.filter(request => request.status === 'pending');
   const incomingIdentity = pendingIdentity.filter(request => request.direction === 'incoming');
   const profileById = useCallback((id?: string) => snapshot.profiles.find(profile => profile.id === id), [snapshot.profiles]);
+  useEffect(() => {
+    if (!onSendNotification || !foyerId || foyerId === 'local' || incomingConnections.length === 0) return;
+    incomingConnections.forEach(connection => {
+      const key = `mf_roots_connection_alert_${foyerId}_${connection.id}`;
+      if (localStorage.getItem(key)) return;
+      const source = profileById(connection.requesterProfileId);
+      const requester = source?.displayName || 'Une branche familiale';
+      void onSendNotification(
+        'Demande Racines familiales',
+        `${requester} souhaite relier une branche à votre arbre. Ouvrez Racines familiales pour choisir le membre correspondant.`,
+        'racines',
+        'info'
+      );
+      localStorage.setItem(key, '1');
+    });
+  }, [foyerId, incomingConnections, onSendNotification, profileById]);
   const connectionRelationships = useMemo(() => confirmedConnections
     .filter(connection => connection.targetProfileId)
     .flatMap(connection => {
@@ -570,7 +599,7 @@ export function FamilyRoots({
   }, [snapshot.events, snapshot.memories, snapshot.profiles]);
   const shareUrl = useMemo(() => {
     if (!snapshot.shareCode) return '';
-    return `${window.location.origin}/app?racines=${encodeURIComponent(snapshot.shareCode)}`;
+    return `${window.location.origin}/app?module=racines&racines=${encodeURIComponent(snapshot.shareCode)}`;
   }, [snapshot.shareCode]);
 
   const runAction = async (action: () => Promise<void>, success: string) => {
@@ -1718,16 +1747,22 @@ function TreeGeneration({
   fullScreen?: boolean;
   onProfileClick: (profile: FamilyTreeProfile) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const visibleLimit = fullScreen ? 3 : 4;
+  const shouldCollapse = group.people.length > visibleLimit;
+  const visiblePeople = shouldCollapse && !expanded ? group.people.slice(0, visibleLimit) : group.people;
+  const hiddenCount = group.people.length - visiblePeople.length;
+
   return (
     <section className={`roots-tree-generation relative ${fullScreen ? 'roots-tree-generation-wide' : ''}`}>
       {!isFirst && <span className="roots-tree-stem" aria-hidden="true" />}
       <div className="mb-3 flex items-center justify-center">
         <span className="roots-generation-label rounded-full border border-[#00D26A]/22 bg-[#00D26A]/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.08em] text-[#00D26A]">
-          {group.generation === 0 ? 'Origines proches' : `Génération ${group.generation + 1}`}
+          {generationLabel(group.generation)}
         </span>
       </div>
       <div className="roots-tree-row relative flex flex-wrap justify-center gap-4">
-        {group.people.map(profile => (
+        {visiblePeople.map(profile => (
           <ProfileCard
             key={profile.id}
             profile={profile}
@@ -1738,6 +1773,17 @@ function TreeGeneration({
             disabled={!canManage || !profile.isLocal}
           />
         ))}
+        {shouldCollapse && (
+          <button
+            type="button"
+            onClick={() => setExpanded(current => !current)}
+            className={`roots-tree-more relative flex ${fullScreen ? 'min-h-[118px] w-[112px]' : 'min-h-[164px] w-[132px]'} flex-col items-center justify-center rounded-[28px] border border-dashed border-[#6C5CFF]/32 bg-[#6C5CFF]/10 text-center text-[#C9C3FF]`}
+            aria-label={expanded ? 'Réduire cette génération' : `Afficher ${hiddenCount} membre supplémentaire`}
+          >
+            <strong className="text-2xl font-black">{expanded ? '−' : `+${hiddenCount}`}</strong>
+            <span className="mt-1 px-2 text-[9px] font-black uppercase tracking-[0.08em]">{expanded ? 'Réduire' : 'Afficher'}</span>
+          </button>
+        )}
       </div>
     </section>
   );
@@ -2221,17 +2267,23 @@ function ConnectionList({
       {connections.map(connection => {
         const source = profileById(connection.requesterProfileId);
         const targetId = responseProfiles[connection.id] || localProfiles[0]?.id || '';
+        const requesterLabel = source?.displayName || `Branche ${connection.requesterFoyerId.slice(0, 8)}`;
         return (
           <div key={connection.id} className="roots-card border-[#FFB020]/20 bg-[#FFB020]/6 p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#FFB020]/12 text-[#FFB020]"><Send className="h-4 w-4" /></div>
               <div className="min-w-0 flex-1">
                 <strong className="block truncate text-sm font-black text-white">{connection.direction === 'incoming' ? 'Une branche souhaite vous rejoindre' : 'Invitation envoyée'}</strong>
-                <p className="mt-1 text-[10px] font-semibold text-white/45">Lien proposé : {relationshipLabels[connection.relationshipType]}{source ? ` avec ${source.displayName}` : ''}</p>
+                <p className="mt-1 text-[10px] font-semibold text-white/45">
+                  {connection.direction === 'incoming'
+                    ? `Demandée par ${requesterLabel} · lien proposé : ${relationshipLabels[connection.relationshipType]}`
+                    : `Envoyée depuis ${requesterLabel} · lien proposé : ${relationshipLabels[connection.relationshipType]}`}
+                </p>
               </div>
             </div>
             {connection.direction === 'incoming' ? (
               <div className="mt-4 space-y-3">
+                <p className="rounded-2xl border border-white/8 bg-white/5 px-3 py-2 text-[10px] font-bold text-white/50">Choisissez dans votre foyer la personne à relier à cette demande.</p>
                 <select value={targetId} onChange={event => setResponseProfiles(current => ({ ...current, [connection.id]: event.target.value }))} className="root-input">{localProfiles.map(profile => <option key={profile.id} value={profile.id}>{profile.displayName}</option>)}</select>
                 <div className="grid grid-cols-2 gap-2">
                   <button type="button" disabled={busy} onClick={() => void runAction(() => familyRootsService.respondConnection(connection.id, false), 'La demande a été refusée.')} className="rounded-2xl border border-white/8 bg-white/5 py-3 text-xs font-black text-white/55">Refuser</button>
