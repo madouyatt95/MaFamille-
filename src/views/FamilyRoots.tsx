@@ -1638,33 +1638,45 @@ export function FamilyRoots({
         .family-roots .roots-filter-chip{border-radius:999px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.045);padding:9px 16px;font-size:11px;font-weight:900;color:rgba(255,255,255,.56)}
         .family-roots .roots-filter-chip-active{border-color:rgba(108,92,255,.28);background:rgba(108,92,255,.16);color:#C9C3FF}
         .family-roots .roots-branch-row{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.045);box-shadow:0 14px 34px rgba(0,0,0,.14)}
-        .family-roots .roots-world-map{background:linear-gradient(135deg,rgba(127,176,255,.16),rgba(255,255,255,.035) 46%,rgba(0,210,106,.10));}
-        .family-roots .roots-world-map:after{content:"";position:absolute;left:20%;right:16%;top:52%;height:2px;border-top:2px dashed rgba(108,92,255,.38);transform:rotate(-7deg);transform-origin:center}
-        .family-roots .roots-world-svg{position:absolute;inset:54px 12px 18px;z-index:0;width:calc(100% - 24px);height:calc(100% - 72px);opacity:.78}
-        .family-roots .roots-world-land{fill:rgba(127,176,255,.22);stroke:rgba(255,255,255,.18);stroke-width:1.5}
+        .family-roots .roots-world-map{background:radial-gradient(circle at 24% 20%,rgba(108,92,255,.18),transparent 28%),linear-gradient(135deg,rgba(127,176,255,.13),rgba(255,255,255,.035) 46%,rgba(0,210,106,.10));}
+        .family-roots .roots-world-svg{position:absolute;inset:58px 8px 18px;z-index:0;width:calc(100% - 16px);height:calc(100% - 76px);opacity:.92}
+        .family-roots .roots-world-land{fill:rgba(92,126,166,.34);stroke:rgba(190,216,255,.22);stroke-width:1.4}
+        .family-roots .roots-world-route{fill:none;stroke:rgba(108,92,255,.58);stroke-width:2.2;stroke-dasharray:8 9;stroke-linecap:round}
+        .family-roots .roots-world-route-alt{stroke:rgba(255,176,32,.48)}
         .family-roots .roots-map-point{position:absolute;z-index:2;display:flex;align-items:center;gap:8px;transform:translate(-50%,-50%);border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(7,17,31,.88);padding:6px 9px;box-shadow:0 14px 32px rgba(0,0,0,.22);font-size:10px;font-weight:900;color:white;white-space:nowrap}
         .family-roots .roots-map-green span{color:#00D26A}.family-roots .roots-map-violet span{color:#C9C3FF}.family-roots .roots-map-orange span{color:#FFB020}.family-roots .roots-map-blue span{color:#7FB0FF}
         .family-roots .roots-tree-shell{background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.025))}
-        .family-roots .family-tree-canvas{position:relative;border-radius:28px;background:radial-gradient(circle at 50% 0%,rgba(0,210,106,.12),transparent 32%),radial-gradient(circle at 20% 16%,rgba(108,92,255,.12),transparent 24%),linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015))}
-        .family-roots .family-tree-canvas:before{content:"";position:absolute;left:50%;top:28px;bottom:28px;width:2px;background:linear-gradient(180deg,rgba(0,210,106,.45),rgba(108,92,255,.18));transform:translateX(-50%);border-radius:999px}
+        .family-roots .family-tree-canvas{position:relative;border-radius:28px;background:radial-gradient(circle at 50% 0%,rgba(108,92,255,.16),transparent 31%),radial-gradient(circle at 20% 16%,rgba(0,210,106,.12),transparent 24%),linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.012))}
+        .family-roots .family-tree-canvas:before{content:"";position:absolute;left:50%;top:34px;bottom:36px;width:2px;background:linear-gradient(180deg,rgba(108,92,255,.56),rgba(0,210,106,.22));transform:translateX(-50%);border-radius:999px;box-shadow:0 0 28px rgba(108,92,255,.28)}
         .family-roots .roots-tree-generation{padding-top:10px}
-        .family-roots .roots-tree-stem{position:absolute;left:50%;top:-24px;height:28px;width:2px;transform:translateX(-50%);background:rgba(0,210,106,.35)}
-        .family-roots .roots-tree-row:before{content:"";position:absolute;left:10%;right:10%;top:-8px;height:2px;background:linear-gradient(90deg,transparent,rgba(0,210,106,.34),transparent);border-radius:999px}
+        .family-roots .roots-tree-stem{position:absolute;left:50%;top:-24px;height:28px;width:2px;transform:translateX(-50%);background:rgba(108,92,255,.4)}
+        .family-roots .roots-tree-row:before{content:"";position:absolute;left:9%;right:9%;top:-8px;height:2px;background:linear-gradient(90deg,transparent,rgba(108,92,255,.48),rgba(0,210,106,.30),transparent);border-radius:999px}
         .family-roots .roots-tree-generation-wide .roots-tree-row{gap:18px}
-        .family-roots .roots-tree-node{isolation:isolate;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+        .family-roots .roots-tree-person{isolation:isolate;transition:transform .18s ease,filter .18s ease}
+        .family-roots .roots-tree-person:before{content:"";position:absolute;left:50%;top:-14px;height:14px;width:2px;transform:translateX(-50%);background:rgba(108,92,255,.44)}
+        .family-roots .roots-tree-person:not(:disabled):active{transform:scale(.985)}
+        .family-roots .roots-tree-person:not(:disabled):hover{filter:brightness(1.08);transform:translateY(-2px)}
+        .family-roots .roots-tree-avatar{border:3px solid rgba(255,255,255,.14);box-shadow:0 16px 36px rgba(0,0,0,.20),0 0 0 5px rgba(108,92,255,.18)}
+        .family-roots .roots-tree-green .roots-tree-avatar{box-shadow:0 16px 36px rgba(0,0,0,.20),0 0 0 5px rgba(0,210,106,.16)}
+        .family-roots .roots-tree-blue .roots-tree-avatar{box-shadow:0 16px 36px rgba(0,0,0,.20),0 0 0 5px rgba(79,140,255,.17)}
+        .family-roots .roots-tree-pink .roots-tree-avatar{box-shadow:0 16px 36px rgba(0,0,0,.20),0 0 0 5px rgba(255,77,109,.16)}
+        .family-roots .roots-tree-amber .roots-tree-avatar{box-shadow:0 16px 36px rgba(0,0,0,.20),0 0 0 5px rgba(255,176,32,.16)}
+        .family-roots .roots-tree-pill{border-radius:999px;background:rgba(255,255,255,.08);padding:4px 8px;font-size:9px;font-weight:900;color:rgba(255,255,255,.58)}
+        .family-roots .roots-tree-pill-green{background:rgba(0,210,106,.14);color:#00D26A}
+        .family-roots .roots-tree-pill-amber{background:rgba(255,176,32,.14);color:#FFB020}
+        .family-roots .roots-tree-link-count{position:absolute;right:18px;top:20px;display:flex;height:18px;min-width:18px;align-items:center;justify-content:center;border-radius:999px;background:#6C5CFF;padding:0 5px;font-size:9px;font-weight:900;color:white;box-shadow:0 8px 18px rgba(108,92,255,.28)}
+        .family-roots .roots-tree-more{box-shadow:inset 0 0 0 1px rgba(255,255,255,.04),0 18px 45px rgba(0,0,0,.16)}
         .family-roots.roots-reading-mode .roots-tree-generation{padding-top:4px}
         .family-roots.roots-reading-mode .roots-tree-generation-wide .roots-tree-row{gap:14px}
-        .family-roots.roots-reading-mode .roots-tree-node{min-height:118px!important;width:112px!important;border:0!important;background:transparent!important;box-shadow:none!important;padding:4px!important}
-        .family-roots.roots-reading-mode .roots-tree-node:before{top:-12px;height:14px;background:rgba(108,92,255,.34)}
-        .family-roots .roots-reading-mode .roots-tree-dot{top:-15px;height:7px;width:7px;background:#8F7CFF}
+        .family-roots.roots-reading-mode .roots-tree-person{min-height:122px!important;width:102px!important;border:0!important;background:transparent!important;box-shadow:none!important;padding:4px!important}
+        .family-roots.roots-reading-mode .roots-tree-person:before{top:-12px;height:14px;background:rgba(108,92,255,.34)}
+        .family-roots.roots-reading-mode .roots-tree-avatar{height:58px!important;width:58px!important}
+        .family-roots.roots-reading-mode .roots-tree-dot{top:-15px;height:7px;width:7px;background:#8F7CFF}
         .family-roots.roots-reading-mode .roots-tree-row:before{left:6%;right:6%;background:linear-gradient(90deg,transparent,rgba(108,92,255,.42),rgba(0,210,106,.28),transparent)}
         .family-roots.roots-reading-mode .roots-tree-stem{background:rgba(108,92,255,.32)}
         .family-roots.roots-reading-mode .roots-generation-label{border-color:rgba(108,92,255,.22);background:rgba(108,92,255,.10);color:#C9C3FF}
-        .family-roots.roots-reading-mode .roots-tree-node img,.family-roots.roots-reading-mode .roots-tree-node [class*="MemberAvatar"]{box-shadow:0 12px 28px rgba(0,0,0,.18)}
+        .family-roots.roots-reading-mode .roots-tree-person img,.family-roots.roots-reading-mode .roots-tree-person [class*="MemberAvatar"]{box-shadow:0 12px 28px rgba(0,0,0,.18),0 0 0 5px rgba(108,92,255,.18)}
         .family-roots.roots-reading-mode .roots-relation-chip{display:none}
-        .family-roots .roots-tree-node:not(:disabled):active{transform:scale(.985)}
-        .family-roots .roots-tree-node:not(:disabled):hover{border-color:rgba(0,210,106,.25);box-shadow:0 22px 60px rgba(0,0,0,.24)}
-        .family-roots .roots-tree-node:before{content:"";position:absolute;left:50%;top:-14px;height:14px;width:2px;transform:translateX(-50%);background:rgba(0,210,106,.34)}
         .family-roots .roots-tree-dot{position:absolute;left:50%;top:-18px;height:9px;width:9px;transform:translateX(-50%);border-radius:999px;background:#00D26A;box-shadow:0 0 18px rgba(0,210,106,.55)}
         .family-roots .roots-relation-chip{display:flex;min-width:0;align-items:center;justify-content:space-between;gap:6px;border-radius:999px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.055);padding:5px 7px;text-align:left}
         .family-roots .roots-relation-chip span{min-width:0;color:rgba(255,255,255,.42);font-size:8px;font-weight:900;text-transform:uppercase}
@@ -1697,11 +1709,15 @@ export function FamilyRoots({
         .theme-light .family-roots .roots-relation-chip span{color:rgba(24,32,51,.46)}.theme-light .family-roots .roots-relation-chip strong,.theme-light .family-roots .roots-link-summary strong{color:#182033}
         .theme-light .family-roots .roots-world-map{background:linear-gradient(135deg,#EEF8FF,#fff 48%,#F0FFF8)}
         .theme-light .family-roots .roots-world-land{fill:rgba(127,176,255,.24);stroke:rgba(24,32,51,.08)}
+        .theme-light .family-roots .roots-world-route{stroke:rgba(91,53,213,.42)}
+        .theme-light .family-roots .roots-world-route-alt{stroke:rgba(212,126,0,.36)}
         .theme-light .family-roots .roots-tree-shell{background:#fff}
         .theme-light .family-roots .family-tree-canvas{background:linear-gradient(180deg,#f7fbf8,#fff)}
         .theme-light .family-roots.roots-reading-mode{background:radial-gradient(circle at 18% 10%,rgba(0,210,106,.12),transparent 24%),radial-gradient(circle at 82% 0%,rgba(108,92,255,.12),transparent 26%),#fff}
         .theme-light .family-roots .roots-reading-close{background:rgba(255,255,255,.78);color:#182033;border-color:rgba(24,32,51,.12)}
-        .theme-light .family-roots .roots-tree-node{background:linear-gradient(145deg,#fff,#F8FBFF)!important;border-color:rgba(24,32,51,.12);box-shadow:0 18px 42px rgba(24,32,51,.08)}
+        .theme-light .family-roots .roots-tree-person strong{color:#182033!important}
+        .theme-light .family-roots .roots-tree-person p{color:rgba(24,32,51,.58)!important}
+        .theme-light .family-roots .roots-tree-pill{background:rgba(24,32,51,.07);color:rgba(24,32,51,.62)}
         .theme-light .family-roots input::placeholder{color:rgba(24,32,51,.35)}
         .theme-light .family-roots .roots-modal-panel{background:#fff;color:#182033;border-color:rgba(24,32,51,.12)}
         .theme-sepia .family-roots .roots-card{background:#fffaf0;border-color:rgba(53,47,39,.14)}
@@ -1720,11 +1736,15 @@ export function FamilyRoots({
         .theme-sepia .family-roots .roots-relation-chip span{color:rgba(53,47,39,.5)}.theme-sepia .family-roots .roots-relation-chip strong,.theme-sepia .family-roots .roots-link-summary strong{color:#352f27}
         .theme-sepia .family-roots .roots-world-map{background:linear-gradient(135deg,#F5EBD8,#FFFAF0 48%,#EEF8E8)}
         .theme-sepia .family-roots .roots-world-land{fill:rgba(180,153,100,.20);stroke:rgba(53,47,39,.10)}
+        .theme-sepia .family-roots .roots-world-route{stroke:rgba(91,53,213,.40)}
+        .theme-sepia .family-roots .roots-world-route-alt{stroke:rgba(174,96,0,.38)}
         .theme-sepia .family-roots .roots-tree-shell{background:#fffaf0}
         .theme-sepia .family-roots .family-tree-canvas{background:linear-gradient(180deg,#f8efd9,#fffaf0)}
         .theme-sepia .family-roots.roots-reading-mode{background:radial-gradient(circle at 18% 10%,rgba(0,210,106,.10),transparent 24%),radial-gradient(circle at 82% 0%,rgba(108,92,255,.10),transparent 26%),#fffaf0}
         .theme-sepia .family-roots .roots-reading-close{background:rgba(255,250,240,.78);color:#352f27;border-color:rgba(53,47,39,.14)}
-        .theme-sepia .family-roots .roots-tree-node{background:linear-gradient(145deg,#fffaf0,#f8ecd7)!important;border-color:rgba(53,47,39,.14);box-shadow:0 18px 42px rgba(53,47,39,.08)}
+        .theme-sepia .family-roots .roots-tree-person strong{color:#352f27!important}
+        .theme-sepia .family-roots .roots-tree-person p{color:rgba(53,47,39,.60)!important}
+        .theme-sepia .family-roots .roots-tree-pill{background:rgba(53,47,39,.08);color:rgba(53,47,39,.62)}
         .theme-sepia .family-roots input::placeholder{color:rgba(53,47,39,.4)}
         .theme-sepia .family-roots .roots-modal-panel{background:#fffaf0;color:#352f27;border-color:rgba(53,47,39,.14)}
       `}</style>
@@ -1777,7 +1797,7 @@ function TreeGeneration({
           <button
             type="button"
             onClick={() => setExpanded(current => !current)}
-            className={`roots-tree-more relative flex ${fullScreen ? 'min-h-[118px] w-[112px]' : 'min-h-[164px] w-[132px]'} flex-col items-center justify-center rounded-[28px] border border-dashed border-[#6C5CFF]/32 bg-[#6C5CFF]/10 text-center text-[#C9C3FF]`}
+            className={`roots-tree-more relative flex ${fullScreen ? 'min-h-[134px] w-[108px]' : 'min-h-[150px] w-[124px]'} flex-col items-center justify-center rounded-[28px] border border-dashed border-[#6C5CFF]/32 bg-[#6C5CFF]/10 text-center text-[#C9C3FF]`}
             aria-label={expanded ? 'Réduire cette génération' : `Afficher ${hiddenCount} membre supplémentaire`}
           >
             <strong className="text-2xl font-black">{expanded ? '−' : `+${hiddenCount}`}</strong>
@@ -1804,13 +1824,14 @@ function ProfileCard({
   links?: RelationshipPreview[];
   fullScreen?: boolean;
 }) {
-  const branchTone = profile.branch === 'paternelle'
-    ? 'from-[#4F8CFF]/24 to-[#102846]'
+  const branchAccent = profile.branch === 'paternelle'
+    ? 'roots-tree-blue'
     : profile.branch === 'maternelle'
-      ? 'from-[#FF4D6D]/18 to-[#221428]'
+      ? 'roots-tree-pink'
       : profile.branch === 'autre'
-        ? 'from-[#FFB020]/18 to-[#221B10]'
-        : 'from-[#00D26A]/18 to-[#10251C]';
+        ? 'roots-tree-amber'
+        : 'roots-tree-green';
+  const birthYear = profile.birthDate ? new Date(`${profile.birthDate}T12:00:00`).getFullYear() : null;
 
   if (variant === 'tree') {
     return (
@@ -1818,26 +1839,19 @@ function ProfileCard({
         type="button"
         onClick={onClick}
         disabled={disabled}
-        className={`roots-tree-node relative flex ${fullScreen ? 'min-h-[178px] w-[188px]' : 'min-h-[164px] w-[174px]'} flex-col items-center justify-start rounded-[30px] border border-white/10 bg-gradient-to-br ${branchTone} p-3 text-center shadow-[0_18px_50px_rgba(0,0,0,.18)] disabled:cursor-default`}
+        className={`roots-tree-person ${branchAccent} relative flex ${fullScreen ? 'min-h-[134px] w-[108px]' : 'min-h-[150px] w-[124px]'} flex-col items-center justify-start rounded-[28px] px-2.5 py-3 text-center disabled:cursor-default`}
       >
         <span className="roots-tree-dot" aria-hidden="true" />
-        <MemberAvatar name={profile.displayName} photoUrl={profile.photoUrl} className={`${fullScreen ? 'h-14 w-14' : 'h-16 w-16'} rounded-full ring-4 ring-white/10`} />
-        <strong className={`${fullScreen ? 'mt-2 text-[11px] leading-3' : 'mt-3 text-sm leading-4'} line-clamp-2 font-black text-white`}>{profileLabel(profile)}</strong>
-        <p className={`${fullScreen ? 'text-[8px] leading-3' : 'text-[10px] leading-4'} mt-1 line-clamp-2 font-semibold text-white/48`}>{profile.originCity || profile.country || branchLabels[profile.branch]}</p>
-        <div className="mt-3 flex flex-wrap justify-center gap-1">
-          {profile.birthDate && <span className="rounded-full bg-white/8 px-2 py-1 text-[9px] font-black text-white/50">{new Date(`${profile.birthDate}T12:00:00`).getFullYear()}</span>}
-          {profile.isMinor && <span className="rounded-full bg-[#00D26A]/14 px-2 py-1 text-[9px] font-black text-[#00D26A]">Protégé</span>}
-          {profile.isMemorial && <span className="rounded-full bg-[#FFB020]/14 px-2 py-1 text-[9px] font-black text-[#FFB020]">Souvenir</span>}
+        <MemberAvatar name={profile.displayName} photoUrl={profile.photoUrl} className={`${fullScreen ? 'h-[62px] w-[62px]' : 'h-[70px] w-[70px]'} roots-tree-avatar rounded-full`} />
+        <strong className={`${fullScreen ? 'mt-2 text-[10px] leading-3' : 'mt-2.5 text-[12px] leading-4'} line-clamp-2 font-black text-white`}>{profileLabel(profile)}</strong>
+        <p className={`${fullScreen ? 'text-[7px] leading-3' : 'text-[9px] leading-3'} mt-1 line-clamp-2 font-semibold text-white/52`}>{profile.originCity || profile.country || branchLabels[profile.branch]}</p>
+        <div className="mt-2 flex flex-wrap justify-center gap-1">
+          {birthYear && <span className="roots-tree-pill">{birthYear}</span>}
+          {profile.isMinor && <span className="roots-tree-pill roots-tree-pill-green">Protégé</span>}
+          {profile.isMemorial && <span className="roots-tree-pill roots-tree-pill-amber">Souvenir</span>}
         </div>
         {links.length > 0 && (
-          <div className="mt-3 flex w-full flex-col gap-1.5">
-            {links.slice(0, 2).map(link => (
-              <span key={link.id} className="roots-relation-chip">
-                <span>{link.label}</span>
-                <strong>{link.targetName}</strong>
-              </span>
-            ))}
-          </div>
+          <span className="roots-tree-link-count" aria-label={`${links.length} lien familial`}>{links.length}</span>
         )}
       </button>
     );
@@ -1994,21 +2008,36 @@ function BranchModal({
 
 function BranchWorldMap({ countries }: { countries: Array<[string, FamilyTreeProfile[]]> }) {
   const points = countries.filter(([place]) => place !== 'Pays non indiqué').slice(0, 4);
-  const positions = [
-    { left: '24%', top: '48%', tone: 'green' },
-    { left: '50%', top: '40%', tone: 'violet' },
-    { left: '46%', top: '67%', tone: 'orange' },
-    { left: '78%', top: '52%', tone: 'blue' }
+  const fallbackPositions = [
+    { left: '45%', top: '63%', tone: 'green' },
+    { left: '52%', top: '39%', tone: 'violet' },
+    { left: '46%', top: '70%', tone: 'orange' },
+    { left: '78%', top: '46%', tone: 'blue' }
   ];
+  const positionForPlace = (place: string, index: number) => {
+    const normalized = normalizeText(place);
+    if (/\b(france|paris|lyon|marseille|lille|toulouse|nantes)\b/.test(normalized)) return { left: '51%', top: '39%', tone: 'violet' };
+    if (/\b(senegal|dakar|mali|bamako|guinee|conakry)\b/.test(normalized)) return { left: '44%', top: '63%', tone: 'green' };
+    if (/\b(ivoire|abidjan|cote|ghana|benin|togo)\b/.test(normalized)) return { left: '46%', top: '69%', tone: 'orange' };
+    if (/\b(comores|moroni|mayotte|madagascar)\b/.test(normalized)) return { left: '57%', top: '76%', tone: 'orange' };
+    if (/\b(usa|etats unis|new york|canada|montreal)\b/.test(normalized)) return { left: '76%', top: '45%', tone: 'blue' };
+    if (/\b(maroc|algerie|tunisie|egypte)\b/.test(normalized)) return { left: '47%', top: '52%', tone: 'green' };
+    return fallbackPositions[index] || fallbackPositions[0];
+  };
   return (
     <section className="roots-card overflow-hidden p-0">
-      <div className="roots-world-map relative min-h-[240px] p-4">
-        <svg className="roots-world-svg" viewBox="0 0 900 420" role="img" aria-label="Carte du monde stylisée" preserveAspectRatio="xMidYMid meet">
-          <path className="roots-world-land" d="M77 155c28-42 70-63 126-63 34 0 59 8 75 24 13 13 14 29 3 48-10 18-25 24-45 20-18-4-30 0-36 12-8 16-24 23-48 22-24-2-45-11-63-28-15-14-19-25-12-35Z" />
-          <path className="roots-world-land" d="M196 229c25 5 46 18 63 39 16 20 21 44 16 71-6 30-22 48-48 55-21-22-37-47-48-76-13-34-7-63 17-89Z" />
-          <path className="roots-world-land" d="M368 121c34-28 78-39 132-32 40 5 78 18 113 40 27 17 53 21 78 14 27-8 53-4 77 13 21 16 32 34 32 56-32 7-67 5-104-6-29-8-55-7-78 4-26 12-57 13-92 4-25-7-47-3-66 12-18 14-40 20-66 17-34-5-54-21-61-48-7-28 5-53 35-74Z" />
-          <path className="roots-world-land" d="M467 242c37 4 67 19 89 47 24 30 29 65 14 104-37-6-69-25-96-57-25-30-27-61-7-94Z" />
-          <path className="roots-world-land" d="M685 258c23-15 49-19 79-13 28 5 50 19 66 42-20 18-46 27-78 27-35 0-57-19-67-56Z" />
+      <div className="roots-world-map relative min-h-[320px] p-4">
+        <svg className="roots-world-svg" viewBox="0 0 1000 520" role="img" aria-label="Carte du monde stylisée" preserveAspectRatio="xMidYMid meet">
+          <path className="roots-world-land" d="M115 155c34-56 91-83 171-81 46 1 83 15 111 40 20 19 23 43 7 72-15 27-38 40-68 38-25-2-42 7-51 28-12 27-37 39-73 36-36-2-68-18-96-47-25-27-25-56-1-86Z" />
+          <path className="roots-world-land" d="M285 303c40 14 69 38 87 72 18 35 18 72-2 111-34-11-61-36-82-74-21-39-22-75-3-109Z" />
+          <path className="roots-world-land" d="M430 141c38-35 86-48 144-39 35 5 60 19 75 41 13 19 10 40-10 62-25 27-59 37-101 30-45-8-80-1-104 21-31-24-33-62-4-115Z" />
+          <path className="roots-world-land" d="M506 270c49 7 86 31 111 72 26 44 28 92 4 144-47-12-84-42-110-90-25-46-27-88-5-126Z" />
+          <path className="roots-world-land" d="M585 120c70-40 154-45 252-15 64 20 103 56 118 108-52 18-104 20-156 7-46-11-84-8-114 10-35 22-75 24-121 6-48-19-59-57-33-114 15 4 33 3 54-2Z" />
+          <path className="roots-world-land" d="M744 318c37-20 78-24 123-10 42 12 72 36 89 71-35 29-77 41-127 36-51-5-79-37-85-97Z" />
+          <path className="roots-world-land" d="M452 82c35-18 76-22 122-12 24 6 41 15 51 28-33 19-72 25-117 18-30-5-49-16-56-34Z" />
+          <path className="roots-world-route" d="M445 318 C478 240 504 202 515 178 C580 198 670 220 760 234" />
+          <path className="roots-world-route roots-world-route-alt" d="M445 318 C438 354 446 378 466 398 C492 396 526 407 570 430" />
+          <path className="roots-world-route" d="M445 318 C486 304 506 276 515 178" />
         </svg>
         <div className="relative z-10 flex items-center justify-between gap-3">
           <div>
@@ -2018,7 +2047,7 @@ function BranchWorldMap({ countries }: { countries: Array<[string, FamilyTreePro
           <Earth className="h-5 w-5 text-[#4F8CFF]" />
         </div>
         {points.map(([place, profiles], index) => {
-          const position = positions[index] || positions[0];
+          const position = positionForPlace(place, index);
           return (
             <div key={place} className={`roots-map-point roots-map-${position.tone}`} style={{ left: position.left, top: position.top }}>
               <div className="flex -space-x-2">
