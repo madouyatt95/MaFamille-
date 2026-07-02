@@ -12438,6 +12438,7 @@ function App() {
           transactions={appTransactions}
           setTransactions={setTransactions}
           alerts={appFilteredAlerts}
+          pendingAlerts={alerts}
           setAlerts={setAlerts}
           onAddTransaction={handleAddTransaction}
           onAddEvent={handleAddEvent}
@@ -12643,6 +12644,7 @@ function App() {
               defaultTab={activeModule === 'argent' ? 'argent' : activeModule === 'boutique' ? 'boutique' : 'missions'}
               setAlerts={setAlerts}
               alerts={appFilteredAlerts}
+              pendingAlerts={alerts}
               foyer={appFoyer}
               transactions={appTransactions}
               setTransactions={setTransactions}
@@ -13361,6 +13363,7 @@ function App() {
           transactions={appTransactions}
           setTransactions={setTransactions}
           alerts={appFilteredAlerts}
+          workflowAlerts={alerts}
           setAlerts={setAlerts}
           currencySymbol={getCurrencySymbol()}
           formatMoney={formatMoney}
@@ -14118,19 +14121,21 @@ function App() {
       /></Suspense>}
 
       {/* Shared bottom iOS premium nav bar with quick actions central (+) trigger */}
-      <BottomNav 
-        activeTab={activeTab}
-        setActiveTab={(tab) => {
-          setActiveTab(tab);
-          setActiveModule("");
-        }}
-        activeModule={activeModule}
-        setActiveModule={setActiveModule}
-        onMicClick={() => startVoiceAssistant()}
-        activeMemberId={appActiveMemberId}
-        members={appMembers}
-        isPremium={isPremium}
-      />
+      {activeModule !== 'messagerie' && (
+        <BottomNav
+          activeTab={activeTab}
+          setActiveTab={(tab) => {
+            setActiveTab(tab);
+            setActiveModule("");
+          }}
+          activeModule={activeModule}
+          setActiveModule={setActiveModule}
+          onMicClick={() => startVoiceAssistant()}
+          activeMemberId={appActiveMemberId}
+          members={appMembers}
+          isPremium={isPremium}
+        />
+      )}
 
       {paywallOpen && <Suspense fallback={null}><Paywall
         isOpen={paywallOpen}

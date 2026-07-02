@@ -48,6 +48,7 @@ interface TeenDashboardProps {
   transactions: Transaction[];
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
   alerts: NotificationAlert[];
+  pendingAlerts?: NotificationAlert[];
   setAlerts?: React.Dispatch<React.SetStateAction<NotificationAlert[]>>;
   onAddTransaction: (tx: any) => void;
   onAddEvent?: (title: string, dateTime: string) => void;
@@ -116,6 +117,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   transactions,
   setTransactions,
   alerts,
+  pendingAlerts,
   setAlerts,
   onAddTransaction,
   onAddEvent,
@@ -154,6 +156,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
   appliedMaluses = [],
   setAppliedMaluses
 }) => {
+  const rewardRequestAlerts = pendingAlerts || alerts;
   // Navigation active tab index internally mapped
   // Teen space will render internally or listen to external tab routing
   const [internalTab, setInternalTab] = useState<'accueil' | 'ecole' | 'messages' | 'timeline' | 'plus'>('accueil');
@@ -3476,7 +3479,7 @@ export const TeenDashboard: React.FC<TeenDashboardProps> = ({
                       </div>
 
                       {(() => {
-                        const isPending = (alerts || []).some(a => a.id.startsWith(`req-rew-${member.id}-${reward.id}-`));
+                        const isPending = rewardRequestAlerts.some(a => a.id.startsWith(`req-rew-${member.id}-${reward.id}-`));
                         if (isPending) {
                           return (
                             <button

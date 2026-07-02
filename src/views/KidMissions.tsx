@@ -19,6 +19,7 @@ interface KidMissionsProps {
   defaultTab?: 'missions' | 'boutique' | 'argent' | 'karma';
   setAlerts?: React.Dispatch<React.SetStateAction<NotificationAlert[]>>;
   alerts?: NotificationAlert[];
+  pendingAlerts?: NotificationAlert[];
   foyer?: Foyer | null;
   transactions?: Transaction[];
   setTransactions?: React.Dispatch<React.SetStateAction<Transaction[]>>;
@@ -64,6 +65,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   defaultTab,
   setAlerts,
   alerts = [],
+  pendingAlerts,
   foyer,
   transactions = [],
   setTransactions,
@@ -71,6 +73,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
   onApplyWallTask,
   onTakeWallTask
 }) => {
+  const rewardRequestAlerts = pendingAlerts || alerts;
   const [activeSubTab, setActiveSubTab] = useState<'missions' | 'boutique' | 'argent' | 'karma'>(defaultTab || 'missions');
   const [requestText, setRequestText] = useState('');
   const [requestPoints, setRequestPoints] = useState(20);
@@ -814,7 +817,7 @@ export const KidMissions: React.FC<KidMissionsProps> = ({
                       </div>
 
                       {(() => {
-                        const isPending = (alerts || []).some(a => a.id.startsWith(`req-rew-${member.id}-${reward.id}-`));
+                        const isPending = rewardRequestAlerts.some(a => a.id.startsWith(`req-rew-${member.id}-${reward.id}-`));
                         if (isPending) {
                           return (
                             <button

@@ -1354,7 +1354,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
   const activeGroupMeta = activeGroup ? getConversationMeta(activeGroup) : null;
   const activeParticipantNames = activeGroupMeta?.participants.map(m => m.name).filter(Boolean) || [];
   return (
-    <div className="fixed inset-x-0 top-0 bottom-0 z-[80] flex min-h-0 flex-col overflow-hidden bg-[#0A0D18] pt-[env(safe-area-inset-top,0px)] text-white shadow-2xl md:relative md:inset-auto md:z-10 md:h-[calc(100dvh-9rem)] md:rounded-3xl md:border md:border-white/10 md:pt-0">
+    <div className="fixed inset-x-0 top-0 bottom-0 z-[100] flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#0A0D18] pt-[env(safe-area-inset-top,0px)] text-white shadow-2xl md:relative md:inset-auto md:z-10 md:h-[calc(100dvh-9rem)] md:rounded-3xl md:border md:border-white/10 md:pt-0">
       {/* Chat Header */}
       <div className="relative z-[120] flex shrink-0 items-center justify-between p-3 border-b border-white/10 bg-[#112240]/90 backdrop-blur-md">
         <div className="flex items-center space-x-3 min-w-0">
@@ -1914,7 +1914,7 @@ export const Messagerie: React.FC<MessagerieProps> = ({
       )}
 
       {/* Input Area */}
-      <div className="shrink-0 border-t border-white/10 bg-white/5 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] backdrop-blur-xl">
+      <div className="relative z-[130] shrink-0 border-t border-white/10 bg-[#0F1626]/98 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] backdrop-blur-xl">
         {isRecording ? (
           <div className="flex items-center justify-between bg-red-500/10 border border-red-500/25 p-2 rounded-full w-full px-4 animate-pulse">
             <div className="flex items-center space-x-2">

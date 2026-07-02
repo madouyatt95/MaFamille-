@@ -164,6 +164,7 @@ interface MenuHubProps {
   setPocketMoney: React.Dispatch<React.SetStateAction<PocketMoneyChild[]>>;
   goals: SavingGoal[];
   alerts: NotificationAlert[];
+  workflowAlerts?: NotificationAlert[];
   setAlerts?: React.Dispatch<React.SetStateAction<NotificationAlert[]>>;
   currencySymbol: string;
   formatMoney: (amount: number) => string;
@@ -424,6 +425,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
   transactions = [],
   setTransactions,
   alerts = [],
+  workflowAlerts,
   setAlerts,
   isKidMode = false,
   onAcceptCandidate,
@@ -7066,10 +7068,9 @@ export const MenuHub: React.FC<MenuHubProps> = ({
           );
         }
 
-        const pendingRequests = alerts.filter(a => {
-          if (a.senderMemberId !== resolvedChild?.id) return false;
-          return a.id.startsWith('req-rew-') || a.id.startsWith('sug-rew-');
-        });
+        const pendingRequests = (workflowAlerts || alerts).filter(a =>
+          a.id.startsWith('req-rew-') || a.id.startsWith('sug-rew-')
+        );
 
         const activeRulesCount = ((resolvedChild?.rules || []) as PocketMoneyRule[]).filter(r => r.active).length;
         const missionStreak = resolvedChild ? getChildStreak(resolvedChild.id) : 0;
@@ -7471,7 +7472,7 @@ export const MenuHub: React.FC<MenuHubProps> = ({
                       <div className="glass-panel rounded-[28px] border-2 border-amber-500/20 bg-amber-500/5 p-5 space-y-3 text-left">
                         <div className="flex items-center space-x-2 text-amber-500">
                           <span>🔔</span>
-                          <h4 className="text-xs font-extrabold uppercase tracking-wider">Demandes en attente de validation ({resolvedChild.name})</h4>
+                          <h4 className="text-xs font-extrabold uppercase tracking-wider">Demandes en attente de validation</h4>
                         </div>
                         <div className="space-y-2">
                           {pendingRequests.map(alertItem => {
