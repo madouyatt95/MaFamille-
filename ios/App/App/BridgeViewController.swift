@@ -33,7 +33,7 @@ class BridgeViewController: CAPBridgeViewController {
 
         UserDefaults.standard.removeObject(forKey: "mf_pending_quick_micro_native")
 
-        [0.1, 0.45, 1.0, 2.0, 3.5].forEach { delay in
+        [0.0, 0.15, 0.4, 0.9, 1.8].forEach { delay in
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 let script = """
                 try {

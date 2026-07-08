@@ -1,10 +1,13 @@
 import { lazy, Suspense } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { MarketingLanding } from './MarketingLanding';
 
 const App = lazy(() => import('./App'));
 const MarketingDemoCapture = lazy(() => import('./MarketingDemoCapture').then(module => ({ default: module.MarketingDemoCapture })));
 
 const shouldRenderApp = () => {
+  if (Capacitor.isNativePlatform()) return true;
+
   const { pathname, search, hash } = window.location;
   const params = new URLSearchParams(search);
   if (pathname.startsWith('/app') || pathname.startsWith('/quick-micro') || pathname.startsWith('/share') || pathname.startsWith('/share-target')) return true;

@@ -2573,6 +2573,7 @@ function App() {
     if (shouldOpenQuickMicro) {
       try {
         sessionStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
+        localStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
       } catch {
         // The pending React state is enough for this launch.
       }
@@ -5809,7 +5810,11 @@ function App() {
 
   useEffect(() => {
     if (!pendingQuickMicro) return;
-    if (!user || !foyer || isInitializingAuth || isSessionChecking || showWelcomeScreen || isPremiumReturnSyncing) return;
+    if (!user || !foyer || isInitializingAuth || isSessionChecking || isPremiumReturnSyncing) return;
+    if (showWelcomeScreen) {
+      setShowWelcomeScreen(false);
+      return;
+    }
     if (voiceActive || voiceState !== 'idle') {
       if (voiceRecognitionRef.current) {
         try {
@@ -5850,7 +5855,7 @@ function App() {
       setQuickActionsOpen(false);
       setAlertsPanelOpen(false);
       startVoiceAssistant();
-    }, 450);
+    }, 10);
 
     return () => window.clearTimeout(timer);
   }, [
@@ -13823,7 +13828,7 @@ function App() {
   const activeMemberObj = appMembers.find(m => m.id === appActiveMemberId);
   const isKidMode = activeMemberObj && activeMemberObj.age && parseInt(activeMemberObj.age) < 11;
 
-  const forceOnboarding = user && myFoyers.length === 0;
+  const forceOnboarding = Boolean(user && !isInitializingAuth && !isSessionChecking && myFoyers.length === 0);
 
   if (forceOnboarding) {
     return (
