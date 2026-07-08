@@ -33,16 +33,19 @@ class BridgeViewController: CAPBridgeViewController {
 
         UserDefaults.standard.removeObject(forKey: "mf_pending_quick_micro_native")
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
-            let script = """
-            try {
-              sessionStorage.setItem('mf_pending_quick_micro', 'true');
-              window.dispatchEvent(new CustomEvent('myfamilyplus:quick-micro'));
-            } catch (error) {
-              window.location.href = '/quick-micro';
+        [0.1, 0.45, 1.0, 2.0, 3.5].forEach { delay in
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                let script = """
+                try {
+                  sessionStorage.setItem('mf_pending_quick_micro', 'true');
+                  localStorage.setItem('mf_pending_quick_micro', 'true');
+                  window.dispatchEvent(new CustomEvent('myfamilyplus:quick-micro'));
+                } catch (error) {
+                  window.location.href = '/quick-micro';
+                }
+                """
+                self?.bridge?.webView?.evaluateJavaScript(script, completionHandler: nil)
             }
-            """
-            self?.bridge?.webView?.evaluateJavaScript(script, completionHandler: nil)
         }
     }
 }

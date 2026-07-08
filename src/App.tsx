@@ -992,17 +992,21 @@ function App() {
   const [activeModule, rawSetActiveModule] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+  const isNativeApp = Capacitor.isNativePlatform();
   const [pendingQuickMicro, setPendingQuickMicro] = useState(() => {
     const requested = isQuickMicroUrl();
     if (requested) {
       try {
         sessionStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
+        localStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
       } catch {
         // Ignore storage failures; the in-memory state still handles this launch.
       }
     }
     try {
-      return requested || sessionStorage.getItem(QUICK_MICRO_PENDING_KEY) === 'true';
+      return requested
+        || sessionStorage.getItem(QUICK_MICRO_PENDING_KEY) === 'true'
+        || localStorage.getItem(QUICK_MICRO_PENDING_KEY) === 'true';
     } catch {
       return requested;
     }
@@ -2240,6 +2244,7 @@ function App() {
   const requestQuickMicroOpen = useCallback(() => {
     try {
       sessionStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
+      localStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
     } catch {
       // The in-memory state is enough for this launch.
     }
@@ -2252,8 +2257,27 @@ function App() {
 
   useEffect(() => {
     const handleQuickMicroEvent = () => requestQuickMicroOpen();
+    const handleQuickMicroResume = () => {
+      try {
+        if (
+          sessionStorage.getItem(QUICK_MICRO_PENDING_KEY) === 'true'
+          || localStorage.getItem(QUICK_MICRO_PENDING_KEY) === 'true'
+        ) {
+          requestQuickMicroOpen();
+        }
+      } catch {
+        // Ignore storage failures; native dispatch still covers the common path.
+      }
+    };
     window.addEventListener('myfamilyplus:quick-micro', handleQuickMicroEvent);
-    return () => window.removeEventListener('myfamilyplus:quick-micro', handleQuickMicroEvent);
+    window.addEventListener('focus', handleQuickMicroResume);
+    document.addEventListener('visibilitychange', handleQuickMicroResume);
+    handleQuickMicroResume();
+    return () => {
+      window.removeEventListener('myfamilyplus:quick-micro', handleQuickMicroEvent);
+      window.removeEventListener('focus', handleQuickMicroResume);
+      document.removeEventListener('visibilitychange', handleQuickMicroResume);
+    };
   }, [requestQuickMicroOpen]);
 
   const handleGlobalSearchResultOpen = (result: GlobalSearchResult) => {
@@ -5786,12 +5810,38 @@ function App() {
   useEffect(() => {
     if (!pendingQuickMicro) return;
     if (!user || !foyer || isInitializingAuth || isSessionChecking || showWelcomeScreen || isPremiumReturnSyncing) return;
-    if (voiceActive || voiceState !== 'idle') return;
+    if (voiceActive || voiceState !== 'idle') {
+      if (voiceRecognitionRef.current) {
+        try {
+          voiceRecognitionRef.current.onresult = null;
+          voiceRecognitionRef.current.onerror = null;
+          voiceRecognitionRef.current.onend = null;
+          voiceRecognitionRef.current.stop();
+        } catch {
+          // Recognition may already be stopped.
+        }
+      }
+      if (voiceTimeoutRef.current) {
+        clearTimeout(voiceTimeoutRef.current);
+        voiceTimeoutRef.current = null;
+      }
+      if (voiceInactivityTimerRef.current) {
+        clearTimeout(voiceInactivityTimerRef.current);
+        voiceInactivityTimerRef.current = null;
+      }
+      setVoiceActive(false);
+      setVoiceState('idle');
+      setVoiceContext(null);
+      setVoiceDebugTrace(null);
+      voiceActionStatusRef.current = 'waiting';
+      return;
+    }
 
     const timer = window.setTimeout(() => {
       setPendingQuickMicro(false);
       try {
         sessionStorage.removeItem(QUICK_MICRO_PENDING_KEY);
+        localStorage.removeItem(QUICK_MICRO_PENDING_KEY);
       } catch {
         // Nothing to clean if storage is unavailable.
       }
@@ -13318,7 +13368,7 @@ function App() {
               activeMemberId={appActiveMemberId}
               setActiveTab={setActiveTab}
               setActiveModule={setActiveModule}
-              onOpenOnboarding={() => setOnboardingActive(true)}
+              onOpenOnboarding={isNativeApp ? undefined : () => setOnboardingActive(true)}
               onNotificationPrefsChange={(prefs) => {
                 setNotificationPrefs(prefs);
                 const key = `mf_notif_prefs_${appFoyer?.id || 'simulated'}_${user?.id || 'guest'}`;
@@ -13609,7 +13659,7 @@ function App() {
     );
   }
 
-  const shouldShowOnboarding = !user || onboardingActive;
+  const shouldShowOnboarding = !user || (!isNativeApp && onboardingActive);
 
   if (shouldShowOnboarding) {
     return (
@@ -13979,7 +14029,7 @@ function App() {
         activeMemberId={appActiveMemberId}
         user={user}
         onLogout={handleLogout}
-        onOpenOnboarding={() => {
+        onOpenOnboarding={isNativeApp ? undefined : () => {
           setOnboardingActive(true);
         }}
         activeFamilyName={appFoyer?.name}
