@@ -7,7 +7,7 @@ const MarketingDemoCapture = lazy(() => import('./MarketingDemoCapture').then(mo
 const shouldRenderApp = () => {
   const { pathname, search, hash } = window.location;
   const params = new URLSearchParams(search);
-  if (pathname.startsWith('/app') || pathname.startsWith('/share') || pathname.startsWith('/share-target')) return true;
+  if (pathname.startsWith('/app') || pathname.startsWith('/quick-micro') || pathname.startsWith('/share') || pathname.startsWith('/share-target')) return true;
   if (hash.includes('access_token=') || hash.includes('type=recovery') || hash.includes('type=signup')) return true;
   if (hash.startsWith('#share_') || hash.startsWith('#sharelink_')) return true;
   return ['join', 'tab', 'module', 'action', 'premium', 'shareId', 'groupId'].some(param => params.has(param));

@@ -9,6 +9,14 @@
       "destination": "/index.html"
     },
     {
+      "source": "/quick-micro",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/quick-micro/:path*",
+      "destination": "/index.html"
+    },
+    {
       "source": "/demo-vitrine",
       "destination": "/index.html"
     },

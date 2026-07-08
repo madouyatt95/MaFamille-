@@ -78,6 +78,13 @@ type FoyerMembership = { foyer: Foyer; member: FoyerMember };
 type LooseValue = any;
 type DbRow = Record<string, LooseValue>;
 type DbRows = LooseValue[];
+const QUICK_MICRO_PENDING_KEY = 'mf_pending_quick_micro';
+
+const isQuickMicroUrl = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  return window.location.pathname.startsWith('/quick-micro') || params.get('action') === 'open-micro';
+};
 
 const FOYER_TABLE_COLUMNS = {
   events: 'id, foyer_id, title, type, date_time, time, member_id, member_name, location, description, done, amount',
@@ -985,6 +992,21 @@ function App() {
   const [activeModule, rawSetActiveModule] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+  const [pendingQuickMicro, setPendingQuickMicro] = useState(() => {
+    const requested = isQuickMicroUrl();
+    if (requested) {
+      try {
+        sessionStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
+      } catch {
+        // Ignore storage failures; the in-memory state still handles this launch.
+      }
+    }
+    try {
+      return requested || sessionStorage.getItem(QUICK_MICRO_PENDING_KEY) === 'true';
+    } catch {
+      return requested;
+    }
+  });
   const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
   const [deletedAlertIds, setDeletedAlertIds] = useState<string[]>(() => {
     try {
@@ -2457,6 +2479,7 @@ function App() {
     const actionParam = params.get('action');
     const shareIdParam = params.get('shareId');
     const joinParam = params.get('join')?.trim().toUpperCase() || '';
+    const shouldOpenQuickMicro = window.location.pathname.startsWith('/quick-micro') || actionParam === 'open-micro';
 
     const readSharedPayload = (shareId: string): Promise<LooseValue | null> => new Promise((resolve) => {
       const request = indexedDB.open('myfamily-plus-share-target', 1);
@@ -2503,6 +2526,19 @@ function App() {
       setWelcomeScreenMode('join');
       setShowWelcomeScreen(true);
     }
+
+    if (shouldOpenQuickMicro) {
+      try {
+        sessionStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
+      } catch {
+        // The pending React state is enough for this launch.
+      }
+      setPendingQuickMicro(true);
+      setActiveTab('accueil');
+      setActiveModule('');
+      setQuickActionsOpen(false);
+      setAlertsPanelOpen(false);
+    }
     
     if (actionParam === 'add-expense') {
       setActiveTab('budget');
@@ -2533,8 +2569,8 @@ function App() {
       }
     }
     
-    if (tabParam || moduleParam || groupIdParam || actionParam || joinParam) {
-      const newUrl = window.location.pathname;
+    if (tabParam || moduleParam || groupIdParam || actionParam || joinParam || shouldOpenQuickMicro) {
+      const newUrl = shouldOpenQuickMicro ? `/app${window.location.hash || ''}` : window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
     }
   }, []);
@@ -5727,6 +5763,39 @@ function App() {
       setVoiceTranscript("🎙️ Impossible d'écouter votre commande. Réessayer.");
     }
   };
+
+  useEffect(() => {
+    if (!pendingQuickMicro) return;
+    if (!user || !foyer || isInitializingAuth || isSessionChecking || showWelcomeScreen || isPremiumReturnSyncing) return;
+    if (voiceActive || voiceState !== 'idle') return;
+
+    const timer = window.setTimeout(() => {
+      setPendingQuickMicro(false);
+      try {
+        sessionStorage.removeItem(QUICK_MICRO_PENDING_KEY);
+      } catch {
+        // Nothing to clean if storage is unavailable.
+      }
+      setActiveTab('accueil');
+      setActiveModule('');
+      setQuickActionsOpen(false);
+      setAlertsPanelOpen(false);
+      startVoiceAssistant();
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    pendingQuickMicro,
+    user?.id,
+    foyer?.id,
+    isInitializingAuth,
+    isSessionChecking,
+    showWelcomeScreen,
+    isPremiumReturnSyncing,
+    voiceActive,
+    voiceState,
+    isPremium
+  ]);
 
   const convertFrenchNumbersToDigits = (txt: string): string => {
     let res = txt.toLowerCase();
