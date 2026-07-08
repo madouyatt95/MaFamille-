@@ -5810,10 +5810,9 @@ function App() {
 
   useEffect(() => {
     if (!pendingQuickMicro) return;
-    if (!user || !foyer || isInitializingAuth || isSessionChecking || isPremiumReturnSyncing) return;
+    if (!user || !foyer || isInitializingAuth || isPremiumReturnSyncing) return;
     if (showWelcomeScreen) {
       setShowWelcomeScreen(false);
-      return;
     }
     if (voiceActive || voiceState !== 'idle') {
       if (voiceRecognitionRef.current) {
@@ -5842,28 +5841,23 @@ function App() {
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      setPendingQuickMicro(false);
-      try {
-        sessionStorage.removeItem(QUICK_MICRO_PENDING_KEY);
-        localStorage.removeItem(QUICK_MICRO_PENDING_KEY);
-      } catch {
-        // Nothing to clean if storage is unavailable.
-      }
-      setActiveTab('accueil');
-      setActiveModule('');
-      setQuickActionsOpen(false);
-      setAlertsPanelOpen(false);
-      startVoiceAssistant();
-    }, 10);
-
-    return () => window.clearTimeout(timer);
+    setPendingQuickMicro(false);
+    try {
+      sessionStorage.removeItem(QUICK_MICRO_PENDING_KEY);
+      localStorage.removeItem(QUICK_MICRO_PENDING_KEY);
+    } catch {
+      // Nothing to clean if storage is unavailable.
+    }
+    setActiveTab('accueil');
+    setActiveModule('');
+    setQuickActionsOpen(false);
+    setAlertsPanelOpen(false);
+    startVoiceAssistant();
   }, [
     pendingQuickMicro,
     user?.id,
     foyer?.id,
     isInitializingAuth,
-    isSessionChecking,
     showWelcomeScreen,
     isPremiumReturnSyncing,
     voiceActive,
