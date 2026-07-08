@@ -2237,6 +2237,25 @@ function App() {
     rawSetActiveModule(modName);
   };
 
+  const requestQuickMicroOpen = useCallback(() => {
+    try {
+      sessionStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
+    } catch {
+      // The in-memory state is enough for this launch.
+    }
+    setPendingQuickMicro(true);
+    setActiveTab('accueil');
+    setActiveModule('');
+    setQuickActionsOpen(false);
+    setAlertsPanelOpen(false);
+  }, [setActiveModule]);
+
+  useEffect(() => {
+    const handleQuickMicroEvent = () => requestQuickMicroOpen();
+    window.addEventListener('myfamilyplus:quick-micro', handleQuickMicroEvent);
+    return () => window.removeEventListener('myfamilyplus:quick-micro', handleQuickMicroEvent);
+  }, [requestQuickMicroOpen]);
+
   const handleGlobalSearchResultOpen = (result: GlobalSearchResult) => {
     if (result.focus?.type === 'alerts_panel') {
       setActiveTab('accueil');

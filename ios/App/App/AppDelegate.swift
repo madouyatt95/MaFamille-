@@ -2,6 +2,10 @@ import UIKit
 import Capacitor
 import FirebaseCore
 
+extension Notification.Name {
+    static let myFamilyPlusQuickMicroRequested = Notification.Name("myFamilyPlusQuickMicroRequested")
+}
+
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
@@ -37,6 +41,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        if handleMyFamilyPlusURL(url) {
+            return true
+        }
         // Called when the app was launched with a url. Feel free to add additional processing here,
         // but if you want the App API to support tracking app url opens, make sure to keep this call
         return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
@@ -55,6 +62,25 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
         NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+    }
+
+    private func handleMyFamilyPlusURL(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "myfamilyplus" else {
+            return false
+        }
+
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let host = url.host?.lowercased()
+        let path = url.path.lowercased()
+        let action = components?.queryItems?.first(where: { $0.name.lowercased() == "action" })?.value?.lowercased()
+
+        guard host == "quick-micro" || path == "/quick-micro" || action == "open-micro" else {
+            return false
+        }
+
+        UserDefaults.standard.set(true, forKey: "mf_pending_quick_micro_native")
+        NotificationCenter.default.post(name: .myFamilyPlusQuickMicroRequested, object: nil)
+        return true
     }
 
 }
