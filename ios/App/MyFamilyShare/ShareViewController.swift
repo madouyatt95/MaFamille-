@@ -85,9 +85,9 @@ final class ShareViewController: UIViewController {
         components.queryItems = [
             URLQueryItem(name: "action", value: "share-intake"),
             URLQueryItem(name: "target", value: kind),
-            URLQueryItem(name: "title", value: title),
-            URLQueryItem(name: "text", value: text),
-            URLQueryItem(name: "url", value: url)
+            URLQueryItem(name: "title", value: clipped(title, maxLength: 90)),
+            URLQueryItem(name: "text", value: clipped(text, maxLength: 1200)),
+            URLQueryItem(name: "url", value: clipped(url, maxLength: 500))
         ]
 
         guard let deepLink = components.url else {
@@ -95,9 +95,39 @@ final class ShareViewController: UIViewController {
             return
         }
 
-        extensionContext?.open(deepLink) { _ in
-            self.extensionContext?.completeRequest(returningItems: nil)
+        statusLabel.text = "Ouverture de MyFamily+..."
+        extensionContext?.open(deepLink) { success in
+            if success {
+                self.extensionContext?.completeRequest(returningItems: nil)
+                return
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                let opened = self.openDeepLinkThroughResponderChain(deepLink)
+                self.statusLabel.text = opened ? "MyFamily+ s’ouvre..." : "Touchez MyFamily+ depuis l’écran d’accueil."
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                    self.extensionContext?.completeRequest(returningItems: nil)
+                }
+            }
         }
+    }
+
+    private func clipped(_ value: String, maxLength: Int) -> String {
+        guard value.count > maxLength else { return value }
+        return String(value.prefix(maxLength))
+    }
+
+    private func openDeepLinkThroughResponderChain(_ url: URL) -> Bool {
+        let selector = NSSelectorFromString("openURL:")
+        var responder: UIResponder? = self
+        while let currentResponder = responder {
+            if currentResponder.responds(to: selector) {
+                currentResponder.perform(selector, with: url)
+                return true
+            }
+            responder = currentResponder.next
+        }
+        return false
     }
 
     private func kindFor(url: URL) -> String {
