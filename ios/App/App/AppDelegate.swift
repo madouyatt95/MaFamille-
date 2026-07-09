@@ -74,11 +74,27 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let path = url.path.lowercased()
         let action = components?.queryItems?.first(where: { $0.name.lowercased() == "action" })?.value?.lowercased()
 
-        guard host == "quick-micro" || path == "/quick-micro" || action == "open-micro" else {
+        let allowedActions: Set<String> = [
+            "open-micro",
+            "paid",
+            "add-expense",
+            "scan-receipt",
+            "scan-homework",
+            "add-grocery",
+            "arrival-home",
+            "arrival-store",
+            "arrival-school"
+        ]
+
+        guard host == "quick-micro" || path == "/quick-micro" || action == "open-micro" || (action != nil && allowedActions.contains(action!)) else {
             return false
         }
 
-        UserDefaults.standard.set(true, forKey: "mf_pending_quick_micro_native")
+        if host == "quick-micro" || path == "/quick-micro" || action == "open-micro" {
+            UserDefaults.standard.set(true, forKey: "mf_pending_quick_micro_native")
+        } else if let action = action {
+            UserDefaults.standard.set(action, forKey: "mf_pending_quick_action_native")
+        }
         NotificationCenter.default.post(name: .myFamilyPlusQuickMicroRequested, object: nil)
         return true
     }

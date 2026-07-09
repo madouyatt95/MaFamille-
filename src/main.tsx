@@ -14,7 +14,7 @@ if ('serviceWorker' in navigator) {
   });
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js?v=20260625-landing', { scope: '/', updateViaCache: 'none' })
+    navigator.serviceWorker.register('/sw.js?v=20260709-quick-actions', { scope: '/', updateViaCache: 'none' })
       .then(reg => {
         console.log('Service Worker registered successfully on scope:', reg.scope);
         void reg.update();

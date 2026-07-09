@@ -75,7 +75,7 @@ messaging.onBackgroundMessage((payload) => {
 });
 
 // PARTIE CACHING PWA
-const CACHE_NAME = 'myfamily-plus-cache-v6';
+const CACHE_NAME = 'myfamily-plus-cache-v7-quick-actions';
 const ASSETS_TO_CACHE = [
   '/',
   '/app',
@@ -164,7 +164,7 @@ self.addEventListener('fetch', (event) => {
         files,
         receivedAt: new Date().toISOString()
       });
-      return Response.redirect(`/app?action=share-receipt&shareId=${encodeURIComponent(id)}`, 303);
+      return Response.redirect(`/app?action=share-intake&shareId=${encodeURIComponent(id)}`, 303);
     })());
     return;
   }

@@ -80,11 +80,116 @@ type DbRow = Record<string, LooseValue>;
 type DbRows = LooseValue[];
 const QUICK_MICRO_PENDING_KEY = 'mf_pending_quick_micro';
 
+type SystemQuickAction =
+  | 'open-micro'
+  | 'add-expense'
+  | 'paid'
+  | 'scan-receipt'
+  | 'scan-homework'
+  | 'add-grocery'
+  | 'share-receipt'
+  | 'share-intake'
+  | 'arrival-home'
+  | 'arrival-store'
+  | 'arrival-school';
+
+type SharedIntakeTarget = 'budget' | 'homework' | 'vault' | 'agenda' | 'trip' | 'groceries' | 'memory';
+
+interface SharedIntakePayload {
+  id: string;
+  title?: string;
+  text?: string;
+  url?: string;
+  files?: File[];
+  receivedAt?: string;
+  suggestedTarget: SharedIntakeTarget;
+  suggestedTitle: string;
+  summary: string;
+}
+
 const isQuickMicroUrl = (): boolean => {
   if (typeof window === 'undefined') return false;
   const params = new URLSearchParams(window.location.search);
   return window.location.pathname.startsWith('/quick-micro') || params.get('action') === 'open-micro';
 };
+
+const normalizeSharedText = (payload: Partial<SharedIntakePayload>): string => (
+  `${payload.title || ''} ${payload.text || ''} ${payload.url || ''}`
+).toLowerCase();
+
+const guessSharedIntakeTarget = (payload: Partial<SharedIntakePayload>, forced?: string | null): SharedIntakeTarget => {
+  if (forced === 'budget' || forced === 'receipt') return 'budget';
+  if (forced === 'homework' || forced === 'school') return 'homework';
+  if (forced === 'vault' || forced === 'document') return 'vault';
+  if (forced === 'agenda' || forced === 'event') return 'agenda';
+  if (forced === 'trip' || forced === 'travel') return 'trip';
+  if (forced === 'groceries' || forced === 'shopping') return 'groceries';
+  if (forced === 'memory' || forced === 'souvenir') return 'memory';
+
+  const text = normalizeSharedText(payload);
+  const fileTypes = (payload.files || []).map(file => `${file.type || ''} ${file.name || ''}`.toLowerCase()).join(' ');
+  const all = `${text} ${fileTypes}`;
+
+  if (/ticket|reçu|recu|facture|montant|total|cb|carte bancaire|paiement|receipt|invoice/.test(all)) return 'budget';
+  if (/devoir|exercice|leçon|lecon|math|français|francais|histoire|géographie|geographie|cahier|classe|prof|rendre/.test(all)) return 'homework';
+  if (/pdf|attestation|document|certificat|ordonnance|assurance|contrat|identité|identite|passeport|justificatif/.test(all)) return 'vault';
+  if (/réservation|reservation|vol|hotel|hôtel|train|booking|billet|voyage|départ|depart|arrivée|arrivee/.test(all)) return 'trip';
+  if (/rdv|rendez-vous|agenda|calendrier|événement|evenement|date|invitation/.test(all)) return 'agenda';
+  if (/courses|liste|acheter|produit|panier|supermarché|supermarche|drive|lait|pain|couches/.test(all)) return 'groceries';
+  if ((payload.files || []).some(file => (file.type || '').startsWith('image/'))) return 'memory';
+  return 'vault';
+};
+
+const sharedTargetLabel = (target: SharedIntakeTarget): string => ({
+  budget: 'Budget',
+  homework: 'Devoir',
+  vault: 'Coffre-fort',
+  agenda: 'Agenda',
+  trip: 'Voyage',
+  groceries: 'Courses',
+  memory: 'Souvenir'
+}[target]);
+
+const buildSharedIntakePayload = (payload: LooseValue, forced?: string | null): SharedIntakePayload => {
+  const target = guessSharedIntakeTarget(payload || {}, forced);
+  const fileCount = Array.isArray(payload?.files) ? payload.files.length : 0;
+  const rawTitle = String(payload?.title || '').trim();
+  const rawText = String(payload?.text || payload?.url || '').trim();
+  const fallbackTitle = fileCount > 0 ? `${fileCount} fichier${fileCount > 1 ? 's' : ''} partagé${fileCount > 1 ? 's' : ''}` : 'Contenu partagé';
+  const suggestedTitle = rawTitle || rawText.slice(0, 72) || fallbackTitle;
+  const summaryParts = [
+    fileCount > 0 ? `${fileCount} pièce${fileCount > 1 ? 's' : ''} jointe${fileCount > 1 ? 's' : ''}` : '',
+    rawText ? rawText.slice(0, 140) : '',
+    payload?.url ? String(payload.url).slice(0, 90) : ''
+  ].filter(Boolean);
+  return {
+    id: String(payload?.id || `shared-${Date.now()}`),
+    title: rawTitle,
+    text: rawText,
+    url: payload?.url || '',
+    files: Array.isArray(payload?.files) ? payload.files : [],
+    receivedAt: payload?.receivedAt || new Date().toISOString(),
+    suggestedTarget: target,
+    suggestedTitle,
+    summary: summaryParts.join(' · ') || 'MyFamily+ va préparer l’action, puis vous validez avant enregistrement.'
+  };
+};
+
+const extractAmountFromSharedText = (text: string): number | null => {
+  const match = text.replace(',', '.').match(/(\d+(?:\.\d{1,2})?)\s*(?:€|eur|euro|euros|fcfa|xof)?/i);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+};
+
+const splitSharedListItems = (text: string): string[] => (
+  text
+    .replace(/^(ajoute|acheter|courses|liste|produits?)\s*:?/i, '')
+    .split(/[,;\n•]+/)
+    .map(item => item.trim())
+    .filter(item => item.length > 1)
+    .slice(0, 30)
+);
 
 const FOYER_TABLE_COLUMNS = {
   events: 'id, foyer_id, title, type, date_time, time, member_id, member_name, location, description, done, amount',
@@ -992,6 +1097,8 @@ function App() {
   const [activeModule, rawSetActiveModule] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+  const [sharedIntake, setSharedIntake] = useState<SharedIntakePayload | null>(null);
+  const [sharedIntakeTarget, setSharedIntakeTarget] = useState<SharedIntakeTarget>('vault');
   const isNativeApp = Capacitor.isNativePlatform();
   const [pendingQuickMicro, setPendingQuickMicro] = useState(() => {
     const requested = isQuickMicroUrl();
@@ -2521,8 +2628,10 @@ function App() {
     const groupIdParam = params.get('groupId');
     const actionParam = params.get('action');
     const shareIdParam = params.get('shareId');
+    const shareKindParam = params.get('kind') || params.get('target');
     const joinParam = params.get('join')?.trim().toUpperCase() || '';
     const shouldOpenQuickMicro = window.location.pathname.startsWith('/quick-micro') || actionParam === 'open-micro';
+    const normalizedAction = (actionParam || '') as SystemQuickAction | '';
 
     const readSharedPayload = (shareId: string): Promise<LooseValue | null> => new Promise((resolve) => {
       const request = indexedDB.open('myfamily-plus-share-target', 1);
@@ -2584,32 +2693,97 @@ function App() {
       setAlertsPanelOpen(false);
     }
     
-    if (actionParam === 'add-expense') {
+    if (normalizedAction === 'add-expense') {
       setActiveTab('budget');
       setActiveModule('');
       setQuickActionsOpen(true);
-    } else if (actionParam === 'share-receipt') {
+    } else if (normalizedAction === 'paid') {
+      try {
+        sessionStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
+        localStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
+      } catch {
+        // The pending React state is enough for this launch.
+      }
       setActiveTab('budget');
       setActiveModule('');
-      setQuickActionsOpen(true);
+      setPendingQuickMicro(true);
+      setQuickActionsOpen(false);
+    } else if (normalizedAction === 'add-grocery') {
+      try {
+        sessionStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
+        localStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
+      } catch {
+        // The pending React state is enough for this launch.
+      }
+      setActiveTab('menu');
+      setActiveModule('courses');
+      setPendingQuickMicro(true);
+      setQuickActionsOpen(false);
+    } else if (normalizedAction === 'scan-homework') {
+      setActiveTab('menu');
+      setActiveModule('ecole');
+      setSharedIntake(buildSharedIntakePayload({
+        id: `scan-homework-${Date.now()}`,
+        title: 'Scanner un devoir',
+        text: 'Ajoutez une photo ou une capture du devoir, puis validez la matière et la date avant enregistrement.',
+        files: []
+      }, 'homework'));
+      setSharedIntakeTarget('homework');
+    } else if (normalizedAction === 'scan-receipt') {
+      setActiveTab('budget');
+      setActiveModule('');
+      setSharedIntake(buildSharedIntakePayload({
+        id: `scan-receipt-${Date.now()}`,
+        title: 'Scanner un ticket',
+        text: 'Prenez ou partagez la photo du ticket, puis validez le montant, le compte et la catégorie avant enregistrement.',
+        files: []
+      }, 'receipt'));
+      setSharedIntakeTarget('budget');
+    } else if (normalizedAction === 'arrival-home') {
+      setActiveTab('accueil');
+      setActiveModule('');
+      setAlertsPanelOpen(true);
+      setActiveToast({ title: 'Retour maison', description: 'Vue familiale, rappels et alertes du soir sont prêts.' });
+    } else if (normalizedAction === 'arrival-store') {
+      setActiveTab('menu');
+      setActiveModule('courses');
+      setActiveToast({ title: 'Courses à proximité', description: 'La liste restante est prête à être consultée.' });
+    } else if (normalizedAction === 'arrival-school') {
+      setActiveTab('menu');
+      setActiveModule('ecole');
+      setActiveToast({ title: 'École', description: 'Devoirs, agenda scolaire et événements utiles sont ouverts.' });
+    } else if (normalizedAction === 'share-receipt' || normalizedAction === 'share-intake') {
+      setActiveTab('budget');
+      setActiveModule('');
       if (shareIdParam) {
         readSharedPayload(shareIdParam).then((payload) => {
-          const fileCount = Array.isArray(payload?.files) ? payload.files.length : 0;
-          const hasText = !!(payload?.text || payload?.url || payload?.title);
-          setTimeout(() => {
-            alert(
-              fileCount > 0
-                ? `📷 ${fileCount} fichier(s) partagé(s) reçu(s). Ouvrez l'ajout de dépense pour les joindre.`
-                : hasText
-                ? "🔗 Contenu partagé reçu. Le budget est prêt pour l'ajouter."
-                : "📷 Partage reçu. Le budget est prêt."
-            );
-          }, 500);
+          const next = buildSharedIntakePayload(payload || { id: shareIdParam }, shareKindParam || (normalizedAction === 'share-receipt' ? 'receipt' : null));
+          setSharedIntake(next);
+          setSharedIntakeTarget(next.suggestedTarget);
+          if (next.suggestedTarget === 'homework') {
+            setActiveTab('menu');
+            setActiveModule('ecole');
+          } else if (next.suggestedTarget === 'vault') {
+            setActiveTab('menu');
+            setActiveModule('documents');
+          } else if (next.suggestedTarget === 'trip') {
+            setActiveTab('menu');
+            setActiveModule('voyages');
+          } else if (next.suggestedTarget === 'agenda') {
+            setActiveTab('menu');
+            setActiveModule('agenda');
+          } else if (next.suggestedTarget === 'groceries') {
+            setActiveTab('menu');
+            setActiveModule('courses');
+          } else if (next.suggestedTarget === 'memory') {
+            setActiveTab('menu');
+            setActiveModule('capsule');
+          }
         });
       } else {
-        setTimeout(() => {
-          alert("📷 Partage reçu. Le budget est prêt.");
-        }, 500);
+        const next = buildSharedIntakePayload({ id: `shared-${Date.now()}`, title: 'Contenu partagé' }, shareKindParam);
+        setSharedIntake(next);
+        setSharedIntakeTarget(next.suggestedTarget);
       }
     }
     
@@ -10717,6 +10891,155 @@ function App() {
     }
   };
 
+  const openSharedIntakeTarget = (target: SharedIntakeTarget = sharedIntakeTarget) => {
+    if (target === 'budget') {
+      setActiveTab('budget');
+      setActiveModule('');
+      setQuickActionsOpen(true);
+    } else if (target === 'homework') {
+      setActiveTab('menu');
+      setActiveModule('ecole');
+    } else if (target === 'vault') {
+      setActiveTab('menu');
+      setActiveModule('documents');
+    } else if (target === 'agenda') {
+      setActiveTab('menu');
+      setActiveModule('agenda');
+    } else if (target === 'trip') {
+      setActiveTab('menu');
+      setActiveModule('voyages');
+    } else if (target === 'groceries') {
+      setActiveTab('menu');
+      setActiveModule('courses');
+    } else if (target === 'memory') {
+      setActiveTab('menu');
+      setActiveModule('capsule');
+    }
+  };
+
+  const handleConfirmSharedIntake = async () => {
+    if (!sharedIntake) return;
+    const target = sharedIntakeTarget;
+    const combinedText = `${sharedIntake.title || ''}\n${sharedIntake.text || ''}\n${sharedIntake.url || ''}`.trim();
+    const todayISO = new Date().toISOString().split('T')[0];
+
+    if (target === 'budget') {
+      const amount = extractAmountFromSharedText(combinedText);
+      if (amount) {
+        await handleAddTransaction({
+          title: sharedIntake.suggestedTitle || 'Dépense importée',
+          amount,
+          type: 'expense',
+          category: 'Divers',
+          subCategory: 'Import rapide',
+          date: todayISO,
+          memberId: activeMemberId,
+          memberName: members.find(member => member.id === activeMemberId)?.name || 'Famille',
+          moduleSource: 'partage',
+          comment: `Préparé depuis un raccourci MyFamily+${combinedText ? `\n${combinedText.slice(0, 300)}` : ''}`
+        });
+        setActiveToast({ title: 'Dépense ajoutée', description: `${amount.toFixed(2)} € enregistrés depuis le partage.` });
+      } else {
+        openSharedIntakeTarget('budget');
+        setActiveToast({ title: 'Ticket reçu', description: 'Ajoutez le montant et le compte avant validation.' });
+      }
+    } else if (target === 'homework') {
+      const student = members.find(member => {
+        const role = (member.role || '').toLowerCase();
+        const age = parseInt(member.age || '0', 10);
+        return role.includes('enfant') || role.includes('ado') || (age > 0 && age < 18);
+      }) || members.find(member => member.id === activeMemberId);
+      const subjectMatch = combinedText.match(/(maths?|français|francais|anglais|histoire|géographie|geographie|svt|physique|chimie|espagnol)/i);
+      const newTask: SchoolTask = {
+        id: `sch-share-${Date.now()}`,
+        subject: subjectMatch ? subjectMatch[1] : 'Devoir',
+        title: sharedIntake.suggestedTitle || 'Devoir importé',
+        dueDate: todayISO,
+        done: false,
+        assignedMemberId: student?.id || activeMemberId || '',
+        difficulty: 'medium',
+        grade: ''
+      };
+      setSchoolTasks(prev => [...prev, newTask]);
+      const client = getSupabaseClient();
+      if (client && foyer?.id) {
+        try {
+          await client.from('school_tasks').insert({
+            id: newTask.id,
+            foyer_id: foyer.id,
+            subject: newTask.subject,
+            title: newTask.title,
+            due_date: newTask.dueDate,
+            done: false,
+            assigned_member_id: newTask.assignedMemberId,
+            difficulty: newTask.difficulty,
+            grade: ''
+          });
+        } catch (err) {
+          console.error('Error inserting shared homework:', err);
+        }
+      }
+      setActiveToast({ title: 'Devoir ajouté', description: `Devoir préparé pour ${student?.name || 'un enfant'}.` });
+      openSharedIntakeTarget('homework');
+    } else if (target === 'groceries') {
+      const items = splitSharedListItems(combinedText);
+      if (items.length > 0) {
+        const addedBy = members.find(member => member.id === activeMemberId)?.name || 'Famille';
+        const nextItems: GroceryItem[] = items.map((name, index) => ({
+          id: `g-share-${Date.now()}-${index}`,
+          name,
+          category: 'Import rapide',
+          quantity: '1',
+          checked: false,
+          inStock: false,
+          addedBy
+        }));
+        setGroceries(prev => [...nextItems, ...prev]);
+        const client = getSupabaseClient();
+        if (client && foyer?.id) {
+          try {
+            await client.from('groceries').insert(nextItems.map(item => ({
+              id: item.id,
+              foyer_id: foyer.id,
+              name: item.name,
+              category: item.category,
+              quantity: item.quantity,
+              checked: false,
+              in_stock: false,
+              added_by: item.addedBy || null,
+              is_favorite: false
+            })));
+          } catch (err) {
+            console.error('Error inserting shared groceries:', err);
+          }
+        }
+        setActiveToast({ title: 'Courses ajoutées', description: `${items.length} article${items.length > 1 ? 's' : ''} ajouté${items.length > 1 ? 's' : ''}.` });
+      } else {
+        setActiveToast({ title: 'Liste reçue', description: 'Ouvrez les courses pour compléter les articles.' });
+      }
+      openSharedIntakeTarget('groceries');
+    } else if (target === 'agenda') {
+      await handleAddEvent({
+        title: sharedIntake.suggestedTitle || 'Événement importé',
+        type: 'other',
+        dateTime: `${todayISO}T09:00:00`,
+        time: '09:00',
+        description: combinedText || 'Ajouté depuis un partage MyFamily+',
+        done: false
+      });
+      setActiveToast({ title: 'Événement ajouté', description: 'Vérifiez la date et l’heure dans l’agenda.' });
+      openSharedIntakeTarget('agenda');
+    } else {
+      openSharedIntakeTarget(target);
+      setActiveToast({
+        title: `${sharedTargetLabel(target)} prêt`,
+        description: 'Le bon module est ouvert. Vérifiez puis enregistrez depuis l’écran dédié.'
+      });
+    }
+
+    setSharedIntake(null);
+  };
+
   const handleAddTask = (newTask: LooseValue) => {
     const id = `tk-${Date.now()}`;
     setTasks(prev => [{ ...newTask, id }, ...prev]);
@@ -15496,6 +15819,89 @@ function App() {
       {voiceToast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-full bg-slate-900/95 backdrop-blur-md border border-emerald-500/30 text-emerald-400 text-xs font-bold shadow-[0_8px_32px_rgba(0,210,106,0.15)] flex items-center gap-2 animate-fade-in whitespace-nowrap">
           <span>✨</span> {voiceToast}
+        </div>
+      )}
+
+      {sharedIntake && (
+        <div className="fixed inset-0 z-[9998] flex items-end justify-center bg-[#020713]/70 px-4 pb-4 pt-10 text-white backdrop-blur-md sm:items-center">
+          <div className="w-full max-w-md overflow-hidden rounded-[32px] border border-white/12 bg-[#101827]/95 shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
+            <div className="border-b border-white/8 bg-gradient-to-br from-[#6C5CFF]/25 via-white/5 to-[#00D26A]/10 p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#9E94FF]">Action rapide MyFamily+</p>
+                  <h3 className="mt-2 text-xl font-black leading-tight text-white">{sharedIntake.suggestedTitle}</h3>
+                  <p className="mt-2 text-xs font-semibold leading-relaxed text-white/58">{sharedIntake.summary}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSharedIntake(null)}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/5 text-white/60 transition hover:text-white"
+                  aria-label="Fermer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-4 p-5">
+              <div>
+                <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-white/45">Préparer dans</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['budget', 'homework', 'vault', 'agenda', 'trip', 'groceries', 'memory'] as SharedIntakeTarget[]).map(target => (
+                    <button
+                      key={target}
+                      type="button"
+                      onClick={() => setSharedIntakeTarget(target)}
+                      className={`rounded-2xl border px-3 py-3 text-left text-xs font-black transition ${
+                        sharedIntakeTarget === target
+                          ? 'border-[#6C5CFF] bg-[#6C5CFF]/25 text-white shadow-[0_8px_24px_rgba(108,92,255,0.22)]'
+                          : 'border-white/8 bg-white/5 text-white/55 hover:bg-white/8 hover:text-white'
+                      }`}
+                    >
+                      {sharedTargetLabel(target)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {sharedIntake.files && sharedIntake.files.length > 0 && (
+                <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Pièces reçues</p>
+                  <div className="mt-2 space-y-1">
+                    {sharedIntake.files.slice(0, 4).map((file, index) => (
+                      <p key={`${file.name}-${index}`} className="truncate text-xs font-bold text-white/70">
+                        {file.name || `Fichier ${index + 1}`} · {file.type || 'fichier'}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-2xl border border-[#00D26A]/15 bg-[#00D26A]/8 p-3 text-[11px] font-semibold leading-relaxed text-white/62">
+                Rien n’est enregistré sans validation. Si une information manque, MyFamily+ ouvre le module concerné pour compléter.
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    openSharedIntakeTarget(sharedIntakeTarget);
+                    setSharedIntake(null);
+                  }}
+                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black text-white/70 transition hover:bg-white/10 hover:text-white"
+                >
+                  Ouvrir seulement
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleConfirmSharedIntake()}
+                  className="rounded-2xl bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] px-4 py-3 text-xs font-black text-white shadow-[0_10px_32px_rgba(108,92,255,0.35)] transition active:scale-[0.98]"
+                >
+                  Valider
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
