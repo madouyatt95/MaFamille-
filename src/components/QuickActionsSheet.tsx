@@ -13,7 +13,7 @@ import {
   Loader
 } from 'lucide-react';
 import type { ChoreTask, FamilyEvent, Member, EventType, Transaction, TransactionType } from '../types';
-import { aiQuotaService } from '../services/aiQuotaService';
+import { parseReceiptText, recognizeImageText } from '../utils/localOcr';
 
 interface QuickActionsSheetProps {
   isOpen: boolean;
@@ -32,19 +32,6 @@ type AddTab = 'event' | 'transaction' | 'task' | 'document' | 'member';
 type QuickEventInput = Omit<FamilyEvent, 'id'> & { id?: string };
 type QuickTransactionInput = Omit<Transaction, 'id'> & { id?: string };
 type QuickTaskInput = Omit<ChoreTask, 'id'> & { id?: string };
-type GeminiReceipt = {
-  merchant?: string;
-  amount?: number | string;
-  category?: string;
-};
-type GeminiResponse = {
-  candidates?: Array<{
-    content?: {
-      parts?: Array<{ text?: string }>;
-    };
-  }>;
-};
-
 export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   isOpen,
   onClose,
@@ -60,7 +47,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   const [activeTab, setActiveTab] = useState<AddTab>('event');
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // Gemini AI OCR Receipt scanner state
+  // Local OCR receipt scanner state
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -78,76 +65,18 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
     setOcrError('');
 
     try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        try {
-          const base64Data = (reader.result as string).split(',')[1];
-          const mimeType = file.type || 'image/jpeg';
-          
-          const geminiEndpoint = import.meta.env.DEV ? 'https://myfamilyplus.fr/api/gemini' : '/api/gemini';
-
-          const requestBody = {
-            contents: [
-              {
-                parts: [
-                  {
-                    text: "Analyse ce ticket de caisse et renvoie uniquement un objet JSON valide (SANS blocs de code markdown ```json, SANS texte autour) contenant exactement ces clés : 'merchant' (nom du magasin/titre de l'achat), 'amount' (montant total en nombre décimal, ex: 12.50), 'category' (parmi: 'Alimentation', 'Logement', 'Transport', 'Santé', 'Éducation', 'Loisirs', 'Divers')."
-                  },
-                  {
-                    inlineData: {
-                      mimeType: mimeType,
-                      data: base64Data
-                    }
-                  }
-                ]
-              }
-            ],
-            generationConfig: {
-              responseMimeType: "application/json"
-            }
-          };
-
-          const headers = await aiQuotaService.getAIProxyHeaders();
-
-          const response = await fetch(geminiEndpoint, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(requestBody)
-          });
-
-          if (!response.ok) {
-            throw await aiQuotaService.getAIResponseError(response, 'Gemini');
-          }
-
-          const result = await response.json() as GeminiResponse;
-          const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
-          
-          if (textResponse) {
-            const cleanJsonText = textResponse.replace(/```json/i, '').replace(/```/g, '').trim();
-            const parsedData = JSON.parse(cleanJsonText) as GeminiReceipt;
-            
-            if (parsedData.merchant) setTransTitle(parsedData.merchant);
-            if (parsedData.amount) setTransAmount(String(parsedData.amount));
-            if (parsedData.category) setTransCat(parsedData.category);
-          } else {
-            throw new Error("L'IA n'a pas pu extraire de texte du ticket.");
-          }
-        } catch (err: unknown) {
-          console.error("OCR Extraction error:", err);
-          setOcrError(`${aiQuotaService.getFallbackDescription(err)} Vous pouvez saisir le ticket manuellement.`);
-        } finally {
-          setOcrLoading(false);
-        }
-      };
-
-      reader.onerror = () => {
-        setOcrError("Impossible de lire le fichier de l'image.");
-        setOcrLoading(false);
-      };
-
-      reader.readAsDataURL(file);
-    } catch {
-      setOcrError("Erreur lors de la préparation de l'image.");
+      const text = await recognizeImageText(file);
+      const receipt = parseReceiptText(text);
+      if (receipt.merchant) setTransTitle(receipt.merchant);
+      if (receipt.amount) setTransAmount(String(receipt.amount));
+      if (receipt.category) setTransCat(receipt.category);
+      if (!receipt.amount && !receipt.merchant) {
+        setOcrError("Texte lu, mais montant introuvable. Vous pouvez compléter manuellement.");
+      }
+    } catch (err) {
+      console.error("Local OCR extraction error:", err);
+      setOcrError("Lecture locale impossible. Vous pouvez saisir le ticket manuellement.");
+    } finally {
       setOcrLoading(false);
     }
   };
@@ -457,18 +386,18 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
               {/* Transaction Form */}
               {activeTab === 'transaction' && (
                 <form onSubmit={handleTransactionSubmit} className="space-y-4">
-                  {/* AI Ticket Scan Section */}
+                  {/* Local ticket scan section */}
                   <div className="p-4 rounded-2xl bg-gradient-to-r from-[#6C5CFF]/10 to-[#4F8CFF]/10 border border-[#6C5CFF]/25 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <Sparkles className="w-4 h-4 text-[#6C5CFF] animate-pulse" />
-                        <span className="text-xs font-black text-white uppercase tracking-wider">Scanner Intelligent IA</span>
+                        <span className="text-xs font-black text-white uppercase tracking-wider">Scanner local</span>
                       </div>
-                      <span className="text-[10px] text-white/40 font-semibold uppercase">Propulsé par Gemini</span>
+                      <span className="text-[10px] text-white/40 font-semibold uppercase">Sans envoi serveur</span>
                     </div>
                     
                     <p className="text-[11px] text-white/60 leading-normal">
-                      Scannez ou importez une photo de votre ticket de caisse. Notre IA en extraira automatiquement le montant, le marchand et la catégorie !
+                      Scannez ou importez une photo du ticket. MyFamily+ lit le texte sur l’appareil, puis vous validez avant l’ajout.
                     </p>
 
                     <input 
@@ -482,7 +411,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
                     {ocrLoading ? (
                       <div className="py-3 flex items-center justify-center space-x-2 text-xs font-bold text-[#6C5CFF] bg-[#6C5CFF]/5 border border-[#6C5CFF]/20 rounded-xl">
                         <Loader className="w-3.5 h-3.5 animate-spin" />
-                        <span>Analyse du ticket par Gemini...</span>
+                        <span>Lecture locale du ticket...</span>
                       </div>
                     ) : (
                       <button

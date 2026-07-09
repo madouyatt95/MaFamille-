@@ -20,6 +20,7 @@
 		9A1000012FC9000000000001 /* BridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1000032FC9000000000003 /* BridgeViewController.swift */; };
 		9A1000022FC9000000000002 /* NativeSpeechPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1000042FC9000000000004 /* NativeSpeechPlugin.swift */; };
 		9A1000052FC9000000000005 /* AppStoreBillingPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1000062FC9000000000006 /* AppStoreBillingPlugin.swift */; };
+		9A1000082FC9000000000008 /* LocalOcrPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1000092FC9000000000009 /* LocalOcrPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -37,6 +38,7 @@
 		9A1000032FC9000000000003 /* BridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeViewController.swift; sourceTree = "<group>"; };
 		9A1000042FC9000000000004 /* NativeSpeechPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeSpeechPlugin.swift; sourceTree = "<group>"; };
 		9A1000062FC9000000000006 /* AppStoreBillingPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreBillingPlugin.swift; sourceTree = "<group>"; };
+		9A1000092FC9000000000009 /* LocalOcrPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalOcrPlugin.swift; sourceTree = "<group>"; };
 		9A1000072FC9000000000007 /* MyFamilyPlus.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = MyFamilyPlus.storekit; sourceTree = "<group>"; };
 		B6A561C7CC2BB430A4574808 /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -80,6 +82,7 @@
 				9A1000032FC9000000000003 /* BridgeViewController.swift */,
 				9A1000042FC9000000000004 /* NativeSpeechPlugin.swift */,
 				9A1000062FC9000000000006 /* AppStoreBillingPlugin.swift */,
+				9A1000092FC9000000000009 /* LocalOcrPlugin.swift */,
 				9A1000072FC9000000000007 /* MyFamilyPlus.storekit */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -180,6 +183,7 @@
 				9A1000012FC9000000000001 /* BridgeViewController.swift in Sources */,
 				9A1000022FC9000000000002 /* NativeSpeechPlugin.swift in Sources */,
 				9A1000052FC9000000000005 /* AppStoreBillingPlugin.swift in Sources */,
+				9A1000082FC9000000000008 /* LocalOcrPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -322,7 +326,7 @@
 				CODE_SIGN_ENTITLEMENTS = App/AppDebug.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 7384RARK23;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
@@ -350,7 +354,7 @@
 				CODE_SIGN_ENTITLEMENTS = App/AppRelease.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 7384RARK23;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";

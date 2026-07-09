@@ -1,11 +1,12 @@
 /* eslint-disable react-hooks/immutability, react-hooks/purity, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect, react-hooks/preserve-manual-memoization -- App.tsx is still a legacy monolith. These rules are tracked in docs/lint_cleanup_remaining.md for a dedicated refactor. */
 import { lazy, Suspense, useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import type { Dispatch, SetStateAction } from 'react';
+import type { ChangeEvent, Dispatch, SetStateAction } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import type { User } from '@supabase/supabase-js';
 import { getConfiguredSupabaseAnonKey, getConfiguredSupabaseUrl } from './config/supabaseConfig';
 import { getGroceryItemEmoji } from './utils/groceryDisplay';
+import { parseHomeworkText, parseReceiptText, recognizeImageText } from './utils/localOcr';
 
 
 import { parseChoreTitle, serializeChoreTitle, parsePocketMoneyTitle, serializePocketMoneyTitle } from './types';
@@ -323,7 +324,7 @@ import { getUnifiedEvents } from './utils/agendaHelper';
 import { buildSmartFamilyAlerts, defaultSmartFamilyPreferences, type SmartFamilyPreferences } from './utils/smartFamily';
 import type { GlobalSearchResult } from './utils/globalSearch';
 import type { ExternalEvent } from './utils/icalParser';
-import { Volume2, Mic, Bell, X, ChevronRight, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check, Star, ArrowLeft, Crown } from 'lucide-react';
+import { Volume2, Mic, Bell, X, ChevronRight, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check, Star, ArrowLeft, Crown, Camera, Loader } from 'lucide-react';
 
 const Accueil = lazy(() => import('./views/Accueil').then(module => ({ default: module.Accueil })));
 const Timeline = lazy(() => import('./views/Timeline').then(module => ({ default: module.Timeline })));
@@ -1099,6 +1100,9 @@ function App() {
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [sharedIntake, setSharedIntake] = useState<SharedIntakePayload | null>(null);
   const [sharedIntakeTarget, setSharedIntakeTarget] = useState<SharedIntakeTarget>('vault');
+  const [sharedOcrLoading, setSharedOcrLoading] = useState(false);
+  const [sharedOcrError, setSharedOcrError] = useState('');
+  const sharedOcrInputRef = useRef<HTMLInputElement>(null);
   const isNativeApp = Capacitor.isNativePlatform();
   const [pendingQuickMicro, setPendingQuickMicro] = useState(() => {
     const requested = isQuickMicroUrl();
@@ -10917,6 +10921,52 @@ function App() {
     }
   };
 
+  const handleSharedOcrFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !sharedIntake) return;
+    if (!file.type.startsWith('image/')) {
+      setSharedOcrError('Choisissez une photo ou une image lisible.');
+      return;
+    }
+
+    setSharedOcrLoading(true);
+    setSharedOcrError('');
+    try {
+      const text = await recognizeImageText(file);
+      if (!text.trim()) {
+        setSharedOcrError('Aucun texte détecté. Essayez une photo plus nette.');
+        return;
+      }
+
+      const target = sharedIntakeTarget === 'homework' ? 'homework' : sharedIntakeTarget === 'budget' ? 'budget' : guessSharedIntakeTarget({ text, files: [file] });
+      const receipt = target === 'budget' ? parseReceiptText(text) : null;
+      const homework = target === 'homework' ? parseHomeworkText(text) : null;
+      const detectedSummary = receipt
+        ? `${receipt.merchant}${receipt.amount ? ` · ${receipt.amount.toFixed(2)} €` : ''} · ${receipt.category}`
+        : homework
+          ? `${homework.subject} · ${homework.title}`
+          : text.slice(0, 160);
+
+      setSharedIntake({
+        ...sharedIntake,
+        title: receipt?.merchant || homework?.title || sharedIntake.title || file.name,
+        text: `${sharedIntake.text || ''}\n\nTexte OCR local :\n${text}`.trim(),
+        files: [file, ...(sharedIntake.files || [])],
+        suggestedTarget: target,
+        suggestedTitle: receipt?.merchant || homework?.title || sharedIntake.suggestedTitle,
+        summary: detectedSummary
+      });
+      setSharedIntakeTarget(target);
+      setActiveToast({ title: 'Lecture terminée', description: 'Le texte a été lu sur l’appareil. Vérifiez avant validation.' });
+    } catch (err) {
+      console.error('Shared local OCR error:', err);
+      setSharedOcrError('Lecture locale impossible. Vous pouvez ouvrir le module et saisir manuellement.');
+    } finally {
+      setSharedOcrLoading(false);
+    }
+  };
+
   const handleConfirmSharedIntake = async () => {
     if (!sharedIntake) return;
     const target = sharedIntakeTarget;
@@ -10924,15 +10974,16 @@ function App() {
     const todayISO = new Date().toISOString().split('T')[0];
 
     if (target === 'budget') {
-      const amount = extractAmountFromSharedText(combinedText);
+      const receipt = parseReceiptText(combinedText);
+      const amount = receipt.amount || extractAmountFromSharedText(combinedText);
       if (amount) {
         await handleAddTransaction({
-          title: sharedIntake.suggestedTitle || 'Dépense importée',
+          title: receipt.merchant || sharedIntake.suggestedTitle || 'Dépense importée',
           amount,
           type: 'expense',
-          category: 'Divers',
+          category: receipt.category || 'Divers',
           subCategory: 'Import rapide',
-          date: todayISO,
+          date: receipt.date || todayISO,
           memberId: activeMemberId,
           memberName: members.find(member => member.id === activeMemberId)?.name || 'Famille',
           moduleSource: 'partage',
@@ -10944,16 +10995,16 @@ function App() {
         setActiveToast({ title: 'Ticket reçu', description: 'Ajoutez le montant et le compte avant validation.' });
       }
     } else if (target === 'homework') {
+      const homework = parseHomeworkText(combinedText);
       const student = members.find(member => {
         const role = (member.role || '').toLowerCase();
         const age = parseInt(member.age || '0', 10);
         return role.includes('enfant') || role.includes('ado') || (age > 0 && age < 18);
       }) || members.find(member => member.id === activeMemberId);
-      const subjectMatch = combinedText.match(/(maths?|français|francais|anglais|histoire|géographie|geographie|svt|physique|chimie|espagnol)/i);
       const newTask: SchoolTask = {
         id: `sch-share-${Date.now()}`,
-        subject: subjectMatch ? subjectMatch[1] : 'Devoir',
-        title: sharedIntake.suggestedTitle || 'Devoir importé',
+        subject: homework.subject,
+        title: homework.title || sharedIntake.suggestedTitle || 'Devoir importé',
         dueDate: todayISO,
         done: false,
         assignedMemberId: student?.id || activeMemberId || '',
@@ -15862,6 +15913,34 @@ function App() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                <input
+                  ref={sharedOcrInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleSharedOcrFileChange}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => sharedOcrInputRef.current?.click()}
+                  disabled={sharedOcrLoading}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[#6C5CFF]/30 bg-[#6C5CFF]/15 px-4 py-3 text-xs font-black text-white transition hover:bg-[#6C5CFF]/25 disabled:cursor-wait disabled:opacity-70"
+                >
+                  {sharedOcrLoading ? <Loader className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  <span>{sharedOcrLoading ? 'Lecture locale en cours...' : 'Prendre une photo ou importer'}</span>
+                </button>
+                <p className="mt-2 text-center text-[10px] font-semibold leading-relaxed text-white/45">
+                  OCR gratuit sur l’appareil : aucune image n’est envoyée à un serveur.
+                </p>
+                {sharedOcrError && (
+                  <p className="mt-2 rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-2 text-center text-[10px] font-bold text-red-200">
+                    {sharedOcrError}
+                  </p>
+                )}
               </div>
 
               {sharedIntake.files && sharedIntake.files.length > 0 && (

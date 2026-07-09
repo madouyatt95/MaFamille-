@@ -15,6 +15,7 @@ class BridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(NativeSpeechPlugin())
         bridge?.registerPluginInstance(AppStoreBillingPlugin())
+        bridge?.registerPluginInstance(LocalOcrPlugin())
         flushPendingQuickMicroRequest()
     }
 
