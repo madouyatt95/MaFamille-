@@ -80,6 +80,7 @@ type LooseValue = any;
 type DbRow = Record<string, LooseValue>;
 type DbRows = LooseValue[];
 const QUICK_MICRO_PENDING_KEY = 'mf_pending_quick_micro';
+const QUICK_ACTION_PENDING_KEY = 'mf_pending_system_quick_action';
 
 type SystemQuickAction =
   | 'open-micro'
@@ -106,6 +107,8 @@ interface SharedIntakePayload {
   suggestedTarget: SharedIntakeTarget;
   suggestedTitle: string;
   summary: string;
+  lockedTarget?: boolean;
+  actionLabel?: string;
 }
 
 const isQuickMicroUrl = (): boolean => {
@@ -172,7 +175,9 @@ const buildSharedIntakePayload = (payload: LooseValue, forced?: string | null): 
     receivedAt: payload?.receivedAt || new Date().toISOString(),
     suggestedTarget: target,
     suggestedTitle,
-    summary: summaryParts.join(' · ') || 'MyFamily+ va préparer l’action, puis vous validez avant enregistrement.'
+    summary: summaryParts.join(' · ') || 'MyFamily+ va préparer l’action, puis vous validez avant enregistrement.',
+    lockedTarget: Boolean(payload?.lockedTarget),
+    actionLabel: payload?.actionLabel || undefined
   };
 };
 
@@ -2342,10 +2347,11 @@ function App() {
   const [isPremium, setIsPremium] = useState<boolean>(() => {
     return localStorage.getItem('mf_is_premium') === 'true';
   });
+  const effectiveIsPremium = isPremium || foyer?.isPremium === true;
   const [paywallOpen, setPaywallOpen] = useState(false);
   
   const setActiveModule = (modName: string) => {
-    if (['conteur', 'peacemaker'].includes(modName) && !isPremium) {
+    if (['conteur', 'peacemaker'].includes(modName) && !effectiveIsPremium) {
       setPaywallOpen(true);
       return;
     }
@@ -2364,6 +2370,44 @@ function App() {
     setActiveModule('');
     setQuickActionsOpen(false);
     setAlertsPanelOpen(false);
+  }, [setActiveModule]);
+
+  const rememberSystemQuickAction = useCallback((action: SystemQuickAction) => {
+    try {
+      sessionStorage.setItem(QUICK_ACTION_PENDING_KEY, action);
+      localStorage.setItem(QUICK_ACTION_PENDING_KEY, action);
+    } catch {
+      // The immediate UI update still handles the current launch.
+    }
+  }, []);
+
+  const clearSystemQuickAction = useCallback(() => {
+    try {
+      sessionStorage.removeItem(QUICK_ACTION_PENDING_KEY);
+      localStorage.removeItem(QUICK_ACTION_PENDING_KEY);
+    } catch {
+      // Ignore storage failures.
+    }
+  }, []);
+
+  const openQuickScanIntake = useCallback((kind: 'homework' | 'receipt') => {
+    const isHomework = kind === 'homework';
+    setSharedOcrLoading(false);
+    setSharedOcrError('');
+    setActiveTab(isHomework ? 'menu' : 'budget');
+    setActiveModule(isHomework ? 'ecole' : '');
+    setQuickActionsOpen(false);
+    setSharedIntake(buildSharedIntakePayload({
+      id: `${isHomework ? 'scan-homework' : 'scan-receipt'}-${Date.now()}`,
+      title: isHomework ? 'Scanner un devoir' : 'Scanner un ticket',
+      text: isHomework
+        ? 'Ajoutez une photo ou une capture du devoir, puis validez la matière et la date avant enregistrement.'
+        : 'Prenez ou partagez la photo du ticket, puis validez le montant, le compte et la catégorie avant enregistrement.',
+      files: [],
+      lockedTarget: true,
+      actionLabel: isHomework ? 'Préparer le devoir' : 'Préparer la dépense'
+    }, kind));
+    setSharedIntakeTarget(isHomework ? 'homework' : 'budget');
   }, [setActiveModule]);
 
   useEffect(() => {
@@ -2708,8 +2752,12 @@ function App() {
       try {
         sessionStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
         localStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
+        localStorage.setItem('mf_is_premium', String(effectiveIsPremium));
       } catch {
         // The pending React state is enough for this launch.
+      }
+      if (effectiveIsPremium) {
+        setPaywallOpen(false);
       }
       setActiveTab('budget');
       setActiveModule('');
@@ -2727,25 +2775,11 @@ function App() {
       setPendingQuickMicro(true);
       setQuickActionsOpen(false);
     } else if (normalizedAction === 'scan-homework') {
-      setActiveTab('menu');
-      setActiveModule('ecole');
-      setSharedIntake(buildSharedIntakePayload({
-        id: `scan-homework-${Date.now()}`,
-        title: 'Scanner un devoir',
-        text: 'Ajoutez une photo ou une capture du devoir, puis validez la matière et la date avant enregistrement.',
-        files: []
-      }, 'homework'));
-      setSharedIntakeTarget('homework');
+      rememberSystemQuickAction('scan-homework');
+      openQuickScanIntake('homework');
     } else if (normalizedAction === 'scan-receipt') {
-      setActiveTab('budget');
-      setActiveModule('');
-      setSharedIntake(buildSharedIntakePayload({
-        id: `scan-receipt-${Date.now()}`,
-        title: 'Scanner un ticket',
-        text: 'Prenez ou partagez la photo du ticket, puis validez le montant, le compte et la catégorie avant enregistrement.',
-        files: []
-      }, 'receipt'));
-      setSharedIntakeTarget('budget');
+      rememberSystemQuickAction('scan-receipt');
+      openQuickScanIntake('receipt');
     } else if (normalizedAction === 'arrival-home') {
       setActiveTab('accueil');
       setActiveModule('');
@@ -3165,6 +3199,40 @@ function App() {
 
     return () => subscription.unsubscribe();
   }, [isInitializingAuth]);
+
+  useEffect(() => {
+    if (!user || !foyer || isInitializingAuth || isPremiumReturnSyncing) return;
+    let pendingAction = '';
+    try {
+      pendingAction = sessionStorage.getItem(QUICK_ACTION_PENDING_KEY)
+        || localStorage.getItem(QUICK_ACTION_PENDING_KEY)
+        || '';
+    } catch {
+      pendingAction = '';
+    }
+
+    if (pendingAction === 'scan-homework') {
+      clearSystemQuickAction();
+      if (showWelcomeScreen) {
+        setShowWelcomeScreen(false);
+      }
+      openQuickScanIntake('homework');
+    } else if (pendingAction === 'scan-receipt') {
+      clearSystemQuickAction();
+      if (showWelcomeScreen) {
+        setShowWelcomeScreen(false);
+      }
+      openQuickScanIntake('receipt');
+    }
+  }, [
+    user?.id,
+    foyer?.id,
+    isInitializingAuth,
+    isPremiumReturnSyncing,
+    showWelcomeScreen,
+    clearSystemQuickAction,
+    openQuickScanIntake
+  ]);
 
   // Onboarding success handler
   const handleOnboardingSuccess = async () => {
@@ -5870,7 +5938,7 @@ function App() {
   };
 
   const startVoiceAssistant = () => {
-    if (!isPremium) {
+    if (!effectiveIsPremium) {
       setPaywallOpen(true);
       return;
     }
@@ -6048,7 +6116,7 @@ function App() {
     isPremiumReturnSyncing,
     voiceActive,
     voiceState,
-    isPremium
+    effectiveIsPremium
   ]);
 
   const convertFrenchNumbersToDigits = (txt: string): string => {
@@ -13804,8 +13872,12 @@ function App() {
           };
           setEvents(previousEvents => [newEvent, ...previousEvents]);
         }}
-        isPremium={isPremium}
-        onTriggerPaywall={() => setPaywallOpen(true)}
+        isPremium={effectiveIsPremium}
+        onTriggerPaywall={() => {
+          if (!effectiveIsPremium) {
+            setPaywallOpen(true);
+          }
+        }}
         onAddTransaction={handleAddTransaction}
         defaultTab={activeModule === 'demarches' ? 'demarches' : 'docs'}
         foyerId={appFoyer?.id}
@@ -14634,8 +14706,12 @@ function App() {
           setActiveModule('membres');
           setQuickActionsOpen(false);
         }}
-        isPremium={isPremium}
-        onTriggerPaywall={() => setPaywallOpen(true)}
+        isPremium={effectiveIsPremium}
+        onTriggerPaywall={() => {
+          if (!effectiveIsPremium) {
+            setPaywallOpen(true);
+          }
+        }}
 
       /></Suspense>}
 
@@ -15905,22 +15981,29 @@ function App() {
             <div className="space-y-4 p-5">
               <div>
                 <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-white/45">Préparer dans</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['budget', 'homework', 'vault', 'agenda', 'trip', 'groceries', 'memory'] as SharedIntakeTarget[]).map(target => (
-                    <button
-                      key={target}
-                      type="button"
-                      onClick={() => setSharedIntakeTarget(target)}
-                      className={`rounded-2xl border px-3 py-3 text-left text-xs font-black transition ${
-                        sharedIntakeTarget === target
-                          ? 'border-[#6C5CFF] bg-[#6C5CFF]/25 text-white shadow-[0_8px_24px_rgba(108,92,255,0.22)]'
-                          : 'border-white/8 bg-white/5 text-white/55 hover:bg-white/8 hover:text-white'
-                      }`}
-                    >
-                      {sharedTargetLabel(target)}
-                    </button>
-                  ))}
-                </div>
+                {sharedIntake.lockedTarget ? (
+                  <div className="flex items-center justify-between rounded-2xl border border-[#6C5CFF]/45 bg-[#6C5CFF]/18 px-4 py-3">
+                    <span className="text-sm font-black text-white">{sharedTargetLabel(sharedIntakeTarget)}</span>
+                    <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white/65">Raccourci</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['budget', 'homework', 'vault', 'agenda', 'trip', 'groceries', 'memory'] as SharedIntakeTarget[]).map(target => (
+                      <button
+                        key={target}
+                        type="button"
+                        onClick={() => setSharedIntakeTarget(target)}
+                        className={`rounded-2xl border px-3 py-3 text-left text-xs font-black transition ${
+                          sharedIntakeTarget === target
+                            ? 'border-[#6C5CFF] bg-[#6C5CFF]/25 text-white shadow-[0_8px_24px_rgba(108,92,255,0.22)]'
+                            : 'border-white/8 bg-white/5 text-white/55 hover:bg-white/8 hover:text-white'
+                        }`}
+                      >
+                        {sharedTargetLabel(target)}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
@@ -15984,7 +16067,7 @@ function App() {
                   onClick={() => void handleConfirmSharedIntake()}
                   className="rounded-2xl bg-gradient-to-r from-[#6C5CFF] to-[#FF4D6D] px-4 py-3 text-xs font-black text-white shadow-[0_10px_32px_rgba(108,92,255,0.35)] transition active:scale-[0.98]"
                 >
-                  Valider
+                  {sharedIntake.actionLabel || 'Valider'}
                 </button>
               </div>
             </div>
