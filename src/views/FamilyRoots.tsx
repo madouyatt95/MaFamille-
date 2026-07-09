@@ -177,22 +177,142 @@ function buildGenerationRows(
     }));
 }
 
+type FamilyHousehold = {
+  id: string;
+  foyerId: string;
+  name: string;
+  location: string;
+  parents: FamilyTreeProfile[];
+  children: FamilyTreeProfile[];
+  color: typeof branchColors[number];
+};
+
+const orderProfiles = (profiles: FamilyTreeProfile[]) => [...profiles].sort((left, right) => {
+  const leftTime = left.birthDate ? new Date(left.birthDate).getTime() : Number.MAX_SAFE_INTEGER;
+  const rightTime = right.birthDate ? new Date(right.birthDate).getTime() : Number.MAX_SAFE_INTEGER;
+  return leftTime - rightTime;
+});
+
+function buildHouseholds(
+  profiles: FamilyTreeProfile[],
+  relationships: FamilyTreeRelationship[],
+  activeFoyerId: string,
+  familyName: string
+): FamilyHousehold[] {
+  const visibleProfiles = profiles.filter(profile => profile.visibility !== 'masque');
+  const profilesByFoyer = new Map<string, FamilyTreeProfile[]>();
+  visibleProfiles.forEach(profile => profilesByFoyer.set(profile.foyerId, [...(profilesByFoyer.get(profile.foyerId) || []), profile]));
+
+  return [...profilesByFoyer.entries()].map(([foyerId, householdProfiles], index) => {
+    const ids = new Set(householdProfiles.map(profile => profile.id));
+    const householdRelationships = relationships.filter(relationship => ids.has(relationship.sourceProfileId) && ids.has(relationship.targetProfileId));
+    const spouseLink = householdRelationships.find(relationship => relationship.relationshipType === 'conjoint');
+    const spouseIds = spouseLink ? [spouseLink.sourceProfileId, spouseLink.targetProfileId] : [];
+    const explicitChildren = new Set<string>();
+    householdRelationships.forEach(relationship => {
+      if (relationship.relationshipType === 'parent') explicitChildren.add(relationship.targetProfileId);
+      if (relationship.relationshipType === 'enfant') explicitChildren.add(relationship.sourceProfileId);
+    });
+
+    const adultCandidates = orderProfiles(householdProfiles.filter(profile => !isYoungMember(profile) && !explicitChildren.has(profile.id)));
+    const parents = spouseIds.length
+      ? spouseIds.map(id => householdProfiles.find(profile => profile.id === id)).filter((profile): profile is FamilyTreeProfile => Boolean(profile))
+      : adultCandidates.slice(0, 2);
+    const parentIds = new Set(parents.map(profile => profile.id));
+    const children = orderProfiles(householdProfiles.filter(profile => !parentIds.has(profile.id) && (isYoungMember(profile) || explicitChildren.has(profile.id))));
+    const uncategorised = orderProfiles(householdProfiles.filter(profile => !parentIds.has(profile.id) && !children.some(child => child.id === profile.id)));
+    const visibleChildren = [...children, ...uncategorised];
+    const labelProfile = parents[0] || householdProfiles[0];
+    const familySurname = labelProfile?.displayName.trim().split(/\s+/).slice(-1)[0] || 'Famille';
+
+    return {
+      id: foyerId,
+      foyerId,
+      name: foyerId === activeFoyerId ? familyName : `Famille ${familySurname}`,
+      location: labelProfile ? profileLocation(labelProfile) : 'Lieu non renseigné',
+      parents: parents.length ? parents : orderProfiles(householdProfiles).slice(0, 2),
+      children: visibleChildren,
+      color: branchColors[index % branchColors.length]
+    };
+  });
+}
+
+function HouseholdTree({
+  households,
+  selectedProfileId,
+  expandedHouseholds,
+  onToggleHousehold,
+  onSelect
+}: {
+  households: FamilyHousehold[];
+  selectedProfileId?: string;
+  expandedHouseholds: Set<string>;
+  onToggleHousehold: (householdId: string) => void;
+  onSelect: (profile: FamilyTreeProfile) => void;
+}) {
+  return <div className="fr-household-tree">
+    <section className="fr-household-generation">
+      <div className="fr-generation-label"><span>Génération 1</span><small>Foyers et parents</small></div>
+      <div className="fr-household-cards">
+        {households.map(household => {
+          const portraits = [...household.parents, ...household.children].slice(0, 3);
+          const representative = household.parents[0] || household.children[0];
+          return <button className={`fr-household-card ${household.color} ${portraits.some(profile => profile.id === selectedProfileId) ? 'is-selected' : ''}`} key={household.id} onClick={() => representative && onSelect(representative)}>
+            <span className="fr-household-mark" />
+            <span className="fr-household-photo-stack">{portraits.map(profile => <ProfileAvatar profile={profile} key={profile.id} />)}</span>
+            <strong>{household.name}</strong>
+            <small>{household.location}</small>
+            <em>{household.children.length} enfant{household.children.length > 1 ? 's' : ''}</em>
+          </button>;
+        })}
+      </div>
+    </section>
+    <section className="fr-household-generation fr-household-descendants">
+      <div className="fr-generation-label"><span>Génération 2</span><small>Enfants et cousins</small></div>
+      <div className="fr-household-children-grid">
+        {households.map(household => {
+          const expanded = expandedHouseholds.has(household.id);
+          const children = expanded ? household.children : household.children.slice(0, 3);
+          const remaining = household.children.length - children.length;
+          return <div className={`fr-household-child-cluster ${household.color}`} key={household.id}>
+            <div className="fr-household-child-line" />
+            <span className="fr-child-cluster-title">{household.name}</span>
+            <div className="fr-household-child-list">
+              {children.map(child => <PersonNode compact profile={child} key={child.id} onSelect={onSelect} />)}
+              {remaining > 0 && <button className="fr-more-people" onClick={() => onToggleHousehold(household.id)}><b>+{remaining}</b><span>Afficher</span></button>}
+            </div>
+            {expanded && household.children.length > 3 && <button className="fr-collapse-people" onClick={() => onToggleHousehold(household.id)} aria-label={`Réduire ${household.name}`}><Minus /></button>}
+          </div>;
+        })}
+      </div>
+    </section>
+  </div>;
+}
+
 function TreeBoard({
   profiles,
   relationships,
   connections,
+  activeFoyerId,
+  familyName,
   selectedProfileId,
   expandedRows,
+  expandedHouseholds,
   onToggleRow,
+  onToggleHousehold,
   onSelect,
   fullScreen = false
 }: {
   profiles: FamilyTreeProfile[];
   relationships: FamilyTreeRelationship[];
   connections: FamilyTreeConnection[];
+  activeFoyerId: string;
+  familyName: string;
   selectedProfileId?: string;
   expandedRows: Set<number>;
+  expandedHouseholds: Set<string>;
   onToggleRow: (generation: number) => void;
+  onToggleHousehold: (householdId: string) => void;
   onSelect: (profile: FamilyTreeProfile) => void;
   fullScreen?: boolean;
 }) {
@@ -202,6 +322,7 @@ function TreeBoard({
     relationships.filter(item => item.relationshipType === 'conjoint').forEach(item => couples.set(item.sourceProfileId, item.targetProfileId));
     return couples;
   }, [relationships]);
+  const households = useMemo(() => buildHouseholds(profiles, relationships, activeFoyerId, familyName), [activeFoyerId, familyName, profiles, relationships]);
   const names = ['Parents et proches', 'Enfants et frères/sœurs', 'Cousins et cousines', 'Petits-enfants', 'Descendants'];
   if (!profiles.length) {
     return <div className="fr-empty-tree"><TreePine /><strong>Commencez votre arbre</strong><span>Ajoutez les personnes de votre famille, puis reliez-les simplement.</span></div>;
@@ -209,6 +330,7 @@ function TreeBoard({
 
   return (
     <div className={`fr-tree-board ${fullScreen ? 'is-fullscreen-tree' : ''}`}>
+      {households.length > 1 ? <HouseholdTree households={households} selectedProfileId={selectedProfileId} expandedHouseholds={expandedHouseholds} onToggleHousehold={onToggleHousehold} onSelect={onSelect} /> : <>
       {rows.map(({ generation, profiles: rowProfiles }) => {
         const isExpanded = expandedRows.has(generation);
         const visibleProfiles = isExpanded ? rowProfiles : rowProfiles.slice(0, 3);
@@ -241,6 +363,7 @@ function TreeBoard({
           </section>
         );
       })}
+      </>}
     </div>
   );
 }
@@ -280,6 +403,8 @@ export function FamilyRoots({
   const [treeFullscreen, setTreeFullscreen] = useState(false);
   const [treeScale, setTreeScale] = useState(0.84);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [expandedHouseholds, setExpandedHouseholds] = useState<Set<string>>(new Set());
+  const [connectionTargets, setConnectionTargets] = useState<Record<string, string>>({});
   const [query, setQuery] = useState('');
   const [branchFilter, setBranchFilter] = useState<'all' | 'nearby' | 'country' | 'branch'>('all');
   const [busy, setBusy] = useState(false);
@@ -389,6 +514,11 @@ export function FamilyRoots({
     if (next.has(generation)) next.delete(generation); else next.add(generation);
     return next;
   });
+  const toggleHousehold = (householdId: string) => setExpandedHouseholds(current => {
+    const next = new Set(current);
+    if (next.has(householdId)) next.delete(householdId); else next.add(householdId);
+    return next;
+  });
 
   const selectProfile = (profile: FamilyTreeProfile) => {
     const member = profile.memberId ? members.find(item => item.id === profile.memberId) : undefined;
@@ -472,10 +602,10 @@ export function FamilyRoots({
     } finally { setBusy(false); }
   };
 
-  const handleRespondConnection = async (connection: FamilyTreeConnection, accept: boolean) => {
+  const handleRespondConnection = async (connection: FamilyTreeConnection, accept: boolean, targetProfileId?: string) => {
     if (!ensureManage()) return;
-    const targetProfile = localProfiles[0];
-    if (accept && !targetProfile) return showFeedback('Ajoutez d’abord une personne dans votre foyer.');
+    const targetProfile = localProfiles.find(profile => profile.id === targetProfileId);
+    if (accept && !targetProfile) return showFeedback('Choisissez la personne de votre foyer liée à cette branche.');
     setBusy(true);
     try {
       await familyRootsService.respondConnection(connection.id, accept, targetProfile?.id);
@@ -619,7 +749,7 @@ export function FamilyRoots({
       <button className="fr-fullscreen-close" onClick={() => setTreeFullscreen(false)} aria-label="Quitter le plein écran"><X /></button>
       <div className="fr-fullscreen-scroll">
         <div className="fr-fullscreen-scale" style={{ transform: `scale(${treeScale})` }}>
-          <TreeBoard profiles={profiles} relationships={relationships} connections={connections} selectedProfileId={selectedProfile?.id} expandedRows={expandedRows} onToggleRow={toggleRow} onSelect={selectProfile} fullScreen />
+          <TreeBoard profiles={profiles} relationships={relationships} connections={connections} activeFoyerId={activeFoyerId} familyName={familyName} selectedProfileId={selectedProfile?.id} expandedRows={expandedRows} expandedHouseholds={expandedHouseholds} onToggleRow={toggleRow} onToggleHousehold={toggleHousehold} onSelect={selectProfile} fullScreen />
         </div>
       </div>
       <div className="fr-zoom-controls">
@@ -658,13 +788,14 @@ export function FamilyRoots({
           {pendingConnections.filter(connection => connection.direction === 'incoming').map(connection => (
             <section className="fr-branch-request" key={connection.id}>
               <div className="fr-request-icon"><Bell /></div>
-              <div><strong>{connection.requesterDisplayName || 'Une branche'} souhaite se relier</strong><p>Choisissez la personne de votre arbre qui représente ce lien.</p></div>
-              <div className="fr-request-actions"><button onClick={() => void handleRespondConnection(connection, false)}>Refuser</button><button onClick={() => void handleRespondConnection(connection, true)} disabled={busy}>Accepter</button></div>
+              <div><strong>{connection.requesterDisplayName || 'Une branche'} souhaite se relier</strong><p>Cette branche indique un lien « {relationshipLabels[connection.relationshipType]} ». Choisissez la personne précise de votre foyer à relier.</p></div>
+              <label className="fr-request-profile">Relier à<select value={connectionTargets[connection.id] || ''} onChange={event => setConnectionTargets(current => ({ ...current, [connection.id]: event.target.value }))}><option value="">Choisir une personne</option>{localProfiles.map(profile => <option key={profile.id} value={profile.id}>{profile.displayName}</option>)}</select></label>
+              <div className="fr-request-actions"><button onClick={() => void handleRespondConnection(connection, false)}>Refuser</button><button onClick={() => void handleRespondConnection(connection, true, connectionTargets[connection.id])} disabled={busy || !connectionTargets[connection.id]}>Accepter</button></div>
             </section>
           ))}
 
           <section className="fr-tree-surface">
-            <TreeBoard profiles={profiles} relationships={relationships} connections={connections} selectedProfileId={selectedProfile?.id} expandedRows={expandedRows} onToggleRow={toggleRow} onSelect={selectProfile} />
+            <TreeBoard profiles={profiles} relationships={relationships} connections={connections} activeFoyerId={activeFoyerId} familyName={familyName} selectedProfileId={selectedProfile?.id} expandedRows={expandedRows} expandedHouseholds={expandedHouseholds} onToggleRow={toggleRow} onToggleHousehold={toggleHousehold} onSelect={selectProfile} />
           </section>
 
           {canManage && <div className="fr-tree-actions">

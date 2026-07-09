@@ -280,6 +280,266 @@
   line-height: 1.35;
 }
 
+/* Quand plusieurs foyers sont confirmes, l'arbre bascule vers une lecture par
+   famille : le couple est rassemble, les enfants restent sous leur foyer. */
+.family-roots .fr-household-tree {
+  display: grid;
+  gap: 22px;
+}
+
+.family-roots .fr-household-generation {
+  position: relative;
+  padding-top: 2px;
+}
+
+.family-roots .fr-household-generation + .fr-household-generation {
+  padding-top: 31px;
+}
+
+.family-roots .fr-household-generation + .fr-household-generation::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 26px;
+  background: linear-gradient(var(--fr-violet), color-mix(in srgb, var(--fr-violet) 10%, transparent));
+}
+
+.family-roots .fr-household-cards,
+.family-roots .fr-household-children-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(136px, 1fr);
+  gap: 13px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  padding: 4px 3px 10px;
+  scrollbar-width: none;
+}
+
+.family-roots .fr-household-cards::-webkit-scrollbar,
+.family-roots .fr-household-children-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.family-roots .fr-household-card {
+  position: relative;
+  min-height: 176px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 11px 11px;
+  overflow: hidden;
+  border: 2px solid var(--fr-line);
+  border-radius: 20px;
+  color: var(--fr-text);
+  background: var(--fr-surface);
+  box-shadow: 0 9px 20px rgba(37, 24, 74, .08);
+  text-align: center;
+  transition: transform .16s ease, box-shadow .16s ease;
+}
+
+.family-roots .fr-household-card:hover,
+.family-roots .fr-household-card:focus-visible,
+.family-roots .fr-household-card.is-selected {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 26px rgba(79, 51, 166, .17);
+}
+
+.family-roots .fr-household-card.violet { border-color: color-mix(in srgb, var(--fr-violet) 44%, var(--fr-line)); }
+.family-roots .fr-household-card.green { border-color: color-mix(in srgb, var(--fr-green) 45%, var(--fr-line)); }
+.family-roots .fr-household-card.orange { border-color: color-mix(in srgb, var(--fr-orange) 48%, var(--fr-line)); }
+.family-roots .fr-household-card.blue { border-color: color-mix(in srgb, var(--fr-blue) 48%, var(--fr-line)); }
+
+.family-roots .fr-household-mark {
+  position: absolute;
+  top: 7px;
+  left: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fr-violet);
+}
+
+.family-roots .fr-household-card.green .fr-household-mark { background: var(--fr-green); }
+.family-roots .fr-household-card.orange .fr-household-mark { background: var(--fr-orange); }
+.family-roots .fr-household-card.blue .fr-household-mark { background: var(--fr-blue); }
+
+.family-roots .fr-household-photo-stack {
+  height: 68px;
+  min-width: 94px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.family-roots .fr-household-photo-stack .fr-avatar {
+  width: 54px;
+  height: 54px;
+  margin-left: -13px;
+  border-width: 2px;
+  background: var(--fr-surface);
+}
+
+.family-roots .fr-household-photo-stack .fr-avatar:first-child {
+  margin-left: 0;
+}
+
+.family-roots .fr-household-photo-stack .fr-avatar:nth-child(2) {
+  transform: translateY(5px);
+}
+
+.family-roots .fr-household-photo-stack .fr-avatar:nth-child(3) {
+  transform: translateY(-2px);
+}
+
+.family-roots .fr-household-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.family-roots .fr-household-card small {
+  display: block;
+  max-width: 100%;
+  margin-top: 5px;
+  overflow: hidden;
+  color: var(--fr-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.family-roots .fr-household-card em {
+  margin-top: auto;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: var(--fr-violet);
+  background: var(--fr-violet-soft);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.family-roots .fr-household-card.green em { color: var(--fr-green); background: var(--fr-green-soft); }
+.family-roots .fr-household-card.orange em { color: var(--fr-orange); background: color-mix(in srgb, var(--fr-orange) 13%, transparent); }
+.family-roots .fr-household-card.blue em { color: var(--fr-blue); background: color-mix(in srgb, var(--fr-blue) 13%, transparent); }
+
+.family-roots .fr-household-child-cluster {
+  position: relative;
+  min-height: 158px;
+  padding: 19px 7px 8px;
+  border-top: 2px solid var(--fr-violet);
+}
+
+.family-roots .fr-household-child-cluster.green { border-color: var(--fr-green); }
+.family-roots .fr-household-child-cluster.orange { border-color: var(--fr-orange); }
+.family-roots .fr-household-child-cluster.blue { border-color: var(--fr-blue); }
+
+.family-roots .fr-household-child-line {
+  position: absolute;
+  top: -19px;
+  left: 50%;
+  width: 2px;
+  height: 19px;
+  background: currentColor;
+  color: var(--fr-violet);
+}
+
+.family-roots .fr-household-child-cluster.green .fr-household-child-line { color: var(--fr-green); }
+.family-roots .fr-household-child-cluster.orange .fr-household-child-line { color: var(--fr-orange); }
+.family-roots .fr-household-child-cluster.blue .fr-household-child-line { color: var(--fr-blue); }
+
+.family-roots .fr-child-cluster-title {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  max-width: calc(100% - 14px);
+  padding: 3px 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  color: var(--fr-violet);
+  background: var(--fr-surface);
+  font-size: 9px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.family-roots .fr-household-child-cluster.green .fr-child-cluster-title { color: var(--fr-green); }
+.family-roots .fr-household-child-cluster.orange .fr-child-cluster-title { color: var(--fr-orange); }
+.family-roots .fr-household-child-cluster.blue .fr-child-cluster-title { color: var(--fr-blue); }
+
+.family-roots .fr-household-child-list {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+}
+
+.family-roots .fr-household-child-list .fr-person-node {
+  width: 62px;
+}
+
+.family-roots .fr-household-child-list .fr-avatar {
+  width: 44px;
+  height: 44px;
+}
+
+.family-roots .fr-household-child-list .fr-more-people {
+  width: 55px;
+  min-height: 82px;
+  padding: 7px 3px;
+}
+
+.family-roots .fr-household-child-list .fr-more-people b { font-size: 16px; }
+
+.family-roots .fr-household-child-cluster .fr-collapse-people {
+  position: absolute;
+  right: 5px;
+  bottom: 2px;
+}
+
+.family-roots .fr-request-profile {
+  grid-column: 2;
+  display: grid;
+  gap: 5px;
+  color: var(--fr-muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.family-roots .fr-request-profile select {
+  width: 100%;
+  height: 37px;
+  padding: 0 9px;
+  border: 1px solid var(--fr-line);
+  border-radius: 9px;
+  color: var(--fr-text);
+  background: var(--fr-surface);
+  font: inherit;
+}
+
+@media (min-width: 760px) {
+  .family-roots .fr-household-cards,
+  .family-roots .fr-household-children-grid {
+    grid-auto-flow: initial;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    overflow: visible;
+  }
+
+  .family-roots .fr-household-card {
+    min-height: 190px;
+  }
+
+  .family-roots .fr-household-child-list .fr-person-node {
+    width: 70px;
+  }
+}
+
 @media (min-width: 760px) {
   .family-roots .fr-person-node {
     width: 88px;
