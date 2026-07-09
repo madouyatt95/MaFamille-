@@ -35,6 +35,7 @@ import {
   type FamilyTreeRelationship
 } from '../services/familyRootsService';
 import './family-roots.css';
+import './family-roots-map.css';
 
 type RootTab = 'tree' | 'cousins' | 'branches' | 'map';
 type ModalName = 'add-person' | 'link-persons' | 'link-branch' | 'invite' | null;
@@ -514,13 +515,13 @@ export function FamilyRoots({
         </main>}
 
         {!loading && !error && activeTab === 'branches' && <main className="fr-content">
-          <section className="fr-map-card"><div className="fr-section-heading"><div><span>Branches familiales</span><small>Pays et villes déclarés dans les fiches</small></div><Globe2 /></div><div className="fr-map-preview"><img src="/family-roots/world-map-light.png" alt="Carte du monde" />{branches.slice(0, 4).map((branch, index) => <button key={branch.id} className={`fr-map-pin pin-${index}`} onClick={() => setActiveTab('map')}><span>{branch.profiles.length}</span>{branch.location}</button>)}</div></section>
+          <section className="fr-map-card"><div className="fr-section-heading"><div><span>Branches familiales</span><small>Pays et villes déclarés dans les fiches</small></div><Globe2 /></div><div className="fr-map-preview"><img className="fr-map-light" src="/family-roots/world-map-light.png" alt="Carte du monde" /><img className="fr-map-dark" src="/family-roots/world-map-dark.png" alt="" />{branches.slice(0, 4).map((branch, index) => <button key={branch.id} className={`fr-map-pin pin-${index}`} onClick={() => setActiveTab('map')}><span>{branch.profiles.length}</span>{branch.location}</button>)}</div></section>
           <section className="fr-branches-card"><div className="fr-section-heading"><div><span>Liste des branches</span><small>Foyers proches, branches liées et demandes en cours.</small></div><Link2 /></div>{branches.map(branch => <button className="fr-branch-row" key={branch.id} onClick={() => setActiveTab('map')}><div className={`fr-branch-badge ${branch.color}`}><UsersRound /></div><div className="fr-branch-row-copy"><strong>{branch.name}</strong><span>{branch.location} · {branch.profiles.length} membre{branch.profiles.length > 1 ? 's' : ''}</span></div><b className={branch.status === 'Vous' ? 'is-owner' : ''}>{branch.status}</b><ChevronRight /></button>)}{pendingConnections.filter(connection => connection.direction === 'outgoing').map(connection => <div className="fr-branch-row is-pending" key={connection.id}><div className="fr-branch-badge blue"><Send /></div><div className="fr-branch-row-copy"><strong>Invitation envoyée</strong><span>En attente de confirmation</span></div><b>En attente</b></div>)}</section>
           <button className="fr-primary-action" onClick={() => setModal('link-branch')}><Plus /> Lier une nouvelle branche</button>
         </main>}
 
         {!loading && !error && activeTab === 'map' && <main className="fr-content">
-          <section className="fr-world-card"><div className="fr-world-copy"><span className="fr-eyebrow"><MapPinned /> Famille dans le monde</span><h2>Vos branches reliées</h2><p>Chaque lieu correspond à une branche qui a choisi de partager sa ville.</p></div><div className="fr-world-map"><img src="/family-roots/world-map-light.png" alt="Carte du monde des branches" />{branches.slice(0, 4).map((branch, index) => <button className={`fr-world-pin pin-${index}`} key={branch.id} onClick={() => { setActiveTab('branches'); }}><div className="fr-pin-avatar"><ProfileAvatar profile={branch.profiles[0]} /></div><span>{branch.location}</span></button>)}</div></section>
+          <section className="fr-world-card"><div className="fr-world-copy"><span className="fr-eyebrow"><MapPinned /> Famille dans le monde</span><h2>Vos branches reliées</h2><p>Chaque lieu correspond à une branche qui a choisi de partager sa ville.</p></div><div className="fr-world-map"><img className="fr-map-light" src="/family-roots/world-map-light.png" alt="Carte du monde des branches" /><img className="fr-map-dark" src="/family-roots/world-map-dark.png" alt="" />{branches.slice(0, 4).map((branch, index) => <button className={`fr-world-pin pin-${index}`} key={branch.id} onClick={() => { setActiveTab('branches'); }}><div className="fr-pin-avatar"><ProfileAvatar profile={branch.profiles[0]} /></div><span>{branch.location}</span></button>)}</div></section>
           <section className="fr-map-list">{branches.map(branch => <button key={branch.id} onClick={() => setSelectedProfile(branch.profiles[0])}><div className={`fr-branch-badge ${branch.color}`}><UsersRound /></div><div><strong>{branch.name}</strong><span>{branch.location}</span></div><ChevronRight /></button>)}</section>
         </main>}
       </div>

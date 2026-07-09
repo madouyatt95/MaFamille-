@@ -1,0 +1,13 @@
+.fr-map-dark {
+  display: none;
+}
+
+html:not(.theme-light):not(.theme-sepia) .family-roots .fr-map-light {
+  display: none;
+}
+
+html:not(.theme-light):not(.theme-sepia) .family-roots .fr-map-dark {
+  display: block;
+  mix-blend-mode: normal;
+  opacity: 1;
+}
