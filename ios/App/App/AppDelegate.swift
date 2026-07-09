@@ -81,6 +81,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             "scan-receipt",
             "scan-homework",
             "add-grocery",
+            "share-intake",
+            "share-receipt",
             "arrival-home",
             "arrival-store",
             "arrival-school"
@@ -94,6 +96,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             UserDefaults.standard.set(true, forKey: "mf_pending_quick_micro_native")
         } else if let action = action {
             UserDefaults.standard.set(action, forKey: "mf_pending_quick_action_native")
+            if let query = components?.percentEncodedQuery, !query.isEmpty {
+                UserDefaults.standard.set(query, forKey: "mf_pending_quick_action_query_native")
+            }
         }
         NotificationCenter.default.post(name: .myFamilyPlusQuickMicroRequested, object: nil)
         return true

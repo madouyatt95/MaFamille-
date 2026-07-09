@@ -29,6 +29,7 @@ class BridgeViewController: CAPBridgeViewController {
 
     private func flushPendingQuickMicroRequest() {
         let pendingAction = UserDefaults.standard.string(forKey: "mf_pending_quick_action_native")
+        let pendingQuery = UserDefaults.standard.string(forKey: "mf_pending_quick_action_query_native")
         let hasPendingMicro = UserDefaults.standard.bool(forKey: "mf_pending_quick_micro_native")
 
         guard hasPendingMicro || pendingAction != nil else {
@@ -37,6 +38,7 @@ class BridgeViewController: CAPBridgeViewController {
 
         UserDefaults.standard.removeObject(forKey: "mf_pending_quick_micro_native")
         UserDefaults.standard.removeObject(forKey: "mf_pending_quick_action_native")
+        UserDefaults.standard.removeObject(forKey: "mf_pending_quick_action_query_native")
 
         [0.0, 0.15, 0.4, 0.9, 1.8].forEach { delay in
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
@@ -52,10 +54,13 @@ class BridgeViewController: CAPBridgeViewController {
                     }
                     """
                 } else {
-                    let action = pendingAction ?? "open-micro"
+                    let query = (pendingQuery?.isEmpty == false ? pendingQuery : "action=\(pendingAction ?? "open-micro")") ?? "action=open-micro"
+                    let safeQuery = query
+                        .replacingOccurrences(of: "\\", with: "\\\\")
+                        .replacingOccurrences(of: "'", with: "\\'")
                     script = """
                     try {
-                      window.location.href = '/app?action=\(action)';
+                      window.location.href = '/app?\(safeQuery)';
                     } catch (error) {
                       window.location.href = '/app';
                     }

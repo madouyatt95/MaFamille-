@@ -2633,6 +2633,9 @@ function App() {
     const actionParam = params.get('action');
     const shareIdParam = params.get('shareId');
     const shareKindParam = params.get('kind') || params.get('target');
+    const sharedTitleParam = params.get('title') || '';
+    const sharedTextParam = params.get('text') || '';
+    const sharedUrlParam = params.get('url') || '';
     const joinParam = params.get('join')?.trim().toUpperCase() || '';
     const shouldOpenQuickMicro = window.location.pathname.startsWith('/quick-micro') || actionParam === 'open-micro';
     const normalizedAction = (actionParam || '') as SystemQuickAction | '';
@@ -2785,7 +2788,12 @@ function App() {
           }
         });
       } else {
-        const next = buildSharedIntakePayload({ id: `shared-${Date.now()}`, title: 'Contenu partagé' }, shareKindParam);
+        const next = buildSharedIntakePayload({
+          id: `shared-${Date.now()}`,
+          title: sharedTitleParam || 'Contenu partagé',
+          text: sharedTextParam,
+          url: sharedUrlParam
+        }, shareKindParam);
         setSharedIntake(next);
         setSharedIntakeTarget(next.suggestedTarget);
       }
