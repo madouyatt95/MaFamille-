@@ -1,0 +1,95 @@
+/* Arbre : les traits ne sont rendus que comme une structure de famille, jamais
+   comme une simple ligne decorative qui relie des personnes sans lien. */
+.family-roots .fr-generation-nodes::before {
+  display: none;
+}
+
+.family-roots .fr-generation + .fr-generation::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  width: 2px;
+  height: 25px;
+  transform: translateX(-50%);
+  background: linear-gradient(var(--fr-violet), color-mix(in srgb, var(--fr-violet) 12%, transparent));
+}
+
+.family-roots .fr-generation-nodes {
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 28px;
+}
+
+.family-roots .fr-tree-node-wrap::before {
+  top: -12px;
+  height: 13px;
+}
+
+.family-roots .fr-couple-node {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.family-roots .fr-couple-node::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: -12px;
+  left: 50%;
+  width: 1px;
+  height: 13px;
+  background: var(--fr-violet);
+}
+
+.family-roots .fr-couple-heart {
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  margin-top: 16px;
+  border-radius: 50%;
+  color: var(--fr-violet);
+  background: var(--fr-surface);
+  border: 1px solid color-mix(in srgb, var(--fr-violet) 36%, transparent);
+  box-shadow: 0 3px 9px rgba(71, 46, 154, .14);
+}
+
+.family-roots .fr-couple-heart svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.family-roots .fr-couple-node.is-selected .fr-avatar {
+  box-shadow: 0 0 0 3px var(--fr-violet-soft), 0 0 0 4px var(--fr-violet);
+}
+
+.family-roots .fr-generation-nodes.count-4 {
+  max-width: 640px;
+  margin-inline: auto;
+}
+
+@media (min-width: 760px) {
+  .family-roots .fr-tree-board {
+    padding-top: 24px;
+  }
+
+  .family-roots .fr-generation {
+    padding-block: 17px 30px;
+  }
+
+  .family-roots .fr-person-node {
+    width: 88px;
+  }
+
+  .family-roots .fr-avatar {
+    width: 58px;
+    height: 58px;
+  }
+}

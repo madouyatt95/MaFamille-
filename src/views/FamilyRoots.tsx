@@ -9,6 +9,7 @@ import {
   CircleHelp,
   Copy,
   Globe2,
+  Heart,
   Link2,
   MapPinned,
   MessageCircle,
@@ -36,6 +37,8 @@ import {
 } from '../services/familyRootsService';
 import './family-roots.css';
 import './family-roots-map.css';
+import './family-roots-tree.css';
+import { getFamilyRootCoordinates, getMapPosition } from '../utils/familyRootsGeo';
 
 type RootTab = 'tree' | 'cousins' | 'branches' | 'map';
 type ModalName = 'add-person' | 'link-persons' | 'link-branch' | 'invite' | null;
@@ -93,6 +96,8 @@ const profileAge = (profile: FamilyTreeProfile) => {
   return `${age} ans`;
 };
 
+const isYoungMember = (profile?: FamilyTreeProfile) => Boolean(profile?.isMinor) || /enfant|ado|adolescent|child/i.test(profile?.memberRole || '');
+
 function ProfileAvatar({ profile, className = '' }: { profile: FamilyTreeProfile; className?: string }) {
   return (
     <div className={`fr-avatar ${className}`} aria-label={profile.displayName}>
@@ -142,7 +147,7 @@ function buildGenerationRows(
     if (resolving.has(id)) return 0;
     resolving.add(id);
     const parents = parentsByChild.get(id) || [];
-    const generation = parents.length ? Math.min(4, Math.max(...parents.map(resolveGeneration)) + 1) : 0;
+    const generation = parents.length ? Math.min(4, Math.max(...parents.map(resolveGeneration)) + 1) : isYoungMember(profiles.find(profile => profile.id === id)) ? 1 : 0;
     resolving.delete(id);
     return generation;
   };
@@ -185,7 +190,12 @@ function TreeBoard({
   fullScreen?: boolean;
 }) {
   const rows = useMemo(() => buildGenerationRows(profiles, relationships, connections), [profiles, relationships, connections]);
-  const names = ['Grands-parents', 'Parents et oncles/tantes', 'Enfants et cousins', 'Petits-enfants', 'Descendants'];
+  const spouseByProfile = useMemo(() => {
+    const couples = new Map<string, string>();
+    relationships.filter(item => item.relationshipType === 'conjoint').forEach(item => couples.set(item.sourceProfileId, item.targetProfileId));
+    return couples;
+  }, [relationships]);
+  const names = ['Parents et proches', 'Enfants et frères/sœurs', 'Cousins et cousines', 'Petits-enfants', 'Descendants'];
   if (!profiles.length) {
     return <div className="fr-empty-tree"><TreePine /><strong>Commencez votre arbre</strong><span>Ajoutez les personnes de votre famille, puis reliez-les simplement.</span></div>;
   }
@@ -196,15 +206,22 @@ function TreeBoard({
         const isExpanded = expandedRows.has(generation);
         const visibleProfiles = isExpanded ? rowProfiles : rowProfiles.slice(0, 3);
         const remaining = rowProfiles.length - visibleProfiles.length;
+        const rendered = new Set<string>();
         return (
           <section className="fr-generation" key={generation}>
             <div className="fr-generation-label"><span>Génération {generation + 1}</span><small>{names[generation] || 'Famille'}</small></div>
             <div className={`fr-generation-nodes count-${Math.min(visibleProfiles.length + (remaining ? 1 : 0), 4)}`}>
-              {visibleProfiles.map(profile => (
-                <div className={`fr-tree-node-wrap ${selectedProfileId === profile.id ? 'is-selected' : ''}`} key={profile.id}>
-                  <PersonNode profile={profile} compact={fullScreen} onSelect={onSelect} />
-                </div>
-              ))}
+              {visibleProfiles.map(profile => {
+                if (rendered.has(profile.id)) return null;
+                const spouse = visibleProfiles.find(item => item.id === spouseByProfile.get(profile.id));
+                if (spouse) {
+                  rendered.add(profile.id);
+                  rendered.add(spouse.id);
+                  return <div className={`fr-couple-node ${selectedProfileId === profile.id || selectedProfileId === spouse.id ? 'is-selected' : ''}`} key={`${profile.id}-${spouse.id}`}><PersonNode profile={profile} compact={fullScreen} onSelect={onSelect} /><span className="fr-couple-heart"><Heart /></span><PersonNode profile={spouse} compact={fullScreen} onSelect={onSelect} /></div>;
+                }
+                rendered.add(profile.id);
+                return <div className={`fr-tree-node-wrap ${selectedProfileId === profile.id ? 'is-selected' : ''}`} key={profile.id}><PersonNode profile={profile} compact={fullScreen} onSelect={onSelect} /></div>;
+              })}
               {remaining > 0 && (
                 <button className="fr-more-people" onClick={() => onToggleRow(generation)}>
                   <b>+{remaining}</b><span>Afficher</span>
@@ -319,6 +336,14 @@ export function FamilyRoots({
       status: id === activeFoyerId ? 'Vous' : 'Liée'
     }));
   }, [activeFoyerId, familyName, profiles]);
+
+  const branchMapMarkers = useMemo(() => branches.flatMap(branch => {
+    const profile = branch.profiles.find(item => getFamilyRootCoordinates(item.originCity, item.country));
+    if (!profile) return [];
+    const coordinates = getFamilyRootCoordinates(profile.originCity, profile.country);
+    if (!coordinates) return [];
+    return [{ branch, profile, coordinates }];
+  }), [branches]);
 
   const toggleRow = (generation: number) => setExpandedRows(current => {
     const next = new Set(current);
@@ -515,13 +540,13 @@ export function FamilyRoots({
         </main>}
 
         {!loading && !error && activeTab === 'branches' && <main className="fr-content">
-          <section className="fr-map-card"><div className="fr-section-heading"><div><span>Branches familiales</span><small>Pays et villes déclarés dans les fiches</small></div><Globe2 /></div><div className="fr-map-preview"><img className="fr-map-light" src="/family-roots/world-map-light.png" alt="Carte du monde" /><img className="fr-map-dark" src="/family-roots/world-map-dark.png" alt="" />{branches.slice(0, 4).map((branch, index) => <button key={branch.id} className={`fr-map-pin pin-${index}`} onClick={() => setActiveTab('map')}><span>{branch.profiles.length}</span>{branch.location}</button>)}</div></section>
+          <section className="fr-map-card"><div className="fr-section-heading"><div><span>Branches familiales</span><small>Les repères indiquent les villes et pays renseignés dans les fiches.</small></div><Globe2 /></div><div className="fr-map-preview"><img className="fr-map-light" src="/family-roots/world-map-light.png" alt="Carte du monde" /><img className="fr-map-dark" src="/family-roots/world-map-dark.png" alt="" />{branchMapMarkers.map(({ branch, coordinates }) => <button key={branch.id} className="fr-map-pin" style={getMapPosition(coordinates)} onClick={() => setActiveTab('map')}><span>{branch.profiles.length}</span>{coordinates.label}</button>)}{!branchMapMarkers.length && <p className="fr-map-empty">Ajoutez une ville ou un pays dans une fiche pour placer votre branche sur la carte.</p>}</div></section>
           <section className="fr-branches-card"><div className="fr-section-heading"><div><span>Liste des branches</span><small>Foyers proches, branches liées et demandes en cours.</small></div><Link2 /></div>{branches.map(branch => <button className="fr-branch-row" key={branch.id} onClick={() => setActiveTab('map')}><div className={`fr-branch-badge ${branch.color}`}><UsersRound /></div><div className="fr-branch-row-copy"><strong>{branch.name}</strong><span>{branch.location} · {branch.profiles.length} membre{branch.profiles.length > 1 ? 's' : ''}</span></div><b className={branch.status === 'Vous' ? 'is-owner' : ''}>{branch.status}</b><ChevronRight /></button>)}{pendingConnections.filter(connection => connection.direction === 'outgoing').map(connection => <div className="fr-branch-row is-pending" key={connection.id}><div className="fr-branch-badge blue"><Send /></div><div className="fr-branch-row-copy"><strong>Invitation envoyée</strong><span>En attente de confirmation</span></div><b>En attente</b></div>)}</section>
           <button className="fr-primary-action" onClick={() => setModal('link-branch')}><Plus /> Lier une nouvelle branche</button>
         </main>}
 
         {!loading && !error && activeTab === 'map' && <main className="fr-content">
-          <section className="fr-world-card"><div className="fr-world-copy"><span className="fr-eyebrow"><MapPinned /> Famille dans le monde</span><h2>Vos branches reliées</h2><p>Chaque lieu correspond à une branche qui a choisi de partager sa ville.</p></div><div className="fr-world-map"><img className="fr-map-light" src="/family-roots/world-map-light.png" alt="Carte du monde des branches" /><img className="fr-map-dark" src="/family-roots/world-map-dark.png" alt="" />{branches.slice(0, 4).map((branch, index) => <button className={`fr-world-pin pin-${index}`} key={branch.id} onClick={() => { setActiveTab('branches'); }}><div className="fr-pin-avatar"><ProfileAvatar profile={branch.profiles[0]} /></div><span>{branch.location}</span></button>)}</div></section>
+          <section className="fr-world-card"><div className="fr-world-copy"><span className="fr-eyebrow"><MapPinned /> Famille dans le monde</span><h2>Vos branches reliées</h2><p>Chaque repère est calculé à partir de la ville ou du pays réellement renseigné par la branche.</p></div><div className="fr-world-map"><img className="fr-map-light" src="/family-roots/world-map-light.png" alt="Carte du monde des branches" /><img className="fr-map-dark" src="/family-roots/world-map-dark.png" alt="" />{branchMapMarkers.map(({ branch, profile, coordinates }) => <button className="fr-world-pin" style={getMapPosition(coordinates)} key={branch.id} onClick={() => setSelectedProfile(profile)}><div className="fr-pin-avatar"><ProfileAvatar profile={profile} /></div><span>{coordinates.label}</span></button>)}{!branchMapMarkers.length && <p className="fr-map-empty">Aucun lieu n’a encore été renseigné par les branches familiales.</p>}</div></section>
           <section className="fr-map-list">{branches.map(branch => <button key={branch.id} onClick={() => setSelectedProfile(branch.profiles[0])}><div className={`fr-branch-badge ${branch.color}`}><UsersRound /></div><div><strong>{branch.name}</strong><span>{branch.location}</span></div><ChevronRight /></button>)}</section>
         </main>}
       </div>

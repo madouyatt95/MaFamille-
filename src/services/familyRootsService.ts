@@ -24,6 +24,7 @@ export type FamilyTreeProfile = {
   isMemorial: boolean;
   deathDate?: string;
   sharedFields: string[];
+  memberRole?: string;
 };
 
 export type FamilyTreeConnection = {
@@ -261,7 +262,8 @@ const localProfilesFromMembers = (foyerId: string, members: Member[]): FamilyTre
       photoUrl: member.photoUrl,
       isMemorial: stored.isMemorial || false,
       deathDate: stored.deathDate || undefined,
-      sharedFields: stored.sharedFields || (age !== null && age < 18 ? ['display_name', 'nickname'] : ['display_name', 'nickname', 'country', 'origin_city', 'birth_date', 'photo_url', 'bio', 'languages'])
+      sharedFields: stored.sharedFields || (age !== null && age < 18 ? ['display_name', 'nickname'] : ['display_name', 'nickname', 'country', 'origin_city', 'birth_date', 'photo_url', 'bio', 'languages']),
+      memberRole: member.role
     };
   });
 };
@@ -286,7 +288,8 @@ const mapProfile = (row: ProfileRow, activeFoyerId: string, members: Member[]): 
     photoUrl: row.foyer_id === activeFoyerId ? (row.photo_url || member?.photoUrl) : row.photo_url || undefined,
     isMemorial: row.is_memorial || false,
     deathDate: row.death_date || undefined,
-    sharedFields: row.shared_fields || []
+    sharedFields: row.shared_fields || [],
+    memberRole: member?.role
   };
 };
 

@@ -11,3 +11,22 @@ html:not(.theme-light):not(.theme-sepia) .family-roots .fr-map-dark {
   mix-blend-mode: normal;
   opacity: 1;
 }
+
+.fr-map-pin {
+  transform: translate(-50%, -100%);
+}
+
+.fr-map-empty {
+  position: absolute;
+  inset: auto 16px 16px;
+  z-index: 1;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--fr-muted);
+  background: color-mix(in srgb, var(--fr-surface) 90%, transparent);
+  border: 1px solid var(--fr-line);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+}
