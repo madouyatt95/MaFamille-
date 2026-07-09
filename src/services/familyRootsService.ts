@@ -1,6 +1,5 @@
 import type { Member } from '../types';
 import { getSupabaseClient } from '../utils/supabase';
-import { DEMO_PROFILES, DEMO_RELATIONSHIPS, DEMO_EVENTS, DEMO_MEMORIES } from '../utils/familyRootsDemoData';
 
 export type FamilyBranch = 'proche' | 'paternelle' | 'maternelle' | 'autre';
 export type FamilyProfileVisibility = 'prive' | 'famille' | 'masque';
@@ -32,6 +31,7 @@ export type FamilyTreeConnection = {
   requesterFoyerId: string;
   targetFoyerId: string;
   requesterProfileId: string;
+  requesterDisplayName?: string;
   targetProfileId?: string;
   relationshipType: FamilyRelationshipType;
   status: 'pending' | 'confirmed' | 'rejected' | 'cancelled';
@@ -143,6 +143,7 @@ type ConnectionRow = {
   requester_foyer_id: string;
   target_foyer_id: string;
   requester_profile_id: string;
+  requester_display_name?: string | null;
   target_profile_id?: string | null;
   relationship_type: FamilyRelationshipType;
   status: FamilyTreeConnection['status'];
@@ -324,63 +325,15 @@ const persistLocalProfile = (foyerId: string, profile: FamilyTreeProfile) => {
   localStorage.setItem(localProfileKey(foyerId), JSON.stringify(saved));
 };
 
-const buildDemoSnapshot = (foyerId: string): FamilyRootsSnapshot => {
-  const demoProfilesMapped = DEMO_PROFILES.map(p => ({
-    id: p.id,
-    foyerId: foyerId,
-    displayName: p.displayName,
-    nickname: p.nickname,
-    birthDate: p.birthDate,
-    deathDate: p.deathDate,
-    isMemorial: p.isMemorial,
-    branch: p.branch,
-    country: p.country,
-    originCity: p.originCity,
-    languages: p.languages,
-    isMinor: p.isMinor,
-    visibility: p.visibility,
-    photoUrl: p.photoUrl,
-    bio: p.bio,
-    isLocal: true,
-    sharedFields: p.isMinor ? ['display_name', 'nickname'] : ['display_name', 'nickname', 'country', 'origin_city', 'birth_date', 'photo_url', 'bio', 'languages']
-  }));
-  const demoRelationshipsMapped = DEMO_RELATIONSHIPS.map(r => ({
-    id: r.id,
-    foyerId: foyerId,
-    sourceProfileId: r.sourceProfileId,
-    targetProfileId: r.targetProfileId,
-    relationshipType: r.relationshipType
-  }));
-  const demoEventsMapped = DEMO_EVENTS.map(e => ({
-    id: e.id,
-    foyerId: foyerId,
-    eventType: e.eventType,
-    title: e.title,
-    eventDate: e.eventDate,
-    repeatsYearly: e.repeatsYearly,
-    visibility: e.visibility
-  }));
-  const demoMemoriesMapped = DEMO_MEMORIES.map(m => ({
-    id: m.id,
-    foyerId: foyerId,
-    profileId: m.profileId,
-    title: m.title,
-    note: m.note,
-    memoryDate: m.memoryDate,
-    photoUrl: m.photoUrl,
-    visibility: m.visibility,
-    createdAt: new Date().toISOString()
-  }));
-
+const buildLocalSnapshot = (foyerId: string, members: Member[]): FamilyRootsSnapshot => {
+  const profiles = localProfilesFromMembers(foyerId, members);
   return {
-    shareCode: 'RAC-DEMO12',
-    shareCodeExpiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
-    profiles: demoProfilesMapped,
-    relationships: demoRelationshipsMapped,
+    profiles,
+    relationships: [],
     connections: [],
     identityRequests: [],
-    events: [...generatedBirthdayEvents(demoProfilesMapped), ...demoEventsMapped],
-    memories: demoMemoriesMapped,
+    events: generatedBirthdayEvents(profiles),
+    memories: [],
     corrections: [],
     validationLogs: [],
     cloudEnabled: false
@@ -392,7 +345,7 @@ export const familyRootsService = {
     const fallbackProfiles = localProfilesFromMembers(foyerId, members);
     const client = getSupabaseClient();
     if (!client || !foyerId || foyerId === 'local') {
-      return buildDemoSnapshot(foyerId || 'local');
+      return buildLocalSnapshot(foyerId || 'local', members);
     }
 
     const settingsResult = await client
@@ -402,7 +355,7 @@ export const familyRootsService = {
       .maybeSingle();
 
     if (settingsResult.error && tableMissing(settingsResult.error)) {
-      return buildDemoSnapshot(foyerId);
+      return buildLocalSnapshot(foyerId, members);
     }
     if (settingsResult.error) throw settingsResult.error;
 
@@ -434,65 +387,28 @@ export const familyRootsService = {
           share_code_expires_at: new Date(Date.now() + 30 * 86400000).toISOString()
         });
 
-        // Seed profiles
-        await client.from('family_tree_profiles').insert(
-          DEMO_PROFILES.map(p => ({
-            id: p.id,
+        // Seed only the actual people already present in this household. The former
+        // module inserted a fictitious sample family into real production accounts.
+        if (fallbackProfiles.length) {
+          await client.from('family_tree_profiles').insert(fallbackProfiles.map(profile => ({
             foyer_id: foyerId,
-            display_name: p.displayName,
-            nickname: p.nickname,
-            birth_date: p.birthDate,
-            death_date: p.deathDate,
-            is_memorial: p.isMemorial,
-            branch: p.branch,
-            country: p.country,
-            origin_city: p.originCity,
-            languages: p.languages,
-            is_minor: p.isMinor,
-            visibility: p.visibility,
-            photo_url: p.photoUrl,
-            bio: p.bio,
-            shared_fields: p.isMinor ? ['display_name', 'nickname'] : ['display_name', 'nickname', 'country', 'origin_city', 'birth_date', 'photo_url', 'bio', 'languages']
-          }))
-        );
-
-        // Seed relationships
-        await client.from('family_tree_relationships').insert(
-          DEMO_RELATIONSHIPS.map(r => ({
-            id: r.id,
-            foyer_id: foyerId,
-            source_profile_id: r.sourceProfileId,
-            target_profile_id: r.targetProfileId,
-            relationship_type: r.relationshipType
-          }))
-        );
-
-        // Seed events
-        await client.from('family_tree_events').insert(
-          DEMO_EVENTS.map(e => ({
-            id: e.id,
-            foyer_id: foyerId,
-            event_type: e.eventType,
-            title: e.title,
-            event_date: e.eventDate,
-            repeats_yearly: e.repeatsYearly,
-            visibility: e.visibility
-          }))
-        );
-
-        // Seed memories
-        await client.from('family_tree_memories').insert(
-          DEMO_MEMORIES.map(m => ({
-            id: m.id,
-            foyer_id: foyerId,
-            profile_id: m.profileId,
-            title: m.title,
-            note: m.note,
-            memory_date: m.memoryDate,
-            photo_url: m.photoUrl,
-            visibility: m.visibility
-          }))
-        );
+            member_id: profile.memberId || null,
+            display_name: profile.displayName,
+            birth_date: profile.birthDate || null,
+            branch: profile.branch,
+            country: profile.country || null,
+            origin_city: profile.originCity || null,
+            nickname: profile.nickname || null,
+            bio: profile.bio || null,
+            languages: profile.languages,
+            photo_url: profile.photoUrl || null,
+            is_minor: profile.isMinor,
+            visibility: profile.visibility,
+            is_memorial: profile.isMemorial,
+            death_date: profile.deathDate || null,
+            shared_fields: profile.sharedFields
+          })));
+        }
 
         // Refetch
         const refetch = await client
@@ -509,7 +425,7 @@ export const familyRootsService = {
     }
 
     if (existingRows.length === 0) {
-      const snap = buildDemoSnapshot(foyerId);
+      const snap = buildLocalSnapshot(foyerId, members);
       snap.cloudEnabled = true;
       if (shareCode) {
         snap.shareCode = shareCode;
@@ -538,7 +454,7 @@ export const familyRootsService = {
 
     const connectionsResult = await client
       .from('family_tree_connections')
-      .select('id, requester_foyer_id, target_foyer_id, requester_profile_id, target_profile_id, relationship_type, status, created_at, confirmed_at')
+      .select('id, requester_foyer_id, target_foyer_id, requester_profile_id, requester_display_name, target_profile_id, relationship_type, status, created_at, confirmed_at')
       .or(`requester_foyer_id.eq.${foyerId},target_foyer_id.eq.${foyerId}`)
       .in('status', ['pending', 'confirmed'])
       .order('updated_at', { ascending: false })
@@ -574,6 +490,7 @@ export const familyRootsService = {
       requesterFoyerId: row.requester_foyer_id,
       targetFoyerId: row.target_foyer_id,
       requesterProfileId: row.requester_profile_id,
+      requesterDisplayName: row.requester_display_name || undefined,
       targetProfileId: row.target_profile_id || undefined,
       relationshipType: row.relationship_type,
       status: row.status,

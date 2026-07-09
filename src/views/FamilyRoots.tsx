@@ -1,1080 +1,540 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
-  SlidersHorizontal,
-  Search,
-  MessageSquare,
+  Bell,
+  CalendarDays,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CircleHelp,
+  Copy,
+  Globe2,
+  Link2,
+  MapPinned,
+  MessageCircle,
+  Minus,
   MoreHorizontal,
-  Users,
-  GitBranch,
-  Globe,
-  MapPin,
-  Calendar,
-  Phone,
   Plus,
-  Compass,
-  GraduationCap,
-  Lock
+  Search,
+  Send,
+  Share2,
+  Sparkles,
+  TreePine,
+  UsersRound,
+  X,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-react';
+import type { Member } from '../types';
+import {
+  familyRootsService,
+  type FamilyRelationshipType,
+  type FamilyRootsSnapshot,
+  type FamilyTreeConnection,
+  type FamilyTreeProfile,
+  type FamilyTreeRelationship
+} from '../services/familyRootsService';
+import './family-roots.css';
 
-// Interfaces for our static data
-interface Member {
-  id: string;
-  name: string;
-  birthYear: string;
-  deathYear?: string;
-  avatar: string;
-  role?: string;
-  location?: string;
-}
+type RootTab = 'tree' | 'cousins' | 'branches' | 'map';
+type ModalName = 'add-person' | 'link-persons' | 'link-branch' | 'invite' | null;
 
-interface FamilyCard {
-  id: string;
-  name: string;
-  location: string;
-  membersCount: number;
-  avatars: string[];
-  borderColor: string;
-}
-
-export function FamilyRoots({
-  foyerId,
-  familyName,
-  members,
-  canManage,
-  isPremium,
-  onTriggerPaywall,
-  onSendNotification,
-  onAddAgendaEvent,
-  onCreateBranchGroup
-}: {
+type FamilyRootsProps = {
   foyerId?: string;
   familyName?: string;
-  members?: any[];
+  members?: Member[];
   canManage?: boolean;
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
   onSendNotification?: (title: string, body: string, type?: string) => void;
-  onAddAgendaEvent?: (event: any) => void;
-  onCreateBranchGroup?: (name: string, members: any[]) => Promise<any>;
+  onAddAgendaEvent?: (event: unknown) => void;
+  onCreateBranchGroup?: (name: string, memberIds: string[]) => Promise<unknown>;
+};
+
+const relationshipLabels: Record<FamilyRelationshipType, string> = {
+  parent: 'Parent',
+  enfant: 'Enfant',
+  fratrie: 'Frère ou sœur',
+  cousin: 'Cousin ou cousine',
+  conjoint: 'Conjoint·e',
+  oncle_tante: 'Oncle ou tante',
+  neveu_niece: 'Neveu ou nièce',
+  grand_parent: 'Grand-parent',
+  petit_enfant: 'Petit-enfant',
+  famille: 'Famille'
+};
+
+const branchColors = ['violet', 'green', 'orange', 'blue'] as const;
+
+const initial = (name?: string) => (name || '?').trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+
+const displayYear = (profile: FamilyTreeProfile) => {
+  if (!profile.birthDate) return 'Date inconnue';
+  const year = new Date(`${profile.birthDate}T12:00:00`).getFullYear();
+  if (Number.isNaN(year)) return 'Date inconnue';
+  if (profile.isMemorial && profile.deathDate) {
+    const death = new Date(`${profile.deathDate}T12:00:00`).getFullYear();
+    return `${year} - ${Number.isNaN(death) ? '' : death}`;
+  }
+  return `${year} -`;
+};
+
+const profileLocation = (profile: FamilyTreeProfile) => [profile.originCity, profile.country].filter(Boolean).join(', ') || 'Lieu non renseigné';
+
+const profileAge = (profile: FamilyTreeProfile) => {
+  if (!profile.birthDate) return '';
+  const birth = new Date(`${profile.birthDate}T12:00:00`);
+  if (Number.isNaN(birth.getTime())) return '';
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const month = today.getMonth() - birth.getMonth();
+  if (month < 0 || (month === 0 && today.getDate() < birth.getDate())) age -= 1;
+  return `${age} ans`;
+};
+
+function ProfileAvatar({ profile, className = '' }: { profile: FamilyTreeProfile; className?: string }) {
+  return (
+    <div className={`fr-avatar ${className}`} aria-label={profile.displayName}>
+      {profile.photoUrl ? <img src={profile.photoUrl} alt="" /> : <span>{initial(profile.displayName)}</span>}
+    </div>
+  );
+}
+
+function PersonNode({
+  profile,
+  compact = false,
+  onSelect
+}: {
+  profile: FamilyTreeProfile;
+  compact?: boolean;
+  onSelect: (profile: FamilyTreeProfile) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<'arbre' | 'cousins' | 'branches' | 'carte'>('arbre');
-  const [selectedMember, setSelectedMember] = useState<string | null>(null);
-  const [profileViewMode, setProfileViewMode] = useState<'drawer' | 'full'>('full');
-  const [cousinSearch, setCousinSearch] = useState('');
-  const [cousinFilter, setCousinFilter] = useState<'Tous' | 'Proches' | 'Par pays' | 'Par branche'>('Tous');
+  return (
+    <button className={`fr-person-node ${compact ? 'is-compact' : ''}`} onClick={() => onSelect(profile)}>
+      <ProfileAvatar profile={profile} />
+      <strong>{profile.displayName}</strong>
+      <span>{compact ? displayYear(profile) : profile.nickname || profileLocation(profile)}</span>
+    </button>
+  );
+}
 
-  // Static reference data matching mockup
-  const g1Members: Member[] = [
-    { id: 'ousmane', name: 'Ousmane Diop', birthYear: '1946', deathYear: '2018', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'awa', name: 'Awa Ndiaye', birthYear: '1950', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&h=150&q=80' }
-  ];
+function buildGenerationRows(
+  profiles: FamilyTreeProfile[],
+  relationships: FamilyTreeRelationship[],
+  connections: FamilyTreeConnection[]
+) {
+  const profileIds = new Set(profiles.map(profile => profile.id));
+  const parentEdges = relationships
+    .filter(relationship => relationship.relationshipType === 'parent' && profileIds.has(relationship.sourceProfileId) && profileIds.has(relationship.targetProfileId))
+    .map(relationship => ({ parent: relationship.sourceProfileId, child: relationship.targetProfileId }));
 
-  const g2Members: Member[] = [
-    { id: 'ibrahima', name: 'Ibrahima', birthYear: '1970', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'fatou', name: 'Fatou', birthYear: '1975', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'moussa', name: 'Moussa', birthYear: '1978', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'mariama', name: 'Mariama', birthYear: '1980', avatar: 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?auto=format&fit=crop&w=150&h=150&q=80' }
-  ];
-
-  const g3FamilyCards: FamilyCard[] = [
-    {
-      id: 'fam_ibrahima',
-      name: 'Famille Ibrahima',
-      location: 'Dakar, Sénégal',
-      membersCount: 15,
-      borderColor: 'border-[#00D26A]',
-      avatars: [
-        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&h=100&q=80',
-        'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=100&h=100&q=80'
-      ]
-    },
-    {
-      id: 'fam_mamadou',
-      name: 'Famille Mamadou',
-      location: 'Paris, France',
-      membersCount: 12,
-      borderColor: 'border-[#6C5CFF]',
-      avatars: [
-        'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=100&h=100&q=80',
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&h=100&q=80',
-        'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=100&h=100&q=80'
-      ]
-    },
-    {
-      id: 'fam_moussa',
-      name: 'Famille Moussa',
-      location: 'Abidjan, Côte d\'Ivoire',
-      membersCount: 9,
-      borderColor: 'border-[#FF7A1A]',
-      avatars: [
-        'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=100&h=100&q=80',
-        'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=100&h=100&q=80'
-      ]
-    }
-  ];
-
-  const g4Members: Member[] = [
-    { id: 'aminata', name: 'Aminata', birthYear: '1995', avatar: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'cheikh', name: 'Cheikh', birthYear: '1998', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'sokhna', name: 'Sokhna', birthYear: '2001', avatar: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'mamadou_jr', name: 'Mamadou Jr.', birthYear: '2003', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'aicha', name: 'Aïcha', birthYear: '2006', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'yacine', name: 'Yacine', birthYear: '2000', avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'hawa', name: 'Hawa', birthYear: '2004', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&h=150&q=80' }
-  ];
-
-  const g5Members: Member[] = [
-    { id: 'ali', name: 'Ali', birthYear: '2021', avatar: 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'mariam', name: 'Mariam', birthYear: '2023', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=150&h=150&q=80' }
-  ];
-
-  // 24 Cousins mockup data
-  const cousinsList: Member[] = [
-    { id: 'fatima_c', name: 'Fatima Diop', role: 'Cousine', location: 'Dakar, Sénégal', birthYear: '1996', avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'abdoulaye_c', name: 'Abdoulaye Diop', role: 'Cousin', location: 'Paris, France', birthYear: '1997', avatar: 'https://images.unsplash.com/photo-1500048993953-d23a436266cf?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'ndeye_c', name: 'Ndeye Diop', role: 'Cousine', location: 'New York, USA', birthYear: '1999', avatar: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'youssouf_c', name: 'Youssouf Diop', role: 'Cousin', location: 'Abidjan, Côte d\'Ivoire', birthYear: '1998', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'khady_c', name: 'Khady Diop', role: 'Cousine', location: 'Marseille, France', birthYear: '2000', avatar: 'https://images.unsplash.com/photo-1548142813-c348350df52b?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'aicha_c', name: 'Aïcha Diop', role: 'Cousine', location: 'Paris, France', birthYear: '2006', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&h=150&q=80' },
-    { id: 'ibrahima_jr_c', name: 'Ibrahima Jr. Diop', role: 'Cousin', location: 'Dakar, Sénégal', birthYear: '1995', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&h=150&q=80' }
-  ];
-
-  // Helper to filter cousins
-  const filteredCousins = cousinsList.filter(c => {
-    const matchesSearch = c.name.toLowerCase().includes(cousinSearch.toLowerCase()) || c.location?.toLowerCase().includes(cousinSearch.toLowerCase());
-    if (cousinFilter === 'Tous') return matchesSearch;
-    if (cousinFilter === 'Proches') return matchesSearch && c.role === 'Cousine';
-    if (cousinFilter === 'Par pays') return matchesSearch && c.location?.includes('France');
-    if (cousinFilter === 'Par branche') return matchesSearch && c.location?.includes('Dakar');
-    return matchesSearch;
+  connections.filter(connection => connection.status === 'confirmed' && connection.targetProfileId).forEach(connection => {
+    if (!profileIds.has(connection.requesterProfileId) || !profileIds.has(connection.targetProfileId!)) return;
+    if (connection.relationshipType === 'parent') parentEdges.push({ parent: connection.requesterProfileId, child: connection.targetProfileId! });
+    if (connection.relationshipType === 'enfant') parentEdges.push({ parent: connection.targetProfileId!, child: connection.requesterProfileId });
   });
 
-  const isBlocked = true;
+  const parentsByChild = new Map<string, string[]>();
+  parentEdges.forEach(edge => parentsByChild.set(edge.child, [...(parentsByChild.get(edge.child) || []), edge.parent]));
+  const resolving = new Set<string>();
+  const resolveGeneration = (id: string): number => {
+    if (resolving.has(id)) return 0;
+    resolving.add(id);
+    const parents = parentsByChild.get(id) || [];
+    const generation = parents.length ? Math.min(4, Math.max(...parents.map(resolveGeneration)) + 1) : 0;
+    resolving.delete(id);
+    return generation;
+  };
 
-  if (isBlocked) {
-    return (
-      <div className="relative min-h-screen w-full bg-[#050C1A] text-white font-sans overflow-x-hidden pb-12 select-none">
-        {/* Top Banner/Header */}
-        <header className="px-4 pt-6 pb-4 border-b border-white/5 bg-[#050C1A]">
-          <div className="flex items-center justify-between">
-            <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 hover:bg-white/10">
-              <ArrowLeft className="h-5 w-5 text-white/80" />
-            </button>
-            <div className="text-center">
-              <h1 className="text-lg font-black tracking-wide flex items-center justify-center gap-1.5">
-                Racines familiales 🌳
-              </h1>
-              <p className="text-[10px] font-semibold text-white/40 mt-0.5">
-                Notre histoire, nos liens, nos racines 🌳
-              </p>
-            </div>
-            <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 hover:bg-white/10">
-              <SlidersHorizontal className="h-4 w-4 text-white/80" />
-            </button>
-          </div>
-        </header>
+  const rows = new Map<number, FamilyTreeProfile[]>();
+  profiles.filter(profile => profile.visibility !== 'masque').forEach(profile => {
+    const generation = resolveGeneration(profile.id);
+    rows.set(generation, [...(rows.get(generation) || []), profile]);
+  });
 
-        {/* Blurred preview and Bientôt disponible card overlay */}
-        <div className="relative px-6 py-20 flex flex-col items-center justify-center min-h-[70vh] overflow-hidden">
-          
-          {/* Blurred background components representing the tree shapes */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center opacity-10 filter blur-[12px] pointer-events-none scale-90">
-            {/* Minimal SVG tree structure for background visual depth */}
-            <svg className="w-[300px] h-[300px]" viewBox="0 0 100 100">
-              <line x1="50" y1="20" x2="50" y2="80" stroke="white" strokeWidth="3" />
-              <line x1="20" y1="50" x2="80" y2="50" stroke="white" strokeWidth="3" />
-              <circle cx="50" cy="20" r="10" fill="white" />
-              <circle cx="20" cy="50" r="10" fill="white" />
-              <circle cx="80" cy="50" r="10" fill="white" />
-              <circle cx="50" cy="80" r="10" fill="white" />
-            </svg>
-          </div>
+  return [...rows.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([generation, row]) => ({
+      generation,
+      profiles: row.sort((left, right) => {
+        const leftTime = left.birthDate ? new Date(left.birthDate).getTime() : Number.MAX_SAFE_INTEGER;
+        const rightTime = right.birthDate ? new Date(right.birthDate).getTime() : Number.MAX_SAFE_INTEGER;
+        return leftTime - rightTime;
+      })
+    }));
+}
 
-          {/* Premium Glassmorphic Overlay Card */}
-          <div className="relative z-10 w-full max-w-sm rounded-[32px] bg-gradient-to-b from-[#0A1224]/85 to-[#050C1A]/95 border border-white/10 p-8 text-center backdrop-blur-xl shadow-[0_24px_64px_rgba(0,0,0,0.5)]">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#A196FF] shadow-[0_8px_24px_rgba(108,92,255,0.4)] mb-6">
-              <Lock className="h-7 w-7 text-white" strokeWidth={2.5} />
-            </div>
-            
-            <h2 className="text-2xl font-black tracking-wide text-white">Bientôt disponible</h2>
-            <p className="text-xs font-bold text-[#A196FF] mt-1.5 uppercase tracking-widest">Module en cours de finalisation</p>
-            
-            <p className="text-xs leading-relaxed text-white/50 mt-5">
-              Le module **Racines Familiales** arrive très bientôt pour votre foyer ! Vous pourrez y explorer votre arbre généalogique interactif, cartographier vos branches géographiques et rester connecté avec vos cousins.
-            </p>
-
-            <div className="mt-8 pt-6 border-t border-white/5">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#6C5CFF]/12 border border-[#6C5CFF]/20 px-4 py-2 text-[10px] font-black text-[#C9C3FF] uppercase tracking-wider">
-                ⏳ Lancement imminent
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+function TreeBoard({
+  profiles,
+  relationships,
+  connections,
+  selectedProfileId,
+  expandedRows,
+  onToggleRow,
+  onSelect,
+  fullScreen = false
+}: {
+  profiles: FamilyTreeProfile[];
+  relationships: FamilyTreeRelationship[];
+  connections: FamilyTreeConnection[];
+  selectedProfileId?: string;
+  expandedRows: Set<number>;
+  onToggleRow: (generation: number) => void;
+  onSelect: (profile: FamilyTreeProfile) => void;
+  fullScreen?: boolean;
+}) {
+  const rows = useMemo(() => buildGenerationRows(profiles, relationships, connections), [profiles, relationships, connections]);
+  const names = ['Grands-parents', 'Parents et oncles/tantes', 'Enfants et cousins', 'Petits-enfants', 'Descendants'];
+  if (!profiles.length) {
+    return <div className="fr-empty-tree"><TreePine /><strong>Commencez votre arbre</strong><span>Ajoutez les personnes de votre famille, puis reliez-les simplement.</span></div>;
   }
 
   return (
-    <div className="relative min-h-screen w-full bg-[#050C1A] text-white font-sans overflow-x-hidden pb-12 select-none">
-      
-      {/* Top Banner/Header */}
-      <header className="px-4 pt-6 pb-4 border-b border-white/5 bg-[#050C1A]">
-        <div className="flex items-center justify-between">
-          <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 hover:bg-white/10">
-            <ArrowLeft className="h-5 w-5 text-white/80" />
-          </button>
-          <div className="text-center">
-            <h1 className="text-lg font-black tracking-wide flex items-center justify-center gap-1.5">
-              Racines familiales 🌳
-            </h1>
-            <p className="text-[10px] font-semibold text-white/40 mt-0.5">
-              Notre histoire, nos liens, nos racines 🌳
-            </p>
-          </div>
-          <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 hover:bg-white/10">
-            <SlidersHorizontal className="h-4 w-4 text-white/80" />
-          </button>
-        </div>
+    <div className={`fr-tree-board ${fullScreen ? 'is-fullscreen-tree' : ''}`}>
+      {rows.map(({ generation, profiles: rowProfiles }) => {
+        const isExpanded = expandedRows.has(generation);
+        const visibleProfiles = isExpanded ? rowProfiles : rowProfiles.slice(0, 3);
+        const remaining = rowProfiles.length - visibleProfiles.length;
+        return (
+          <section className="fr-generation" key={generation}>
+            <div className="fr-generation-label"><span>Génération {generation + 1}</span><small>{names[generation] || 'Famille'}</small></div>
+            <div className={`fr-generation-nodes count-${Math.min(visibleProfiles.length + (remaining ? 1 : 0), 4)}`}>
+              {visibleProfiles.map(profile => (
+                <div className={`fr-tree-node-wrap ${selectedProfileId === profile.id ? 'is-selected' : ''}`} key={profile.id}>
+                  <PersonNode profile={profile} compact={fullScreen} onSelect={onSelect} />
+                </div>
+              ))}
+              {remaining > 0 && (
+                <button className="fr-more-people" onClick={() => onToggleRow(generation)}>
+                  <b>+{remaining}</b><span>Afficher</span>
+                </button>
+              )}
+              {isExpanded && rowProfiles.length > 3 && (
+                <button className="fr-collapse-people" onClick={() => onToggleRow(generation)} aria-label="Réduire cette génération"><Minus /></button>
+              )}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
 
-        {/* Horizontal Navigation Tabs */}
-        <div className="mt-6 flex justify-between gap-1 rounded-2xl bg-white/4 p-1">
-          {(['arbre', 'cousins', 'branches', 'carte'] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-2.5 rounded-xl text-xs font-black capitalize transition-all duration-300 ${
-                activeTab === tab
-                  ? 'bg-[#6C5CFF] text-white shadow-[0_4px_12px_rgba(108,92,255,0.3)]'
-                  : 'text-white/40 hover:text-white/70'
-              }`}
-            >
-              {tab}
-            </button>
+function RootsModal({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) {
+  return (
+    <div className="fr-modal-backdrop" role="dialog" aria-modal="true" aria-label={title}>
+      <section className="fr-modal">
+        <div className="fr-modal-header"><h2>{title}</h2><button onClick={onClose} aria-label="Fermer"><X /></button></div>
+        {children}
+      </section>
+    </div>
+  );
+}
+
+export function FamilyRoots({
+  foyerId,
+  familyName = 'Ma famille',
+  members = [],
+  canManage = false,
+  isPremium = false,
+  onTriggerPaywall,
+  onSendNotification,
+  onAddAgendaEvent,
+  onCreateBranchGroup
+}: FamilyRootsProps) {
+  const [activeTab, setActiveTab] = useState<RootTab>('tree');
+  const [snapshot, setSnapshot] = useState<FamilyRootsSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [selectedProfile, setSelectedProfile] = useState<FamilyTreeProfile | null>(null);
+  const [modal, setModal] = useState<ModalName>(null);
+  const [treeFullscreen, setTreeFullscreen] = useState(false);
+  const [treeScale, setTreeScale] = useState(0.84);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [query, setQuery] = useState('');
+  const [branchFilter, setBranchFilter] = useState<'all' | 'nearby' | 'country' | 'branch'>('all');
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [personForm, setPersonForm] = useState({ name: '', date: '', city: '', country: '', relation: 'famille' as FamilyRelationshipType });
+  const [relationshipForm, setRelationshipForm] = useState({ source: '', target: '', relation: 'parent' as FamilyRelationshipType });
+  const [branchForm, setBranchForm] = useState({ code: '', source: '', relation: 'famille' as FamilyRelationshipType });
+
+  const memberSignature = members.map(member => `${member.id}:${member.name}:${member.birthDate}:${member.photoUrl}`).join('|');
+  const activeFoyerId = foyerId || 'local';
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await familyRootsService.load(activeFoyerId, members, canManage);
+      setSnapshot(data);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Impossible de charger l’arbre familial.');
+    } finally {
+      setLoading(false);
+    }
+  }, [activeFoyerId, canManage, memberSignature]);
+
+  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = window.setTimeout(() => setNotice(''), 3600);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  const profiles = snapshot?.profiles || [];
+  const relationships = snapshot?.relationships || [];
+  const connections = snapshot?.connections || [];
+  const localProfiles = profiles.filter(profile => profile.isLocal);
+  const linkedProfiles = profiles.filter(profile => !profile.isLocal);
+  const eventList = snapshot?.events.filter(event => event.visibility === 'famille').slice(0, 3) || [];
+  const countries = new Set(profiles.map(profile => profile.country).filter(Boolean)).size;
+  const confirmedBranches = connections.filter(connection => connection.status === 'confirmed');
+  const pendingConnections = connections.filter(connection => connection.status === 'pending');
+
+  const cousinProfiles = useMemo(() => {
+    const localIds = new Set(localProfiles.map(profile => profile.id));
+    const candidateProfiles = linkedProfiles.length ? linkedProfiles : profiles.filter(profile => !localIds.has(profile.id));
+    const source = candidateProfiles.length ? candidateProfiles : profiles;
+    return source.filter(profile => {
+      const needle = query.trim().toLowerCase();
+      if (needle && !`${profile.displayName} ${profileLocation(profile)}`.toLowerCase().includes(needle)) return false;
+      if (branchFilter === 'nearby') return profile.isLocal;
+      if (branchFilter === 'country') return Boolean(profile.country);
+      if (branchFilter === 'branch') return !profile.isLocal;
+      return true;
+    });
+  }, [branchFilter, linkedProfiles, localProfiles, profiles, query]);
+
+  const branches = useMemo(() => {
+    const groups = new Map<string, FamilyTreeProfile[]>();
+    profiles.forEach(profile => groups.set(profile.foyerId, [...(groups.get(profile.foyerId) || []), profile]));
+    return [...groups.entries()].map(([id, branchProfiles], index) => ({
+      id,
+      profiles: branchProfiles,
+      name: id === activeFoyerId ? familyName : `Branche de ${branchProfiles[0]?.displayName || 'la famille'}`,
+      location: profileLocation(branchProfiles.find(profile => profile.originCity || profile.country) || branchProfiles[0]),
+      color: branchColors[index % branchColors.length],
+      status: id === activeFoyerId ? 'Vous' : 'Liée'
+    }));
+  }, [activeFoyerId, familyName, profiles]);
+
+  const toggleRow = (generation: number) => setExpandedRows(current => {
+    const next = new Set(current);
+    if (next.has(generation)) next.delete(generation); else next.add(generation);
+    return next;
+  });
+
+  const selectProfile = (profile: FamilyTreeProfile) => setSelectedProfile(profile);
+  const showFeedback = (message: string) => setNotice(message);
+
+  const ensureManage = () => {
+    if (canManage) return true;
+    showFeedback('Seul un parent ou le chef de famille peut modifier l’arbre.');
+    return false;
+  };
+
+  const handleAddPerson = async () => {
+    if (!ensureManage() || !personForm.name.trim()) return;
+    setBusy(true);
+    try {
+      const added = await familyRootsService.addProfile(activeFoyerId, {
+        displayName: personForm.name.trim(),
+        birthDate: personForm.date || undefined,
+        branch: 'proche',
+        country: personForm.country || undefined,
+        originCity: personForm.city || undefined,
+        nickname: relationshipLabels[personForm.relation],
+        bio: undefined,
+        languages: [],
+        photoUrl: undefined,
+        isMinor: false,
+        visibility: 'famille',
+        isMemorial: false,
+        deathDate: undefined,
+        sharedFields: ['display_name', 'nickname', 'country', 'origin_city', 'birth_date', 'photo_url']
+      });
+      if (profiles.length) {
+        await familyRootsService.addRelationship(activeFoyerId, profiles[0].id, added.id, personForm.relation);
+      }
+      setPersonForm({ name: '', date: '', city: '', country: '', relation: 'famille' });
+      setModal(null);
+      await reload();
+      showFeedback(`${added.displayName} apparaît maintenant dans l’arbre.`);
+    } catch (cause) {
+      showFeedback(cause instanceof Error ? cause.message : 'La personne n’a pas pu être ajoutée.');
+    } finally { setBusy(false); }
+  };
+
+  const handleAddRelationship = async () => {
+    if (!ensureManage() || !relationshipForm.source || !relationshipForm.target || relationshipForm.source === relationshipForm.target) return;
+    setBusy(true);
+    try {
+      await familyRootsService.addRelationship(activeFoyerId, relationshipForm.source, relationshipForm.target, relationshipForm.relation);
+      setModal(null);
+      await reload();
+      showFeedback('Le lien familial a été ajouté à l’arbre.');
+    } catch (cause) {
+      showFeedback(cause instanceof Error ? cause.message : 'Le lien n’a pas pu être ajouté.');
+    } finally { setBusy(false); }
+  };
+
+  const handleConnectBranch = async () => {
+    if (!ensureManage() || !branchForm.code.trim() || !branchForm.source) return;
+    setBusy(true);
+    try {
+      await familyRootsService.requestConnection(activeFoyerId, branchForm.code.trim(), branchForm.source, branchForm.relation);
+      setModal(null);
+      await reload();
+      onSendNotification?.('Demande de branche envoyée', 'Votre demande attend maintenant la confirmation de l’autre foyer.', 'family_roots');
+      showFeedback('La demande a été envoyée à cette branche.');
+    } catch (cause) {
+      showFeedback(cause instanceof Error ? cause.message : 'La demande n’a pas pu être envoyée.');
+    } finally { setBusy(false); }
+  };
+
+  const handleRespondConnection = async (connection: FamilyTreeConnection, accept: boolean) => {
+    if (!ensureManage()) return;
+    const targetProfile = localProfiles[0];
+    if (accept && !targetProfile) return showFeedback('Ajoutez d’abord une personne dans votre foyer.');
+    setBusy(true);
+    try {
+      await familyRootsService.respondConnection(connection.id, accept, targetProfile?.id);
+      await reload();
+      onSendNotification?.(accept ? 'Branche reliée' : 'Demande refusée', accept ? 'Les deux arbres familiaux sont maintenant reliés.' : 'La demande de branche a été refusée.', 'family_roots');
+      showFeedback(accept ? 'Les deux branches sont maintenant reliées.' : 'La demande a été refusée.');
+    } catch (cause) {
+      showFeedback(cause instanceof Error ? cause.message : 'La demande n’a pas pu être traitée.');
+    } finally { setBusy(false); }
+  };
+
+  const copyInvite = async () => {
+    if (!snapshot?.shareCode) return;
+    try {
+      await navigator.clipboard?.writeText(snapshot.shareCode);
+      showFeedback('Le code de la branche a été copié.');
+    } catch { showFeedback(`Code à partager : ${snapshot.shareCode}`); }
+  };
+
+  const regenerateInvite = async () => {
+    if (!ensureManage()) return;
+    setBusy(true);
+    try {
+      const code = await familyRootsService.regenerateCode(activeFoyerId);
+      setSnapshot(current => current ? { ...current, shareCode: code } : current);
+      showFeedback('Un nouveau code de branche est prêt.');
+    } catch (cause) {
+      showFeedback(cause instanceof Error ? cause.message : 'Impossible de créer un nouveau code.');
+    } finally { setBusy(false); }
+  };
+
+  const publishEvent = (profile: FamilyTreeProfile) => {
+    const title = `Anniversaire de ${profile.displayName}`;
+    onAddAgendaEvent?.({ title, type: 'social', dateTime: profile.birthDate || new Date().toISOString().slice(0, 10), done: false });
+    showFeedback('L’événement a été ajouté à l’agenda du foyer.');
+  };
+
+  const createBranchGroup = async () => {
+    if (!selectedProfile || !onCreateBranchGroup) return;
+    const matchingMemberIds = members.filter(member => member.name === selectedProfile.displayName).map(member => member.id);
+    try {
+      await onCreateBranchGroup(`Famille · ${selectedProfile.displayName}`, matchingMemberIds);
+      showFeedback('Le groupe familial a été créé.');
+    } catch { showFeedback('Le groupe n’a pas pu être créé.'); }
+  };
+
+  const fullTree = treeFullscreen && (
+    <div className="fr-fullscreen-tree-shell">
+      <button className="fr-fullscreen-close" onClick={() => setTreeFullscreen(false)} aria-label="Quitter le plein écran"><X /></button>
+      <div className="fr-fullscreen-scroll">
+        <div className="fr-fullscreen-scale" style={{ transform: `scale(${treeScale})` }}>
+          <TreeBoard profiles={profiles} relationships={relationships} connections={connections} selectedProfileId={selectedProfile?.id} expandedRows={expandedRows} onToggleRow={toggleRow} onSelect={selectProfile} fullScreen />
+        </div>
+      </div>
+      <div className="fr-zoom-controls">
+        <button onClick={() => setTreeScale(value => Math.max(0.6, Number((value - 0.08).toFixed(2))))}><ZoomOut /></button>
+        <button onClick={() => setTreeScale(0.84)}>{Math.round(treeScale * 100)}%</button>
+        <button onClick={() => setTreeScale(value => Math.min(1.18, Number((value + 0.08).toFixed(2))))}><ZoomIn /></button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="family-roots">
+      <div className="fr-page">
+        <header className="fr-header">
+          <button className="fr-icon-button" onClick={() => window.history.back()} aria-label="Retour"><ArrowLeft /></button>
+          <div className="fr-title"><h1>Racines familiales <TreePine /></h1><p>Notre histoire, nos liens, nos racines</p></div>
+          <button className="fr-icon-button" onClick={() => setModal('invite')} aria-label="Inviter une branche"><Share2 /></button>
+        </header>
+
+        <nav className="fr-tabs" aria-label="Racines familiales">
+          {([
+            ['tree', 'Arbre'], ['cousins', 'Cousins'], ['branches', 'Branches'], ['map', 'Carte']
+          ] as Array<[RootTab, string]>).map(([tab, label]) => <button key={tab} onClick={() => setActiveTab(tab)} className={activeTab === tab ? 'is-active' : ''}>{label}</button>)}
+        </nav>
+
+        {notice && <div className="fr-notice"><Check />{notice}</div>}
+        {loading && <div className="fr-loading"><span /><span /><span /></div>}
+        {error && <div className="fr-error"><CircleHelp /><p>{error}</p><button onClick={() => void reload()}>Réessayer</button></div>}
+
+        {!loading && !error && activeTab === 'tree' && <main className="fr-content fr-tree-content">
+          <section className="fr-tree-hero">
+            <div><span className="fr-eyebrow"><Sparkles /> Arbre vivant</span><h2>{familyName}</h2><p>{profiles.length} personne{profiles.length > 1 ? 's' : ''} visible{profiles.length > 1 ? 's' : ''} · {confirmedBranches.length} branche{confirmedBranches.length > 1 ? 's' : ''} liée{confirmedBranches.length > 1 ? 's' : ''}</p></div>
+            <button className="fr-expand-tree" onClick={() => setTreeFullscreen(true)}><ZoomIn /><span>Lire l’arbre</span></button>
+          </section>
+
+          {pendingConnections.filter(connection => connection.direction === 'incoming').map(connection => (
+            <section className="fr-branch-request" key={connection.id}>
+              <div className="fr-request-icon"><Bell /></div>
+              <div><strong>{connection.requesterDisplayName || 'Une branche'} souhaite se relier</strong><p>Choisissez la personne de votre arbre qui représente ce lien.</p></div>
+              <div className="fr-request-actions"><button onClick={() => void handleRespondConnection(connection, false)}>Refuser</button><button onClick={() => void handleRespondConnection(connection, true)} disabled={busy}>Accepter</button></div>
+            </section>
           ))}
-        </div>
-      </header>
 
-      {/* Main Content Area based on Tab */}
-      <main className="px-4 py-5">
-        
-        {/* Tab 1: ARBRE (Family Tree Canvas) */}
-        {activeTab === 'arbre' && (
-          <div className="relative w-full flex flex-col items-center">
-            {/* Scrollable container for the absolute positioned canvas */}
-            <div className="w-full overflow-x-auto pb-6 scrollbar-hide">
-              <div className="relative w-[820px] h-[850px] bg-[#050C1A]/50 rounded-3xl p-4 overflow-hidden">
-                
-                {/* SVG Connecting Lines behind elements */}
-                <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-40" xmlns="http://www.w3.org/2000/svg">
-                  {/* G1 to Heart to G2 connection */}
-                  <path d="M 330 110 L 490 110" stroke="white" strokeWidth="2" strokeDasharray="3 3" />
-                  <path d="M 410 110 L 410 170" stroke="white" strokeWidth="2" />
-                  <path d="M 150 170 L 690 170" stroke="white" strokeWidth="2" />
-                  
-                  {/* Stems down to G2 */}
-                  <line x1="150" y1="170" x2="150" y2="200" stroke="white" strokeWidth="2" />
-                  <line x1="330" y1="170" x2="330" y2="200" stroke="white" strokeWidth="2" />
-                  <line x1="510" y1="170" x2="510" y2="200" stroke="white" strokeWidth="2" />
-                  <line x1="690" y1="170" x2="690" y2="200" stroke="white" strokeWidth="2" />
+          <section className="fr-tree-surface">
+            <TreeBoard profiles={profiles} relationships={relationships} connections={connections} selectedProfileId={selectedProfile?.id} expandedRows={expandedRows} onToggleRow={toggleRow} onSelect={selectProfile} />
+          </section>
 
-                  {/* G2 to G3 (Foyers) vertical branches */}
-                  <line x1="150" y1="260" x2="150" y2="330" stroke="#00D26A" strokeWidth="2" />
-                  <line x1="330" y1="260" x2="330" y2="330" stroke="#6C5CFF" strokeWidth="2" />
-                  <line x1="510" y1="260" x2="510" y2="330" stroke="#FF7A1A" strokeWidth="2" />
+          {canManage && <div className="fr-tree-actions">
+            <button onClick={() => setModal('add-person')}><Plus /> Ajouter une personne</button>
+            <button onClick={() => setModal('link-persons')}><Link2 /> Relier deux personnes</button>
+          </div>}
+          <button className="fr-primary-action" onClick={() => setModal('link-branch')}><Plus /> Lier une nouvelle branche</button>
 
-                  {/* G3 (Foyers) to G4 (Children) lines */}
-                  {/* Dakar branch (Green) */}
-                  <path d="M 126 430 L 126 470" stroke="#00D26A" strokeWidth="2" />
-                  <path d="M 50 470 L 200 470" stroke="#00D26A" strokeWidth="2" />
-                  <line x1="50" y1="470" x2="50" y2="500" stroke="#00D26A" strokeWidth="2" />
-                  <line x1="125" y1="470" x2="125" y2="500" stroke="#00D26A" strokeWidth="2" />
-                  <line x1="200" y1="470" x2="200" y2="500" stroke="#00D26A" strokeWidth="2" />
+          {eventList.length > 0 && <section className="fr-upcoming-card"><div className="fr-section-heading"><span>Événements à venir</span><CalendarDays /></div>{eventList.map(event => <div className="fr-event-row" key={event.id}><span className="fr-event-icon">🎁</span><div><strong>{event.title}</strong><small>{new Date(`${event.eventDate}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</small></div><b>{event.repeatsYearly ? 'Chaque année' : 'À noter'}</b></div>)}</section>}
+        </main>}
 
-                  {/* Paris branch (Purple) */}
-                  <path d="M 326 430 L 326 470" stroke="#6C5CFF" strokeWidth="2" />
-                  <path d="M 285 470 L 365 470" stroke="#6C5CFF" strokeWidth="2" />
-                  <line x1="285" y1="470" x2="285" y2="500" stroke="#6C5CFF" strokeWidth="2" />
-                  <line x1="365" y1="470" x2="365" y2="500" stroke="#6C5CFF" strokeWidth="2" />
+        {!loading && !error && activeTab === 'cousins' && <main className="fr-content">
+          <section className="fr-search"><Search /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Rechercher un cousin, une cousine…" /></section>
+          <section className="fr-stats-grid"><article><UsersRound /><b>{cousinProfiles.length}</b><span>Cousins & cousines</span></article><article><Link2 /><b>{confirmedBranches.length}</b><span>Branches liées</span></article><article><Globe2 /><b>{countries}</b><span>Pays</span></article></section>
+          <div className="fr-filter-row">{([['all', 'Tous'], ['nearby', 'Proches'], ['country', 'Par pays'], ['branch', 'Par branche']] as const).map(([filter, label]) => <button className={branchFilter === filter ? 'is-active' : ''} key={filter} onClick={() => setBranchFilter(filter)}>{label}</button>)}</div>
+          <section className="fr-cousins-card"><div className="fr-section-heading"><span>Cousins & cousines <small>({cousinProfiles.length})</small></span><UsersRound /></div>{cousinProfiles.length ? cousinProfiles.map(profile => <button className="fr-cousin-row" key={profile.id} onClick={() => selectProfile(profile)}><ProfileAvatar profile={profile} /><div><strong>{profile.displayName}</strong><span>{profile.nickname || 'Membre de la famille'}</span><small>{profileLocation(profile)}</small></div><MessageCircle /><MoreHorizontal /></button>) : <div className="fr-empty-list">Vos cousins apparaîtront ici lorsque les branches seront reliées.</div>}</section>
+          {cousinProfiles.length > 5 && <button className="fr-primary-action">Voir tous les cousins ({cousinProfiles.length})</button>}
+        </main>}
 
-                  {/* Abidjan branch (Orange) */}
-                  <path d="M 526 430 L 526 470" stroke="#FF7A1A" strokeWidth="2" />
-                  <path d="M 485 470 L 565 470" stroke="#FF7A1A" strokeWidth="2" />
-                  <line x1="485" y1="470" x2="485" y2="500" stroke="#FF7A1A" strokeWidth="2" />
-                  <line x1="565" y1="470" x2="565" y2="500" stroke="#FF7A1A" strokeWidth="2" />
+        {!loading && !error && activeTab === 'branches' && <main className="fr-content">
+          <section className="fr-map-card"><div className="fr-section-heading"><div><span>Branches familiales</span><small>Pays et villes déclarés dans les fiches</small></div><Globe2 /></div><div className="fr-map-preview"><img src="/family-roots/world-map-light.png" alt="Carte du monde" />{branches.slice(0, 4).map((branch, index) => <button key={branch.id} className={`fr-map-pin pin-${index}`} onClick={() => setActiveTab('map')}><span>{branch.profiles.length}</span>{branch.location}</button>)}</div></section>
+          <section className="fr-branches-card"><div className="fr-section-heading"><div><span>Liste des branches</span><small>Foyers proches, branches liées et demandes en cours.</small></div><Link2 /></div>{branches.map(branch => <button className="fr-branch-row" key={branch.id} onClick={() => setActiveTab('map')}><div className={`fr-branch-badge ${branch.color}`}><UsersRound /></div><div className="fr-branch-row-copy"><strong>{branch.name}</strong><span>{branch.location} · {branch.profiles.length} membre{branch.profiles.length > 1 ? 's' : ''}</span></div><b className={branch.status === 'Vous' ? 'is-owner' : ''}>{branch.status}</b><ChevronRight /></button>)}{pendingConnections.filter(connection => connection.direction === 'outgoing').map(connection => <div className="fr-branch-row is-pending" key={connection.id}><div className="fr-branch-badge blue"><Send /></div><div className="fr-branch-row-copy"><strong>Invitation envoyée</strong><span>En attente de confirmation</span></div><b>En attente</b></div>)}</section>
+          <button className="fr-primary-action" onClick={() => setModal('link-branch')}><Plus /> Lier une nouvelle branche</button>
+        </main>}
 
-                  {/* G4 to G5 Grandchildren (Aminata branch) */}
-                  <path d="M 50 560 L 50 620" stroke="#00D26A" strokeWidth="2" />
-                  <path d="M 50 620 L 170 620" stroke="#00D26A" strokeWidth="2" />
-                  <line x1="170" y1="620" x2="170" y2="650" stroke="#00D26A" strokeWidth="2" />
-                  <line x1="50" y1="620" x2="50" y2="650" stroke="#00D26A" strokeWidth="2" />
-                </svg>
+        {!loading && !error && activeTab === 'map' && <main className="fr-content">
+          <section className="fr-world-card"><div className="fr-world-copy"><span className="fr-eyebrow"><MapPinned /> Famille dans le monde</span><h2>Vos branches reliées</h2><p>Chaque lieu correspond à une branche qui a choisi de partager sa ville.</p></div><div className="fr-world-map"><img src="/family-roots/world-map-light.png" alt="Carte du monde des branches" />{branches.slice(0, 4).map((branch, index) => <button className={`fr-world-pin pin-${index}`} key={branch.id} onClick={() => { setActiveTab('branches'); }}><div className="fr-pin-avatar"><ProfileAvatar profile={branch.profiles[0]} /></div><span>{branch.location}</span></button>)}</div></section>
+          <section className="fr-map-list">{branches.map(branch => <button key={branch.id} onClick={() => setSelectedProfile(branch.profiles[0])}><div className={`fr-branch-badge ${branch.color}`}><UsersRound /></div><div><strong>{branch.name}</strong><span>{branch.location}</span></div><ChevronRight /></button>)}</section>
+        </main>}
+      </div>
 
-                {/* GENERATION 1 */}
-                <div className="absolute top-[2px] left-[220px] w-[380px] flex items-center justify-between">
-                  <span className="absolute top-[-20px] left-1/2 transform -translate-x-1/2 text-[9px] font-black uppercase tracking-widest text-white/30">Génération 1</span>
-                  {/* Ousmane Diop */}
-                  <div className="flex flex-col items-center">
-                    <div className="h-16 w-16 rounded-full border-2 border-white/20 p-0.5 bg-[#050C1A]">
-                      <img src={g1Members[0].avatar} alt={g1Members[0].name} className="h-full w-full rounded-full object-cover" />
-                    </div>
-                    <strong className="text-[10px] font-black text-white/90 mt-1.5">{g1Members[0].name}</strong>
-                    <span className="text-[8px] font-bold text-white/30 mt-0.5">{g1Members[0].birthYear} - {g1Members[0].deathYear}</span>
-                  </div>
+      {selectedProfile && <aside className="fr-profile-drawer" role="dialog" aria-modal="true"><button className="fr-profile-close" onClick={() => setSelectedProfile(null)} aria-label="Fermer"><ChevronLeft /></button><button className="fr-profile-more" onClick={() => setModal('link-persons')} aria-label="Plus d’options"><MoreHorizontal /></button><div className="fr-profile-identity"><ProfileAvatar profile={selectedProfile} /><h2>{selectedProfile.displayName}</h2><span>{selectedProfile.nickname || 'Membre de la famille'}</span><p>{selectedProfile.birthDate ? `Né${selectedProfile.displayName.endsWith('a') ? 'e' : ''} le ${new Date(`${selectedProfile.birthDate}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}${profileAge(selectedProfile) ? ` (${profileAge(selectedProfile)})` : ''}` : 'Date de naissance non renseignée'}</p><p>📍 {profileLocation(selectedProfile)}</p></div><div className="fr-profile-actions"><button onClick={() => createBranchGroup()}><MessageCircle /><span>Message</span></button><button onClick={() => publishEvent(selectedProfile)}><CalendarDays /><span>Événement</span></button><button onClick={() => setModal('link-persons')}><Link2 /><span>Lier</span></button></div><div className="fr-profile-tabs"><button className="is-active">Infos</button><button>Famille</button><button>Médias</button><button>Liens</button></div><section className="fr-profile-section"><h3>À propos</h3><dl><div><dt>Ville</dt><dd>{profileLocation(selectedProfile)}</dd></div><div><dt>Langues</dt><dd>{selectedProfile.languages.length ? selectedProfile.languages.join(', ') : 'Non renseignées'}</dd></div><div><dt>Statut</dt><dd>{selectedProfile.isMinor ? 'Profil protégé' : 'Membre de la famille'}</dd></div></dl></section><section className="fr-profile-section"><h3>Liens familiaux</h3>{(() => { const links = relationships.filter(item => item.sourceProfileId === selectedProfile.id).slice(0, 4).map(item => ({ item, target: profiles.find(profile => profile.id === item.targetProfileId) })).filter((link): link is { item: FamilyTreeRelationship; target: FamilyTreeProfile } => Boolean(link.target)); return links.length ? links.map(({ item, target }) => <button className="fr-link-row" key={item.id} onClick={() => setSelectedProfile(target)}><ProfileAvatar profile={target} /><span><small>{relationshipLabels[item.relationshipType]}</small><strong>{target.displayName}</strong></span><ChevronRight /></button>) : <p>Aucun lien enregistré pour le moment.</p>; })()}</section></aside>}
 
-                  {/* Connected Heart Button */}
-                  <div className="z-10 flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-tr from-[#6C5CFF] to-[#8C7EFF] shadow-lg border border-white/10 hover:scale-110 transition-all duration-300">
-                    <span className="text-white text-[10px] font-black">❤️</span>
-                  </div>
+      {modal === 'add-person' && <RootsModal title="Ajouter une personne" onClose={() => setModal(null)}><div className="fr-form"><label>Prénom et nom<input autoFocus value={personForm.name} onChange={event => setPersonForm(form => ({ ...form, name: event.target.value }))} placeholder="Ex. Awa Ndiaye" /></label><label>Date de naissance<input type="date" value={personForm.date} onChange={event => setPersonForm(form => ({ ...form, date: event.target.value }))} /></label><div className="fr-form-duo"><label>Ville<input value={personForm.city} onChange={event => setPersonForm(form => ({ ...form, city: event.target.value }))} placeholder="Ex. Dakar" /></label><label>Pays<input value={personForm.country} onChange={event => setPersonForm(form => ({ ...form, country: event.target.value }))} placeholder="Ex. Sénégal" /></label></div><label>Lien avec la première personne<select value={personForm.relation} onChange={event => setPersonForm(form => ({ ...form, relation: event.target.value as FamilyRelationshipType }))}>{Object.entries(relationshipLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><button className="fr-primary-action" disabled={busy || !personForm.name.trim()} onClick={() => void handleAddPerson()}>{busy ? 'Ajout…' : 'Ajouter à l’arbre'}</button></div></RootsModal>}
 
-                  {/* Awa Ndiaye */}
-                  <div className="flex flex-col items-center">
-                    <div className="h-16 w-16 rounded-full border-2 border-white/20 p-0.5 bg-[#050C1A]">
-                      <img src={g1Members[1].avatar} alt={g1Members[1].name} className="h-full w-full rounded-full object-cover" />
-                    </div>
-                    <strong className="text-[10px] font-black text-white/90 mt-1.5">{g1Members[1].name}</strong>
-                    <span className="text-[8px] font-bold text-white/30 mt-0.5">{g1Members[1].birthYear} - </span>
-                  </div>
-                </div>
+      {modal === 'link-persons' && <RootsModal title="Relier deux personnes" onClose={() => setModal(null)}><div className="fr-form"><label>Première personne<select value={relationshipForm.source} onChange={event => setRelationshipForm(form => ({ ...form, source: event.target.value }))}><option value="">Choisir une personne</option>{profiles.map(profile => <option value={profile.id} key={profile.id}>{profile.displayName}</option>)}</select></label><label>Lien<select value={relationshipForm.relation} onChange={event => setRelationshipForm(form => ({ ...form, relation: event.target.value as FamilyRelationshipType }))}>{Object.entries(relationshipLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Deuxième personne<select value={relationshipForm.target} onChange={event => setRelationshipForm(form => ({ ...form, target: event.target.value }))}><option value="">Choisir une personne</option>{profiles.filter(profile => profile.id !== relationshipForm.source).map(profile => <option value={profile.id} key={profile.id}>{profile.displayName}</option>)}</select></label><button className="fr-primary-action" disabled={busy || !relationshipForm.source || !relationshipForm.target} onClick={() => void handleAddRelationship()}>{busy ? 'Enregistrement…' : 'Ajouter le lien'}</button></div></RootsModal>}
 
-                {/* GENERATION 2 */}
-                <div className="absolute top-[200px] left-[80px] w-[660px] flex items-center justify-between">
-                  <span className="absolute top-[-25px] left-1/2 transform -translate-x-1/2 text-[9px] font-black uppercase tracking-widest text-white/30">Génération 2</span>
-                  {g2Members.map(member => (
-                    <div key={member.id} className="flex flex-col items-center w-[120px]">
-                      <div className="h-14 w-14 rounded-full border border-white/15 p-0.5 bg-[#050C1A]">
-                        <img src={member.avatar} alt={member.name} className="h-full w-full rounded-full object-cover" />
-                      </div>
-                      <strong className="text-[10px] font-black text-white/90 mt-1.5">{member.name}</strong>
-                      <span className="text-[8px] font-bold text-white/30 mt-0.5">{member.birthYear} - </span>
-                    </div>
-                  ))}
-                </div>
+      {modal === 'link-branch' && <RootsModal title="Lier une nouvelle branche" onClose={() => setModal(null)}><div className="fr-form"><p className="fr-form-intro">Demandez au chef de l’autre foyer son code Racines. Il devra confirmer le lien avant qu’il apparaisse dans les deux arbres.</p><label>Code de la branche<input value={branchForm.code} onChange={event => setBranchForm(form => ({ ...form, code: event.target.value.toUpperCase() }))} placeholder="RAC-XXXXXXX" /></label><label>Personne de votre foyer<select value={branchForm.source} onChange={event => setBranchForm(form => ({ ...form, source: event.target.value }))}><option value="">Choisir une personne</option>{localProfiles.map(profile => <option value={profile.id} key={profile.id}>{profile.displayName}</option>)}</select></label><label>Votre lien avec cette branche<select value={branchForm.relation} onChange={event => setBranchForm(form => ({ ...form, relation: event.target.value as FamilyRelationshipType }))}>{Object.entries(relationshipLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><button className="fr-primary-action" disabled={busy || !branchForm.code || !branchForm.source} onClick={() => void handleConnectBranch()}>{busy ? 'Envoi…' : 'Envoyer la demande'}</button></div></RootsModal>}
 
-                {/* GENERATION 3: FAMILY HOUSEHOLDS (Foyers) */}
-                <div className="absolute top-[340px] left-[60px] w-[620px] flex items-center justify-between">
-                  <span className="absolute top-[-25px] left-1/2 transform -translate-x-1/2 text-[9px] font-black uppercase tracking-widest text-white/30">Génération 3</span>
-                  {g3FamilyCards.map(card => (
-                    <div
-                      key={card.id}
-                      className={`relative flex flex-col items-center justify-center w-[132px] h-[132px] rounded-[24px] border ${card.borderColor} bg-[#0A1224] p-3 text-center shadow-[0_8px_24px_rgba(0,0,0,0.4)] border-t-[3px] border-b-[3px]`}
-                    >
-                      {/* Overlapping Avatars */}
-                      <div className="flex items-center -space-x-3 mb-2">
-                        {card.avatars.map((av, idx) => (
-                          <img
-                            key={idx}
-                            src={av}
-                            alt=""
-                            className="h-10 w-10 rounded-full border-2 border-[#0A1224] object-cover shadow-md"
-                          />
-                        ))}
-                      </div>
-                      <strong className="text-[11px] font-black leading-tight text-white mb-0.5">{card.name}</strong>
-                      <span className="text-[8px] font-semibold text-white/40">{card.location}</span>
-                      <span className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-white/5 border border-white/10 text-[8px] font-black text-white/60">
-                        {card.membersCount}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* GENERATION 4: CHILDREN */}
-                <div className="absolute top-[515px] left-[10px] w-[620px] flex items-start gap-4">
-                  <span className="absolute top-[-25px] left-1/2 transform -translate-x-1/2 text-[9px] font-black uppercase tracking-widest text-white/30">Génération 4</span>
-                  
-                  {/* Children of Dakar Branch */}
-                  <div className="flex gap-4 w-[220px] justify-between pl-2">
-                    {g4Members.slice(0, 3).map(member => (
-                      <div key={member.id} className="flex flex-col items-center">
-                        <div className="h-11 w-11 rounded-full border border-white/15 p-0.5 bg-[#050C1A]">
-                          <img src={member.avatar} alt={member.name} className="h-full w-full rounded-full object-cover" />
-                        </div>
-                        <strong className="text-[9px] font-black text-white/90 mt-1">{member.name}</strong>
-                        <span className="text-[7px] font-bold text-white/30 mt-0.5">{member.birthYear}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Children of Paris Branch */}
-                  <div className="flex gap-4 w-[140px] justify-center pl-8">
-                    {g4Members.slice(3, 5).map(member => (
-                      <button
-                        key={member.id}
-                        onClick={() => {
-                          if (member.id === 'aicha') {
-                            setSelectedMember('00000000-0000-0000-0000-000000000012');
-                            setProfileViewMode('full');
-                          }
-                        }}
-                        className="flex flex-col items-center focus:outline-none hover:scale-105 transition-transform"
-                      >
-                        <div className={`h-11 w-11 rounded-full border p-0.5 bg-[#050C1A] ${member.id === 'aicha' ? 'border-[#6C5CFF] shadow-[0_0_8px_rgba(108,92,255,0.4)]' : 'border-white/15'}`}>
-                          <img src={member.avatar} alt={member.name} className="h-full w-full rounded-full object-cover" />
-                        </div>
-                        <strong className="text-[9px] font-black text-white/90 mt-1">{member.id === 'aicha' ? 'Aïcha' : member.name}</strong>
-                        <span className="text-[7px] font-bold text-white/30 mt-0.5">{member.birthYear}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Children of Abidjan Branch */}
-                  <div className="flex gap-4 w-[140px] justify-end pl-14">
-                    {g4Members.slice(5, 7).map(member => (
-                      <div key={member.id} className="flex flex-col items-center">
-                        <div className="h-11 w-11 rounded-full border border-white/15 p-0.5 bg-[#050C1A]">
-                          <img src={member.avatar} alt={member.name} className="h-full w-full rounded-full object-cover" />
-                        </div>
-                        <strong className="text-[9px] font-black text-white/90 mt-1">{member.name}</strong>
-                        <span className="text-[7px] font-bold text-white/30 mt-0.5">{member.birthYear}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* GENERATION 5: GRANDCHILDREN */}
-                <div className="absolute top-[670px] left-[15px] w-[200px] flex items-center justify-between">
-                  <span className="absolute top-[-25px] left-1/2 transform -translate-x-1/2 text-[9px] font-black uppercase tracking-widest text-white/30">Génération 5</span>
-                  {g5Members.map(member => (
-                    <div key={member.id} className="flex flex-col items-center w-[90px]">
-                      <div className="h-11 w-11 rounded-full border border-white/15 p-0.5 bg-[#050C1A]">
-                        <img src={member.avatar} alt={member.name} className="h-full w-full rounded-full object-cover" />
-                      </div>
-                      <strong className="text-[9px] font-black text-white/90 mt-1">{member.name}</strong>
-                      <span className="text-[7px] font-bold text-white/30 mt-0.5">{member.birthYear}</span>
-                    </div>
-                  ))}
-                </div>
-
-              </div>
-            </div>
-
-            {/* Bottom Button */}
-            <button className="mt-4 flex w-full max-w-sm items-center justify-center gap-2 rounded-2xl bg-[#6C5CFF] py-4 text-sm font-black shadow-[0_4px_20px_rgba(108,92,255,0.25)] hover:bg-[#5b4eff] transition-all">
-              <Plus className="h-4 w-4" /> Lier une nouvelle branche
-            </button>
-          </div>
-        )}
-
-        {/* Tab 2: COUSINS (List View) */}
-        {activeTab === 'cousins' && (
-          <div className="space-y-5">
-            {/* Search Pill */}
-            <div className="relative flex items-center">
-              <input
-                type="text"
-                value={cousinSearch}
-                onChange={e => setCousinSearch(e.target.value)}
-                placeholder="Rechercher un cousin, une cousine..."
-                className="w-full rounded-2xl border border-white/5 bg-[#0D182E] px-4 py-3.5 pl-11 text-xs font-semibold text-white placeholder-white/30 focus:outline-none focus:border-[#6C5CFF]/45"
-              />
-              <Search className="absolute left-4 h-4 w-4 text-white/30" />
-            </div>
-
-            {/* Stats Cards Row */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="flex flex-col rounded-2xl bg-[#0D182E] border border-white/5 p-3 text-center">
-                <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Cousins</span>
-                <span className="text-xl font-black text-[#6C5CFF] mt-1">24</span>
-              </div>
-              <div className="flex flex-col rounded-2xl bg-[#0D182E] border border-white/5 p-3 text-center">
-                <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Branches</span>
-                <span className="text-xl font-black text-[#00D26A] mt-1">7</span>
-              </div>
-              <div className="flex flex-col rounded-2xl bg-[#0D182E] border border-white/5 p-3 text-center">
-                <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Pays</span>
-                <span className="text-xl font-black text-[#00A3FF] mt-1">4</span>
-              </div>
-            </div>
-
-            {/* Filters chips */}
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              {(['Tous', 'Proches', 'Par pays', 'Par branche'] as const).map(filter => (
-                <button
-                  key={filter}
-                  onClick={() => setCousinFilter(filter)}
-                  className={`px-4 py-2 rounded-xl text-xs font-black shrink-0 transition-all ${
-                    cousinFilter === filter
-                      ? 'bg-[#6C5CFF]/15 text-[#C9C3FF] border border-[#6C5CFF]/30'
-                      : 'bg-[#0D182E] text-white/40 border border-white/5'
-                  }`}
-                >
-                  {filter}
-                </button>
-              ))}
-            </div>
-
-            {/* Section title */}
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-white/90">Cousins & cousines (24)</h3>
-              <Users className="h-4 w-4 text-[#6C5CFF]" />
-            </div>
-
-            {/* List box */}
-            <div className="rounded-3xl bg-[#0A1224] border border-white/5 p-4 space-y-4 shadow-lg">
-              {filteredCousins.map(c => (
-                <div key={c.id} className="flex items-center justify-between">
-                  <button
-                    onClick={() => {
-                      setSelectedMember('00000000-0000-0000-0000-000000000012');
-                      setProfileViewMode('full');
-                    }}
-                    className="flex items-center gap-3 text-left focus:outline-none flex-1"
-                  >
-                    <img src={c.avatar} alt={c.name} className="h-11 w-11 rounded-full object-cover border border-white/10" />
-                    <div>
-                      <h4 className="text-xs font-black text-white">{c.name}</h4>
-                      <p className="text-[9px] font-bold text-white/40 mt-0.5">{c.role} · {c.location}</p>
-                    </div>
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <button className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#6C5CFF]/10 text-[#6C5CFF]">
-                      <MessageSquare className="h-3.5 w-3.5" />
-                    </button>
-                    <button className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 text-white/40">
-                      <MoreHorizontal className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* View all button */}
-            <button className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0D182E] border border-white/5 py-4 text-xs font-black text-white/80 hover:bg-white/5 transition-all">
-              Voir tous les cousins (24)
-            </button>
-          </div>
-        )}
-
-        {/* Tab 3: BRANCHES (World Map & List) */}
-        {activeTab === 'branches' && (
-          <div className="space-y-6">
-            
-            {/* World Map Component */}
-            <div className="relative rounded-3xl bg-[#0A1224] border border-white/5 p-4 overflow-hidden h-[300px] shadow-lg flex flex-col justify-between">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="text-xs font-black text-white">Branches familiales</h3>
-                  <p className="text-[9px] font-bold text-white/40 mt-0.5">Pays et villes déclarés dans les fiches.</p>
-                </div>
-                <button className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 text-white/40">
-                  <MoreHorizontal className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* High-fidelity SVG World Map */}
-              <div className="relative w-full h-[180px] mt-2">
-                <svg className="w-full h-full text-white/10 opacity-30 pointer-events-none" viewBox="0 0 1000 520" preserveAspectRatio="xMidYMid meet">
-                  <path fill="currentColor" d="M115 155c34-56 91-83 171-81 46 1 83 15 111 40 20 19 23 43 7 72-15 27-38 40-68 38-25-2-42 7-51 28-12 27-37 39-73 36-36-2-68-18-96-47-25-27-25-56-1-86Z" />
-                  <path fill="currentColor" d="M285 303c40 14 69 38 87 72 18 35 18 72-2 111-34-11-61-36-82-74-21-39-22-75-3-109Z" />
-                  <path fill="currentColor" d="M430 141c38-35 86-48 144-39 35 5 60 19 75 41 13 19 10 40-10 62-25 27-59 37-101 30-45-8-80-1-104 21-31-24-33-62-4-115Z" />
-                  <path fill="currentColor" d="M506 270c49 7 86 31 111 72 26 44 28 92 4 144-47-12-84-42-110-90-25-46-27-88-5-126Z" />
-                  <path fill="currentColor" d="M585 120c70-40 154-45 252-15 64 20 103 56 118 108-52 18-104 20-156 7-46-11-84-8-114 10-35 22-75 24-121 6-48-19-59-57-33-114 15 4 33 3 54-2Z" />
-                  <path fill="currentColor" d="M744 318c37-20 78-24 123-10 42 12 72 36 89 71-35 29-77 41-127 36-51-5-79-37-85-97Z" />
-                  <path fill="currentColor" d="M452 82c35-18 76-22 122-12 24 6 41 15 51 28-33 19-72 25-117 18-30-5-49-16-56-34Z" />
-                </svg>
-
-                {/* Connection paths */}
-                <svg className="absolute inset-0 w-full h-full opacity-40 pointer-events-none" viewBox="0 0 1000 520" preserveAspectRatio="xMidYMid meet">
-                  <path d="M445 318 C478 240 504 202 515 178" fill="none" stroke="#6C5CFF" strokeWidth="2.5" strokeDasharray="4 4" />
-                  <path d="M445 318 C438 354 446 378 466 398" fill="none" stroke="#FF7A1A" strokeWidth="2.5" strokeDasharray="4 4" />
-                  <path d="M445 318 C486 304 600 270 760 234" fill="none" stroke="#00A3FF" strokeWidth="2.5" strokeDasharray="4 4" />
-                </svg>
-
-                {/* Paris, France Pin */}
-                <div className="absolute top-[34%] left-[51.5%] flex items-center gap-1.5 bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 px-2 py-1 rounded-full backdrop-blur-sm -translate-x-1/2 -translate-y-1/2">
-                  <div className="flex -space-x-1">
-                    <img src="https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=40&h=40&q=80" alt="" className="h-4 w-4 rounded-full border border-[#0A1224] object-cover" />
-                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=40&h=40&q=80" alt="" className="h-4 w-4 rounded-full border border-[#0A1224] object-cover" />
-                  </div>
-                  <span className="text-[7px] font-black text-white">Paris, France</span>
-                </div>
-
-                {/* Dakar, Sénégal Pin */}
-                <div className="absolute top-[61%] left-[44.5%] flex items-center gap-1.5 bg-[#00D26A]/15 border border-[#00D26A]/30 px-2 py-1 rounded-full backdrop-blur-sm -translate-x-1/2 -translate-y-1/2">
-                  <div className="flex -space-x-1">
-                    <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=40&h=40&q=80" alt="" className="h-4 w-4 rounded-full border border-[#0A1224] object-cover" />
-                    <img src="https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=40&h=40&q=80" alt="" className="h-4 w-4 rounded-full border border-[#0A1224] object-cover" />
-                  </div>
-                  <span className="text-[7px] font-black text-white">Dakar, Sénégal</span>
-                </div>
-
-                {/* New York, USA Pin */}
-                <div className="absolute top-[45%] left-[76%] flex items-center gap-1.5 bg-[#00A3FF]/15 border border-[#00A3FF]/30 px-2 py-1 rounded-full backdrop-blur-sm -translate-x-1/2 -translate-y-1/2">
-                  <img src="https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=40&h=40&q=80" alt="" className="h-4 w-4 rounded-full border border-[#0A1224] object-cover" />
-                  <span className="text-[7px] font-black text-white">New York, USA</span>
-                </div>
-
-                {/* Abidjan, Côte d'Ivoire Pin */}
-                <div className="absolute top-[76.5%] left-[46.6%] flex items-center gap-1.5 bg-[#FF7A1A]/15 border border-[#FF7A1A]/30 px-2 py-1 rounded-full backdrop-blur-sm -translate-x-1/2 -translate-y-1/2">
-                  <img src="https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=40&h=40&q=80" alt="" className="h-4 w-4 rounded-full border border-[#0A1224] object-cover" />
-                  <span className="text-[7px] font-black text-white">Abidjan, Côte d'Ivoire</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Branches List */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-black text-white/90">Liste des branches</h3>
-              
-              <div className="rounded-3xl bg-[#0A1224] border border-white/5 p-4 space-y-3.5 shadow-lg">
-                {/* Branch 1 */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#6C5CFF]/10 text-[#6C5CFF]">
-                      <Users className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Famille Mamadou (Vous)</h4>
-                      <p className="text-[9px] font-bold text-white/40 mt-0.5">Paris, France · 12 membres</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[8px] font-black text-[#6C5CFF] uppercase bg-[#6C5CFF]/10 px-2 py-1 rounded-full">Chef de famille</span>
-                    <span className="text-white/20">&gt;</span>
-                  </div>
-                </div>
-
-                {/* Branch 2 */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#00D26A]/10 text-[#00D26A]">
-                      <Users className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Famille Ibrahima</h4>
-                      <p className="text-[9px] font-bold text-white/40 mt-0.5">Dakar, Sénégal · 15 membres</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[8px] font-black text-[#00D26A] uppercase bg-[#00D26A]/10 px-2 py-1 rounded-full">Lié</span>
-                    <span className="text-white/20">&gt;</span>
-                  </div>
-                </div>
-
-                {/* Branch 3 */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FF7A1A]/10 text-[#FF7A1A]">
-                      <Users className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Famille Moussa</h4>
-                      <p className="text-[9px] font-bold text-white/40 mt-0.5">Abidjan, Côte d\'Ivoire · 9 membres</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[8px] font-black text-[#00D26A] uppercase bg-[#00D26A]/10 px-2 py-1 rounded-full">Lié</span>
-                    <span className="text-white/20">&gt;</span>
-                  </div>
-                </div>
-
-                {/* Branch 4 */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#00A3FF]/10 text-[#00A3FF]">
-                      <Users className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Famille Awa</h4>
-                      <p className="text-[9px] font-bold text-white/40 mt-0.5">New York, USA · 7 membres</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[8px] font-black text-[#FF9F1C] uppercase bg-[#FF9F1C]/10 px-2 py-1 rounded-full">En attente</span>
-                    <span className="text-white/20">&gt;</span>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            {/* Bottom Button */}
-            <button className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#6C5CFF] py-4 text-sm font-black shadow-[0_4px_20px_rgba(108,92,255,0.25)]">
-              <Plus className="h-4 w-4" /> Lier une nouvelle branche
-            </button>
-          </div>
-        )}
-
-        {/* Tab 4: CARTE */}
-        {activeTab === 'carte' && (
-          <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-            <Compass className="h-16 w-16 text-[#6C5CFF] animate-pulse" />
-            <h3 className="text-lg font-black">Visualisation Cartographique</h3>
-            <p className="text-xs text-white/40 max-w-xs">Découvrez la répartition géographique interactive de tous les membres de la famille.</p>
-          </div>
-        )}
-
-      </main>
-
-      {/* MEMBER DETAIL SHEET MODAL (Aïcha Diop) */}
-      {selectedMember === '00000000-0000-0000-0000-000000000012' && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-0 md:p-4">
-          
-          {/* Overlay switch control just for demonstration */}
-          <div className="absolute top-4 right-4 z-50 flex bg-[#0A1224] rounded-full p-1 border border-white/10 gap-1">
-            <button
-              onClick={() => setProfileViewMode('drawer')}
-              className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase ${profileViewMode === 'drawer' ? 'bg-[#6C5CFF] text-white' : 'text-white/40'}`}
-            >
-              Vue Tiroir
-            </button>
-            <button
-              onClick={() => setProfileViewMode('full')}
-              className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase ${profileViewMode === 'full' ? 'bg-[#6C5CFF] text-white' : 'text-white/40'}`}
-            >
-              Vue Complète
-            </button>
-          </div>
-
-          {/* SCREEN 5: FULL MEMBER PROFILE SCREEN */}
-          {profileViewMode === 'full' && (
-            <div className="relative w-full max-w-lg h-[92vh] rounded-t-[36px] bg-[#050C1A] border-t border-white/10 overflow-y-auto px-5 py-6 pb-20 shadow-2xl scrollbar-hide">
-              {/* Back Arrow & Menu */}
-              <div className="flex items-center justify-between mb-4">
-                <button
-                  onClick={() => setSelectedMember(null)}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 hover:bg-white/10"
-                >
-                  <ArrowLeft className="h-5 w-5 text-white/80" />
-                </button>
-                <h3 className="text-sm font-black uppercase tracking-wider text-white/80">Profil de membre</h3>
-                <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5">
-                  <MoreHorizontal className="h-5 w-5 text-white/80" />
-                </button>
-              </div>
-
-              {/* Avatar & Header */}
-              <div className="flex flex-col items-center text-center mt-3">
-                <div className="relative h-28 w-28 rounded-full p-1 bg-gradient-to-tr from-[#6C5CFF] to-[#C9C3FF] shadow-2xl">
-                  <img
-                    src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=256&h=256&q=80"
-                    alt="Aïcha Diop"
-                    className="h-full w-full rounded-full object-cover border-2 border-[#050C1A]"
-                  />
-                </div>
-                <h2 className="text-2xl font-black tracking-wide text-white mt-4">Aïcha Diop</h2>
-                <span className="mt-1.5 rounded-full bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 px-4 py-1 text-[10px] font-black text-[#C9C3FF] uppercase tracking-wider">
-                  Ma cousine
-                </span>
-                <p className="mt-3.5 text-[11px] font-bold text-white/56 leading-none">Née le 12 mai 2006 (18 ans)</p>
-                <p className="mt-1.5 text-[11px] font-bold text-white/56 flex items-center justify-center gap-1">
-                  🇫🇷 Paris, France
-                </p>
-              </div>
-
-              {/* Action Buttons grid */}
-              <div className="mt-6 grid grid-cols-4 gap-2.5">
-                <button className="flex flex-col items-center justify-center bg-[#0D182E] border border-white/5 rounded-2xl p-3 hover:bg-white/5 transition-all">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#6C5CFF]/10 text-[#6C5CFF] mb-2">
-                    <MessageSquare className="h-4 w-4" />
-                  </div>
-                  <span className="text-[9px] font-black text-white/60">Message</span>
-                </button>
-                <button className="flex flex-col items-center justify-center bg-[#0D182E] border border-white/5 rounded-2xl p-3 hover:bg-white/5 transition-all">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#6C5CFF]/10 text-[#6C5CFF] mb-2">
-                    <Phone className="h-4 w-4" />
-                  </div>
-                  <span className="text-[9px] font-black text-white/60">Appeler</span>
-                </button>
-                <button className="flex flex-col items-center justify-center bg-[#0D182E] border border-white/5 rounded-2xl p-3 hover:bg-white/5 transition-all">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#6C5CFF]/10 text-[#6C5CFF] mb-2">
-                    <Calendar className="h-4 w-4" />
-                  </div>
-                  <span className="text-[9px] font-black text-white/60">Événement</span>
-                </button>
-                <button className="flex flex-col items-center justify-center bg-[#0D182E] border border-white/5 rounded-2xl p-3 hover:bg-white/5 transition-all relative">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#6C5CFF]/10 text-[#6C5CFF] mb-2">
-                    <Plus className="h-4 w-4" />
-                  </div>
-                  <span className="text-[9px] font-black text-white/60">Plus ⁵</span>
-                </button>
-              </div>
-
-              {/* Sub-tabs */}
-              <div className="mt-7 flex justify-between gap-1 border-b border-white/5 pb-2">
-                {['Infos', 'Famille', 'Médias', 'Liens'].map((subtab, sIdx) => (
-                  <button
-                    key={subtab}
-                    className={`pb-1 text-xs font-black ${
-                      sIdx === 0
-                        ? 'text-[#6C5CFF] border-b-2 border-[#6C5CFF]'
-                        : 'text-white/40 hover:text-white/60'
-                    }`}
-                  >
-                    {subtab}
-                  </button>
-                ))}
-              </div>
-
-              {/* About section */}
-              <section className="mt-5 space-y-4">
-                <h4 className="text-[11px] font-black text-white/40 uppercase tracking-widest">À propos</h4>
-                
-                <div className="rounded-3xl bg-[#0A1224] border border-white/5 p-4 space-y-3.5 shadow-lg">
-                  <div className="flex items-center gap-3.5">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/60">
-                      <GraduationCap className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <span className="block text-[8px] font-bold text-white/40 uppercase leading-none">Études</span>
-                      <strong className="block text-[11px] font-black text-white mt-1 leading-none">Étudiante en médecine</strong>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3.5">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/60">
-                      <Globe className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <span className="block text-[8px] font-bold text-white/40 uppercase leading-none">Langues</span>
-                      <strong className="block text-[11px] font-black text-white mt-1 leading-none">Français, Wolof, Anglais</strong>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3.5">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/60">
-                      <Compass className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <span className="block text-[8px] font-bold text-white/40 uppercase leading-none">Centres d'intérêt</span>
-                      <strong className="block text-[11px] font-black text-white mt-1 leading-none">Lecture, Voyage, Cuisine</strong>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              {/* Family section */}
-              <section className="mt-6 space-y-4">
-                <h4 className="text-[11px] font-black text-white/40 uppercase tracking-widest">Famille</h4>
-
-                <div className="rounded-3xl bg-[#0A1224] border border-white/5 p-4 space-y-3.5 shadow-lg">
-                  {/* Father Row */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <img src="https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=80&h=80&q=80" alt="" className="h-8 w-8 rounded-full object-cover border border-white/10" />
-                      <div>
-                        <span className="block text-[9px] font-semibold text-white/40 leading-none">Père</span>
-                        <strong className="block text-xs font-black text-white mt-1 leading-none">Mamadou Diop</strong>
-                      </div>
-                    </div>
-                    <span className="text-white/20 text-xs">&gt;</span>
-                  </div>
-
-                  {/* Mother Row */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&h=80&q=80" alt="" className="h-8 w-8 rounded-full object-cover border border-white/10" />
-                      <div>
-                        <span className="block text-[9px] font-semibold text-white/40 leading-none">Mère</span>
-                        <strong className="block text-xs font-black text-white mt-1 leading-none">Fatou Diop</strong>
-                      </div>
-                    </div>
-                    <span className="text-white/20 text-xs">&gt;</span>
-                  </div>
-
-                  {/* Siblings Row */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex -space-x-2">
-                        <img src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=80&h=80&q=80" alt="" className="h-8 w-8 rounded-full object-cover border-2 border-[#0A1224]" />
-                        <img src="https://images.unsplash.com/photo-1500048993953-d23a436266cf?auto=format&fit=crop&w=80&h=80&q=80" alt="" className="h-8 w-8 rounded-full object-cover border-2 border-[#0A1224]" />
-                      </div>
-                      <div>
-                        <span className="block text-[9px] font-semibold text-white/40 leading-none">Frères & Sœurs</span>
-                        <strong className="block text-xs font-black text-white mt-1 leading-none">2 frères, 1 sœur</strong>
-                      </div>
-                    </div>
-                    <span className="text-white/20 text-xs">&gt;</span>
-                  </div>
-                </div>
-              </section>
-
-              {/* Events section */}
-              <section className="mt-6 space-y-4">
-                <h4 className="text-[11px] font-black text-white/40 uppercase tracking-widest">Événements à venir</h4>
-
-                <div className="rounded-3xl bg-[#0A1224] border border-white/5 p-4 space-y-3.5 shadow-lg">
-                  {/* Event 1 */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg">🎂</span>
-                      <div>
-                        <strong className="block text-xs font-black text-white leading-none">Anniversaire</strong>
-                        <span className="text-[9px] font-bold text-white/40 mt-1 block">12 mai 2025</span>
-                      </div>
-                    </div>
-                    <span className="rounded-full bg-[#FF4D6D]/12 border border-[#FF4D6D]/20 px-3 py-1 text-[9px] font-black text-[#FF4D6D]">
-                      J-45
-                    </span>
-                  </div>
-
-                  {/* Event 2 */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg">💍</span>
-                      <div>
-                        <strong className="block text-xs font-black text-white leading-none">Mariage de Fatou</strong>
-                        <span className="text-[9px] font-bold text-white/40 mt-1 block">20 déc. 2025</span>
-                      </div>
-                    </div>
-                    <span className="rounded-full bg-[#6C5CFF]/12 border border-[#6C5CFF]/20 px-3 py-1 text-[9px] font-black text-[#C9C3FF]">
-                      J-267
-                    </span>
-                  </div>
-                </div>
-              </section>
-
-              {/* Shared Albums Section */}
-              <section className="mt-6 space-y-4">
-                <h4 className="text-[11px] font-black text-white/40 uppercase tracking-widest">Albums partagés</h4>
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                  <div className="h-16 w-20 rounded-2xl overflow-hidden shrink-0 border border-white/10">
-                    <img src="https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=120&h=90&q=80" alt="" className="h-full w-full object-cover" />
-                  </div>
-                  <div className="h-16 w-20 rounded-2xl overflow-hidden shrink-0 border border-white/10">
-                    <img src="https://images.unsplash.com/photo-1464349095431-e9a21285b5f3?auto=format&fit=crop&w=120&h=90&q=80" alt="" className="h-full w-full object-cover" />
-                  </div>
-                  <div className="h-16 w-20 rounded-2xl overflow-hidden shrink-0 border border-white/10">
-                    <img src="https://images.unsplash.com/photo-1542241647-9cbb2225278b?auto=format&fit=crop&w=120&h=90&q=80" alt="" className="h-full w-full object-cover" />
-                  </div>
-                  <div className="h-16 w-20 rounded-2xl overflow-hidden shrink-0 border border-white/10">
-                    <img src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&h=90&q=80" alt="" className="h-full w-full object-cover" />
-                  </div>
-                  {/* +12 Box */}
-                  <div className="h-16 w-20 rounded-2xl bg-[#0D182E] border border-white/10 flex items-center justify-center shrink-0">
-                    <span className="text-xs font-black text-white/50">+12</span>
-                  </div>
-                </div>
-              </section>
-
-            </div>
-          )}
-
-          {/* SCREEN 4: SIDEBAR DRAWER OVERLAY */}
-          {profileViewMode === 'drawer' && (
-            <div className="relative w-full max-w-sm h-[88vh] rounded-t-[36px] bg-[#050C1A] border-t border-white/15 overflow-hidden flex flex-row shadow-2xl">
-              
-              {/* Vertical Sidebar Navigation menu */}
-              <div className="w-[84px] bg-[#030914] border-r border-white/5 py-6 flex flex-col items-center justify-between">
-                <button
-                  onClick={() => setSelectedMember(null)}
-                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10"
-                >
-                  <ArrowLeft className="h-4 w-4 text-white/60" strokeWidth={3} />
-                </button>
-
-                <div className="flex flex-col gap-4 mt-6">
-                  {['Infos', 'Famille', 'Liens', 'Photos'].map((menu, mIdx) => (
-                    <button
-                      key={menu}
-                      className={`text-[9px] font-black uppercase tracking-wider py-2.5 px-1.5 rounded-xl transition-all ${
-                        mIdx === 0
-                          ? 'bg-[#6C5CFF]/15 text-[#C9C3FF] border border-[#6C5CFF]/30 font-black'
-                          : 'text-white/30 hover:text-white/50'
-                      }`}
-                    >
-                      {menu}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="h-10"></div>
-              </div>
-
-              {/* Main Content Area in Drawer */}
-              <div className="flex-1 overflow-y-auto px-5 py-6 pb-20 scrollbar-hide space-y-6">
-                
-                {/* Hero profile inside drawer */}
-                <div className="flex flex-col items-center text-center">
-                  <div className="relative h-24 w-24 rounded-full p-1 bg-gradient-to-tr from-[#6C5CFF] to-[#C9C3FF] shadow-2xl">
-                    <img
-                      src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=256&h=256&q=80"
-                      alt="Aïcha Diop"
-                      className="h-full w-full rounded-full object-cover border-2 border-[#050C1A]"
-                    />
-                  </div>
-                  <h2 className="text-xl font-black tracking-wide text-white mt-3.5">Aïcha Diop</h2>
-                  <span className="mt-1 rounded-full bg-[#6C5CFF]/15 border border-[#6C5CFF]/30 px-3 py-0.5 text-[8px] font-black text-[#C9C3FF] uppercase tracking-wider">
-                    Ma cousine
-                  </span>
-                  <p className="mt-3 text-[10px] font-bold text-white/56">Née le 12 mai 2006 (18 ans)</p>
-                  <p className="mt-1 text-[10px] font-bold text-white/56">🇫🇷 Paris, France</p>
-                </div>
-
-                {/* Vertical quick actions */}
-                <div className="grid grid-cols-4 gap-2">
-                  <button className="flex flex-col items-center justify-center bg-[#0D182E] border border-white/5 rounded-xl p-2">
-                    <MessageSquare className="h-3.5 w-3.5 text-[#6C5CFF] mb-1.5" />
-                    <span className="text-[7px] font-black text-white/40">Message</span>
-                  </button>
-                  <button className="flex flex-col items-center justify-center bg-[#0D182E] border border-white/5 rounded-xl p-2">
-                    <Phone className="h-3.5 w-3.5 text-[#6C5CFF] mb-1.5" />
-                    <span className="text-[7px] font-black text-white/40">Appeler</span>
-                  </button>
-                  <button className="flex flex-col items-center justify-center bg-[#0D182E] border border-white/5 rounded-xl p-2">
-                    <Calendar className="h-3.5 w-3.5 text-[#6C5CFF] mb-1.5" />
-                    <span className="text-[7px] font-black text-white/40">Événement</span>
-                  </button>
-                  <button className="flex flex-col items-center justify-center bg-[#0D182E] border border-white/5 rounded-xl p-2">
-                    <Plus className="h-3.5 w-3.5 text-[#6C5CFF] mb-1.5" />
-                    <span className="text-[7px] font-black text-white/40">Plus ⁵</span>
-                  </button>
-                </div>
-
-                {/* About list details in Drawer */}
-                <div className="space-y-4">
-                  <h4 className="text-[10px] font-black text-white/40 uppercase tracking-widest">À propos</h4>
-                  <div className="rounded-2xl bg-[#0A1224] border border-white/5 p-3 space-y-3.5">
-                    <div className="flex items-center gap-3">
-                      <GraduationCap className="h-4 w-4 text-white/40" />
-                      <div>
-                        <span className="block text-[7px] font-bold text-white/40 uppercase">Études</span>
-                        <strong className="block text-[10px] font-black text-white">Étudiante en médecine</strong>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <Globe className="h-4 w-4 text-white/40" />
-                      <div>
-                        <span className="block text-[7px] font-bold text-white/40 uppercase">Langues</span>
-                        <strong className="block text-[10px] font-black text-white">Français, Wolof, Anglais</strong>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Family list details in Drawer */}
-                <div className="space-y-4">
-                  <h4 className="text-[10px] font-black text-white/40 uppercase tracking-widest">Famille proche</h4>
-                  <div className="rounded-2xl bg-[#0A1224] border border-white/5 p-3 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <img src="https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=80&h=80&q=80" alt="" className="h-6 w-6 rounded-full object-cover" />
-                        <span className="text-[10px] text-white/40">Père</span>
-                        <strong className="text-[10px] font-black text-white">Mamadou Diop</strong>
-                      </div>
-                      <span className="text-white/20 text-xs">&gt;</span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&h=80&q=80" alt="" className="h-6 w-6 rounded-full object-cover" />
-                        <span className="text-[10px] text-white/40">Mère</span>
-                        <strong className="text-[10px] font-black text-white">Fatou Diop</strong>
-                      </div>
-                      <span className="text-white/20 text-xs">&gt;</span>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          )}
-
-        </div>
-      )}
-
+      {modal === 'invite' && <RootsModal title="Inviter une branche" onClose={() => setModal(null)}><div className="fr-invite"><span className="fr-invite-icon"><TreePine /></span><h3>Votre code Racines</h3><p>Partagez-le uniquement avec un chef de famille que vous connaissez.</p><div className="fr-share-code"><strong>{snapshot?.shareCode || 'Création…'}</strong><button onClick={() => void copyInvite()} aria-label="Copier le code"><Copy /></button></div><small>{snapshot?.shareCodeExpiresAt ? `Valable jusqu’au ${new Date(snapshot.shareCodeExpiresAt).toLocaleDateString('fr-FR')}` : 'Code sécurisé'}</small><button className="fr-secondary-action" onClick={() => void regenerateInvite()} disabled={busy}><Sparkles /> Générer un nouveau code</button>{!isPremium && <button className="fr-quiet-premium" onClick={onTriggerPaywall}>Les branches entre foyers sont incluses avec Premium</button>}</div></RootsModal>}
+      {fullTree}
     </div>
   );
 }

@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS public.family_tree_connections (
   requester_foyer_id UUID NOT NULL REFERENCES public.foyers(id) ON DELETE CASCADE,
   target_foyer_id UUID NOT NULL REFERENCES public.foyers(id) ON DELETE CASCADE,
   requester_profile_id UUID NOT NULL REFERENCES public.family_tree_profiles(id) ON DELETE CASCADE,
+  requester_display_name TEXT NOT NULL DEFAULT 'Membre de la famille',
   target_profile_id UUID REFERENCES public.family_tree_profiles(id) ON DELETE SET NULL,
   relationship_type TEXT NOT NULL CHECK (relationship_type IN (
     'parent', 'enfant', 'fratrie', 'cousin', 'conjoint',
@@ -215,6 +216,29 @@ AS $$
 $$;
 
 -- RLS Policies
+DROP POLICY IF EXISTS family_tree_settings_select ON public.family_tree_settings;
+DROP POLICY IF EXISTS family_tree_settings_insert ON public.family_tree_settings;
+DROP POLICY IF EXISTS family_tree_settings_update ON public.family_tree_settings;
+DROP POLICY IF EXISTS family_tree_profiles_select ON public.family_tree_profiles;
+DROP POLICY IF EXISTS family_tree_profiles_insert ON public.family_tree_profiles;
+DROP POLICY IF EXISTS family_tree_profiles_update ON public.family_tree_profiles;
+DROP POLICY IF EXISTS family_tree_profiles_delete ON public.family_tree_profiles;
+DROP POLICY IF EXISTS family_tree_relationships_select ON public.family_tree_relationships;
+DROP POLICY IF EXISTS family_tree_relationships_insert ON public.family_tree_relationships;
+DROP POLICY IF EXISTS family_tree_relationships_delete ON public.family_tree_relationships;
+DROP POLICY IF EXISTS family_tree_connections_select ON public.family_tree_connections;
+DROP POLICY IF EXISTS family_tree_events_select ON public.family_tree_events;
+DROP POLICY IF EXISTS family_tree_events_insert ON public.family_tree_events;
+DROP POLICY IF EXISTS family_tree_events_update ON public.family_tree_events;
+DROP POLICY IF EXISTS family_tree_events_delete ON public.family_tree_events;
+DROP POLICY IF EXISTS family_tree_identity_select ON public.family_tree_identity_requests;
+DROP POLICY IF EXISTS family_tree_corrections_select ON public.family_tree_correction_requests;
+DROP POLICY IF EXISTS family_tree_corrections_insert ON public.family_tree_correction_requests;
+DROP POLICY IF EXISTS family_tree_corrections_update ON public.family_tree_correction_requests;
+DROP POLICY IF EXISTS family_tree_memories_select ON public.family_tree_memories;
+DROP POLICY IF EXISTS family_tree_memories_insert ON public.family_tree_memories;
+DROP POLICY IF EXISTS family_tree_logs_select ON public.family_tree_validation_logs;
+
 CREATE POLICY family_tree_settings_select ON public.family_tree_settings FOR SELECT
   USING (foyer_id IN (SELECT public.user_foyer_ids()));
 
@@ -591,6 +615,7 @@ AS $$
 DECLARE
   v_target_foyer_id UUID;
   v_connection_id UUID;
+  v_requester_name TEXT;
 BEGIN
   IF NOT public.is_foyer_admin_or_parent(p_requester_foyer_id) THEN
     RAISE EXCEPTION 'Acces refuse a ce foyer';
@@ -610,6 +635,10 @@ BEGIN
     RAISE EXCEPTION 'Profil source invalide';
   END IF;
 
+  SELECT display_name INTO v_requester_name
+  FROM public.family_tree_profiles
+  WHERE id = p_requester_profile_id AND foyer_id = p_requester_foyer_id;
+
   SELECT foyer_id INTO v_target_foyer_id
   FROM public.family_tree_settings
   WHERE UPPER(TRIM(share_code)) = UPPER(TRIM(p_target_code))
@@ -625,10 +654,10 @@ BEGIN
   END IF;
 
   INSERT INTO public.family_tree_connections (
-    requester_foyer_id, target_foyer_id, requester_profile_id,
+    requester_foyer_id, target_foyer_id, requester_profile_id, requester_display_name,
     relationship_type, requested_by
   ) VALUES (
-    p_requester_foyer_id, v_target_foyer_id, p_requester_profile_id,
+    p_requester_foyer_id, v_target_foyer_id, p_requester_profile_id, COALESCE(v_requester_name, 'Membre de la famille'),
     p_relationship_type, AUTH.UID()
   )
   RETURNING id INTO v_connection_id;
