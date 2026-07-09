@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Bell,
+  Camera,
   CalendarDays,
   Check,
   ChevronLeft,
@@ -10,14 +11,17 @@ import {
   Copy,
   Globe2,
   Heart,
+  Image,
   Link2,
   MapPinned,
   MessageCircle,
   Minus,
   MoreHorizontal,
+  Pencil,
   Plus,
   Search,
   Send,
+  Save,
   Share2,
   Sparkles,
   TreePine,
@@ -26,7 +30,7 @@ import {
   ZoomIn,
   ZoomOut
 } from 'lucide-react';
-import type { Member } from '../types';
+import type { FoyerMemberProfileUpdate, Member } from '../types';
 import {
   familyRootsService,
   type FamilyRelationshipType,
@@ -39,9 +43,11 @@ import './family-roots.css';
 import './family-roots-map.css';
 import './family-roots-tree.css';
 import { getFamilyRootCoordinates, getMapPosition } from '../utils/familyRootsGeo';
+import { compressImageToBlob, uploadBlobToStorage } from '../utils/imageCompressor';
 
 type RootTab = 'tree' | 'cousins' | 'branches' | 'map';
 type ModalName = 'add-person' | 'link-persons' | 'link-branch' | 'invite' | null;
+type ProfileTab = 'infos' | 'famille' | 'medias' | 'liens';
 
 type FamilyRootsProps = {
   foyerId?: string;
@@ -53,6 +59,7 @@ type FamilyRootsProps = {
   onSendNotification?: (title: string, body: string, type?: string) => void;
   onAddAgendaEvent?: (event: unknown) => void;
   onCreateBranchGroup?: (name: string, memberIds: string[]) => Promise<unknown>;
+  onUpdateMemberProfile?: (memberId: string, updates: FoyerMemberProfileUpdate) => Promise<void> | void;
 };
 
 const relationshipLabels: Record<FamilyRelationshipType, string> = {
@@ -119,7 +126,7 @@ function PersonNode({
     <button className={`fr-person-node ${compact ? 'is-compact' : ''}`} onClick={() => onSelect(profile)}>
       <ProfileAvatar profile={profile} />
       <strong>{profile.displayName}</strong>
-      <span>{compact ? displayYear(profile) : profile.nickname || profileLocation(profile)}</span>
+      <span>{displayYear(profile)}</span>
     </button>
   );
 }
@@ -258,13 +265,17 @@ export function FamilyRoots({
   onTriggerPaywall,
   onSendNotification,
   onAddAgendaEvent,
-  onCreateBranchGroup
+  onCreateBranchGroup,
+  onUpdateMemberProfile
 }: FamilyRootsProps) {
   const [activeTab, setActiveTab] = useState<RootTab>('tree');
   const [snapshot, setSnapshot] = useState<FamilyRootsSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedProfile, setSelectedProfile] = useState<FamilyTreeProfile | null>(null);
+  const [profileTab, setProfileTab] = useState<ProfileTab>('infos');
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({ name: '', birthDate: '', city: '', country: '', school: '', languages: '', bio: '' });
   const [modal, setModal] = useState<ModalName>(null);
   const [treeFullscreen, setTreeFullscreen] = useState(false);
   const [treeScale, setTreeScale] = useState(0.84);
@@ -276,9 +287,14 @@ export function FamilyRoots({
   const [personForm, setPersonForm] = useState({ name: '', date: '', city: '', country: '', relation: 'famille' as FamilyRelationshipType });
   const [relationshipForm, setRelationshipForm] = useState({ source: '', target: '', relation: 'parent' as FamilyRelationshipType });
   const [branchForm, setBranchForm] = useState({ code: '', source: '', relation: 'famille' as FamilyRelationshipType });
+  const [inviteLinkHandled, setInviteLinkHandled] = useState(false);
 
   const memberSignature = members.map(member => `${member.id}:${member.name}:${member.birthDate}:${member.photoUrl}`).join('|');
   const activeFoyerId = foyerId || 'local';
+  const inviteCodeFromUrl = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('rootCode')?.trim().toUpperCase() || '';
+  }, []);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -294,6 +310,13 @@ export function FamilyRoots({
   }, [activeFoyerId, canManage, memberSignature]);
 
   useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    if (!inviteCodeFromUrl || loading || inviteLinkHandled) return;
+    const localProfile = snapshot?.profiles.find(profile => profile.isLocal);
+    setBranchForm(current => ({ ...current, code: inviteCodeFromUrl, source: current.source || localProfile?.id || '' }));
+    setModal('link-branch');
+    setInviteLinkHandled(true);
+  }, [inviteCodeFromUrl, inviteLinkHandled, loading, snapshot?.profiles]);
   useEffect(() => {
     if (!notice) return undefined;
     const timer = window.setTimeout(() => setNotice(''), 3600);
@@ -344,6 +367,22 @@ export function FamilyRoots({
     if (!coordinates) return [];
     return [{ branch, profile, coordinates }];
   }), [branches]);
+  const selectedMember = selectedProfile?.memberId ? members.find(member => member.id === selectedProfile.memberId) : undefined;
+  const selectedRelations = useMemo(() => {
+    if (!selectedProfile) return [];
+    return relationships.flatMap(relationship => {
+      if (relationship.sourceProfileId === selectedProfile.id) {
+        const person = profiles.find(profile => profile.id === relationship.targetProfileId);
+        return person ? [{ id: relationship.id, person, label: relationshipLabels[relationship.relationshipType] }] : [];
+      }
+      if (relationship.targetProfileId === selectedProfile.id) {
+        const person = profiles.find(profile => profile.id === relationship.sourceProfileId);
+        return person ? [{ id: relationship.id, person, label: relationshipLabels[relationship.relationshipType] }] : [];
+      }
+      return [];
+    });
+  }, [profiles, relationships, selectedProfile]);
+  const selectedMemories = useMemo(() => selectedProfile ? (snapshot?.memories || []).filter(memory => memory.profileId === selectedProfile.id) : [], [selectedProfile, snapshot?.memories]);
 
   const toggleRow = (generation: number) => setExpandedRows(current => {
     const next = new Set(current);
@@ -351,7 +390,21 @@ export function FamilyRoots({
     return next;
   });
 
-  const selectProfile = (profile: FamilyTreeProfile) => setSelectedProfile(profile);
+  const selectProfile = (profile: FamilyTreeProfile) => {
+    const member = profile.memberId ? members.find(item => item.id === profile.memberId) : undefined;
+    setSelectedProfile(profile);
+    setProfileTab('infos');
+    setEditingProfile(false);
+    setProfileForm({
+      name: profile.displayName,
+      birthDate: profile.birthDate || '',
+      city: profile.originCity || '',
+      country: profile.country || '',
+      school: member?.schoolOrEmployer || '',
+      languages: profile.languages.join(', '),
+      bio: profile.bio || ''
+    });
+  };
   const showFeedback = (message: string) => setNotice(message);
 
   const ensureManage = () => {
@@ -440,6 +493,98 @@ export function FamilyRoots({
       await navigator.clipboard?.writeText(snapshot.shareCode);
       showFeedback('Le code de la branche a été copié.');
     } catch { showFeedback(`Code à partager : ${snapshot.shareCode}`); }
+  };
+
+  const inviteLink = useMemo(() => {
+    if (!snapshot?.shareCode || typeof window === 'undefined') return '';
+    const url = new URL(window.location.href);
+    url.searchParams.set('racines', '1');
+    url.searchParams.set('rootCode', snapshot.shareCode);
+    return url.toString();
+  }, [snapshot?.shareCode]);
+
+  const copyInviteLink = async () => {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard?.writeText(inviteLink);
+      showFeedback('Le lien d’invitation a été copié.');
+    } catch {
+      showFeedback('Le lien ne peut pas être copié automatiquement.');
+    }
+  };
+
+  const shareInviteLink = async () => {
+    if (!inviteLink) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Invitation Racines familiales', text: 'Rejoins ma branche familiale sur MyFamily+.', url: inviteLink });
+        return;
+      }
+      await copyInviteLink();
+    } catch {
+      // Annuler le partage ne doit pas déclencher une erreur visible.
+    }
+  };
+
+  const persistProfile = async (nextProfile: FamilyTreeProfile) => {
+    await familyRootsService.updateProfile(activeFoyerId, nextProfile);
+    setSnapshot(current => current ? {
+      ...current,
+      profiles: current.profiles.map(profile => profile.id === nextProfile.id ? nextProfile : profile)
+    } : current);
+    setSelectedProfile(nextProfile);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!selectedProfile || !ensureManage() || !selectedProfile.isLocal || !profileForm.name.trim()) return;
+    setBusy(true);
+    try {
+      const nextProfile: FamilyTreeProfile = {
+        ...selectedProfile,
+        displayName: profileForm.name.trim(),
+        birthDate: profileForm.birthDate || undefined,
+        originCity: profileForm.city.trim() || undefined,
+        country: profileForm.country.trim() || undefined,
+        languages: profileForm.languages.split(',').map(item => item.trim()).filter(Boolean),
+        bio: profileForm.bio.trim() || undefined
+      };
+      if (selectedProfile.memberId && onUpdateMemberProfile) {
+        await onUpdateMemberProfile(selectedProfile.memberId, {
+          displayName: nextProfile.displayName,
+          birthDate: nextProfile.birthDate || '',
+          schoolOrEmployer: profileForm.school.trim()
+        });
+      }
+      await persistProfile(nextProfile);
+      setEditingProfile(false);
+      showFeedback('La fiche a été mise à jour dans le foyer et dans l’arbre.');
+    } catch (cause) {
+      showFeedback(cause instanceof Error ? cause.message : 'La fiche n’a pas pu être enregistrée.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleProfilePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !selectedProfile || !ensureManage() || !selectedProfile.isLocal) return;
+    setBusy(true);
+    try {
+      const { blob, ext } = await compressImageToBlob(file, 'profile');
+      const photoKey = selectedProfile.memberId || selectedProfile.id;
+      const photoUrl = await uploadBlobToStorage('avatars', `${activeFoyerId}/roots_${photoKey}_${Date.now()}.${ext}`, blob);
+      const nextProfile = { ...selectedProfile, photoUrl };
+      if (selectedProfile.memberId && onUpdateMemberProfile) {
+        await onUpdateMemberProfile(selectedProfile.memberId, { photoUrl });
+      }
+      await persistProfile(nextProfile);
+      showFeedback('La photo a été mise à jour dans la fiche et dans le foyer.');
+    } catch (cause) {
+      showFeedback(cause instanceof Error ? cause.message : 'La photo n’a pas pu être envoyée.');
+    } finally {
+      event.target.value = '';
+      setBusy(false);
+    }
   };
 
   const regenerateInvite = async () => {
@@ -546,12 +691,59 @@ export function FamilyRoots({
         </main>}
 
         {!loading && !error && activeTab === 'map' && <main className="fr-content">
-          <section className="fr-world-card"><div className="fr-world-copy"><span className="fr-eyebrow"><MapPinned /> Famille dans le monde</span><h2>Vos branches reliées</h2><p>Chaque repère est calculé à partir de la ville ou du pays réellement renseigné par la branche.</p></div><div className="fr-world-map"><img className="fr-map-light" src="/family-roots/world-map-light.png" alt="Carte du monde des branches" /><img className="fr-map-dark" src="/family-roots/world-map-dark.png" alt="" />{branchMapMarkers.map(({ branch, profile, coordinates }) => <button className="fr-world-pin" style={getMapPosition(coordinates)} key={branch.id} onClick={() => setSelectedProfile(profile)}><div className="fr-pin-avatar"><ProfileAvatar profile={profile} /></div><span>{coordinates.label}</span></button>)}{!branchMapMarkers.length && <p className="fr-map-empty">Aucun lieu n’a encore été renseigné par les branches familiales.</p>}</div></section>
-          <section className="fr-map-list">{branches.map(branch => <button key={branch.id} onClick={() => setSelectedProfile(branch.profiles[0])}><div className={`fr-branch-badge ${branch.color}`}><UsersRound /></div><div><strong>{branch.name}</strong><span>{branch.location}</span></div><ChevronRight /></button>)}</section>
+          <section className="fr-world-card"><div className="fr-world-copy"><span className="fr-eyebrow"><MapPinned /> Famille dans le monde</span><h2>Vos branches reliées</h2><p>Chaque repère est calculé à partir de la ville ou du pays réellement renseigné par la branche.</p></div><div className="fr-world-map"><img className="fr-map-light" src="/family-roots/world-map-light.png" alt="Carte du monde des branches" /><img className="fr-map-dark" src="/family-roots/world-map-dark.png" alt="" />{branchMapMarkers.map(({ branch, profile, coordinates }) => <button className="fr-world-pin" style={getMapPosition(coordinates)} key={branch.id} onClick={() => selectProfile(profile)}><div className="fr-pin-avatar"><ProfileAvatar profile={profile} /></div><span>{coordinates.label}</span></button>)}{!branchMapMarkers.length && <p className="fr-map-empty">Aucun lieu n’a encore été renseigné par les branches familiales.</p>}</div></section>
+          <section className="fr-map-list">{branches.map(branch => <button key={branch.id} onClick={() => selectProfile(branch.profiles[0])}><div className={`fr-branch-badge ${branch.color}`}><UsersRound /></div><div><strong>{branch.name}</strong><span>{branch.location}</span></div><ChevronRight /></button>)}</section>
         </main>}
       </div>
 
-      {selectedProfile && <aside className="fr-profile-drawer" role="dialog" aria-modal="true"><button className="fr-profile-close" onClick={() => setSelectedProfile(null)} aria-label="Fermer"><ChevronLeft /></button><button className="fr-profile-more" onClick={() => setModal('link-persons')} aria-label="Plus d’options"><MoreHorizontal /></button><div className="fr-profile-identity"><ProfileAvatar profile={selectedProfile} /><h2>{selectedProfile.displayName}</h2><span>{selectedProfile.nickname || 'Membre de la famille'}</span><p>{selectedProfile.birthDate ? `Né${selectedProfile.displayName.endsWith('a') ? 'e' : ''} le ${new Date(`${selectedProfile.birthDate}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}${profileAge(selectedProfile) ? ` (${profileAge(selectedProfile)})` : ''}` : 'Date de naissance non renseignée'}</p><p>📍 {profileLocation(selectedProfile)}</p></div><div className="fr-profile-actions"><button onClick={() => createBranchGroup()}><MessageCircle /><span>Message</span></button><button onClick={() => publishEvent(selectedProfile)}><CalendarDays /><span>Événement</span></button><button onClick={() => setModal('link-persons')}><Link2 /><span>Lier</span></button></div><div className="fr-profile-tabs"><button className="is-active">Infos</button><button>Famille</button><button>Médias</button><button>Liens</button></div><section className="fr-profile-section"><h3>À propos</h3><dl><div><dt>Ville</dt><dd>{profileLocation(selectedProfile)}</dd></div><div><dt>Langues</dt><dd>{selectedProfile.languages.length ? selectedProfile.languages.join(', ') : 'Non renseignées'}</dd></div><div><dt>Statut</dt><dd>{selectedProfile.isMinor ? 'Profil protégé' : 'Membre de la famille'}</dd></div></dl></section><section className="fr-profile-section"><h3>Liens familiaux</h3>{(() => { const links = relationships.filter(item => item.sourceProfileId === selectedProfile.id).slice(0, 4).map(item => ({ item, target: profiles.find(profile => profile.id === item.targetProfileId) })).filter((link): link is { item: FamilyTreeRelationship; target: FamilyTreeProfile } => Boolean(link.target)); return links.length ? links.map(({ item, target }) => <button className="fr-link-row" key={item.id} onClick={() => setSelectedProfile(target)}><ProfileAvatar profile={target} /><span><small>{relationshipLabels[item.relationshipType]}</small><strong>{target.displayName}</strong></span><ChevronRight /></button>) : <p>Aucun lien enregistré pour le moment.</p>; })()}</section></aside>}
+      {selectedProfile && <aside className="fr-profile-drawer" role="dialog" aria-modal="true" aria-label={`Fiche de ${selectedProfile.displayName}`}>
+        <button className="fr-profile-close" onClick={() => setSelectedProfile(null)} aria-label="Fermer"><ChevronLeft /></button>
+        <button className="fr-profile-more" onClick={() => setModal('link-persons')} aria-label="Relier cette personne"><MoreHorizontal /></button>
+        <div className="fr-profile-identity">
+          <ProfileAvatar profile={selectedProfile} />
+          <h2>{selectedProfile.displayName}</h2>
+          <span>{selectedProfile.nickname || selectedProfile.memberRole || 'Membre de la famille'}</span>
+          <p>{selectedProfile.birthDate ? `Né${selectedProfile.displayName.endsWith('a') ? 'e' : ''} le ${new Date(`${selectedProfile.birthDate}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}${profileAge(selectedProfile) ? ` (${profileAge(selectedProfile)})` : ''}` : 'Date de naissance non renseignée'}</p>
+          <p>📍 {profileLocation(selectedProfile)}</p>
+        </div>
+        <div className="fr-profile-actions">
+          <button onClick={() => createBranchGroup()}><MessageCircle /><span>Message</span></button>
+          <button onClick={() => publishEvent(selectedProfile)}><CalendarDays /><span>Événement</span></button>
+          <button onClick={() => setModal('link-persons')}><Link2 /><span>Lier</span></button>
+        </div>
+        <div className="fr-profile-tabs">
+          {([['infos', 'Infos'], ['famille', 'Famille'], ['medias', 'Médias'], ['liens', 'Liens']] as Array<[ProfileTab, string]>).map(([tab, label]) => <button key={tab} onClick={() => setProfileTab(tab)} className={profileTab === tab ? 'is-active' : ''}>{label}</button>)}
+        </div>
+
+        {profileTab === 'infos' && (editingProfile ? <section className="fr-profile-section fr-profile-edit">
+          <div className="fr-profile-section-heading"><h3>Modifier la fiche</h3><button onClick={() => setEditingProfile(false)}>Annuler</button></div>
+          <label className="fr-photo-change"><Camera /> Changer la photo<input type="file" accept="image/*" onChange={event => void handleProfilePhotoUpload(event)} /></label>
+          <div className="fr-form">
+            <label>Prénom et nom<input value={profileForm.name} onChange={event => setProfileForm(form => ({ ...form, name: event.target.value }))} /></label>
+            <label>Date de naissance<input type="date" value={profileForm.birthDate} onChange={event => setProfileForm(form => ({ ...form, birthDate: event.target.value }))} /></label>
+            <div className="fr-form-duo"><label>Ville<input value={profileForm.city} onChange={event => setProfileForm(form => ({ ...form, city: event.target.value }))} placeholder="Ex. Dakar" /></label><label>Pays<input value={profileForm.country} onChange={event => setProfileForm(form => ({ ...form, country: event.target.value }))} placeholder="Ex. Sénégal" /></label></div>
+            {selectedProfile.memberId && <label>École ou activité<input value={profileForm.school} onChange={event => setProfileForm(form => ({ ...form, school: event.target.value }))} placeholder="Ex. Collège, métier…" /></label>}
+            <label>Langues<input value={profileForm.languages} onChange={event => setProfileForm(form => ({ ...form, languages: event.target.value }))} placeholder="Ex. Français, Wolof" /></label>
+            <label>À propos<textarea value={profileForm.bio} onChange={event => setProfileForm(form => ({ ...form, bio: event.target.value }))} placeholder="Une phrase pour garder le souvenir." /></label>
+            <button className="fr-primary-action" disabled={busy || !profileForm.name.trim()} onClick={() => void handleSaveProfile()}><Save />{busy ? 'Enregistrement…' : 'Enregistrer la fiche'}</button>
+          </div>
+        </section> : <section className="fr-profile-section">
+          <div className="fr-profile-section-heading"><h3>À propos</h3>{canManage && selectedProfile.isLocal && <button onClick={() => setEditingProfile(true)}><Pencil /> Modifier</button>}</div>
+          <dl>
+            <div><dt>Ville</dt><dd>{profileLocation(selectedProfile)}</dd></div>
+            {selectedMember?.schoolOrEmployer && <div><dt>École ou activité</dt><dd>{selectedMember.schoolOrEmployer}</dd></div>}
+            <div><dt>Langues</dt><dd>{selectedProfile.languages.length ? selectedProfile.languages.join(', ') : 'Non renseignées'}</dd></div>
+            <div><dt>Statut</dt><dd>{selectedProfile.isMinor ? 'Profil protégé' : 'Membre de la famille'}</dd></div>
+          </dl>
+          {selectedProfile.bio && <p className="fr-profile-bio">{selectedProfile.bio}</p>}
+        </section>)}
+
+        {profileTab === 'famille' && <section className="fr-profile-section"><div className="fr-profile-section-heading"><h3>Famille</h3>{canManage && selectedProfile.isLocal && <button onClick={() => setModal('link-persons')}><Plus /> Lier</button>}</div>{selectedRelations.length ? selectedRelations.map(({ id, person, label }) => <button className="fr-link-row" key={id} onClick={() => selectProfile(person)}><ProfileAvatar profile={person} /><span><small>{label}</small><strong>{person.displayName}</strong></span><ChevronRight /></button>) : <p>Aucun lien familial n’est encore renseigné.</p>}</section>}
+
+        {profileTab === 'medias' && <section className="fr-profile-section"><div className="fr-profile-section-heading"><h3>Souvenirs</h3><Image /></div>{selectedMemories.length ? selectedMemories.map(memory => <article className="fr-memory-row" key={memory.id}>{memory.photoUrl && <img src={memory.photoUrl} alt="" />}<div><strong>{memory.title}</strong><small>{memory.memoryDate ? new Date(`${memory.memoryDate}T12:00:00`).toLocaleDateString('fr-FR') : 'Souvenir familial'}</small><p>{memory.note}</p></div></article>) : <p>Aucun souvenir associé à cette fiche pour le moment.</p>}</section>}
+
+        {profileTab === 'liens' && <section className="fr-profile-section"><div className="fr-profile-section-heading"><h3>Liens et branche</h3><Link2 /></div><p>Reliez cette personne à un proche du foyer, ou connectez une autre branche familiale.</p><button className="fr-secondary-action" onClick={() => setModal('link-persons')}><Link2 /> Relier une personne</button><button className="fr-secondary-action" onClick={() => setModal('link-branch')}><UsersRound /> Entrer un code de branche</button><button className="fr-primary-action" onClick={() => setModal('invite')}><Share2 /> Partager une invitation</button></section>}
+      </aside>}
 
       {modal === 'add-person' && <RootsModal title="Ajouter une personne" onClose={() => setModal(null)}><div className="fr-form"><label>Prénom et nom<input autoFocus value={personForm.name} onChange={event => setPersonForm(form => ({ ...form, name: event.target.value }))} placeholder="Ex. Awa Ndiaye" /></label><label>Date de naissance<input type="date" value={personForm.date} onChange={event => setPersonForm(form => ({ ...form, date: event.target.value }))} /></label><div className="fr-form-duo"><label>Ville<input value={personForm.city} onChange={event => setPersonForm(form => ({ ...form, city: event.target.value }))} placeholder="Ex. Dakar" /></label><label>Pays<input value={personForm.country} onChange={event => setPersonForm(form => ({ ...form, country: event.target.value }))} placeholder="Ex. Sénégal" /></label></div><label>Lien avec la première personne<select value={personForm.relation} onChange={event => setPersonForm(form => ({ ...form, relation: event.target.value as FamilyRelationshipType }))}>{Object.entries(relationshipLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><button className="fr-primary-action" disabled={busy || !personForm.name.trim()} onClick={() => void handleAddPerson()}>{busy ? 'Ajout…' : 'Ajouter à l’arbre'}</button></div></RootsModal>}
 
@@ -559,7 +751,7 @@ export function FamilyRoots({
 
       {modal === 'link-branch' && <RootsModal title="Lier une nouvelle branche" onClose={() => setModal(null)}><div className="fr-form"><p className="fr-form-intro">Demandez au chef de l’autre foyer son code Racines. Il devra confirmer le lien avant qu’il apparaisse dans les deux arbres.</p><label>Code de la branche<input value={branchForm.code} onChange={event => setBranchForm(form => ({ ...form, code: event.target.value.toUpperCase() }))} placeholder="RAC-XXXXXXX" /></label><label>Personne de votre foyer<select value={branchForm.source} onChange={event => setBranchForm(form => ({ ...form, source: event.target.value }))}><option value="">Choisir une personne</option>{localProfiles.map(profile => <option value={profile.id} key={profile.id}>{profile.displayName}</option>)}</select></label><label>Votre lien avec cette branche<select value={branchForm.relation} onChange={event => setBranchForm(form => ({ ...form, relation: event.target.value as FamilyRelationshipType }))}>{Object.entries(relationshipLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><button className="fr-primary-action" disabled={busy || !branchForm.code || !branchForm.source} onClick={() => void handleConnectBranch()}>{busy ? 'Envoi…' : 'Envoyer la demande'}</button></div></RootsModal>}
 
-      {modal === 'invite' && <RootsModal title="Inviter une branche" onClose={() => setModal(null)}><div className="fr-invite"><span className="fr-invite-icon"><TreePine /></span><h3>Votre code Racines</h3><p>Partagez-le uniquement avec un chef de famille que vous connaissez.</p><div className="fr-share-code"><strong>{snapshot?.shareCode || 'Création…'}</strong><button onClick={() => void copyInvite()} aria-label="Copier le code"><Copy /></button></div><small>{snapshot?.shareCodeExpiresAt ? `Valable jusqu’au ${new Date(snapshot.shareCodeExpiresAt).toLocaleDateString('fr-FR')}` : 'Code sécurisé'}</small><button className="fr-secondary-action" onClick={() => void regenerateInvite()} disabled={busy}><Sparkles /> Générer un nouveau code</button>{!isPremium && <button className="fr-quiet-premium" onClick={onTriggerPaywall}>Les branches entre foyers sont incluses avec Premium</button>}</div></RootsModal>}
+      {modal === 'invite' && <RootsModal title="Inviter une branche" onClose={() => setModal(null)}><div className="fr-invite"><span className="fr-invite-icon"><TreePine /></span><h3>Inviter une autre famille</h3><p>Le lien ouvre directement la demande de branche avec votre code déjà rempli.</p><div className="fr-share-code"><strong>{snapshot?.shareCode || 'Création…'}</strong><button onClick={() => void copyInvite()} aria-label="Copier le code"><Copy /></button></div><small>{snapshot?.shareCodeExpiresAt ? `Code valable jusqu’au ${new Date(snapshot.shareCodeExpiresAt).toLocaleDateString('fr-FR')}` : 'Code sécurisé'}</small><button className="fr-primary-action" disabled={!inviteLink} onClick={() => void shareInviteLink()}><Share2 /> Partager le lien d’invitation</button><button className="fr-secondary-action" disabled={!inviteLink} onClick={() => void copyInviteLink()}><Copy /> Copier le lien</button><button className="fr-secondary-action" onClick={() => { setModal('link-branch'); }}><Link2 /> J’ai reçu un code</button><button className="fr-secondary-action" onClick={() => void regenerateInvite()} disabled={busy}><Sparkles /> Générer un nouveau code</button>{!isPremium && <button className="fr-quiet-premium" onClick={onTriggerPaywall}>Les branches entre foyers sont incluses avec Premium</button>}</div></RootsModal>}
       {fullTree}
     </div>
   );

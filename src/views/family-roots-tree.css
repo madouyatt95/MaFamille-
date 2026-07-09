@@ -4,6 +4,27 @@
   display: none;
 }
 
+.family-roots .fr-tree-surface {
+  overflow: visible;
+  background: var(--fr-surface);
+}
+
+.family-roots .fr-tree-board {
+  padding: 22px 14px 28px;
+  background:
+    radial-gradient(circle at 12% 0, color-mix(in srgb, var(--fr-green) 10%, transparent), transparent 33%),
+    radial-gradient(circle at 88% 4%, color-mix(in srgb, var(--fr-violet) 9%, transparent), transparent 31%);
+}
+
+.family-roots .fr-generation + .fr-generation {
+  border-top: 0;
+  padding-top: 33px;
+}
+
+.family-roots .fr-generation {
+  padding-block: 13px 18px;
+}
+
 .family-roots .fr-generation + .fr-generation::after {
   content: '';
   position: absolute;
@@ -18,7 +39,7 @@
 .family-roots .fr-generation-nodes {
   align-items: center;
   flex-wrap: wrap;
-  row-gap: 28px;
+  row-gap: 24px;
 }
 
 .family-roots .fr-tree-node-wrap::before {
@@ -83,7 +104,183 @@
   .family-roots .fr-generation {
     padding-block: 17px 30px;
   }
+}
 
+.family-roots .fr-person-node {
+  position: relative;
+  z-index: 1;
+  width: clamp(72px, 20vw, 104px);
+  padding: 4px 2px 0;
+  border-radius: 18px;
+  transition: transform .16s ease, background .16s ease;
+}
+
+.family-roots .fr-person-node:hover,
+.family-roots .fr-person-node:focus-visible {
+  transform: translateY(-2px);
+  background: var(--fr-violet-soft);
+}
+
+.family-roots .fr-person-node strong {
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.family-roots .fr-person-node span {
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.family-roots .fr-avatar {
+  background: color-mix(in srgb, var(--fr-violet-soft) 72%, var(--fr-surface));
+}
+
+.family-roots .fr-avatar img {
+  object-position: center 28%;
+}
+
+.family-roots .fr-profile-identity .fr-avatar img {
+  object-position: center 24%;
+}
+
+.family-roots .fr-generation:first-child .fr-generation-label {
+  margin-bottom: 18px;
+}
+
+.family-roots .fr-generation-label {
+  z-index: 2;
+  padding: 7px 15px;
+  border-color: color-mix(in srgb, var(--fr-violet) 45%, transparent);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--fr-violet) 12%, transparent);
+}
+
+.family-roots .fr-generation-label small {
+  margin-top: 2px;
+}
+
+.family-roots .fr-more-people {
+  min-height: 96px;
+  box-shadow: 0 9px 18px color-mix(in srgb, var(--fr-violet) 12%, transparent);
+}
+
+.family-roots .fr-profile-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.family-roots .fr-profile-section-heading > svg {
+  width: 17px;
+  color: var(--fr-violet);
+}
+
+.family-roots .fr-profile-section-heading button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--fr-violet);
+  background: var(--fr-violet-soft);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.family-roots .fr-profile-section-heading button svg {
+  width: 13px;
+}
+
+.family-roots .fr-profile-edit .fr-form {
+  padding-top: 10px;
+}
+
+.family-roots .fr-profile-edit textarea {
+  min-height: 86px;
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--fr-line);
+  border-radius: 10px;
+  outline: none;
+  color: var(--fr-text);
+  background: var(--fr-surface-soft);
+  font: inherit;
+  font-size: 13px;
+}
+
+.family-roots .fr-photo-change {
+  min-height: 39px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 8px;
+  border: 1px dashed color-mix(in srgb, var(--fr-violet) 46%, transparent);
+  border-radius: 11px;
+  color: var(--fr-violet);
+  background: var(--fr-violet-soft);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.family-roots .fr-photo-change input {
+  display: none;
+}
+
+.family-roots .fr-photo-change svg {
+  width: 15px;
+}
+
+.family-roots .fr-profile-bio {
+  margin-top: 13px !important;
+  padding-top: 12px;
+  border-top: 1px solid var(--fr-line);
+  line-height: 1.5;
+}
+
+.family-roots .fr-memory-row {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 9px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--fr-line);
+}
+
+.family-roots .fr-memory-row:last-child {
+  border-bottom: 0;
+}
+
+.family-roots .fr-memory-row img {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  object-fit: cover;
+  object-position: center 28%;
+}
+
+.family-roots .fr-memory-row strong,
+.family-roots .fr-memory-row small,
+.family-roots .fr-memory-row p {
+  display: block;
+}
+
+.family-roots .fr-memory-row strong {
+  font-size: 11px;
+}
+
+.family-roots .fr-memory-row small,
+.family-roots .fr-memory-row p {
+  margin: 3px 0 0;
+  color: var(--fr-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+@media (min-width: 760px) {
   .family-roots .fr-person-node {
     width: 88px;
   }

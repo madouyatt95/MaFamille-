@@ -13943,6 +13943,7 @@ function App() {
         onSendNotification={sendLocalNotification}
         onAddAgendaEvent={handleAddEvent}
         onCreateBranchGroup={handleCreateBranchChatGroup}
+        onUpdateMemberProfile={handleUpdateMemberProfile}
       />);
 
       if (!activeModule) {
