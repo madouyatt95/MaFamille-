@@ -81,6 +81,7 @@ type DbRow = Record<string, LooseValue>;
 type DbRows = LooseValue[];
 const QUICK_MICRO_PENDING_KEY = 'mf_pending_quick_micro';
 const QUICK_ACTION_PENDING_KEY = 'mf_pending_system_quick_action';
+const QUICK_ACTION_PENDING_QUERY_KEY = 'mf_pending_system_quick_action_query';
 
 type SystemQuickAction =
   | 'open-micro'
@@ -2385,6 +2386,8 @@ function App() {
     try {
       sessionStorage.removeItem(QUICK_ACTION_PENDING_KEY);
       localStorage.removeItem(QUICK_ACTION_PENDING_KEY);
+      sessionStorage.removeItem(QUICK_ACTION_PENDING_QUERY_KEY);
+      localStorage.removeItem(QUICK_ACTION_PENDING_QUERY_KEY);
     } catch {
       // Ignore storage failures.
     }
@@ -2410,8 +2413,113 @@ function App() {
     setSharedIntakeTarget(isHomework ? 'homework' : 'budget');
   }, [setActiveModule]);
 
+  const readSharedPayload = useCallback((shareId: string): Promise<LooseValue | null> => new Promise((resolve) => {
+    const request = indexedDB.open('myfamily-plus-share-target', 1);
+    request.onerror = () => resolve(null);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('payloads')) {
+        db.createObjectStore('payloads', { keyPath: 'id' });
+      }
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction('payloads', 'readwrite');
+      const store = tx.objectStore('payloads');
+      const getRequest = store.get(shareId);
+      getRequest.onsuccess = () => {
+        const payload = getRequest.result || null;
+        if (payload) store.delete(shareId);
+        db.close();
+        resolve(payload);
+      };
+      getRequest.onerror = () => {
+        db.close();
+        resolve(null);
+      };
+    };
+  }), []);
+
+  const routeSharedIntakePayload = useCallback((next: SharedIntakePayload) => {
+    setSharedIntake(next);
+    setSharedIntakeTarget(next.suggestedTarget);
+    if (next.suggestedTarget === 'homework') {
+      setActiveTab('menu');
+      setActiveModule('ecole');
+    } else if (next.suggestedTarget === 'vault') {
+      setActiveTab('menu');
+      setActiveModule('documents');
+    } else if (next.suggestedTarget === 'trip') {
+      setActiveTab('menu');
+      setActiveModule('voyages');
+    } else if (next.suggestedTarget === 'agenda') {
+      setActiveTab('menu');
+      setActiveModule('agenda');
+    } else if (next.suggestedTarget === 'groceries') {
+      setActiveTab('menu');
+      setActiveModule('courses');
+    } else if (next.suggestedTarget === 'memory') {
+      setActiveTab('menu');
+      setActiveModule('capsule');
+    } else {
+      setActiveTab('budget');
+      setActiveModule('');
+    }
+  }, [setActiveModule]);
+
+  const openSharedIntakeFromParams = useCallback((params: URLSearchParams, action: string = 'share-intake') => {
+    const shareId = params.get('shareId');
+    const shareKind = params.get('kind') || params.get('target');
+    const sharedTitle = params.get('title') || '';
+    const sharedText = params.get('text') || '';
+    const sharedUrl = params.get('url') || '';
+
+    setActiveTab('budget');
+    setActiveModule('');
+    if (shareId) {
+      readSharedPayload(shareId).then((payload) => {
+        const next = buildSharedIntakePayload(payload || { id: shareId }, shareKind || (action === 'share-receipt' ? 'receipt' : null));
+        routeSharedIntakePayload(next);
+      });
+    } else {
+      const next = buildSharedIntakePayload({
+        id: `shared-${Date.now()}`,
+        title: sharedTitle || 'Contenu partagé',
+        text: sharedText,
+        url: sharedUrl
+      }, shareKind);
+      routeSharedIntakePayload(next);
+    }
+  }, [readSharedPayload, routeSharedIntakePayload, setActiveModule]);
+
   useEffect(() => {
     const handleQuickMicroEvent = () => requestQuickMicroOpen();
+    const handleSystemQuickActionEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ action?: string; query?: string }>).detail || {};
+      let action = detail.action || '';
+      let query = detail.query || '';
+      try {
+        action = action || sessionStorage.getItem(QUICK_ACTION_PENDING_KEY) || localStorage.getItem(QUICK_ACTION_PENDING_KEY) || '';
+        query = query || sessionStorage.getItem(QUICK_ACTION_PENDING_QUERY_KEY) || localStorage.getItem(QUICK_ACTION_PENDING_QUERY_KEY) || '';
+      } catch {
+        // Continue with the event payload when storage is unavailable.
+      }
+      const params = new URLSearchParams(query || `action=${encodeURIComponent(action)}`);
+
+      if (action === 'scan-homework') {
+        clearSystemQuickAction();
+        openQuickScanIntake('homework');
+      } else if (action === 'scan-receipt') {
+        clearSystemQuickAction();
+        openQuickScanIntake('receipt');
+      } else if (action === 'share-receipt' || action === 'share-intake') {
+        clearSystemQuickAction();
+        openSharedIntakeFromParams(params, action);
+      } else if (action === 'paid' || action === 'open-micro') {
+        clearSystemQuickAction();
+        requestQuickMicroOpen();
+      }
+    };
     const handleQuickMicroResume = () => {
       try {
         if (
@@ -2425,15 +2533,17 @@ function App() {
       }
     };
     window.addEventListener('myfamilyplus:quick-micro', handleQuickMicroEvent);
+    window.addEventListener('myfamilyplus:system-action', handleSystemQuickActionEvent);
     window.addEventListener('focus', handleQuickMicroResume);
     document.addEventListener('visibilitychange', handleQuickMicroResume);
     handleQuickMicroResume();
     return () => {
       window.removeEventListener('myfamilyplus:quick-micro', handleQuickMicroEvent);
+      window.removeEventListener('myfamilyplus:system-action', handleSystemQuickActionEvent);
       window.removeEventListener('focus', handleQuickMicroResume);
       document.removeEventListener('visibilitychange', handleQuickMicroResume);
     };
-  }, [requestQuickMicroOpen]);
+  }, [clearSystemQuickAction, openQuickScanIntake, openSharedIntakeFromParams, requestQuickMicroOpen]);
 
   const handleGlobalSearchResultOpen = (result: GlobalSearchResult) => {
     if (result.focus?.type === 'alerts_panel') {
@@ -2675,41 +2785,9 @@ function App() {
     const moduleParam = params.get('module');
     const groupIdParam = params.get('groupId');
     const actionParam = params.get('action');
-    const shareIdParam = params.get('shareId');
-    const shareKindParam = params.get('kind') || params.get('target');
-    const sharedTitleParam = params.get('title') || '';
-    const sharedTextParam = params.get('text') || '';
-    const sharedUrlParam = params.get('url') || '';
     const joinParam = params.get('join')?.trim().toUpperCase() || '';
     const shouldOpenQuickMicro = window.location.pathname.startsWith('/quick-micro') || actionParam === 'open-micro';
     const normalizedAction = (actionParam || '') as SystemQuickAction | '';
-
-    const readSharedPayload = (shareId: string): Promise<LooseValue | null> => new Promise((resolve) => {
-      const request = indexedDB.open('myfamily-plus-share-target', 1);
-      request.onerror = () => resolve(null);
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains('payloads')) {
-          db.createObjectStore('payloads', { keyPath: 'id' });
-        }
-      };
-      request.onsuccess = () => {
-        const db = request.result;
-        const tx = db.transaction('payloads', 'readwrite');
-        const store = tx.objectStore('payloads');
-        const getRequest = store.get(shareId);
-        getRequest.onsuccess = () => {
-          const payload = getRequest.result || null;
-          if (payload) store.delete(shareId);
-          db.close();
-          resolve(payload);
-        };
-        getRequest.onerror = () => {
-          db.close();
-          resolve(null);
-        };
-      };
-    });
     
     if (tabParam) {
       setActiveTab(tabParam);
@@ -2794,43 +2872,7 @@ function App() {
       setActiveModule('ecole');
       setActiveToast({ title: 'École', description: 'Devoirs, agenda scolaire et événements utiles sont ouverts.' });
     } else if (normalizedAction === 'share-receipt' || normalizedAction === 'share-intake') {
-      setActiveTab('budget');
-      setActiveModule('');
-      if (shareIdParam) {
-        readSharedPayload(shareIdParam).then((payload) => {
-          const next = buildSharedIntakePayload(payload || { id: shareIdParam }, shareKindParam || (normalizedAction === 'share-receipt' ? 'receipt' : null));
-          setSharedIntake(next);
-          setSharedIntakeTarget(next.suggestedTarget);
-          if (next.suggestedTarget === 'homework') {
-            setActiveTab('menu');
-            setActiveModule('ecole');
-          } else if (next.suggestedTarget === 'vault') {
-            setActiveTab('menu');
-            setActiveModule('documents');
-          } else if (next.suggestedTarget === 'trip') {
-            setActiveTab('menu');
-            setActiveModule('voyages');
-          } else if (next.suggestedTarget === 'agenda') {
-            setActiveTab('menu');
-            setActiveModule('agenda');
-          } else if (next.suggestedTarget === 'groceries') {
-            setActiveTab('menu');
-            setActiveModule('courses');
-          } else if (next.suggestedTarget === 'memory') {
-            setActiveTab('menu');
-            setActiveModule('capsule');
-          }
-        });
-      } else {
-        const next = buildSharedIntakePayload({
-          id: `shared-${Date.now()}`,
-          title: sharedTitleParam || 'Contenu partagé',
-          text: sharedTextParam,
-          url: sharedUrlParam
-        }, shareKindParam);
-        setSharedIntake(next);
-        setSharedIntakeTarget(next.suggestedTarget);
-      }
+      openSharedIntakeFromParams(params, normalizedAction);
     }
     
     if (tabParam || moduleParam || groupIdParam || actionParam || joinParam || shouldOpenQuickMicro) {
@@ -16011,7 +16053,6 @@ function App() {
                   ref={sharedOcrInputRef}
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   onChange={handleSharedOcrFileChange}
                   className="hidden"
                 />
@@ -16022,7 +16063,7 @@ function App() {
                   className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[#6C5CFF]/30 bg-[#6C5CFF]/15 px-4 py-3 text-xs font-black text-white transition hover:bg-[#6C5CFF]/25 disabled:cursor-wait disabled:opacity-70"
                 >
                   {sharedOcrLoading ? <Loader className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                  <span>{sharedOcrLoading ? 'Lecture locale en cours...' : 'Prendre une photo ou importer'}</span>
+                  <span>{sharedOcrLoading ? 'Lecture locale en cours...' : 'Photo, bibliothèque ou fichier'}</span>
                 </button>
                 <p className="mt-2 text-center text-[10px] font-semibold leading-relaxed text-white/45">
                   OCR gratuit sur l’appareil : aucune image n’est envoyée à un serveur.

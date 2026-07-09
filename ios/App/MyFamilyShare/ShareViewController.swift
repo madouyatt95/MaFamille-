@@ -98,14 +98,16 @@ final class ShareViewController: UIViewController {
         statusLabel.text = "Ouverture de MyFamily+..."
         extensionContext?.open(deepLink) { success in
             if success {
-                self.extensionContext?.completeRequest(returningItems: nil)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    self.extensionContext?.completeRequest(returningItems: nil)
+                }
                 return
             }
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 let opened = self.openDeepLinkThroughResponderChain(deepLink)
                 self.statusLabel.text = opened ? "MyFamily+ s’ouvre..." : "Touchez MyFamily+ depuis l’écran d’accueil."
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                     self.extensionContext?.completeRequest(returningItems: nil)
                 }
             }

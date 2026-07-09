@@ -58,11 +58,18 @@ class BridgeViewController: CAPBridgeViewController {
                     let safeQuery = query
                         .replacingOccurrences(of: "\\", with: "\\\\")
                         .replacingOccurrences(of: "'", with: "\\'")
+                    let safeAction = (pendingAction ?? "open-micro")
+                        .replacingOccurrences(of: "\\", with: "\\\\")
+                        .replacingOccurrences(of: "'", with: "\\'")
                     script = """
                     try {
-                      window.location.href = '/app?\(safeQuery)';
+                      sessionStorage.setItem('mf_pending_system_quick_action', '\(safeAction)');
+                      localStorage.setItem('mf_pending_system_quick_action', '\(safeAction)');
+                      sessionStorage.setItem('mf_pending_system_quick_action_query', '\(safeQuery)');
+                      localStorage.setItem('mf_pending_system_quick_action_query', '\(safeQuery)');
+                      window.dispatchEvent(new CustomEvent('myfamilyplus:system-action', { detail: { action: '\(safeAction)', query: '\(safeQuery)' } }));
                     } catch (error) {
-                      window.location.href = '/app';
+                      window.location.href = '/app?\(safeQuery)';
                     }
                     """
                 }
