@@ -60,6 +60,13 @@ export type FamilyTreeIdentityRequest = {
   createdAt: string;
 };
 
+export type FamilyTreeProfileBranchShare = {
+  profileId: string;
+  targetFoyerId: string;
+  isVisible: boolean;
+  sharedFields: string[];
+};
+
 export type FamilyTreeEvent = {
   id: string;
   foyerId: string;
@@ -111,6 +118,7 @@ export type FamilyRootsSnapshot = {
   profiles: FamilyTreeProfile[];
   relationships: FamilyTreeRelationship[];
   connections: FamilyTreeConnection[];
+  profileShares: FamilyTreeProfileBranchShare[];
   identityRequests: FamilyTreeIdentityRequest[];
   events: FamilyTreeEvent[];
   memories: FamilyTreeMemory[];
@@ -158,6 +166,13 @@ type RelationshipRow = {
   source_profile_id: string;
   target_profile_id: string;
   relationship_type: FamilyTreeRelationship['relationshipType'];
+};
+
+type ProfileBranchShareRow = {
+  profile_id: string;
+  target_foyer_id: string;
+  is_visible: boolean;
+  shared_fields: string[] | null;
 };
 
 type EventRow = {
@@ -334,6 +349,7 @@ const buildLocalSnapshot = (foyerId: string, members: Member[]): FamilyRootsSnap
     profiles,
     relationships: [],
     connections: [],
+    profileShares: [],
     identityRequests: [],
     events: generatedBirthdayEvents(profiles),
     memories: [],
@@ -502,6 +518,22 @@ export const familyRootsService = {
       direction: row.target_foyer_id === foyerId ? 'incoming' as const : 'outgoing' as const
     }));
 
+    const profileSharesResult = await client
+      .from('family_tree_profile_branch_visibility')
+      .select('profile_id, target_foyer_id, is_visible, shared_fields')
+      .eq('foyer_id', foyerId)
+      .limit(240);
+    const profileShareRows = profileSharesResult.error && tableMissing(profileSharesResult.error)
+      ? []
+      : (profileSharesResult.data || []) as ProfileBranchShareRow[];
+    if (profileSharesResult.error && !tableMissing(profileSharesResult.error)) throw profileSharesResult.error;
+    const profileShares = profileShareRows.map(row => ({
+      profileId: row.profile_id,
+      targetFoyerId: row.target_foyer_id,
+      isVisible: row.is_visible,
+      sharedFields: row.shared_fields || []
+    }));
+
     const visibleFoyerIds = [foyerId, ...remoteFoyerIds];
     const relationshipsResult = await client
       .from('family_tree_relationships')
@@ -623,6 +655,7 @@ export const familyRootsService = {
       profiles,
       relationships,
       connections,
+      profileShares,
       identityRequests,
       events: [...generatedBirthdayEvents(profiles), ...events],
       memories,
@@ -652,6 +685,25 @@ export const familyRootsService = {
       visibility: profile.visibility,
       updated_at: new Date().toISOString()
     }).eq('id', profile.id).eq('foyer_id', foyerId);
+    if (error) throw error;
+  },
+
+  async setProfileBranchVisibility(
+    foyerId: string,
+    profileId: string,
+    targetFoyerId: string,
+    isVisible: boolean,
+    sharedFields: string[]
+  ): Promise<void> {
+    const client = getSupabaseClient();
+    if (!client) throw new Error('La synchronisation sécurisée est nécessaire pour régler la confidentialité.');
+    const { error } = await client.rpc('set_family_tree_profile_branch_visibility', {
+      p_foyer_id: foyerId,
+      p_profile_id: profileId,
+      p_target_foyer_id: targetFoyerId,
+      p_is_visible: isVisible,
+      p_shared_fields: sharedFields
+    });
     if (error) throw error;
   },
 
