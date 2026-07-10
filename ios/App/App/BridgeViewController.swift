@@ -17,6 +17,8 @@ class BridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(AppStoreBillingPlugin())
         bridge?.registerPluginInstance(LocalOcrPlugin())
         bridge?.registerPluginInstance(SharedInboxPlugin())
+        bridge?.registerPluginInstance(FamilyImagePickerPlugin())
+        bridge?.registerPluginInstance(FamilyQrPlugin())
         flushPendingQuickMicroRequest()
     }
 

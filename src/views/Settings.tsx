@@ -35,7 +35,7 @@ import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
 import { billingService } from '../services/billingService';
 import { notificationService } from '../services/notificationService';
-import type { Foyer, FoyerMember, Member } from '../types';
+import type { Account, Foyer, FoyerMember, Member } from '../types';
 import type { User } from '@supabase/supabase-js';
 import { defaultSmartFamilyPreferences, type SmartFamilyPreferences } from '../utils/smartFamily';
 import { MemberAvatar } from '../components/MemberAvatar';
@@ -84,7 +84,8 @@ interface SettingsProps {
   onUpdateFoyerConfig?: (commune: string, school: string) => Promise<void> | void;
   onDeleteAccount?: () => Promise<void>;
   isNativeApp?: boolean;
-  onTestQuickAction?: (action: QuickActionId) => void;
+  accounts?: Account[];
+  onTestQuickAction?: (action: QuickActionId, params?: Record<string, string | number | undefined>) => void;
 }
 
 export const Settings: React.FC<SettingsProps> = ({
@@ -111,6 +112,7 @@ export const Settings: React.FC<SettingsProps> = ({
   onUpdateFoyerConfig,
   onDeleteAccount,
   isNativeApp = false,
+  accounts = [],
   onTestQuickAction
 }) => {
   const [savingBackup, setSavingBackup] = useState(false);
@@ -1602,8 +1604,8 @@ export const Settings: React.FC<SettingsProps> = ({
               })}
             </div>
             <div className="min-w-0 flex-1">
-              <strong className="block text-xs text-white">5 actions disponibles</strong>
-              <span className="mt-0.5 block truncate text-[10px] text-white/45">Micro, dépense, ticket, devoir et courses</span>
+              <strong className="block text-xs text-white">6 actions disponibles</strong>
+              <span className="mt-0.5 block truncate text-[10px] text-white/45">Micro, dépense, scans, courses et coffre-fort</span>
             </div>
           </div>
 
@@ -1624,6 +1626,7 @@ export const Settings: React.FC<SettingsProps> = ({
       <ShortcutCenter
         isOpen={shortcutCenterOpen}
         isNativeApp={isNativeApp}
+        accounts={accounts}
         onClose={() => setShortcutCenterOpen(false)}
         onTestQuickAction={onTestQuickAction}
       />

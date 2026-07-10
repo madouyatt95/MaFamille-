@@ -8,6 +8,8 @@ import { getConfiguredSupabaseAnonKey, getConfiguredSupabaseUrl } from './config
 import { getGroceryItemEmoji } from './utils/groceryDisplay';
 import { parseHomeworkText, parseReceiptText, recognizeImageText } from './utils/localOcr';
 import { consumeNativeSharedInbox } from './utils/nativeSharedInbox';
+import { pickNativeImage } from './utils/nativeImagePicker';
+import { getQuickActionPreferences, recordQuickActionHistory, saveQuickActionPreferences, type QuickActionId } from './utils/quickActionPreferences';
 import {
   queueTransactionSync,
   readPendingTransactionSync,
@@ -97,6 +99,7 @@ type SystemQuickAction =
   | 'scan-receipt'
   | 'scan-homework'
   | 'add-grocery'
+  | 'open-vault'
   | 'share-receipt'
   | 'share-intake'
   | 'arrival-home'
@@ -118,6 +121,9 @@ interface SharedIntakePayload {
   summary: string;
   lockedTarget?: boolean;
   actionLabel?: string;
+  preferredInput?: 'camera' | 'library' | 'files';
+  sourceLabel?: string;
+  suggestionDetail?: string;
 }
 
 const isQuickMicroUrl = (): boolean => {
@@ -177,6 +183,12 @@ const buildSharedIntakePayload = (payload: LooseValue, forced?: string | null): 
   const rawText = String(payload?.text || payload?.url || '').trim();
   const fallbackTitle = fileCount > 0 ? `${fileCount} fichier${fileCount > 1 ? 's' : ''} partagé${fileCount > 1 ? 's' : ''}` : 'Contenu partagé';
   const suggestedTitle = rawTitle || rawText.slice(0, 72) || fallbackTitle;
+  const sourceLabel = fileCount > 0
+    ? (payload.files || []).some((file: File) => (file.type || '').startsWith('image/')) ? 'Photo reçue' : 'Document reçu'
+    : payload?.url ? 'Lien reçu' : rawText ? 'Texte reçu' : 'Contenu reçu';
+  const suggestionDetail = forced
+    ? `Destination choisie : ${sharedTargetLabel(target)}.`
+    : `MyFamily+ propose ${sharedTargetLabel(target)} selon le contenu reçu. Vous pouvez changer ce choix avant validation.`;
   const summaryParts = [
     fileCount > 0 ? `${fileCount} pièce${fileCount > 1 ? 's' : ''} jointe${fileCount > 1 ? 's' : ''}` : '',
     rawText ? rawText.slice(0, 140) : '',
@@ -193,7 +205,9 @@ const buildSharedIntakePayload = (payload: LooseValue, forced?: string | null): 
     suggestedTitle,
     summary: summaryParts.join(' · ') || 'MyFamily+ va préparer l’action, puis vous validez avant enregistrement.',
     lockedTarget: Boolean(payload?.lockedTarget),
-    actionLabel: payload?.actionLabel || undefined
+    actionLabel: payload?.actionLabel || undefined,
+    sourceLabel,
+    suggestionDetail
   };
 };
 
@@ -1126,6 +1140,7 @@ function App() {
   const [sharedOcrLoading, setSharedOcrLoading] = useState(false);
   const [sharedOcrError, setSharedOcrError] = useState('');
   const [sharedCropFile, setSharedCropFile] = useState<File | null>(null);
+  const [sharedPreferredInput, setSharedPreferredInput] = useState<'camera' | 'library' | 'files' | null>(null);
   const sharedOcrInputRef = useRef<HTMLInputElement>(null);
   const sharedCameraInputRef = useRef<HTMLInputElement>(null);
   const sharedFilesInputRef = useRef<HTMLInputElement>(null);
@@ -2380,6 +2395,11 @@ function App() {
   };
 
   const requestQuickMicroOpen = useCallback(() => {
+    recordQuickActionHistory({
+      action: 'open-micro',
+      label: 'Micro principal',
+      detail: 'Commande familiale prête à écouter.'
+    });
     try {
       sessionStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
       localStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
@@ -2415,8 +2435,16 @@ function App() {
 
   const openQuickScanIntake = useCallback((kind: 'homework' | 'receipt') => {
     const isHomework = kind === 'homework';
+    const preferences = getQuickActionPreferences();
+    const preferredInput = isHomework ? preferences.scanner.homework : preferences.scanner.receipt;
+    recordQuickActionHistory({
+      action: isHomework ? 'scan-homework' : 'scan-receipt',
+      label: isHomework ? 'Scanner un devoir' : 'Scanner un ticket',
+      detail: `Source proposée : ${preferredInput === 'camera' ? 'appareil photo' : preferredInput === 'library' ? 'photothèque' : 'fichiers'}.`
+    });
     setSharedOcrLoading(false);
     setSharedOcrError('');
+    setSharedPreferredInput(preferredInput);
     setActiveTab(isHomework ? 'menu' : 'budget');
     setActiveModule(isHomework ? 'ecole' : '');
     setQuickActionsOpen(false);
@@ -2428,7 +2456,8 @@ function App() {
         : 'Prenez ou partagez la photo du ticket, puis validez le montant, le compte et la catégorie avant enregistrement.',
       files: [],
       lockedTarget: true,
-      actionLabel: isHomework ? 'Préparer le devoir' : 'Préparer la dépense'
+      actionLabel: isHomework ? 'Préparer le devoir' : 'Préparer la dépense',
+      preferredInput
     }, kind));
     setSharedIntakeTarget(isHomework ? 'homework' : 'budget');
   }, [setActiveModule]);
@@ -2436,19 +2465,45 @@ function App() {
   const openQuickExpense = useCallback((params: URLSearchParams = new URLSearchParams()) => {
     const rawAmount = (params.get('amount') || '').replace(',', '.').replace(/[^0-9.]/g, '');
     const parsedAmount = Number(rawAmount);
+    const preferences = getQuickActionPreferences();
     let rememberedAccountId = '';
     try { rememberedAccountId = localStorage.getItem('mf_last_transaction_account') || ''; } catch { /* Optional preference. */ }
+    const title = params.get('merchant') || params.get('title') || preferences.expense.merchant || 'Dépense';
+    const category = params.get('category') || preferences.expense.category || 'Divers';
+    const accountId = params.get('accountId') || preferences.expense.accountId || rememberedAccountId || undefined;
+    recordQuickActionHistory({
+      action: 'paid',
+      label: 'J’ai payé',
+      detail: `${title}${Number.isFinite(parsedAmount) && parsedAmount > 0 ? ` · ${parsedAmount.toFixed(2)} €` : ''}`,
+      params: {
+        merchant: title !== 'Dépense' ? title : undefined,
+        amount: Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : undefined,
+        category,
+        accountId
+      }
+    });
     setPendingQuickMicro(false);
     setPaywallOpen(false);
     setActiveTab('budget');
     setActiveModule('');
     setQuickExpenseDraft({
-      title: params.get('merchant') || params.get('title') || 'Dépense',
+      title,
       amount: Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : undefined,
-      category: params.get('category') || 'Divers',
-      accountId: params.get('accountId') || rememberedAccountId || undefined
+      category,
+      accountId
     });
     setQuickActionsOpen(true);
+  }, [setActiveModule]);
+
+  const openQuickVault = useCallback(() => {
+    recordQuickActionHistory({
+      action: 'open-vault',
+      label: 'Ouvrir le coffre-fort',
+      detail: 'Documents et démarches du foyer ouverts.'
+    });
+    setActiveTab('menu');
+    setActiveModule('documents');
+    setQuickActionsOpen(false);
   }, [setActiveModule]);
 
   const readSharedPayload = useCallback(async (shareId: string): Promise<LooseValue | null> => {
@@ -2563,6 +2618,9 @@ function App() {
       } else if (action === 'add-grocery') {
         clearSystemQuickAction();
         requestQuickMicroOpen();
+      } else if (action === 'open-vault') {
+        clearSystemQuickAction();
+        openQuickVault();
       } else if (action === 'arrival-home') {
         clearSystemQuickAction();
         setActiveTab('accueil');
@@ -2604,7 +2662,7 @@ function App() {
       window.removeEventListener('focus', handleQuickMicroResume);
       document.removeEventListener('visibilitychange', handleQuickMicroResume);
     };
-  }, [clearSystemQuickAction, openQuickExpense, openQuickScanIntake, openSharedIntakeFromParams, requestQuickMicroOpen]);
+  }, [clearSystemQuickAction, openQuickExpense, openQuickScanIntake, openQuickVault, openSharedIntakeFromParams, requestQuickMicroOpen]);
 
   const handleGlobalSearchResultOpen = (result: GlobalSearchResult) => {
     if (result.focus?.type === 'alerts_panel') {
@@ -2896,6 +2954,8 @@ function App() {
       setActiveModule('courses');
       setPendingQuickMicro(true);
       setQuickActionsOpen(false);
+    } else if (normalizedAction === 'open-vault') {
+      openQuickVault();
     } else if (normalizedAction === 'scan-homework') {
       rememberSystemQuickAction('scan-homework');
       openQuickScanIntake('homework');
@@ -10926,6 +10986,19 @@ function App() {
     if (finalTx.accountId) {
       try { localStorage.setItem('mf_last_transaction_account', finalTx.accountId); } catch { /* Optional convenience preference. */ }
     }
+    try {
+      const currentQuickPreferences = getQuickActionPreferences();
+      saveQuickActionPreferences({
+        ...currentQuickPreferences,
+        expense: {
+          accountId: finalTx.accountId || currentQuickPreferences.expense.accountId,
+          category: typeof finalTx.category === 'string' && finalTx.category ? finalTx.category : currentQuickPreferences.expense.category,
+          merchant: typeof finalTx.title === 'string' && finalTx.title !== 'Dépense' ? finalTx.title : currentQuickPreferences.expense.merchant
+        }
+      });
+    } catch {
+      // Shortcut defaults are local convenience settings.
+    }
 
     let accountUpdate: PendingTransactionSync['accountUpdate'];
     setTransactions(prev => [finalTx, ...prev]);
@@ -11152,6 +11225,16 @@ function App() {
       setSharedOcrLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!isNativeApp || !sharedIntake || !sharedPreferredInput) return;
+    const source = sharedPreferredInput;
+    setSharedPreferredInput(null);
+    if (source === 'files') return;
+    void pickNativeImage(source).then((file) => {
+      if (file) setSharedCropFile(file);
+    });
+  }, [isNativeApp, sharedIntake?.id, sharedPreferredInput]);
 
   const handleSharedOcrFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -13957,15 +14040,22 @@ function App() {
               onUpdateFoyerConfig={handleUpdateFoyerConfig}
               onDeleteAccount={handleDeleteAccount}
               isNativeApp={isNativeApp}
-              onTestQuickAction={(action) => {
+              accounts={accounts}
+              onTestQuickAction={(action, params) => {
                 if (action === 'open-micro' || action === 'add-grocery') {
                   requestQuickMicroOpen();
                 } else if (action === 'paid') {
-                  openQuickExpense();
+                  const search = new URLSearchParams();
+                  Object.entries(params || {}).forEach(([key, value]) => {
+                    if (value !== undefined && value !== '') search.set(key, String(value));
+                  });
+                  openQuickExpense(search);
                 } else if (action === 'scan-receipt') {
                   openQuickScanIntake('receipt');
                 } else if (action === 'scan-homework') {
                   openQuickScanIntake('homework');
+                } else if (action === 'open-vault') {
+                  openQuickVault();
                 }
               }}
             />
@@ -16124,13 +16214,13 @@ function App() {
             <div className="border-b border-white/8 bg-gradient-to-br from-[#6C5CFF]/25 via-white/5 to-[#00D26A]/10 p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#9E94FF]">Action rapide MyFamily+</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#9E94FF]">{sharedIntake.sourceLabel || 'Action rapide MyFamily+'}</p>
                   <h3 className="mt-2 text-xl font-black leading-tight text-white">{sharedIntake.suggestedTitle}</h3>
                   <p className="mt-2 text-xs font-semibold leading-relaxed text-white/58">{sharedIntake.summary}</p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setSharedIntake(null)}
+                  onClick={() => { setSharedIntake(null); setSharedPreferredInput(null); }}
                   className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/5 text-white/60 transition hover:text-white"
                   aria-label="Fermer"
                 >
@@ -16142,6 +16232,7 @@ function App() {
             <div className="space-y-4 p-5">
               <div>
                 <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-white/45">Préparer dans</label>
+                {!sharedIntake.lockedTarget && <p className="mb-2 text-[10px] font-medium leading-relaxed text-white/45">{sharedIntake.suggestionDetail}</p>}
                 {sharedIntake.lockedTarget ? (
                   <div className="flex items-center justify-between rounded-2xl border border-[#6C5CFF]/45 bg-[#6C5CFF]/18 px-4 py-3">
                     <span className="text-sm font-black text-white">{sharedTargetLabel(sharedIntakeTarget)}</span>
@@ -16178,10 +16269,11 @@ function App() {
                 <input ref={sharedCameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleSharedOcrFileChange} className="hidden" />
                 <input ref={sharedFilesInputRef} type="file" accept="image/*,application/pdf" onChange={handleSharedOcrFileChange} className="hidden" />
                 <div className="grid grid-cols-3 gap-2">
-                  <button type="button" onClick={() => sharedCameraInputRef.current?.click()} disabled={sharedOcrLoading} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl border border-[#6C5CFF]/30 bg-[#6C5CFF]/15 px-2 py-2 text-[10px] font-black text-white transition hover:bg-[#6C5CFF]/25 disabled:cursor-wait disabled:opacity-70"><Camera className="h-4 w-4" /><span>Appareil photo</span></button>
-                  <button type="button" onClick={() => sharedOcrInputRef.current?.click()} disabled={sharedOcrLoading} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl border border-[#6C5CFF]/30 bg-[#6C5CFF]/15 px-2 py-2 text-[10px] font-black text-white transition hover:bg-[#6C5CFF]/25 disabled:cursor-wait disabled:opacity-70">{sharedOcrLoading ? <Loader className="h-4 w-4 animate-spin" /> : <Image className="h-4 w-4" />}<span>Photothèque</span></button>
-                  <button type="button" onClick={() => sharedFilesInputRef.current?.click()} disabled={sharedOcrLoading} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl border border-[#6C5CFF]/30 bg-[#6C5CFF]/15 px-2 py-2 text-[10px] font-black text-white transition hover:bg-[#6C5CFF]/25 disabled:cursor-wait disabled:opacity-70"><FileText className="h-4 w-4" /><span>Fichiers</span></button>
+                  <button type="button" onClick={() => sharedCameraInputRef.current?.click()} disabled={sharedOcrLoading} className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl border px-2 py-2 text-[10px] font-black text-white transition disabled:cursor-wait disabled:opacity-70 ${sharedIntake.preferredInput === 'camera' || sharedPreferredInput === 'camera' ? 'border-[#00D26A]/60 bg-[#00D26A]/16' : 'border-[#6C5CFF]/30 bg-[#6C5CFF]/15 hover:bg-[#6C5CFF]/25'}`}><Camera className="h-4 w-4" /><span>Appareil photo</span></button>
+                  <button type="button" onClick={() => sharedOcrInputRef.current?.click()} disabled={sharedOcrLoading} className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl border px-2 py-2 text-[10px] font-black text-white transition disabled:cursor-wait disabled:opacity-70 ${sharedIntake.preferredInput === 'library' || sharedPreferredInput === 'library' ? 'border-[#00D26A]/60 bg-[#00D26A]/16' : 'border-[#6C5CFF]/30 bg-[#6C5CFF]/15 hover:bg-[#6C5CFF]/25'}`}>{sharedOcrLoading ? <Loader className="h-4 w-4 animate-spin" /> : <Image className="h-4 w-4" />}<span>Photothèque</span></button>
+                  <button type="button" onClick={() => sharedFilesInputRef.current?.click()} disabled={sharedOcrLoading} className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl border px-2 py-2 text-[10px] font-black text-white transition disabled:cursor-wait disabled:opacity-70 ${sharedIntake.preferredInput === 'files' || sharedPreferredInput === 'files' ? 'border-[#00D26A]/60 bg-[#00D26A]/16' : 'border-[#6C5CFF]/30 bg-[#6C5CFF]/15 hover:bg-[#6C5CFF]/25'}`}><FileText className="h-4 w-4" /><span>Fichiers</span></button>
                 </div>
+                {sharedIntake.preferredInput && <p className="mt-2 text-center text-[9px] font-black text-[#00D26A]">Source par défaut : {sharedIntake.preferredInput === 'camera' ? 'appareil photo' : sharedIntake.preferredInput === 'library' ? 'photothèque' : 'fichiers'}</p>}
                 <p className="mt-2 text-center text-[10px] font-semibold leading-relaxed text-white/45">
                   Les photos sont lues sur l’appareil. Les PDF et fichiers restent à valider avant tout ajout.
                 </p>

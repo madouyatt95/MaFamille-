@@ -19,7 +19,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             UIApplicationShortcutItem(type: "fr.myfamilyplus.app.micro", localizedTitle: "Ouvrir le micro", localizedSubtitle: "Parler à MyFamily+", icon: UIApplicationShortcutIcon(systemImageName: "mic.fill")),
             UIApplicationShortcutItem(type: "fr.myfamilyplus.app.receipt", localizedTitle: "Scanner un ticket", localizedSubtitle: "Lecture locale", icon: UIApplicationShortcutIcon(systemImageName: "doc.text.viewfinder")),
             UIApplicationShortcutItem(type: "fr.myfamilyplus.app.homework", localizedTitle: "Scanner un devoir", localizedSubtitle: "Photo ou document", icon: UIApplicationShortcutIcon(systemImageName: "text.viewfinder")),
-            UIApplicationShortcutItem(type: "fr.myfamilyplus.app.expense", localizedTitle: "J’ai payé", localizedSubtitle: "Ajouter une dépense", icon: UIApplicationShortcutIcon(systemImageName: "eurosign.circle.fill"))
+            UIApplicationShortcutItem(type: "fr.myfamilyplus.app.expense", localizedTitle: "J’ai payé", localizedSubtitle: "Ajouter une dépense", icon: UIApplicationShortcutIcon(systemImageName: "eurosign.circle.fill")),
+            UIApplicationShortcutItem(type: "fr.myfamilyplus.app.vault", localizedTitle: "Coffre-fort", localizedSubtitle: "Documents du foyer", icon: UIApplicationShortcutIcon(systemImageName: "lock.doc.fill"))
         ]
         if let shortcut = launchOptions?[.shortcutItem] as? UIApplicationShortcutItem {
             handleHomeScreenShortcut(shortcut)
@@ -103,6 +104,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             "scan-receipt",
             "scan-homework",
             "add-grocery",
+            "open-vault",
             "share-intake",
             "share-receipt",
             "arrival-home",
@@ -125,7 +127,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             "fr.myfamilyplus.app.micro": "open-micro",
             "fr.myfamilyplus.app.receipt": "scan-receipt",
             "fr.myfamilyplus.app.homework": "scan-homework",
-            "fr.myfamilyplus.app.expense": "paid"
+            "fr.myfamilyplus.app.expense": "paid",
+            "fr.myfamilyplus.app.vault": "open-vault"
         ]
         guard let action = actions[item.type] else { return false }
         MyFamilyQuickActionStore.enqueue(action: action, query: "action=\(action)")

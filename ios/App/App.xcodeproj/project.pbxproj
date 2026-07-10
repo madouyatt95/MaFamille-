@@ -24,6 +24,10 @@
 		9A1000082FC9000000000008 /* LocalOcrPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1000092FC9000000000009 /* LocalOcrPlugin.swift */; };
 		9A10000A2FC900000000000A /* MyFamilyShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A10000B2FC900000000000B /* MyFamilyShortcuts.swift */; };
 		9A10000C2FC900000000000C /* SharedInboxPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A10000D2FC900000000000D /* SharedInboxPlugin.swift */; };
+		9A10000F2FC900000000000F /* FamilyImagePickerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1000102FC9000000000010 /* FamilyImagePickerPlugin.swift */; };
+		9A1000112FC9000000000011 /* FamilyQrPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1000122FC9000000000012 /* FamilyQrPlugin.swift */; };
+		9A1000132FC9000000000013 /* MyFamilyWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1000152FC9000000000015 /* MyFamilyWidgets.swift */; };
+		9A1000142FC9000000000014 /* MyFamilyWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 9A1000182FC9000000000018 /* MyFamilyWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AB7FFF4424EF46F2AED6556D /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34BC79DA6B0C4D932FDEDBF4 /* Foundation.framework */; };
 		B85C8A3EE59A01458F8340CD /* MyFamilyShare.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = C1E295C2E467EE205BA044F8 /* MyFamilyShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -36,6 +40,13 @@
 			remoteGlobalIDString = 1A201F21DE6602493AF28C11;
 			remoteInfo = MyFamilyShare;
 		};
+		9A1000212FC9000000000021 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9A10001A2FC900000000001A;
+			remoteInfo = MyFamilyWidgets;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -46,6 +57,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				B85C8A3EE59A01458F8340CD /* MyFamilyShare.appex in Embed App Extensions */,
+				9A1000142FC9000000000014 /* MyFamilyWidgets.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -74,6 +86,12 @@
 		9A10000B2FC900000000000B /* MyFamilyShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyFamilyShortcuts.swift; sourceTree = "<group>"; };
 		9A10000D2FC900000000000D /* SharedInboxPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedInboxPlugin.swift; sourceTree = "<group>"; };
 		9A10000E2FC900000000000E /* MyFamilyShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyFamilyShare.entitlements; sourceTree = "<group>"; };
+		9A1000102FC9000000000010 /* FamilyImagePickerPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyImagePickerPlugin.swift; sourceTree = "<group>"; };
+		9A1000122FC9000000000012 /* FamilyQrPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyQrPlugin.swift; sourceTree = "<group>"; };
+		9A1000152FC9000000000015 /* MyFamilyWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyFamilyWidgets.swift; sourceTree = "<group>"; };
+		9A1000162FC9000000000016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		9A1000172FC9000000000017 /* MyFamilyWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyFamilyWidgets.entitlements; sourceTree = "<group>"; };
+		9A1000182FC9000000000018 /* MyFamilyWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MyFamilyWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1B80A1ACF5351F26C387E5E /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B6A561C7CC2BB430A4574808 /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		C1E295C2E467EE205BA044F8 /* MyFamilyShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MyFamilyShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -85,6 +103,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				AB7FFF4424EF46F2AED6556D /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9A10001B2FC900000000001B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -108,6 +133,7 @@
 				504EC3051FED79650016851F /* Products */,
 				D837974F748BDF6A7C156EE4 /* Frameworks */,
 				F4A0B61AA330EE4F8C127ABE /* MyFamilyShare */,
+				9A1000192FC9000000000019 /* MyFamilyWidgets */,
 			);
 			sourceTree = "<group>";
 		};
@@ -116,6 +142,7 @@
 			children = (
 				504EC3041FED79650016851F /* App.app */,
 				C1E295C2E467EE205BA044F8 /* MyFamilyShare.appex */,
+				9A1000182FC9000000000018 /* MyFamilyWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -132,6 +159,8 @@
 				9A1000092FC9000000000009 /* LocalOcrPlugin.swift */,
 				9A10000B2FC900000000000B /* MyFamilyShortcuts.swift */,
 				9A10000D2FC900000000000D /* SharedInboxPlugin.swift */,
+				9A1000102FC9000000000010 /* FamilyImagePickerPlugin.swift */,
+				9A1000122FC9000000000012 /* FamilyQrPlugin.swift */,
 				9A1000072FC9000000000007 /* MyFamilyPlus.storekit */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -171,6 +200,17 @@
 			path = MyFamilyShare;
 			sourceTree = "<group>";
 		};
+		9A1000192FC9000000000019 /* MyFamilyWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				9A1000152FC9000000000015 /* MyFamilyWidgets.swift */,
+				9A1000162FC9000000000016 /* Info.plist */,
+				9A1000172FC9000000000017 /* MyFamilyWidgets.entitlements */,
+			);
+			name = MyFamilyWidgets;
+			path = MyFamilyWidgets;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -191,6 +231,23 @@
 			productReference = C1E295C2E467EE205BA044F8 /* MyFamilyShare.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		9A10001A2FC900000000001A /* MyFamilyWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9A10001E2FC900000000001E /* Build configuration list for PBXNativeTarget "MyFamilyWidgets" */;
+			buildPhases = (
+				9A10001D2FC900000000001D /* Sources */,
+				9A10001B2FC900000000001B /* Frameworks */,
+				9A10001C2FC900000000001C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MyFamilyWidgets;
+			productName = MyFamilyWidgets;
+			productReference = 9A1000182FC9000000000018 /* MyFamilyWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		504EC3031FED79650016851F /* App */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 504EC3161FED79650016851F /* Build configuration list for PBXNativeTarget "App" */;
@@ -204,6 +261,7 @@
 			);
 			dependencies = (
 				93C42CAEC3801BA2A3CDF21D /* PBXTargetDependency */,
+				9A1000222FC9000000000022 /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -228,6 +286,9 @@
 						LastSwiftMigration = 1100;
 						ProvisioningStyle = Automatic;
 					};
+					9A10001A2FC900000000001A = {
+						ProvisioningStyle = Automatic;
+					};
 				};
 			};
 			buildConfigurationList = 504EC2FF1FED79650016851F /* Build configuration list for PBXProject "App" */;
@@ -249,12 +310,20 @@
 			targets = (
 				504EC3031FED79650016851F /* App */,
 				1A201F21DE6602493AF28C11 /* MyFamilyShare */,
+				9A10001A2FC900000000001A /* MyFamilyWidgets */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		35B82756E7B047CAF3046B1A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9A10001C2FC900000000001C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -289,6 +358,8 @@
 				9A1000082FC9000000000008 /* LocalOcrPlugin.swift in Sources */,
 				9A10000A2FC900000000000A /* MyFamilyShortcuts.swift in Sources */,
 				9A10000C2FC900000000000C /* SharedInboxPlugin.swift in Sources */,
+				9A10000F2FC900000000000F /* FamilyImagePickerPlugin.swift in Sources */,
+				9A1000112FC9000000000011 /* FamilyQrPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -300,6 +371,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		9A10001D2FC900000000001D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9A1000132FC9000000000013 /* MyFamilyWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -308,6 +387,12 @@
 			name = MyFamilyShare;
 			target = 1A201F21DE6602493AF28C11 /* MyFamilyShare */;
 			targetProxy = 1E9B05218C4E1EAE1182BF75 /* PBXContainerItemProxy */;
+		};
+		9A1000222FC9000000000022 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = MyFamilyWidgets;
+			target = 9A10001A2FC900000000001A /* MyFamilyWidgets */;
+			targetProxy = 9A1000212FC9000000000021 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -553,6 +638,61 @@
 			};
 			name = Release;
 		};
+		9A10001F2FC900000000001F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = MyFamilyWidgets/MyFamilyWidgets.entitlements;
+				CURRENT_PROJECT_VERSION = 10;
+				DEVELOPMENT_TEAM = 7384RARK23;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MyFamilyWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fr.myfamilyplus.app.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		9A1000202FC9000000000020 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = MyFamilyWidgets/MyFamilyWidgets.entitlements;
+				CURRENT_PROJECT_VERSION = 10;
+				DEVELOPMENT_TEAM = 7384RARK23;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MyFamilyWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fr.myfamilyplus.app.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -561,6 +701,15 @@
 			buildConfigurations = (
 				8C3360BCC4BB350C41D6CEE4 /* Release */,
 				0E5C60851A418B143AF83106 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9A10001E2FC900000000001E /* Build configuration list for PBXNativeTarget "MyFamilyWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9A10001F2FC900000000001F /* Debug */,
+				9A1000202FC9000000000020 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

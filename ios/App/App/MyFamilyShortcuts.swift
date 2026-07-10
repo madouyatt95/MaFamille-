@@ -106,6 +106,14 @@ struct AddFamilyGroceryIntent: MyFamilyQuickActionIntent {
 }
 
 @available(iOS 16.0, *)
+struct OpenFamilyVaultIntent: MyFamilyQuickActionIntent {
+    static var title: LocalizedStringResource = "Ouvrir le coffre-fort"
+    static var description = IntentDescription("Ouvre les documents et démarches protégés du foyer.")
+    var actionName: String { "open-vault" }
+    var queryItems: [URLQueryItem] { [] }
+}
+
+@available(iOS 16.0, *)
 struct MyFamilyAppShortcuts: AppShortcutsProvider {
     static var shortcutTileColor: ShortcutTileColor = .purple
 
@@ -116,7 +124,9 @@ struct MyFamilyAppShortcuts: AppShortcutsProvider {
         ], shortTitle: "Micro", systemImageName: "mic.fill")
         AppShortcut(intent: AddFamilyExpenseIntent(), phrases: [
             "J’ai payé avec \(.applicationName)",
-            "Ajouter une dépense avec \(.applicationName)"
+            "Ajouter une dépense avec \(.applicationName)",
+            "J’ai payé \(\.$amount) chez \(\.$merchant) avec \(.applicationName)",
+            "J’ai payé \(\.$amount) avec \(.applicationName)"
         ], shortTitle: "J’ai payé", systemImageName: "eurosign.circle.fill")
         AppShortcut(intent: ScanFamilyReceiptIntent(), phrases: [
             "Scanner un ticket avec \(.applicationName)"
@@ -127,5 +137,8 @@ struct MyFamilyAppShortcuts: AppShortcutsProvider {
         AppShortcut(intent: AddFamilyGroceryIntent(), phrases: [
             "Ajouter aux courses avec \(.applicationName)"
         ], shortTitle: "Courses", systemImageName: "cart.fill")
+        AppShortcut(intent: OpenFamilyVaultIntent(), phrases: [
+            "Ouvre le coffre-fort avec \(.applicationName)"
+        ], shortTitle: "Coffre-fort", systemImageName: "lock.doc.fill")
     }
 }
