@@ -243,52 +243,6 @@ function PersonNode({
   );
 }
 
-function buildGenerationRows(
-  profiles: FamilyTreeProfile[],
-  relationships: FamilyTreeRelationship[],
-  connections: FamilyTreeConnection[]
-) {
-  const profileIds = new Set(profiles.map(profile => profile.id));
-  const parentEdges = relationships
-    .filter(relationship => relationship.relationshipType === 'parent' && profileIds.has(relationship.sourceProfileId) && profileIds.has(relationship.targetProfileId))
-    .map(relationship => ({ parent: relationship.sourceProfileId, child: relationship.targetProfileId }));
-
-  connections.filter(connection => connection.status === 'confirmed' && connection.targetProfileId).forEach(connection => {
-    if (!profileIds.has(connection.requesterProfileId) || !profileIds.has(connection.targetProfileId!)) return;
-    if (connection.relationshipType === 'parent') parentEdges.push({ parent: connection.requesterProfileId, child: connection.targetProfileId! });
-    if (connection.relationshipType === 'enfant') parentEdges.push({ parent: connection.targetProfileId!, child: connection.requesterProfileId });
-  });
-
-  const parentsByChild = new Map<string, string[]>();
-  parentEdges.forEach(edge => parentsByChild.set(edge.child, [...(parentsByChild.get(edge.child) || []), edge.parent]));
-  const resolving = new Set<string>();
-  const resolveGeneration = (id: string): number => {
-    if (resolving.has(id)) return 0;
-    resolving.add(id);
-    const parents = parentsByChild.get(id) || [];
-    const generation = parents.length ? Math.min(4, Math.max(...parents.map(resolveGeneration)) + 1) : isYoungMember(profiles.find(profile => profile.id === id)) ? 1 : 0;
-    resolving.delete(id);
-    return generation;
-  };
-
-  const rows = new Map<number, FamilyTreeProfile[]>();
-  profiles.filter(profile => profile.visibility !== 'masque').forEach(profile => {
-    const generation = resolveGeneration(profile.id);
-    rows.set(generation, [...(rows.get(generation) || []), profile]);
-  });
-
-  return [...rows.entries()]
-    .sort(([left], [right]) => left - right)
-    .map(([generation, row]) => ({
-      generation,
-      profiles: row.sort((left, right) => {
-        const leftTime = left.birthDate ? new Date(left.birthDate).getTime() : Number.MAX_SAFE_INTEGER;
-        const rightTime = right.birthDate ? new Date(right.birthDate).getTime() : Number.MAX_SAFE_INTEGER;
-        return leftTime - rightTime;
-      })
-    }));
-}
-
 type FamilyHousehold = {
   id: string;
   foyerId: string;
@@ -349,6 +303,49 @@ function buildHouseholds(
   });
 }
 
+function SingleHouseholdTree({
+  household,
+  selectedProfileId,
+  expanded,
+  onToggle,
+  onSelect
+}: {
+  household: FamilyHousehold;
+  selectedProfileId?: string;
+  expanded: boolean;
+  onToggle: () => void;
+  onSelect: (profile: FamilyTreeProfile) => void;
+}) {
+  const parents = household.parents.slice(0, 2);
+  const visibleChildren = expanded ? household.children : household.children.slice(0, 3);
+  const remaining = household.children.length - visibleChildren.length;
+
+  return <div className="fr-lineage-tree">
+    <header className="fr-lineage-heading">
+      <span>Votre foyer</span>
+      <strong>{household.name}</strong>
+      <small>{household.location}</small>
+    </header>
+
+    <section className={`fr-lineage-parent-stage count-${parents.length}`}>
+      <div className="fr-lineage-caption"><Heart /><span>Parents</span></div>
+      <div className="fr-lineage-parents">
+        {parents.map(parent => <div className={`fr-lineage-parent ${parent.id === selectedProfileId ? 'is-selected' : ''}`} key={parent.id}><PersonNode profile={parent} onSelect={onSelect} /></div>)}
+        {parents.length === 2 && <span className="fr-lineage-heart" aria-hidden="true"><Heart /></span>}
+      </div>
+    </section>
+
+    {household.children.length > 0 && <section className="fr-lineage-descendants">
+      <div className="fr-lineage-caption"><UsersRound /><span>Leurs enfants</span><small>{household.children.length}</small></div>
+      <div className={`fr-lineage-children count-${Math.min(visibleChildren.length + (remaining > 0 ? 1 : 0), 4)}`}>
+        {visibleChildren.map(child => <div className={`fr-lineage-child ${child.id === selectedProfileId ? 'is-selected' : ''}`} key={child.id}><PersonNode profile={child} compact onSelect={onSelect} /></div>)}
+        {remaining > 0 && <button className="fr-lineage-more" onClick={onToggle}><b>+{remaining}</b><span>Afficher</span></button>}
+        {expanded && household.children.length > 3 && <button className="fr-lineage-collapse" onClick={onToggle}><Minus /> Réduire</button>}
+      </div>
+    </section>}
+  </div>;
+}
+
 function HouseholdTree({
   households,
   selectedProfileId,
@@ -406,13 +403,10 @@ function HouseholdTree({
 function TreeBoard({
   profiles,
   relationships,
-  connections,
   activeFoyerId,
   familyName,
   selectedProfileId,
-  expandedRows,
   expandedHouseholds,
-  onToggleRow,
   onToggleHousehold,
   onOpenBranch,
   onSelect,
@@ -420,66 +414,25 @@ function TreeBoard({
 }: {
   profiles: FamilyTreeProfile[];
   relationships: FamilyTreeRelationship[];
-  connections: FamilyTreeConnection[];
   activeFoyerId: string;
   familyName: string;
   selectedProfileId?: string;
-  expandedRows: Set<number>;
   expandedHouseholds: Set<string>;
-  onToggleRow: (generation: number) => void;
   onToggleHousehold: (householdId: string) => void;
   onOpenBranch: (foyerId: string) => void;
   onSelect: (profile: FamilyTreeProfile) => void;
   fullScreen?: boolean;
 }) {
-  const rows = useMemo(() => buildGenerationRows(profiles, relationships, connections), [profiles, relationships, connections]);
-  const spouseByProfile = useMemo(() => {
-    const couples = new Map<string, string>();
-    relationships.filter(item => item.relationshipType === 'conjoint').forEach(item => couples.set(item.sourceProfileId, item.targetProfileId));
-    return couples;
-  }, [relationships]);
   const households = useMemo(() => buildHouseholds(profiles, relationships, activeFoyerId, familyName), [activeFoyerId, familyName, profiles, relationships]);
-  const names = ['Parents et proches', 'Enfants et frères/sœurs', 'Cousins et cousines', 'Petits-enfants', 'Descendants'];
-  if (!profiles.length) {
+  if (!profiles.length || !households.length) {
     return <div className="fr-empty-tree"><TreePine /><strong>Commencez votre arbre</strong><span>Ajoutez les personnes de votre famille, puis reliez-les simplement.</span></div>;
   }
 
   return (
     <div className={`fr-tree-board ${fullScreen ? 'is-fullscreen-tree' : ''}`}>
-      {households.length > 1 ? <HouseholdTree households={households} selectedProfileId={selectedProfileId} expandedHouseholds={expandedHouseholds} onToggleHousehold={onToggleHousehold} onOpenBranch={onOpenBranch} onSelect={onSelect} /> : <>
-      {rows.map(({ generation, profiles: rowProfiles }) => {
-        const isExpanded = expandedRows.has(generation);
-        const visibleProfiles = isExpanded ? rowProfiles : rowProfiles.slice(0, 3);
-        const remaining = rowProfiles.length - visibleProfiles.length;
-        const rendered = new Set<string>();
-        return (
-          <section className="fr-generation" key={generation}>
-            <div className="fr-generation-label"><span>Génération {generation + 1}</span><small>{names[generation] || 'Famille'}</small></div>
-            <div className={`fr-generation-nodes count-${Math.min(visibleProfiles.length + (remaining ? 1 : 0), 4)}`}>
-              {visibleProfiles.map(profile => {
-                if (rendered.has(profile.id)) return null;
-                const spouse = visibleProfiles.find(item => item.id === spouseByProfile.get(profile.id));
-                if (spouse) {
-                  rendered.add(profile.id);
-                  rendered.add(spouse.id);
-                  return <div className={`fr-couple-node ${selectedProfileId === profile.id || selectedProfileId === spouse.id ? 'is-selected' : ''}`} key={`${profile.id}-${spouse.id}`}><PersonNode profile={profile} compact={fullScreen} onSelect={onSelect} /><span className="fr-couple-heart"><Heart /></span><PersonNode profile={spouse} compact={fullScreen} onSelect={onSelect} /></div>;
-                }
-                rendered.add(profile.id);
-                return <div className={`fr-tree-node-wrap ${selectedProfileId === profile.id ? 'is-selected' : ''}`} key={profile.id}><PersonNode profile={profile} compact={fullScreen} onSelect={onSelect} /></div>;
-              })}
-              {remaining > 0 && (
-                <button className="fr-more-people" onClick={() => onToggleRow(generation)}>
-                  <b>+{remaining}</b><span>Afficher</span>
-                </button>
-              )}
-              {isExpanded && rowProfiles.length > 3 && (
-                <button className="fr-collapse-people" onClick={() => onToggleRow(generation)} aria-label="Réduire cette génération"><Minus /></button>
-              )}
-            </div>
-          </section>
-        );
-      })}
-      </>}
+      {households.length > 1
+        ? <HouseholdTree households={households} selectedProfileId={selectedProfileId} expandedHouseholds={expandedHouseholds} onToggleHousehold={onToggleHousehold} onOpenBranch={onOpenBranch} onSelect={onSelect} />
+        : <SingleHouseholdTree household={households[0]} selectedProfileId={selectedProfileId} expanded={expandedHouseholds.has(households[0].id)} onToggle={() => onToggleHousehold(households[0].id)} onSelect={onSelect} />}
     </div>
   );
 }
@@ -518,7 +471,6 @@ export function FamilyRoots({
   const [modal, setModal] = useState<ModalName>(null);
   const [treeFullscreen, setTreeFullscreen] = useState(false);
   const [treeScale, setTreeScale] = useState(0.84);
-  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [expandedHouseholds, setExpandedHouseholds] = useState<Set<string>>(new Set());
   const [connectionTargets, setConnectionTargets] = useState<Record<string, string>>({});
   const [treeScope, setTreeScope] = useState<'mine' | 'global'>('global');
@@ -724,11 +676,6 @@ export function FamilyRoots({
     ? describeRelationship(relationshipReferenceId, selectedProfile.id, relationshipGraph)
     : '';
 
-  const toggleRow = (generation: number) => setExpandedRows(current => {
-    const next = new Set(current);
-    if (next.has(generation)) next.delete(generation); else next.add(generation);
-    return next;
-  });
   const toggleHousehold = (householdId: string) => setExpandedHouseholds(current => {
     const next = new Set(current);
     if (next.has(householdId)) next.delete(householdId); else next.add(householdId);
@@ -1155,7 +1102,7 @@ export function FamilyRoots({
       <button className="fr-fullscreen-close" onClick={() => setTreeFullscreen(false)} aria-label="Quitter le plein écran"><X /></button>
       <div className="fr-fullscreen-scroll">
         <div className="fr-fullscreen-scale" style={{ transform: `scale(${treeScale})` }}>
-          <TreeBoard profiles={visibleTreeProfiles} relationships={relationships} connections={connections} activeFoyerId={activeFoyerId} familyName={familyName} selectedProfileId={selectedProfile?.id} expandedRows={expandedRows} expandedHouseholds={expandedHouseholds} onToggleRow={toggleRow} onToggleHousehold={toggleHousehold} onOpenBranch={openBranchDetails} onSelect={selectProfile} fullScreen />
+          <TreeBoard profiles={visibleTreeProfiles} relationships={relationships} activeFoyerId={activeFoyerId} familyName={familyName} selectedProfileId={selectedProfile?.id} expandedHouseholds={expandedHouseholds} onToggleHousehold={toggleHousehold} onOpenBranch={openBranchDetails} onSelect={selectProfile} fullScreen />
         </div>
       </div>
       <div className="fr-zoom-controls">
@@ -1208,7 +1155,7 @@ export function FamilyRoots({
           })}
 
           <section className="fr-tree-surface">
-            <TreeBoard profiles={visibleTreeProfiles} relationships={relationships} connections={connections} activeFoyerId={activeFoyerId} familyName={familyName} selectedProfileId={selectedProfile?.id} expandedRows={expandedRows} expandedHouseholds={expandedHouseholds} onToggleRow={toggleRow} onToggleHousehold={toggleHousehold} onOpenBranch={openBranchDetails} onSelect={selectProfile} />
+            <TreeBoard profiles={visibleTreeProfiles} relationships={relationships} activeFoyerId={activeFoyerId} familyName={familyName} selectedProfileId={selectedProfile?.id} expandedHouseholds={expandedHouseholds} onToggleHousehold={toggleHousehold} onOpenBranch={openBranchDetails} onSelect={selectProfile} />
           </section>
 
           {editingAllowed && <div className="fr-tree-actions">
