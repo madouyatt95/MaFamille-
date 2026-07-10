@@ -29,6 +29,8 @@ import type {
 import { getSupabaseClient, serializeCategoryIcon, serializeTransactionComment, getModuleIdFromTransaction } from '../utils/supabase';
 import { DEFAULT_CATEGORIES } from '../data/budgetCategories';
 import { compressImageToBlob, isDataUrl, isRemoteUrl, uploadBlobToStorage } from '../utils/imageCompressor';
+import { MerchantLogo } from '../components/MerchantLogo';
+import { cleanMerchantName, findMerchantBrand } from '../utils/merchantDirectory';
 
 const BudgetExport = lazy(() => import('./BudgetExport').then(module => ({ default: module.BudgetExport })));
 const BudgetImport = lazy(() => import('./BudgetImport').then(module => ({ default: module.BudgetImport })));
@@ -391,11 +393,11 @@ export const Budget: React.FC<BudgetProps> = ({
         queueMicrotask(() => {
           setActiveTab('transactions');
           setTxForm({
-            title: activeSubView.options?.title || '',
+            title: cleanMerchantName(activeSubView.options?.title || ''),
             amount: String(activeSubView.options?.amount || ''),
             type: activeSubView.options?.type || 'expense',
-            category: activeSubView.options?.category || 'Autres',
-            subCategory: activeSubView.options?.subCategory || 'Divers',
+            category: activeSubView.options?.category || findMerchantBrand(activeSubView.options?.title || '')?.category || 'Autres',
+            subCategory: activeSubView.options?.subCategory || findMerchantBrand(activeSubView.options?.title || '')?.subCategory || 'Divers',
             date: activeSubView.options?.date || new Date().toISOString().split('T')[0],
             accountId: activeSubView.options?.accountId || '',
             memberId: '',
@@ -1588,9 +1590,9 @@ export const Budget: React.FC<BudgetProps> = ({
                     className="flex items-center justify-between p-3 bg-white/3 border border-white/5 rounded-2xl text-xs hover:bg-white/5 transition-all cursor-pointer"
                   >
                     <div className="flex items-center space-x-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-base shrink-0">
-                        {allCategories.find(c => c.name === tx.category)?.icon || '💸'}
-                      </div>
+                      {findMerchantBrand(tx.title)
+                        ? <MerchantLogo merchant={tx.title} className="h-8 w-8" />
+                        : <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-base shrink-0">{allCategories.find(c => c.name === tx.category)?.icon || '💸'}</div>}
                       <div className="min-w-0">
                         <p className="font-bold text-white truncate">{tx.title}</p>
                         <p className="text-[9.5px] text-white/40 mt-0.5">
@@ -1676,9 +1678,9 @@ export const Budget: React.FC<BudgetProps> = ({
                   >
                     
                     <div className="flex items-center space-x-3 min-w-0">
-                      <span className="text-2xl shrink-0">
-                        {allCategories.find(c => c.name === tx.category)?.icon || '💸'}
-                      </span>
+                      {findMerchantBrand(tx.title)
+                        ? <MerchantLogo merchant={tx.title} className="h-10 w-10" />
+                        : <span className="text-2xl shrink-0">{allCategories.find(c => c.name === tx.category)?.icon || '💸'}</span>}
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <h4 className="font-extrabold text-white truncate max-w-[200px]">{tx.title}</h4>
@@ -3012,6 +3014,15 @@ export const Budget: React.FC<BudgetProps> = ({
             </div>
 
             <div className="space-y-3 text-xs">
+              {txForm.title && (
+                <div className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/4 p-3">
+                  <MerchantLogo merchant={txForm.title} className="h-11 w-11" />
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-black uppercase tracking-wider text-white/35">{findMerchantBrand(txForm.title) ? 'Enseigne reconnue' : 'Commerce'}</p>
+                    <p className="truncate text-sm font-extrabold text-white">{findMerchantBrand(txForm.title)?.name || txForm.title}</p>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-white/50 mb-1">Titre *</label>

@@ -65,11 +65,15 @@ struct AddFamilyExpenseIntent: MyFamilyQuickActionIntent {
 
     @Parameter(title: "Montant") var amount: Double?
     @Parameter(title: "Commerce ou description") var merchant: String?
+    @Parameter(title: "Devise") var currency: String?
+    @Parameter(title: "Date") var transactionDate: Date?
 
     init() {}
-    init(amount: Double? = nil, merchant: String? = nil) {
+    init(amount: Double? = nil, merchant: String? = nil, currency: String? = nil, transactionDate: Date? = nil) {
         self.amount = amount
         self.merchant = merchant
+        self.currency = currency
+        self.transactionDate = transactionDate
     }
 
     var actionName: String { "paid" }
@@ -77,6 +81,8 @@ struct AddFamilyExpenseIntent: MyFamilyQuickActionIntent {
         var items: [URLQueryItem] = []
         if let amount { items.append(URLQueryItem(name: "amount", value: String(amount))) }
         if let merchant, !merchant.isEmpty { items.append(URLQueryItem(name: "merchant", value: merchant)) }
+        if let currency, !currency.isEmpty { items.append(URLQueryItem(name: "currency", value: currency.uppercased())) }
+        if let transactionDate { items.append(URLQueryItem(name: "date", value: ISO8601DateFormatter().string(from: transactionDate))) }
         return items
     }
 }

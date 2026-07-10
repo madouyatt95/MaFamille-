@@ -65,6 +65,18 @@ const IPHONE_METHODS = [
     ]
   },
   {
+    title: 'Après un paiement Apple Pay',
+    icon: Wallet,
+    color: '#00D26A',
+    steps: [
+      'Ouvrez Raccourcis, puis Automatisation et Nouvelle automatisation.',
+      'Choisissez Transaction, sélectionnez la carte souhaitée et cochez Paiement.',
+      'Ajoutez l’action Ouvrir les URL avec https://myfamilyplus.fr/quick-expense.',
+      'Ajoutez les variables de la transaction dans l’URL : ?amount=Montant&merchant=Commerçant&date=Date&currency=Devise.',
+      'Choisissez Exécuter immédiatement. Après un paiement, vérifiez le compte et la catégorie dans MyFamily+ avant de valider.'
+    ]
+  },
+  {
     title: 'Avec le bouton Action',
     icon: CircleDollarSign,
     color: '#00D26A',

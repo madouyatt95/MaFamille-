@@ -19,7 +19,7 @@
       "name": "Ajouter une Dépense",
       "short_name": "+ Dépense",
       "description": "Ajouter rapidement une dépense à votre foyer",
-      "url": "/app?tab=budget&action=add-expense",
+      "url": "/quick-expense",
       "icons": [
         {
           "src": "/icon-192x192.png?v=3",
@@ -44,8 +44,8 @@
     {
       "name": "J’ai payé",
       "short_name": "J’ai payé",
-      "description": "Dicter une dépense au micro MyFamily+",
-      "url": "/app?action=paid",
+      "description": "Ouvrir une dépense à vérifier dans le budget",
+      "url": "/quick-expense",
       "icons": [
         {
           "src": "/icon-192x192.png?v=3",

@@ -112,11 +112,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             "arrival-school"
         ]
 
-        guard host == "quick-micro" || path == "/quick-micro" || action == "open-micro" || (action != nil && allowedActions.contains(action!)) else {
+        guard host == "quick-micro" || path == "/quick-micro" || host == "quick-expense" || path == "/quick-expense" || action == "open-micro" || (action != nil && allowedActions.contains(action!)) else {
             return false
         }
 
-        let resolvedAction = host == "quick-micro" || path == "/quick-micro" ? "open-micro" : (action ?? "open-micro")
+        let resolvedAction: String
+        if host == "quick-micro" || path == "/quick-micro" {
+            resolvedAction = "open-micro"
+        } else if host == "quick-expense" || path == "/quick-expense" {
+            resolvedAction = "add-expense"
+        } else {
+            resolvedAction = action ?? "open-micro"
+        }
         MyFamilyQuickActionStore.enqueue(action: resolvedAction, query: components?.percentEncodedQuery ?? "action=\(resolvedAction)")
         NotificationCenter.default.post(name: .myFamilyPlusQuickMicroRequested, object: nil)
         return true

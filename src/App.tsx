@@ -10,6 +10,7 @@ import { parseHomeworkText, parseReceiptText, recognizeImageText } from './utils
 import { consumeNativeQuickAction, consumeNativeSharedInbox } from './utils/nativeSharedInbox';
 import { pickNativeImage } from './utils/nativeImagePicker';
 import { getQuickActionPreferences, recordQuickActionHistory, saveQuickActionPreferences } from './utils/quickActionPreferences';
+import { cleanMerchantName, findMerchantBrand } from './utils/merchantDirectory';
 import {
   queueTransactionSync,
   readPendingTransactionSync,
@@ -2471,9 +2472,27 @@ function App() {
     const preferences = getQuickActionPreferences();
     let rememberedAccountId = '';
     try { rememberedAccountId = localStorage.getItem('mf_last_transaction_account') || ''; } catch { /* Optional preference. */ }
-    const title = params.get('merchant') || params.get('title') || preferences.expense.merchant || 'Dépense';
-    const category = params.get('category') || preferences.expense.category || 'Divers';
+    const rawTitle = params.get('merchant') || params.get('title') || preferences.expense.merchant || 'Dépense';
+    const title = cleanMerchantName(rawTitle);
+    const merchantBrand = findMerchantBrand(rawTitle);
+    const category = params.get('category') || merchantBrand?.category || preferences.expense.category || 'Divers';
+    const subCategory = params.get('subCategory') || merchantBrand?.subCategory || 'Divers';
     const accountId = params.get('accountId') || preferences.expense.accountId || rememberedAccountId || undefined;
+    const currency = (params.get('currency') || 'EUR').trim().toUpperCase();
+    const rawDate = params.get('date') || params.get('datetime') || '';
+    const parsedDate = rawDate ? new Date(rawDate) : null;
+    const date = /^\d{4}-\d{2}-\d{2}/.test(rawDate)
+      ? rawDate.slice(0, 10)
+      : parsedDate && !Number.isNaN(parsedDate.getTime())
+        ? parsedDate.toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10);
+    const sourceComment = [
+      'Préremplie depuis une transaction Wallet',
+      currency !== 'EUR' ? `Devise reçue : ${currency} (montant à vérifier)` : '',
+      rawDate && parsedDate && !Number.isNaN(parsedDate.getTime())
+        ? `Transaction du ${parsedDate.toLocaleString('fr-FR')}`
+        : ''
+    ].filter(Boolean).join(' · ');
     recordQuickActionHistory({
       action: 'paid',
       label: 'J’ai payé',
@@ -2489,13 +2508,22 @@ function App() {
     setPaywallOpen(false);
     setActiveTab('budget');
     setActiveModule('');
-    setQuickExpenseDraft({
-      title,
-      amount: Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : undefined,
-      category,
-      accountId
+    setQuickExpenseDraft(null);
+    setQuickActionsOpen(false);
+    setBudgetActiveSubView({
+      type: 'transaction_form',
+      options: {
+        title,
+        amount: Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : undefined,
+        type: 'expense',
+        category,
+        subCategory,
+        accountId,
+        date,
+        comment: sourceComment,
+        moduleSource: 'budget'
+      }
     });
-    setQuickActionsOpen(true);
   }, [setActiveModule]);
 
   const openQuickVault = useCallback(() => {
@@ -2936,7 +2964,7 @@ function App() {
     const tabParam = params.get('tab');
     const moduleParam = params.get('module');
     const groupIdParam = params.get('groupId');
-    const actionParam = actionFromLocation(params);
+    const actionParam = window.location.pathname.startsWith('/quick-expense') ? 'add-expense' : actionFromLocation(params);
     const joinParam = params.get('join')?.trim().toUpperCase() || '';
     const shouldOpenQuickMicro = window.location.pathname.startsWith('/quick-micro') || actionParam === 'open-micro';
     const normalizedAction = (actionParam || '') as SystemQuickAction | '';

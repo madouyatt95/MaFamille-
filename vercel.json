@@ -17,6 +17,14 @@
       "destination": "/index.html"
     },
     {
+      "source": "/quick-expense",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/quick-expense/:path*",
+      "destination": "/index.html"
+    },
+    {
       "source": "/action/:path*",
       "destination": "/index.html"
     },
