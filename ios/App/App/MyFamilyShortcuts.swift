@@ -124,9 +124,7 @@ struct MyFamilyAppShortcuts: AppShortcutsProvider {
         ], shortTitle: "Micro", systemImageName: "mic.fill")
         AppShortcut(intent: AddFamilyExpenseIntent(), phrases: [
             "J’ai payé avec \(.applicationName)",
-            "Ajouter une dépense avec \(.applicationName)",
-            "J’ai payé \(\.$amount) chez \(\.$merchant) avec \(.applicationName)",
-            "J’ai payé \(\.$amount) avec \(.applicationName)"
+            "Ajouter une dépense avec \(.applicationName)"
         ], shortTitle: "J’ai payé", systemImageName: "eurosign.circle.fill")
         AppShortcut(intent: ScanFamilyReceiptIntent(), phrases: [
             "Scanner un ticket avec \(.applicationName)"

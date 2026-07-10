@@ -9,7 +9,7 @@ import { getGroceryItemEmoji } from './utils/groceryDisplay';
 import { parseHomeworkText, parseReceiptText, recognizeImageText } from './utils/localOcr';
 import { consumeNativeSharedInbox } from './utils/nativeSharedInbox';
 import { pickNativeImage } from './utils/nativeImagePicker';
-import { getQuickActionPreferences, recordQuickActionHistory, saveQuickActionPreferences, type QuickActionId } from './utils/quickActionPreferences';
+import { getQuickActionPreferences, recordQuickActionHistory, saveQuickActionPreferences } from './utils/quickActionPreferences';
 import {
   queueTransactionSync,
   readPendingTransactionSync,

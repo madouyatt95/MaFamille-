@@ -39,7 +39,9 @@ import type { Account, Foyer, FoyerMember, Member } from '../types';
 import type { User } from '@supabase/supabase-js';
 import { defaultSmartFamilyPreferences, type SmartFamilyPreferences } from '../utils/smartFamily';
 import { MemberAvatar } from '../components/MemberAvatar';
-import { ShortcutCenter, QUICK_ACTION_GUIDES, type QuickActionId } from '../components/ShortcutCenter';
+import { ShortcutCenter } from '../components/ShortcutCenter';
+import { QUICK_ACTION_GUIDES } from '../constants/quickActionGuides';
+import type { QuickActionId } from '../utils/quickActionPreferences';
 
 type NotificationPrefs = Record<string, boolean>;
 
