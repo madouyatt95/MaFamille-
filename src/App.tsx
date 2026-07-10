@@ -2920,7 +2920,7 @@ function App() {
     }
     
     if (tabParam || moduleParam || groupIdParam || actionParam || joinParam || shouldOpenQuickMicro) {
-      const newUrl = shouldOpenQuickMicro ? `/app${window.location.hash || ''}` : window.location.pathname;
+      const newUrl = shouldOpenQuickMicro || actionParam ? `/app${window.location.hash || ''}` : window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
     }
   }, []);

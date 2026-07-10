@@ -17,6 +17,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/action/:path*",
+      "destination": "/index.html"
+    },
+    {
       "source": "/demo-vitrine",
       "destination": "/index.html"
     },

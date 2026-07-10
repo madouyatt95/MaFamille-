@@ -47,7 +47,8 @@ export const consumeNativeSharedInbox = async (id: string): Promise<{
 };
 
 export const quickActionLink = (action: string, params: Record<string, string | number | undefined> = {}): string => {
-  const url = new URL(`/action/${action}`, window.location.origin);
+  const publicOrigin = (import.meta.env.VITE_SITE_URL || 'https://myfamilyplus.fr').replace(/\/+$/, '');
+  const url = new URL(`/action/${action}`, publicOrigin);
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== '') url.searchParams.set(key, String(value));
   });
