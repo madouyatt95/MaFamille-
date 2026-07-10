@@ -525,6 +525,7 @@
 
 .family-roots .fr-tree-toolbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 9px;
   margin: -5px 0 14px;
@@ -539,7 +540,8 @@
 }
 
 .family-roots .fr-tree-scope button,
-.family-roots .fr-export-booklet {
+.family-roots .fr-export-booklet,
+.family-roots .fr-reading-mode {
   min-height: 34px;
   border: 0;
   border-radius: 8px;
@@ -553,6 +555,11 @@
 .family-roots .fr-tree-scope button.is-active { color: var(--fr-violet); background: var(--fr-violet-soft); }
 .family-roots .fr-export-booklet { display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; color: var(--fr-violet); border: 1px solid var(--fr-line); background: var(--fr-surface); }
 .family-roots .fr-export-booklet svg { width: 15px; }
+.family-roots .fr-reading-mode { display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; border: 1px solid var(--fr-line); background: var(--fr-surface); }
+.family-roots .fr-reading-mode svg { width: 15px; }
+.family-roots .fr-reading-mode.is-active { color: var(--fr-green); border-color: color-mix(in srgb, var(--fr-green) 35%, var(--fr-line)); background: var(--fr-green-soft); }
+.family-roots .fr-reading-banner { display: flex; align-items: center; gap: 8px; margin: -4px 0 13px; padding: 10px 11px; border: 1px solid color-mix(in srgb, var(--fr-green) 30%, var(--fr-line)); border-radius: 11px; color: var(--fr-green); background: var(--fr-green-soft); font-size: 10px; font-weight: 700; }
+.family-roots .fr-reading-banner svg { flex: 0 0 auto; width: 16px; }
 
 .family-roots .fr-duplicate-card {
   margin-top: 14px;
@@ -619,6 +626,73 @@
 
 .family-roots .fr-link-preview { display: flex; gap: 7px; align-items: flex-start; color: var(--fr-text); background: var(--fr-violet-soft); }
 .family-roots .fr-link-preview svg { flex: 0 0 auto; width: 15px; color: var(--fr-violet); }
+.family-roots .fr-link-warning { display: flex; align-items: flex-start; gap: 7px; padding: 10px 11px; border: 1px solid color-mix(in srgb, #d84d62 35%, var(--fr-line)); border-radius: 10px; color: #c43f55; background: color-mix(in srgb, #d84d62 10%, var(--fr-surface)); font-size: 11px; line-height: 1.4; }
+.family-roots .fr-link-warning svg { flex: 0 0 auto; width: 15px; }
+
+.family-roots .fr-completion-card,
+.family-roots .fr-trust-journal {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--fr-line);
+  border-radius: 16px;
+  background: var(--fr-surface);
+}
+
+.family-roots .fr-completion-card > button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 39px 1fr 16px;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--fr-line);
+  color: var(--fr-text);
+  background: transparent;
+  text-align: left;
+}
+
+.family-roots .fr-completion-card > button:first-of-type { margin-top: 9px; }
+.family-roots .fr-completion-card .fr-avatar { width: 34px; height: 34px; margin: 0; }
+.family-roots .fr-completion-card strong,
+.family-roots .fr-completion-card small { display: block; }
+.family-roots .fr-completion-card strong { font-size: 11px; }
+.family-roots .fr-completion-card small { margin-top: 2px; color: var(--fr-muted); font-size: 9px; }
+.family-roots .fr-completion-card > button > svg { width: 15px; color: var(--fr-muted); }
+
+.family-roots .fr-relationship-reference {
+  min-height: 46px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) minmax(120px, auto);
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--fr-line);
+  border-radius: 13px;
+  color: var(--fr-muted);
+  background: var(--fr-surface);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.family-roots .fr-relationship-reference svg { width: 17px; color: var(--fr-violet); }
+.family-roots .fr-relationship-reference select { min-width: 0; height: 31px; padding: 0 7px; border: 1px solid var(--fr-line); border-radius: 8px; color: var(--fr-text); background: var(--fr-surface-soft); font: inherit; font-size: 10px; }
+
+.family-roots .fr-journal-row { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 10px 0; border-top: 1px solid var(--fr-line); }
+.family-roots .fr-journal-row:first-of-type { margin-top: 9px; }
+.family-roots .fr-journal-row strong,
+.family-roots .fr-journal-row span { display: block; }
+.family-roots .fr-journal-row strong { font-size: 10px; }
+.family-roots .fr-journal-row span { margin-top: 3px; color: var(--fr-muted); font-size: 9px; }
+.family-roots .fr-journal-row button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; padding: 6px 8px; border: 0; border-radius: 8px; color: var(--fr-violet); background: var(--fr-violet-soft); font-size: 9px; font-weight: 800; }
+.family-roots .fr-journal-row button svg { width: 12px; }
+
+.family-roots .fr-readonly-branch { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0; padding: 10px; border: 1px solid color-mix(in srgb, var(--fr-blue) 28%, var(--fr-line)); border-radius: 10px; color: var(--fr-blue); background: color-mix(in srgb, var(--fr-blue) 9%, var(--fr-surface)); font-size: 10px; line-height: 1.4; text-align: left; }
+.family-roots .fr-readonly-branch svg { flex: 0 0 auto; width: 15px; }
+.family-roots .fr-danger-action { min-height: 42px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid color-mix(in srgb, #d84d62 35%, var(--fr-line)); border-radius: 11px; color: #c43f55; background: color-mix(in srgb, #d84d62 8%, var(--fr-surface)); font-size: 10px; font-weight: 800; }
+.family-roots .fr-danger-action svg { width: 14px; }
+.family-roots .fr-map-loading { min-height: 330px; display: grid; place-items: center; color: var(--fr-muted); font-size: 11px; }
 
 .family-roots .fr-branch-privacy {
   margin-top: 17px;
@@ -649,6 +723,14 @@
 .family-roots .fr-branch-detail-members .fr-avatar { width: 43px; height: 43px; }
 .family-roots .fr-branch-detail-members span { display: block; overflow: hidden; margin-top: 4px; text-overflow: ellipsis; white-space: nowrap; }
 .family-roots .fr-branch-detail-actions { display: grid; gap: 8px; }
+
+@media (max-width: 460px) {
+  .family-roots .fr-tree-scope { order: 1; flex: 1 1 auto; }
+  .family-roots .fr-reading-mode { order: 3; flex: 1 1 100%; justify-content: center; }
+  .family-roots .fr-export-booklet { order: 2; }
+  .family-roots .fr-relationship-reference { grid-template-columns: 22px 1fr; }
+  .family-roots .fr-relationship-reference select { grid-column: 1 / -1; width: 100%; }
+}
 
 @media (min-width: 760px) {
   .family-roots .fr-household-cards,

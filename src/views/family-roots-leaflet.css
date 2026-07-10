@@ -1,0 +1,68 @@
+.family-roots .fr-leaflet-map {
+  width: 100%;
+  height: 390px;
+  background: var(--fr-green-soft);
+}
+
+.family-roots .fr-leaflet-marker-shell {
+  background: transparent;
+  border: 0;
+}
+
+.family-roots .fr-leaflet-marker {
+  position: relative;
+  width: 72px;
+  display: grid;
+  justify-items: center;
+  color: #fff;
+  text-align: center;
+  filter: drop-shadow(0 5px 8px rgba(13, 8, 38, .28));
+}
+
+.family-roots .fr-leaflet-marker img,
+.family-roots .fr-leaflet-marker span {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  object-fit: cover;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #6d45c8;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.family-roots .fr-leaflet-marker b {
+  max-width: 72px;
+  margin-top: -2px;
+  padding: 3px 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #6d45c8;
+  font-size: 8px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.family-roots .fr-leaflet-marker.is-local b,
+.family-roots .fr-leaflet-marker.is-local span {
+  background: #218f5b;
+}
+
+.family-roots .leaflet-control-zoom a {
+  color: var(--fr-text);
+  background: var(--fr-surface);
+  border-color: var(--fr-line);
+}
+
+.family-roots .leaflet-popup-content-wrapper,
+.family-roots .leaflet-popup-tip {
+  color: var(--fr-text);
+  background: var(--fr-surface);
+}
+
+@media (max-width: 480px) {
+  .family-roots .fr-leaflet-map { height: 330px; }
+}

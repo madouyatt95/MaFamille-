@@ -51,3 +51,44 @@ export const getMapPosition = ({ latitude, longitude }: FamilyRootCoordinates) =
   left: `${Math.min(97, Math.max(3, ((longitude + 180) / 360) * 100))}%`,
   top: `${Math.min(91, Math.max(8, ((90 - latitude) / 180) * 100))}%`
 });
+
+const coordinatesCacheKey = (city?: string, country?: string) => `mf_roots_geo_${normalize(city)}_${normalize(country)}`;
+
+export const resolveFamilyRootCoordinates = async (city?: string, country?: string): Promise<FamilyRootCoordinates | null> => {
+  const known = getFamilyRootCoordinates(city, country);
+  if (known) return known;
+  if (!city && !country) return null;
+
+  const key = coordinatesCacheKey(city, country);
+  try {
+    const cached = sessionStorage.getItem(key);
+    if (cached) return JSON.parse(cached) as FamilyRootCoordinates;
+  } catch {
+    // Le cache est seulement une optimisation.
+  }
+
+  try {
+    const params = new URLSearchParams({
+      q: [city, country].filter(Boolean).join(', '),
+      format: 'jsonv2',
+      limit: '1',
+      'accept-language': 'fr'
+    });
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`);
+    if (!response.ok) return null;
+    const results = await response.json() as Array<{ lat?: string; lon?: string; display_name?: string }>;
+    const first = results[0];
+    const latitude = Number(first?.lat);
+    const longitude = Number(first?.lon);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+    const coordinates = {
+      latitude,
+      longitude,
+      label: [city, country].filter(Boolean).join(', ') || first.display_name || 'Branche familiale'
+    };
+    try { sessionStorage.setItem(key, JSON.stringify(coordinates)); } catch { /* Cache indisponible. */ }
+    return coordinates;
+  } catch {
+    return null;
+  }
+};

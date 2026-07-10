@@ -3,7 +3,7 @@ import { getSupabaseClient } from '../utils/supabase';
 
 export type FamilyBranch = 'proche' | 'paternelle' | 'maternelle' | 'autre';
 export type FamilyProfileVisibility = 'prive' | 'famille' | 'masque';
-export type FamilyRelationshipType = 'parent' | 'enfant' | 'fratrie' | 'cousin' | 'conjoint' | 'oncle_tante' | 'neveu_niece' | 'grand_parent' | 'petit_enfant' | 'famille';
+export type FamilyRelationshipType = 'parent' | 'parent_biologique' | 'beau_parent' | 'tuteur' | 'enfant' | 'fratrie' | 'cousin' | 'conjoint' | 'ex_conjoint' | 'oncle_tante' | 'neveu_niece' | 'grand_parent' | 'petit_enfant' | 'famille';
 
 export type FamilyTreeProfile = {
   id: string;
@@ -14,6 +14,8 @@ export type FamilyTreeProfile = {
   branch: FamilyBranch;
   country?: string;
   originCity?: string;
+  latitude?: number;
+  longitude?: number;
   nickname?: string;
   bio?: string;
   languages: string[];
@@ -107,8 +109,13 @@ export type FamilyTreeCorrectionRequest = {
 export type FamilyTreeValidationLog = {
   id: string;
   foyerId: string;
+  actorUserId?: string;
   action: string;
   summary: string;
+  entityType?: string;
+  entityId?: string;
+  reversibleUntil?: string;
+  revertedAt?: string;
   createdAt: string;
 };
 
@@ -136,6 +143,8 @@ type ProfileRow = {
   branch: FamilyBranch;
   country?: string | null;
   origin_city?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   nickname?: string | null;
   bio?: string | null;
   languages?: string[] | null;
@@ -224,15 +233,26 @@ type CorrectionRow = {
 type ValidationLogRow = {
   id: string;
   foyer_id: string;
+  actor_user_id?: string | null;
   action: string;
   summary: string;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  reversible_until?: string | null;
+  reverted_at?: string | null;
   created_at: string;
 };
 
 const localProfileKey = (foyerId: string) => `mf_family_roots_profiles_${foyerId}`;
+const profileSelectLegacy = 'id, foyer_id, member_id, display_name, birth_date, branch, country, origin_city, nickname, bio, languages, photo_url, is_memorial, death_date, is_minor, visibility, shared_fields';
+const profileSelectWithCoordinates = 'id, foyer_id, member_id, display_name, birth_date, branch, country, origin_city, latitude, longitude, nickname, bio, languages, photo_url, is_memorial, death_date, is_minor, visibility, shared_fields';
 const tableMissing = (error: { message?: string; code?: string } | null) => {
   const value = `${error?.message || ''} ${error?.code || ''}`.toLowerCase();
   return value.includes('family_tree_') || value.includes('pgrst205') || value.includes('42p01');
+};
+const coordinateColumnsMissing = (error: { message?: string; code?: string } | null) => {
+  const value = `${error?.message || ''} ${error?.code || ''}`.toLowerCase();
+  return value.includes('latitude') || value.includes('longitude') || value.includes('pgrst204') || value.includes('42703');
 };
 
 const ageFromMember = (member: Member): number | null => {
@@ -268,6 +288,8 @@ const localProfilesFromMembers = (foyerId: string, members: Member[]): FamilyTre
       branch: stored.branch || 'proche',
       country: stored.country || undefined,
       originCity: stored.originCity || undefined,
+      latitude: stored.latitude,
+      longitude: stored.longitude,
       nickname: stored.nickname || undefined,
       bio: stored.bio || undefined,
       languages: stored.languages || [],
@@ -294,6 +316,8 @@ const mapProfile = (row: ProfileRow, activeFoyerId: string, members: Member[]): 
     branch: row.branch,
     country: row.country || undefined,
     originCity: row.origin_city || undefined,
+    latitude: row.latitude ?? undefined,
+    longitude: row.longitude ?? undefined,
     nickname: row.nickname || undefined,
     bio: row.bio || undefined,
     languages: row.languages || [],
@@ -332,6 +356,8 @@ const persistLocalProfile = (foyerId: string, profile: FamilyTreeProfile) => {
     branch: profile.branch,
     country: profile.country,
     originCity: profile.originCity,
+    latitude: profile.latitude,
+    longitude: profile.longitude,
     nickname: profile.nickname,
     bio: profile.bio,
     languages: profile.languages,
@@ -389,12 +415,19 @@ export const familyRootsService = {
 
     const ownProfilesResult = await client
       .from('family_tree_profiles')
-      .select('id, foyer_id, member_id, display_name, birth_date, branch, country, origin_city, nickname, bio, languages, photo_url, is_memorial, death_date, is_minor, visibility, shared_fields')
+      .select(profileSelectWithCoordinates)
       .eq('foyer_id', foyerId)
       .limit(80);
-    if (ownProfilesResult.error) throw ownProfilesResult.error;
+    let ownProfilesError = ownProfilesResult.error;
+    let ownProfileRows = (ownProfilesResult.data || []) as ProfileRow[];
+    if (ownProfilesResult.error && coordinateColumnsMissing(ownProfilesResult.error)) {
+      const legacyProfilesResult = await client.from('family_tree_profiles').select(profileSelectLegacy).eq('foyer_id', foyerId).limit(80);
+      ownProfilesError = legacyProfilesResult.error;
+      ownProfileRows = (legacyProfilesResult.data || []) as ProfileRow[];
+    }
+    if (ownProfilesError) throw ownProfilesError;
 
-    let existingRows = (ownProfilesResult.data || []) as ProfileRow[];
+    let existingRows = ownProfileRows;
 
     if (existingRows.length === 0 && canManage) {
       try {
@@ -432,11 +465,18 @@ export const familyRootsService = {
         // Refetch
         const refetch = await client
           .from('family_tree_profiles')
-          .select('id, foyer_id, member_id, display_name, birth_date, branch, country, origin_city, nickname, bio, languages, photo_url, is_memorial, death_date, is_minor, visibility, shared_fields')
+          .select(profileSelectWithCoordinates)
           .eq('foyer_id', foyerId)
           .limit(80);
-        if (!refetch.error) {
-          existingRows = (refetch.data || []) as ProfileRow[];
+        let refetchError = refetch.error;
+        let refetchRows = (refetch.data || []) as ProfileRow[];
+        if (refetch.error && coordinateColumnsMissing(refetch.error)) {
+          const legacyRefetch = await client.from('family_tree_profiles').select(profileSelectLegacy).eq('foyer_id', foyerId).limit(80);
+          refetchError = legacyRefetch.error;
+          refetchRows = (legacyRefetch.data || []) as ProfileRow[];
+        }
+        if (!refetchError) {
+          existingRows = refetchRows;
         }
       } catch (err) {
         console.error('Failed to seed family tree:', err);
@@ -463,9 +503,17 @@ export const familyRootsService = {
           birth_date: profile.birthDate || null,
           branch: profile.branch,
           country: profile.country || null,
+          origin_city: profile.originCity || null,
+          nickname: profile.nickname || null,
+          bio: profile.bio || null,
+          languages: profile.languages,
+          photo_url: profile.photoUrl || null,
           is_minor: profile.isMinor,
-          visibility: profile.visibility
-        }))).select('id, foyer_id, member_id, display_name, birth_date, branch, country, origin_city, nickname, bio, languages, photo_url, is_memorial, death_date, is_minor, visibility, shared_fields');
+          visibility: profile.visibility,
+          is_memorial: profile.isMemorial,
+          death_date: profile.deathDate || null,
+          shared_fields: profile.sharedFields
+        }))).select(profileSelectLegacy);
         if (insertResult.error) throw insertResult.error;
         existingRows.push(...((insertResult.data || []) as ProfileRow[]));
       }
@@ -491,7 +539,7 @@ export const familyRootsService = {
       if (filteredRemote.error && tableMissing(filteredRemote.error)) {
         const remoteResult = await client
           .from('family_tree_profiles')
-          .select('id, foyer_id, member_id, display_name, birth_date, branch, country, origin_city, nickname, bio, languages, photo_url, is_memorial, death_date, is_minor, visibility, shared_fields')
+          .select(profileSelectWithCoordinates)
           .in('foyer_id', remoteFoyerIds)
           .eq('visibility', 'famille')
           .limit(160);
@@ -635,7 +683,7 @@ export const familyRootsService = {
 
     const logsResult = await client
       .from('family_tree_validation_logs')
-      .select('id, foyer_id, action, summary, created_at')
+      .select('id, foyer_id, actor_user_id, action, summary, entity_type, entity_id, reversible_until, reverted_at, created_at')
       .eq('foyer_id', foyerId)
       .order('created_at', { ascending: false })
       .limit(30);
@@ -644,8 +692,13 @@ export const familyRootsService = {
     const validationLogs = logRows.map(row => ({
       id: row.id,
       foyerId: row.foyer_id,
+      actorUserId: row.actor_user_id || undefined,
       action: row.action,
       summary: row.summary,
+      entityType: row.entity_type || undefined,
+      entityId: row.entity_id || undefined,
+      reversibleUntil: row.reversible_until || undefined,
+      revertedAt: row.reverted_at || undefined,
       createdAt: row.created_at
     }));
 
@@ -669,12 +722,14 @@ export const familyRootsService = {
     persistLocalProfile(foyerId, profile);
     const client = getSupabaseClient();
     if (!client || profile.id.startsWith('local-')) return;
-    const { error } = await client.from('family_tree_profiles').update({
+    const payload = {
       display_name: profile.displayName,
       birth_date: profile.birthDate || null,
       branch: profile.branch,
       country: profile.country || null,
       origin_city: profile.originCity || null,
+      latitude: profile.latitude ?? null,
+      longitude: profile.longitude ?? null,
       nickname: profile.nickname || null,
       bio: profile.bio || null,
       languages: profile.languages,
@@ -684,7 +739,12 @@ export const familyRootsService = {
       shared_fields: profile.sharedFields,
       visibility: profile.visibility,
       updated_at: new Date().toISOString()
-    }).eq('id', profile.id).eq('foyer_id', foyerId);
+    };
+    let { error } = await client.from('family_tree_profiles').update(payload).eq('id', profile.id).eq('foyer_id', foyerId);
+    if (error && coordinateColumnsMissing(error)) {
+      const { latitude: _latitude, longitude: _longitude, ...legacyPayload } = payload;
+      ({ error } = await client.from('family_tree_profiles').update(legacyPayload).eq('id', profile.id).eq('foyer_id', foyerId));
+    }
     if (error) throw error;
   },
 
@@ -707,10 +767,10 @@ export const familyRootsService = {
     if (error) throw error;
   },
 
-  async addProfile(foyerId: string, profile: Pick<FamilyTreeProfile, 'displayName' | 'birthDate' | 'branch' | 'country' | 'originCity' | 'nickname' | 'bio' | 'languages' | 'photoUrl' | 'isMinor' | 'visibility' | 'isMemorial' | 'deathDate' | 'sharedFields'>): Promise<FamilyTreeProfile> {
+  async addProfile(foyerId: string, profile: Pick<FamilyTreeProfile, 'displayName' | 'birthDate' | 'branch' | 'country' | 'originCity' | 'latitude' | 'longitude' | 'nickname' | 'bio' | 'languages' | 'photoUrl' | 'isMinor' | 'visibility' | 'isMemorial' | 'deathDate' | 'sharedFields'>): Promise<FamilyTreeProfile> {
     const client = getSupabaseClient();
     if (!client) throw new Error('La synchronisation sécurisée est nécessaire pour ajouter cette personne.');
-    const { data, error } = await client.from('family_tree_profiles').insert({
+    const payload = {
       foyer_id: foyerId,
       member_id: null,
       display_name: profile.displayName,
@@ -718,6 +778,8 @@ export const familyRootsService = {
       branch: profile.branch,
       country: profile.country || null,
       origin_city: profile.originCity || null,
+      latitude: profile.latitude ?? null,
+      longitude: profile.longitude ?? null,
       nickname: profile.nickname || null,
       bio: profile.bio || null,
       languages: profile.languages,
@@ -727,7 +789,12 @@ export const familyRootsService = {
       death_date: profile.deathDate || null,
       shared_fields: profile.sharedFields,
       visibility: profile.visibility
-    }).select('id, foyer_id, member_id, display_name, birth_date, branch, country, origin_city, nickname, bio, languages, photo_url, is_memorial, death_date, is_minor, visibility, shared_fields').single();
+    };
+    let { data, error } = await client.from('family_tree_profiles').insert(payload).select(profileSelectWithCoordinates).single();
+    if (error && coordinateColumnsMissing(error)) {
+      const { latitude: _latitude, longitude: _longitude, ...legacyPayload } = payload;
+      ({ data, error } = await client.from('family_tree_profiles').insert(legacyPayload).select(profileSelectLegacy).single());
+    }
     if (error) throw error;
     return mapProfile(data as ProfileRow, foyerId, []);
   },
@@ -871,6 +938,13 @@ export const familyRootsService = {
     const client = getSupabaseClient();
     if (!client) throw new Error('La synchronisation sécurisée est indisponible.');
     const { error } = await client.rpc('undo_family_tree_correction', { p_request_id: requestId });
+    if (error) throw error;
+  },
+
+  async undoAction(logId: string): Promise<void> {
+    const client = getSupabaseClient();
+    if (!client) throw new Error('La synchronisation sécurisée est indisponible.');
+    const { error } = await client.rpc('undo_family_tree_action', { p_log_id: logId });
     if (error) throw error;
   },
 
