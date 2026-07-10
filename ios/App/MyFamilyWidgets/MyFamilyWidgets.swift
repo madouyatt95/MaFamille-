@@ -86,12 +86,26 @@ struct MyFamilyWidgetView: View {
     }
 }
 
+private extension View {
+    @ViewBuilder
+    func myFamilyWidgetBackground() -> some View {
+        if #available(iOS 17.0, *) {
+            containerBackground(for: .widget) {
+                Color(uiColor: .systemBackground)
+            }
+        } else {
+            background(Color(uiColor: .systemBackground))
+        }
+    }
+}
+
 struct MyFamilyQuickWidget: Widget {
     let kind = "fr.myfamilyplus.app.quick-widget"
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: MyFamilyWidgetProvider()) { entry in
             MyFamilyWidgetView(entry: entry)
+                .myFamilyWidgetBackground()
         }
         .configurationDisplayName("Actions MyFamily+")
         .description("Micro, dépense et courses depuis l’écran d’accueil.")
