@@ -21,8 +21,20 @@ public class SharedInboxPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "SharedInboxPlugin"
     public let jsName = "SharedInbox"
     public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "consume", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "consume", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "consumeQuickAction", returnType: CAPPluginReturnPromise)
     ]
+
+    @objc func consumeQuickAction(_ call: CAPPluginCall) {
+        guard let pending = MyFamilyQuickActionStore.consume() else {
+            call.resolve(["action": "", "query": ""])
+            return
+        }
+        call.resolve([
+            "action": pending.action,
+            "query": pending.query
+        ])
+    }
 
     @objc func consume(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), !id.isEmpty else {

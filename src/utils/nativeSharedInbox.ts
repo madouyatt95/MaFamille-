@@ -15,9 +15,14 @@ type NativeSharedInboxPlugin = {
     target?: string;
     files?: NativeSharedFile[];
   }>;
+  consumeQuickAction(): Promise<{
+    action?: string;
+    query?: string;
+  }>;
 };
 
 const SharedInbox = registerPlugin<NativeSharedInboxPlugin>('SharedInbox');
+let quickActionConsumption: Promise<{ action: string; query: string } | null> | null = null;
 
 const fileFromBase64 = (source: NativeSharedFile): File => {
   const binary = atob(source.base64);
@@ -44,6 +49,22 @@ export const consumeNativeSharedInbox = async (id: string): Promise<{
   } catch {
     return null;
   }
+};
+
+export const consumeNativeQuickAction = async (): Promise<{ action: string; query: string } | null> => {
+  if (Capacitor.getPlatform() !== 'ios') return null;
+  if (quickActionConsumption) return quickActionConsumption;
+  quickActionConsumption = SharedInbox.consumeQuickAction()
+    .then((payload) => {
+      const action = payload.action?.trim() || '';
+      if (!action) return null;
+      return { action, query: payload.query?.trim() || `action=${encodeURIComponent(action)}` };
+    })
+    .catch(() => null)
+    .finally(() => {
+      quickActionConsumption = null;
+    });
+  return quickActionConsumption;
 };
 
 export const quickActionLink = (action: string, params: Record<string, string | number | undefined> = {}): string => {

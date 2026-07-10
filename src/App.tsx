@@ -7,7 +7,7 @@ import type { User } from '@supabase/supabase-js';
 import { getConfiguredSupabaseAnonKey, getConfiguredSupabaseUrl } from './config/supabaseConfig';
 import { getGroceryItemEmoji } from './utils/groceryDisplay';
 import { parseHomeworkText, parseReceiptText, recognizeImageText } from './utils/localOcr';
-import { consumeNativeSharedInbox } from './utils/nativeSharedInbox';
+import { consumeNativeQuickAction, consumeNativeSharedInbox } from './utils/nativeSharedInbox';
 import { pickNativeImage } from './utils/nativeImagePicker';
 import { getQuickActionPreferences, recordQuickActionHistory, saveQuickActionPreferences } from './utils/quickActionPreferences';
 import {
@@ -1135,6 +1135,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [quickExpenseDraft, setQuickExpenseDraft] = useState<QuickExpenseDraft | null>(null);
+  const [pendingSystemQuickActionVersion, setPendingSystemQuickActionVersion] = useState(0);
   const [sharedIntake, setSharedIntake] = useState<SharedIntakePayload | null>(null);
   const [sharedIntakeTarget, setSharedIntakeTarget] = useState<SharedIntakeTarget>('vault');
   const [sharedOcrLoading, setSharedOcrLoading] = useState(false);
@@ -2413,10 +2414,12 @@ function App() {
     setAlertsPanelOpen(false);
   }, [setActiveModule]);
 
-  const rememberSystemQuickAction = useCallback((action: SystemQuickAction) => {
+  const rememberSystemQuickAction = useCallback((action: SystemQuickAction, query = `action=${encodeURIComponent(action)}`) => {
     try {
       sessionStorage.setItem(QUICK_ACTION_PENDING_KEY, action);
       localStorage.setItem(QUICK_ACTION_PENDING_KEY, action);
+      sessionStorage.setItem(QUICK_ACTION_PENDING_QUERY_KEY, query);
+      localStorage.setItem(QUICK_ACTION_PENDING_QUERY_KEY, query);
     } catch {
       // The immediate UI update still handles the current launch.
     }
@@ -2601,6 +2604,7 @@ function App() {
       } catch {
         // Continue with the event payload when storage is unavailable.
       }
+      if (!action) return;
       const params = new URLSearchParams(query || `action=${encodeURIComponent(action)}`);
 
       if (action === 'scan-homework') {
@@ -2637,6 +2641,8 @@ function App() {
       } else if (action === 'open-micro') {
         clearSystemQuickAction();
         requestQuickMicroOpen();
+      } else {
+        clearSystemQuickAction();
       }
     };
     const handleQuickMicroResume = () => {
@@ -2645,24 +2651,51 @@ function App() {
           sessionStorage.getItem(QUICK_MICRO_PENDING_KEY) === 'true'
           || localStorage.getItem(QUICK_MICRO_PENDING_KEY) === 'true'
         ) {
-          requestQuickMicroOpen();
+          setPendingQuickMicro(true);
         }
       } catch {
         // Ignore storage failures; native dispatch still covers the common path.
       }
     };
+    const consumePendingNativeQuickAction = async () => {
+      const pending = await consumeNativeQuickAction();
+      if (!pending?.action) return;
+      if (pending.action === 'open-micro') {
+        requestQuickMicroOpen();
+        return;
+      }
+      rememberSystemQuickAction(pending.action as SystemQuickAction, pending.query);
+      setPendingSystemQuickActionVersion((version) => version + 1);
+    };
+    const handleQuickActionResume = () => {
+      handleQuickMicroResume();
+      void consumePendingNativeQuickAction();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') handleQuickActionResume();
+    };
     window.addEventListener('myfamilyplus:quick-micro', handleQuickMicroEvent);
     window.addEventListener('myfamilyplus:system-action', handleSystemQuickActionEvent);
-    window.addEventListener('focus', handleQuickMicroResume);
-    document.addEventListener('visibilitychange', handleQuickMicroResume);
-    handleQuickMicroResume();
+    window.addEventListener('myfamilyplus:native-action-available', handleQuickActionResume);
+    window.addEventListener('focus', handleQuickActionResume);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    handleQuickActionResume();
     return () => {
       window.removeEventListener('myfamilyplus:quick-micro', handleQuickMicroEvent);
       window.removeEventListener('myfamilyplus:system-action', handleSystemQuickActionEvent);
-      window.removeEventListener('focus', handleQuickMicroResume);
-      document.removeEventListener('visibilitychange', handleQuickMicroResume);
+      window.removeEventListener('myfamilyplus:native-action-available', handleQuickActionResume);
+      window.removeEventListener('focus', handleQuickActionResume);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [clearSystemQuickAction, openQuickExpense, openQuickScanIntake, openQuickVault, openSharedIntakeFromParams, requestQuickMicroOpen]);
+  }, [
+    clearSystemQuickAction,
+    openQuickExpense,
+    openQuickScanIntake,
+    openQuickVault,
+    openSharedIntakeFromParams,
+    rememberSystemQuickAction,
+    requestQuickMicroOpen
+  ]);
 
   const handleGlobalSearchResultOpen = (result: GlobalSearchResult) => {
     if (result.focus?.type === 'alerts_panel') {
@@ -3348,34 +3381,30 @@ function App() {
 
   useEffect(() => {
     if (!user || !foyer || isInitializingAuth || isPremiumReturnSyncing) return;
-    let pendingAction = '';
+    let action = '';
+    let query = '';
     try {
-      pendingAction = sessionStorage.getItem(QUICK_ACTION_PENDING_KEY)
+      action = sessionStorage.getItem(QUICK_ACTION_PENDING_KEY)
         || localStorage.getItem(QUICK_ACTION_PENDING_KEY)
         || '';
-    } catch { /* Storage can be unavailable in private mode. */ }
-
-    if (pendingAction === 'scan-homework') {
-      clearSystemQuickAction();
-      if (showWelcomeScreen) {
-        setShowWelcomeScreen(false);
-      }
-      openQuickScanIntake('homework');
-    } else if (pendingAction === 'scan-receipt') {
-      clearSystemQuickAction();
-      if (showWelcomeScreen) {
-        setShowWelcomeScreen(false);
-      }
-      openQuickScanIntake('receipt');
+      query = sessionStorage.getItem(QUICK_ACTION_PENDING_QUERY_KEY)
+        || localStorage.getItem(QUICK_ACTION_PENDING_QUERY_KEY)
+        || '';
+    } catch {
+      // Native actions remain available in memory for the current launch.
     }
+    if (!action) return;
+    if (showWelcomeScreen) setShowWelcomeScreen(false);
+    window.dispatchEvent(new CustomEvent('myfamilyplus:system-action', {
+      detail: { action, query: query || `action=${encodeURIComponent(action)}` }
+    }));
   }, [
     user?.id,
     foyer?.id,
     isInitializingAuth,
     isPremiumReturnSyncing,
-    showWelcomeScreen,
-    clearSystemQuickAction,
-    openQuickScanIntake
+    pendingSystemQuickActionVersion,
+    showWelcomeScreen
   ]);
 
   // Onboarding success handler
