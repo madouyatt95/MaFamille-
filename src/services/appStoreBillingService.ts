@@ -28,13 +28,14 @@ type AppStoreBillingPlugin = {
   getProducts(options: { productIds: string[] }): Promise<{ products: AppStoreProduct[] }>;
   purchase(options: { productId: string; appAccountToken: string }): Promise<AppStoreTransaction>;
   restore(options: { productIds: string[] }): Promise<AppStoreTransaction>;
+  presentOfferCodeRedemption(): Promise<void>;
 };
 
 const AppStoreBilling = registerPlugin<AppStoreBillingPlugin>('AppStoreBilling');
 
 const APP_STORE_PRODUCT_IDS: Record<PremiumPlan, string> = {
-  monthly: import.meta.env.VITE_APP_STORE_PREMIUM_MONTHLY_PRODUCT_ID || 'myfamilyplus.premium.monthly',
-  yearly: import.meta.env.VITE_APP_STORE_PREMIUM_YEARLY_PRODUCT_ID || 'myfamilyplus.premium.yearly'
+  monthly: import.meta.env.VITE_APP_STORE_PREMIUM_MONTHLY_PRODUCT_ID || 'fr.myfamilyplus.app.premium.monthly',
+  yearly: import.meta.env.VITE_APP_STORE_PREMIUM_YEARLY_PRODUCT_ID || 'fr.myfamilyplus.app.premium.yearly'
 };
 
 function planFromProductId(productId?: string): PremiumPlan {
@@ -105,6 +106,13 @@ export const appStoreBillingService = {
       productIds: Object.values(APP_STORE_PRODUCT_IDS)
     });
     return result.products || [];
+  },
+
+  async presentOfferCodeRedemption(): Promise<void> {
+    if (!this.isAvailable()) {
+      throw new Error("Les codes Apple sont disponibles uniquement sur iPhone/iPad.");
+    }
+    await AppStoreBilling.presentOfferCodeRedemption();
   },
 
   async purchase(foyerId: string, plan: PremiumPlan): Promise<PremiumSubscriptionSnapshot> {

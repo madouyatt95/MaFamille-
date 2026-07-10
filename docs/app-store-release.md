@@ -5,15 +5,15 @@
 Groupe d'abonnements App Store Connect :
 
 - Nom : `MyFamily+ Premium`
-- ID : `22177014`
+- ID : `22223298`
 
 Abonnements auto-renouvelables crees :
 
-- Mensuel : `myfamilyplus.premium.monthly` (Apple ID `6783183076`, 5,99 EUR en France)
-- Annuel : `myfamilyplus.premium.yearly` (Apple ID `6783183468`, 39,99 EUR en France)
+- Mensuel : `fr.myfamilyplus.app.premium.monthly` (Apple ID `6789651598`, 5,99 EUR en France)
+- Annuel : `fr.myfamilyplus.app.premium.yearly` (Apple ID `6789669705`, 39,99 EUR en France)
 
-L'essai gratuit de 7 jours est configure sur les deux abonnements, dans 175 pays ou regions,
-du 23 juin 2026 au 23 juin 2030.
+Avant la soumission, creer dans App Store Connect l'essai gratuit de 7 jours sur les deux
+abonnements, puis les codes d'offre Apple de la campagne. Les codes sont geres et valides par Apple.
 
 Cle App Store Server API / achats integres :
 
@@ -38,8 +38,8 @@ npx supabase secrets set \
   APP_STORE_KEY_ID="..." \
   APP_STORE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----" \
   APP_STORE_BUNDLE_ID="fr.myfamilyplus.app" \
-  APP_STORE_PRODUCT_ID_MONTHLY="myfamilyplus.premium.monthly" \
-  APP_STORE_PRODUCT_ID_YEARLY="myfamilyplus.premium.yearly" \
+  APP_STORE_PRODUCT_ID_MONTHLY="fr.myfamilyplus.app.premium.monthly" \
+  APP_STORE_PRODUCT_ID_YEARLY="fr.myfamilyplus.app.premium.yearly" \
   APP_STORE_ENVIRONMENT="auto"
 ```
 

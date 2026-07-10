@@ -12,7 +12,7 @@
   },
   "subscriptionGroups" : [
     {
-      "id" : "22177014",
+      "id" : "22223298",
       "localizations" : [
         {
           "displayName" : "MyFamily+ Premium",
@@ -25,9 +25,9 @@
           "displayPrice" : "5.99",
           "familyShareable" : false,
           "groupNumber" : 1,
-          "internalID" : "6783183076",
+          "internalID" : "6789651598",
           "introductoryOffer" : {
-            "internalID" : "myfamilyplus.premium.monthly.trial",
+            "internalID" : "fr.myfamilyplus.app.premium.monthly.trial",
             "numberOfPeriods" : 1,
             "paymentMode" : "free",
             "subscriptionPeriod" : "P1W"
@@ -39,7 +39,7 @@
               "locale" : "fr_FR"
             }
           ],
-          "productID" : "myfamilyplus.premium.monthly",
+          "productID" : "fr.myfamilyplus.app.premium.monthly",
           "referenceName" : "MyFamily+ Premium Mensuel",
           "subscriptionPeriod" : "P1M",
           "type" : "RecurringSubscription"
@@ -47,10 +47,10 @@
         {
           "displayPrice" : "39.99",
           "familyShareable" : false,
-          "groupNumber" : 2,
-          "internalID" : "6783183468",
+          "groupNumber" : 1,
+          "internalID" : "6789669705",
           "introductoryOffer" : {
-            "internalID" : "myfamilyplus.premium.yearly.trial",
+            "internalID" : "fr.myfamilyplus.app.premium.yearly.trial",
             "numberOfPeriods" : 1,
             "paymentMode" : "free",
             "subscriptionPeriod" : "P1W"
@@ -62,7 +62,7 @@
               "locale" : "fr_FR"
             }
           ],
-          "productID" : "myfamilyplus.premium.yearly",
+          "productID" : "fr.myfamilyplus.app.premium.yearly",
           "referenceName" : "MyFamily+ Premium Annuel",
           "subscriptionPeriod" : "P1Y",
           "type" : "RecurringSubscription"

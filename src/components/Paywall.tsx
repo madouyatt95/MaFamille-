@@ -102,6 +102,7 @@ export const Paywall: React.FC<PaywallProps> = ({
   const [simulating, setSimulating] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);
+  const [offerCodeLoading, setOfferCodeLoading] = useState(false);
   const [appStoreProducts, setAppStoreProducts] = useState<AppStoreProduct[]>([]);
   const [appStoreCatalogStatus, setAppStoreCatalogStatus] = useState<'idle' | 'loading' | 'ready' | 'unavailable'>('idle');
   const [appStoreCatalogReload, setAppStoreCatalogReload] = useState(0);
@@ -228,6 +229,19 @@ export const Paywall: React.FC<PaywallProps> = ({
       alert(error instanceof Error ? error.message : 'Impossible de restaurer les achats App Store.');
     } finally {
       setRestoreLoading(false);
+    }
+  };
+
+  const handleOfferCodeRedemption = async () => {
+    if (isWeb) return;
+    try {
+      setOfferCodeLoading(true);
+      await appStoreBillingService.presentOfferCodeRedemption();
+    } catch (error) {
+      console.error('[Paywall] Apple offer code redemption failed:', error);
+      alert(error instanceof Error ? error.message : 'Impossible d’ouvrir la saisie du code Apple.');
+    } finally {
+      setOfferCodeLoading(false);
     }
   };
 
@@ -392,7 +406,7 @@ export const Paywall: React.FC<PaywallProps> = ({
           <button
             type="button"
             onClick={handlePrimaryAction}
-            disabled={!canPurchase || checkoutLoading || restoreLoading || simulating}
+            disabled={!canPurchase || checkoutLoading || restoreLoading || offerCodeLoading || simulating}
             className="premium-paywall__cta flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#6C5CFF] px-4 text-sm font-black text-white shadow-[0_12px_30px_rgba(108,92,255,0.3)] transition hover:bg-[#5B4EFA] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-55"
           >
             {checkoutLoading || simulating ? (
@@ -407,14 +421,24 @@ export const Paywall: React.FC<PaywallProps> = ({
           </button>
 
           {!isWeb && (
-            <button
-              type="button"
-              onClick={handleRestorePurchase}
-              disabled={!onRestoreAppStorePurchase || checkoutLoading || restoreLoading || simulating}
-              className="mt-2.5 flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-4 text-[11px] font-black text-white/62 transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              {restoreLoading ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Restauration...</> : 'Restaurer mes achats'}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleRestorePurchase}
+                disabled={!onRestoreAppStorePurchase || checkoutLoading || restoreLoading || offerCodeLoading || simulating}
+                className="mt-2.5 flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-4 text-[11px] font-black text-white/62 transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {restoreLoading ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Restauration...</> : 'Restaurer mes achats'}
+              </button>
+              <button
+                type="button"
+                onClick={handleOfferCodeRedemption}
+                disabled={checkoutLoading || restoreLoading || offerCodeLoading || simulating}
+                className="mt-2 flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-4 text-[11px] font-black text-white/62 transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {offerCodeLoading ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Ouverture...</> : 'Utiliser un code Apple'}
+              </button>
+            </>
           )}
 
           <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-[9px] font-semibold text-white/38">

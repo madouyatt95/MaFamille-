@@ -13,8 +13,8 @@ const appStoreIssuerId = Deno.env.get("APP_STORE_ISSUER_ID") || "";
 const appStoreKeyId = Deno.env.get("APP_STORE_KEY_ID") || "";
 const appStorePrivateKey = Deno.env.get("APP_STORE_PRIVATE_KEY") || "";
 const appStoreBundleId = Deno.env.get("APP_STORE_BUNDLE_ID") || "";
-const appStoreMonthlyProductId = Deno.env.get("APP_STORE_PRODUCT_ID_MONTHLY") || "myfamilyplus.premium.monthly";
-const appStoreYearlyProductId = Deno.env.get("APP_STORE_PRODUCT_ID_YEARLY") || "myfamilyplus.premium.yearly";
+const appStoreMonthlyProductId = Deno.env.get("APP_STORE_PRODUCT_ID_MONTHLY") || "fr.myfamilyplus.app.premium.monthly";
+const appStoreYearlyProductId = Deno.env.get("APP_STORE_PRODUCT_ID_YEARLY") || "fr.myfamilyplus.app.premium.yearly";
 const appStoreEnvironment = Deno.env.get("APP_STORE_ENVIRONMENT") || "auto";
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);

@@ -9,7 +9,8 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "getProducts", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "purchase", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "restore", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "restore", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "presentOfferCodeRedemption", returnType: CAPPluginReturnPromise)
     ]
 
     @objc func getProducts(_ call: CAPPluginCall) {
@@ -118,6 +119,13 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    @objc func presentOfferCodeRedemption(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            SKPaymentQueue.default().presentCodeRedemptionSheet()
+            call.resolve()
+        }
+    }
+
     private func verifiedTransaction(from verification: VerificationResult<Transaction>) throws -> Transaction {
         switch verification {
         case .verified(let transaction):
@@ -150,7 +158,7 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
     #if DEBUG
     private func debugProduct(for productId: String) -> [String: Any]? {
         switch productId {
-        case "myfamilyplus.premium.monthly":
+        case "fr.myfamilyplus.app.premium.monthly":
             return [
                 "id": productId,
                 "title": "MyFamily+ Premium Mensuel",
@@ -159,7 +167,7 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
                 "priceAmount": 5.99,
                 "currencyCode": "EUR"
             ]
-        case "myfamilyplus.premium.yearly":
+        case "fr.myfamilyplus.app.premium.yearly":
             return [
                 "id": productId,
                 "title": "MyFamily+ Premium Annuel",
