@@ -28,7 +28,6 @@ type AppStoreBillingPlugin = {
   getProducts(options: { productIds: string[] }): Promise<{ products: AppStoreProduct[] }>;
   purchase(options: { productId: string; appAccountToken: string }): Promise<AppStoreTransaction>;
   restore(options: { productIds: string[] }): Promise<AppStoreTransaction>;
-  presentOfferCodeRedemption(): Promise<void>;
 };
 
 const AppStoreBilling = registerPlugin<AppStoreBillingPlugin>('AppStoreBilling');
@@ -106,13 +105,6 @@ export const appStoreBillingService = {
       productIds: Object.values(APP_STORE_PRODUCT_IDS)
     });
     return result.products || [];
-  },
-
-  async presentOfferCodeRedemption(): Promise<void> {
-    if (!this.isAvailable()) {
-      throw new Error("Les codes Apple sont disponibles uniquement sur iPhone/iPad.");
-    }
-    await AppStoreBilling.presentOfferCodeRedemption();
   },
 
   async purchase(foyerId: string, plan: PremiumPlan): Promise<PremiumSubscriptionSnapshot> {

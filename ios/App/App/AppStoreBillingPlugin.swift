@@ -9,8 +9,7 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "getProducts", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "purchase", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "restore", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "presentOfferCodeRedemption", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "restore", returnType: CAPPluginReturnPromise)
     ]
 
     @objc func getProducts(_ call: CAPPluginCall) {
@@ -116,13 +115,6 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
             } catch {
                 call.reject("Impossible de restaurer les achats App Store.", nil, error)
             }
-        }
-    }
-
-    @objc func presentOfferCodeRedemption(_ call: CAPPluginCall) {
-        DispatchQueue.main.async {
-            SKPaymentQueue.default().presentCodeRedemptionSheet()
-            call.resolve()
         }
     }
 

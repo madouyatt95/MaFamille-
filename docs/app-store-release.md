@@ -13,7 +13,7 @@ Abonnements auto-renouvelables crees :
 - Annuel : `fr.myfamilyplus.app.premium.yearly` (Apple ID `6789669705`, 39,99 EUR en France)
 
 Avant la soumission, creer dans App Store Connect l'essai gratuit de 7 jours sur les deux
-abonnements, puis les codes d'offre Apple de la campagne. Les codes sont geres et valides par Apple.
+abonnements.
 
 Cle App Store Server API / achats integres :
 
