@@ -1,4 +1,4 @@
-import type { FamilyTreeProfile, FamilyTreeRelationship, FamilyTreeEvent, FamilyTreeMemory, FamilyBranch, FamilyRelationshipType } from '../services/familyRootsService';
+import type { FamilyBranch, FamilyRelationshipType } from '../services/familyRootsService';
 
 export const DEMO_PROFILES = [
   // G1 - Grands-parents

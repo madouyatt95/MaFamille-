@@ -244,6 +244,8 @@ type ValidationLogRow = {
 };
 
 const localProfileKey = (foyerId: string) => `mf_family_roots_profiles_${foyerId}`;
+const snapshotCacheKey = (foyerId: string) => `mf_family_roots_snapshot_v2_${foyerId}`;
+const SNAPSHOT_CACHE_TTL = 5 * 60 * 1000;
 const profileSelectLegacy = 'id, foyer_id, member_id, display_name, birth_date, branch, country, origin_city, nickname, bio, languages, photo_url, is_memorial, death_date, is_minor, visibility, shared_fields';
 const profileSelectWithCoordinates = 'id, foyer_id, member_id, display_name, birth_date, branch, country, origin_city, latitude, longitude, nickname, bio, languages, photo_url, is_memorial, death_date, is_minor, visibility, shared_fields';
 const tableMissing = (error: { message?: string; code?: string } | null) => {
@@ -369,6 +371,39 @@ const persistLocalProfile = (foyerId: string, profile: FamilyTreeProfile) => {
   localStorage.setItem(localProfileKey(foyerId), JSON.stringify(saved));
 };
 
+const memberSnapshotSignature = (members: Member[]) => members
+  .map(member => `${member.id}:${member.name}:${member.birthDate || ''}:${member.photoUrl || ''}:${member.approved !== false}`)
+  .sort()
+  .join('|');
+
+const readCachedSnapshot = (foyerId: string, members: Member[]): FamilyRootsSnapshot | null => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(snapshotCacheKey(foyerId)) || 'null') as {
+      savedAt?: number;
+      memberSignature?: string;
+      snapshot?: FamilyRootsSnapshot;
+    } | null;
+    if (!parsed?.snapshot || !parsed.savedAt) return null;
+    if (Date.now() - parsed.savedAt > SNAPSHOT_CACHE_TTL) return null;
+    if (parsed.memberSignature !== memberSnapshotSignature(members)) return null;
+    return parsed.snapshot;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedSnapshot = (foyerId: string, members: Member[], snapshot: FamilyRootsSnapshot) => {
+  try {
+    localStorage.setItem(snapshotCacheKey(foyerId), JSON.stringify({
+      savedAt: Date.now(),
+      memberSignature: memberSnapshotSignature(members),
+      snapshot
+    }));
+  } catch {
+    // A full cache must never block the family tree.
+  }
+};
+
 const buildLocalSnapshot = (foyerId: string, members: Member[]): FamilyRootsSnapshot => {
   const profiles = localProfilesFromMembers(foyerId, members);
   return {
@@ -386,11 +421,15 @@ const buildLocalSnapshot = (foyerId: string, members: Member[]): FamilyRootsSnap
 };
 
 export const familyRootsService = {
-  async load(foyerId: string, members: Member[], canManage: boolean): Promise<FamilyRootsSnapshot> {
+  async load(foyerId: string, members: Member[], canManage: boolean, force = false): Promise<FamilyRootsSnapshot> {
     const fallbackProfiles = localProfilesFromMembers(foyerId, members);
     const client = getSupabaseClient();
     if (!client || !foyerId || foyerId === 'local') {
       return buildLocalSnapshot(foyerId || 'local', members);
+    }
+    if (!force) {
+      const cached = readCachedSnapshot(foyerId, members);
+      if (cached) return cached;
     }
 
     const settingsResult = await client
@@ -490,6 +529,7 @@ export const familyRootsService = {
         snap.shareCode = shareCode;
         snap.shareCodeExpiresAt = shareCodeExpiresAt;
       }
+      writeCachedSnapshot(foyerId, members, snap);
       return snap;
     }
     if (canManage) {
@@ -702,7 +742,7 @@ export const familyRootsService = {
       createdAt: row.created_at
     }));
 
-    return {
+    const snapshot: FamilyRootsSnapshot = {
       shareCode,
       shareCodeExpiresAt,
       profiles,
@@ -716,6 +756,12 @@ export const familyRootsService = {
       validationLogs,
       cloudEnabled: true
     };
+    writeCachedSnapshot(foyerId, members, snapshot);
+    return snapshot;
+  },
+
+  clearCache(foyerId: string): void {
+    try { localStorage.removeItem(snapshotCacheKey(foyerId)); } catch { /* Ignore unavailable storage. */ }
   },
 
   async updateProfile(foyerId: string, profile: FamilyTreeProfile): Promise<void> {
@@ -742,7 +788,9 @@ export const familyRootsService = {
     };
     let { error } = await client.from('family_tree_profiles').update(payload).eq('id', profile.id).eq('foyer_id', foyerId);
     if (error && coordinateColumnsMissing(error)) {
-      const { latitude: _latitude, longitude: _longitude, ...legacyPayload } = payload;
+      const legacyPayload = { ...payload };
+      delete (legacyPayload as Partial<typeof payload>).latitude;
+      delete (legacyPayload as Partial<typeof payload>).longitude;
       ({ error } = await client.from('family_tree_profiles').update(legacyPayload).eq('id', profile.id).eq('foyer_id', foyerId));
     }
     if (error) throw error;
@@ -792,7 +840,9 @@ export const familyRootsService = {
     };
     let { data, error } = await client.from('family_tree_profiles').insert(payload).select(profileSelectWithCoordinates).single();
     if (error && coordinateColumnsMissing(error)) {
-      const { latitude: _latitude, longitude: _longitude, ...legacyPayload } = payload;
+      const legacyPayload = { ...payload };
+      delete (legacyPayload as Partial<typeof payload>).latitude;
+      delete (legacyPayload as Partial<typeof payload>).longitude;
       ({ data, error } = await client.from('family_tree_profiles').insert(legacyPayload).select(profileSelectLegacy).single());
     }
     if (error) throw error;

@@ -12,7 +12,7 @@ import {
   Sparkles,
   Loader
 } from 'lucide-react';
-import type { ChoreTask, FamilyEvent, Member, EventType, Transaction, TransactionType } from '../types';
+import type { Account, ChoreTask, FamilyEvent, Member, EventType, Transaction, TransactionType } from '../types';
 import { parseReceiptText, recognizeImageText } from '../utils/localOcr';
 
 interface QuickActionsSheetProps {
@@ -26,6 +26,9 @@ interface QuickActionsSheetProps {
   onNavigateToMembers?: () => void;
   isPremium?: boolean;
   onTriggerPaywall?: () => void;
+  accounts?: Account[];
+  initialTab?: AddTab;
+  initialTransaction?: { title?: string; amount?: number; category?: string; accountId?: string } | null;
 }
 
 type AddTab = 'event' | 'transaction' | 'task' | 'document' | 'member';
@@ -42,9 +45,12 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   onNavigateToVault,
   onNavigateToMembers,
   isPremium = false,
-  onTriggerPaywall
+  onTriggerPaywall,
+  accounts = [],
+  initialTab,
+  initialTransaction
 }) => {
-  const [activeTab, setActiveTab] = useState<AddTab>('event');
+  const [activeTab, setActiveTab] = useState<AddTab>(initialTransaction ? 'transaction' : initialTab || 'event');
   const [showSuccess, setShowSuccess] = useState(false);
 
   // Local OCR receipt scanner state
@@ -92,11 +98,12 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   const [eventDesc, setEventDesc] = useState('');
 
   // Transaction
-  const [transTitle, setTransTitle] = useState('');
-  const [transAmount, setTransAmount] = useState('');
+  const [transTitle, setTransTitle] = useState(initialTransaction?.title || '');
+  const [transAmount, setTransAmount] = useState(initialTransaction?.amount ? String(initialTransaction.amount) : '');
   const [transType, setTransType] = useState<TransactionType>('expense');
-  const [transCat, setTransCat] = useState('Alimentation');
+  const [transCat, setTransCat] = useState(initialTransaction?.category || 'Alimentation');
   const [transMemberId, setTransMemberId] = useState('');
+  const [transAccountId, setTransAccountId] = useState(initialTransaction?.accountId || '');
 
   // Task
   const [taskTitle, setTaskTitle] = useState('');
@@ -121,7 +128,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
 
   const resetForms = () => {
     setEventTitle(''); setEventDate(''); setEventTime(''); setEventMemberId(''); setEventLoc(''); setEventDesc('');
-    setTransTitle(''); setTransAmount(''); setTransMemberId('');
+    setTransTitle(''); setTransAmount(''); setTransMemberId(''); setTransAccountId('');
     setTaskTitle(''); setTaskMemberId(''); setTaskRewardAmount('');
   };
 
@@ -154,7 +161,8 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
       date: new Date().toISOString().split('T')[0],
       title: transTitle,
       memberId: transMemberId || undefined,
-      memberName: member?.name || undefined
+      memberName: member?.name || undefined,
+      accountId: transAccountId || undefined
     });
     triggerSuccess();
   };
@@ -505,6 +513,18 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
                         ))}
                       </select>
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Compte débité</label>
+                    <select
+                      value={transAccountId}
+                      onChange={(e) => setTransAccountId(e.target.value)}
+                      className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF] transition-all"
+                    >
+                      <option value="">À classer sans compte</option>
+                      {accounts.map(account => <option key={account.id} value={account.id}>{account.name} · {account.balance.toFixed(2)} €</option>)}
+                    </select>
                   </div>
 
                   <button 

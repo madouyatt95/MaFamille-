@@ -16,6 +16,7 @@ class BridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(NativeSpeechPlugin())
         bridge?.registerPluginInstance(AppStoreBillingPlugin())
         bridge?.registerPluginInstance(LocalOcrPlugin())
+        bridge?.registerPluginInstance(SharedInboxPlugin())
         flushPendingQuickMicroRequest()
     }
 
@@ -28,22 +29,21 @@ class BridgeViewController: CAPBridgeViewController {
     }
 
     private func flushPendingQuickMicroRequest() {
-        let pendingAction = UserDefaults.standard.string(forKey: "mf_pending_quick_action_native")
-        let pendingQuery = UserDefaults.standard.string(forKey: "mf_pending_quick_action_query_native")
-        let hasPendingMicro = UserDefaults.standard.bool(forKey: "mf_pending_quick_micro_native")
+        let pending = MyFamilyQuickActionStore.consume()
+        let legacyMicro = UserDefaults.standard.bool(forKey: "mf_pending_quick_micro_native")
+        let pendingAction = pending?.action ?? (legacyMicro ? "open-micro" : nil)
+        let pendingQuery = pending?.query
 
-        guard hasPendingMicro || pendingAction != nil else {
+        guard let pendingAction else {
             return
         }
-
         UserDefaults.standard.removeObject(forKey: "mf_pending_quick_micro_native")
-        UserDefaults.standard.removeObject(forKey: "mf_pending_quick_action_native")
-        UserDefaults.standard.removeObject(forKey: "mf_pending_quick_action_query_native")
 
-        [0.0, 0.15, 0.4, 0.9, 1.8].forEach { delay in
+        let delays: [TimeInterval] = pendingAction == "open-micro" ? [0.0, 0.35] : [0.0]
+        delays.forEach { delay in
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 let script: String
-                if hasPendingMicro {
+                if pendingAction == "open-micro" {
                     script = """
                     try {
                       sessionStorage.setItem('mf_pending_quick_micro', 'true');
@@ -54,11 +54,11 @@ class BridgeViewController: CAPBridgeViewController {
                     }
                     """
                 } else {
-                    let query = (pendingQuery?.isEmpty == false ? pendingQuery : "action=\(pendingAction ?? "open-micro")") ?? "action=open-micro"
+                    let query = pendingQuery?.isEmpty == false ? pendingQuery! : "action=\(pendingAction)"
                     let safeQuery = query
                         .replacingOccurrences(of: "\\", with: "\\\\")
                         .replacingOccurrences(of: "'", with: "\\'")
-                    let safeAction = (pendingAction ?? "open-micro")
+                    let safeAction = pendingAction
                         .replacingOccurrences(of: "\\", with: "\\\\")
                         .replacingOccurrences(of: "'", with: "\\'")
                     script = """

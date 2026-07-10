@@ -22,6 +22,8 @@
 		9A1000022FC9000000000002 /* NativeSpeechPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1000042FC9000000000004 /* NativeSpeechPlugin.swift */; };
 		9A1000052FC9000000000005 /* AppStoreBillingPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1000062FC9000000000006 /* AppStoreBillingPlugin.swift */; };
 		9A1000082FC9000000000008 /* LocalOcrPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1000092FC9000000000009 /* LocalOcrPlugin.swift */; };
+		9A10000A2FC900000000000A /* MyFamilyShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A10000B2FC900000000000B /* MyFamilyShortcuts.swift */; };
+		9A10000C2FC900000000000C /* SharedInboxPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A10000D2FC900000000000D /* SharedInboxPlugin.swift */; };
 		AB7FFF4424EF46F2AED6556D /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34BC79DA6B0C4D932FDEDBF4 /* Foundation.framework */; };
 		B85C8A3EE59A01458F8340CD /* MyFamilyShare.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = C1E295C2E467EE205BA044F8 /* MyFamilyShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -69,6 +71,9 @@
 		9A1000062FC9000000000006 /* AppStoreBillingPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreBillingPlugin.swift; sourceTree = "<group>"; };
 		9A1000072FC9000000000007 /* MyFamilyPlus.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = MyFamilyPlus.storekit; sourceTree = "<group>"; };
 		9A1000092FC9000000000009 /* LocalOcrPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalOcrPlugin.swift; sourceTree = "<group>"; };
+		9A10000B2FC900000000000B /* MyFamilyShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyFamilyShortcuts.swift; sourceTree = "<group>"; };
+		9A10000D2FC900000000000D /* SharedInboxPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedInboxPlugin.swift; sourceTree = "<group>"; };
+		9A10000E2FC900000000000E /* MyFamilyShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyFamilyShare.entitlements; sourceTree = "<group>"; };
 		B1B80A1ACF5351F26C387E5E /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B6A561C7CC2BB430A4574808 /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		C1E295C2E467EE205BA044F8 /* MyFamilyShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MyFamilyShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -125,6 +130,8 @@
 				9A1000042FC9000000000004 /* NativeSpeechPlugin.swift */,
 				9A1000062FC9000000000006 /* AppStoreBillingPlugin.swift */,
 				9A1000092FC9000000000009 /* LocalOcrPlugin.swift */,
+				9A10000B2FC900000000000B /* MyFamilyShortcuts.swift */,
+				9A10000D2FC900000000000D /* SharedInboxPlugin.swift */,
 				9A1000072FC9000000000007 /* MyFamilyPlus.storekit */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -158,6 +165,7 @@
 			children = (
 				0B4EE641C2A5F4240FEE7472 /* ShareViewController.swift */,
 				B1B80A1ACF5351F26C387E5E /* Info.plist */,
+				9A10000E2FC900000000000E /* MyFamilyShare.entitlements */,
 			);
 			name = MyFamilyShare;
 			path = MyFamilyShare;
@@ -279,6 +287,8 @@
 				9A1000022FC9000000000002 /* NativeSpeechPlugin.swift in Sources */,
 				9A1000052FC9000000000005 /* AppStoreBillingPlugin.swift in Sources */,
 				9A1000082FC9000000000008 /* LocalOcrPlugin.swift in Sources */,
+				9A10000A2FC900000000000A /* MyFamilyShortcuts.swift in Sources */,
+				9A10000C2FC900000000000C /* SharedInboxPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -328,6 +338,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = MyFamilyShare/MyFamilyShare.entitlements;
 				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 7384RARK23;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -520,6 +531,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = MyFamilyShare/MyFamilyShare.entitlements;
 				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 7384RARK23;
 				GENERATE_INFOPLIST_FILE = NO;

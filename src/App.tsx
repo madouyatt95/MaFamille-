@@ -7,6 +7,13 @@ import type { User } from '@supabase/supabase-js';
 import { getConfiguredSupabaseAnonKey, getConfiguredSupabaseUrl } from './config/supabaseConfig';
 import { getGroceryItemEmoji } from './utils/groceryDisplay';
 import { parseHomeworkText, parseReceiptText, recognizeImageText } from './utils/localOcr';
+import { consumeNativeSharedInbox } from './utils/nativeSharedInbox';
+import {
+  queueTransactionSync,
+  readPendingTransactionSync,
+  removePendingTransactionSync,
+  type PendingTransactionSync
+} from './utils/offlineTransactionQueue';
 
 
 import { parseChoreTitle, serializeChoreTitle, parsePocketMoneyTitle, serializePocketMoneyTitle } from './types';
@@ -97,6 +104,7 @@ type SystemQuickAction =
   | 'arrival-school';
 
 type SharedIntakeTarget = 'budget' | 'homework' | 'vault' | 'agenda' | 'trip' | 'groceries' | 'memory';
+type QuickExpenseDraft = { title?: string; amount?: number; category?: string; accountId?: string };
 
 interface SharedIntakePayload {
   id: string;
@@ -115,7 +123,14 @@ interface SharedIntakePayload {
 const isQuickMicroUrl = (): boolean => {
   if (typeof window === 'undefined') return false;
   const params = new URLSearchParams(window.location.search);
-  return window.location.pathname.startsWith('/quick-micro') || params.get('action') === 'open-micro';
+  return window.location.pathname.startsWith('/quick-micro') || params.get('action') === 'open-micro' || window.location.pathname === '/action/open-micro';
+};
+
+const actionFromLocation = (params: URLSearchParams): string => {
+  const explicit = params.get('action');
+  if (explicit) return explicit;
+  const match = window.location.pathname.match(/^\/action\/([^/]+)/i);
+  return match?.[1] || '';
 };
 
 const normalizeSharedText = (payload: Partial<SharedIntakePayload>): string => (
@@ -313,6 +328,7 @@ const formatRelativeTime = (dateInput: string | Date | undefined, fallback: stri
 import { BottomNav } from './components/BottomNav';
 import { Sidebar } from './components/Sidebar';
 import { MemberAvatar } from './components/MemberAvatar';
+import { ImageCropper } from './components/ImageCropper';
 import { isGeneratedAvatar } from './utils/avatar';
 
 import { DEFAULT_CATEGORIES } from './data/budgetCategories';
@@ -330,7 +346,7 @@ import { getUnifiedEvents } from './utils/agendaHelper';
 import { buildSmartFamilyAlerts, defaultSmartFamilyPreferences, type SmartFamilyPreferences } from './utils/smartFamily';
 import type { GlobalSearchResult } from './utils/globalSearch';
 import type { ExternalEvent } from './utils/icalParser';
-import { Volume2, Mic, Bell, X, ChevronRight, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check, Star, ArrowLeft, Crown, Camera, Loader } from 'lucide-react';
+import { Volume2, Mic, Bell, X, ChevronRight, Settings as SettingsIcon, Lock, Sparkles, Home, ShieldAlert, Check, Star, ArrowLeft, Crown, Camera, Loader, Image, FileText } from 'lucide-react';
 
 const Accueil = lazy(() => import('./views/Accueil').then(module => ({ default: module.Accueil })));
 const Timeline = lazy(() => import('./views/Timeline').then(module => ({ default: module.Timeline })));
@@ -1104,11 +1120,15 @@ function App() {
   const [activeModule, rawSetActiveModule] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+  const [quickExpenseDraft, setQuickExpenseDraft] = useState<QuickExpenseDraft | null>(null);
   const [sharedIntake, setSharedIntake] = useState<SharedIntakePayload | null>(null);
   const [sharedIntakeTarget, setSharedIntakeTarget] = useState<SharedIntakeTarget>('vault');
   const [sharedOcrLoading, setSharedOcrLoading] = useState(false);
   const [sharedOcrError, setSharedOcrError] = useState('');
+  const [sharedCropFile, setSharedCropFile] = useState<File | null>(null);
   const sharedOcrInputRef = useRef<HTMLInputElement>(null);
+  const sharedCameraInputRef = useRef<HTMLInputElement>(null);
+  const sharedFilesInputRef = useRef<HTMLInputElement>(null);
   const isNativeApp = Capacitor.isNativePlatform();
   const [pendingQuickMicro, setPendingQuickMicro] = useState(() => {
     const requested = isQuickMicroUrl();
@@ -2413,7 +2433,28 @@ function App() {
     setSharedIntakeTarget(isHomework ? 'homework' : 'budget');
   }, [setActiveModule]);
 
-  const readSharedPayload = useCallback((shareId: string): Promise<LooseValue | null> => new Promise((resolve) => {
+  const openQuickExpense = useCallback((params: URLSearchParams = new URLSearchParams()) => {
+    const rawAmount = (params.get('amount') || '').replace(',', '.').replace(/[^0-9.]/g, '');
+    const parsedAmount = Number(rawAmount);
+    let rememberedAccountId = '';
+    try { rememberedAccountId = localStorage.getItem('mf_last_transaction_account') || ''; } catch { /* Optional preference. */ }
+    setPendingQuickMicro(false);
+    setPaywallOpen(false);
+    setActiveTab('budget');
+    setActiveModule('');
+    setQuickExpenseDraft({
+      title: params.get('merchant') || params.get('title') || 'Dépense',
+      amount: Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : undefined,
+      category: params.get('category') || 'Divers',
+      accountId: params.get('accountId') || rememberedAccountId || undefined
+    });
+    setQuickActionsOpen(true);
+  }, [setActiveModule]);
+
+  const readSharedPayload = useCallback(async (shareId: string): Promise<LooseValue | null> => {
+    const nativePayload = await consumeNativeSharedInbox(shareId);
+    if (nativePayload) return nativePayload;
+    return new Promise((resolve) => {
     const request = indexedDB.open('myfamily-plus-share-target', 1);
     request.onerror = () => resolve(null);
     request.onupgradeneeded = () => {
@@ -2438,7 +2479,8 @@ function App() {
         resolve(null);
       };
     };
-  }), []);
+    });
+  }, []);
 
   const routeSharedIntakePayload = useCallback((next: SharedIntakePayload) => {
     setSharedIntake(next);
@@ -2515,7 +2557,26 @@ function App() {
       } else if (action === 'share-receipt' || action === 'share-intake') {
         clearSystemQuickAction();
         openSharedIntakeFromParams(params, action);
-      } else if (action === 'paid' || action === 'open-micro') {
+      } else if (action === 'paid' || action === 'add-expense') {
+        clearSystemQuickAction();
+        openQuickExpense(params);
+      } else if (action === 'add-grocery') {
+        clearSystemQuickAction();
+        requestQuickMicroOpen();
+      } else if (action === 'arrival-home') {
+        clearSystemQuickAction();
+        setActiveTab('accueil');
+        setActiveModule('');
+        setAlertsPanelOpen(true);
+      } else if (action === 'arrival-store') {
+        clearSystemQuickAction();
+        setActiveTab('menu');
+        setActiveModule('courses');
+      } else if (action === 'arrival-school') {
+        clearSystemQuickAction();
+        setActiveTab('menu');
+        setActiveModule('ecole');
+      } else if (action === 'open-micro') {
         clearSystemQuickAction();
         requestQuickMicroOpen();
       }
@@ -2543,7 +2604,7 @@ function App() {
       window.removeEventListener('focus', handleQuickMicroResume);
       document.removeEventListener('visibilitychange', handleQuickMicroResume);
     };
-  }, [clearSystemQuickAction, openQuickScanIntake, openSharedIntakeFromParams, requestQuickMicroOpen]);
+  }, [clearSystemQuickAction, openQuickExpense, openQuickScanIntake, openSharedIntakeFromParams, requestQuickMicroOpen]);
 
   const handleGlobalSearchResultOpen = (result: GlobalSearchResult) => {
     if (result.focus?.type === 'alerts_panel') {
@@ -2784,7 +2845,7 @@ function App() {
     const tabParam = params.get('tab');
     const moduleParam = params.get('module');
     const groupIdParam = params.get('groupId');
-    const actionParam = params.get('action');
+    const actionParam = actionFromLocation(params);
     const joinParam = params.get('join')?.trim().toUpperCase() || '';
     const shouldOpenQuickMicro = window.location.pathname.startsWith('/quick-micro') || actionParam === 'open-micro';
     const normalizedAction = (actionParam || '') as SystemQuickAction | '';
@@ -2822,25 +2883,8 @@ function App() {
       setAlertsPanelOpen(false);
     }
     
-    if (normalizedAction === 'add-expense') {
-      setActiveTab('budget');
-      setActiveModule('');
-      setQuickActionsOpen(true);
-    } else if (normalizedAction === 'paid') {
-      try {
-        sessionStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
-        localStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
-        localStorage.setItem('mf_is_premium', String(effectiveIsPremium));
-      } catch {
-        // The pending React state is enough for this launch.
-      }
-      if (effectiveIsPremium) {
-        setPaywallOpen(false);
-      }
-      setActiveTab('budget');
-      setActiveModule('');
-      setPendingQuickMicro(true);
-      setQuickActionsOpen(false);
+    if (normalizedAction === 'add-expense' || normalizedAction === 'paid') {
+      openQuickExpense(params);
     } else if (normalizedAction === 'add-grocery') {
       try {
         sessionStorage.setItem(QUICK_MICRO_PENDING_KEY, 'true');
@@ -3125,7 +3169,7 @@ function App() {
       title: 'Premium activé',
       description: 'Votre foyer est maintenant synchronisé avec Stripe.'
     });
-  }, [isPremium]);
+  }, [isPremium, openQuickExpense]);
 
   const [isInitializingAuth, setIsInitializingAuth] = useState(true);
 
@@ -3249,9 +3293,7 @@ function App() {
       pendingAction = sessionStorage.getItem(QUICK_ACTION_PENDING_KEY)
         || localStorage.getItem(QUICK_ACTION_PENDING_KEY)
         || '';
-    } catch {
-      pendingAction = '';
-    }
+    } catch { /* Storage can be unavailable in private mode. */ }
 
     if (pendingAction === 'scan-homework') {
       clearSystemQuickAction();
@@ -10778,6 +10820,45 @@ function App() {
     }
   };
 
+  const syncPendingTransactionToCloud = useCallback(async (item: PendingTransactionSync): Promise<boolean> => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) return false;
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .upsert(item.transaction, { onConflict: 'id' });
+      if (transactionError) throw transactionError;
+      if (item.accountUpdate) {
+        const { error: accountError } = await supabase
+          .from('accounts')
+          .update({ balance: item.accountUpdate.balance })
+          .eq('id', item.accountUpdate.id);
+        if (accountError) throw accountError;
+      }
+      removePendingTransactionSync(item.id);
+      return true;
+    } catch (error) {
+      console.warn('Synchronisation différée de la dépense :', error);
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    const flushPendingTransactions = async () => {
+      if (!navigator.onLine) return;
+      const pending = readPendingTransactionSync();
+      for (const item of pending) {
+        await syncPendingTransactionToCloud(item);
+      }
+    };
+    window.addEventListener('online', flushPendingTransactions);
+    void flushPendingTransactions();
+    return () => window.removeEventListener('online', flushPendingTransactions);
+  }, [syncPendingTransactionToCloud, user?.id]);
+
   const handleAddTransaction = async (newTrans: LooseValue) => {
     const id = newTrans.id || `tx-${Date.now()}`;
     const nowStr = new Date().toISOString();
@@ -10842,6 +10923,11 @@ function App() {
       travel_id: newTrans.travelId || newTrans.travel_id
     };
 
+    if (finalTx.accountId) {
+      try { localStorage.setItem('mf_last_transaction_account', finalTx.accountId); } catch { /* Optional convenience preference. */ }
+    }
+
+    let accountUpdate: PendingTransactionSync['accountUpdate'];
     setTransactions(prev => [finalTx, ...prev]);
 
     // Update bank account balance if accountId is provided
@@ -10853,18 +10939,7 @@ function App() {
         setAccounts(prev => prev.map(acc => (
           acc.id === finalTx.accountId ? { ...acc, balance: updatedBalance } : acc
         )));
-
-        const supabase = getSupabaseClient();
-        if (supabase) {
-          const { error } = await supabase
-            .from('accounts')
-            .update({ balance: updatedBalance })
-            .eq('id', currentAccount.id);
-          if (error) {
-            console.error("Error updating account balance in Supabase:", error);
-            throw error;
-          }
-        }
+        accountUpdate = { id: currentAccount.id, balance: updatedBalance };
       }
     }
 
@@ -10968,48 +11043,48 @@ function App() {
       }
     }
 
-    // Sauvegarde en ligne vers Supabase
-    try {
-      const supabase = getSupabaseClient();
-      if (supabase) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const activeFoyerId = foyer?.id || localStorage.getItem('mf_cloud_foyer_id');
-          if (activeFoyerId && activeFoyerId !== 'foyer-simulated') {
-            const { error } = await supabase.from('transactions').insert({
-              id,
-              foyer_id: activeFoyerId,
-              amount: finalTx.amount,
-              type: finalTx.type,
-              category: finalTx.category,
-              date: finalTx.date || todayISO,
-              title: finalTx.title,
-              member_id: finalTx.memberId || null,
-              member_name: finalTx.memberName || 'Famille',
-              sub_category: finalTx.subCategory || null,
-              account_id: finalTx.accountId || null,
-              comment: serializeTransactionComment(finalTx.comment, {
-                moduleSource: finalTx.moduleSource || finalTx.source_module,
-                entryTime: finalTx.entryTime,
-                entryDate: finalTx.entryDate,
-                travelId: finalTx.travelId || finalTx.travel_id,
-                recurrenceInterval: finalTx.recurrenceInterval,
-                startDate: finalTx.startDate,
-                endDate: finalTx.endDate,
-                nextOccurrence: finalTx.nextOccurrence
-              }),
-              modification_history: JSON.stringify(finalTx.modificationHistory),
-              recurrence: finalTx.recurrence || 'none',
-              subscription_id: finalTx.subscriptionId || null
-            });
-            if (error) {
-              console.error("Error inserting transaction to Supabase:", error);
-            }
-          }
+    const activeFoyerId = foyer?.id || localStorage.getItem('mf_cloud_foyer_id');
+    if (activeFoyerId && activeFoyerId !== 'foyer-simulated' && getSupabaseClient()) {
+      const pendingSync: PendingTransactionSync = {
+        id,
+        foyerId: activeFoyerId,
+        queuedAt: nowStr,
+        accountUpdate,
+        transaction: {
+          id,
+          foyer_id: activeFoyerId,
+          amount: finalTx.amount,
+          type: finalTx.type,
+          category: finalTx.category,
+          date: finalTx.date || todayISO,
+          title: finalTx.title,
+          member_id: finalTx.memberId || null,
+          member_name: finalTx.memberName || 'Famille',
+          sub_category: finalTx.subCategory || null,
+          account_id: finalTx.accountId || null,
+          comment: serializeTransactionComment(finalTx.comment, {
+            moduleSource: finalTx.moduleSource || finalTx.source_module,
+            entryTime: finalTx.entryTime,
+            entryDate: finalTx.entryDate,
+            travelId: finalTx.travelId || finalTx.travel_id,
+            recurrenceInterval: finalTx.recurrenceInterval,
+            startDate: finalTx.startDate,
+            endDate: finalTx.endDate,
+            nextOccurrence: finalTx.nextOccurrence
+          }),
+          modification_history: JSON.stringify(finalTx.modificationHistory),
+          recurrence: finalTx.recurrence || 'none',
+          subscription_id: finalTx.subscriptionId || null
         }
+      };
+      const synced = await syncPendingTransactionToCloud(pendingSync);
+      if (!synced) {
+        queueTransactionSync(pendingSync);
+        setActiveToast({
+          title: 'Dépense conservée',
+          description: 'Elle sera synchronisée automatiquement au retour du réseau.'
+        });
       }
-    } catch (e) {
-      console.warn("Dépense sauvegardée localement (Supabase hors ligne ou non configuré):", e);
     }
   };
 
@@ -11039,15 +11114,8 @@ function App() {
     }
   };
 
-  const handleSharedOcrFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file || !sharedIntake) return;
-    if (!file.type.startsWith('image/')) {
-      setSharedOcrError('Choisissez une photo ou une image lisible.');
-      return;
-    }
-
+  const processSharedOcrImage = async (file: File) => {
+    if (!sharedIntake) return;
     setSharedOcrLoading(true);
     setSharedOcrError('');
     try {
@@ -11083,6 +11151,23 @@ function App() {
     } finally {
       setSharedOcrLoading(false);
     }
+  };
+
+  const handleSharedOcrFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !sharedIntake) return;
+    if (!file.type.startsWith('image/')) {
+      setSharedIntake({
+        ...sharedIntake,
+        title: sharedIntake.title || file.name,
+        files: [file, ...(sharedIntake.files || [])],
+        summary: `${file.name} est prêt à être ajouté après votre validation.`
+      });
+      setSharedOcrError('Le fichier a été ajouté. La lecture automatique est disponible pour les photos.');
+      return;
+    }
+    setSharedCropFile(file);
   };
 
   const handleConfirmSharedIntake = async () => {
@@ -13871,6 +13956,18 @@ function App() {
               schoolName={schoolName}
               onUpdateFoyerConfig={handleUpdateFoyerConfig}
               onDeleteAccount={handleDeleteAccount}
+              isNativeApp={isNativeApp}
+              onTestQuickAction={(action) => {
+                if (action === 'open-micro' || action === 'add-grocery') {
+                  requestQuickMicroOpen();
+                } else if (action === 'paid') {
+                  openQuickExpense();
+                } else if (action === 'scan-receipt') {
+                  openQuickScanIntake('receipt');
+                } else if (action === 'scan-homework') {
+                  openQuickScanIntake('homework');
+                }
+              }}
             />
           </div>
         );
@@ -14734,8 +14831,11 @@ function App() {
       {/* Floating Bottom sheet dialog form (Quick Actions Sheet) */}
       {quickActionsOpen && <Suspense fallback={null}><QuickActionsSheet
         isOpen={quickActionsOpen}
-        onClose={() => setQuickActionsOpen(false)}
+        onClose={() => { setQuickActionsOpen(false); setQuickExpenseDraft(null); }}
         members={appMembers}
+        accounts={accounts}
+        initialTab={quickExpenseDraft ? 'transaction' : undefined}
+        initialTransaction={quickExpenseDraft}
         onAddEvent={handleAddEvent}
         onAddTransaction={handleAddTransaction}
         onAddTask={handleAddTask}
@@ -16000,6 +16100,24 @@ function App() {
         </div>
       )}
 
+      {sharedCropFile && (
+        <ImageCropper
+          file={sharedCropFile}
+          aspect={sharedIntakeTarget === 'budget' ? 0.72 : 0.78}
+          title={sharedIntakeTarget === 'budget' ? 'Recadrer le ticket' : 'Recadrer le document'}
+          onCancel={() => setSharedCropFile(null)}
+          onConfirm={async (blob) => {
+            const cropped = new File(
+              [blob],
+              `${sharedCropFile.name.replace(/\.[^.]+$/, '') || 'document'}-recadre.jpg`,
+              { type: 'image/jpeg' }
+            );
+            setSharedCropFile(null);
+            await processSharedOcrImage(cropped);
+          }}
+        />
+      )}
+
       {sharedIntake && (
         <div className="fixed inset-0 z-[9998] flex items-end justify-center bg-[#020713]/70 px-4 pb-4 pt-10 text-white backdrop-blur-md sm:items-center">
           <div className="w-full max-w-md overflow-hidden rounded-[32px] border border-white/12 bg-[#101827]/95 shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
@@ -16057,17 +16175,15 @@ function App() {
                   onChange={handleSharedOcrFileChange}
                   className="hidden"
                 />
-                <button
-                  type="button"
-                  onClick={() => sharedOcrInputRef.current?.click()}
-                  disabled={sharedOcrLoading}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[#6C5CFF]/30 bg-[#6C5CFF]/15 px-4 py-3 text-xs font-black text-white transition hover:bg-[#6C5CFF]/25 disabled:cursor-wait disabled:opacity-70"
-                >
-                  {sharedOcrLoading ? <Loader className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                  <span>{sharedOcrLoading ? 'Lecture locale en cours...' : 'Photo, bibliothèque ou fichier'}</span>
-                </button>
+                <input ref={sharedCameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleSharedOcrFileChange} className="hidden" />
+                <input ref={sharedFilesInputRef} type="file" accept="image/*,application/pdf" onChange={handleSharedOcrFileChange} className="hidden" />
+                <div className="grid grid-cols-3 gap-2">
+                  <button type="button" onClick={() => sharedCameraInputRef.current?.click()} disabled={sharedOcrLoading} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl border border-[#6C5CFF]/30 bg-[#6C5CFF]/15 px-2 py-2 text-[10px] font-black text-white transition hover:bg-[#6C5CFF]/25 disabled:cursor-wait disabled:opacity-70"><Camera className="h-4 w-4" /><span>Appareil photo</span></button>
+                  <button type="button" onClick={() => sharedOcrInputRef.current?.click()} disabled={sharedOcrLoading} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl border border-[#6C5CFF]/30 bg-[#6C5CFF]/15 px-2 py-2 text-[10px] font-black text-white transition hover:bg-[#6C5CFF]/25 disabled:cursor-wait disabled:opacity-70">{sharedOcrLoading ? <Loader className="h-4 w-4 animate-spin" /> : <Image className="h-4 w-4" />}<span>Photothèque</span></button>
+                  <button type="button" onClick={() => sharedFilesInputRef.current?.click()} disabled={sharedOcrLoading} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl border border-[#6C5CFF]/30 bg-[#6C5CFF]/15 px-2 py-2 text-[10px] font-black text-white transition hover:bg-[#6C5CFF]/25 disabled:cursor-wait disabled:opacity-70"><FileText className="h-4 w-4" /><span>Fichiers</span></button>
+                </div>
                 <p className="mt-2 text-center text-[10px] font-semibold leading-relaxed text-white/45">
-                  OCR gratuit sur l’appareil : aucune image n’est envoyée à un serveur.
+                  Les photos sont lues sur l’appareil. Les PDF et fichiers restent à valider avant tout ajout.
                 </p>
                 {sharedOcrError && (
                   <p className="mt-2 rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-2 text-center text-[10px] font-bold text-red-200">

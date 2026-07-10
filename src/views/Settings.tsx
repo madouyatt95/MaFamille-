@@ -27,7 +27,15 @@ import {
   Gauge,
   X,
   Crown,
-  CreditCard
+  CreditCard,
+  Mic,
+  ReceiptText,
+  BookOpenCheck,
+  ShoppingCart,
+  WalletCards,
+  Copy,
+  CheckCircle2,
+  RadioTower
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
@@ -37,8 +45,10 @@ import type { Foyer, FoyerMember, Member } from '../types';
 import type { User } from '@supabase/supabase-js';
 import { defaultSmartFamilyPreferences, type SmartFamilyPreferences } from '../utils/smartFamily';
 import { MemberAvatar } from '../components/MemberAvatar';
+import { quickActionLink } from '../utils/nativeSharedInbox';
 
 type NotificationPrefs = Record<string, boolean>;
+type QuickActionId = 'open-micro' | 'paid' | 'scan-receipt' | 'scan-homework' | 'add-grocery';
 
 const defaultNotificationPrefs: NotificationPrefs = {
   groceries: true,
@@ -80,6 +90,8 @@ interface SettingsProps {
   schoolName?: string;
   onUpdateFoyerConfig?: (commune: string, school: string) => Promise<void> | void;
   onDeleteAccount?: () => Promise<void>;
+  isNativeApp?: boolean;
+  onTestQuickAction?: (action: QuickActionId) => void;
 }
 
 export const Settings: React.FC<SettingsProps> = ({
@@ -104,7 +116,9 @@ export const Settings: React.FC<SettingsProps> = ({
   communeName = '',
   schoolName = '',
   onUpdateFoyerConfig,
-  onDeleteAccount
+  onDeleteAccount,
+  isNativeApp = false,
+  onTestQuickAction
 }) => {
   const [savingBackup, setSavingBackup] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'compte' | 'famille' | 'alertes' | 'avance'>('compte');
@@ -114,6 +128,17 @@ export const Settings: React.FC<SettingsProps> = ({
   const [deleteAccountError, setDeleteAccountError] = useState('');
   const [openingStripePortal, setOpeningStripePortal] = useState(false);
   const [stripePortalError, setStripePortalError] = useState('');
+  const [copiedQuickAction, setCopiedQuickAction] = useState<QuickActionId | null>(null);
+
+  const copyQuickAction = async (action: QuickActionId) => {
+    try {
+      await navigator.clipboard.writeText(quickActionLink(action));
+      setCopiedQuickAction(action);
+      window.setTimeout(() => setCopiedQuickAction(null), 1800);
+    } catch {
+      setCopiedQuickAction(null);
+    }
+  };
 
   const premiumExpiresAt = foyer?.premiumExpiresAt ? new Date(foyer.premiumExpiresAt) : null;
   const hasValidPremiumDate = Boolean(premiumExpiresAt && Number.isFinite(premiumExpiresAt.getTime()));
@@ -1555,6 +1580,83 @@ export const Settings: React.FC<SettingsProps> = ({
               <span>Réinitialiser</span>
             </button>
           </div>
+        </div>
+      )}
+
+      {settingsTab === 'avance' && (
+        <div className="glass-panel space-y-4 rounded-[28px] border border-white/8 p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white">
+                <RadioTower className="h-4 w-4 text-[#9E94FF]" />
+                <span>Raccourcis MyFamily+</span>
+              </h3>
+              <p className="mt-2 text-xs font-medium leading-relaxed text-white/50">
+                {isNativeApp
+                  ? 'Disponibles avec Siri, Raccourcis, le bouton Action et Toucher le dos.'
+                  : 'Les liens ouvrent directement la bonne action sur cet appareil.'}
+              </p>
+            </div>
+            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-black uppercase ${isNativeApp ? 'bg-[#00D26A]/12 text-[#00D26A]' : 'bg-[#6C5CFF]/12 text-[#9E94FF]'}`}>
+              {isNativeApp ? 'iPhone prêt' : 'Liens prêts'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { id: 'open-micro', label: 'Micro', description: 'Commande principale', icon: Mic, color: '#FF4D6D' },
+              { id: 'paid', label: 'J’ai payé', description: 'Nouvelle dépense', icon: WalletCards, color: '#00D26A' },
+              { id: 'scan-receipt', label: 'Ticket', description: 'Photo, fichier ou galerie', icon: ReceiptText, color: '#FFB020' },
+              { id: 'scan-homework', label: 'Devoir', description: 'Lecture sur l’appareil', icon: BookOpenCheck, color: '#4F8CFF' },
+              { id: 'add-grocery', label: 'Courses', description: 'Ajout vocal rapide', icon: ShoppingCart, color: '#9E94FF' }
+            ] as const).map((shortcut) => {
+              const Icon = shortcut.icon;
+              return (
+                <button
+                  key={shortcut.id}
+                  type="button"
+                  onClick={() => onTestQuickAction?.(shortcut.id)}
+                  className="flex min-h-[78px] items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.035] p-3 text-left transition hover:border-white/15 hover:bg-white/[0.07] active:scale-[0.98]"
+                >
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border" style={{ color: shortcut.color, borderColor: `${shortcut.color}42`, backgroundColor: `${shortcut.color}18` }}>
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <strong className="block text-xs text-white">{shortcut.label}</strong>
+                    <small className="mt-1 block text-[9px] leading-tight text-white/40">{shortcut.description}</small>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <details className="group overflow-hidden rounded-2xl border border-white/8 bg-white/[0.025]">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
+              <span className="flex items-center gap-2 text-xs font-bold text-white">
+                <RadioTower className="h-4 w-4 text-[#00D26A]" /> Tags NFC personnels
+              </span>
+              <span className="text-[10px] text-white/35 transition group-open:rotate-180">▼</span>
+            </summary>
+            <div className="space-y-2 border-t border-white/6 p-3">
+              {([
+                ['open-micro', 'Micro principal'],
+                ['paid', 'Ajouter une dépense'],
+                ['add-grocery', 'Ajouter aux courses']
+              ] as const).map(([action, label]) => (
+                <div key={action} className="flex items-center justify-between gap-3 rounded-xl border border-white/6 bg-white/[0.035] px-3 py-2.5">
+                  <span className="text-[10px] font-bold text-white/65">{label}</span>
+                  <button
+                    type="button"
+                    onClick={() => void copyQuickAction(action)}
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/8 bg-white/5 text-white/55 transition hover:text-white"
+                    aria-label={`Copier le lien ${label}`}
+                  >
+                    {copiedQuickAction === action ? <CheckCircle2 className="h-4 w-4 text-[#00D26A]" /> : <Copy className="h-4 w-4" />}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </details>
         </div>
       )}
 

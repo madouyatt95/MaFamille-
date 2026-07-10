@@ -1,0 +1,38 @@
+.image-cropper-backdrop {
+  position: fixed;
+  z-index: 10050;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  color: var(--fr-text, #f8fafc);
+  background: rgba(4, 8, 20, .78);
+  backdrop-filter: blur(14px);
+}
+.image-cropper-panel {
+  width: min(430px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
+  padding: 18px;
+  box-sizing: border-box;
+  border: 1px solid var(--fr-line, rgba(255,255,255,.12));
+  border-radius: 22px;
+  background: var(--fr-surface, #111827);
+  box-shadow: 0 24px 70px rgba(0,0,0,.35);
+}
+.image-cropper-panel header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.image-cropper-panel header span { color: var(--fr-violet, #806cff); font-size: 9px; font-weight: 900; text-transform: uppercase; }
+.image-cropper-panel header h2 { margin: 3px 0 0; font-size: 18px; }
+.image-cropper-panel header button { width: 38px; height: 38px; display: grid; place-items: center; padding: 0; border: 1px solid var(--fr-line, rgba(255,255,255,.12)); border-radius: 50%; color: inherit; background: transparent; }
+.image-cropper-panel header svg { width: 17px; }
+.image-cropper-stage { position: relative; width: min(290px, 78vw); max-height: 390px; margin: 18px auto; overflow: hidden; border-radius: 20px; background: #050914; }
+.image-cropper-stage img { width: 100%; height: 100%; object-fit: cover; transition: transform .08s linear; }
+.image-cropper-frame { position: absolute; inset: 7px; border: 2px solid rgba(255,255,255,.85); border-radius: 16px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.16); pointer-events: none; }
+.image-cropper-controls { display: grid; gap: 11px; }
+.image-cropper-controls label { display: grid; grid-template-columns: 18px 70px 1fr; align-items: center; gap: 7px; color: var(--fr-muted, #94a3b8); font-size: 10px; font-weight: 800; }
+.image-cropper-controls svg { width: 16px; color: var(--fr-violet, #806cff); }
+.image-cropper-controls input { width: 100%; accent-color: var(--fr-violet, #806cff); }
+.image-cropper-actions { display: grid; grid-template-columns: .8fr 1.4fr; gap: 9px; margin-top: 18px; }
+.image-cropper-actions button { min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px; border: 1px solid var(--fr-line, rgba(255,255,255,.12)); border-radius: 14px; color: inherit; background: transparent; font-size: 10px; font-weight: 900; }
+.image-cropper-actions button.is-primary { border-color: transparent; color: #fff; background: var(--fr-violet, #6c5cff); }
+.image-cropper-actions svg { width: 15px; }

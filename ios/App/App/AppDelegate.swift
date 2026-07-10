@@ -15,6 +15,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         if FirebaseApp.app() == nil {
             FirebaseApp.configure()
         }
+        application.shortcutItems = [
+            UIApplicationShortcutItem(type: "fr.myfamilyplus.app.micro", localizedTitle: "Ouvrir le micro", localizedSubtitle: "Parler à MyFamily+", icon: UIApplicationShortcutIcon(systemImageName: "mic.fill")),
+            UIApplicationShortcutItem(type: "fr.myfamilyplus.app.receipt", localizedTitle: "Scanner un ticket", localizedSubtitle: "Lecture locale", icon: UIApplicationShortcutIcon(systemImageName: "doc.text.viewfinder")),
+            UIApplicationShortcutItem(type: "fr.myfamilyplus.app.homework", localizedTitle: "Scanner un devoir", localizedSubtitle: "Photo ou document", icon: UIApplicationShortcutIcon(systemImageName: "text.viewfinder")),
+            UIApplicationShortcutItem(type: "fr.myfamilyplus.app.expense", localizedTitle: "J’ai payé", localizedSubtitle: "Ajouter une dépense", icon: UIApplicationShortcutIcon(systemImageName: "eurosign.circle.fill"))
+        ]
+        if let shortcut = launchOptions?[.shortcutItem] as? UIApplicationShortcutItem {
+            handleHomeScreenShortcut(shortcut)
+        }
         return true
     }
 
@@ -33,7 +42,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+        NotificationCenter.default.post(name: .myFamilyPlusQuickMicroRequested, object: nil)
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
@@ -50,10 +59,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+        if let url = userActivity.webpageURL, handleMyFamilyPlusURL(url) {
+            return true
+        }
         // Called when the app was launched with an activity, including Universal Links.
         // Feel free to add additional processing here, but if you want the App API to support
         // tracking app url opens, make sure to keep this call
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+    }
+
+    func application(_ application: UIApplication, performActionFor shortcutItem: UIApplicationShortcutItem, completionHandler: @escaping (Bool) -> Void) {
+        completionHandler(handleHomeScreenShortcut(shortcutItem))
     }
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
@@ -65,14 +81,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     private func handleMyFamilyPlusURL(_ url: URL) -> Bool {
-        guard url.scheme?.lowercased() == "myfamilyplus" else {
+        let isCustomScheme = url.scheme?.lowercased() == "myfamilyplus"
+        let isUniversalLink = (url.scheme?.lowercased() == "https" || url.scheme?.lowercased() == "http")
+            && ["myfamilyplus.fr", "www.myfamilyplus.fr"].contains(url.host?.lowercased() ?? "")
+        guard isCustomScheme || isUniversalLink else {
             return false
         }
 
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let host = url.host?.lowercased()
         let path = url.path.lowercased()
+        let pathParts = path.split(separator: "/")
+        let pathAction = pathParts.dropFirst().first.map(String.init)?.lowercased()
         let action = components?.queryItems?.first(where: { $0.name.lowercased() == "action" })?.value?.lowercased()
+            ?? (path.hasPrefix("/action/") ? pathAction : nil)
 
         let allowedActions: Set<String> = [
             "open-micro",
@@ -92,14 +114,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             return false
         }
 
-        if host == "quick-micro" || path == "/quick-micro" || action == "open-micro" {
-            UserDefaults.standard.set(true, forKey: "mf_pending_quick_micro_native")
-        } else if let action = action {
-            UserDefaults.standard.set(action, forKey: "mf_pending_quick_action_native")
-            if let query = components?.percentEncodedQuery, !query.isEmpty {
-                UserDefaults.standard.set(query, forKey: "mf_pending_quick_action_query_native")
-            }
-        }
+        let resolvedAction = host == "quick-micro" || path == "/quick-micro" ? "open-micro" : (action ?? "open-micro")
+        MyFamilyQuickActionStore.enqueue(action: resolvedAction, query: components?.percentEncodedQuery ?? "action=\(resolvedAction)")
+        NotificationCenter.default.post(name: .myFamilyPlusQuickMicroRequested, object: nil)
+        return true
+    }
+
+    private func handleHomeScreenShortcut(_ item: UIApplicationShortcutItem) -> Bool {
+        let actions: [String: String] = [
+            "fr.myfamilyplus.app.micro": "open-micro",
+            "fr.myfamilyplus.app.receipt": "scan-receipt",
+            "fr.myfamilyplus.app.homework": "scan-homework",
+            "fr.myfamilyplus.app.expense": "paid"
+        ]
+        guard let action = actions[item.type] else { return false }
+        MyFamilyQuickActionStore.enqueue(action: action, query: "action=\(action)")
         NotificationCenter.default.post(name: .myFamilyPlusQuickMicroRequested, object: nil)
         return true
     }
