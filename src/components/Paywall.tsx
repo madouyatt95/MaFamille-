@@ -103,13 +103,16 @@ export const Paywall: React.FC<PaywallProps> = ({
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);
   const [appStoreProducts, setAppStoreProducts] = useState<AppStoreProduct[]>([]);
+  const [appStoreCatalogStatus, setAppStoreCatalogStatus] = useState<'idle' | 'loading' | 'ready' | 'unavailable'>('idle');
+  const [appStoreCatalogReload, setAppStoreCatalogReload] = useState(0);
 
   const isWeb = Capacitor.getPlatform() === 'web';
   const platform = isWeb ? 'web' : 'ios';
   const monthlyAppStoreProduct = appStoreProducts.find(product => product.id === appStoreBillingService.productIds.monthly);
   const yearlyAppStoreProduct = appStoreProducts.find(product => product.id === appStoreBillingService.productIds.yearly);
-  const priceMonthly = monthlyAppStoreProduct?.price || PREMIUM_PRICING[platform].monthly;
-  const priceYearly = yearlyAppStoreProduct?.price || PREMIUM_PRICING[platform].yearly;
+  const appStoreCatalogReady = isWeb || (!!monthlyAppStoreProduct && !!yearlyAppStoreProduct && appStoreCatalogStatus === 'ready');
+  const priceMonthly = monthlyAppStoreProduct?.price || (isWeb ? PREMIUM_PRICING.web.monthly : '—');
+  const priceYearly = yearlyAppStoreProduct?.price || (isWeb ? PREMIUM_PRICING.web.yearly : '—');
   const dynamicMonthlyEquivalent = yearlyAppStoreProduct?.priceAmount && yearlyAppStoreProduct.currencyCode
     ? new Intl.NumberFormat(undefined, {
         style: 'currency',
@@ -127,7 +130,7 @@ export const Paywall: React.FC<PaywallProps> = ({
   const selectedPrice = selectedPlan === 'monthly' ? priceMonthly : priceYearly;
   const selectedPeriod = selectedPlan === 'monthly' ? 'par mois' : 'par an';
   const canUseStripe = isWeb && !!foyerId && !!onStartStripeCheckout;
-  const canUseAppStore = !isWeb && !!foyerId && !!onStartAppStorePurchase;
+  const canUseAppStore = !isWeb && appStoreCatalogReady && !!foyerId && !!onStartAppStorePurchase;
   const testModeEnabled = import.meta.env.DEV && import.meta.env.VITE_ENABLE_PREMIUM_TEST_MODE === 'true';
   const canPurchase = canUseStripe || canUseAppStore || testModeEnabled;
 
@@ -148,19 +151,32 @@ export const Paywall: React.FC<PaywallProps> = ({
   useEffect(() => {
     if (!isOpen || isWeb) return;
     let cancelled = false;
-
-    appStoreBillingService.getProducts()
-      .then(products => {
-        if (!cancelled) setAppStoreProducts(products);
-      })
-      .catch(error => {
-        console.warn('[Paywall] Unable to load localized App Store prices:', error);
-      });
+    const loadingTimer = window.setTimeout(() => {
+      setAppStoreCatalogStatus('loading');
+      setAppStoreProducts([]);
+      appStoreBillingService.getProducts()
+        .then(products => {
+          if (cancelled) return;
+          setAppStoreProducts(products);
+          const productIds = new Set(products.map(product => product.id));
+          setAppStoreCatalogStatus(
+            productIds.has(appStoreBillingService.productIds.monthly)
+            && productIds.has(appStoreBillingService.productIds.yearly)
+              ? 'ready'
+              : 'unavailable'
+          );
+        })
+        .catch(error => {
+          console.warn('[Paywall] Unable to load localized App Store prices:', error);
+          if (!cancelled) setAppStoreCatalogStatus('unavailable');
+        });
+    }, 0);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(loadingTimer);
     };
-  }, [isOpen, isWeb]);
+  }, [appStoreCatalogReload, isOpen, isWeb]);
 
   if (!isOpen) return null;
 
@@ -316,6 +332,21 @@ export const Paywall: React.FC<PaywallProps> = ({
                   <span className="premium-paywall__radio-dot absolute bottom-4 right-4 h-4 w-4 rounded-full border border-white/20" />
                 </button>
               </div>
+
+              {!isWeb && appStoreCatalogStatus === 'unavailable' && (
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-[#FFB020]/25 bg-[#FFB020]/8 px-4 py-3">
+                  <p className="text-[11px] font-semibold leading-relaxed text-white/65">
+                    Les abonnements Apple sont momentanément indisponibles.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setAppStoreCatalogReload(value => value + 1)}
+                    className="shrink-0 rounded-xl border border-white/10 bg-white/7 px-3 py-2 text-[10px] font-black text-white transition hover:bg-white/12"
+                  >
+                    Réessayer
+                  </button>
+                </div>
+              )}
             </section>
 
             <section aria-labelledby="premium-benefits-title">
@@ -366,10 +397,12 @@ export const Paywall: React.FC<PaywallProps> = ({
           >
             {checkoutLoading || simulating ? (
               <><RefreshCw className="h-4 w-4 animate-spin" /> Préparation de votre essai...</>
+            ) : !isWeb && appStoreCatalogStatus === 'loading' ? (
+              <><RefreshCw className="h-4 w-4 animate-spin" /> Connexion à l’App Store...</>
             ) : canPurchase ? (
               <>{isWeb ? 'Essayer Premium gratuitement' : 'Continuer avec l’App Store'} <ChevronRight className="h-4 w-4" /></>
             ) : (
-              <><LockKeyhole className="h-4 w-4" /> Disponible bientôt sur l’App Store</>
+              <><LockKeyhole className="h-4 w-4" /> Abonnements indisponibles</>
             )}
           </button>
 
