@@ -10,7 +10,7 @@ import { parseHomeworkText, parseReceiptText, recognizeImageText } from './utils
 import { consumeNativeQuickAction, consumeNativeSharedInbox } from './utils/nativeSharedInbox';
 import { pickNativeImage } from './utils/nativeImagePicker';
 import { getQuickActionPreferences, recordQuickActionHistory, saveQuickActionPreferences } from './utils/quickActionPreferences';
-import { cleanMerchantName, findMerchantBrand } from './utils/merchantDirectory';
+import { cleanMerchantName, findMerchantBrand, getMerchantPreference } from './utils/merchantDirectory';
 import {
   queueTransactionSync,
   readPendingTransactionSync,
@@ -2475,9 +2475,10 @@ function App() {
     const rawTitle = params.get('merchant') || params.get('title') || preferences.expense.merchant || 'Dépense';
     const title = cleanMerchantName(rawTitle);
     const merchantBrand = findMerchantBrand(rawTitle);
-    const category = params.get('category') || merchantBrand?.category || preferences.expense.category || 'Divers';
-    const subCategory = params.get('subCategory') || merchantBrand?.subCategory || 'Divers';
-    const accountId = params.get('accountId') || preferences.expense.accountId || rememberedAccountId || undefined;
+    const merchantPreference = getMerchantPreference(rawTitle);
+    const category = params.get('category') || merchantPreference?.category || merchantBrand?.category || preferences.expense.category || 'Divers';
+    const subCategory = params.get('subCategory') || merchantPreference?.subCategory || merchantBrand?.subCategory || 'Divers';
+    const accountId = params.get('accountId') || merchantPreference?.accountId || preferences.expense.accountId || rememberedAccountId || undefined;
     const currency = (params.get('currency') || 'EUR').trim().toUpperCase();
     const rawDate = params.get('date') || params.get('datetime') || '';
     const parsedDate = rawDate ? new Date(rawDate) : null;
@@ -2521,9 +2522,17 @@ function App() {
         accountId,
         date,
         comment: sourceComment,
-        moduleSource: 'budget'
+        moduleSource: 'budget',
+        source: 'wallet',
+        sourceCurrency: currency,
+        sourceDateTime: parsedDate && !Number.isNaN(parsedDate.getTime()) ? rawDate : '',
+        merchantRaw: rawTitle,
+        hasLearnedRule: !!merchantPreference
       }
     });
+    if (window.location.pathname.startsWith('/quick-expense') || params.has('amount') || params.has('merchant')) {
+      window.history.replaceState({}, document.title, `/app${window.location.hash || ''}`);
+    }
   }, [setActiveModule]);
 
   const openQuickVault = useCallback(() => {

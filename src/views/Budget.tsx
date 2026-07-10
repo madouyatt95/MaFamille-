@@ -30,7 +30,7 @@ import { getSupabaseClient, serializeCategoryIcon, serializeTransactionComment, 
 import { DEFAULT_CATEGORIES } from '../data/budgetCategories';
 import { compressImageToBlob, isDataUrl, isRemoteUrl, uploadBlobToStorage } from '../utils/imageCompressor';
 import { MerchantLogo } from '../components/MerchantLogo';
-import { cleanMerchantName, findMerchantBrand } from '../utils/merchantDirectory';
+import { cleanMerchantName, findMerchantBrand, normalizeMerchantKey, saveMerchantPreference } from '../utils/merchantDirectory';
 
 const BudgetExport = lazy(() => import('./BudgetExport').then(module => ({ default: module.BudgetExport })));
 const BudgetImport = lazy(() => import('./BudgetImport').then(module => ({ default: module.BudgetImport })));
@@ -295,6 +295,9 @@ export const Budget: React.FC<BudgetProps> = ({
 
   const getCreationMethod = (tx: Transaction) => {
     const commentLower = (tx.comment || '').toLowerCase();
+    if (commentLower.includes('transaction wallet')) {
+      return '💳 Transaction Wallet';
+    }
     if (commentLower.includes('vocal') || commentLower.includes('voix') || commentLower.includes('micro') || commentLower.includes('audio')) {
       return '🎙️ Commande Vocale (Micro)';
     }
@@ -325,6 +328,13 @@ export const Budget: React.FC<BudgetProps> = ({
     moduleSource: 'budget',
     receiptBase64: ''
   });
+  const [walletDraftMeta, setWalletDraftMeta] = useState<{
+    currency: string;
+    dateTime?: string;
+    merchantRaw?: string;
+    hasLearnedRule?: boolean;
+  } | null>(null);
+  const [rememberMerchantRule, setRememberMerchantRule] = useState(false);
 
   const [catForm, setCatForm] = useState({
     name: '',
@@ -406,6 +416,14 @@ export const Budget: React.FC<BudgetProps> = ({
             receiptBase64: '',
             comment: activeSubView.options?.comment || ''
           });
+          const isWalletDraft = activeSubView.options?.source === 'wallet';
+          setWalletDraftMeta(isWalletDraft ? {
+            currency: activeSubView.options?.sourceCurrency || 'EUR',
+            dateTime: activeSubView.options?.sourceDateTime || undefined,
+            merchantRaw: activeSubView.options?.merchantRaw || activeSubView.options?.title || undefined,
+            hasLearnedRule: activeSubView.options?.hasLearnedRule === true
+          } : null);
+          setRememberMerchantRule(isWalletDraft);
           setIsTxModalOpen(true);
         });
         onClearActiveSubView?.();
@@ -925,6 +943,8 @@ export const Budget: React.FC<BudgetProps> = ({
       moduleSource: 'budget',
       receiptBase64: ''
     });
+    setWalletDraftMeta(null);
+    setRememberMerchantRule(false);
     setIsTxModalOpen(true);
   };
 
@@ -944,8 +964,23 @@ export const Budget: React.FC<BudgetProps> = ({
       moduleSource: tx.moduleSource || 'budget',
       receiptBase64: tx.receiptUrl || tx.receiptBase64 || ''
     });
+    setWalletDraftMeta(null);
+    setRememberMerchantRule(false);
     setIsTxModalOpen(true);
   };
+
+  const duplicateWalletTransaction = useMemo(() => {
+    if (!walletDraftMeta || editingTx) return null;
+    const amount = Number(txForm.amount);
+    const merchantKey = normalizeMerchantKey(txForm.title);
+    if (!Number.isFinite(amount) || amount <= 0 || !merchantKey) return null;
+    return transactions.find((transaction) => (
+      transaction.type === 'expense'
+      && Math.abs(Number(transaction.amount) - amount) < 0.005
+      && transaction.date === txForm.date
+      && normalizeMerchantKey(transaction.title) === merchantKey
+    )) || null;
+  }, [editingTx, transactions, txForm.amount, txForm.date, txForm.title, walletDraftMeta]);
 
   const handleSaveTx = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -954,6 +989,9 @@ export const Budget: React.FC<BudgetProps> = ({
       alert('Veuillez saisir un montant correct.');
       return;
     }
+    if (duplicateWalletTransaction && !window.confirm(
+      `Une dépense similaire existe déjà : ${duplicateWalletTransaction.title}, ${duplicateWalletTransaction.amount.toFixed(2)} ${walletDraftMeta?.currency || _currencySymbol}, le ${duplicateWalletTransaction.date}.\n\nVoulez-vous vraiment l'enregistrer une seconde fois ?`
+    )) return;
 
     const matchedMember = members.find(m => m.id === txForm.memberId);
     const newTxData: any = {
@@ -971,6 +1009,7 @@ export const Budget: React.FC<BudgetProps> = ({
       moduleSource: txForm.moduleSource,
       receiptBase64: txForm.receiptBase64
     };
+    if (walletDraftMeta?.currency) newTxData.currency = walletDraftMeta.currency;
 
     if (editingTx) {
       newTxData.id = editingTx.id;
@@ -1077,8 +1116,18 @@ export const Budget: React.FC<BudgetProps> = ({
       }
     }
 
+    if (!editingTx && rememberMerchantRule && txForm.type === 'expense' && txForm.title.trim()) {
+      saveMerchantPreference(walletDraftMeta?.merchantRaw || txForm.title, {
+        category: txForm.category,
+        subCategory: txForm.subCategory,
+        accountId: txForm.accountId || undefined
+      });
+    }
+
     setIsTxModalOpen(false);
     setEditingTx(null);
+    setWalletDraftMeta(null);
+    setRememberMerchantRule(false);
   };
 
   const handleDeleteTx = async (id: string) => {
@@ -3010,10 +3059,35 @@ export const Budget: React.FC<BudgetProps> = ({
           <form onSubmit={handleSaveTx} className="glass-panel border border-white/10 rounded-[28px] w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-white/5 pb-2">
               <h3 className="text-sm font-extrabold text-white uppercase">{editingTx ? 'Modifier la transaction' : 'Ajouter une transaction'}</h3>
-              <button type="button" onClick={() => setIsTxModalOpen(false)} className="p-1 text-white/40 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
+              <button type="button" onClick={() => { setIsTxModalOpen(false); setWalletDraftMeta(null); }} className="p-1 text-white/40 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
 
             <div className="space-y-3 text-xs">
+              {walletDraftMeta && (
+                <div className="rounded-2xl border border-[#00D26A]/20 bg-[#00D26A]/8 p-3.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <MerchantLogo merchant={txForm.title} className="h-12 w-12" />
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-[#00D26A]">Paiement reçu de Wallet</p>
+                        <p className="truncate text-sm font-black text-white">{findMerchantBrand(txForm.title)?.name || txForm.title || 'Commerce à préciser'}</p>
+                        {walletDraftMeta.dateTime && (
+                          <p className="mt-0.5 text-[9px] font-medium text-white/45">{new Date(walletDraftMeta.dateTime).toLocaleString('fr-FR')}</p>
+                        )}
+                      </div>
+                    </div>
+                    <span className="shrink-0 rounded-xl bg-white/7 px-2.5 py-1.5 text-[10px] font-black text-white/75">{walletDraftMeta.currency}</span>
+                  </div>
+                  <p className="mt-3 text-[10px] font-medium leading-relaxed text-white/55">Vérifiez le montant, le compte et la catégorie. Rien ne sera enregistré avant votre validation.</p>
+                  {walletDraftMeta.hasLearnedRule && <p className="mt-2 text-[9px] font-bold text-[#9E94FF]">Compte et catégorie proposés d’après vos choix précédents.</p>}
+                </div>
+              )}
+              {duplicateWalletTransaction && (
+                <div className="flex gap-2 rounded-2xl border border-[#FFB020]/25 bg-[#FFB020]/8 p-3 text-[#FFD080]">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p className="text-[10px] font-bold leading-relaxed">Une dépense identique semble déjà enregistrée aujourd’hui. Une confirmation supplémentaire sera demandée.</p>
+                </div>
+              )}
               {txForm.title && (
                 <div className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/4 p-3">
                   <MerchantLogo merchant={txForm.title} className="h-11 w-11" />
@@ -3029,7 +3103,7 @@ export const Budget: React.FC<BudgetProps> = ({
                   <input type="text" required value={txForm.title} onChange={e => setTxForm(prev => ({ ...prev, title: e.target.value }))} className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500" />
                 </div>
                 <div>
-                  <label className="block text-white/50 mb-1">Montant (€) *</label>
+                  <label className="block text-white/50 mb-1">Montant ({walletDraftMeta?.currency || _currencySymbol}) *</label>
                   <input type="number" step="0.01" required value={txForm.amount} onChange={e => setTxForm(prev => ({ ...prev, amount: e.target.value }))} className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500" />
                 </div>
               </div>
@@ -3123,6 +3197,21 @@ export const Budget: React.FC<BudgetProps> = ({
                 <label className="block text-white/50 mb-1">Note / Commentaire (Optionnel)</label>
                 <textarea value={txForm.comment} onChange={e => setTxForm(prev => ({ ...prev, comment: e.target.value }))} className="w-full bg-[#07111F]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500" rows={2} />
               </div>
+
+              {!editingTx && txForm.type === 'expense' && txForm.title.trim() && (
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/8 bg-white/4 p-3">
+                  <input
+                    type="checkbox"
+                    checked={rememberMerchantRule}
+                    onChange={(event) => setRememberMerchantRule(event.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-[#6C5CFF]"
+                  />
+                  <span>
+                    <strong className="block text-[10px] text-white">Mémoriser ces choix pour ce commerce</strong>
+                    <small className="mt-1 block text-[9px] font-medium leading-relaxed text-white/45">Le compte, la catégorie et la sous-catégorie resteront uniquement sur cet appareil.</small>
+                  </span>
+                </label>
+              )}
             </div>
 
             <button type="submit" className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-extrabold rounded-xl uppercase tracking-wider text-xs shadow-lg transition-all cursor-pointer">

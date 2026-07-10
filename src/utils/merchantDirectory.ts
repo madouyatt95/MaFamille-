@@ -48,19 +48,105 @@ const MERCHANT_BRANDS: MerchantBrand[] = [
   { id: 'netflix', name: 'Netflix', aliases: ['netflix com'], shortLabel: 'N', foreground: '#E50914', background: '#000000', category: 'Abonnements', subCategory: 'Streaming' },
   { id: 'spotify', name: 'Spotify', aliases: ['spotify france'], shortLabel: 'S', foreground: '#191414', background: '#1ED760', category: 'Abonnements', subCategory: 'Streaming' },
   { id: 'apple', name: 'Apple', aliases: ['apple com bill', 'apple store', 'itunes com bill'], shortLabel: 'A', foreground: '#FFFFFF', background: '#111111', category: 'Autres', subCategory: 'Divers' }
+  ,{ id: 'auchan-senegal', name: 'Auchan Sénégal', aliases: ['auchan senegal', 'auchan dakar', 'auchan keur massar', 'auchan mermoz'], shortLabel: 'A', foreground: '#E11D2E', background: '#FFFFFF', category: 'Alimentation', subCategory: 'Supermarché' }
+  ,{ id: 'edk', name: 'EDK', aliases: ['edk senegal', 'edk oil', 'edk supermarket'], shortLabel: 'EDK', foreground: '#FFFFFF', background: '#E31E24', category: 'Alimentation', subCategory: 'Supermarché' }
+  ,{ id: 'exclusive', name: 'Exclusive', aliases: ['exclusive senegal', 'exclusive supermarche'], shortLabel: 'EX', foreground: '#FFFFFF', background: '#128B45', category: 'Alimentation', subCategory: 'Supermarché' }
+  ,{ id: 'wave', name: 'Wave', aliases: ['wave mobile money', 'wave senegal', 'wave mali', 'wave ci'], shortLabel: 'W', foreground: '#111827', background: '#6AD5FF', category: 'Autres', subCategory: 'Divers' }
+  ,{ id: 'orange-money', name: 'Orange Money', aliases: ['orange money', 'om senegal', 'om mali'], shortLabel: 'OM', foreground: '#FFFFFF', background: '#F16E00', category: 'Autres', subCategory: 'Divers' }
+  ,{ id: 'free-money', name: 'Free Money', aliases: ['free money senegal', 'free money'], shortLabel: 'FM', foreground: '#FFFFFF', background: '#D71920', category: 'Autres', subCategory: 'Divers' }
+  ,{ id: 'glovo', name: 'Glovo', aliases: ['glovoapp', 'glovo senegal', 'glovo france'], shortLabel: 'G', foreground: '#1D1D1B', background: '#FFC244', category: 'Alimentation', subCategory: 'Restaurant' }
+  ,{ id: 'yassir', name: 'Yassir', aliases: ['yassir ride', 'yassir senegal', 'yassir france'], shortLabel: 'Y', foreground: '#FFFFFF', background: '#6C3BFF', category: 'Transport', subCategory: 'Taxi' }
+  ,{ id: 'jumia', name: 'Jumia', aliases: ['jumia senegal', 'jumia pay', 'jumia food'], shortLabel: 'J', foreground: '#FFFFFF', background: '#F68B1E', category: 'Autres', subCategory: 'Divers' }
+  ,{ id: 'air-senegal', name: 'Air Sénégal', aliases: ['air senegal', 'airsenegal'], shortLabel: 'AS', foreground: '#FFFFFF', background: '#00853F', category: 'Voyages', subCategory: 'Billets' }
 ];
 
+const levenshteinDistance = (left: string, right: string): number => {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= left.length; i += 1) {
+    let diagonal = previous[0];
+    previous[0] = i;
+    for (let j = 1; j <= right.length; j += 1) {
+      const above = previous[j];
+      previous[j] = Math.min(
+        previous[j] + 1,
+        previous[j - 1] + 1,
+        diagonal + (left[i - 1] === right[j - 1] ? 0 : 1)
+      );
+      diagonal = above;
+    }
+  }
+  return previous[right.length];
+};
+
+export const normalizeMerchantKey = (merchant: string): string => normalizeMerchantText(merchant)
+  .replace(/\b\d{2,}\b/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
 export const findMerchantBrand = (merchant: string): MerchantBrand | null => {
-  const normalized = normalizeMerchantText(merchant);
+  const normalized = normalizeMerchantKey(merchant);
   if (!normalized) return null;
 
-  return MERCHANT_BRANDS.find((brand) => {
-    const candidates = [brand.name, ...brand.aliases].map(normalizeMerchantText);
-    return candidates.some((candidate) => normalized === candidate || normalized.includes(candidate));
-  }) || null;
+  const exactMatches = MERCHANT_BRANDS.flatMap((brand) => (
+    [brand.name, ...brand.aliases]
+      .map(normalizeMerchantText)
+      .filter((candidate) => normalized === candidate || normalized.includes(candidate) || candidate.includes(normalized))
+      .map((candidate) => ({ brand, score: candidate.length }))
+  )).sort((left, right) => right.score - left.score);
+  if (exactMatches[0]) return exactMatches[0].brand;
+
+  const merchantTokens = normalized.split(' ').filter((token) => token.length >= 4);
+  return MERCHANT_BRANDS.find((brand) => [brand.name, ...brand.aliases].some((candidate) => {
+    const candidateTokens = normalizeMerchantText(candidate).split(' ').filter((token) => token.length >= 4);
+    return merchantTokens.some((token) => candidateTokens.some((candidateToken) => {
+      const maxDistance = Math.max(token.length, candidateToken.length) >= 8 ? 2 : 1;
+      return levenshteinDistance(token, candidateToken) <= maxDistance;
+    }));
+  })) || null;
 };
 
 export const cleanMerchantName = (merchant: string): string => {
-  const trimmed = merchant.replace(/\s+/g, ' ').trim();
-  return findMerchantBrand(trimmed)?.name || trimmed;
+  const trimmed = merchant
+    .replace(/^\s*(?:cb|carte|paiement|payment|apple pay)\s*[-*:]*\s*/i, '')
+    .replace(/\b(?:france|sas|sarl|sa)\b/gi, ' ')
+    .replace(/\b\d{4,}\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return findMerchantBrand(trimmed)?.name || trimmed || 'Dépense';
+};
+
+export interface MerchantPreference {
+  category?: string;
+  subCategory?: string;
+  accountId?: string;
+  updatedAt: string;
+}
+
+const MERCHANT_PREFERENCES_KEY = 'mf_merchant_preferences_v1';
+
+const readMerchantPreferences = (): Record<string, MerchantPreference> => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MERCHANT_PREFERENCES_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+export const getMerchantPreference = (merchant: string): MerchantPreference | null => {
+  const key = findMerchantBrand(merchant)?.id || normalizeMerchantKey(merchant);
+  if (!key) return null;
+  return readMerchantPreferences()[key] || null;
+};
+
+export const saveMerchantPreference = (merchant: string, preference: Omit<MerchantPreference, 'updatedAt'>): void => {
+  const key = findMerchantBrand(merchant)?.id || normalizeMerchantKey(merchant);
+  if (!key) return;
+  try {
+    const current = readMerchantPreferences();
+    current[key] = { ...preference, updatedAt: new Date().toISOString() };
+    localStorage.setItem(MERCHANT_PREFERENCES_KEY, JSON.stringify(current));
+  } catch {
+    // The expense still saves when private storage is unavailable.
+  }
 };
