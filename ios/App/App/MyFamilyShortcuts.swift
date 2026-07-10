@@ -90,7 +90,7 @@ struct AddFamilyExpenseIntent: MyFamilyQuickActionIntent {
 @available(iOS 16.0, *)
 struct ScanFamilyReceiptIntent: MyFamilyQuickActionIntent {
     static var title: LocalizedStringResource = "Scanner un ticket"
-    static var description = IntentDescription("Ouvre le scanner de ticket avec lecture locale sur l’iPhone.")
+    static var description = IntentDescription("Ouvre le scanner de ticket avec lecture locale sur l’appareil.")
     var actionName: String { "scan-receipt" }
     var queryItems: [URLQueryItem] { [] }
 }
@@ -98,7 +98,7 @@ struct ScanFamilyReceiptIntent: MyFamilyQuickActionIntent {
 @available(iOS 16.0, *)
 struct ScanFamilyHomeworkIntent: MyFamilyQuickActionIntent {
     static var title: LocalizedStringResource = "Scanner un devoir"
-    static var description = IntentDescription("Ouvre le scanner de devoir avec lecture locale sur l’iPhone.")
+    static var description = IntentDescription("Ouvre le scanner de devoir avec lecture locale sur l’appareil.")
     var actionName: String { "scan-homework" }
     var queryItems: [URLQueryItem] { [] }
 }
