@@ -99,39 +99,51 @@ DECLARE
   v_alert_id TEXT := 'join-request-' || NEW.id::TEXT;
 BEGIN
   IF NEW.status = 'pending' THEN
-    INSERT INTO public.alerts (
-      id,
-      foyer_id,
-      title,
-      description,
-      time,
-      type,
-      read,
-      module,
-      sender_user_id,
-      sender_name,
-      created_at
-    ) VALUES (
-      v_alert_id,
-      NEW.family_id,
-      'Nouvelle demande d''adhésion',
-      NEW.applicant_name || ' souhaite rejoindre votre foyer.',
-      'À l''instant',
-      'info',
-      false,
-      'membres',
-      NEW.applicant_user_id,
-      NEW.applicant_name,
-      now()
-    )
-    ON CONFLICT (id) DO UPDATE SET
-      description = EXCLUDED.description,
+    UPDATE public.alerts
+    SET
+      title = 'Nouvelle demande d''adhésion',
+      description = NEW.applicant_name || ' souhaite rejoindre votre foyer.',
+      time = 'À l''instant',
+      type = 'info',
       read = false,
-      sender_user_id = EXCLUDED.sender_user_id,
-      sender_name = EXCLUDED.sender_name,
-      created_at = now();
+      module = 'membres',
+      sender_user_id = NEW.applicant_user_id,
+      sender_name = NEW.applicant_name,
+      created_at = now()
+    WHERE id = v_alert_id
+      AND foyer_id = NEW.family_id;
+
+    IF NOT FOUND THEN
+      INSERT INTO public.alerts (
+        id,
+        foyer_id,
+        title,
+        description,
+        time,
+        type,
+        read,
+        module,
+        sender_user_id,
+        sender_name,
+        created_at
+      ) VALUES (
+        v_alert_id,
+        NEW.family_id,
+        'Nouvelle demande d''adhésion',
+        NEW.applicant_name || ' souhaite rejoindre votre foyer.',
+        'À l''instant',
+        'info',
+        false,
+        'membres',
+        NEW.applicant_user_id,
+        NEW.applicant_name,
+        now()
+      );
+    END IF;
   ELSE
-    DELETE FROM public.alerts WHERE id = v_alert_id;
+    DELETE FROM public.alerts
+    WHERE id = v_alert_id
+      AND foyer_id = NEW.family_id;
   END IF;
 
   RETURN NEW;
@@ -146,6 +158,22 @@ FOR EACH ROW
 EXECUTE FUNCTION public.notify_family_join_request();
 
 -- Surface requests that were already pending before this migration.
+UPDATE public.alerts AS alert
+SET
+  title = 'Nouvelle demande d''adhésion',
+  description = request.applicant_name || ' souhaite rejoindre votre foyer.',
+  time = 'En attente',
+  type = 'info',
+  read = false,
+  module = 'membres',
+  sender_user_id = request.applicant_user_id,
+  sender_name = request.applicant_name,
+  created_at = request.created_at
+FROM public.family_join_requests AS request
+WHERE request.status = 'pending'
+  AND alert.id = 'join-request-' || request.id::TEXT
+  AND alert.foyer_id = request.family_id;
+
 INSERT INTO public.alerts (
   id,
   foyer_id,
@@ -173,12 +201,12 @@ SELECT
   request.created_at
 FROM public.family_join_requests AS request
 WHERE request.status = 'pending'
-ON CONFLICT (id) DO UPDATE SET
-  description = EXCLUDED.description,
-  read = false,
-  sender_user_id = EXCLUDED.sender_user_id,
-  sender_name = EXCLUDED.sender_name,
-  created_at = EXCLUDED.created_at;
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.alerts AS existing_alert
+    WHERE existing_alert.id = 'join-request-' || request.id::TEXT
+      AND existing_alert.foyer_id = request.family_id
+  );
 
 DO $$
 BEGIN
